@@ -61,6 +61,20 @@ Do not rename listener interfaces only to make every callback name maximally spe
 to preserve clarity as contracts grow, not to preemptively rename scoped listener types that are
 already clear.
 
+## Listener Interfaces vs Observer Structs
+
+Two notification shapes are in deliberate use; pick by contract, not habit:
+
+- A **nested `Listener` interface** (registered through `ScopedListener`) for multi-event,
+  multi-subscriber contracts on ports and views — `ITransport::Listener`,
+  `SignalChainView::Listener`.
+- An **observer struct of `std::function` members** for single-consumer callback bundles
+  installed by one owner — the engine's `PluginEditObserver` and its siblings.
+
+Do not add a listener-list mechanism for a contract with exactly one consumer, and do not grow a
+`std::function` struct into an ad hoc multi-subscriber registry; switch shapes when the contract
+crosses that line.
+
 ## View And Component Suffixes
 
 Use a two-tier suffix policy for project-owned UI component types:

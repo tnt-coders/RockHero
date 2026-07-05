@@ -496,6 +496,52 @@ The core should not care whether input came from:
 
 If it does care, the boundary is in the wrong place.
 
+# Sum Types vs Interfaces
+
+The codebase deliberately uses both `std::variant` sum types and small virtual interfaces for
+closed families of related types. The choice follows the expression problem — pick the axis that
+will grow:
+
+- **Many operations over a stable set of types → sum type.** When new *operations* arrive more
+  often than new *cases*, a `std::variant` wins: each new operation is one visitor or `switch`,
+  no hierarchy is touched, and exhaustiveness is compiler-checked. Exemplar: `EditorAction` —
+  the action cases are stable, while identity, availability gating, busy-supersede policy,
+  deferral, replay, and dispatch all range over them.
+- **Growing set of types under a stable operation surface → interface.** When new *cases* arrive
+  more often than new operations, a small interface wins: each new case is one class in its
+  feature folder touching nothing central. Exemplar: `IEdit` — undo entries keep gaining kinds
+  (signal-chain edits today, tone/automation edits next), while the operation surface
+  (`undo`, `redo`, `label`) stays fixed.
+
+When adding a new closed family, name which axis grows and pick accordingly; when extending an
+existing family, follow its established side. Do not convert one to the other for stylistic
+symmetry.
+
+# Async Choreography
+
+Editor-side asynchronous work uses exactly three idioms. Pick the matching one; do not invent a
+fourth without a constraint none of these satisfies.
+
+1. **Worker offload with tokened completion** — for CPU/IO work that must leave the message
+   thread (project IO, catalog scans). Submit through `IEditorTaskRunner`; the completion is
+   wrapped with the liveness guard and validated against the busy token captured at submission,
+   so stale completions from superseded operations are dropped silently
+   (`runWorkerThreadBusyOperation` composes all of this).
+2. **Paint-fenced message-thread work** — for blocking work that Tracktion requires on the
+   message thread (plugin instantiation). The work runs only after the busy overlay has actually
+   painted, because posted messages starve `WM_PAINT` on Windows
+   (`runAfterBusyPresentationReady`).
+3. **Yielding message-thread continuation chain** — for multi-second message-thread sequences
+   that must keep the pump alive and report progress (the engine's live-rig restore). Per-step
+   state lives in one heap-owned operation object; each step re-posts the next through the
+   scheduler.
+
+Guard rules that apply to all three: every deferred callback checks a liveness token
+(`std::weak_ptr` for non-component owners, `SafePointer` for components) before touching its
+owner, and every busy-scoped completion validates its captured busy token. Prompt-deferred
+actions (`DeferredProjectActionState`) are modal-flow state, not asynchrony, and stay out of
+these idioms.
+
 # Separate State From Side Effects
 
 One of the strongest patterns for testability is:
