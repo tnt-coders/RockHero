@@ -12,7 +12,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
-#include <rock_hero/common/core/session.h>
+#include <rock_hero/common/core/domain/session.h>
 #include <rock_hero/editor/core/editor_view_state.h>
 #include <rock_hero/editor/core/i_editor_controller.h>
 #include <rock_hero/editor/core/project/project.h>

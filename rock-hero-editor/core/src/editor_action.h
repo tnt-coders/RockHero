@@ -8,8 +8,8 @@
 #include <cstddef>
 #include <filesystem>
 #include <optional>
-#include <rock_hero/common/core/fraction.h>
-#include <rock_hero/common/core/timeline.h>
+#include <rock_hero/common/core/domain/fraction.h>
+#include <rock_hero/common/core/domain/timeline.h>
 #include <rock_hero/editor/core/editor_action_id.h>
 #include <rock_hero/editor/core/editor_view_state.h>
 #include <rock_hero/editor/core/signal_chain/plugin_block_assignment.h>

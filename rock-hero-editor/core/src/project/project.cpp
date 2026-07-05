@@ -12,11 +12,11 @@
 #include <functional>
 #include <optional>
 #include <rock_hero/common/audio/audio_normalization.h>
-#include <rock_hero/common/core/archive_io.h>
-#include <rock_hero/common/core/audio_asset.h>
-#include <rock_hero/common/core/audio_normalization.h>
-#include <rock_hero/common/core/rock_song_package.h>
-#include <rock_hero/common/core/workspace_paths.h>
+#include <rock_hero/common/core/domain/audio_asset.h>
+#include <rock_hero/common/core/domain/audio_normalization.h>
+#include <rock_hero/common/core/package/archive_io.h>
+#include <rock_hero/common/core/package/rock_song_package.h>
+#include <rock_hero/common/core/package/workspace_paths.h>
 #include <string>
 #include <system_error>
 #include <unordered_map>

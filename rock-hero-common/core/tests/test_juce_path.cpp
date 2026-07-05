@@ -1,5 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
-#include <rock_hero/common/core/juce_path.h>
+#include <rock_hero/common/core/infrastructure/juce_path.h>
 
 namespace rock_hero::common::core
 {

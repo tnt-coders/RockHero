@@ -8,7 +8,7 @@
 #include <expected>
 #include <filesystem>
 #include <optional>
-#include <rock_hero/common/core/song.h>
+#include <rock_hero/common/core/domain/song.h>
 #include <rock_hero/editor/core/project/project.h>
 #include <string>
 #include <string_view>

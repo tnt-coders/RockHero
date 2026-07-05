@@ -6,7 +6,7 @@
 #pragma once
 
 #include <rock_hero/common/audio/transport/transport_state.h>
-#include <rock_hero/common/core/timeline.h>
+#include <rock_hero/common/core/domain/timeline.h>
 
 namespace rock_hero::common::audio
 {

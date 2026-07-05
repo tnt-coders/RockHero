@@ -6,8 +6,8 @@
 #include <memory>
 #include <numbers>
 #include <rock_hero/common/audio/audio_normalization.h>
-#include <rock_hero/common/core/audio_normalization.h>
-#include <rock_hero/common/core/juce_path.h>
+#include <rock_hero/common/core/domain/audio_normalization.h>
+#include <rock_hero/common/core/infrastructure/juce_path.h>
 #include <string>
 #include <vector>
 

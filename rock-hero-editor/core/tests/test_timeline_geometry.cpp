@@ -1,7 +1,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <optional>
-#include <rock_hero/common/core/timeline.h>
+#include <rock_hero/common/core/domain/timeline.h>
 #include <rock_hero/editor/core/timeline/timeline_geometry.h>
 
 namespace rock_hero::editor::core

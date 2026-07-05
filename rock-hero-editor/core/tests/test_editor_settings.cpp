@@ -3,9 +3,9 @@
 #include <juce_data_structures/juce_data_structures.h>
 #include <memory>
 #include <optional>
-#include <rock_hero/common/core/application_identity.h>
-#include <rock_hero/common/core/fraction.h>
-#include <rock_hero/common/core/juce_path.h>
+#include <rock_hero/common/core/domain/fraction.h>
+#include <rock_hero/common/core/infrastructure/application_identity.h>
+#include <rock_hero/common/core/infrastructure/juce_path.h>
 #include <rock_hero/editor/core/settings/editor_settings.h>
 #include <string>
 #include <string_view>

@@ -4,7 +4,7 @@
 #include <chrono>
 #include <cstddef>
 #include <optional>
-#include <rock_hero/common/core/logger.h>
+#include <rock_hero/common/core/infrastructure/logger.h>
 #include <utility>
 
 namespace rock_hero::common::audio

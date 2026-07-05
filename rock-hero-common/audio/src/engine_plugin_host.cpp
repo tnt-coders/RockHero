@@ -8,7 +8,7 @@
 
 #include <chrono>
 #include <exception>
-#include <rock_hero/common/core/juce_path.h>
+#include <rock_hero/common/core/infrastructure/juce_path.h>
 #include <system_error>
 #include <unordered_set>
 
