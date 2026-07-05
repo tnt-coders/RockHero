@@ -350,6 +350,12 @@ public:
     */
     void onGridNoteValueChangeRequested(common::core::Fraction note_value) override;
 
+    /*!
+    \brief Reports the timeline zoom the view now displays so it can be persisted.
+    \param pixels_per_second Horizontal timeline scale currently displayed.
+    */
+    void onTimelineZoomChanged(double pixels_per_second) override;
+
     /*! \brief Shows the scanned plugin browser and starts an initial catalog scan when needed. */
     void onPluginBrowserRequested() override;
 

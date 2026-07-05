@@ -324,6 +324,25 @@ void TrackViewport::requestCursorFocus()
     focusCursorIfPending();
 }
 
+// Installs the callback that reports user-driven zoom changes for persistence.
+void TrackViewport::setZoomChangedCallback(std::function<void(double)> on_zoom_changed)
+{
+    m_on_zoom_changed = std::move(on_zoom_changed);
+}
+
+// Applies a restored per-project zoom on a fresh load; clamped by layoutScaledCanvas and never
+// re-reported through the zoom-changed callback because it did not come from the user.
+void TrackViewport::setRestoredZoomPixelsPerSecond(double pixels_per_second)
+{
+    if (!std::isfinite(pixels_per_second) || pixels_per_second <= 0.0)
+    {
+        return;
+    }
+
+    m_pixels_per_second = pixels_per_second;
+    layoutScaledCanvas();
+}
+
 // Paints the area around zoomed content when the viewport is larger than the canvas.
 void TrackViewport::paint(juce::Graphics& g)
 {
@@ -436,10 +455,15 @@ void TrackViewport::handleMouseWheelZoom(const juce::MouseWheelDetails& wheel)
     const double next_pixels_per_second =
         wheel_delta > 0.0f ? m_pixels_per_second * zoom_factor : m_pixels_per_second / zoom_factor;
 
+    const double previous_pixels_per_second = m_pixels_per_second;
     m_pixels_per_second =
         std::clamp(next_pixels_per_second, minPixelsPerSecond(), g_max_pixels_per_second);
     layoutScaledCanvas();
     centerViewportOnTime(cursor_position.seconds);
+    if (m_on_zoom_changed && m_pixels_per_second != previous_pixels_per_second)
+    {
+        m_on_zoom_changed(m_pixels_per_second);
+    }
 }
 
 // Finds the timeline time at the center of the currently visible viewport.

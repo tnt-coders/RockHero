@@ -35,6 +35,12 @@ struct ProjectGridNoteValueState
     common::core::Fraction grid_note_value{1, 4};
 };
 
+struct ProjectTimelineZoomState
+{
+    std::filesystem::path project_file;
+    double pixels_per_second{0.0};
+};
+
 // Builds the per-user settings file options used by the editor app.
 [[nodiscard]] juce::PropertiesFile::Options editorSettingsOptions()
 {
@@ -377,6 +383,80 @@ struct ProjectGridNoteValueCodec
     }
 };
 
+// Timeline zoom records resume one project's horizontal timeline scale across sessions.
+struct ProjectTimelineZoomCodec
+{
+    using State = ProjectTimelineZoomState;
+
+    static constexpr const char* g_list_key{"projectTimelineZooms"};
+    static constexpr const char* g_list_tag{"PROJECT_TIMELINE_ZOOMS"};
+    static constexpr const char* g_item_tag{"ZOOM"};
+    static constexpr const char* g_project_file_property{"projectFile"};
+    static constexpr const char* g_pixels_per_second_property{"pixelsPerSecond"};
+    static constexpr EditorSettingsErrorCode g_malformed_history_code{
+        EditorSettingsErrorCode::InvalidProjectTimelineZoomHistory
+    };
+
+    // Records arrive with keys already normalized, matching ProjectCursorCodec.
+    [[nodiscard]] static State normalized(State state)
+    {
+        return state;
+    }
+
+    // Structural validity only: the view clamps restored zoom to its own timeline bounds, so
+    // this store never silently rewrites persisted values.
+    [[nodiscard]] static bool isValid(const State& state)
+    {
+        return !state.project_file.empty() && std::isfinite(state.pixels_per_second) &&
+               state.pixels_per_second > 0.0;
+    }
+
+    // Records address the same project when their normalized path keys match.
+    [[nodiscard]] static bool sameKey(const State& lhs, const State& rhs)
+    {
+        return projectSettingsKeyFor(lhs.project_file) == projectSettingsKeyFor(rhs.project_file);
+    }
+
+    // Converts one XML item into a structurally valid record.
+    [[nodiscard]] static std::optional<State> fromXml(const juce::XmlElement& element)
+    {
+        const std::optional<std::string> project_file =
+            readStringAttribute(element, g_project_file_property);
+        if (!project_file.has_value() || project_file->empty() ||
+            !element.hasAttribute(g_pixels_per_second_property))
+        {
+            return std::nullopt;
+        }
+
+        const double pixels_per_second =
+            element.getDoubleAttribute(g_pixels_per_second_property, 0.0);
+        if (!std::isfinite(pixels_per_second) || pixels_per_second <= 0.0)
+        {
+            return std::nullopt;
+        }
+
+        std::filesystem::path key = projectSettingsKeyFor(
+            common::core::pathFromJuceString(juce::String::fromUTF8(project_file->c_str())));
+        if (key.empty())
+        {
+            return std::nullopt;
+        }
+
+        return State{
+            .project_file = std::move(key),
+            .pixels_per_second = pixels_per_second,
+        };
+    }
+
+    // Writes one record's attributes onto its XML item.
+    static void toXml(juce::XmlElement& element, const State& state)
+    {
+        element.setAttribute(
+            g_project_file_property, common::core::juceStringFromPath(state.project_file));
+        element.setAttribute(g_pixels_per_second_property, state.pixels_per_second);
+    }
+};
+
 // Calibration records remember per-physical-route input gain across device changes.
 struct InputCalibrationCodec
 {
@@ -467,6 +547,7 @@ struct InputCalibrationCodec
 
 using ProjectCursorStore = KeyedRecordStore<ProjectCursorCodec>;
 using ProjectGridNoteValueStore = KeyedRecordStore<ProjectGridNoteValueCodec>;
+using ProjectTimelineZoomStore = KeyedRecordStore<ProjectTimelineZoomCodec>;
 using InputCalibrationStore = KeyedRecordStore<InputCalibrationCodec>;
 
 // Saves pending changes and translates JUCE persistence failure into the settings domain.
@@ -704,6 +785,61 @@ std::expected<void, EditorSettingsError> EditorSettings::saveProjectGridNoteValu
         ProjectGridNoteValueState{.project_file = key, .grid_note_value = grid_note_value});
     ProjectGridNoteValueStore::write(m_properties, *states);
     return saveNow(m_properties, "Could not save project grid note value setting.");
+}
+
+// Reads the app-local timeline zoom associated with one project path.
+std::expected<std::optional<double>, EditorSettingsError> EditorSettings::projectTimelineZoomFor(
+    const std::filesystem::path& project_file) const
+{
+    const std::filesystem::path key = projectSettingsKeyFor(project_file);
+    if (key.empty())
+    {
+        return std::nullopt;
+    }
+
+    auto states = ProjectTimelineZoomStore::readOrError(
+        m_properties, "Saved project timeline zoom history is not valid XML.");
+    if (!states.has_value())
+    {
+        return std::unexpected{std::move(states.error())};
+    }
+
+    const auto found = std::ranges::find_if(*states, [&key](const ProjectTimelineZoomState& state) {
+        return projectSettingsKeyFor(state.project_file) == key;
+    });
+    if (found == states->end())
+    {
+        return std::nullopt;
+    }
+
+    return found->pixels_per_second;
+}
+
+// Stores one project's app-local timeline zoom without treating it as project package data.
+std::expected<void, EditorSettingsError> EditorSettings::saveProjectTimelineZoom(
+    const std::filesystem::path& project_file, double pixels_per_second)
+{
+    const std::filesystem::path key = projectSettingsKeyFor(project_file);
+    if (key.empty() || !std::isfinite(pixels_per_second) || pixels_per_second <= 0.0)
+    {
+        return std::unexpected{EditorSettingsError{
+            EditorSettingsErrorCode::InvalidSettingValue,
+            "Cannot save a timeline zoom for an invalid project path or scale."
+        }};
+    }
+
+    auto states = ProjectTimelineZoomStore::readOrError(
+        m_properties, "Cannot save timeline zoom because saved zoom history is invalid.");
+    if (!states.has_value())
+    {
+        return std::unexpected{std::move(states.error())};
+    }
+
+    ProjectTimelineZoomStore::replace(
+        *states,
+        ProjectTimelineZoomState{.project_file = key, .pixels_per_second = pixels_per_second});
+    ProjectTimelineZoomStore::write(m_properties, *states);
+    return saveNow(m_properties, "Could not save project timeline zoom setting.");
 }
 
 // Reads the calibration history without mutating settings or compacting invalid persisted records.

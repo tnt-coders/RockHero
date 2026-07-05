@@ -690,6 +690,11 @@ void EditorController::onGridNoteValueChangeRequested(common::core::Fraction not
     m_impl->onGridNoteValueChangeRequested(note_value);
 }
 
+void EditorController::onTimelineZoomChanged(double pixels_per_second)
+{
+    m_impl->onTimelineZoomChanged(pixels_per_second);
+}
+
 void EditorController::onPluginBrowserRequested()
 {
     m_impl->onPluginBrowserRequested();
@@ -1111,6 +1116,25 @@ void EditorController::Impl::onTimelineSeekRequested(common::core::TimePosition 
 void EditorController::Impl::onGridNoteValueChangeRequested(common::core::Fraction note_value)
 {
     runAction(EditorAction::SetGridNoteValue{note_value});
+}
+
+// Caches and persists the view-reported zoom as app-local per-project resume state. Zoom never
+// dirties project content and bypasses the action gate for the same reason cursor saves do.
+void EditorController::Impl::onTimelineZoomChanged(double pixels_per_second)
+{
+    if (!std::isfinite(pixels_per_second) || pixels_per_second <= 0.0 ||
+        pixels_per_second == m_timeline_zoom_pixels_per_second)
+    {
+        return;
+    }
+
+    m_timeline_zoom_pixels_per_second = pixels_per_second;
+    if (!m_project_file.empty())
+    {
+        recordSettingsResultBestEffort(
+            m_settings.saveProjectTimelineZoom(m_project_file, m_timeline_zoom_pixels_per_second),
+            "save project timeline zoom");
+    }
 }
 
 // Shows the plugin browser with whatever plugins the host already knows. Full catalog discovery is
@@ -1672,6 +1696,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.visible_timeline = timeline_range;
     state.tempo_map = session().song().tempo_map;
     state.grid_note_value = m_grid_note_value;
+    state.timeline_zoom_pixels_per_second = m_timeline_zoom_pixels_per_second;
     state.signal_chain = SignalChainViewState{
         .insert_plugin_enabled =
             isActionAvailable(EditorAction::Id::BeginPluginInsert, action_conditions),

@@ -261,6 +261,7 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
     const common::core::TimePosition next_cursor_position =
         cursorPositionForOpenedProject(state->file);
     m_grid_note_value = gridNoteValueForOpenedProject(state->file);
+    m_timeline_zoom_pixels_per_second = timelineZoomForOpenedProject(state->file);
     std::filesystem::path next_project_file{state->file};
 
     m_project = std::move(state->project);
@@ -374,6 +375,8 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
         m_signal_chain.clear();
         m_output_gain_db = 0.0;
         m_grid_note_value = common::core::Fraction{1, 4};
+        m_timeline_zoom_pixels_per_second = 0.0;
+        m_timeline_zoom_pixels_per_second = 0.0;
         resetUndoHistory("undo.reset.import_live_rig_failed");
         finishBusyOperation();
         reportError(
@@ -390,6 +393,7 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
     // the grid resets to the quarter-note default instead of inheriting the replaced project's
     // spacing.
     m_grid_note_value = common::core::Fraction{1, 4};
+    m_timeline_zoom_pixels_per_second = 0.0;
     m_has_untracked_unsaved_changes = false;
     m_session_faulted = false;
     clearDeferredProjectAction();
@@ -767,6 +771,8 @@ bool EditorController::Impl::closeProject()
         m_has_untracked_unsaved_changes = false;
         m_session_faulted = false;
         m_grid_note_value = common::core::Fraction{1, 4};
+        m_timeline_zoom_pixels_per_second = 0.0;
+        m_timeline_zoom_pixels_per_second = 0.0;
         m_plugin_catalog.hide();
         resetUndoHistory("undo.reset.close_project_failed");
         updateView();
@@ -780,6 +786,7 @@ bool EditorController::Impl::closeProject()
     m_has_untracked_unsaved_changes = false;
     m_session_faulted = false;
     m_grid_note_value = common::core::Fraction{1, 4};
+    m_timeline_zoom_pixels_per_second = 0.0;
     m_plugin_catalog.hide();
     resetUndoHistory("undo.reset.close_project");
     return true;
@@ -1048,6 +1055,12 @@ void EditorController::Impl::applyProjectWriteSuccess(const EditorAction::SavePr
     recordSettingsResultBestEffort(
         m_settings.saveProjectGridNoteValue(m_project_file, m_grid_note_value),
         "store project grid note value after save-as");
+    if (m_timeline_zoom_pixels_per_second > 0.0)
+    {
+        recordSettingsResultBestEffort(
+            m_settings.saveProjectTimelineZoom(m_project_file, m_timeline_zoom_pixels_per_second),
+            "store project timeline zoom after save-as");
+    }
 }
 
 void EditorController::Impl::applyProjectWriteSuccess(
@@ -1204,6 +1217,29 @@ common::core::Fraction EditorController::Impl::gridNoteValueForOpenedProject(
     }
 
     return common::core::Fraction{1, 4};
+}
+
+// Chooses the timeline zoom restored for a project open from app-local editor settings, falling
+// back to zero (view default) for unknown projects; the view clamps restored values to its own
+// timeline bounds.
+double EditorController::Impl::timelineZoomForOpenedProject(
+    const std::filesystem::path& project_file) const
+{
+    const auto saved_zoom = m_settings.projectTimelineZoomFor(project_file);
+    if (saved_zoom.has_value())
+    {
+        if (saved_zoom->has_value() && std::isfinite(**saved_zoom) && **saved_zoom > 0.0)
+        {
+            return **saved_zoom;
+        }
+    }
+    else
+    {
+        logEditorControllerBestEffortFailure(
+            "restore project timeline zoom", saved_zoom.error().message);
+    }
+
+    return 0.0;
 }
 
 // Saves the current cursor as app-local resume state for saved projects.

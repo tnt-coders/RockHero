@@ -109,6 +109,16 @@ public:
     */
     virtual void onGridNoteValueChangeRequested(common::core::Fraction note_value) = 0;
 
+    /*!
+    \brief Reports the timeline zoom the view now displays so it can be persisted.
+
+    Zoom is app-local resume state like the cursor position: it never dirties project content and
+    is stored per project path outside the package.
+
+    \param pixels_per_second Horizontal timeline scale currently displayed.
+    */
+    virtual void onTimelineZoomChanged(double pixels_per_second) = 0;
+
     /*! \brief Handles a request to show the scanned plugin browser. */
     virtual void onPluginBrowserRequested() = 0;
 
