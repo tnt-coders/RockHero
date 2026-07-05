@@ -6,7 +6,10 @@ target_sources(
     rock_hero_common_core
     PRIVATE src/package/archive_error.cpp
             src/package/package_id.cpp
-            src/package/rock_song_package.cpp
+            src/package/rock_song_package_format.cpp
+            src/package/rock_song_package_format.h
+            src/package/rock_song_package_read.cpp
+            src/package/rock_song_package_write.cpp
             src/package/song_package_error.cpp
             src/session/session.cpp
             src/shared/json.cpp
