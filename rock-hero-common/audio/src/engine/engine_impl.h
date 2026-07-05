@@ -40,10 +40,17 @@ class LiveRigGainPlugin;
 class PluginParameterDirtyTracker;
 class PluginDirtyStateTracker;
 
-/*! \brief Records recoverable instrument-route failures to the log. */
+/*!
+\brief Records recoverable instrument-route failures to the log.
+\param message Failure detail for the log line.
+*/
 void logInstrumentMonitoringFailure(const juce::String& message);
 
-/*! \brief Maps monitoring rebuild failures into plugin-host mutation errors. */
+/*!
+\brief Maps monitoring rebuild failures into plugin-host mutation errors.
+\param error Live-input failure reported by the monitoring rebuild.
+\return Equivalent plugin-host error for the mutation caller.
+*/
 [[nodiscard]] PluginHostError pluginHostErrorFromLiveInputError(const LiveInputError& error);
 
 // Per-call state for an in-flight async live rig load. Lives on the heap inside Engine::Impl so

@@ -64,6 +64,7 @@ public:
 
     /*!
     \brief Records draw parameters and returns the configured draw outcome.
+    \param g Graphics context recorded by the fake.
     \param bounds Target drawing bounds requested by the component under test.
     \param visible_range Timeline range requested for rendering.
     \param vertical_zoom Vertical waveform scale requested for rendering.

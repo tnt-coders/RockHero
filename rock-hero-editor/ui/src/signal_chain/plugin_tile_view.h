@@ -86,19 +86,31 @@ public:
     */
     void setEditEnabled(bool move_enabled, bool remove_enabled);
 
-    /*! \brief Draws the icon-only block, primary name, and secondary maker line. */
+    /*!
+    \brief Draws the icon-only block, primary name, and secondary maker line.
+    \param g Graphics context used for drawing.
+    */
     void paint(juce::Graphics& g) override;
 
     /*! \brief Pins the remove button to the tile's top-right corner. */
     void resized() override;
 
-    /*! \brief Resets drag-start state at the beginning of each pointer sequence. */
+    /*!
+    \brief Resets drag-start state at the beginning of each pointer sequence.
+    \param event Pointer event delivered by JUCE.
+    */
     void mouseDown(const juce::MouseEvent& event) override;
 
-    /*! \brief Starts a JUCE drag operation for reorderable plugin tiles. */
+    /*!
+    \brief Starts a JUCE drag operation for reorderable plugin tiles.
+    \param event Pointer event delivered by JUCE.
+    */
     void mouseDrag(const juce::MouseEvent& event) override;
 
-    /*! \brief Treats a tile click as an editor-window request while ignoring drag releases. */
+    /*!
+    \brief Treats a tile click as an editor-window request while ignoring drag releases.
+    \param event Pointer event delivered by JUCE.
+    */
     void mouseUp(const juce::MouseEvent& event) override;
 
     /*!
@@ -109,22 +121,40 @@ public:
     [[nodiscard]] bool isInterestedInDragSource(
         const juce::DragAndDropTarget::SourceDetails& drag_source_details) override;
 
-    /*! \brief Starts a visual reorder preview as the dragged tile enters this block. */
+    /*!
+    \brief Starts a visual reorder preview as the dragged tile enters this block.
+    \param drag_source_details Drag payload delivered by JUCE.
+    */
     void itemDragEnter(const juce::DragAndDropTarget::SourceDetails& drag_source_details) override;
 
-    /*! \brief Keeps the preview current while JUCE reports movement over the tile. */
+    /*!
+    \brief Keeps the preview current while JUCE reports movement over the tile.
+    \param drag_source_details Drag payload delivered by JUCE.
+    */
     void itemDragMove(const juce::DragAndDropTarget::SourceDetails& drag_source_details) override;
 
-    /*! \brief Leaves the last valid preview active while the drag crosses between targets. */
+    /*!
+    \brief Leaves the last valid preview active while the drag crosses between targets.
+    \param details Drag payload delivered by JUCE.
+    */
     void itemDragExit(const juce::DragAndDropTarget::SourceDetails& details) override;
 
-    /*! \brief Emits a move intent using the same final-index contract as the controller path. */
+    /*!
+    \brief Emits a move intent using the same final-index contract as the controller path.
+    \param drag_source_details Drag payload delivered by JUCE.
+    */
     void itemDropped(const juce::DragAndDropTarget::SourceDetails& drag_source_details) override;
 
-    /*! \brief Highlights the tile and reveals its remove "X" while the pointer is over it. */
+    /*!
+    \brief Highlights the tile and reveals its remove "X" while the pointer is over it.
+    \param event Pointer event delivered by JUCE.
+    */
     void mouseEnter(const juce::MouseEvent& event) override;
 
-    /*! \brief Clears the tile affordances when the pointer leaves the plugin tile. */
+    /*!
+    \brief Clears the tile affordances when the pointer leaves the plugin tile.
+    \param event Pointer event delivered by JUCE.
+    */
     void mouseExit(const juce::MouseEvent& event) override;
 
 private:

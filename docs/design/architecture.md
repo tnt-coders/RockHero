@@ -185,7 +185,7 @@ The four blocks — main, other first-party, third-party, standard library — a
 automatically by clang-format's `IncludeBlocks: Regroup` using the `IncludeCategories`
 defined in `.clang-format`.
 
-## Feature folders
+## Feature-folder navigation
 
 Inside each library, public headers and sources are grouped by feature folder
 (`include/rock_hero/editor/core/timeline/...`, `src/timeline/...`). Feature folders are
