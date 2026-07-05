@@ -10,7 +10,7 @@
 #include <optional>
 #include <rock_hero/common/audio/input/i_live_input.h>
 #include <rock_hero/common/audio/input/input_calibration_state.h>
-#include <rock_hero/editor/core/editor_view_state.h>
+#include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <rock_hero/editor/core/signal_chain/signal_chain_view_state.h>
 #include <string>
 #include <variant>

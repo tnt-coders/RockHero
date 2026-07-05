@@ -8,3 +8,11 @@ repos:
     rev: v22.1.2
     hooks:
       - id: clang-format
+  - repo: local
+    hooks:
+      - id: library-roots-hold-folders-only
+        name: library roots hold folders only
+        entry: python scripts/check_library_roots.py
+        language: system
+        pass_filenames: false
+        always_run: true

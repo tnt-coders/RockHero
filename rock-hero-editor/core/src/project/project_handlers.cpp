@@ -1,4 +1,4 @@
-#include "editor_controller_impl.h"
+#include "controller/editor_controller_impl.h"
 #include "shared/editor_controller_logging.h"
 
 #include <cassert>

@@ -1,4 +1,4 @@
-#include "editor_controller.h"
+#include "controller/editor_controller.h"
 
 #include "audio_device/audio_device_status_text.h"
 #include "busy/busy_operation_workflow.h"
@@ -38,7 +38,7 @@
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/editor/core/busy/busy_view_state.h>
-#include <rock_hero/editor/core/i_editor_view.h>
+#include <rock_hero/editor/core/controller/i_editor_view.h>
 #include <rock_hero/editor/core/settings/i_editor_settings.h>
 #include <rock_hero/editor/core/tasks/i_editor_task_runner.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>

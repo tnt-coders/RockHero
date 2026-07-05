@@ -1,8 +1,8 @@
-#include "main_window.h"
+#include "main_window/main_window.h"
 
 #include <algorithm>
 #include <cassert>
-#include <rock_hero/editor/ui/editor.h>
+#include <rock_hero/editor/ui/main_window/editor.h>
 #include <utility>
 
 namespace rock_hero::editor::ui

@@ -8,7 +8,7 @@ target_sources(
             src/package/package_id.cpp
             src/package/rock_song_package.cpp
             src/package/song_package_error.cpp
-            src/session.cpp
+            src/session/session.cpp
             src/shared/json.cpp
             src/shared/juce_path.cpp
             src/shared/logger.cpp

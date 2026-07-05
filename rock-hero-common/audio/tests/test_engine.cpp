@@ -10,7 +10,7 @@
 #include <memory>
 #include <optional>
 #include <rock_hero/common/audio/device/i_audio_device_configuration.h>
-#include <rock_hero/common/audio/engine.h>
+#include <rock_hero/common/audio/engine/engine.h>
 #include <rock_hero/common/audio/input/i_live_input.h>
 #include <rock_hero/common/audio/live_rig/i_live_rig.h>
 #include <rock_hero/common/audio/plugin/i_plugin_host.h>

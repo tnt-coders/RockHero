@@ -25,7 +25,7 @@ the engine translation units.
 #include <functional>
 #include <memory>
 #include <optional>
-#include <rock_hero/common/audio/engine.h>
+#include <rock_hero/common/audio/engine/engine.h>
 #include <rock_hero/common/core/shared/cancellation_token.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <string>

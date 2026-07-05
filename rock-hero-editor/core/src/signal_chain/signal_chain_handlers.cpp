@@ -1,4 +1,4 @@
-#include "editor_controller_impl.h"
+#include "controller/editor_controller_impl.h"
 #include "signal_chain/signal_chain_edits.h"
 
 #include <cassert>

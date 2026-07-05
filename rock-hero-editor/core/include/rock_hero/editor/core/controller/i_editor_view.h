@@ -6,7 +6,7 @@
 #pragma once
 
 #include <functional>
-#include <rock_hero/editor/core/editor_view_state.h>
+#include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <string>
 
 namespace rock_hero::editor::core

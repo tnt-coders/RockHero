@@ -146,7 +146,7 @@ Each library exposes its public headers through a **PUBLIC** include directory a
 always reference first-party headers through the full nested path:
 
 \code{.cpp}
-#include <rock_hero/common/audio/engine.h>
+#include <rock_hero/common/audio/engine/engine.h>
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/editor/ui/editor_view.h>
 #include <rock_hero/game/core/scoring.h>
@@ -172,7 +172,7 @@ The project-wide convention for `#include` form is:
 Example from a product-scope library source file:
 
 \code{.cpp}
-#include "engine.h"
+#include "engine/engine.h"
 
 #include <rock_hero/common/audio/song/i_thumbnail.h>
 

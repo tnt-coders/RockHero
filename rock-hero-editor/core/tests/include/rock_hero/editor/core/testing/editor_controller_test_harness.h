@@ -24,12 +24,12 @@
 #include <rock_hero/common/audio/testing/recording_plugin_host.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/audio/transport/transport_state.h>
-#include <rock_hero/common/core/session.h>
+#include <rock_hero/common/core/session/session.h>
 #include <rock_hero/common/core/song/audio_asset.h>
 #include <rock_hero/common/core/timeline/timeline.h>
-#include <rock_hero/editor/core/editor_controller.h>
-#include <rock_hero/editor/core/editor_view_state.h>
-#include <rock_hero/editor/core/i_editor_view.h>
+#include <rock_hero/editor/core/controller/editor_controller.h>
+#include <rock_hero/editor/core/controller/editor_view_state.h>
+#include <rock_hero/editor/core/controller/i_editor_view.h>
 #include <rock_hero/editor/core/settings/editor_settings.h>
 #include <rock_hero/editor/core/settings/i_editor_settings.h>
 #include <rock_hero/editor/core/tasks/i_editor_task_runner.h>

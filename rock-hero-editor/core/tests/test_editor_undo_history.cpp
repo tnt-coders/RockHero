@@ -1,4 +1,4 @@
-#include "editor_undo_history.h"
+#include "controller/editor_undo_history.h"
 
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>

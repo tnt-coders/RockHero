@@ -7,17 +7,16 @@ find_package(libebur128 CONFIG REQUIRED)
 # Shared audio ports, audio-device settings policy, and the default Tracktion/JUCE-backed adapter.
 target_sources(
     rock_hero_common_audio
-    PRIVATE src/audio_normalization.cpp
-            src/device/audio_device_configuration_error.cpp
+    PRIVATE src/device/audio_device_configuration_error.cpp
             src/device/audio_device_settings.cpp
-            src/engine.cpp
-            src/engine_device_config.cpp
-            src/engine_impl.h
-            src/engine_live_input.cpp
-            src/engine_live_rig.cpp
-            src/engine_plugin_host.cpp
-            src/engine_song_audio.cpp
-            src/engine_transport.cpp
+            src/engine/engine.cpp
+            src/engine/engine_device_config.cpp
+            src/engine/engine_impl.h
+            src/engine/engine_live_input.cpp
+            src/engine/engine_live_rig.cpp
+            src/engine/engine_plugin_host.cpp
+            src/engine/engine_song_audio.cpp
+            src/engine/engine_transport.cpp
             src/input/input_calibration.cpp
             src/input/live_input_error.cpp
             src/live_rig/live_rig_error.cpp
@@ -29,6 +28,7 @@ target_sources(
             src/shared/audio_path_util.cpp
             src/shared/audio_path_util.h
             src/shared/meter_reader.h
+            src/song/audio_normalization.cpp
             src/song/song_audio_error.cpp
             src/tracktion/engine_behaviors.cpp
             src/tracktion/engine_behaviors.h

@@ -5,7 +5,7 @@
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <memory>
 #include <numbers>
-#include <rock_hero/common/audio/audio_normalization.h>
+#include <rock_hero/common/audio/song/audio_normalization.h>
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/song/audio_normalization.h>
 #include <string>

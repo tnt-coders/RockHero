@@ -9,7 +9,7 @@
 #include <filesystem>
 #include <functional>
 #include <optional>
-#include <rock_hero/common/audio/audio_normalization.h>
+#include <rock_hero/common/audio/song/audio_normalization.h>
 #include <rock_hero/common/core/song/audio_normalization.h>
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/editor/core/project/i_song_importer.h>
