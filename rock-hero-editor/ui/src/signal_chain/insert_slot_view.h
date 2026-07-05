@@ -45,16 +45,28 @@ public:
     [[nodiscard]] bool isInterestedInDragSource(
         const juce::DragAndDropTarget::SourceDetails& drag_source_details) override;
 
-    /*! \brief Shows the preview for dropping onto this fixed block location. */
+    /*!
+    \brief Shows the preview for dropping onto this fixed block location.
+    \param drag_source_details Drag payload delivered by JUCE.
+    */
     void itemDragEnter(const juce::DragAndDropTarget::SourceDetails& drag_source_details) override;
 
-    /*! \brief Keeps the preview current while JUCE reports movement over the location. */
+    /*!
+    \brief Keeps the preview current while JUCE reports movement over the location.
+    \param drag_source_details Drag payload delivered by JUCE.
+    */
     void itemDragMove(const juce::DragAndDropTarget::SourceDetails& drag_source_details) override;
 
-    /*! \brief Clears this cell's hover feedback when the drag leaves the fixed location. */
+    /*!
+    \brief Clears this cell's hover feedback when the drag leaves the fixed location.
+    \param details Drag payload delivered by JUCE.
+    */
     void itemDragExit(const juce::DragAndDropTarget::SourceDetails& details) override;
 
-    /*! \brief Emits the same move intent used by tile-level drop paths. */
+    /*!
+    \brief Emits the same move intent used by tile-level drop paths.
+    \param drag_source_details Drag payload delivered by JUCE.
+    */
     void itemDropped(const juce::DragAndDropTarget::SourceDetails& drag_source_details) override;
 
     /*!
@@ -65,16 +77,25 @@ public:
     */
     bool hitTest(int x, int y) override;
 
-    /*! \brief Draws only the cell-level drop feedback; the button owns the plus icon. */
+    /*!
+    \brief Draws only the cell-level drop feedback; the button owns the plus icon.
+    \param g Graphics context used for drawing.
+    */
     void paint(juce::Graphics& g) override;
 
     /*! \brief Keeps the compact placeholder icon centered on the signal path. */
     void resized() override;
 
-    /*! \brief Brightens the "+" affordance while the pointer is over an active placeholder. */
+    /*!
+    \brief Brightens the "+" affordance while the pointer is over an active placeholder.
+    \param event Pointer event delivered by JUCE.
+    */
     void mouseEnter(const juce::MouseEvent& event) override;
 
-    /*! \brief Restores the dim "+" affordance once the pointer leaves the placeholder. */
+    /*!
+    \brief Restores the dim "+" affordance once the pointer leaves the placeholder.
+    \param event Pointer event delivered by JUCE.
+    */
     void mouseExit(const juce::MouseEvent& event) override;
 
 private:

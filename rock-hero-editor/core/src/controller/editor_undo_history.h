@@ -107,7 +107,8 @@ public:
     [[nodiscard]] virtual std::expected<void, EditorUndoFailureCode> redo(
         EditorEditContext& context) const = 0;
 
-    /*! \brief Returns the user-visible command label for menus and diagnostics. */
+    /*! \brief Returns the user-visible command label for menus and diagnostics.
+    \return Human-readable label for this edit. */
     [[nodiscard]] virtual std::string label() const = 0;
 
     /*!
@@ -115,6 +116,8 @@ public:
 
     Directions that instantiate a plugin (insert redo, remove undo) are potentially slow and must
     run behind the editor's plugin-loading busy presentation. All other edits apply synchronously.
+
+    \return True when applying in this direction instantiates a plugin.
     */
     [[nodiscard]] virtual bool instantiatesPlugin(EditorUndoDirection /*direction*/) const
     {
@@ -269,22 +272,28 @@ violations so the controller can fault the session.
 class EditorUndoHistory final
 {
 public:
-    /*! \brief Creates an empty history with a bounded entry depth. */
+    /*! \brief Creates an empty history with a bounded entry depth.
+    \param max_entries Maximum retained undo entries before the oldest is dropped. */
     explicit EditorUndoHistory(std::size_t max_entries = 100);
 
-    /*! \brief Reports the number of entries currently available to undo. */
+    /*! \brief Reports the number of entries currently available to undo.
+    \return Current undo depth. */
     [[nodiscard]] std::size_t undoDepth() const noexcept;
 
-    /*! \brief Reports the number of entries currently available to redo. */
+    /*! \brief Reports the number of entries currently available to redo.
+    \return Current redo depth. */
     [[nodiscard]] std::size_t redoDepth() const noexcept;
 
-    /*! \brief Reports whether an undo transition can begin now. */
+    /*! \brief Reports whether an undo transition can begin now.
+    \return True when an undo entry is available and no transition is pending. */
     [[nodiscard]] bool canUndo() const noexcept;
 
-    /*! \brief Reports whether a redo transition can begin now. */
+    /*! \brief Reports whether a redo transition can begin now.
+    \return True when a redo entry is available and no transition is pending. */
     [[nodiscard]] bool canRedo() const noexcept;
 
-    /*! \brief Reports whether a transition is waiting for commit or abort. */
+    /*! \brief Reports whether a transition is waiting for commit or abort.
+    \return True while a begun transition awaits commit() or abort(). */
     [[nodiscard]] bool hasPendingTransition() const noexcept;
 
     /*!
@@ -295,16 +304,21 @@ public:
     edits but has no baseline is not reported as unsaved here. Callers that must treat edits as
     unsaved before any baseline exists track that separately (for example a
     save-requires-destination flag).
+
+    \return True when the current position differs from a reachable clean marker.
     */
     [[nodiscard]] bool hasUnsavedEdits() const noexcept;
 
-    /*! \brief Reports whether a clean marker is currently set and reachable. */
+    /*! \brief Reports whether a clean marker is currently set and reachable.
+    \return True when markClean() ran and its position is still reachable. */
     [[nodiscard]] bool hasReachableCleanMarker() const noexcept;
 
-    /*! \brief Returns the label of the entry that would be undone next. */
+    /*! \brief Returns the label of the entry that would be undone next.
+    \return Entry label, or empty when nothing can be undone. */
     [[nodiscard]] std::optional<std::string> undoLabel() const;
 
-    /*! \brief Returns the label of the entry that would be redone next. */
+    /*! \brief Returns the label of the entry that would be redone next.
+    \return Entry label, or empty when nothing can be redone. */
     [[nodiscard]] std::optional<std::string> redoLabel() const;
 
     /*!
@@ -342,10 +356,12 @@ public:
     [[nodiscard]] EditorUndoTransitionResult abort(
         const EditorUndoPendingTransition& pending, EditorUndoFailureCode failure_code);
 
-    /*! \brief Marks the current history position as the clean revision. */
+    /*! \brief Marks the current history position as the clean revision.
+    \return Transition result and events for controller logging. */
     [[nodiscard]] EditorUndoTransitionResult markClean();
 
-    /*! \brief Clears all entries, pending state, and clean-marker state. */
+    /*! \brief Clears all entries, pending state, and clean-marker state.
+    \return Transition result and events for controller logging. */
     [[nodiscard]] EditorUndoTransitionResult reset();
 
 private:

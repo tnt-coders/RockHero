@@ -8,9 +8,16 @@
 namespace rock_hero::common::audio
 {
 
-// Translates a raw Tracktion insertion index for moving an existing plugin. Tracktion captures
-// the target sibling's ValueTree index before removing the plugin from its old parent, so source
-// plugins before that sibling need the requested raw index shifted left by one.
+/*!
+\brief Translates a raw Tracktion insertion index for moving an existing plugin.
+
+Tracktion captures the target sibling's ValueTree index before removing the plugin from its old
+parent, so source plugins before that sibling need the requested raw index shifted left by one.
+
+\param original_tracktion_index Raw list index the plugin currently occupies.
+\param destination_tracktion_index Raw list index requested for the plugin.
+\return Insertion index to pass to Tracktion for the move.
+*/
 [[nodiscard]] constexpr int tracktionInsertionIndexForExistingPluginMove(
     int original_tracktion_index, int destination_tracktion_index) noexcept
 {
