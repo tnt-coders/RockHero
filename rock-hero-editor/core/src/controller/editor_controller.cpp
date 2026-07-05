@@ -1580,6 +1580,9 @@ void EditorController::Impl::performActionImpl(EditorAction::PlayPause /*action*
     }
     else
     {
+        // Starting playback snaps the tone selection to the region under the cursor; the
+        // tone row then keeps it following boundary crossings at render cadence.
+        m_selected_tone_region_id = toneRegionIdAt(m_transport.position());
         m_transport.play();
     }
 }
