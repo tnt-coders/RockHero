@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <expected>
 #include <optional>
 #include <rock_hero/common/audio/i_live_input.h>
@@ -42,7 +43,7 @@ public:
     };
 
     /*! \brief Live-input side effect requested by the workflow. */
-    enum class Effect
+    enum class Effect : std::uint8_t
     {
         /*! \brief Disable processed live-input monitoring through the live-input port. */
         DisableLiveInputMonitoring,
