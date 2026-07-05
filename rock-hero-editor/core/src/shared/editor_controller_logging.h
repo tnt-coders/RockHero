@@ -1,5 +1,5 @@
 /*!
-ile editor_controller_logging.h
+\file editor_controller_logging.h
 \brief Shared best-effort failure logging for the editor controller's translation units.
 */
 
