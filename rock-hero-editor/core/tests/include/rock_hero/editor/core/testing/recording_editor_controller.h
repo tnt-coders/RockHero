@@ -165,6 +165,12 @@ public:
         grid_note_value_change_count += 1;
     }
 
+    /*! \copydoc IEditorController::onArrangementSelected */
+    void onArrangementSelected(std::string arrangement_id) override
+    {
+        last_selected_arrangement_id = std::move(arrangement_id);
+    }
+
     /*! \copydoc IEditorController::onToneRegionSelected */
     void onToneRegionSelected(std::string region_id) override
     {
@@ -412,6 +418,9 @@ public:
 
     /*! \brief Last grid note value emitted by the view, as a fraction of a whole note. */
     std::optional<common::core::Fraction> last_grid_note_value{};
+
+    /*! \brief Last arrangement id reported through onArrangementSelected(). */
+    std::string last_selected_arrangement_id{};
 
     /*! \brief Last tone region id reported through onToneRegionSelected(). */
     std::string last_selected_tone_region_id{};

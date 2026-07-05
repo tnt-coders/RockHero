@@ -167,6 +167,10 @@ namespace
         {
             return "OpenPlugin";
         }
+        case EditorAction::Id::SelectArrangement:
+        {
+            return "SelectArrangement";
+        }
         case EditorAction::Id::SelectToneRegion:
         {
             return "SelectToneRegion";
@@ -214,6 +218,7 @@ namespace
             case EditorAction::Id::SetPluginDisplayTypeOverride:
             case EditorAction::Id::OpenPlugin:
             case EditorAction::Id::ResizeToneRegion:
+            case EditorAction::Id::SelectArrangement:
             {
                 return "input-calibration-prompt";
             }
@@ -264,6 +269,7 @@ namespace
         case EditorAction::Id::PlayPause:
         case EditorAction::Id::SeekTimeline:
         case EditorAction::Id::SetGridNoteValue:
+        case EditorAction::Id::SelectArrangement:
         case EditorAction::Id::SelectToneRegion:
         case EditorAction::Id::ResizeToneRegion:
         case EditorAction::Id::ScanPluginCatalog:
@@ -706,6 +712,11 @@ void EditorController::onGridNoteValueChangeRequested(common::core::Fraction not
 void EditorController::onTimelineZoomChanged(double pixels_per_second)
 {
     m_impl->onTimelineZoomChanged(pixels_per_second);
+}
+
+void EditorController::onArrangementSelected(std::string arrangement_id)
+{
+    m_impl->onArrangementSelected(std::move(arrangement_id));
 }
 
 void EditorController::onToneRegionSelected(std::string region_id)
@@ -1694,6 +1705,62 @@ std::optional<std::filesystem::path> EditorController::Impl::currentProjectFile(
 // Builds the message-thread view state from the session and transport state. Current cursor
 // position is only sampled to derive stop enabledness; the view receives discrete mapping state
 // rather than a continuously pushed playhead position.
+// Labels one arrangement by its part, numbering duplicates ("Rhythm 1", "Rhythm 2") so every
+// switcher entry stays distinguishable.
+[[nodiscard]] std::string arrangementPartLabel(common::core::Part part)
+{
+    switch (part)
+    {
+        case common::core::Part::Lead:
+        {
+            return "Lead";
+        }
+        case common::core::Part::Rhythm:
+        {
+            return "Rhythm";
+        }
+        case common::core::Part::Bass:
+        {
+            return "Bass";
+        }
+    }
+
+    return "Arrangement";
+}
+
+// Builds the switcher entries for every arrangement of the loaded song.
+[[nodiscard]] std::vector<ArrangementChoiceViewState> arrangementChoicesFor(
+    const std::vector<common::core::Arrangement>& arrangements, const std::string& current_id)
+{
+    std::vector<int> part_totals(3, 0);
+    for (const common::core::Arrangement& arrangement : arrangements)
+    {
+        part_totals[static_cast<std::size_t>(arrangement.part)] += 1;
+    }
+
+    std::vector<ArrangementChoiceViewState> choices;
+    choices.reserve(arrangements.size());
+    std::vector<int> part_counts(3, 0);
+    for (const common::core::Arrangement& arrangement : arrangements)
+    {
+        const auto part_index = static_cast<std::size_t>(arrangement.part);
+        part_counts[part_index] += 1;
+        std::string label = arrangementPartLabel(arrangement.part);
+        if (part_totals[part_index] > 1)
+        {
+            label += " " + std::to_string(part_counts[part_index]);
+        }
+        choices.push_back(
+            ArrangementChoiceViewState{
+                .id = arrangement.id,
+                .label = std::move(label),
+                .selected = arrangement.id == current_id,
+            });
+    }
+
+    return choices;
+}
+
 // The song timeline starts at the first tempo anchor (measure 1 beat 1): audio before it is
 // lead-in that the editor neither displays nor seeks into, so musical time zero is the origin
 // for the visible range, the Stop reset, and restored cursors.
@@ -1769,6 +1836,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
         state.arrangement = ArrangementViewState{
             .audio_asset = arrangement->audio_asset,
             .audio_duration = arrangement->audio_duration,
+            .choices = arrangementChoicesFor(session().arrangements(), arrangement->id),
         };
         state.tone_track =
             toneTrackViewStateFor(*arrangement, state.tempo_map, m_selected_tone_region_id);

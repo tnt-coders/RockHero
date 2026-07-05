@@ -122,6 +122,7 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
             ArrangementViewState{
                 .audio_asset = audio_asset,
                 .audio_duration = common::core::TimeDuration{180.0},
+                .choices = {},
             },
         .signal_chain =
             SignalChainViewState{
