@@ -10,9 +10,9 @@ repos:
       - id: clang-format
   - repo: local
     hooks:
-      - id: library-roots-hold-folders-only
-        name: library roots hold folders only
-        entry: python scripts/check_library_roots.py
+      - id: verify-project-conventions
+        name: verify project conventions
+        entry: python scripts/verify-project-conventions.py
         language: system
         pass_filenames: false
         always_run: true

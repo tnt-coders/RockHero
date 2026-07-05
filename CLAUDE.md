@@ -114,7 +114,7 @@ cd project-config/cmake-conan && pytest -rA
 ### Agent-Run Builds
 
 Coding agents run builds, tests, and clang-tidy themselves through the helper at
-`scripts/rockhero-build.ps1` (usage in `scripts/README.md`). The helper uses
+`.agents/rockhero-build.ps1` (usage in `.agents/README.md`). The helper uses
 CLion's bundled CMake for configure and runs Ninja through Visual Studio's developer environment,
 which keeps agent builds from breaking CLion's include paths — do not configure or build through
 other CMake/compiler environments. Batch verification after coherent edit groups rather than

@@ -14,7 +14,7 @@
             "Skill(artifact-design)",
             "Artifact",
             "PowerShell(powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\rockhero-build.ps1 *)",
-            "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/rockhero-build.ps1 *)",
+            "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File ./.agents/rockhero-build.ps1 *)",
             "PowerShell(pre-commit run *)",
             "Bash(pre-commit run *)",
             "PowerShell(powershell -NoProfile -ExecutionPolicy Bypass -File .\\\\scripts\\\\rockhero-build.ps1 -Targets all)",

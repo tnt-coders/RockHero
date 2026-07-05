@@ -212,7 +212,7 @@ composition wrappers). The hub folder is not a role folder: it holds one nameabl
 object that joins the library's features — exactly as a feature folder holds one feature.
 
 This keeps the rule purely structural and therefore trivially checkable: a root is either all
-folders or it is wrong. `scripts/check_library_roots.py` runs in pre-commit (and therefore CI)
+folders or it is wrong. `scripts/verify-project-conventions.py` runs in pre-commit (and therefore CI)
 and fails on any file dropped at a root, with no allowlist to maintain. The one exemption is
 `placeholder.cpp`, the scaffolding translation unit in not-yet-implemented libraries.
 

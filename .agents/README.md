@@ -1,6 +1,7 @@
-# Repository Scripts
+# Agent Helpers
 
-Agent- and developer-facing helper scripts that are not tied to any one tool or agent vendor.
+Helper scripts for coding agents (any vendor). Human contributors do not need anything in
+this folder: IDE builds go through the CMake presets in `CMakePresets.json`.
 
 ## rockhero-build.ps1
 
@@ -10,7 +11,7 @@ developer environment, which is why agent builds do not break CLion's include pa
 the repo root:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\rockhero-build.ps1 -Targets all -RunTouchedTests
+powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -Targets all -RunTouchedTests
 ```
 
 - Preset names are case-sensitive and lowercase (`debug`, `release`, `relwithdebinfo`, matching
