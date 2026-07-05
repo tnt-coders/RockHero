@@ -8,7 +8,7 @@
 #include "signal_chain/signal_chain_view.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
-#include <rock_hero/common/audio/audio_meter_snapshot.h>
+#include <rock_hero/common/audio/input/audio_meter_snapshot.h>
 #include <rock_hero/editor/core/signal_chain/signal_chain_view_state.h>
 
 namespace rock_hero::editor::ui

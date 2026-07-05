@@ -12,7 +12,7 @@
 #include <filesystem>
 #include <iterator>
 #include <optional>
-#include <rock_hero/common/audio/i_plugin_host.h>
+#include <rock_hero/common/audio/plugin/i_plugin_host.h>
 #include <string>
 #include <string_view>
 #include <system_error>

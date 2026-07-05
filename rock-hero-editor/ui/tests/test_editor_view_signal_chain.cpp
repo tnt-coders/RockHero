@@ -1,6 +1,6 @@
 #include <cstddef>
 #include <optional>
-#include <rock_hero/common/audio/plugin_chain_limits.h>
+#include <rock_hero/common/audio/plugin/plugin_chain_limits.h>
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
 #include <string>
 #include <utility>

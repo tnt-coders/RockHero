@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <memory>
-#include <rock_hero/common/audio/i_thumbnail.h>
-#include <rock_hero/common/audio/i_thumbnail_factory.h>
+#include <rock_hero/common/audio/song/i_thumbnail.h>
+#include <rock_hero/common/audio/song/i_thumbnail_factory.h>
 #include <type_traits>
 
 namespace rock_hero::common::audio

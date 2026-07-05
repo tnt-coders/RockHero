@@ -3,8 +3,8 @@
 #include "signal_chain/signal_chain_workflow.h"
 
 #include <algorithm>
-#include <rock_hero/common/audio/i_live_rig.h>
-#include <rock_hero/common/audio/i_plugin_host.h>
+#include <rock_hero/common/audio/live_rig/i_live_rig.h>
+#include <rock_hero/common/audio/plugin/i_plugin_host.h>
 #include <rock_hero/editor/core/signal_chain/plugin_view_state.h>
 
 namespace rock_hero::editor::core

@@ -1,4 +1,4 @@
-#include "tracktion_instrument_wave_device_mapping.h"
+#include "tracktion/tracktion_instrument_wave_device_mapping.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <stdexcept>

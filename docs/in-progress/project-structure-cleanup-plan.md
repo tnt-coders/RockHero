@@ -377,6 +377,22 @@ the guard, not as one scripted pass.
 3. `include/` grouping per §3.4 — public churn commit #2, same mechanics as Phase 3.
    Confirm first: `input/` vs `calibration/`; `audio_normalization.h` home.
 
+**Executed 2026-07-05 (gate green: build all, all 4 suites, pre-commit, tidy clean on touched
+files).** `engine.cpp` is now 2,690-ish lines of Impl definitions plus the window/behaviour/
+tracker cluster and construction; `Engine::Impl` is declared once in `engine_impl.h` (~560 lines,
+declaration surface; the template chain-mutation method and the nested RAII guard stay in-class as
+the language requires), and the ports live in `engine_transport/song_audio/plugin_host/live_rig/
+live_input/device_config.cpp`. Helper webs became `audio_path_util`, `plugin_scan`,
+`tone_document`, and `meter_reader` units; single-consumer helpers moved into their port TU's
+anonymous namespace. `src/tracktion/` now holds the five pre-existing adapter units; error/value
+impls sit in `device/ song/ plugin/ live_rig/ input/` matching the new public include grouping
+(root keeps `engine.h`, `gain.h`, `scoped_listener.h`, `audio_normalization.h`). Deviations
+recorded: the ~74 converted Impl definitions stay in `engine.cpp` rather than a separate
+`engine_impl.cpp` (engine.cpp *is* the impl TU; the five pre-existing out-of-line methods ride
+with their port TUs as planned), and four backlog findings in phase-moved files were fixed in
+place (two enum bases, deleted moves on the gain plugin, and a `.clang-tidy` naming exemption for
+Tracktion's required `xmlTypeName` member — convention update, not suppression).
+
 ### Phase 5 — `common/core` *(go/no-go decision)*
 
 Only if, after Phases 1–4, the 21-file flat `include/` still reads as noise. Candidate grouping:
