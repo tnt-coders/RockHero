@@ -7,10 +7,23 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <optional>
+#include <rock_hero/common/core/timeline.h>
 #include <rock_hero/editor/core/tempo_grid_geometry.h>
 
 namespace rock_hero::editor::ui
 {
+
+/*!
+\brief Computes a cursor x coordinate for a timeline position and visible range.
+
+\param position Current transport position.
+\param visible_timeline Visible timeline range.
+\param width Drawing width in pixels.
+\return Subpixel x coordinate in [0, width - 1], or empty when no cursor can be mapped.
+*/
+[[nodiscard]] std::optional<float> cursorXForTimelinePosition(
+    common::core::TimePosition position, common::core::TimeRange visible_timeline,
+    int width) noexcept;
 
 /*!
 \brief Invalidates only the strip spanning the old and new cursor positions.

@@ -1,6 +1,7 @@
 #include "editor_view.h"
 
 #include "audio_device_settings_window.h"
+#include "cursor_overlay.h"
 #include "editor_colors.h"
 #include "input_calibration_window.h"
 #include "menu_look_and_feel.h"
@@ -330,114 +331,6 @@ void drawTempoGridDots(
 }
 
 } // namespace
-
-// Converts a timeline position to a bounded subpixel coordinate for the cursor overlay.
-std::optional<float> cursorXForTimelinePosition(
-    common::core::TimePosition position, common::core::TimeRange visible_timeline,
-    int width) noexcept
-{
-    return core::timelineXForPosition(
-        position, visible_timeline, width, core::TimelinePositionClamping::ClampToVisibleRange);
-}
-
-// Handles editor-wide timeline interaction and draws the cursor from current transport position.
-class EditorView::CursorOverlay final : public juce::Component
-{
-public:
-    // Starts vblank-driven cursor refresh against the injected read-only transport. The tempo map
-    // used to snap clicks is referenced (not copied) from EditorView::m_state, which owns it and
-    // outlives this overlay, so it is never null.
-    CursorOverlay(
-        core::IEditorController& controller, const common::audio::ITransport& transport,
-        const common::core::TempoMap& tempo_map)
-        : m_controller(controller)
-        , m_transport(transport)
-        , m_vblank_attachment(this, [this] { advanceCursor(); })
-        , m_tempo_map(tempo_map)
-    {
-        setComponentID("cursor_overlay");
-        setInterceptsMouseClicks(true, false);
-    }
-
-    // Stores discrete timeline mapping data pushed by EditorView::setState().
-    void setVisibleTimelineRange(common::core::TimeRange visible_timeline) noexcept
-    {
-        m_visible_timeline = visible_timeline;
-    }
-
-    // Stores the grid note value pushed by EditorView::setState(), so click snapping always
-    // uses the same grid the timeline and ruler render.
-    void setGridNoteValue(common::core::Fraction grid_note_value) noexcept
-    {
-        m_grid_note_value = grid_note_value;
-    }
-
-    // Draws only the cursor; static waveform content remains in ArrangementView below it.
-    void paint(juce::Graphics& g) override
-    {
-        drawTimelineCursor(g, *this, m_cursor_x, 0);
-    }
-
-    // Converts editor-wide timeline clicks into timeline seek intent.
-    void mouseDown(const juce::MouseEvent& event) override
-    {
-        if (getWidth() <= 0 || !event.mods.isLeftButtonDown())
-        {
-            return;
-        }
-
-        const std::optional<common::core::TimePosition> position =
-            core::timelineCursorPlacementTime(
-                m_tempo_map,
-                m_grid_note_value,
-                m_visible_timeline,
-                getWidth(),
-                event.position.x,
-                placementModeFor(event.mods));
-        if (position.has_value())
-        {
-            m_controller.onTimelineSeekRequested(*position);
-        }
-    }
-
-private:
-    // Samples the current position at render cadence and invalidates only changed cursor strips.
-    void advanceCursor()
-    {
-        const auto next_cursor_x =
-            cursorXForTimelinePosition(m_transport.position(), m_visible_timeline, getWidth());
-
-        if (next_cursor_x == m_cursor_x)
-        {
-            return;
-        }
-
-        repaintCursorStrip(*this, m_cursor_x, next_cursor_x);
-        m_cursor_x = next_cursor_x;
-    }
-
-    // Controller receives editor-level timeline seek intent.
-    core::IEditorController& m_controller;
-
-    // Read-only transport source sampled at vblank cadence for its current position method.
-    const common::audio::ITransport& m_transport;
-
-    // Vblank-driven callback used to keep cursor motion smooth without transport listeners.
-    juce::VBlankAttachment m_vblank_attachment;
-
-    // Visible timeline range last pushed by EditorView::setState().
-    common::core::TimeRange m_visible_timeline{};
-
-    // Tempo map owned by EditorView::m_state, referenced to snap non-modified timeline clicks.
-    const common::core::TempoMap& m_tempo_map;
-
-    // Grid step as a fraction of a whole note, initialized to the quarter-note default because the
-    // Fraction default of 0/1 is a degenerate step.
-    common::core::Fraction m_grid_note_value{1, 4};
-
-    // Last subpixel cursor x coordinate drawn by the overlay, if a cursor is currently mappable.
-    std::optional<float> m_cursor_x{};
-};
 
 // Hosts zoomable track content inside a JUCE viewport for future multi-track scrolling.
 class EditorView::TrackViewport final : public juce::Component
