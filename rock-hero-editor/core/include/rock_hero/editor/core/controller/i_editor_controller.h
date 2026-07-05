@@ -121,6 +121,12 @@ public:
     virtual void onTimelineZoomChanged(double pixels_per_second) = 0;
 
     /*!
+    \brief Handles switching the editor to another arrangement of the loaded song.
+    \param arrangement_id Stable arrangement id selected by the user.
+    */
+    virtual void onArrangementSelected(std::string arrangement_id) = 0;
+
+    /*!
     \brief Handles selection of a tone region on the tone track.
     \param region_id Stable region id, or empty to clear the selection.
     */

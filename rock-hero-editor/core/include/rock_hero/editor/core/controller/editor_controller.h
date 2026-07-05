@@ -356,6 +356,9 @@ public:
     */
     void onTimelineZoomChanged(double pixels_per_second) override;
 
+    /*! \copydoc IEditorController::onArrangementSelected */
+    void onArrangementSelected(std::string arrangement_id) override;
+
     /*! \copydoc IEditorController::onToneRegionSelected */
     void onToneRegionSelected(std::string region_id) override;
 

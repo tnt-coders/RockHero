@@ -201,6 +201,21 @@ struct EditorAction
         common::core::Fraction note_value;
     };
 
+    /*! \brief Switch the editor to another arrangement of the loaded song. */
+    struct SelectArrangement
+    {
+        /*!
+        \brief Creates an arrangement-switch action.
+        \param arrangement_id_value Stable arrangement id selected by the user.
+        */
+        explicit SelectArrangement(std::string arrangement_id_value)
+            : arrangement_id(std::move(arrangement_id_value))
+        {}
+
+        /*! \brief Stable arrangement id selected by the user. */
+        std::string arrangement_id;
+    };
+
     /*! \brief Select a tone region on the tone track. */
     struct SelectToneRegion
     {
@@ -395,8 +410,8 @@ struct EditorAction
         OpenProject, RestoreProject, ImportSong, SaveProject, SaveProjectAs, PublishProject,
         CloseProject, ExitApplication, ResolveUnsavedChangesPrompt, CancelSaveAsPrompt,
         CancelBusyOperation, Undo, Redo, PlayPause, Stop, SeekTimeline, SetGridNoteValue,
-        SelectToneRegion, ResizeToneRegion, ShowPluginBrowser, BeginPluginInsert, ScanPluginCatalog,
-        InsertSelectedPlugin, RemovePlugin, MovePlugin, SetSignalChainPlacement,
+        SelectArrangement, SelectToneRegion, ResizeToneRegion, ShowPluginBrowser, BeginPluginInsert,
+        ScanPluginCatalog, InsertSelectedPlugin, RemovePlugin, MovePlugin, SetSignalChainPlacement,
         SetPluginDisplayTypeOverride, OpenPlugin>;
 };
 

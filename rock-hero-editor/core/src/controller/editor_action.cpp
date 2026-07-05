@@ -83,6 +83,10 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::SetGridNoteValue;
     }
+    else if constexpr (std::is_same_v<A, EditorAction::SelectArrangement>)
+    {
+        return EditorAction::Id::SelectArrangement;
+    }
     else if constexpr (std::is_same_v<A, EditorAction::SelectToneRegion>)
     {
         return EditorAction::Id::SelectToneRegion;

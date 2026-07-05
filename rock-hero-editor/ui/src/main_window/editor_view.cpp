@@ -35,6 +35,8 @@ constexpr int g_exit_command{6};
 constexpr int g_publish_command{7};
 constexpr int g_undo_command{101};
 constexpr int g_redo_command{102};
+// Arrangement switcher entries occupy one id per arrangement, in song order.
+constexpr int g_arrangement_command_base{201};
 constexpr int g_menu_bar_height{24};
 constexpr int g_content_inset{8};
 constexpr int g_control_gap{8};
@@ -204,6 +206,7 @@ const juce::Colour g_transport_bar_color{juce::Colours::darkgrey.darker(0.16f)};
         case core::EditorActionId::SetSignalChainPlacement:
         case core::EditorActionId::SetPluginDisplayTypeOverride:
         case core::EditorActionId::OpenPlugin:
+        case core::EditorActionId::SelectArrangement:
         case core::EditorActionId::SelectToneRegion:
         case core::EditorActionId::ResizeToneRegion:
         {
@@ -558,7 +561,7 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
 // Returns the top-level editor menus displayed by the editor.
 juce::StringArray EditorView::getMenuBarNames()
 {
-    return {"File", "Edit"};
+    return {"File", "Edit", "Arrangement"};
 }
 
 // Builds menus using only controller-derived state.
@@ -589,12 +592,37 @@ juce::PopupMenu EditorView::getMenuForIndex(int top_level_menu_index, const juce
         return menu;
     }
 
+    if (top_level_menu_index == 2 && menu_name == "Arrangement")
+    {
+        juce::PopupMenu menu;
+        const auto& choices = m_state.arrangement.choices;
+        for (std::size_t index = 0; index < choices.size(); ++index)
+        {
+            menu.addItem(
+                g_arrangement_command_base + static_cast<int>(index),
+                juce::String{choices[index].label},
+                m_state.project_loaded,
+                choices[index].selected);
+        }
+        return menu;
+    }
+
     return {};
 }
 
 // Routes menu selections to either a chooser or a direct controller intent.
 void EditorView::menuItemSelected(int menu_item_id, int /*top_level_menu_index*/)
 {
+    const auto& arrangement_choices = m_state.arrangement.choices;
+    if (menu_item_id >= g_arrangement_command_base &&
+        menu_item_id < g_arrangement_command_base + static_cast<int>(arrangement_choices.size()))
+    {
+        const auto choice_index =
+            static_cast<std::size_t>(menu_item_id - g_arrangement_command_base);
+        m_controller.onArrangementSelected(arrangement_choices[choice_index].id);
+        return;
+    }
+
     switch (menu_item_id)
     {
         case g_undo_command:
