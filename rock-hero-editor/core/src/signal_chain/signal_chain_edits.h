@@ -11,7 +11,7 @@
 #include <expected>
 #include <optional>
 #include <rock_hero/common/audio/gain.h>
-#include <rock_hero/common/audio/i_plugin_host.h>
+#include <rock_hero/common/audio/plugin/i_plugin_host.h>
 #include <rock_hero/editor/core/signal_chain/plugin_block_assignment.h>
 #include <rock_hero/editor/core/signal_chain/plugin_display_type.h>
 #include <string>

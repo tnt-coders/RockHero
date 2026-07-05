@@ -8,8 +8,8 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
-#include <rock_hero/common/audio/i_thumbnail.h>
-#include <rock_hero/common/audio/i_thumbnail_factory.h>
+#include <rock_hero/common/audio/song/i_thumbnail.h>
+#include <rock_hero/common/audio/song/i_thumbnail_factory.h>
 #include <vector>
 
 namespace rock_hero::common::audio::testing

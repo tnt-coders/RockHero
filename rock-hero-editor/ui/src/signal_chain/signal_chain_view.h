@@ -12,7 +12,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
-#include <rock_hero/common/audio/audio_meter_snapshot.h>
+#include <rock_hero/common/audio/input/audio_meter_snapshot.h>
 #include <rock_hero/editor/core/signal_chain/plugin_block_assignment.h>
 #include <rock_hero/editor/core/signal_chain/signal_chain_view_state.h>
 #include <string>

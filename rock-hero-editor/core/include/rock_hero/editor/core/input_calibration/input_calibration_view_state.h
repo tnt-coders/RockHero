@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <rock_hero/common/audio/audio_meter_snapshot.h>
+#include <rock_hero/common/audio/input/audio_meter_snapshot.h>
 #include <string>
 
 namespace rock_hero::editor::core

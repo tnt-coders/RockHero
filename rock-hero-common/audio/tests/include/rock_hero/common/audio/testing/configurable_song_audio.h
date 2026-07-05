@@ -8,7 +8,7 @@
 #include <filesystem>
 #include <functional>
 #include <optional>
-#include <rock_hero/common/audio/i_song_audio.h>
+#include <rock_hero/common/audio/song/i_song_audio.h>
 
 namespace rock_hero::common::audio::testing
 {

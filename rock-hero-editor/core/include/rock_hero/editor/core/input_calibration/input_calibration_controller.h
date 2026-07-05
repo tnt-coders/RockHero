@@ -7,9 +7,9 @@
 
 #include <cstddef>
 #include <expected>
-#include <rock_hero/common/audio/audio_meter_snapshot.h>
-#include <rock_hero/common/audio/input_calibration.h>
-#include <rock_hero/common/audio/live_input_error.h>
+#include <rock_hero/common/audio/input/audio_meter_snapshot.h>
+#include <rock_hero/common/audio/input/input_calibration.h>
+#include <rock_hero/common/audio/input/live_input_error.h>
 #include <rock_hero/editor/core/editor_view_state.h>
 #include <rock_hero/editor/core/input_calibration/i_input_calibration_view.h>
 #include <rock_hero/editor/core/input_calibration/input_calibration_view_state.h>

@@ -12,8 +12,8 @@
 #include <functional>
 #include <memory>
 #include <optional>
-#include <rock_hero/common/audio/i_live_rig.h>
-#include <rock_hero/common/audio/plugin_catalog_scan_progress.h>
+#include <rock_hero/common/audio/live_rig/i_live_rig.h>
+#include <rock_hero/common/audio/plugin/plugin_catalog_scan_progress.h>
 #include <rock_hero/editor/core/tasks/i_message_thread_scheduler.h>
 #include <string>
 
