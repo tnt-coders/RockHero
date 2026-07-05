@@ -20,7 +20,10 @@ target_sources(
             src/main_window/menu_look_and_feel.cpp
             src/shared/audio_level_meter.cpp
             src/shared/text_metrics.cpp
+            src/signal_chain/insert_slot_view.cpp
             src/signal_chain/plugin_browser_window.cpp
+            src/signal_chain/plugin_drag.cpp
+            src/signal_chain/plugin_tile_view.cpp
             src/signal_chain/signal_chain_block_layout.cpp
             src/signal_chain/signal_chain_panel.cpp
             src/signal_chain/signal_chain_view.cpp
