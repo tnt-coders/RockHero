@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$Preset = "Debug",
-    [string]$BuildDir = "build/debug",
+    # Defaults to build/<preset lowercased> so alternate presets do not need a second flag.
+    [string]$BuildDir = "",
     [string[]]$Targets = @(),
     [switch]$Configure,
     [string[]]$Tests = @(),
@@ -10,6 +11,11 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+if ($BuildDir -eq "")
+{
+    $BuildDir = "build/" + $Preset.ToLower()
+}
 
 function Find-FirstExistingPath
 {
@@ -172,11 +178,19 @@ if ($Targets.Count -gt 0)
 
 if ($RunTouchedTests)
 {
-    $Tests += @(
-        "build/debug/rock-hero-common/audio/tests/rock_hero_common_audio_tests.exe",
-        "build/debug/rock-hero-editor/core/tests/rock_hero_editor_core_tests.exe",
-        "build/debug/rock-hero-editor/ui/tests/rock_hero_editor_ui_tests.exe"
-    )
+    # Discover every built per-library test executable instead of maintaining a hardcoded list;
+    # the previous list silently omitted rock_hero_common_core_tests.
+    $discovered = Get-ChildItem -Path $BuildDir -Recurse -Filter "*_tests.exe" `
+        -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -notmatch 'CMakeFiles' } |
+        ForEach-Object { $_.FullName }
+
+    if (-not $discovered)
+    {
+        throw "No *_tests.exe found under '$BuildDir'. Build the test targets first."
+    }
+
+    $Tests += $discovered
 }
 
 foreach ($test in $Tests)
