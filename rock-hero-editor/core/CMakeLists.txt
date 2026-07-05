@@ -35,6 +35,8 @@ target_sources(
             src/signal_chain/plugin_catalog_workflow.h
             src/signal_chain/plugin_display_type.cpp
             src/signal_chain/signal_chain_block_placement.cpp
+            src/signal_chain/signal_chain_edits.cpp
+            src/signal_chain/signal_chain_edits.h
             src/signal_chain/signal_chain_workflow.cpp
             src/signal_chain/signal_chain_workflow.h
             src/tasks/juce_editor_task_runner.cpp
