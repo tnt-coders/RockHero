@@ -3,11 +3,6 @@
 namespace rock_hero::common::audio
 {
 
-namespace
-{
-
-} // namespace
-
 // Registers a project-owned transport listener that observes the message-thread snapshot.
 void Engine::addListener(ITransport::Listener& listener)
 {
