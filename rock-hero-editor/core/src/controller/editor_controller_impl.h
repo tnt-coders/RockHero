@@ -462,6 +462,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Cleared on project close and load because ids are project-local.
     std::string m_selected_tone_region_id{};
 
+    // Memoized tab projection for the displayed arrangement; see deriveViewState for the cache
+    // rule (arrangement id keys it because charts are immutable while a project is open).
+    // Mutable because the cache refreshes lazily inside the const view-state derivation.
+    mutable std::shared_ptr<const TabViewState> m_tab_view_state{};
+    mutable std::string m_tab_arrangement_id{};
+
     // Present only while a live slider preview is waiting for its final commit.
     std::optional<common::audio::Gain> m_output_gain_preview_before{};
 
