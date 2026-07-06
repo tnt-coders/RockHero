@@ -352,6 +352,9 @@ private:
     // Right-aligned menu-bar action that opens audio-device settings.
     MenuBarButton m_audio_device_button;
 
+    // Caption naming the arrangement dropdown, mirroring the grid selector's caption band.
+    juce::Label m_arrangement_caption;
+
     // Dropdown that switches the displayed arrangement, pinned left of the grid selector.
     juce::ComboBox m_arrangement_selector;
 
