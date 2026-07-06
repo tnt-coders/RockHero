@@ -14,6 +14,8 @@ namespace
 constexpr std::size_t g_uuid_length = 36;
 constexpr std::string_view g_tone_document_prefix{"tones/"};
 constexpr std::string_view g_tone_document_suffix{"/tone.json"};
+constexpr std::string_view g_chart_document_prefix{"charts/"};
+constexpr std::string_view g_chart_document_suffix{".chart.json"};
 
 [[nodiscard]] bool isLowercaseHex(char character) noexcept
 {
@@ -83,6 +85,20 @@ bool isCanonicalToneDocumentRef(std::string_view tone_document_ref) noexcept
 
     return isCanonicalPackageId(
         tone_document_ref.substr(g_tone_document_prefix.size(), g_uuid_length));
+}
+
+bool isCanonicalChartDocumentRef(std::string_view chart_document_ref) noexcept
+{
+    if (!chart_document_ref.starts_with(g_chart_document_prefix) ||
+        !chart_document_ref.ends_with(g_chart_document_suffix) ||
+        chart_document_ref.size() !=
+            g_chart_document_prefix.size() + g_uuid_length + g_chart_document_suffix.size())
+    {
+        return false;
+    }
+
+    return isCanonicalPackageId(
+        chart_document_ref.substr(g_chart_document_prefix.size(), g_uuid_length));
 }
 
 } // namespace rock_hero::common::core

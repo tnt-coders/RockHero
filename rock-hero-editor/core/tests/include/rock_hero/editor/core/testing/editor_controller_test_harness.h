@@ -1,4 +1,4 @@
-/*!
+﻿/*!
 \file editor_controller_test_harness.h
 \brief Shared editor-controller test fakes and setup helpers.
 */
@@ -1250,6 +1250,8 @@ private:
             .audio_duration = timeline_range.duration(),
             .tone_document_ref = std::move(tone_document_ref),
             .tone_track = {},
+            .chart_ref = {},
+            .chart = {},
         });
 
     return song;
@@ -1339,6 +1341,8 @@ private:
             .audio_duration = common::core::TimeDuration{},
             .tone_document_ref = {},
             .tone_track = {},
+            .chart_ref = {},
+            .chart = {},
         });
     song.arrangements.push_back(
         common::core::Arrangement{
@@ -1352,6 +1356,8 @@ private:
             .audio_duration = common::core::TimeDuration{},
             .tone_document_ref = {},
             .tone_track = {},
+            .chart_ref = {},
+            .chart = {},
         });
 
     return song;

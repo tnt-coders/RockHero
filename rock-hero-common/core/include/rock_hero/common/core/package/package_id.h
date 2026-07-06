@@ -40,4 +40,11 @@ The returned value is a canonical lowercase dashed RFC 4122 version 4 UUID strin
 */
 [[nodiscard]] bool isCanonicalToneDocumentRef(std::string_view tone_document_ref) noexcept;
 
+/*!
+\brief Reports whether a chart document reference uses Rock Hero's canonical chart layout.
+\param chart_document_ref Package-relative chart document reference.
+\return True when the reference is exactly `charts/<uuid>.chart.json`.
+*/
+[[nodiscard]] bool isCanonicalChartDocumentRef(std::string_view chart_document_ref) noexcept;
+
 } // namespace rock_hero::common::core

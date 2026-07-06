@@ -217,6 +217,7 @@ struct ArrangementDocumentEntry
     std::string audio;
     std::string tone_document;
     std::vector<ToneRegionDocumentEntry> tone_regions;
+    std::string chart_document;
 };
 
 // Renders one authored tone region as a compact object line.
@@ -283,6 +284,11 @@ struct ArrangementDocumentEntry
             line += formatToneRegionLine(entry.tone_regions[index]);
         }
         line += "\n    ] }";
+    }
+    if (!entry.chart_document.empty())
+    {
+        line += ", \"chart\": ";
+        line += jsonString(entry.chart_document);
     }
     line += " }";
 
@@ -412,6 +418,35 @@ struct SongDocumentForSave
     return std::expected<void, SongPackageError>{};
 }
 
+// Validates one chart document reference (canonical, safe, present on disk) without writing
+// anything. The chart file stays authoritative while charts are read-only, so saves never
+// rewrite it; they only refuse to persist a dangling reference.
+[[nodiscard]] std::expected<void, SongPackageError> validateChartDocumentOnDisk(
+    const std::filesystem::path& workspace_directory, const std::string& chart_ref)
+{
+    const std::filesystem::path chart_path{chart_ref};
+    if (!isSafeRelativePath(chart_path) || !isCanonicalChartDocumentRef(chart_ref))
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidSongDocument,
+            "Cannot save a non-canonical chart document path: " + chart_ref,
+        }};
+    }
+
+    std::error_code chart_error;
+    const std::filesystem::path resolved_chart_path =
+        (workspace_directory / chart_path).lexically_normal();
+    if (!std::filesystem::is_regular_file(resolved_chart_path, chart_error))
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidSongDocument,
+            "Cannot save a missing chart document: " + chart_ref,
+        }};
+    }
+
+    return std::expected<void, SongPackageError>{};
+}
+
 // Validates an arrangement's tone references (legacy document plus authored tone track) without
 // writing anything, so a bad reference fails a save before any side effect occurs.
 [[nodiscard]] std::expected<void, SongPackageError> validateArrangementToneReference(
@@ -492,6 +527,15 @@ struct SongDocumentForSave
         {
             return std::unexpected{tone_error.error()};
         }
+        if (!arrangement.chart_ref.empty())
+        {
+            if (const auto chart_error =
+                    validateChartDocumentOnDisk(workspace_directory, arrangement.chart_ref);
+                !chart_error.has_value())
+            {
+                return std::unexpected{chart_error.error()};
+            }
+        }
 
         const auto arrangement_id = arrangementIdForSave(arrangement, used_arrangement_ids);
         if (!arrangement_id.has_value())
@@ -555,6 +599,7 @@ struct SongDocumentForSave
                 .audio = audio_id->second,
                 .tone_document = arrangement.tone_document_ref,
                 .tone_regions = std::move(tone_regions),
+                .chart_document = arrangement.chart_ref,
             });
         arrangement_ids.push_back(*arrangement_id);
     }

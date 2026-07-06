@@ -1,10 +1,11 @@
-#include <catch2/catch_test_macros.hpp>
+﻿#include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <cstdint>
 #include <expected>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <rock_hero/common/core/chart/chart_document.h>
 #include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/package/rock_song_package.h>
 #include <rock_hero/common/core/song/audio_normalization.h>
@@ -140,6 +141,8 @@ void writeAudioFile(const std::filesystem::path& path)
             .audio_duration = TimeDuration{},
             .tone_document_ref = {},
             .tone_track = {},
+            .chart_ref = {},
+            .chart = {},
         });
     return song;
 }
@@ -222,6 +225,10 @@ TEST_CASE("Package IDs use canonical UUIDv4 text", "[core][rock-song-package]")
     CHECK_FALSE(isCanonicalPackageId("4f3a1c5e-9d2b-58a6-b1f0-c7e8d9a2b3c4"));
     CHECK_FALSE(isCanonicalPackageId("4F3A1C5E-9D2B-48A6-B1F0-C7E8D9A2B3C4"));
     CHECK_FALSE(isCanonicalToneDocumentRef("tones/lead.tone.json"));
+    CHECK(isCanonicalChartDocumentRef("charts/9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d.chart.json"));
+    CHECK_FALSE(isCanonicalChartDocumentRef("charts/lead.chart.json"));
+    CHECK_FALSE(
+        isCanonicalChartDocumentRef("chart/9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d.chart.json"));
 }
 
 // Verifies Rock song package directory writing can be read back as shared Song data.
@@ -848,6 +855,98 @@ TEST_CASE(
                 }
             ]
         })");
+
+    const auto loaded = readRockSongPackageDirectory(package_directory);
+    REQUIRE_FALSE(loaded.has_value());
+    CHECK(loaded.error().code == SongPackageErrorCode::InvalidArrangement);
+}
+
+TEST_CASE("Rock song package round-trips a chart reference", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temp;
+    const std::filesystem::path package_directory = temp.path() / "package";
+    const std::filesystem::path source_audio = package_directory / "audio" / "backing.wav";
+    writeAudioFile(source_audio);
+
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 1},
+            .string = 3,
+            .fret = 5,
+            .sustain = Fraction{1, 2},
+            .bend = {},
+            .slides = {},
+        },
+    };
+    const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
+    REQUIRE(writeChartDocument(package_directory / chart_ref, chart).has_value());
+
+    Song song = makeSong(source_audio);
+    song.arrangements.front().chart_ref = chart_ref;
+
+    const auto written = writeRockSongPackageDirectory(package_directory, song);
+    REQUIRE(written.has_value());
+
+    const auto loaded = readRockSongPackageDirectory(package_directory);
+    REQUIRE(loaded.has_value());
+    REQUIRE(loaded->arrangements.size() == 1);
+    CHECK(loaded->arrangements.front().chart_ref == chart_ref);
+    REQUIRE(loaded->arrangements.front().chart.has_value());
+    if (loaded->arrangements.front().chart.has_value())
+    {
+        CHECK(*loaded->arrangements.front().chart == chart);
+    }
+}
+
+TEST_CASE("Rock song package write rejects missing chart documents", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temp;
+    const std::filesystem::path package_directory = temp.path() / "package";
+    const std::filesystem::path source_audio = package_directory / "audio" / "backing.wav";
+    writeAudioFile(source_audio);
+
+    Song song = makeSong(source_audio);
+    song.arrangements.front().chart_ref =
+        "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
+
+    const auto written = writeRockSongPackageDirectory(package_directory, song);
+    REQUIRE_FALSE(written.has_value());
+    CHECK(written.error().code == SongPackageErrorCode::InvalidSongDocument);
+}
+
+TEST_CASE(
+    "Rock song package read rejects charts that violate chart rules", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temp;
+    const std::filesystem::path package_directory = temp.path() / "package";
+    const std::filesystem::path source_audio = package_directory / "audio" / "backing.wav";
+    writeAudioFile(source_audio);
+
+    // Beat 9 does not exist in the fixture's 4/4 grid.
+    Chart invalid_chart;
+    invalid_chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    invalid_chart.notes = {
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 9},
+            .string = 3,
+            .fret = 5,
+            .bend = {},
+            .slides = {},
+        },
+    };
+    const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
+
+    Song song = makeSong(source_audio);
+    song.arrangements.front().chart_ref = chart_ref;
+    // Write the package first with a valid chart, then corrupt the chart file in place so the
+    // failure exercises the read-side rule validation.
+    Chart valid_chart = invalid_chart;
+    valid_chart.notes[0].position.beat = 1;
+    REQUIRE(writeChartDocument(package_directory / chart_ref, valid_chart).has_value());
+    REQUIRE(writeRockSongPackageDirectory(package_directory, song).has_value());
+    REQUIRE(writeChartDocument(package_directory / chart_ref, invalid_chart).has_value());
 
     const auto loaded = readRockSongPackageDirectory(package_directory);
     REQUIRE_FALSE(loaded.has_value());

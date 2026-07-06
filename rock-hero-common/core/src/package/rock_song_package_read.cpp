@@ -16,6 +16,8 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <rock_hero/common/core/chart/chart_document.h>
+#include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/package/archive_io.h>
 #include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/package/workspace_paths.h>
@@ -625,6 +627,48 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
             return std::unexpected{std::move(tone_track.error())};
         }
 
+        std::string chart_ref;
+        std::optional<Chart> chart;
+        const juce::var& chart_json = Json::value(arrangement_json, "chart");
+        if (!chart_json.isVoid() && !chart_json.isUndefined())
+        {
+            chart_ref = chart_json.toString().toStdString();
+            if (!chart_json.isString() || !isCanonicalChartDocumentRef(chart_ref))
+            {
+                return std::unexpected{SongPackageError{
+                    SongPackageErrorCode::InvalidArrangement,
+                    "chart document path must be charts/<uuid>.chart.json: " + chart_ref,
+                }};
+            }
+
+            const auto chart_path = resolveExistingFile(directory, chart_ref);
+            if (!chart_path.has_value())
+            {
+                return std::unexpected{SongPackageError{
+                    SongPackageErrorCode::InvalidArrangement,
+                    "chart document is missing or unsafe: " + chart_ref,
+                }};
+            }
+
+            auto loaded_chart = readChartDocument(*chart_path);
+            if (!loaded_chart.has_value())
+            {
+                return std::unexpected{SongPackageError{
+                    SongPackageErrorCode::InvalidArrangement,
+                    "chart document is invalid: " + loaded_chart.error().message,
+                }};
+            }
+            if (const auto chart_rules = validateChartRules(*loaded_chart, tempo_map);
+                !chart_rules.has_value())
+            {
+                return std::unexpected{SongPackageError{
+                    SongPackageErrorCode::InvalidArrangement,
+                    "chart document violates chart rules: " + chart_rules.error().message,
+                }};
+            }
+            chart = std::move(*loaded_chart);
+        }
+
         const auto audio_asset = audio_assets.find(*audio_id);
         if (audio_asset == audio_assets.end())
         {
@@ -643,6 +687,8 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
                 .audio_duration = TimeDuration{},
                 .tone_document_ref = std::move(tone_document_ref),
                 .tone_track = std::move(*tone_track),
+                .chart_ref = std::move(chart_ref),
+                .chart = std::move(chart),
             });
     }
 

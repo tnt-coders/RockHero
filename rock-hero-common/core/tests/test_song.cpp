@@ -1,4 +1,4 @@
-#include <catch2/catch_test_macros.hpp>
+﻿#include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <rock_hero/common/core/song/song.h>
 #include <vector>
@@ -48,6 +48,8 @@ TEST_CASE("Song holds multiple arrangements", "[core][song]")
             .audio_duration = TimeDuration{},
             .tone_document_ref = {},
             .tone_track = {},
+            .chart_ref = {},
+            .chart = {},
         });
     song.arrangements.push_back(
         Arrangement{
@@ -61,6 +63,8 @@ TEST_CASE("Song holds multiple arrangements", "[core][song]")
             .audio_duration = TimeDuration{},
             .tone_document_ref = {},
             .tone_track = {},
+            .chart_ref = {},
+            .chart = {},
         });
 
     REQUIRE(song.arrangements.size() == 2);
@@ -100,7 +104,9 @@ TEST_CASE("Song stores top-level value fields", "[core][song]")
              },
          .audio_duration = TimeDuration{42.0},
          .tone_document_ref = "tone/rhythm.json",
-         .tone_track = {}});
+         .tone_track = {},
+         .chart_ref = {},
+         .chart = {}});
 
     CHECK(song.metadata.title == "Test Song");
     CHECK(song.metadata.artist == "Test Artist");
