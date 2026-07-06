@@ -668,6 +668,9 @@ void TrackViewport::updateRulerView()
 {
     m_timeline_ruler.setTimelineView(
         m_timeline_range, m_content.getWidth(), m_viewport.getViewPositionX());
+    // The tone row scrolls with the content, so it needs the viewport left edge to pin its region
+    // labels there (the ruler is a separate pinned overlay and does not).
+    m_tone_track_view.setVisibleContentLeft(m_viewport.getViewPositionX());
 }
 
 // Returns the content-coordinate span the shared grid scan must cover: the viewport's view

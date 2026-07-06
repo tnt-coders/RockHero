@@ -77,6 +77,19 @@ void ToneTrackView::setState(const core::ToneTrackViewState& state)
     repaint();
 }
 
+void ToneTrackView::setVisibleContentLeft(int content_left_x)
+{
+    if (m_visible_content_left == content_left_x)
+    {
+        return;
+    }
+
+    // The viewport scrolls this row's pixels without repainting, so a repaint is required to
+    // redraw region labels at their new pinned position.
+    m_visible_content_left = content_left_x;
+    repaint();
+}
+
 void ToneTrackView::setSnapGuideCallback(SnapGuideCallback on_snap_guide)
 {
     m_on_snap_guide = std::move(on_snap_guide);
@@ -154,8 +167,19 @@ void ToneTrackView::paint(juce::Graphics& g)
         g.drawRoundedRectangle(
             region_bounds, static_cast<float>(g_region_corner_radius), highlighted ? 2.0f : 1.2f);
 
+        // Pin the label to the visible left edge while the region still covers it (like the pinned
+        // tempo/time-signature ruler), clipped to the region so it slides off only as the region
+        // itself leaves. m_visible_content_left is this row's content x of the viewport left edge.
+        const float pinned_left =
+            std::max(region_bounds.getX(), static_cast<float>(m_visible_content_left));
+        const juce::Rectangle<float> label_area{
+            pinned_left,
+            region_bounds.getY(),
+            region_bounds.getRight() - pinned_left,
+            region_bounds.getHeight(),
+        };
         const auto label_bounds =
-            region_bounds.reduced(static_cast<float>(g_region_label_inset), 0.0f).toNearestInt();
+            label_area.reduced(static_cast<float>(g_region_label_inset), 0.0f).toNearestInt();
         if (label_bounds.getWidth() > 0)
         {
             g.setColour(is_default ? g_default_region_label : g_tone_region_label);
