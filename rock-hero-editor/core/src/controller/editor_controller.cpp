@@ -1835,6 +1835,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
         currentActionConditions(input_calibration, transport_state);
 
     EditorViewState state;
+    state.project_file = currentProjectFile();
     state.open_enabled = isActionAvailable(EditorAction::Id::OpenProject, action_conditions);
     state.import_enabled = isActionAvailable(EditorAction::Id::ImportSong, action_conditions);
     state.save_enabled = isActionAvailable(EditorAction::Id::SaveProject, action_conditions);
