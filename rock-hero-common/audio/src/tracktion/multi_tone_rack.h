@@ -77,4 +77,62 @@ fully audible; schedule baking and selection control them afterwards.
 [[nodiscard]] std::expected<ToneRack, LiveRigError> buildToneRack(
     tracktion::Edit& edit, std::span<const ToneRackBranchRequest> requests);
 
+/*!
+\brief Creates a RackInstance plugin of the rack for placement on the instrument track.
+\param edit Tracktion edit that owns the plugin cache.
+\param rack_type Rack the instance should host.
+\return The created rack instance plugin, or a typed failure.
+*/
+[[nodiscard]] std::expected<tracktion::Plugin::Ptr, LiveRigError> createToneRackInstance(
+    tracktion::Edit& edit, tracktion::RackType& rack_type);
+
+/*!
+\brief Makes exactly one branch audible and silences the others.
+
+Gains move through each branch plugin's per-sample smoother, so switching is click-free. This is
+the direct selection-driven switch path; baked schedule automation replaces it during playback
+once schedules land.
+
+\param rack Built rack whose branches should switch.
+\param tone_document_ref Tone whose branch becomes audible.
+\return True when a branch matched the reference; false leaves gains unchanged.
+*/
+[[nodiscard]] bool setAudibleBranch(const ToneRack& rack, const std::string& tone_document_ref);
+
+/*!
+\brief Inserts an already-created plugin into one branch's chain, rewiring around it.
+\param rack Built rack to mutate; the branch's chain handle updates on success.
+\param branch_index Branch to insert into.
+\param chain_index Position within the branch chain (0 to chain size inclusive).
+\param plugin Plugin created through the edit's plugin cache.
+\return Empty success, or a typed wiring failure.
+*/
+[[nodiscard]] std::expected<void, LiveRigError> insertIntoBranch(
+    ToneRack& rack, std::size_t branch_index, std::size_t chain_index,
+    const tracktion::Plugin::Ptr& plugin);
+
+/*!
+\brief Removes one chain plugin from a branch, bridging its neighbors.
+
+The plugin leaves the rack entirely; the rack cleans its dangling connections.
+
+\param rack Built rack to mutate; the branch's chain handle updates on success.
+\param branch_index Branch to remove from.
+\param chain_index Position of the plugin to remove.
+\return Empty success, or a typed wiring failure.
+*/
+[[nodiscard]] std::expected<void, LiveRigError> removeFromBranch(
+    ToneRack& rack, std::size_t branch_index, std::size_t chain_index);
+
+/*!
+\brief Moves one chain plugin to a new position within its branch, rewiring both sites.
+\param rack Built rack to mutate; the branch's chain handle updates on success.
+\param branch_index Branch to mutate.
+\param from_index Current position of the plugin.
+\param to_index Desired position after the move, in post-removal indexing.
+\return Empty success, or a typed wiring failure.
+*/
+[[nodiscard]] std::expected<void, LiveRigError> moveWithinBranch(
+    ToneRack& rack, std::size_t branch_index, std::size_t from_index, std::size_t to_index);
+
 } // namespace rock_hero::common::audio
