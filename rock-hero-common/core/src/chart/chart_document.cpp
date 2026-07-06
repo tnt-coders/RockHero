@@ -145,6 +145,11 @@ namespace
         return std::unexpected{malformed("chart note harmonic is unknown: " + harmonic)};
     }
 
+    if (const auto touch = Json::tryReadDouble(note_json, "touch"); touch.has_value())
+    {
+        note.touch = *touch;
+    }
+
     note.vibrato = Json::readOptionalBool(note_json, "vibrato", false);
     note.tremolo = Json::readOptionalBool(note_json, "tremolo", false);
     note.accent = Json::readOptionalBool(note_json, "accent", false);
@@ -287,6 +292,10 @@ void appendOptionalIntArray(std::string& out, const std::vector<std::optional<in
     else if (note.harmonic == NoteHarmonic::Pinch)
     {
         line += R"(, "harmonic": "pinch")";
+    }
+    if (note.touch.has_value())
+    {
+        line += R"(, "touch": )" + doubleText(*note.touch);
     }
     if (note.vibrato)
     {
