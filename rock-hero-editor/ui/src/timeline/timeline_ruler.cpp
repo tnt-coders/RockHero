@@ -1,6 +1,6 @@
 #include "timeline_ruler.h"
 
-#include "shared/editor_colors.h"
+#include "shared/editor_theme.h"
 #include "shared/text_metrics.h"
 #include "timeline/timeline_cursor.h"
 
@@ -18,7 +18,6 @@ namespace rock_hero::editor::ui
 namespace
 {
 
-const juce::Colour g_timeline_ruler_color{juce::Colours::darkgrey.darker(0.45f)};
 const juce::Colour g_timeline_ruler_text_color{210, 210, 210};
 const juce::Colour g_timeline_tempo_color{180, 218, 255};
 const juce::Colour g_timeline_signature_color{255, 214, 140};
@@ -196,10 +195,10 @@ void TimelineRuler::paint(juce::Graphics& g)
 {
     // The tempo and signature bands blend into the editor chrome so they read as sitting above
     // the ruler; only the body below them gets the ruler background.
-    g.fillAll(g_editor_background_color);
-    g.setColour(g_timeline_ruler_color);
+    g.fillAll(editorTheme().window_background);
+    g.setColour(editorTheme().timeline_ruler_background);
     g.fillRect(0, g_ruler_body_top, getWidth(), getHeight() - g_ruler_body_top);
-    g.setColour(g_track_viewport_color);
+    g.setColour(editorTheme().timeline_backdrop);
     g.fillRect(0, getHeight() - 1, getWidth(), 1);
 
     if (!m_project_loaded || getWidth() <= 0 || m_content_width <= 0 ||
@@ -513,7 +512,7 @@ void TimelineRuler::drawBeatTicks(juce::Graphics& g)
 {
     if (!m_tick_rects.isEmpty())
     {
-        g.setColour(g_measure_grid_color);
+        g.setColour(editorTheme().grid_measure);
         g.fillRectList(m_tick_rects);
     }
 }

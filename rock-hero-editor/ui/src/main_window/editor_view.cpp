@@ -3,7 +3,7 @@
 #include "audio_device/audio_device_settings_window.h"
 #include "input_calibration/input_calibration_window.h"
 #include "main_window/menu_look_and_feel.h"
-#include "shared/editor_colors.h"
+#include "shared/editor_theme.h"
 #include "timeline/cursor_overlay.h"
 #include "timeline/track_viewport.h"
 
@@ -63,8 +63,6 @@ constexpr int g_audio_device_menu_button_max_width{520};
 constexpr int g_signal_chain_panel_min_height{160};
 constexpr int g_signal_chain_panel_max_height{260};
 constexpr int g_track_viewport_min_height{80};
-
-const juce::Colour g_transport_bar_color{juce::Colours::darkgrey.darker(0.16f)};
 
 // Reserves enough right-side menu space for the current audio status without overlapping menus.
 [[nodiscard]] int audioDeviceButtonWidth(
@@ -483,9 +481,9 @@ void EditorView::runAfterBusyOverlayRemoved(std::function<void()> callback)
 // Paints the background and transport strip behind child widgets.
 void EditorView::paint(juce::Graphics& g)
 {
-    g.fillAll(g_editor_background_color);
+    g.fillAll(editorTheme().window_background);
 
-    g.setColour(g_transport_bar_color);
+    g.setColour(editorTheme().bar_background);
     g.fillRect(0, g_menu_bar_height, getWidth(), g_transport_bar_height);
     handleBusyOverlayRemovedPainted();
 }
