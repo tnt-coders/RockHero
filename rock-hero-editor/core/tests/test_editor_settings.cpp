@@ -421,6 +421,27 @@ TEST_CASE("EditorSettings persists the project timeline zoom", "[core][settings]
     CHECK_FALSE(missing->has_value());
 }
 
+// Waveform visibility and the tablature lane minimum are app-wide single values (no project
+// key): absent until first written, then replaced on each save.
+TEST_CASE("EditorSettings persists tab display preferences", "[core][settings]")
+{
+    const ScopedSettingsFile settings_file{"persists_tab_display_preferences.settings"};
+
+    {
+        EditorSettings settings{settings_file.path()};
+        CHECK_FALSE(settings.waveformVisible().has_value());
+        CHECK_FALSE(settings.tabMinimumDisplayedStrings().has_value());
+        REQUIRE(settings.setWaveformVisible(false).has_value());
+        REQUIRE(settings.setTabMinimumDisplayedStrings(10).has_value());
+        REQUIRE(settings.setTabMinimumDisplayedStrings(8).has_value());
+        CHECK_FALSE(settings.setTabMinimumDisplayedStrings(-1).has_value());
+    }
+
+    const EditorSettings reloaded_settings{settings_file.path()};
+    CHECK(reloaded_settings.waveformVisible() == std::optional{false});
+    CHECK(reloaded_settings.tabMinimumDisplayedStrings() == std::optional{8});
+}
+
 TEST_CASE("EditorSettings overwrites the project grid note value", "[core][settings]")
 {
     const ScopedSettingsFile settings_file{"overwrites_project_grid_spacing.settings"};

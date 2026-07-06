@@ -14,6 +14,13 @@
 namespace rock_hero::common::core
 {
 
+/*!
+\brief Largest string count a chart tuning may declare.
+
+Shared with display code so lane-count controls and validation agree on one authority.
+*/
+inline constexpr int g_max_chart_strings{15};
+
 /*! \brief Stable chart validation failure kind. */
 enum class ChartErrorCode : std::uint8_t
 {

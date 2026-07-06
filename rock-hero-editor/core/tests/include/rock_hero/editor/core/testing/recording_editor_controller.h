@@ -197,6 +197,24 @@ public:
         timeline_zoom_change_count += 1;
     }
 
+    /*!
+    \brief Records the requested waveform visibility.
+    \param visible Requested waveform visibility behind the tablature lane.
+    */
+    void onWaveformVisibleChangeRequested(bool visible) override
+    {
+        last_waveform_visible = visible;
+    }
+
+    /*!
+    \brief Records the requested tablature string display minimum.
+    \param minimum_strings Requested minimum lane count; zero means match the chart.
+    */
+    void onTabMinimumDisplayedStringsChangeRequested(int minimum_strings) override
+    {
+        last_tab_minimum_displayed_strings = minimum_strings;
+    }
+
     /*! \brief Counts plugin-browser open intents emitted by the signal-chain panel. */
     void onPluginBrowserRequested() override
     {
@@ -436,6 +454,12 @@ public:
 
     /*! \brief Last timeline zoom reported through onTimelineZoomChanged(). */
     std::optional<double> last_timeline_zoom_pixels_per_second{};
+
+    /*! \brief Last visibility requested through onWaveformVisibleChangeRequested(). */
+    std::optional<bool> last_waveform_visible{};
+
+    /*! \brief Last minimum requested through onTabMinimumDisplayedStringsChangeRequested(). */
+    std::optional<int> last_tab_minimum_displayed_strings{};
 
     /*! \brief Last plugin ID selected through the plugin browser. */
     std::optional<std::string> last_selected_plugin_id{};

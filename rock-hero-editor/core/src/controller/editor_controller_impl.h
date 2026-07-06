@@ -131,6 +131,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onTimelineSeekRequested(common::core::TimePosition position);
     void onGridNoteValueChangeRequested(common::core::Fraction note_value);
     void onTimelineZoomChanged(double pixels_per_second);
+    void onWaveformVisibleChangeRequested(bool visible);
+    void onTabMinimumDisplayedStringsChangeRequested(int minimum_strings);
     void onArrangementSelected(std::string arrangement_id);
     [[nodiscard]] std::string toneRegionIdAt(common::core::TimePosition position) const;
     void applyToneSelection(std::string region_id);
@@ -467,6 +469,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Mutable because the cache refreshes lazily inside the const view-state derivation.
     mutable std::shared_ptr<const TabViewState> m_tab_view_state{};
     mutable std::string m_tab_arrangement_id{};
+
+    // App-wide display preferences for the tablature lane, restored from settings at construction
+    // and persisted on change; never part of project content.
+    bool m_waveform_visible{true};
+    int m_tab_minimum_displayed_strings{0};
 
     // Present only while a live slider preview is waiting for its final commit.
     std::optional<common::audio::Gain> m_output_gain_preview_before{};
