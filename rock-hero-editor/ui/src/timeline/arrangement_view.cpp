@@ -134,7 +134,16 @@ struct WaveformDrawRequest
     const juce::Rectangle<int> draw_bounds =
         boundsForTimelineRange(*visible_audio_range, effective_visible_timeline, view_bounds)
             .getIntersection(clipped_timeline_bounds);
-    return WaveformDrawRequest{.bounds = draw_bounds, .visible_range = *visible_audio_range};
+
+    // The visible range is in timeline coordinates, but the thumbnail draws in source-asset time
+    // (sample zero at zero). Shift it back by the asset's start offset so the drawn waveform lands
+    // under the audio it plays; the offset is zero for the common case, leaving this a no-op.
+    const double offset = state.audioStartOffsetSeconds();
+    const common::core::TimeRange source_range{
+        .start = common::core::TimePosition{visible_audio_range->start.seconds - offset},
+        .end = common::core::TimePosition{visible_audio_range->end.seconds - offset},
+    };
+    return WaveformDrawRequest{.bounds = draw_bounds, .visible_range = source_range};
 }
 
 } // namespace

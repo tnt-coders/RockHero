@@ -47,6 +47,25 @@ TEST_CASE("Arrangement holds playable route data", "[core][arrangement]")
                                     });
 }
 
+// Verifies a positive audio start offset shifts the arrangement's audio later on the timeline,
+// so a backing recording that begins after the song's first beat sits with silence before it.
+TEST_CASE("Arrangement audio timeline range honors the start offset", "[core][arrangement]")
+{
+    Arrangement arr;
+    arr.audio_asset = AudioAsset{
+        .path = std::filesystem::path{"lead.wav"},
+        .normalization = std::nullopt,
+        .start_offset = TimeDuration{1.5},
+    };
+    arr.audio_duration = TimeDuration{12.0};
+
+    CHECK(
+        arr.audioTimelineRange() == TimeRange{
+                                        .start = TimePosition{1.5},
+                                        .end = TimePosition{13.5},
+                                    });
+}
+
 // Verifies timeline value wrappers default to the start of the song.
 TEST_CASE("Time value wrappers default to zero seconds", "[core][timeline]")
 {

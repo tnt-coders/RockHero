@@ -126,6 +126,23 @@ TEST_CASE("Session loadSong derives the session timeline", "[core][session]")
                               });
 }
 
+// Verifies a positive audio start offset extends the session timeline past the audio's new end
+// while the timeline still begins at the song's first beat.
+TEST_CASE("Session timeline extends past offset audio from zero", "[core][session]")
+{
+    Session session;
+    Song song = makeSongWithAudio(std::filesystem::path{"full_mix.wav"}, TimeDuration{7.5});
+    song.arrangements.front().audio_asset.start_offset = TimeDuration{2.0};
+
+    REQUIRE(session.loadSong(std::move(song), 0));
+
+    CHECK(
+        session.timeline() == TimeRange{
+                                  .start = TimePosition{},
+                                  .end = TimePosition{9.5},
+                              });
+}
+
 // Verifies loading a later song replaces the previous aggregate.
 TEST_CASE("Session loadSong replaces existing project data", "[core][session]")
 {
