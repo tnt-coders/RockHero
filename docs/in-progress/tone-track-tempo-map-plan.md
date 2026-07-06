@@ -244,7 +244,19 @@ the submodule moves):
   the tone-rack plan's open "which gain node" question in favor of a real per-branch plugin.
 - **Curve authoring.** Bake the schedule with
   `parameter->getCurve().addPoint(time, value, curve_shape)` (0.0f = linear). Curve edits are
-  message-thread ValueTree work; rebaking after a region edit does not rebuild the graph.
+  message-thread ValueTree work. **Correction (2026-07-05 adversarial review):** for plugins
+  *inside a rack*, adding/removing curve points does trigger a playback-graph rebuild —
+  `RackType` watches its whole state subtree and calls `edit.restartPlayback()` on child
+  add/remove (`plugins/internal/tracktion_RackType.cpp:1421`), and rack plugins' curve trees are
+  descendants of the rack state. Mitigations, all source-verified: rebuilds coalesce through a
+  1 ms timer (`model/edit/tracktion_Edit.cpp:1206`), the swap is lock-free with the old graph
+  playing until the new one is ready
+  (`tracktion_graph/tracktion_LockFreeMultiThreadedNodePlayer.cpp:243`), live plugins take the
+  `initialiseWithoutStopping` path instead of re-preparing
+  (`plugins/tracktion_Plugin.cpp:447`), and latency FIFOs transfer when node IDs match. Moving
+  existing points does not rebuild. Expected inaudible, but spike it (below) before slice 5
+  commits; the fallback if audible is hosting branch gains outside the rack or the hidden-track
+  backend.
 - **Smoothing time.** `VolumeAndPanPlugin::smoothingRampTimeSeconds` defaults to 0.05 s
   (`plugins/internal/tracktion_VolumeAndPan.h:78`) and is a settable public member; tune it at or
   below the baked ramp so the smoother does not stretch the authored 5-10 ms crossfade.
@@ -261,19 +273,80 @@ the submodule moves):
   graph keeps processing while stopped, so branch gains snap to the playhead without an explicit
   position push. Keep `setToneTimelinePosition` out of the first backend implementation; add it
   only if a real resync gap shows up under test.
-- **Latency equals the worst branch.** The graph auto-inserts `LatencyNode`s at sum points so
-  parallel branches stay aligned (`tracktion_graph/nodes/tracktion_SummingNode.h`,
-  `tracktion_ConnectedNode.h`); the rack's end-to-end latency therefore becomes the maximum
-  branch latency **at all times**, including while playing a low-latency tone. For live guitar
-  monitoring this means one lookahead-heavy plugin in any tone raises monitoring latency for the
-  whole arrangement. Surface per-tone reported latency during preload and warn; compensation is
-  only as accurate as each plugin's `getLatencySeconds()`.
+- **Latency equals the worst branch — unless compensation is disabled, which it should be.**
+  The graph auto-inserts `LatencyNode`s at sum points so parallel branches stay aligned
+  (`tracktion_graph/nodes/tracktion_SummingNode.h`, `tracktion_ConnectedNode.h`), which would
+  make the rack's end-to-end monitoring latency the maximum branch latency at all times.
+  **Amendment (2026-07-05 adversarial review):** `Edit::setLatencyCompensationEnabled(false)` is
+  a public, reachable API (`model/edit/tracktion_Edit.h:539`, plumbed to
+  `TransformOptions::disableLatencyCompensation`, which both rack join nodes honor). With
+  compensation off, live monitoring latency equals the *active* branch's own latency; branches
+  are misaligned only during the 5-10 ms crossfade between two different tones, which is a brief
+  tone-to-tone phase smear, not a timing error. PDC aligns recorded material in mixes; this
+  product has one live path plus a backing stem, so the default should be **compensation off**.
+  The setting is edit-global. Keep the per-tone reported-latency surfacing/warning regardless;
+  reporting accuracy still depends on each plugin's `getLatencySeconds()`.
+- **Region-selection audition switches by seeking.** Seek/stop follow-through is automatic
+  because parameter streams track the transport position while stopped — which also means a
+  manually-set branch gain would be overwritten on the next block. So "select a region outside
+  the cursor and hear its tone" must move the transport to the region (consistent with the
+  editor's click-to-seek behavior), not poke gains directly.
+- **Optional finer switch timing exists.** `PluginManager::canUseFineGrainAutomation`
+  (`playback/graph/tracktion_PluginNode.cpp:18`) grants approved plugins 128-sample sub-block
+  automation. Registering it for just the branch-gain plugins drops switch quantization from
+  block size to ~2.9 ms at 44.1 kHz. Not required to meet the product bar; note for later.
+- **CPU parking facts, for the deferred profiling day.** There is no "loaded but frozen" state:
+  `setProcessingEnabled(false)` *deletes* the hosted instance
+  (`plugins/external/tracktion_ExternalPlugin.cpp:944`), and `setEnabled(false)` saves no CPU on
+  latency-reporting external plugins because they keep processing to feed the latency-matched
+  bypass path (`tracktion_PluginNode.cpp:102`). If parking is ever needed, it is
+  `setEnabled(false)` under zero branch gain for zero-latency plugins only, re-enabled while
+  still silent. Design any future mitigation from these facts.
+- **"No rebuild at boundaries" is the bar, not "no rebuilds ever."** A hosted plugin changing
+  its own latency triggers `edit.restartPlayback()` regardless of our design
+  (`tracktion_ExternalPlugin.cpp:87`); the coalesced lock-free swap above is the engine's normal
+  operating mode and the system must tolerate it during playback.
 
 Preloading every referenced tone keeps several full plugin chains (amp sims can be heavy) loaded and
 processing at once. This is an accepted, **currently unmeasured** tradeoff, consistent with the
 architecture's pre-activated silent-plugin pattern. It is not a known problem. Do not design a
 tone-count cap or CPU ceiling for it now. Revisit only if profiling on real songs shows it matters,
-e.g. by bypass-ramping inactive branches rather than only zeroing their gain.
+using the CPU-parking facts recorded in the verified mechanism notes above.
+
+### Adversarial review outcome (2026-07-05)
+
+A source-level adversarial review compared the rack design against every credible alternative.
+Verdict: **amend, keep the rack** (amendments are folded into the notes above). Ranking:
+
+- **Hidden parallel AudioTracks** (one per tone, shared live input via multi-target
+  `InputDeviceInstance::setTarget`, per-track volume automation) is a *working* second place and
+  the named fallback: same switching mechanism and timing, and track-level curve rebakes avoid
+  the rack's rebuild-on-bake wart, but N hidden tracks leak into the edit model, input-target
+  changes rebuild the graph, and the "one instrument route, not N pseudo-tracks" modeling
+  argument from the tone-rack plan still holds. Rewrite target only if the rebake spike fails.
+- **Custom multi-chain hosting plugin**: rejected — re-implements instance creation, state
+  capture (today's `captureActiveRig` walks `tracktion::ExternalPlugin` state), plugin windows,
+  latency propagation, and hides internal chains from Tracktion automation, killing future
+  per-tone parameter automation.
+- **Plugin enable/bypass as the switch**: rejected — `setEnabled` is a plain CachedValue, not
+  automatable (message-thread push = second clock), and the transition is a hard per-block flip
+  with no crossfade (the engine's own comment concedes it, `tracktion_PluginNode.cpp:252`).
+- **Two-rigs-resident**: not a mechanism — there is no prepared-but-unconnected state; keep as a
+  possible future resident-set policy applied at seek/load time, never at boundaries.
+- **Engine-native modes**: `setLowLatencyMonitoring` shrinks the device buffer and disables
+  chosen plugins but reallocates the playback context (audible) — a user-facing toggle, not a
+  switch path; `TimedMutingNode` is internal-only and ramp-free; serial per-tone RackInstances
+  with wet/dry would *sum* rack latencies (`RackReturnNode` delays dry to match wet) — strictly
+  worse.
+
+Spikes to run at the start of slice 5, before committing to the bake shape:
+
+1. Bake/rebake curve points while playing with a latency-heavy plugin in another branch; record
+   output and diff for discontinuities (validates the coalesced-rebuild correction).
+2. Two branches with step curves; record and measure the composite fade envelope (baked ramp x
+   `smoothingRampTimeSeconds`), then tune the smoothing time.
+3. With latency compensation off, crossfade between two branches with mismatched latency and
+   confirm the tone-to-tone phase smear is inaudible.
 
 ## Implementation Slices
 
