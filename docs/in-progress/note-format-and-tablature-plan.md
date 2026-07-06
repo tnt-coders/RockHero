@@ -6,8 +6,14 @@ full technique/chord/FHP rendering (slice 3) all shipped: chart domain model and
 the seconds-resolved `TabViewState` projection in editor-core, and the `TabView` overlay in the
 waveform lane with the View menu's Show Waveform toggle and Tablature Strings selector (both
 app-wide persisted settings). The 39-package reference corpus carries linked charts and loads
-through the production reader. Remaining from this plan: only slice 4 (authoring/import), which
-stays future work. The 3D display has its own plan at `docs/todo/3d-highway-plan.md`.
+through the production reader. A Guitar Pro importer also shipped (File > Import accepts .gp):
+`GpSongImporter` in editor-core parses the GP7/8 container (score.gpif), builds the tempo map
+from the score's audio sync points, converts every track to a chart (ties merge to single
+notes, GP bends/slides/harmonics map onto the format, between-fret harmonics use the `touch`
+field), and copies the embedded backing audio into the workspace; validated against a 101-file
+local corpus (111 arrangements, ~196k notes, zero failures). Remaining from this plan: note
+authoring UI and an RS XML importer, which stay future work. The 3D display has its own plan at
+`docs/todo/3d-highway-plan.md`.
 
 ## Goal
 
