@@ -158,8 +158,11 @@ the song document. Everything below lives in that chart file. Design rules that 
 - **Every fact is stated once.** Durations are beat-fraction tokens, never end positions (moving
   a note touches one field). Intra-note payloads (bends, slides) use *note-relative* beat
   offsets, so moving a note never rewrites its payloads. Techniques appear only when present.
-- **Positions reuse the tempo-map token grammar.** `"27:3"` is a whole beat; `"27:3+1/2"` is an
-  exact rational sub-beat. Beat-fraction durations/offsets are bare fraction tokens (`"3/2"`).
+- **Positions reuse the tempo-map token grammar and its key.** `"position"` names an absolute
+  timeline position everywhere, exactly like tempo anchors: `"27:3"` is a whole beat,
+  `"27:3+1/2"` an exact rational sub-beat. Note-relative payload offsets are deliberately named
+  `"offset"` instead — same fraction grammar, different meaning, different word. Beat-fraction
+  durations are bare fraction tokens (`"3/2"`).
 - **One `notes` stream.** A sound is a single note (`string`/`fret`) or a chord instance
   (`chord` referencing the template table). No difficulty levels; this is the true tab.
 - **Curve payloads are two-column pairs.** `[offset, value]`, like coordinates — self-evident
@@ -174,33 +177,33 @@ the song document. Everything below lives in that chart file. Design rules that 
     { "name": "Am-arp", "frets": [null, 0, 2, 2, 1, 0], "fingers": [null, null, 2, 3, 1, null], "arpeggio": true }
   ],
   "notes": [
-    { "at": "12:1", "string": 3, "fret": 5 },
-    { "at": "12:1+1/2", "string": 3, "fret": 7, "hopo": "hammer" },
-    { "at": "12:2", "string": 3, "fret": 5, "hopo": "pull", "sustain": "1/2" },
-    { "at": "12:3", "string": 2, "fret": 9, "hopo": "tap", "accent": true },
-    { "at": "13:1", "string": 4, "fret": 5, "sustain": "2", "vibrato": true },
-    { "at": "13:3", "string": 5, "fret": 0, "mute": "palm", "tremolo": true, "sustain": "1" },
-    { "at": "14:1", "string": 5, "fret": 3, "mute": "full" },
-    { "at": "14:2", "string": 2, "fret": 12, "harmonic": "natural" },
-    { "at": "14:3", "string": 5, "fret": 5, "harmonic": "pinch", "sustain": "1" },
-    { "at": "15:1", "string": 6, "fret": 3, "picking": "slap" },
-    { "at": "15:1+1/2", "string": 6, "fret": 5, "picking": "pop" },
-    { "at": "16:1", "string": 4, "fret": 7, "sustain": "4",
+    { "position": "12:1", "string": 3, "fret": 5 },
+    { "position": "12:1+1/2", "string": 3, "fret": 7, "hopo": "hammer" },
+    { "position": "12:2", "string": 3, "fret": 5, "hopo": "pull", "sustain": "1/2" },
+    { "position": "12:3", "string": 2, "fret": 9, "hopo": "tap", "accent": true },
+    { "position": "13:1", "string": 4, "fret": 5, "sustain": "2", "vibrato": true },
+    { "position": "13:3", "string": 5, "fret": 0, "mute": "palm", "tremolo": true, "sustain": "1" },
+    { "position": "14:1", "string": 5, "fret": 3, "mute": "full" },
+    { "position": "14:2", "string": 2, "fret": 12, "harmonic": "natural" },
+    { "position": "14:3", "string": 5, "fret": 5, "harmonic": "pinch", "sustain": "1" },
+    { "position": "15:1", "string": 6, "fret": 3, "picking": "slap" },
+    { "position": "15:1+1/2", "string": 6, "fret": 5, "picking": "pop" },
+    { "position": "16:1", "string": 4, "fret": 7, "sustain": "4",
       "bend": [["1/2", 1.0], ["1", 2.0], ["3", 2.0], ["4", 0.0]] },
-    { "at": "18:1", "string": 4, "fret": 5, "sustain": "3",
-      "slides": [{ "at": "1", "fret": 9 }, { "at": "2", "fret": 7 }, { "at": "3", "fret": 12, "unpitched": true }] },
-    { "at": "20:1", "chord": 0, "sustain": "1" },
-    { "at": "20:3", "chord": 1, "sustain": "2",
+    { "position": "18:1", "string": 4, "fret": 5, "sustain": "3",
+      "slides": [{ "offset": "1", "fret": 9 }, { "offset": "2", "fret": 7 }, { "offset": "3", "fret": 12, "unpitched": true }] },
+    { "position": "20:1", "chord": 0, "sustain": "1" },
+    { "position": "20:3", "chord": 1, "sustain": "2",
       "strings": [{ "string": 5, "sustain": "4", "vibrato": true }] },
-    { "at": "22:4", "string": 3, "fret": 14, "sustain": "5/2" }
+    { "position": "22:4", "string": 3, "fret": 14, "sustain": "5/2" }
   ],
   "fhps": [
-    { "at": "12:1", "fret": 5 },
-    { "at": "16:1", "fret": 7, "width": 5 }
+    { "position": "12:1", "fret": 5 },
+    { "position": "16:1", "fret": 7, "width": 5 }
   ],
   "sections": [
-    { "at": "12:1", "type": "verse" },
-    { "at": "20:1", "type": "chorus" }
+    { "position": "12:1", "type": "verse" },
+    { "position": "20:1", "type": "chorus" }
   ]
 }
 ```
