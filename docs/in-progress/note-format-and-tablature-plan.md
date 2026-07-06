@@ -1,9 +1,13 @@
 # Note Format and 2D Tablature Plan
 
-Status: formalized 2026-07-05 at the direction level (positions, true tab, chords, onset model
-all decided); the detailed format spec is deliberately open for an in-depth back-and-forth design
-pass that begins after the tone plan's slice 5 (runtime tone switching) lands. Queued behind that
-tone pass.
+Status: IMPLEMENTED 2026-07-06. The format (slice 1), the read-only tab lane (slice 2), and the
+full technique/chord/FHP rendering (slice 3) all shipped: chart domain model and document IO in
+`rock-hero-common/core/chart/`, package wiring through `Arrangement`/`rock_song_package_format`,
+the seconds-resolved `TabViewState` projection in editor-core, and the `TabView` overlay in the
+waveform lane with the View menu's Show Waveform toggle and Tablature Strings selector (both
+app-wide persisted settings). The 39-package reference corpus carries linked charts and loads
+through the production reader. Remaining from this plan: only slice 4 (authoring/import), which
+stays future work. The 3D display has its own plan at `docs/todo/3d-highway-plan.md`.
 
 ## Goal
 
