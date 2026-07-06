@@ -58,6 +58,7 @@ TEST_CASE("EditorView lays out toolbar below the menu bar", "[ui][editor-view]")
     view.setBounds(0, 0, 500, 200);
 
     auto& controls = findRequiredDescendant<TransportControls>(view, "transport_controls");
+    auto& arrangement_caption = findRequiredDescendant<juce::Label>(view, "arrangement_caption");
     auto& arrangement_selector =
         findRequiredDescendant<juce::ComboBox>(view, "arrangement_selector");
     auto& grid_selector = findRequiredDescendant<juce::Component>(view, "grid_spacing_selector");
@@ -67,13 +68,14 @@ TEST_CASE("EditorView lays out toolbar below the menu bar", "[ui][editor-view]")
     auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
     auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
     auto& signal_chain_panel = findRequiredDescendant<SignalChainPanel>(view, "signal_chain_panel");
-    // The arrangement dropdown pins to the strip's left edge with the grid selector beside
-    // it. The playback block (buttons + position readout) wants its whole width centered on
-    // the window, but at this window width the selectors clamp the block to start right of
-    // them.
-    CHECK(arrangement_selector.getBounds() == juce::Rectangle<int>{8, 32, 132, 24});
-    CHECK(grid_selector.getBounds() == juce::Rectangle<int>{148, 28, 132, 32});
-    CHECK(controls.getBounds() == juce::Rectangle<int>{280, 28, 96, 32});
+    // The arrangement caption and dropdown pin to the strip's left edge with the grid selector
+    // beside them. The playback block (buttons + position readout) wants its whole width
+    // centered on the window, but at this window width the selectors clamp the block to start
+    // right of them.
+    CHECK(arrangement_caption.getBounds() == juce::Rectangle<int>{8, 28, 84, 32});
+    CHECK(arrangement_selector.getBounds() == juce::Rectangle<int>{92, 32, 132, 24});
+    CHECK(grid_selector.getBounds() == juce::Rectangle<int>{232, 28, 132, 32});
+    CHECK(controls.getBounds() == juce::Rectangle<int>{364, 28, 96, 32});
     CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 484, 80});
     CHECK(timeline_ruler.getBounds() == juce::Rectangle<int>{0, 0, 484, 53});
     CHECK(viewport.getBounds() == juce::Rectangle<int>{0, 53, 484, 27});
