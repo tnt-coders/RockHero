@@ -67,11 +67,6 @@ struct MeasureGrid
     std::vector<int> beats_per_measure; // numerator per measure, index 0 = measure 1
     std::vector<int> denominator;       // denominator per measure
     std::vector<int> first_global_beat; // global beat index of each measure's downbeat
-
-    [[nodiscard]] int totalBeats() const
-    {
-        return beats_per_measure.empty() ? 0 : first_global_beat.back() + beats_per_measure.back();
-    }
 };
 
 [[nodiscard]] MeasureGrid makeMeasureGrid(const GpScore& score)
@@ -108,8 +103,9 @@ constexpr std::array<const char*, 12> g_midi_note_names{
 }
 
 // Builds the warp-anchor tempo map from the score's sync points, extending a downbeat terminal
-// anchor past the final bar so every note position lies inside the map.
-[[nodiscard]] std::expected<common::core::TempoMap, std::string> buildTempoMap(
+// anchor past the final bar so every note position lies inside the map. Unusable sync points are
+// dropped with a conversion note, so the build itself cannot fail.
+[[nodiscard]] common::core::TempoMap buildTempoMap(
     const GpScore& score, const MeasureGrid& grid, std::vector<std::string>& notes)
 {
     std::vector<common::core::TimeSignatureChange> signatures;
@@ -150,17 +146,17 @@ constexpr std::array<const char*, 12> g_midi_note_names{
         int beat = whole_beat + 1;
         if (beat > beats_in_bar)
         {
+            // A rollover from the last bar's end lands on the terminal downbeat, which is a
+            // legal anchor position: it pins the song's end to the audio exactly.
             measure += 1;
             beat = 1;
-            if (measure > measure_count)
-            {
-                continue;
-            }
         }
 
+        // Anchors must advance strictly in both grid position and audio time; sync points that
+        // regress on either axis would corrupt the map, so they are dropped.
         if (!anchors.empty() &&
-            (anchors.back().seconds >= sync.seconds ||
-             (anchors.back().measure == measure && anchors.back().beat == beat)))
+            (anchors.back().seconds >= sync.seconds || anchors.back().measure > measure ||
+             (anchors.back().measure == measure && anchors.back().beat >= beat)))
         {
             continue;
         }
@@ -181,18 +177,25 @@ constexpr std::array<const char*, 12> g_midi_note_names{
     if (anchors.front().measure != 1 || anchors.front().beat != 1)
     {
         // Back-extrapolate the missing lead-in at the first known tempo, clamped at zero so
-        // the map never starts before the audio.
+        // the map never starts before the audio. Whole measures and the first anchor's partial
+        // measure subtract separately because the anchor may sit on the terminal downbeat,
+        // one past the last real measure.
         const common::core::BeatAnchor& first = anchors.front();
         double seconds = first.seconds;
         const double first_tempo = score.sync_points.empty()
                                        ? score.base_tempo_quarter_bpm
                                        : std::max(1.0, score.sync_points.front().modified_tempo);
-        for (int measure = 1; measure <= first.measure; ++measure)
+        for (int measure = 1; measure < first.measure; ++measure)
         {
             const auto measure_index = static_cast<std::size_t>(measure - 1);
-            const int beats =
-                measure == first.measure ? first.beat - 1 : grid.beats_per_measure[measure_index];
-            seconds -= beats * secondsPerBeat(first_tempo, grid.denominator[measure_index]);
+            seconds -= grid.beats_per_measure[measure_index] *
+                       secondsPerBeat(first_tempo, grid.denominator[measure_index]);
+        }
+        if (first.beat > 1)
+        {
+            const auto first_index = static_cast<std::size_t>(first.measure - 1);
+            seconds -=
+                (first.beat - 1) * secondsPerBeat(first_tempo, grid.denominator[first_index]);
         }
         if (seconds < 0.0)
         {
@@ -207,29 +210,26 @@ constexpr std::array<const char*, 12> g_midi_note_names{
         }
     }
 
-    // Terminal anchor on the downbeat after the final bar, extrapolated at the last tempo.
+    // Terminal anchor on the downbeat after the final bar, extrapolated at the last tempo. A
+    // final sync point can land exactly there (a rollover from the last bar's end); it already
+    // pins the song's end to the audio, so no extrapolated anchor is added on top of it.
     const common::core::BeatAnchor& last = anchors.back();
-    double terminal_seconds = last.seconds;
     const int total_measures = static_cast<int>(grid.beats_per_measure.size());
-    for (int measure = last.measure; measure <= total_measures; ++measure)
+    if (last.measure != total_measures + 1)
     {
-        const auto measure_index = static_cast<std::size_t>(measure - 1);
-        const int beats = measure == last.measure
-                              ? grid.beats_per_measure[measure_index] - (last.beat - 1)
-                              : grid.beats_per_measure[measure_index];
-        terminal_seconds +=
-            beats * secondsPerBeat(std::max(1.0, last_tempo), grid.denominator[measure_index]);
-    }
-    const int terminal_measure = static_cast<int>(grid.beats_per_measure.size()) + 1;
-    if (last.measure == terminal_measure && last.beat == 1)
-    {
-        // The final sync already sits on the terminal downbeat.
-    }
-    else
-    {
+        double terminal_seconds = last.seconds;
+        for (int measure = last.measure; measure <= total_measures; ++measure)
+        {
+            const auto measure_index = static_cast<std::size_t>(measure - 1);
+            const int beats = measure == last.measure
+                                  ? grid.beats_per_measure[measure_index] - (last.beat - 1)
+                                  : grid.beats_per_measure[measure_index];
+            terminal_seconds +=
+                beats * secondsPerBeat(std::max(1.0, last_tempo), grid.denominator[measure_index]);
+        }
         anchors.push_back(
             common::core::BeatAnchor{
-                .measure = terminal_measure,
+                .measure = total_measures + 1,
                 .beat = 1,
                 .seconds = std::max(terminal_seconds, last.seconds + 0.001),
             });
@@ -259,9 +259,12 @@ constexpr std::array<const char*, 12> g_midi_note_names{
         double offset_percent;
         double value;
     };
-    const std::array<RawPoint, 3> raw{
+    // The middle value holds between the two middle offsets; when they coincide, the equal-offset
+    // merge below collapses the plateau back to a single point.
+    const std::array<RawPoint, 4> raw{
         RawPoint{.offset_percent = bend.origin_offset, .value = bend.origin_value},
-        RawPoint{.offset_percent = bend.middle_offset, .value = bend.middle_value},
+        RawPoint{.offset_percent = bend.middle_offset1, .value = bend.middle_value},
+        RawPoint{.offset_percent = bend.middle_offset2, .value = bend.middle_value},
         RawPoint{.offset_percent = bend.destination_offset, .value = bend.destination_value},
     };
 
@@ -584,7 +587,8 @@ constexpr std::array<const char*, 12> g_midi_note_names{
         if ((entry.slide_flags & (4 | 8)) != 0 && note.slides.empty())
         {
             const bool upward = (entry.slide_flags & 8) != 0;
-            const int target = upward ? std::min(note.fret + 4, 30) : std::max(note.fret - 4, 0);
+            const int target = upward ? std::min(note.fret + 4, common::core::g_max_fret)
+                                      : std::max(note.fret - 4, 0);
             Fraction window = note.sustain;
             if (window.numerator <= 0)
             {
@@ -624,11 +628,14 @@ constexpr std::array<const char*, 12> g_midi_note_names{
 
 } // namespace
 
-std::expected<GpBuiltSong, std::string> buildGpSong(const GpScore& score)
+std::expected<GpBuiltSong, SongImportError> buildGpSong(const GpScore& score)
 {
     if (score.master_bars.empty() || score.tracks.empty())
     {
-        return std::unexpected{"score has no bars or no tracks"};
+        return std::unexpected{SongImportError{
+            SongImportErrorCode::InvalidImportedSong,
+            "score has no bars or no tracks",
+        }};
     }
 
     GpBuiltSong song;
@@ -637,12 +644,7 @@ std::expected<GpBuiltSong, std::string> buildGpSong(const GpScore& score)
     song.metadata.album = score.album;
 
     const MeasureGrid grid = makeMeasureGrid(score);
-    auto tempo_map = buildTempoMap(score, grid, song.notes);
-    if (!tempo_map.has_value())
-    {
-        return std::unexpected{std::move(tempo_map.error())};
-    }
-    song.tempo_map = std::move(*tempo_map);
+    song.tempo_map = buildTempoMap(score, grid, song.notes);
 
     int whammy_beats = 0;
     int grace_beats = 0;
@@ -685,10 +687,11 @@ std::expected<GpBuiltSong, std::string> buildGpSong(const GpScore& score)
         if (auto validation = common::core::validateChartRules(arrangement.chart, song.tempo_map);
             !validation.has_value())
         {
-            return std::unexpected{
+            return std::unexpected{SongImportError{
+                SongImportErrorCode::InvalidImportedSong,
                 "imported chart for track \"" + track.name +
-                "\" violates chart rules: " + validation.error().message
-            };
+                    "\" violates chart rules: " + validation.error().message,
+            }};
         }
         song.arrangements.push_back(std::move(arrangement));
     }

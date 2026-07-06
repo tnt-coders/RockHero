@@ -75,8 +75,8 @@ std::expected<common::core::Song, SongImportError> GpSongImporter::importSong(
     if (!score.has_value())
     {
         return std::unexpected{SongImportError{
-            SongImportErrorCode::InvalidImportedSong,
-            "Could not read the Guitar Pro score: " + std::move(score.error()),
+            score.error().code,
+            "Could not read the Guitar Pro score: " + std::move(score.error().message),
         }};
     }
 
@@ -92,8 +92,8 @@ std::expected<common::core::Song, SongImportError> GpSongImporter::importSong(
     if (!built.has_value())
     {
         return std::unexpected{SongImportError{
-            SongImportErrorCode::InvalidImportedSong,
-            "Could not convert the Guitar Pro score: " + std::move(built.error()),
+            built.error().code,
+            "Could not convert the Guitar Pro score: " + std::move(built.error().message),
         }};
     }
 
