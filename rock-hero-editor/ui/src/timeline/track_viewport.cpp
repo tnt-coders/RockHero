@@ -22,6 +22,8 @@ const juce::Colour g_tone_track_background{juce::Colour{0xff14181e}};
 
 constexpr int g_track_canvas_default_height{720};
 constexpr int g_tracks_visible_at_default_size{3};
+// Fixed label-height tone row: 13px region names plus the region insets, nothing more.
+constexpr int g_tone_track_height{30};
 constexpr double g_mouse_wheel_zoom_factor{1.2};
 constexpr float g_min_mouse_wheel_delta{std::numeric_limits<float>::epsilon()};
 constexpr int g_tempo_grid_dot_size{1};
@@ -389,10 +391,11 @@ int TrackViewport::defaultVisibleCanvasHeight() const noexcept
     return std::max(1, g_track_canvas_default_height - m_viewport.getScrollBarThickness());
 }
 
-// Keeps the compact tone row at half a primary track so regions read as a schedule strip.
+// Keeps the tone row at a fixed label-height strip: regions only need to show their name until
+// clicking one expands per-automation sub-lanes (planned), so taller rows are wasted space.
 int TrackViewport::toneTrackHeight() const noexcept
 {
-    return primaryTrackHeight() / 2;
+    return g_tone_track_height;
 }
 
 // Keeps each track at one third of the default usable viewport height.
