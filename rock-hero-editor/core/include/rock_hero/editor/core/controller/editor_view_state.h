@@ -264,6 +264,17 @@ struct EditorViewState
     */
     std::shared_ptr<const TabViewState> tab{};
 
+    /*! \brief True when the waveform draws behind the tablature lane; app-wide preference. */
+    bool waveform_visible{true};
+
+    /*!
+    \brief App-wide minimum number of tablature string lanes to display.
+
+    Zero means match the chart's string count. The rendered lane count is the larger of this and
+    the chart's own count, so raising it only ever adds empty lanes and never hides notes.
+    */
+    int tab_minimum_displayed_strings{0};
+
     /*! \brief Current signal-chain view state. */
     SignalChainViewState signal_chain{};
 

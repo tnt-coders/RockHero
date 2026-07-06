@@ -1,3 +1,4 @@
+#include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/editor/core/settings/editor_settings.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <string_view>
@@ -721,6 +722,54 @@ TEST_CASE("EditorController persists the grid note value on save-as", "[core][ed
     const auto stored = settings.projectGridNoteValueFor(std::filesystem::path{"saved.rhp"});
     REQUIRE(stored.has_value());
     CHECK(*stored == std::optional{common::core::Fraction{1, 16}});
+}
+
+// Both preferences are app-wide display state: published in every derived state, persisted on
+// change, clamped to the chart string cap, and restored by a fresh controller.
+TEST_CASE(
+    "EditorController publishes and persists tab display preferences", "[core][editor-controller]")
+{
+    const ScopedControllerSettingsFile settings_file{"tab_display_preferences.settings"};
+    EditorSettings settings{settings_file.path()};
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+
+    {
+        EditorController controller{
+            audioPorts(transport, audio), controllerServices(settings), noopExitFunction()
+        };
+        FakeEditorView view;
+        controller.attachView(view);
+
+        REQUIRE(view.last_state.has_value());
+        CHECK(view.last_state->waveform_visible);
+        CHECK(view.last_state->tab_minimum_displayed_strings == 0);
+
+        controller.onWaveformVisibleChangeRequested(false);
+        REQUIRE(view.last_state.has_value());
+        CHECK_FALSE(view.last_state->waveform_visible);
+
+        controller.onTabMinimumDisplayedStringsChangeRequested(9);
+        CHECK(view.last_state->tab_minimum_displayed_strings == 9);
+
+        controller.onTabMinimumDisplayedStringsChangeRequested(99);
+        CHECK(view.last_state->tab_minimum_displayed_strings == common::core::g_max_chart_strings);
+    }
+
+    CHECK(settings.waveformVisible() == std::optional{false});
+    CHECK(
+        settings.tabMinimumDisplayedStrings() == std::optional{common::core::g_max_chart_strings});
+
+    EditorController restored_controller{
+        audioPorts(transport, audio), controllerServices(settings), noopExitFunction()
+    };
+    FakeEditorView restored_view;
+    restored_controller.attachView(restored_view);
+    REQUIRE(restored_view.last_state.has_value());
+    CHECK_FALSE(restored_view.last_state->waveform_visible);
+    CHECK(
+        restored_view.last_state->tab_minimum_displayed_strings ==
+        common::core::g_max_chart_strings);
 }
 
 } // namespace rock_hero::editor::core

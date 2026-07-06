@@ -356,6 +356,12 @@ public:
     */
     void onTimelineZoomChanged(double pixels_per_second) override;
 
+    /*! \copydoc IEditorController::onWaveformVisibleChangeRequested */
+    void onWaveformVisibleChangeRequested(bool visible) override;
+
+    /*! \copydoc IEditorController::onTabMinimumDisplayedStringsChangeRequested */
+    void onTabMinimumDisplayedStringsChangeRequested(int minimum_strings) override;
+
     /*! \copydoc IEditorController::onArrangementSelected */
     void onArrangementSelected(std::string arrangement_id) override;
 

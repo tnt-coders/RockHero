@@ -93,6 +93,34 @@ public:
         std::optional<std::string> serialized_state) override;
 
     /*!
+    \brief Reads the app-wide waveform visibility preference for the timeline's tablature lane.
+    \return Stored visibility, or empty when the user has never toggled it.
+    */
+    [[nodiscard]] std::optional<bool> waveformVisible() const override;
+
+    /*!
+    \brief Stores the app-wide waveform visibility preference.
+    \param visible True when the waveform should draw behind the tablature lane.
+    \return Empty success, or a typed settings failure.
+    */
+    [[nodiscard]] std::expected<void, EditorSettingsError> setWaveformVisible(
+        bool visible) override;
+
+    /*!
+    \brief Reads the app-wide minimum number of tablature string lanes to display.
+    \return Stored minimum, or empty when the user has never chosen one.
+    */
+    [[nodiscard]] std::optional<int> tabMinimumDisplayedStrings() const override;
+
+    /*!
+    \brief Stores the app-wide minimum number of tablature string lanes to display.
+    \param minimum_strings Minimum lane count; zero means match the chart's string count.
+    \return Empty success, or a typed settings failure.
+    */
+    [[nodiscard]] std::expected<void, EditorSettingsError> setTabMinimumDisplayedStrings(
+        int minimum_strings) override;
+
+    /*!
     \brief Reads the app-local resume cursor stored for an editor project path.
     \param project_file Project path whose cursor should be restored.
     \return Cursor position, absence, or a typed settings failure.

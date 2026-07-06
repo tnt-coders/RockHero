@@ -36,6 +36,7 @@
 #include <rock_hero/common/audio/shared/scoped_listener.h>
 #include <rock_hero/common/audio/song/i_song_audio.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
+#include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/shared/cancellation_token.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/timeline/fraction.h>
@@ -715,6 +716,16 @@ void EditorController::onTimelineZoomChanged(double pixels_per_second)
     m_impl->onTimelineZoomChanged(pixels_per_second);
 }
 
+void EditorController::onWaveformVisibleChangeRequested(bool visible)
+{
+    m_impl->onWaveformVisibleChangeRequested(visible);
+}
+
+void EditorController::onTabMinimumDisplayedStringsChangeRequested(int minimum_strings)
+{
+    m_impl->onTabMinimumDisplayedStringsChangeRequested(minimum_strings);
+}
+
 void EditorController::onArrangementSelected(std::string arrangement_id)
 {
     m_impl->onArrangementSelected(std::move(arrangement_id));
@@ -930,6 +941,9 @@ EditorController::Impl::Impl(
             },
         });
     restoreAudioDeviceState();
+    m_waveform_visible = m_settings.waveformVisible().value_or(true);
+    m_tab_minimum_displayed_strings = std::clamp(
+        m_settings.tabMinimumDisplayedStrings().value_or(0), 0, common::core::g_max_chart_strings);
     common::audio::IAudioDeviceConfiguration::Listener& self_as_listener = *this;
     m_audio_device_listener = std::make_unique<common::audio::ScopedListener<
         common::audio::IAudioDeviceConfiguration,
@@ -1171,6 +1185,39 @@ void EditorController::Impl::onTimelineZoomChanged(double pixels_per_second)
             m_settings.saveProjectTimelineZoom(m_project_file, m_timeline_zoom_pixels_per_second),
             "save project timeline zoom");
     }
+}
+
+// Caches, persists, and republishes the app-wide waveform visibility preference. Like zoom it
+// never dirties project content and bypasses the action gate, but unlike zoom the view renders
+// from pushed state, so the change flows back through updateView().
+void EditorController::Impl::onWaveformVisibleChangeRequested(bool visible)
+{
+    if (visible == m_waveform_visible)
+    {
+        return;
+    }
+
+    m_waveform_visible = visible;
+    recordSettingsResultBestEffort(
+        m_settings.setWaveformVisible(m_waveform_visible), "save waveform visibility");
+    updateView();
+}
+
+// Caches, persists, and republishes the app-wide tablature string display minimum; see
+// onWaveformVisibleChangeRequested for why this pushes state where zoom does not.
+void EditorController::Impl::onTabMinimumDisplayedStringsChangeRequested(int minimum_strings)
+{
+    const int clamped = std::clamp(minimum_strings, 0, common::core::g_max_chart_strings);
+    if (clamped == m_tab_minimum_displayed_strings)
+    {
+        return;
+    }
+
+    m_tab_minimum_displayed_strings = clamped;
+    recordSettingsResultBestEffort(
+        m_settings.setTabMinimumDisplayedStrings(m_tab_minimum_displayed_strings),
+        "save tablature string display minimum");
+    updateView();
 }
 
 // Shows the plugin browser with whatever plugins the host already knows. Full catalog discovery is
@@ -1798,6 +1845,8 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.tempo_map = session().song().tempo_map;
     state.grid_note_value = m_grid_note_value;
     state.timeline_zoom_pixels_per_second = m_timeline_zoom_pixels_per_second;
+    state.waveform_visible = m_waveform_visible;
+    state.tab_minimum_displayed_strings = m_tab_minimum_displayed_strings;
     state.signal_chain = SignalChainViewState{
         .insert_plugin_enabled =
             isActionAvailable(EditorAction::Id::BeginPluginInsert, action_conditions),

@@ -121,6 +121,26 @@ public:
     virtual void onTimelineZoomChanged(double pixels_per_second) = 0;
 
     /*!
+    \brief Handles a request to show or hide the waveform behind the tablature lane.
+
+    The preference is app-wide display state: it never dirties project content and is persisted
+    outside any package.
+
+    \param visible True when the waveform should draw behind the tablature lane.
+    */
+    virtual void onWaveformVisibleChangeRequested(bool visible) = 0;
+
+    /*!
+    \brief Handles a request to change the minimum number of tablature string lanes displayed.
+
+    The preference is app-wide display state like waveform visibility. The rendered lane count is
+    the larger of this minimum and the chart's own string count, so it only ever adds empty lanes.
+
+    \param minimum_strings Minimum lane count; zero means match the chart's string count.
+    */
+    virtual void onTabMinimumDisplayedStringsChangeRequested(int minimum_strings) = 0;
+
+    /*!
     \brief Handles switching the editor to another arrangement of the loaded song.
     \param arrangement_id Stable arrangement id selected by the user.
     */
