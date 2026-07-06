@@ -1,7 +1,13 @@
 # Tone Automation Track Plan
 
-Status: planned. Revisit after the tone-rack model exists and the editor needs authored tone
-changes on the song timeline; this is not an active in-progress implementation plan.
+Status: deferred UX reference, revised 2026-07-05. The tone track itself now exists
+(`ToneTrackView` renders persisted tone regions with selection and resize; see
+`docs/in-progress/tone-track-tempo-map-plan.md`), so this document no longer plans that
+component — it keeps the automation-lane UX that layers on top of it: per-automation sub-lanes
+expanding beneath the compact tone strip when a region is clicked. That work is sequenced after
+the note-storage format and tablature display per the tone plan's Non-Goals. Sections below that
+described building the tone row from scratch were removed as implemented; naming differs from the
+shipped code (`ToneRegion`, `ToneTrackViewState`) wherever this document says "clip".
 
 ## Goal
 
@@ -124,40 +130,20 @@ ToneAutomationViewState
 This state is intentionally project-owned. It must not expose Tracktion `Track`, `Clip`,
 `RackType`, `Plugin`, `AutomatableParameter`, or raw plugin-host objects to editor UI code.
 
-Persistent tone timeline storage can remain behind the existing tone/audio boundary while the
-runtime model is still evolving. If the persistent tone model later needs to become a shared
-common-core value type, make that as a separate architecture decision and keep Tracktion
-compilation in `rock-hero-common/audio`.
+Persistence reality (2026-07-05): tone regions persist in `song.json` under the arrangement's
+`toneTrack`, and tone/VST state persists through Tracktion-managed tone files. Automation-curve
+persistence for user-authored curves is an open decision for this deferred work.
 
-## UI Structure
+## Remaining Implementation Scope
 
-Add a visible tone automation component to the track viewport below the backing waveform:
+The tone row, region rendering, selection, and resize shipped via
+`docs/in-progress/tone-track-tempo-map-plan.md` slices 2-3. What remains for this plan:
 
-```text
-TrackViewport content
-  ArrangementView         backing waveform
-  ToneAutomationView      tone clips plus expanded automation rows
-  CursorOverlay           spans the full content area
-```
-
-`ToneAutomationView` should render from `ToneAutomationViewState` and emit normalized or
-time-based intent back to the editor controller. It should not mutate the audio backend directly.
-
-The component should remain visible even with no clips. An empty visible track row is better than
-blank unused viewport space because it communicates where tone authoring will happen.
-
-## Initial Implementation Scope
-
-1. Add `ToneAutomationViewState` and simple clip view-state values in editor core.
-2. Add a `ToneAutomationView` component in editor UI.
-3. Place `ToneAutomationView` below `ArrangementView` in `TrackViewport`.
-4. Render an empty tone row when a project is loaded but no tone clips exist.
-5. Render tone regions from project-owned view state with the UI label `Tones`.
-6. Support single clip selection intent.
-7. Show selected-clip state visually.
-8. Add read-only expanded automation lane rendering for selected clip data.
-9. Draw simple tone gain and fade/crossfade shapes on tone regions.
-10. Keep actual automation editing out of the first pass.
+1. Expand/collapse per-automation sub-lanes beneath the tone strip when a region is clicked
+   (disclosure-style; the 30 px strip is the collapsed state).
+2. Read-only expanded automation lane rendering for selected region data.
+3. Draw simple tone gain and fade/crossfade shapes on tone regions.
+4. Keep actual automation editing out of the first pass.
 
 ## Non-Goals For The First Pass
 

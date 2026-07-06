@@ -2,8 +2,8 @@
 
 Status: completed. The discussion converged on a warp-anchor tempo map, which is now captured in
 `docs/design/architecture.md` and `docs/in-progress/tempo-map-implementation-plan.md`. Historical
-note-storage ideas from this discussion are deferred to
-`docs/todo/chart-note-storage-future-work.md`.
+note-storage ideas from this discussion are now owned by
+`docs/in-progress/note-format-and-tablature-plan.md`.
 
 ## Resolution
 

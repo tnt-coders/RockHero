@@ -4,7 +4,8 @@ Status: in progress. This is the current song-format slice for the tone-system w
 song-level tempo map plus arrangement audio and tone-document references only.
 
 Playable note, chord, tuning, technique, import, and gameplay chart storage is future work. Keep
-those decisions out of this slice; see `docs/todo/chart-note-storage-future-work.md`.
+those decisions out of this slice; they are now owned by
+`docs/in-progress/note-format-and-tablature-plan.md`.
 
 ## Goal
 
