@@ -160,6 +160,17 @@ public:
     */
     void setTransportDisplayState(bool playback_active, bool stop_enabled);
 
+    /*!
+    \brief Stores the tablature lane count so the waveform row can grow past six strings.
+
+    The tablature lane spacing is pinned to the six-string reference density, so displays with
+    more strings need a proportionally taller waveform row instead of compressed lanes; the row
+    grows into the canvas and the viewport's vertical scrollbar absorbs any overflow.
+
+    \param displayed_strings Displayed tablature lane count; zero without a chart.
+    */
+    void setTabDisplayedStrings(int displayed_strings);
+
     /*! \brief Requests one viewport recenter once a restored project cursor is available. */
     void requestCursorFocus();
 
@@ -196,7 +207,8 @@ private:
     // Returns the default content height after reserving space for the horizontal scrollbar.
     [[nodiscard]] int defaultVisibleCanvasHeight() const noexcept;
 
-    // Keeps each track at one third of the default usable viewport height.
+    // Keeps each track at one third of the default usable viewport height, growing the waveform
+    // row proportionally when the tablature shows more than the six-string reference.
     [[nodiscard]] int primaryTrackHeight() const noexcept;
 
     // Compact height of the tone track row hosted below the waveform.
@@ -326,6 +338,10 @@ private:
 
     // Tracks empty vs loaded display mode for layout and zoom gating.
     bool m_project_loaded{false};
+
+    // Displayed tablature lane count; rows past the six-string reference density grow the
+    // waveform row proportionally so lane spacing never compresses.
+    int m_tab_displayed_strings{0};
 
     // Coarse playing flag from core::EditorViewState, used to avoid vblank state polling.
     bool m_playback_active{false};

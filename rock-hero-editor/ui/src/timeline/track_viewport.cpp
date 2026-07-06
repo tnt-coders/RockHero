@@ -342,6 +342,19 @@ void TrackViewport::setTransportDisplayState(bool playback_active, bool stop_ena
     }
 }
 
+// Stores the tablature lane count and relays out when the waveform row height changes: counts
+// past the six-string reference grow the row so lane spacing stays at the reference density.
+void TrackViewport::setTabDisplayedStrings(int displayed_strings)
+{
+    if (m_tab_displayed_strings == displayed_strings)
+    {
+        return;
+    }
+
+    m_tab_displayed_strings = displayed_strings;
+    layoutScaledCanvas();
+}
+
 // Requests one viewport recenter once a restored project cursor is available.
 void TrackViewport::requestCursorFocus()
 {
@@ -403,10 +416,19 @@ int TrackViewport::toneTrackHeight() const noexcept
     return g_tone_track_height;
 }
 
-// Keeps each track at one third of the default usable viewport height.
+// Keeps each track at one third of the default usable viewport height. The waveform row grows
+// past that for tablature displays beyond six strings, keeping the per-lane spacing at the
+// six-string reference density instead of compressing the lanes.
 int TrackViewport::primaryTrackHeight() const noexcept
 {
-    return std::max(1, defaultVisibleCanvasHeight() / g_tracks_visible_at_default_size);
+    const int reference_height =
+        std::max(1, defaultVisibleCanvasHeight() / g_tracks_visible_at_default_size);
+    if (m_tab_displayed_strings <= g_tab_reference_string_count)
+    {
+        return reference_height;
+    }
+
+    return reference_height * m_tab_displayed_strings / g_tab_reference_string_count;
 }
 
 // Converts the current pixel density into the width of the full timeline content.
@@ -449,13 +471,15 @@ bool TrackViewport::needsHorizontalScrollbar(int content_width) const noexcept
     return content_width > getWidth();
 }
 
-// Extends content only when the viewport grows; the default canvas already fits three tracks.
+// Extends content when the viewport grows or the track rows outgrow the default canvas (a
+// grown waveform row for many-string tablature); the vertical scrollbar absorbs any overflow.
 int TrackViewport::scaledContentHeight(int content_width) const noexcept
 {
     const int horizontal_scrollbar_height =
         needsHorizontalScrollbar(content_width) ? m_viewport.getScrollBarThickness() : 0;
     const int visible_height = std::max(0, m_viewport.getHeight() - horizontal_scrollbar_height);
-    return std::max(defaultVisibleCanvasHeight(), visible_height);
+    const int track_rows_height = primaryTrackHeight() + toneTrackHeight();
+    return std::max({defaultVisibleCanvasHeight(), visible_height, track_rows_height});
 }
 
 // Keeps vertical content responsive while horizontal content follows zoom state.
