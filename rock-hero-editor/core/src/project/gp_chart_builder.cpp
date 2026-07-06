@@ -213,16 +213,18 @@ constexpr std::array<const char*, 12> g_midi_note_names{
     // Terminal anchor on the downbeat after the final bar, extrapolated at the last tempo. A
     // final sync point can land exactly there (a rollover from the last bar's end); it already
     // pins the song's end to the audio, so no extrapolated anchor is added on top of it.
-    const common::core::BeatAnchor& last = anchors.back();
     const int total_measures = static_cast<int>(grid.beats_per_measure.size());
-    if (last.measure != total_measures + 1)
+    const int last_sync_measure = anchors.back().measure;
+    const int last_sync_beat = anchors.back().beat;
+    const double last_sync_seconds = anchors.back().seconds;
+    if (last_sync_measure != total_measures + 1)
     {
-        double terminal_seconds = last.seconds;
-        for (int measure = last.measure; measure <= total_measures; ++measure)
+        double terminal_seconds = last_sync_seconds;
+        for (int measure = last_sync_measure; measure <= total_measures; ++measure)
         {
             const auto measure_index = static_cast<std::size_t>(measure - 1);
-            const int beats = measure == last.measure
-                                  ? grid.beats_per_measure[measure_index] - (last.beat - 1)
+            const int beats = measure == last_sync_measure
+                                  ? grid.beats_per_measure[measure_index] - (last_sync_beat - 1)
                                   : grid.beats_per_measure[measure_index];
             terminal_seconds +=
                 beats * secondsPerBeat(std::max(1.0, last_tempo), grid.denominator[measure_index]);
@@ -231,8 +233,19 @@ constexpr std::array<const char*, 12> g_midi_note_names{
             common::core::BeatAnchor{
                 .measure = total_measures + 1,
                 .beat = 1,
-                .seconds = std::max(terminal_seconds, last.seconds + 0.001),
+                .seconds = std::max(terminal_seconds, last_sync_seconds + 0.001),
             });
+    }
+
+    // Warn when audio sync points leave most of the song to constant-tempo extrapolation: those
+    // bars start aligned but drift from any recording that is not metronomically steady, which is
+    // a source-data limitation the import cannot recover (the sync points simply are not there).
+    if (!score.sync_points.empty() && (total_measures - last_sync_measure) * 4 > total_measures)
+    {
+        notes.emplace_back(
+            "audio sync points cover only up to measure " + std::to_string(last_sync_measure) +
+            " of " + std::to_string(total_measures) +
+            "; later timing is extrapolated at the last tempo and may drift from the recording");
     }
 
     return common::core::TempoMap{std::move(signatures), std::move(anchors)};
@@ -293,7 +306,10 @@ constexpr std::array<const char*, 12> g_midi_note_names{
     return all_zero ? std::vector<BendPoint>{} : points;
 }
 
-// Classifies a track's part: four strings or a bass-named track make a bass arrangement.
+// Classifies a track's part by a heuristic: four strings or a bass-named track become Bass, the
+// first non-bass track becomes Lead, and the rest Rhythm. This is a stopgap — Guitar Pro tracks
+// carry no Rock Hero part, so a robust import should let the user map each track to a part on
+// import rather than guessing. Tracked in docs/todo/gp-track-part-mapping.md.
 [[nodiscard]] common::core::Part partForTrack(const GpTrack& track, bool first_track)
 {
     std::string lower_name = track.name;
@@ -306,6 +322,21 @@ constexpr std::array<const char*, 12> g_midi_note_names{
     }
 
     return first_track ? common::core::Part::Lead : common::core::Part::Rhythm;
+}
+
+// Names a part for the human-readable conversion note about the import's part guesses.
+[[nodiscard]] const char* partName(common::core::Part part)
+{
+    switch (part)
+    {
+        case common::core::Part::Lead:
+            return "Lead";
+        case common::core::Part::Rhythm:
+            return "Rhythm";
+        case common::core::Part::Bass:
+            return "Bass";
+    }
+    return "Lead";
 }
 
 // Collects the timed note events of one track across bars and voices, skipping grace beats.
@@ -674,6 +705,7 @@ std::expected<GpBuiltSong, SongImportError> buildGpSong(const GpScore& score)
     }
 
     bool seen_non_bass = false;
+    std::string part_guesses;
     for (const GpTrack& track : score.tracks)
     {
         GpBuiltArrangement arrangement;
@@ -693,8 +725,15 @@ std::expected<GpBuiltSong, SongImportError> buildGpSong(const GpScore& score)
                     "\" violates chart rules: " + validation.error().message,
             }};
         }
+
+        part_guesses +=
+            (part_guesses.empty() ? "" : ", ") + track.name + " -> " + partName(arrangement.part);
         song.arrangements.push_back(std::move(arrangement));
     }
+
+    // The track-to-part mapping is a heuristic guess (see partForTrack); surface it so the user
+    // can spot and correct a misfiled track. Tracked in docs/todo/gp-track-part-mapping.md.
+    song.notes.push_back("assigned parts by track order and name (verify): " + part_guesses);
 
     return song;
 }
