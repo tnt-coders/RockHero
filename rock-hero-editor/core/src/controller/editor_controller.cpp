@@ -14,6 +14,7 @@
 #include "signal_chain/plugin_catalog_workflow.h"
 #include "signal_chain/signal_chain_edits.h"
 #include "signal_chain/signal_chain_workflow.h"
+#include "tab/tab_projection.h"
 #include "tone/tone_track_projection.h"
 
 #include <algorithm>
@@ -1825,6 +1826,22 @@ EditorViewState EditorController::Impl::deriveViewState() const
         };
         state.tone_track =
             toneTrackViewStateFor(*arrangement, state.tempo_map, m_selected_tone_region_id);
+
+        // The tab projection resolves thousands of positions to seconds, so it is memoized per
+        // displayed arrangement. Charts and the tempo map are immutable while a project is open,
+        // which makes the arrangement id a sufficient cache key.
+        if (m_tab_arrangement_id != arrangement->id)
+        {
+            m_tab_view_state = std::make_shared<const TabViewState>(
+                tabViewStateFor(*arrangement, state.tempo_map));
+            m_tab_arrangement_id = arrangement->id;
+        }
+        state.tab = m_tab_view_state;
+    }
+    else
+    {
+        m_tab_view_state.reset();
+        m_tab_arrangement_id.clear();
     }
     state.unsaved_changes_prompt = m_deferred_project_action_state.unsavedChangesPrompt();
     state.save_as_prompt = m_deferred_project_action_state.saveAsPrompt();

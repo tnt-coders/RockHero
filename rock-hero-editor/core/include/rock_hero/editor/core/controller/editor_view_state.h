@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -15,6 +16,7 @@
 #include <rock_hero/editor/core/controller/editor_action_id.h>
 #include <rock_hero/editor/core/signal_chain/plugin_browser_view_state.h>
 #include <rock_hero/editor/core/signal_chain/signal_chain_view_state.h>
+#include <rock_hero/editor/core/tab/tab_view_state.h>
 #include <rock_hero/editor/core/timeline/arrangement_view_state.h>
 #include <rock_hero/editor/core/tone/tone_track_view_state.h>
 #include <rock_hero/editor/core/transport/transport_view_state.h>
@@ -251,6 +253,16 @@ struct EditorViewState
 
     /*! \brief Current tone track row state shown below the backing waveform. */
     ToneTrackViewState tone_track{};
+
+    /*!
+    \brief Seconds-resolved chart content for the current arrangement's tablature lane.
+
+    Shared immutably because charts hold thousands of notes: the controller rebuilds the
+    projection only when the displayed arrangement changes, and every state copy shares one
+    instance. Null when the arrangement has no chart. Pointer identity stands in for content
+    equality in view-state comparisons, matching the rebuild-on-arrangement-change rule.
+    */
+    std::shared_ptr<const TabViewState> tab{};
 
     /*! \brief Current signal-chain view state. */
     SignalChainViewState signal_chain{};
