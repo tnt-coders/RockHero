@@ -192,7 +192,7 @@ std::expected<ToneRack, LiveRigError> buildToneRack(
 std::expected<tracktion::Plugin::Ptr, LiveRigError> createToneRackInstance(
     tracktion::Edit& edit, tracktion::RackType& rack_type)
 {
-    const tracktion::Plugin::Ptr instance =
+    tracktion::Plugin::Ptr instance =
         edit.getPluginCache().createNewPlugin(tracktion::RackInstance::create(rack_type));
     if (instance == nullptr || dynamic_cast<tracktion::RackInstance*>(instance.get()) == nullptr)
     {

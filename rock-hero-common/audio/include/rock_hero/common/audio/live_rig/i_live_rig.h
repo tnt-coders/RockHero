@@ -94,14 +94,27 @@ guarantee a paint cycle between steps.
 */
 using LiveRigLoadYieldCallback = std::function<void(std::function<void()> next)>;
 
-/*! \brief Message-thread request to restore a tone document into the live rig. */
+/*! \brief Message-thread request to restore an arrangement's tone set into the live rig. */
 struct [[nodiscard]] LiveRigLoadRequest
 {
     /*! \brief Native song workspace directory that owns package-relative tone files. */
     std::filesystem::path song_directory;
 
-    /*! \brief Package-relative tone document path stored on the arrangement. */
-    std::string tone_document_ref;
+    /*!
+    \brief Package-relative tone document paths to preload, deduplicated, in schedule order.
+
+    Every referenced tone loads into its own always-processing branch of the multi-tone rig so
+    switching between them never rebuilds plugins. An empty list clears the rig.
+    */
+    std::vector<std::string> tone_document_refs;
+
+    /*!
+    \brief Tone document reference that should be audible after the load.
+
+    Must be one of tone_document_refs. This is the tone the editor's selection points at; the
+    signal-chain panel binds to the same tone.
+    */
+    std::string audible_tone_ref;
 
     /*! \brief Optional callback invoked as plugin restore progress changes. */
     LiveRigLoadProgressCallback progress_callback;
@@ -117,13 +130,13 @@ struct [[nodiscard]] LiveRigLoadRequest
     LiveRigLoadYieldCallback yield_callback;
 };
 
-/*! \brief Result of loading a tone document into the live rig chain. */
+/*! \brief Result of loading an arrangement's tone set into the live rig. */
 struct [[nodiscard]] LiveRigLoadResult
 {
-    /*! \brief Restored chain state for the editor signal-chain panel. */
+    /*! \brief The audible tone's restored chain state for the editor signal-chain panel. */
     std::vector<PluginChainEntry> plugins{};
 
-    /*! \brief Restored output gain after the signal chain. */
+    /*! \brief The audible tone's restored output gain. */
     Gain output_gain{};
 };
 
@@ -151,7 +164,11 @@ public:
     virtual ~ILiveRig() = default;
 
     /*!
-    \brief Captures the active live rig chain into package-relative song files.
+    \brief Captures the audible tone's chain into package-relative song files.
+
+    Only the audible tone is user-editable (the panel binds to it), so non-audible tones cannot
+    drift from their tone documents and never need re-capturing.
+
     \param request Song workspace and arrangement identity for the capture.
     \return Written tone document reference and display chain, or a typed failure.
     */
@@ -178,6 +195,19 @@ public:
     \return Empty success, or a typed failure.
     */
     [[nodiscard]] virtual std::expected<void, LiveRigError> clearLiveRig() = 0;
+
+    /*!
+    \brief Switches which preloaded tone is audible (and bound to the signal-chain panel).
+
+    All tones stay loaded and processing; only branch gains move, through short click-free ramps.
+    This is the selection-driven switch path; scheduled playback switching is baked separately.
+
+    \param tone_document_ref One of the tone references supplied to the last loadLiveRig call.
+    \return The now-audible tone's chain and output gain for panel rebinding, or a typed failure
+            when the tone is not loaded.
+    */
+    [[nodiscard]] virtual std::expected<LiveRigLoadResult, LiveRigError> setAudibleTone(
+        const std::string& tone_document_ref) = 0;
 
     /*!
     \brief Reads the current output gain applied after the signal chain.

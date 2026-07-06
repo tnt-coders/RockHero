@@ -56,6 +56,57 @@ std::string EditorController::Impl::toneRegionIdAt(common::core::TimePosition po
     return {};
 }
 
+// Stores the tone selection and switches the audible rig tone to match. Selection and audibility
+// are one concept: the selected tone is the one heard and the one the signal-chain panel edits.
+void EditorController::Impl::applyToneSelection(std::string region_id)
+{
+    m_selected_tone_region_id = std::move(region_id);
+    syncAudibleTone();
+}
+
+// Points the rig's audible tone at the selected region's tone document. An empty or unknown
+// selection leaves the audible tone unchanged, so a cursor in a gap keeps the previous region's
+// tone ringing until scheduled switching lands.
+void EditorController::Impl::syncAudibleTone()
+{
+    if (!m_project_audio_ready || m_selected_tone_region_id.empty())
+    {
+        return;
+    }
+
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr)
+    {
+        return;
+    }
+
+    const auto region = std::ranges::find_if(
+        arrangement->tone_track.regions, [this](const common::core::ToneRegion& candidate) {
+            return candidate.id == m_selected_tone_region_id;
+        });
+    if (region == arrangement->tone_track.regions.end() || region->tone_document_ref.empty())
+    {
+        return;
+    }
+
+    auto switched = m_live_rig.setAudibleTone(region->tone_document_ref);
+    if (!switched.has_value())
+    {
+        RH_LOG_WARNING(
+            "editor.tone",
+            "Could not switch the audible tone tone_document_ref={:?} detail={:?}",
+            region->tone_document_ref,
+            switched.error().message);
+        return;
+    }
+
+    // The panel binds to the audible tone, so a successful switch rebinds it to the new chain.
+    m_signal_chain.replaceSnapshot(
+        common::audio::PluginChainSnapshot{.plugins = std::move(switched->plugins)});
+    m_output_gain_db = switched->output_gain.db;
+    m_output_gain_preview_before.reset();
+}
+
 void EditorController::Impl::onToneRegionSelected(std::string region_id)
 {
     runAction(EditorAction::SelectToneRegion{std::move(region_id)});
@@ -72,7 +123,7 @@ void EditorController::Impl::performActionImpl(EditorAction::SelectToneRegion ac
 {
     const common::core::ToneRegion* const region =
         findToneRegion(m_session.currentToneTrack(), action.region_id);
-    m_selected_tone_region_id = region != nullptr ? std::move(action.region_id) : std::string{};
+    applyToneSelection(region != nullptr ? std::move(action.region_id) : std::string{});
     updateView();
 }
 

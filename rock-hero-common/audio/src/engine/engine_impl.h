@@ -15,6 +15,7 @@ the engine translation units.
 #include "live_rig/tone_document.h"
 #include "shared/meter_reader.h"
 #include "tracktion/monitoring_mode_transition.h"
+#include "tracktion/multi_tone_rack.h"
 #include "tracktion/plugin_window.h"
 #include "tracktion/tracktion_instrument_wave_device_mapping.h"
 
@@ -58,26 +59,41 @@ void logInstrumentMonitoringFailure(const juce::String& message);
 // having to carry the full state along.
 struct LiveRigLoadOperation
 {
-    // Original request, kept for the song directory and the progress callback.
+    // One tone document being restored into its own rack branch.
+    struct ToneLoad
+    {
+        // Package-relative tone document reference identifying the branch.
+        std::string tone_document_ref;
+
+        // Parsed tone document chain, already validated against package-relative path rules.
+        std::vector<PluginRecord> chain;
+
+        // Display names precomputed once so progress messages stay stable across resume points.
+        std::vector<std::string> display_names;
+
+        // Output gain from the parsed tone document, applied when this tone becomes audible.
+        Gain output_gain;
+
+        // Plugins restored so far, held free-floating until the rack assembles them.
+        std::vector<tracktion::Plugin::Ptr> loaded_plugins;
+    };
+
+    // Original request, kept for the song directory, audible tone, and the progress callback.
     LiveRigLoadRequest request;
 
-    // Parsed tone document chain, already validated against package-relative path rules.
-    std::vector<PluginRecord> chain;
+    // Every tone to preload, in request order.
+    std::vector<ToneLoad> tones;
 
-    // Display names precomputed once so progress messages stay stable across resume points.
-    std::vector<std::string> display_names;
+    // Position of the next plugin to load on the upcoming step.
+    std::size_t next_tone{0};
+    std::size_t next_plugin{0};
 
-    // Final result delivered to the caller once every plugin is restored.
-    LiveRigLoadResult result;
-
-    // Index of the next plugin to load on the upcoming step.
-    std::size_t next_index{0};
+    // Flattened progress counters across all tones.
+    std::size_t total_plugins{0};
+    std::size_t completed_plugins{0};
 
     // Callback fired exactly once when the load finishes or fails.
     LiveRigLoadResultCallback on_result;
-
-    // Output gain from the parsed tone document, applied after all external plugins are restored.
-    Gain output_gain;
 };
 
 struct PluginChainMutationFailure
@@ -172,6 +188,44 @@ private:
     // result callback may safely start a new load.
     std::unique_ptr<LiveRigLoadOperation> m_load_op;
 
+    // Multi-tone rack holding every preloaded tone as an always-processing branch, plus the
+    // track-hosted instance placed between the structural gain/meter slots.
+    std::optional<ToneRack> m_tone_rack;
+    tracktion::EditItemID m_tone_rack_instance_id;
+
+    // Tone currently audible and bound to the signal-chain panel.
+    std::string m_audible_tone_ref;
+
+    // Per-branch output gains (aligned with m_tone_rack->branches) so switching the audible tone
+    // restores that tone's authored output level on the structural output gain stage.
+    std::vector<Gain> m_branch_output_gains;
+
+    // Editor-owned panel layout per branch, captured at load and refreshed on capture. Chain
+    // mutations can outrun it; readers fall back to a gapless layout past its size.
+    struct BranchDisplayMetadata
+    {
+        std::vector<std::size_t> block_indices;
+        std::vector<std::string> display_type_overrides;
+    };
+    std::vector<BranchDisplayMetadata> m_branch_display_metadata;
+
+    // Builds the audible tone's chain-and-gain result for load completion and audible switches.
+    [[nodiscard]] LiveRigLoadResult audibleToneResult() const;
+
+    // Returns the branch the audible tone plays through, or null when no rig is loaded.
+    [[nodiscard]] ToneRackBranch* audibleToneBranch();
+    [[nodiscard]] const ToneRackBranch* audibleToneBranch() const;
+
+    // Returns the audible tone's branch index within the rack, when a rig is loaded.
+    [[nodiscard]] std::optional<std::size_t> audibleBranchIndex() const;
+
+    // Switches branch gains and the structural output gain to the given loaded tone.
+    [[nodiscard]] std::expected<void, LiveRigError> applyAudibleTone(
+        const std::string& tone_document_ref);
+
+    // Tears down the multi-tone rack state (instance removal is the track-plugin sweep's job).
+    void resetToneRackState();
+
     // Starts the next plugin step: completes the load if all plugins are restored, otherwise
     // reports "Loading X" progress and yields before the heavy plugin construction.
     void beginNextPluginStep();
@@ -179,6 +233,10 @@ private:
     // Performs the heavy plugin construction for the current step, reports "Loaded X" progress,
     // and yields before beginning the next plugin step.
     void executePluginStep();
+
+    // Assembles the multi-tone rack from the loaded chains, places its instance on the track,
+    // applies the audible tone, and delivers the audible tone's chain to the caller.
+    void finalizeLiveRigLoad();
 
     // Hands the supplied continuation to the request's yield callback when one is provided so a
     // paint cycle can run between cooperative steps; falls back to a plain async post otherwise.
@@ -261,10 +319,6 @@ private:
     // Counts user-visible plugins while optionally ignoring a plugin being moved.
     [[nodiscard]] std::size_t userVisiblePluginCount(
         const tracktion::Plugin* ignored_plugin = nullptr) const;
-
-    // Maps a user-visible insertion slot to the raw Tracktion plugin-list index.
-    [[nodiscard]] std::expected<int, PluginHostError> tracktionIndexForUserPluginSlot(
-        std::size_t chain_index, const tracktion::Plugin* ignored_plugin = nullptr) const;
 
     // Finds one plugin's current user-visible index, excluding structural live-rig plugins.
     [[nodiscard]] std::optional<std::size_t> userVisiblePluginIndexOf(

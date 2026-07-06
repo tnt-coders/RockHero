@@ -239,6 +239,12 @@ public:
         return {};
     }
 
+    [[nodiscard]] std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>
+    setAudibleTone(const std::string&) override
+    {
+        return common::audio::LiveRigLoadResult{};
+    }
+
     [[nodiscard]] common::audio::Gain outputGain() const override
     {
         return {};

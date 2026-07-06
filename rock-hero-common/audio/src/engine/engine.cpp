@@ -127,6 +127,9 @@ Engine::~Engine()
         m_impl->stopTransportAndReleaseContext();
     }
 
+    // The rack state holds reference-counted plugins owned by the edit; release it while the
+    // edit is still alive or the deferred plugin destructors dereference a destroyed Edit.
+    m_impl->resetToneRackState();
     m_impl->m_edit.reset();
     m_impl->m_engine.reset();
 }
