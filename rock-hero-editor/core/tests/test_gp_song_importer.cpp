@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
+#include <rock_hero/common/audio/testing/audio_fixtures.h>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/package/archive_io.h>
 #include <rock_hero/common/core/package/package_id.h>
@@ -148,7 +149,7 @@ constexpr const char* g_fixture_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
     }
     {
         std::ofstream audio{content / "Content" / "Assets" / "audio.wav", std::ios::binary};
-        audio << "RIFFfakewavdata";
+        audio << common::audio::testing::makeWavBytes(44100.0, 1, 512);
     }
 
     const std::filesystem::path archive = scratch / "fixture.gp";
@@ -186,6 +187,9 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(common::core::isCanonicalChartDocumentRef(arrangement.chart_ref));
     CHECK(std::filesystem::is_regular_file(workspace / arrangement.chart_ref));
     CHECK(std::filesystem::is_regular_file(workspace / arrangement.audio_asset.path));
+    // Imported audio is transcoded to the canonical FLAC format, and the staged source is removed.
+    CHECK(arrangement.audio_asset.path == std::filesystem::path{"audio"} / "backing.flac");
+    CHECK_FALSE(std::filesystem::exists(workspace / "audio" / "backing_source.wav"));
     // No frame padding in the fixture, so the audio starts at the score's first beat.
     CHECK(arrangement.audio_asset.start_offset.seconds == 0.0);
 
