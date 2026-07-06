@@ -5,6 +5,7 @@ include(Catch)
 # Keep shared domain and package tests separate from adapter-heavy audio coverage.
 add_executable(
     rock_hero_common_core_tests
+    test_chart.cpp
     test_session.cpp
     test_song.cpp
     test_arrangement.cpp
