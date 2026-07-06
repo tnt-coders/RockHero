@@ -36,7 +36,9 @@ constexpr int g_publish_command{7};
 constexpr int g_undo_command{101};
 constexpr int g_redo_command{102};
 constexpr int g_arrangement_selector_width{132};
-constexpr int g_arrangement_caption_width{84};
+// Wide enough for "Arrangement" at the default label font plus the label's side insets;
+// anything narrower makes juce::Label shrink-to-fit the text below the "Grid" caption size.
+constexpr int g_arrangement_caption_width{100};
 constexpr int g_menu_bar_height{24};
 constexpr int g_content_inset{8};
 constexpr int g_control_gap{8};
