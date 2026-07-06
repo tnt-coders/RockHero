@@ -42,6 +42,16 @@ For the structural engineering rules that govern how new code should be organize
 packages store native song content directly at the archive root and can be imported by the
 editor as unsaved projects.
 
+Backing audio inside both package formats is canonically **FLAC**, and the package reader enforces
+it: a package whose audio asset is WAV, Ogg, or any other format is rejected and must be
+re-imported. FLAC is lossless, smaller than uncompressed WAV, and — unlike lossy formats — decoded
+to identical samples by both the playback engine and the waveform thumbnail, so the drawn waveform
+cannot drift out of alignment with what is heard. Anything that enters the editor in another format
+(a Guitar Pro import's embedded MP3/Ogg/WAV, an external audio file) is transcoded to FLAC on the
+way in by `rock-hero-common/audio`'s `transcodeToFlac`, which matches the source's bit depth
+(16-bit sources stay 16-bit; higher-resolution sources clamp to FLAC's 24-bit ceiling) so lossy
+audio is not padded out; a source that is already FLAC is copied verbatim.
+
 ---
 
 # Repository Layout

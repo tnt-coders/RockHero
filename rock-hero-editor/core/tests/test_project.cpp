@@ -185,7 +185,7 @@ void writeArchive(const std::filesystem::path& path, const std::vector<ArchiveEn
                 "audioAssets": [
                     {
                         "id": "backing",
-                        "path": "audio/backing.wav"
+                        "path": "audio/backing.flac"
                     }
                 ],
                 "arrangements": [
@@ -241,7 +241,7 @@ void writeMinimalProjectPackage(const std::filesystem::path& path)
     writeArchive(
         path,
         std::vector{
-            ArchiveEntry{.path = "song/audio/backing.wav", .contents = "audio bytes"},
+            ArchiveEntry{.path = "song/audio/backing.flac", .contents = "audio bytes"},
             projectDocumentEntry(),
             minimalSongDocumentEntry(),
         });
@@ -253,7 +253,7 @@ void writeMinimalRockSongPackage(const std::filesystem::path& path)
     writeArchive(
         path,
         std::vector{
-            ArchiveEntry{.path = "audio/backing.wav", .contents = "audio bytes"},
+            ArchiveEntry{.path = "audio/backing.flac", .contents = "audio bytes"},
             minimalNativeSongDocumentEntry(),
         });
 }
@@ -266,7 +266,7 @@ void writeTwoArrangementProjectPackage(
     writeArchive(
         path,
         std::vector{
-            ArchiveEntry{.path = "song/audio/backing.wav", .contents = "audio bytes"},
+            ArchiveEntry{.path = "song/audio/backing.flac", .contents = "audio bytes"},
             projectDocumentEntry(selected_arrangement),
             ArchiveEntry{
                 .path = song_document_name,
@@ -284,7 +284,7 @@ void writeTwoArrangementProjectPackage(
                             "audioAssets": [
                                 {
                                     "id": "backing",
-                                    "path": "audio/backing.wav"
+                                    "path": "audio/backing.flac"
                                 }
                             ],
                             "arrangements": [
@@ -311,12 +311,12 @@ void writeTwoArrangementProjectPackage(
 
 // Writes a package whose song-document asset path should be rejected as unsafe.
 void writeUnsafeAssetProjectPackage(
-    const std::filesystem::path& path, const std::string& unsafe_path = "../outside.wav")
+    const std::filesystem::path& path, const std::string& unsafe_path = "../outside.flac")
 {
     writeArchive(
         path,
         std::vector{
-            ArchiveEntry{.path = "song/audio/backing.wav", .contents = "audio bytes"},
+            ArchiveEntry{.path = "song/audio/backing.flac", .contents = "audio bytes"},
             projectDocumentEntry(),
             ArchiveEntry{
                 .path = "song/song.json",
@@ -506,7 +506,7 @@ TEST_CASE("Project imports a native song package", "[core][project]")
     CHECK(arrangement.part == Part::Lead);
     CHECK(std::filesystem::is_regular_file(arrangement.audio_asset.path));
     const std::filesystem::path imported_audio_path =
-        project.workspaceDirectory() / "song" / "audio" / "backing.wav";
+        project.workspaceDirectory() / "song" / "audio" / "backing.flac";
     CHECK(arrangement.audio_asset.path == imported_audio_path);
     CHECK(std::filesystem::exists(imported_audio_path));
     REQUIRE(arrangement.audio_asset.normalization.has_value());
@@ -528,7 +528,7 @@ TEST_CASE("Project import analyzes each unique source audio once", "[core][proje
     writeArchive(
         path,
         std::vector{
-            ArchiveEntry{.path = "audio/backing.wav", .contents = "audio bytes"},
+            ArchiveEntry{.path = "audio/backing.flac", .contents = "audio bytes"},
             ArchiveEntry{
                 .path = "song.json",
                 .contents = std::string{
@@ -538,7 +538,7 @@ TEST_CASE("Project import analyzes each unique source audio once", "[core][proje
                     R"(
                             "metadata": {"title": "x", "artist": "y", "album": "", "year": 0},
                             "audioAssets": [
-                                {"id": "backing", "path": "audio/backing.wav"}
+                                {"id": "backing", "path": "audio/backing.flac"}
                             ],
                             "arrangements": [
                                 {"id": ")" +
@@ -625,7 +625,7 @@ TEST_CASE("Project rejects package wrapped in one root directory", "[core][proje
         path,
         std::vector{
             ArchiveEntry{
-                .path = "wrapped/song/audio/backing.wav",
+                .path = "wrapped/song/audio/backing.flac",
                 .contents = "audio",
             },
             ArchiveEntry{
@@ -667,7 +667,7 @@ TEST_CASE("Project loads arrangements from song.json", "[core][project]")
     CHECK(bass_arrangement.part == Part::Bass);
     CHECK(
         bass_arrangement.audio_asset.path ==
-        (project.workspaceDirectory() / "song/audio/backing.wav").lexically_normal());
+        (project.workspaceDirectory() / "song/audio/backing.flac").lexically_normal());
     CHECK(bass_arrangement.audio_duration == TimeDuration{});
 }
 
@@ -736,7 +736,7 @@ TEST_CASE("Project rejects colon-separated asset paths", "[core][project]")
 {
     const TemporaryArchiveDirectory directory;
     const std::filesystem::path path = directory.path() / "unsafe-asset.rhp";
-    writeUnsafeAssetProjectPackage(path, "audio/backing.wav:stream");
+    writeUnsafeAssetProjectPackage(path, "audio/backing.flac:stream");
 
     Project project;
     const auto result = project.load(path);
@@ -788,7 +788,7 @@ TEST_CASE("Project save imports external arrangement audio", "[core][project]")
 {
     const TemporaryArchiveDirectory directory;
     const std::filesystem::path path = directory.path() / "song.rhp";
-    const std::filesystem::path external_audio_path = directory.path() / "replacement.wav";
+    const std::filesystem::path external_audio_path = directory.path() / "replacement.flac";
     writeMinimalProjectPackage(path);
     {
         std::ofstream external_audio{external_audio_path, std::ios::binary};
@@ -821,7 +821,7 @@ TEST_CASE("Project saveAs writes an unopened project", "[core][project]")
 {
     const TemporaryArchiveDirectory directory;
     const std::filesystem::path project_package_path = directory.path() / "saved.rhp";
-    const std::filesystem::path audio_path = directory.path() / "backing.wav";
+    const std::filesystem::path audio_path = directory.path() / "backing.flac";
     {
         std::ofstream audio{audio_path, std::ios::binary};
         audio << "audio bytes";
@@ -893,7 +893,7 @@ TEST_CASE("Project publish keeps project path", "[core][project]")
     CHECK(std::ranges::find(entry_names, "project.json") == entry_names.end());
     CHECK(std::ranges::find(entry_names, "song/song.json") == entry_names.end());
     CHECK(std::ranges::find(entry_names, "song.json") != entry_names.end());
-    CHECK(std::ranges::find(entry_names, "audio/backing.wav") != entry_names.end());
+    CHECK(std::ranges::find(entry_names, "audio/backing.flac") != entry_names.end());
     CHECK(std::ranges::none_of(entry_names, [](const std::string& name) {
         return name.starts_with("song/");
     }));
