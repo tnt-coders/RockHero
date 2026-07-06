@@ -412,19 +412,20 @@ int TrackViewport::toneTrackHeight() const noexcept
     return g_tone_track_height;
 }
 
-// Keeps each track at one third of the default usable viewport height. The waveform row grows
-// past that for tablature displays beyond six strings, keeping the per-lane spacing at the
-// six-string reference density instead of compressing the lanes.
+// Sizes the waveform row so tablature lanes keep the six-string reference density at any count.
+// Without a chart the row stays at one third of the usable viewport for a plain waveform; with a
+// chart the row scales to the string count, so a four-string bass shrinks the row to fit its
+// lanes and an eight-string display grows it (the vertical scrollbar absorbs the overflow).
 int TrackViewport::primaryTrackHeight() const noexcept
 {
     const int reference_height =
         std::max(1, defaultVisibleCanvasHeight() / g_tracks_visible_at_default_size);
-    if (m_tab_displayed_strings <= g_tab_reference_string_count)
+    if (m_tab_displayed_strings <= 0)
     {
         return reference_height;
     }
 
-    return reference_height * m_tab_displayed_strings / g_tab_reference_string_count;
+    return std::max(1, reference_height * m_tab_displayed_strings / g_tab_reference_string_count);
 }
 
 // Converts the current pixel density into the width of the full timeline content.
