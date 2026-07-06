@@ -28,6 +28,7 @@
 #include <functional>
 #include <juce_core/juce_core.h>
 #include <memory>
+#include <numeric>
 #include <optional>
 #include <rock_hero/common/audio/device/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/input/i_live_input.h>
@@ -1781,10 +1782,19 @@ std::optional<std::filesystem::path> EditorController::Impl::currentProjectFile(
     return "Arrangement";
 }
 
-// Builds the switcher entries for every arrangement of the loaded song.
+// Builds the switcher entries for every arrangement of the loaded song, ordered Lead, Rhythm,
+// Bass regardless of how the song stores its arrangements. The Part enum already ranks the parts
+// in that order, and a stable sort keeps the original order within each part so duplicate
+// numbering ("Rhythm 1", "Rhythm 2") stays predictable.
 [[nodiscard]] std::vector<ArrangementChoiceViewState> arrangementChoicesFor(
     const std::vector<common::core::Arrangement>& arrangements, const std::string& current_id)
 {
+    std::vector<std::size_t> display_order(arrangements.size());
+    std::ranges::iota(display_order, std::size_t{0});
+    std::ranges::stable_sort(display_order, {}, [&arrangements](std::size_t index) {
+        return static_cast<int>(arrangements[index].part);
+    });
+
     std::vector<int> part_totals(3, 0);
     for (const common::core::Arrangement& arrangement : arrangements)
     {
@@ -1794,8 +1804,9 @@ std::optional<std::filesystem::path> EditorController::Impl::currentProjectFile(
     std::vector<ArrangementChoiceViewState> choices;
     choices.reserve(arrangements.size());
     std::vector<int> part_counts(3, 0);
-    for (const common::core::Arrangement& arrangement : arrangements)
+    for (const std::size_t index : display_order)
     {
+        const common::core::Arrangement& arrangement = arrangements[index];
         const auto part_index = static_cast<std::size_t>(arrangement.part);
         part_counts[part_index] += 1;
         std::string label = arrangementPartLabel(arrangement.part);
