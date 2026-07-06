@@ -493,9 +493,11 @@ void EditorView::resized()
     // includes the g_content_inset its bounds trim off, so the block width is a plain sum.
     m_arrangement_caption.setBounds(
         control_row.removeFromLeft(std::min(g_arrangement_caption_width, control_row.getWidth())));
+    // The combo fills the strip height with the same 4px inner gap as the grid selector's box so
+    // the two selectors read as one control family.
     m_arrangement_selector.setBounds(
         control_row.removeFromLeft(std::min(g_arrangement_selector_width, control_row.getWidth()))
-            .reduced(0, 4));
+            .reduced(4, 0));
     control_row.removeFromLeft(g_control_gap);
     m_grid_spacing_selector.setBounds(control_row.removeFromLeft(
         std::min(g_grid_spacing_selector_width, control_row.getWidth())));

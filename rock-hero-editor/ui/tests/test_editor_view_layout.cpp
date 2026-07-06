@@ -73,7 +73,7 @@ TEST_CASE("EditorView lays out toolbar below the menu bar", "[ui][editor-view]")
     // centered on the window, but at this window width the selectors clamp the block to start
     // right of them.
     CHECK(arrangement_caption.getBounds() == juce::Rectangle<int>{8, 28, 84, 32});
-    CHECK(arrangement_selector.getBounds() == juce::Rectangle<int>{92, 32, 132, 24});
+    CHECK(arrangement_selector.getBounds() == juce::Rectangle<int>{96, 28, 124, 32});
     CHECK(grid_selector.getBounds() == juce::Rectangle<int>{232, 28, 132, 32});
     CHECK(controls.getBounds() == juce::Rectangle<int>{364, 28, 96, 32});
     CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 484, 80});
