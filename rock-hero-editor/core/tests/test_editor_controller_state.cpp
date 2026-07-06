@@ -742,18 +742,27 @@ TEST_CASE(
         controller.attachView(view);
 
         REQUIRE(view.last_state.has_value());
-        CHECK(view.last_state->waveform_visible);
-        CHECK(view.last_state->tab_minimum_displayed_strings == 0);
+        if (view.last_state.has_value())
+        {
+            CHECK(view.last_state->waveform_visible);
+            CHECK(view.last_state->tab_minimum_displayed_strings == 0);
+        }
 
         controller.onWaveformVisibleChangeRequested(false);
-        REQUIRE(view.last_state.has_value());
-        CHECK_FALSE(view.last_state->waveform_visible);
-
         controller.onTabMinimumDisplayedStringsChangeRequested(9);
-        CHECK(view.last_state->tab_minimum_displayed_strings == 9);
+        if (view.last_state.has_value())
+        {
+            CHECK_FALSE(view.last_state->waveform_visible);
+            CHECK(view.last_state->tab_minimum_displayed_strings == 9);
+        }
 
         controller.onTabMinimumDisplayedStringsChangeRequested(99);
-        CHECK(view.last_state->tab_minimum_displayed_strings == common::core::g_max_chart_strings);
+        if (view.last_state.has_value())
+        {
+            CHECK(
+                view.last_state->tab_minimum_displayed_strings ==
+                common::core::g_max_chart_strings);
+        }
     }
 
     CHECK(settings.waveformVisible() == std::optional{false});
@@ -766,10 +775,13 @@ TEST_CASE(
     FakeEditorView restored_view;
     restored_controller.attachView(restored_view);
     REQUIRE(restored_view.last_state.has_value());
-    CHECK_FALSE(restored_view.last_state->waveform_visible);
-    CHECK(
-        restored_view.last_state->tab_minimum_displayed_strings ==
-        common::core::g_max_chart_strings);
+    if (restored_view.last_state.has_value())
+    {
+        CHECK_FALSE(restored_view.last_state->waveform_visible);
+        CHECK(
+            restored_view.last_state->tab_minimum_displayed_strings ==
+            common::core::g_max_chart_strings);
+    }
 }
 
 } // namespace rock_hero::editor::core
