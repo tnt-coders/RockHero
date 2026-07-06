@@ -17,6 +17,15 @@ namespace rock_hero::editor::ui
 {
 
 /*!
+\brief String count whose lane spacing every displayed count matches.
+
+Six lanes across the default waveform row is the reference density: fewer strings keep that
+density and center their smaller lane block in the row, and more strings keep it by growing the
+hosting row (see TrackViewport) instead of compressing the lanes.
+*/
+inline constexpr int g_tab_reference_string_count{6};
+
+/*!
 \brief Returns the number of string lanes the tablature lane should draw.
 
 The chart's own string count is the floor: a user minimum only ever adds empty lanes below the
@@ -49,7 +58,9 @@ from this base color with Charter's fixed multipliers.
 \brief Returns the vertical center of one string lane inside the tablature bounds.
 
 Lanes stack in standard tablature orientation: the highest-pitched string sits in the top lane
-and the lowest in the bottom lane.
+and the lowest in the bottom lane. Lane spacing is pinned to the reference density — one sixth
+of the bounds height — so displays with fewer strings center a smaller lane block instead of
+stretching, and hosts growing the bounds for more strings keep the same per-lane spacing.
 
 \param displayed_string Lane's string position, 1 = lowest displayed lane.
 \param displayed_string_count Total number of displayed lanes.
