@@ -1,5 +1,8 @@
+#include "project/gp_chart_builder.h"
+#include "project/gp_score.h"
 #include "project/gp_song_importer.h"
 
+#include <algorithm>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
@@ -10,6 +13,7 @@
 #include <rock_hero/common/core/package/package_id.h>
 #include <string>
 #include <system_error>
+#include <vector>
 
 namespace rock_hero::editor::core
 {
@@ -325,6 +329,65 @@ TEST_CASE("Guitar Pro import keeps the bend plateau between middle offsets", "[c
     CHECK(chart.notes[4].bend[3].semitones == Catch::Approx(2.0));
 
     std::filesystem::remove_all(scratch, cleanup_error);
+}
+
+// Builds a minimal all-4/4 score with one six-string track and the given start-aligned sync
+// points, so tempo-map coverage can be tested without a full gpif fixture.
+[[nodiscard]] GpScore makeLinearScore(int bar_count, const std::vector<GpSyncPoint>& syncs)
+{
+    GpScore score;
+    score.title = "Coverage";
+    score.base_tempo_quarter_bpm = 120.0;
+    score.master_bars.assign(
+        static_cast<std::size_t>(bar_count),
+        GpMasterBar{.numerator = 4, .denominator = 4, .section = {}});
+    score.sync_points = syncs;
+    GpTrack track;
+    track.name = "Guitar";
+    track.tuning_midi = {40, 45, 50, 55, 59, 64};
+    score.tracks.push_back(std::move(track));
+    return score;
+}
+
+// Reports whether any conversion note contains the fragment.
+[[nodiscard]] bool anyNoteContains(
+    const std::vector<std::string>& notes, const std::string& fragment)
+{
+    return std::ranges::any_of(
+        notes, [&](const std::string& note) { return note.find(fragment) != std::string::npos; });
+}
+
+// A song whose audio sync points stop early leaves most bars to constant-tempo extrapolation, so
+// the build records a drift warning naming the covered range.
+TEST_CASE("Guitar Pro build warns about sparse audio sync coverage", "[core][gp-import]")
+{
+    const GpScore score = makeLinearScore(
+        16,
+        {
+            GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0},
+            GpSyncPoint{.bar = 1, .bar_fraction = 0.0, .seconds = 2.0, .modified_tempo = 120.0},
+        });
+
+    const auto built = buildGpSong(score);
+    REQUIRE(built.has_value());
+    CHECK(anyNoteContains(built->notes, "audio sync points cover only up to measure 2 of 16"));
+}
+
+// A song whose sync points reach the final bars needs no extrapolation warning.
+TEST_CASE("Guitar Pro build stays quiet when sync coverage is full", "[core][gp-import]")
+{
+    const GpScore score = makeLinearScore(
+        16,
+        {
+            GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0},
+            GpSyncPoint{.bar = 15, .bar_fraction = 0.0, .seconds = 30.0, .modified_tempo = 120.0},
+        });
+
+    const auto built = buildGpSong(score);
+    REQUIRE(built.has_value());
+    CHECK_FALSE(anyNoteContains(built->notes, "audio sync points cover only up to"));
+    // The heuristic part guess is always recorded so a misfiled track stays visible.
+    CHECK(anyNoteContains(built->notes, "assigned parts by track order and name"));
 }
 
 TEST_CASE("Guitar Pro import rejects unusable sources", "[core][gp-import]")
