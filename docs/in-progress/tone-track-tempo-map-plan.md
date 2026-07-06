@@ -18,10 +18,10 @@ This plan builds on `docs/in-progress/tempo-map-implementation-plan.md` and is s
 it needs the persisted `TempoMap`, the required terminal anchor, and the `"<measure>:<beat>"` anchor
 token grammar from that slice. Land tempo-map persistence first, then this.
 
-Reconcile with the earlier `docs/todo/tone-track-plan.md` and
-`docs/todo/tone-automation-track-plan.md` (both predate this direction). When this plan lands,
-mark them superseded or note explicitly which later parameter-automation and rack work carries
-forward, so stale parallel plans do not accumulate.
+Earlier parallel plans were reconciled 2026-07-05: `docs/todo/tone-track-plan.md` was removed
+(its remaining ideas contradicted the settled RackType, musical-position, and Tracktion-managed
+persistence decisions), and `docs/todo/tone-automation-track-plan.md` was revised down to the
+deferred automation-lane UX reference that still applies on top of the shipped tone track.
 
 ## Decisions
 

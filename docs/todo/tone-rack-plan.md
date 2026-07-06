@@ -71,7 +71,9 @@ The first implementation should stay intentionally small:
 - Add/remove plugin instances inside the rack.
 - Create rack connections for each tone branch.
 - Maintain branch gain control points.
-- Apply gain ramps on the message thread or through Tracktion automation-safe mechanisms.
+- Drive gain ramps through transport-evaluated automation curves baked on the edit timeline
+  (settled 2026-07-05 by the adversarial mechanism review in
+  `docs/in-progress/tone-track-tempo-map-plan.md`; message-thread pushes would be a second clock).
 - Keep graph mutations away from the audio callback.
 - Translate plugin load and rack build failures into project-owned audio errors.
 
@@ -107,8 +109,10 @@ coverage strategy.
 
 ## Open Questions
 
-- What project-owned gain node should terminate each branch: Tracktion volume/pan, rack I/O gain,
-  or a small custom internal gain plugin?
+- ~~What project-owned gain node should terminate each branch?~~ Answered 2026-07-05: a real
+  per-branch gain plugin — `tracktion::engine::VolumeAndPanPlugin` or `LiveRigGainPlugin`
+  extended with an `AutomatableParameter` — because rack connections carry no gain; see the
+  verified mechanism notes in `docs/in-progress/tone-track-tempo-map-plan.md`.
 - Should the first implementation support only one selected tone at a time, or a small N-way blend
   value from the start?
 - Where should tone slot state persist once the runtime model stabilizes?
