@@ -1,4 +1,4 @@
-#include "project/rock_song_importer.h"
+﻿#include "project/rock_song_importer.h"
 
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
@@ -424,6 +424,8 @@ public:
             .audio_duration = TimeDuration{},
             .tone_document_ref = {},
             .tone_track = {},
+            .chart_ref = {},
+            .chart = {},
         });
     return song;
 }

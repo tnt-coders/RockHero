@@ -1,4 +1,4 @@
-#include <catch2/catch_test_macros.hpp>
+﻿#include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <optional>
 #include <rock_hero/common/audio/testing/configurable_song_audio.h>
@@ -26,6 +26,8 @@ namespace
             .audio_duration = common::core::TimeDuration{},
             .tone_document_ref = {},
             .tone_track = {},
+            .chart_ref = {},
+            .chart = {},
         });
     return song;
 }
