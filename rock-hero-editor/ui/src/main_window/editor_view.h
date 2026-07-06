@@ -10,6 +10,7 @@
 #include "shared/audio_level_meter.h"
 #include "signal_chain/plugin_browser_window.h"
 #include "signal_chain/signal_chain_panel.h"
+#include "tab/tab_view.h"
 #include "timeline/arrangement_view.h"
 #include "timeline/grid_spacing_selector.h"
 #include "tone/tone_track_view.h"
@@ -363,6 +364,9 @@ private:
 
     // Waveform track for the currently displayed arrangement, hosted inside the track viewport.
     ArrangementView m_arrangement_view;
+
+    // Tablature lane drawn over the waveform row inside the track viewport.
+    TabView m_tab_view;
 
     // Tone track row hosted below the waveform inside the track viewport.
     ToneTrackView m_tone_track_view;
