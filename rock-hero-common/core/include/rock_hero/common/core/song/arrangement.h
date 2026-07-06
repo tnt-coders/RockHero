@@ -86,14 +86,18 @@ struct Arrangement
     std::optional<Chart> chart;
 
     /*!
-    \brief Calculates the range occupied by the arrangement audio on the session timeline.
-    \return Timeline range from zero through the assigned audio duration.
+    \brief Calculates the range the arrangement audio occupies on the session timeline.
+
+    Starts at the asset's start offset, so a backing recording whose content begins after the
+    song's first beat (a positive offset) sits later on the timeline with silence before it.
+
+    \return Timeline range from the audio start offset through the offset plus the audio duration.
     */
     [[nodiscard]] constexpr TimeRange audioTimelineRange() const noexcept
     {
         return TimeRange{
-            .start = TimePosition{},
-            .end = TimePosition{audio_duration.seconds},
+            .start = TimePosition{audio_asset.start_offset.seconds},
+            .end = TimePosition{audio_asset.start_offset.seconds + audio_duration.seconds},
         };
     }
 
