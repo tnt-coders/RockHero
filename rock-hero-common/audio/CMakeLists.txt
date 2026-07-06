@@ -34,6 +34,8 @@ target_sources(
             src/tracktion/engine_behaviors.h
             src/tracktion/live_rig_gain_plugin.cpp
             src/tracktion/live_rig_gain_plugin.h
+            src/tracktion/multi_tone_rack.cpp
+            src/tracktion/multi_tone_rack.h
             src/tracktion/monitoring_mode_transition.cpp
             src/tracktion/monitoring_mode_transition.h
             src/tracktion/plugin_dirty_tracking.cpp
