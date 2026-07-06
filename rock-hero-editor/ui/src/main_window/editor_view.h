@@ -321,6 +321,9 @@ private:
     const common::audio::ITransport& m_transport;
 
     // Last state pushed by the controller; used for load target lookup and layout mapping.
+    // Updates the top-level window title to reflect the open project name, REAPER-style.
+    void updateWindowTitle();
+
     core::EditorViewState m_state{};
 
     // Flat app-menu look-and-feel owned for the lifetime of the menu bar.

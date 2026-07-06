@@ -336,6 +336,35 @@ EditorView::~EditorView()
 }
 
 // Projects controller-derived state into child widgets and cursor mapping state.
+// Sets the top-level window title to "<project> - <app>" when a project is open, or the bare app
+// name otherwise, so the open project reads at a glance like REAPER's title bar.
+void EditorView::updateWindowTitle()
+{
+    juce::Component* const top_level = getTopLevelComponent();
+    if (top_level == nullptr)
+    {
+        return;
+    }
+
+    juce::String title{"Rock Hero Editor"};
+    if (juce::JUCEApplicationBase* const app = juce::JUCEApplicationBase::getInstance())
+    {
+        title = app->getApplicationName();
+    }
+
+    if (m_state.project_file.has_value())
+    {
+        const juce::String project_name =
+            common::core::juceFileFromPath(*m_state.project_file).getFileNameWithoutExtension();
+        if (project_name.isNotEmpty())
+        {
+            title = project_name + " - " + title;
+        }
+    }
+
+    top_level->setName(title);
+}
+
 void EditorView::setState(const core::EditorViewState& state)
 {
     const core::EditorViewState previous_state = m_state;
@@ -343,6 +372,11 @@ void EditorView::setState(const core::EditorViewState& state)
     if (!m_state.busy.has_value())
     {
         m_after_busy_overlay_paint = {};
+    }
+
+    if (previous_state.project_file != m_state.project_file)
+    {
+        updateWindowTitle();
     }
 
     menuItemsChanged();
