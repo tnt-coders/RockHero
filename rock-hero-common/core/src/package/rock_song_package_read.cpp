@@ -207,6 +207,17 @@ namespace
 }
 
 // Reads song audio assets into an ID map keyed only inside song package IO.
+// Reports whether a package-relative audio path names a FLAC file, RockHero's only supported package
+// audio format. Compared case-insensitively so a differently-cased extension still matches.
+[[nodiscard]] bool hasFlacExtension(const std::string& relative_path)
+{
+    std::string extension = std::filesystem::path{relative_path}.extension().string();
+    std::ranges::transform(extension, extension.begin(), [](unsigned char character) {
+        return static_cast<char>(std::tolower(character));
+    });
+    return extension == ".flac";
+}
+
 [[nodiscard]] std::expected<std::unordered_map<std::string, AudioAsset>, SongPackageError>
 readAudioAssets(const std::filesystem::path& directory, const juce::var& song_document)
 {
@@ -247,6 +258,17 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidAudioAsset,
                 "audio asset path is missing or unsafe: " + *relative_path,
+            }};
+        }
+
+        // FLAC is RockHero's canonical package audio format. Packages that reference WAV, Ogg, or any
+        // other format are no longer supported and must be re-imported through the FLAC pipeline.
+        // Safety and existence are checked first so an unsafe path still reports as unsafe.
+        if (!hasFlacExtension(*relative_path))
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidAudioAsset,
+                "audio asset must be FLAC, RockHero's canonical package format: " + *relative_path,
             }};
         }
 
