@@ -52,7 +52,9 @@ static_assert(std::derived_from<Engine, IThumbnailFactory>);
 // Wraps the real fixture path in the framework-free asset type used by ISongAudio.
 [[nodiscard]] common::core::AudioAsset fixtureAudioAsset()
 {
-    return common::core::AudioAsset{.path = fixtureAudioPath(), .normalization = std::nullopt};
+    return common::core::AudioAsset{
+        .path = fixtureAudioPath(), .normalization = std::nullopt, .start_offset = {}
+    };
 }
 
 // Converts an accepted duration into the timeline range used by rendering and seeks.
@@ -404,6 +406,7 @@ TEST_CASE("Engine thumbnail clears source for missing assets", "[audio][engine][
     const common::core::AudioAsset missing_asset{
         .path = fixtureAudioPath().parent_path() / "missing-thumbnail.wav",
         .normalization = std::nullopt,
+        .start_offset = {},
     };
     thumbnail->setSource(missing_asset);
 
@@ -466,6 +469,7 @@ TEST_CASE("Engine audio port rejects missing files", "[audio][engine][integratio
     song.arrangements.front().audio_asset = common::core::AudioAsset{
         .path = fixtureAudioPath().parent_path() / "missing-probe.wav",
         .normalization = std::nullopt,
+        .start_offset = {},
     };
 
     const auto prepared = audio.prepareSong(song);
@@ -803,6 +807,7 @@ TEST_CASE(
     const common::core::AudioAsset missing_asset{
         .path = fixtureAudioPath().parent_path() / "missing.wav",
         .normalization = std::nullopt,
+        .start_offset = {},
     };
     TransportNotificationRecorder recorder;
     transport.addListener(recorder);

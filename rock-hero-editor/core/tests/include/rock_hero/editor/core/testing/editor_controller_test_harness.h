@@ -1246,7 +1246,9 @@ private:
             .part = common::core::Part::Lead,
             .difficulty = common::core::DifficultyRating{},
             .audio_asset =
-                common::core::AudioAsset{.path = std::move(path), .normalization = std::nullopt},
+                common::core::AudioAsset{
+                    .path = std::move(path), .normalization = std::nullopt, .start_offset = {}
+                },
             .audio_duration = timeline_range.duration(),
             .tone_document_ref = std::move(tone_document_ref),
             .tone_track = {},
@@ -1336,7 +1338,9 @@ private:
             .difficulty = common::core::DifficultyRating{},
             .audio_asset =
                 common::core::AudioAsset{
-                    .path = std::move(lead_path), .normalization = std::nullopt
+                    .path = std::move(lead_path),
+                    .normalization = std::nullopt,
+                    .start_offset = {},
                 },
             .audio_duration = common::core::TimeDuration{},
             .tone_document_ref = {},
@@ -1351,7 +1355,9 @@ private:
             .difficulty = common::core::DifficultyRating{},
             .audio_asset =
                 common::core::AudioAsset{
-                    .path = std::move(bass_path), .normalization = std::nullopt
+                    .path = std::move(bass_path),
+                    .normalization = std::nullopt,
+                    .start_offset = {},
                 },
             .audio_duration = common::core::TimeDuration{},
             .tone_document_ref = {},

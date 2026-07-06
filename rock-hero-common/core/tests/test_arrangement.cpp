@@ -27,8 +27,9 @@ TEST_CASE("Arrangement holds playable route data", "[core][arrangement]")
     arr.id = "lead";
     arr.part = Part::Lead;
     arr.difficulty = DifficultyRating{8};
-    arr.audio_asset =
-        AudioAsset{.path = std::filesystem::path{"lead.wav"}, .normalization = std::nullopt};
+    arr.audio_asset = AudioAsset{
+        .path = std::filesystem::path{"lead.wav"}, .normalization = std::nullopt, .start_offset = {}
+    };
     arr.audio_duration = TimeDuration{12.0};
     arr.tone_document_ref = "tone/lead.json";
 

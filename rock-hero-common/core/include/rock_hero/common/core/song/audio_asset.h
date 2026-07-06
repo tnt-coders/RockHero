@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <optional>
 #include <rock_hero/common/core/song/audio_normalization.h>
+#include <rock_hero/common/core/timeline/timeline.h>
 
 namespace rock_hero::common::core
 {
@@ -32,6 +33,16 @@ struct AudioAsset
     becomes usable.
     */
     std::optional<AudioNormalization> normalization;
+
+    /*!
+    \brief Timeline offset at which the backing audio begins; the span before it is silent.
+
+    Zero (the default) places the audio at the score's first beat, the common case. A positive
+    offset delays the audio so a recording whose musical content starts after the score's first
+    beat still lines up — Guitar Pro encodes this as a positive backing-track FramePadding, where
+    the first measure precedes the audio. Negative offsets are not used.
+    */
+    TimeDuration start_offset;
 
     /*!
     \brief Compares two asset references by their stored fields.

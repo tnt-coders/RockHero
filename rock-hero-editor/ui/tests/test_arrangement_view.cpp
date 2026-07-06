@@ -49,7 +49,9 @@ public:
 {
     return core::ArrangementViewState{
         .audio_asset =
-            common::core::AudioAsset{.path = std::move(path), .normalization = std::nullopt},
+            common::core::AudioAsset{
+                .path = std::move(path), .normalization = std::nullopt, .start_offset = {}
+            },
         .audio_duration = duration,
         .choices = {},
     };
@@ -73,10 +75,11 @@ TEST_CASE("ArrangementView creates a thumbnail for audio", "[ui][arrangement-vie
     const RecordingThumbnail* const thumbnail = thumbnail_factory.thumbnails.front();
     CHECK(thumbnail->set_source_call_count == 1);
     CHECK(
-        thumbnail->last_source ==
-        std::optional{common::core::AudioAsset{
-            .path = std::filesystem::path{"full_mix.wav"}, .normalization = std::nullopt
-        }});
+        thumbnail->last_source == std::optional{common::core::AudioAsset{
+                                      .path = std::filesystem::path{"full_mix.wav"},
+                                      .normalization = std::nullopt,
+                                      .start_offset = {},
+                                  }});
 }
 
 // Verifies reapplying the same audio state reuses the existing thumbnail source.
@@ -114,10 +117,11 @@ TEST_CASE("ArrangementView refreshes thumbnail when asset changes", "[ui][arrang
     const RecordingThumbnail* const thumbnail = thumbnail_factory.thumbnails.front();
     CHECK(thumbnail->set_source_call_count == 2);
     CHECK(
-        thumbnail->last_source ==
-        std::optional{common::core::AudioAsset{
-            .path = std::filesystem::path{"lead_override.wav"}, .normalization = std::nullopt
-        }});
+        thumbnail->last_source == std::optional{common::core::AudioAsset{
+                                      .path = std::filesystem::path{"lead_override.wav"},
+                                      .normalization = std::nullopt,
+                                      .start_offset = {},
+                                  }});
 }
 
 // Verifies ArrangementView asks the thumbnail to draw only the visible asset range.

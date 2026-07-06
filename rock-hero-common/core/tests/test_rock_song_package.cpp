@@ -137,7 +137,8 @@ void writeAudioFile(const std::filesystem::path& path)
             .id = std::string{g_lead_arrangement_id},
             .part = Part::Lead,
             .difficulty = DifficultyRating{},
-            .audio_asset = AudioAsset{.path = audio_path, .normalization = std::nullopt},
+            .audio_asset =
+                AudioAsset{.path = audio_path, .normalization = std::nullopt, .start_offset = {}},
             .audio_duration = TimeDuration{},
             .tone_document_ref = {},
             .tone_track = {},
@@ -454,6 +455,64 @@ TEST_CASE("Rock song package round-trips normalization metadata", "[core][rock-s
     const auto& normalization = read_song->arrangements.front().audio_asset.normalization;
     REQUIRE(normalization.has_value());
     CHECK(*normalization == makeNormalization());
+}
+
+// Verifies a backing audio start offset (a recording that begins after the score's first beat)
+// round-trips through the package format.
+TEST_CASE("Rock song package round-trips audio start offset", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path source_audio = temporary_directory.path() / "source.wav";
+    writeAudioFile(source_audio);
+
+    Song song = makeSong(source_audio);
+    song.arrangements.front().audio_asset.start_offset = TimeDuration{0.75};
+
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    REQUIRE(writeRockSongPackageDirectory(package_directory, song).has_value());
+
+    const auto read_song = readRockSongPackageDirectory(package_directory);
+    REQUIRE(read_song.has_value());
+    REQUIRE(read_song->arrangements.size() == 1);
+    CHECK(read_song->arrangements.front().audio_asset.start_offset.seconds == 0.75);
+}
+
+// Verifies the persisted "startOffset" key loads, and that packages omitting it (every package
+// written before the field existed) default the offset to zero.
+TEST_CASE("Rock song package reads an explicit audio start offset", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    writeReadablePackageDirectory(package_directory);
+    writeTextFile(
+        package_directory / "song.json",
+        R"({
+            "formatVersion": 1,)" +
+            tempoMapJsonFragment() +
+            R"(
+            "audioAssets": [
+                {
+                    "id": "backing",
+                    "path": "audio/backing.wav",
+                    "startOffset": 0.5
+                }
+            ],
+            "arrangements": [
+                {
+                    "id": ")" +
+            std::string{g_lead_arrangement_id} +
+            R"(",
+                    "part": "Lead",
+                    "audio": "backing"
+                }
+            ]
+        })");
+
+    const auto read_song = readRockSongPackageDirectory(package_directory);
+
+    REQUIRE(read_song.has_value());
+    REQUIRE(read_song->arrangements.size() == 1);
+    CHECK(read_song->arrangements.front().audio_asset.start_offset.seconds == 0.5);
 }
 
 // Verifies older packages whose audio entries omit normalization still load with empty optional.

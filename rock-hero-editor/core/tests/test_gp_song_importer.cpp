@@ -185,6 +185,8 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(common::core::isCanonicalChartDocumentRef(arrangement.chart_ref));
     CHECK(std::filesystem::is_regular_file(workspace / arrangement.chart_ref));
     CHECK(std::filesystem::is_regular_file(workspace / arrangement.audio_asset.path));
+    // No frame padding in the fixture, so the audio starts at the score's first beat.
+    CHECK(arrangement.audio_asset.start_offset.seconds == 0.0);
 
     REQUIRE(arrangement.chart.has_value());
     const common::core::Chart& chart = *arrangement.chart;
@@ -359,6 +361,58 @@ TEST_CASE("Guitar Pro import keeps the bend plateau between middle offsets", "[c
 
 // A song whose audio sync points stop early leaves most bars to constant-tempo extrapolation, so
 // the build records a drift warning naming the covered range.
+// Guitar Pro's positive backing-track frame padding is silence before the audio (the first
+// measure precedes the recording); the import turns it into the asset start offset so playback
+// lines up, counting the padding at a fixed 44.1kHz regardless of the audio's real rate.
+TEST_CASE("Guitar Pro import offsets the audio by positive frame padding", "[core][gp-import]")
+{
+    const std::filesystem::path scratch =
+        std::filesystem::temp_directory_path() / "rh_gp_frame_padding_test";
+    std::error_code cleanup_error;
+    std::filesystem::remove_all(scratch, cleanup_error);
+    const std::filesystem::path workspace = scratch / "song";
+    std::filesystem::create_directories(workspace);
+
+    // 22050 frames at the fixed 44.1kHz rate is half a second of lead-in silence.
+    const std::string gpif = fixtureWithReplacement(
+        "<BackingTrack><AssetId>0</AssetId></BackingTrack>",
+        "<BackingTrack><FramePadding>22050</FramePadding><AssetId>0</AssetId></BackingTrack>");
+    const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
+
+    GpSongImporter importer;
+    const auto song = importer.importSong(archive, workspace);
+    REQUIRE(song.has_value());
+    REQUIRE(song->arrangements.size() == 1);
+    CHECK(song->arrangements.front().audio_asset.start_offset.seconds == Catch::Approx(0.5));
+
+    std::filesystem::remove_all(scratch, cleanup_error);
+}
+
+// Negative frame padding is cosmetic leading silence that does not shift note timing, so it must
+// not become a start offset (which would push the notes off the recording).
+TEST_CASE("Guitar Pro import ignores negative frame padding", "[core][gp-import]")
+{
+    const std::filesystem::path scratch =
+        std::filesystem::temp_directory_path() / "rh_gp_negative_padding_test";
+    std::error_code cleanup_error;
+    std::filesystem::remove_all(scratch, cleanup_error);
+    const std::filesystem::path workspace = scratch / "song";
+    std::filesystem::create_directories(workspace);
+
+    const std::string gpif = fixtureWithReplacement(
+        "<BackingTrack><AssetId>0</AssetId></BackingTrack>",
+        "<BackingTrack><FramePadding>-88200</FramePadding><AssetId>0</AssetId></BackingTrack>");
+    const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
+
+    GpSongImporter importer;
+    const auto song = importer.importSong(archive, workspace);
+    REQUIRE(song.has_value());
+    REQUIRE(song->arrangements.size() == 1);
+    CHECK(song->arrangements.front().audio_asset.start_offset.seconds == 0.0);
+
+    std::filesystem::remove_all(scratch, cleanup_error);
+}
+
 TEST_CASE("Guitar Pro build warns about sparse audio sync coverage", "[core][gp-import]")
 {
     const GpScore score = makeLinearScore(
