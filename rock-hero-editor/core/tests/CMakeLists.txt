@@ -31,6 +31,7 @@ add_executable(
     test_editor_controller_state.cpp
     test_editor_controller_transport.cpp
     test_editor_undo_history.cpp
+    test_gp_song_importer.cpp
     test_input_calibration_controller.cpp
     test_input_calibration_workflow.cpp
     test_plugin_catalog_workflow.cpp
