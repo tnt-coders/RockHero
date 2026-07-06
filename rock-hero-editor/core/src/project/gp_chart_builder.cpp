@@ -102,6 +102,26 @@ constexpr std::array<const char*, 12> g_midi_note_names{
     return (60.0 / quarter_bpm) * (4.0 / static_cast<double>(denominator));
 }
 
+// Snaps anchor seconds onto the package format's millisecond grid. Guitar Pro's frame offsets
+// divided by 44100 almost never land on a whole millisecond, but the package stores anchor
+// seconds at three decimals, so an unrounded map imports fine yet cannot be saved. Rounding uses
+// the same integer-millisecond quantum the writer uses, and any anchor that would collide with or
+// regress past its predecessor is nudged one millisecond later to keep the map strictly ordered.
+void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors)
+{
+    double previous_seconds = -1.0;
+    for (common::core::BeatAnchor& anchor : anchors)
+    {
+        double snapped = static_cast<double>(std::llround(anchor.seconds * 1000.0)) / 1000.0;
+        if (snapped <= previous_seconds)
+        {
+            snapped = previous_seconds + 0.001;
+        }
+        anchor.seconds = snapped;
+        previous_seconds = snapped;
+    }
+}
+
 // Builds the warp-anchor tempo map from the score's sync points, extending a downbeat terminal
 // anchor past the final bar so every note position lies inside the map. Unusable sync points are
 // dropped with a conversion note, so the build itself cannot fail.
@@ -248,6 +268,7 @@ constexpr std::array<const char*, 12> g_midi_note_names{
             "; later timing is extrapolated at the last tempo and may drift from the recording");
     }
 
+    snapAnchorsToMillisecondGrid(anchors);
     return common::core::TempoMap{std::move(signatures), std::move(anchors)};
 }
 
