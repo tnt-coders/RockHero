@@ -38,6 +38,8 @@ target_sources(
             src/tracktion/monitoring_mode_transition.h
             src/tracktion/plugin_dirty_tracking.cpp
             src/tracktion/plugin_dirty_tracking.h
+            src/tracktion/tone_branch_gain_plugin.cpp
+            src/tracktion/tone_branch_gain_plugin.h
             src/tracktion/plugin_move_index.h
             src/tracktion/plugin_window.cpp
             src/tracktion/plugin_window.h

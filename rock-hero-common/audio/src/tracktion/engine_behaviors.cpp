@@ -1,6 +1,7 @@
 #include "tracktion/engine_behaviors.h"
 
 #include "tracktion/live_rig_gain_plugin.h"
+#include "tracktion/tone_branch_gain_plugin.h"
 #include "tracktion/tracktion_instrument_wave_device_mapping.h"
 
 #include <memory>
@@ -94,6 +95,11 @@ tracktion::Plugin::Ptr RockHeroEngineBehavior::createCustomPlugin(
     {
         // Tracktion's custom-plugin factory adopts this into Plugin::Ptr.
         return tracktion::Plugin::Ptr{new LiveRigGainPlugin{info}};
+    }
+
+    if (info.state[tracktion::IDs::type].toString() == ToneBranchGainPlugin::xmlTypeName)
+    {
+        return tracktion::Plugin::Ptr{new ToneBranchGainPlugin{info}};
     }
 
     return {};
