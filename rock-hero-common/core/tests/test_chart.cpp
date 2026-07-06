@@ -251,6 +251,18 @@ TEST_CASE("Chart rules reject structural violations", "[core][chart]")
     const auto bad_template_result = validateChartRules(bad_template, tempo_map);
     REQUIRE_FALSE(bad_template_result.has_value());
     CHECK(bad_template_result.error().code == ChartErrorCode::InvalidTemplate);
+
+    // Cent offsets span a full octave because real bass arrangements charted on guitar strings
+    // pitch down twelve hundred cents; anything beyond that is junk data.
+    Chart octave_down = makeFullChart();
+    octave_down.tuning.cent_offset = -1200.0;
+    CHECK(validateChartRules(octave_down, tempo_map).has_value());
+
+    Chart beyond_octave = makeFullChart();
+    beyond_octave.tuning.cent_offset = -1201.0;
+    const auto beyond_octave_result = validateChartRules(beyond_octave, tempo_map);
+    REQUIRE_FALSE(beyond_octave_result.has_value());
+    CHECK(beyond_octave_result.error().code == ChartErrorCode::InvalidTuning);
 }
 
 } // namespace rock_hero::common::core
