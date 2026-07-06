@@ -106,6 +106,15 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
                 .message = "note sustain must not be negative at " + positionText(note.position),
             }};
         }
+        if (note.touch.has_value() && (note.harmonic == NoteHarmonic::None || *note.touch <= 0.0 ||
+                                       *note.touch > static_cast<double>(g_max_fret)))
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidNote,
+                .message =
+                    "harmonic touch position is out of range at " + positionText(note.position),
+            }};
+        }
         if (previous_note != nullptr)
         {
             const auto order_key = [](const ChartNote& entry) {
