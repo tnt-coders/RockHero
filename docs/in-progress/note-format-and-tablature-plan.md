@@ -71,19 +71,23 @@ Structure and metadata:
 
 - **Positions extend the tempo-map token grammar.** Whole-beat positions stay `"<measure>:<beat>"`;
   sub-beat positions extend it with an exact fraction, e.g. `"12:3+1/2"` (grammar to be finalized
-  in slice 1). This resolves the deferred token question in
-  `docs/todo/chart-note-storage-future-work.md`, and Charter's rational-fraction positions confirm
-  exact fractions (never floats, never milliseconds) are the right substrate. Seconds are always
-  derived through the tempo map, exactly like tone regions.
+  in slice 1). This resolves the token question deferred from the tempo-map slice, and Charter's
+  rational-fraction positions confirm exact fractions (never floats, never milliseconds) are the
+  right substrate. Seconds are always derived through the tempo map, exactly like tone regions.
 - **Chords are explicit templates plus instances.** The template table (name, frets, fingers,
   arpeggio) lives per arrangement; instances reference templates by index/id. Fingering and FHP
   data are load-bearing for the difficulty calculator
   (`docs/todo/arrangement-difficulty-derivation-plan.md`), so the format keeps them first-class
   even though the 2D view may not render fingerings initially.
-- **One `sounds` stream per difficulty level.** A sound is a note or a chord instance (sum type in
-  the domain model, one object per line in JSON). Difficulty levels can start at a single level;
-  the format shape must allow multiple levels because Rocksmith-style dynamic difficulty and the
-  derivation plan both want them.
+- **One true tab per arrangement — no difficulty levels.** Decision 2026-07-05: Charter carries
+  Rocksmith-style per-difficulty level lists (pared-down variants of each arrangement); RockHero
+  deliberately does not. Each arrangement stores a single TRUE tab — what is actually played — and
+  difficulty is a per-arrangement **derived rating**
+  (`docs/todo/arrangement-difficulty-derivation-plan.md`), never authored. This avoids manually
+  curating multiple fake-feeling difficulty variants per song. The format therefore has one
+  `sounds` stream per arrangement: a sound is a note or a chord instance (sum type in the domain
+  model, one object per line in JSON). Charter's `Level`/phrase-max-difficulty machinery is
+  explicitly not adopted.
 - **Technique fields are optional with defaults.** A plain quarter note should serialize as a tiny
   one-line object; techniques appear only when present (same style as tone regions omitting empty
   names).
@@ -126,14 +130,16 @@ Structure and metadata:
    sustain tail) over the waveform from view state; waveform hide toggle.
 3. **Techniques and chords.** Chord boxes and template names, HOPO/mute/harmonic glyphs, slides,
    bends, vibrato/tremolo; FHP markers.
-4. **Authoring comes later.** Note editing, import (Guitar Pro / Rocksmith XML), and difficulty
-   authoring are separate future plans; the format must not preclude them (Charter's GP import
-   list is the reference for what importers need).
+4. **Authoring comes later.** Note editing and import (Guitar Pro / Rocksmith XML) are separate
+   future plans; the format must not preclude them (Charter's GP import list is the reference for
+   what importers need). Difficulty is never authored — only the derived rating.
 
 ## Relationship to other plans
 
-- Supersedes the deferred questions in `docs/todo/chart-note-storage-future-work.md` (grid tokens,
-  chord modeling, technique representation, tuning placement) — answered or owned here.
+- Owns the deferred chart-storage questions (grid tokens, chord modeling, technique
+  representation, tuning placement) previously parked in
+  `docs/todo/chart-note-storage-future-work.md`, which was removed 2026-07-05 when this plan
+  absorbed it.
 - Feeds `docs/todo/arrangement-difficulty-derivation-plan.md`: the format deliberately carries
   fingerings, FHPs, and techniques the calculator needs.
 - Sequenced after the tone plan's slice 5; user-facing parameter automation (and the tone row's
@@ -151,8 +157,6 @@ Structure and metadata:
 
 - Exact sub-beat token spelling (`"12:3+1/2"` vs. alternatives) and whether whole-beat positions
   keep the bare `"12:3"` form (they should).
-- Whether the first slice ships one difficulty level or the full level list (format supports the
-  list either way).
 - How much of Charter's charting-only metadata (ignore, pass-other-notes, phrase/section
   taxonomy) RockHero adopts versus simplifies.
 - Where the waveform-hidden toggle persists (app settings vs. per-project resume state).
