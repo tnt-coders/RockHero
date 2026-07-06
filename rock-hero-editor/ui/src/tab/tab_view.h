@@ -30,17 +30,18 @@ chart's strings and can never hide notes. A chart-less arrangement draws no lane
     int chart_string_count, int minimum_displayed_strings) noexcept;
 
 /*!
-\brief Returns the display color for one string lane.
+\brief Returns the base display color for one string lane.
 
-Colors extrapolate Rocksmith's RYB painter's-wheel system. The six highest lanes take the
-standard set — red, yellow, blue, orange, green, purple from the sixth-highest lane upward, so a
-four-string bass keeps red through orange and a standard guitar keeps its familiar six. Lanes
-below that window continue with the wheel's tertiary tier going down — teal, magenta,
-chartreuse, indigo — and cycle that tier for even lower lanes.
+The six highest lanes take Charter's default six string colors — red, yellow, blue, orange,
+green, purple from the sixth-highest lane upward — so a four-string bass keeps red through
+orange and a standard guitar keeps the familiar six. Lanes below that window continue with our
+own RYB tertiary tier going down — teal, magenta, chartreuse, indigo — and cycle that tier for
+even lower lanes. Every rendered surface (string line, note ring and fill, sustain tail) derives
+from this base color with Charter's fixed multipliers.
 
 \param displayed_string Lane's string position, 1 = lowest displayed lane.
 \param displayed_string_count Total number of displayed lanes.
-\return Lane color for note heads and sustains on this string.
+\return Base lane color the tablature style derives its surfaces from.
 */
 [[nodiscard]] juce::Colour tabStringColor(int displayed_string, int displayed_string_count);
 
@@ -78,9 +79,11 @@ short note inside the range may end before the span begins.
     double span_start_seconds, double span_end_seconds) noexcept;
 
 /*!
-\brief Renders the chart tablature over the arrangement waveform lane.
+\brief Renders the chart tablature over the arrangement waveform lane in Charter's visual style.
 
-The view draws string-colored note heads with fret numbers and sustain tails from the
+The view draws string lines with Charter's modern-theme note presentation — layered circular
+note heads (diamonds for harmonics) with fret numbers, bordered sustain tails, technique icons,
+slide and bend lines with label chips, chord-box pills, and hand-shape spans — from the
 controller's seconds-resolved tab projection, mapping time to pixels with the same
 visible-timeline convention as the waveform beneath it. It is purely presentational and never
 intercepts the pointer, so timeline seeking keeps working through the lane.

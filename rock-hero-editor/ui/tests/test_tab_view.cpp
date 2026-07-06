@@ -65,18 +65,18 @@ TEST_CASE("TabView resolves the displayed string count", "[ui][tab-view]")
     CHECK(tabDisplayedStringCount(4, 4) == 4);
 }
 
-// The six highest lanes keep the Rocksmith set anchored at red on the sixth-highest lane, so a
-// bass keeps red-orange and extended-range strings extend downward through the tertiary tier.
+// The six highest lanes keep Charter's default set anchored at red on the sixth-highest lane, so
+// a bass keeps red-orange and extended-range strings extend downward through our tertiary tier.
 TEST_CASE("TabView colors strings by their standard-window position", "[ui][tab-view]")
 {
     const juce::Colour red = tabStringColor(1, 6);
     const juce::Colour purple = tabStringColor(6, 6);
-    CHECK(red == juce::Colour{0xffe23c37});
-    CHECK(purple == juce::Colour{0xffaa5fdc});
+    CHECK(red == juce::Colour{0xffed0000});
+    CHECK(purple == juce::Colour{0xffd22cf8});
 
     // A four-string bass keeps the same low-string colors as a guitar's bottom four.
     CHECK(tabStringColor(1, 4) == red);
-    CHECK(tabStringColor(4, 4) == juce::Colour{0xfff08c2d});
+    CHECK(tabStringColor(4, 4) == juce::Colour{0xffff870a});
 
     // Extended-range lanes push the standard window up and take tertiary colors below it.
     CHECK(tabStringColor(2, 7) == red);
@@ -123,7 +123,7 @@ TEST_CASE("TabView finds notes intersecting a visible span", "[ui][tab-view]")
     CHECK(end_last == 3);
 }
 
-// Painting fills the note head with its string color at the onset position.
+// Painting draws Charter-style layered note heads on their string lines.
 TEST_CASE("TabView draws string-colored note heads", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -144,13 +144,17 @@ TEST_CASE("TabView draws string-colored note heads", "[ui][tab-view]")
 
     // String 1 (low E) sits in the bottom lane of six: center y = 110; onset 1.0s → x = 10.
     // Sample left of center so the fret numeral drawn over the head cannot cover the probe.
-    CHECK(image.getPixelAt(3, 110) == juce::Colour{0xffe23c37});
+    // The head fill is Charter's derivation from the red base: x0.8, brightened, darkened twice.
+    CHECK(image.getPixelAt(6, 110) == juce::Colour{0xff7c0000});
 
     // Its nine-second sustain tail reaches most of the width at the same lane center.
     CHECK(image.getPixelAt(80, 110).getARGB() != 0);
 
-    // The empty lanes above stay untouched.
-    CHECK(image.getPixelAt(10, 30).getARGB() == 0);
+    // The string line runs the full width in the lane color (the red base at 80%).
+    CHECK(image.getPixelAt(160, 110) == juce::Colour{0xffbd0000});
+
+    // The space between lanes stays untouched.
+    CHECK(image.getPixelAt(10, 20).getARGB() == 0);
 }
 
 // Techniques, shape spans, and fret-hand positions all draw without touching empty lanes.
@@ -223,17 +227,17 @@ TEST_CASE("TabView draws techniques, shapes, and fret-hand positions", "[ui][tab
     CHECK(image.getPixelAt(150, 5).getARGB() == 0);
 
     // The tremolo strip stays clipped to its sustain: nothing straggles past the note end.
-    // String 2 lane of six in 240px: center y = 180. Note ends at 6.0s → x = 120.
+    // String 2 lane of six in 240px: center y = 180. Note ends at 6.0s → x = 120. The probe row
+    // sits above the string line (which now runs the full width) but inside the tremolo band.
     bool tremolo_inside = false;
     for (int x = 62; x < 118; ++x)
     {
-        tremolo_inside = tremolo_inside || image.getPixelAt(x, 180).getARGB() != 0;
+        tremolo_inside = tremolo_inside || image.getPixelAt(x, 174).getARGB() != 0;
     }
     CHECK(tremolo_inside);
-    // Stop short of x=199 where the Dm arpeggio's antialiased dashed border begins.
-    for (int x = 122; x < 198; ++x)
+    for (int x = 123; x < 198; ++x)
     {
-        CHECK(image.getPixelAt(x, 180).getARGB() == 0);
+        CHECK(image.getPixelAt(x, 174).getARGB() == 0);
     }
 
     // The vibrato-and-slide note still anchors its head at the onset on the bottom lane.
