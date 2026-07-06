@@ -893,7 +893,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::SelectArrange
                 }
 
                 m_project_audio_ready = true;
-                m_selected_tone_region_id = toneRegionIdAt(common::core::TimePosition{});
+                applyToneSelection(toneRegionIdAt(common::core::TimePosition{}));
                 finishBusyOperation();
                 updateView();
             },
@@ -971,9 +971,29 @@ void EditorController::Impl::restoreLiveRig(
         return;
     }
 
+    // Every tone the arrangement's regions reference preloads into its own rig branch so
+    // selection switching never rebuilds plugins; legacy arrangements without authored regions
+    // load their single toneDocument. The audible tone defaults to the first (the engine's
+    // fallback); selection sync moves it once the load finishes.
+    std::vector<std::string> tone_document_refs;
+    for (const common::core::ToneRegion& region : arrangement->tone_track.regions)
+    {
+        if (!region.tone_document_ref.empty() &&
+            std::ranges::find(tone_document_refs, region.tone_document_ref) ==
+                tone_document_refs.end())
+        {
+            tone_document_refs.push_back(region.tone_document_ref);
+        }
+    }
+    if (tone_document_refs.empty() && !arrangement->tone_document_ref.empty())
+    {
+        tone_document_refs.push_back(arrangement->tone_document_ref);
+    }
+
     common::audio::LiveRigLoadRequest request{
         .song_directory = song_directory,
-        .tone_document_ref = arrangement->tone_document_ref,
+        .tone_document_refs = std::move(tone_document_refs),
+        .audible_tone_ref = {},
         .progress_callback = {},
         .yield_callback = {},
     };

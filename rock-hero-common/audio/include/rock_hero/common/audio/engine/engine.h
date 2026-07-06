@@ -332,6 +332,14 @@ public:
     [[nodiscard]] std::expected<void, LiveRigError> clearLiveRig() override;
 
     /*!
+    \brief Switches which preloaded tone is audible and bound to the signal-chain panel.
+    \param tone_document_ref One of the tone references supplied to the last loadLiveRig call.
+    \return The now-audible tone's chain and output gain, or a typed failure.
+    */
+    [[nodiscard]] std::expected<LiveRigLoadResult, LiveRigError> setAudibleTone(
+        const std::string& tone_document_ref) override;
+
+    /*!
     \brief Reads the current input gain applied before the signal chain.
     \return Current input gain, or the default when no structural gain plugin exists.
     */

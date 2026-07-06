@@ -670,7 +670,8 @@ TEST_CASE("Engine live rig loads tone without clearing input gain", "[audio][eng
     live_rig.loadLiveRig(
         LiveRigLoadRequest{
             .song_directory = song_directory.path(),
-            .tone_document_ref = snapshot->tone_document_ref,
+            .tone_document_refs = {snapshot->tone_document_ref},
+            .audible_tone_ref = {},
             .progress_callback = {},
             .yield_callback = [](const auto& next) { next(); },
         },

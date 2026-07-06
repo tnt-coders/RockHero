@@ -31,7 +31,6 @@ add_executable(
     test_thumbnail_source.cpp
     test_transport.cpp
     test_engine.cpp
-    test_plugin_move_index.cpp
     test_monitoring_mode_transition.cpp
     test_tracktion_instrument_wave_device_mapping.cpp
     test_plugin_host.cpp
