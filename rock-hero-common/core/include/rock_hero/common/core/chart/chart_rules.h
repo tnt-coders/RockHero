@@ -17,9 +17,11 @@ namespace rock_hero::common::core
 /*!
 \brief Largest string count a chart tuning may declare.
 
-Shared with display code so lane-count controls and validation agree on one authority.
+Shared with display code so lane-count controls and validation agree on one authority. Capped at
+eight while the tab view only defines string colors through the eighth lane; raise this once
+ninth-and-beyond lane colors are chosen.
 */
-inline constexpr int g_max_chart_strings{15};
+inline constexpr int g_max_chart_strings{8};
 
 /*!
 \brief Highest fret a note, slide waypoint, touch position, or fret-hand position may reference.

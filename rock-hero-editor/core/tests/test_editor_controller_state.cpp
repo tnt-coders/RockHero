@@ -751,11 +751,11 @@ TEST_CASE(
         }
 
         controller.onWaveformVisibleChangeRequested(false);
-        controller.onTabMinimumDisplayedStringsChangeRequested(9);
+        controller.onTabMinimumDisplayedStringsChangeRequested(6);
         if (view.last_state.has_value())
         {
             CHECK_FALSE(view.last_state->waveform_visible);
-            CHECK(view.last_state->tab_minimum_displayed_strings == 9);
+            CHECK(view.last_state->tab_minimum_displayed_strings == 6);
         }
 
         controller.onTabMinimumDisplayedStringsChangeRequested(99);

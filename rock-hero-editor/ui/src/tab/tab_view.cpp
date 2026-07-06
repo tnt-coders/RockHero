@@ -31,14 +31,13 @@ constexpr std::array<juce::uint32, 6> g_standard_string_colors{
     0xffd22cf8, // purple (highest string)
 };
 
-// Our own RYB tertiary tier for lanes below the standard window (settled palette decision:
-// extrapolate the six-string wheel downward rather than adopt Charter's gray/dark-red extras),
-// ordered going down and cycled for extreme lane counts.
-constexpr std::array<juce::uint32, 4> g_tertiary_string_colors{
+// Colors for the seventh and eighth string lanes below the standard six-string window. The seventh
+// keeps our RYB teal; the eighth adopts Charter's near-white gray (ChartPanelColors STRING_7). The
+// tab view is capped at eight strings for now (g_max_chart_strings), so no ninth-or-beyond colors
+// are defined yet; they will be chosen when that cap is raised.
+constexpr std::array<juce::uint32, 2> g_tertiary_string_colors{
     0xff00b5a0, // teal (7th string)
-    0xffff0090, // magenta (8th)
-    0xffaadc00, // chartreuse (9th)
-    0xff5854ff, // indigo (10th)
+    0xffb6b6b6, // near-white gray (8th string, Charter STRING_7)
 };
 
 // Charter modern-theme fixed colors.

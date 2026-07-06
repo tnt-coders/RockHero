@@ -81,12 +81,10 @@ TEST_CASE("TabView colors strings by their standard-window position", "[ui][tab-
     // Extended-range lanes push the standard window up and take tertiary colors below it.
     CHECK(tabStringColor(2, 7) == red);
     CHECK(tabStringColor(1, 7) == juce::Colour{0xff00b5a0});
-    CHECK(tabStringColor(1, 8) == juce::Colour{0xffff0090});
+    // The eighth string takes Charter's near-white gray; the seventh keeps our teal. Eight is the
+    // current lane cap (g_max_chart_strings), so no ninth-or-beyond colors are exercised.
+    CHECK(tabStringColor(1, 8) == juce::Colour{0xffb6b6b6});
     CHECK(tabStringColor(2, 8) == juce::Colour{0xff00b5a0});
-    CHECK(tabStringColor(1, 10) == juce::Colour{0xff5854ff});
-
-    // Below indigo the tertiary tier cycles instead of running out.
-    CHECK(tabStringColor(1, 11) == juce::Colour{0xff00b5a0});
 }
 
 // Standard tablature orientation: the highest string takes the top lane. Lanes evenly fill the
