@@ -151,7 +151,7 @@ Structure and metadata:
    future plans; the format must not preclude them (Charter's GP import list is the reference for
    what importers need). Difficulty is never authored — only the derived rating.
 
-## Format Mockup (v2 draft, 2026-07-06 — under active discussion)
+## Format Specification (v2, corpus-validated 2026-07-06)
 
 The chart is an arrangement-owned sidecar, like `toneDocument`: the arrangement entry in
 `song.json` gains `"chart": "charts/<uuid>.chart.json"`, keeping thousands of note lines out of
@@ -253,13 +253,41 @@ What each piece encodes, and the edge cases it covers:
   timing under the span), separate hopo/picking fields (single `attack`), charting-only flags
   (ignore/pass-other-notes), vocals/showlights/crowd events.
 
-A reference conversion exists: `Periphery - Marigold (Chart Reference).rhp` (Rock Hero Stuff)
-contains a full Rocksmith-to-draft-format conversion of the Marigold lead chart at
-`song/charts/<uuid>.chart.json` — 1421 true-tab events flattened from 15 difficulty levels, 28
-link chains merged into slide waypoints, 943 hand-warped ebeats compressed to 135 tempo anchors
-plus 29 signature changes, and 91 shape spans. The chart predates the notes+shapes factoring
-(it still contains chord-instance events); regenerate it from the conversion script when the
-format settles.
+### Corpus validation (2026-07-06)
+
+The format was pressure-tested against a 39-song Rocksmith corpus (BTBAM epics, Opeth, Yes,
+Dire Straits, Protest The Hero, Funkadelic, Periphery — official DLC and CDLC, DD and non-DD),
+fully converted into reference packages under
+`Rock Hero Stuff/Chart References/*.rhp`. Each package is openable in the editor today
+(current-format `song.json`, warp-anchor tempo map derived from the source ebeats, converted
+audio, tone regions generated from Rocksmith tone changes with empty tone documents ready for
+authoring) and carries the full converted chart per arrangement at
+`song/charts/<arrangement-uuid>.chart.json` (unreferenced until the chart reader lands).
+`_conversion_report.json` in the same folder records per-song statistics.
+
+What ~260k converted notes across the corpus established:
+
+- **Every construct in the corpus is representable.** Audit found zero unrepresentable cases.
+  All five `attack` values, both mutes, both harmonics, bends from 0.5 (quarter-tone curl)
+  through 3.0 semitones, tap-slide licks, linked slide runs, arpeggio shape spans, per-string
+  chord technique variation, capo, drop tunings, and 4-string bass all convert cleanly.
+- **Rational positions earn their generality.** Real charts use denominators 5, 7, 9, 12, and 16
+  (tuplets), not just powers of two. Sustains are even richer (2.7k /5 entries, 2.3k /7).
+- **The tempo map compresses hostile grids.** Hand-warped charts (Marigold: 943 individually
+  timed ebeats, meters alternating 7/4 and 4/4 per measure) reduce to ~135 anchors + ~29
+  signature entries.
+- **Validation rules confirmed by audit:** notes sorted by (position, string) with no duplicate
+  (position, string) pairs; `sustain` > 0 when present; slide offsets strictly positive,
+  ascending, and ≤ sustain (a slide needs a window to glide in — the audit's one flagged defect
+  class); bend offsets ≥ 0 and ≤ sustain; shape `chord` indexes in range; shape sustain > 0;
+  template `frets`/`fingers` array length equals the tuning's string count (4 for bass).
+
+Importer findings recorded for the future import plan: Rocksmith `bendValue.step` is already in
+semitones; `linkNext` semantically means "the next note on this string continues" (follow by
+next-onset-within-tolerance, not exact end-time match — official DLC has millisecond gaps);
+source charts contain dangling links and zero-sustain instant slides that need repair on import;
+measure numbering must be renormalized sequentially; the RS `ignore` scoring flag is dropped;
+RS section name+number pairs collapse to `type`.
 
 ## Relationship to other plans
 
