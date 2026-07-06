@@ -76,9 +76,11 @@ Structure and metadata:
   in slice 1). This resolves the token question deferred from the tempo-map slice, and Charter's
   rational-fraction positions confirm exact fractions (never floats, never milliseconds) are the
   right substrate. Seconds are always derived through the tempo map, exactly like tone regions.
-- **Chords are explicit templates plus instances.** The template table (name, frets, fingers,
-  arpeggio) lives per arrangement; instances reference templates by index/id. Fingering and FHP
-  data are load-bearing for the difficulty calculator
+- **Chords are templates plus shape spans, never chord events.** Decision 2026-07-06 (superseding
+  the earlier templates-plus-instances direction): the template table (name, frets, fingers)
+  lives per arrangement, and `shapes` spans reference templates over the notes the hand plays —
+  one mechanism for strummed chords, chugged riffs, and arpeggios alike. Fingering and FHP data
+  are load-bearing for the difficulty calculator
   (`docs/todo/arrangement-difficulty-derivation-plan.md`), so the format keeps them first-class
   even though the 2D view may not render fingerings initially.
 - **One true tab per arrangement — no difficulty levels.** Decision 2026-07-05: Charter carries
@@ -87,9 +89,9 @@ Structure and metadata:
   difficulty is a per-arrangement **derived rating**
   (`docs/todo/arrangement-difficulty-derivation-plan.md`), never authored. This avoids manually
   curating multiple fake-feeling difficulty variants per song. The format therefore has one
-  `sounds` stream per arrangement: a sound is a note or a chord instance (sum type in the domain
-  model, one object per line in JSON). Charter's `Level`/phrase-max-difficulty machinery is
-  explicitly not adopted.
+  `notes` stream per arrangement, every entry one string sounding (one object per line in JSON;
+  strummed chords are simultaneous entries under a shape span). Charter's
+  `Level`/phrase-max-difficulty machinery is explicitly not adopted.
 - **One physical onset = one note event; no link-next flag.** Decision 2026-07-05.
   Charter/Rocksmith model tied notes as separate events joined by `linkNext`; 26 Charter files
   handle it, its editors must keep chain endpoints/strings consistent, and Charter's own
@@ -149,7 +151,7 @@ Structure and metadata:
    future plans; the format must not preclude them (Charter's GP import list is the reference for
    what importers need). Difficulty is never authored — only the derived rating.
 
-## Format Mockup (v1 draft, 2026-07-06 — under active discussion)
+## Format Mockup (v2 draft, 2026-07-06 — under active discussion)
 
 The chart is an arrangement-owned sidecar, like `toneDocument`: the arrangement entry in
 `song.json` gains `"chart": "charts/<uuid>.chart.json"`, keeping thousands of note lines out of
@@ -163,8 +165,17 @@ the song document. Everything below lives in that chart file. Design rules that 
   `"27:3+1/2"` an exact rational sub-beat. Note-relative payload offsets are deliberately named
   `"offset"` instead — same fraction grammar, different meaning, different word. Beat-fraction
   durations are bare fraction tokens (`"3/2"`).
-- **One `notes` stream.** A sound is a single note (`string`/`fret`) or a chord instance
-  (`chord` referencing the template table). No difficulty levels; this is the true tab.
+- **Notes say what sounds; shapes say what the hand holds; templates are reusable postures.**
+  Every `notes` entry is one string sounding — there is no note-versus-chord sum type. A strummed
+  chord is simultaneous notes at one position. A `shapes` span `{position, sustain, chord}` marks
+  the hand holding a template posture, and covers strummed chords, chugged riffs on one shape,
+  and arpeggios with a single mechanism (Rocksmith data confirmed chords and handshapes are ~1:1
+  duplicates when modeled separately). Whether a shape is a chord box or an arpeggio bracket is
+  derivable from whether its notes arrive together or sequentially — no stored flag.
+- **One `attack` field for how an onset is produced.** `hammer | pull | tap | pop | slap`
+  (absent = plain pick). These are mutually exclusive by nature, so one field makes illegal
+  combinations unrepresentable. Timbre modifiers that genuinely combine with any attack stay
+  separate: `harmonic` (tap harmonics are real) and `mute` (palm-muted slap is real).
 - **Curve payloads are two-column pairs.** `[offset, value]`, like coordinates — self-evident
   and dense where entries are many.
 
@@ -174,28 +185,36 @@ the song document. Everything below lives in that chart file. Design rules that 
   "tuning": { "strings": ["E2", "A2", "D3", "G3", "B3", "E4"], "capo": 0, "centOffset": 0.0 },
   "chords": [
     { "name": "F5", "frets": [1, 3, 3, null, null, null], "fingers": [1, 3, 4, null, null, null] },
-    { "name": "Am-arp", "frets": [null, 0, 2, 2, 1, 0], "fingers": [null, null, 2, 3, 1, null], "arpeggio": true }
+    { "name": "Am", "frets": [null, 0, 2, 2, 1, 0], "fingers": [null, null, 2, 3, 1, null] }
   ],
   "notes": [
     { "position": "12:1", "string": 3, "fret": 5 },
-    { "position": "12:1+1/2", "string": 3, "fret": 7, "hopo": "hammer" },
-    { "position": "12:2", "string": 3, "fret": 5, "hopo": "pull", "sustain": "1/2" },
-    { "position": "12:3", "string": 2, "fret": 9, "hopo": "tap", "accent": true },
+    { "position": "12:1+1/2", "string": 3, "fret": 7, "attack": "hammer" },
+    { "position": "12:2", "string": 3, "fret": 5, "attack": "pull", "sustain": "1/2" },
+    { "position": "12:3", "string": 2, "fret": 9, "attack": "tap", "accent": true },
     { "position": "13:1", "string": 4, "fret": 5, "sustain": "2", "vibrato": true },
     { "position": "13:3", "string": 5, "fret": 0, "mute": "palm", "tremolo": true, "sustain": "1" },
     { "position": "14:1", "string": 5, "fret": 3, "mute": "full" },
     { "position": "14:2", "string": 2, "fret": 12, "harmonic": "natural" },
     { "position": "14:3", "string": 5, "fret": 5, "harmonic": "pinch", "sustain": "1" },
-    { "position": "15:1", "string": 6, "fret": 3, "picking": "slap" },
-    { "position": "15:1+1/2", "string": 6, "fret": 5, "picking": "pop" },
+    { "position": "15:1", "string": 6, "fret": 3, "attack": "slap" },
+    { "position": "15:1+1/2", "string": 6, "fret": 5, "attack": "pop" },
     { "position": "16:1", "string": 4, "fret": 7, "sustain": "4",
       "bend": [["1/2", 1.0], ["1", 2.0], ["3", 2.0], ["4", 0.0]] },
     { "position": "18:1", "string": 4, "fret": 5, "sustain": "3",
       "slides": [{ "offset": "1", "fret": 9 }, { "offset": "2", "fret": 7 }, { "offset": "3", "fret": 12, "unpitched": true }] },
-    { "position": "20:1", "chord": 0, "sustain": "1" },
-    { "position": "20:3", "chord": 1, "sustain": "2",
-      "strings": [{ "string": 5, "sustain": "4", "vibrato": true }] },
+    { "position": "20:1", "string": 6, "fret": 1, "sustain": "1", "mute": "palm" },
+    { "position": "20:1", "string": 5, "fret": 3, "sustain": "1", "mute": "palm" },
+    { "position": "20:1", "string": 4, "fret": 3, "sustain": "2", "vibrato": true },
+    { "position": "20:3", "string": 5, "fret": 0 },
+    { "position": "20:3+1/2", "string": 4, "fret": 2 },
+    { "position": "21:1", "string": 3, "fret": 2 },
+    { "position": "21:1+1/2", "string": 2, "fret": 1 },
     { "position": "22:4", "string": 3, "fret": 14, "sustain": "5/2" }
+  ],
+  "shapes": [
+    { "position": "20:1", "sustain": "2", "chord": 0 },
+    { "position": "20:3", "sustain": "6", "chord": 1 }
   ],
   "fhps": [
     { "position": "12:1", "fret": 5 },
@@ -210,23 +229,37 @@ the song document. Everything below lives in that chart file. Design rules that 
 
 What each piece encodes, and the edge cases it covers:
 
-- **Onset model.** Each entry is one physical onset. The `"22:4"` note sustains `5/2` beats
-  across the measure 23 barline — one note; the renderer draws any tie glyph. HOPO/tap are new
-  onsets with a flag, never links. The slide-chain example replaces a three-note Charter
-  link chain with one note and three waypoints (the last one unpitched).
+- **Onset model.** Each entry is one string sounding once. The `"22:4"` note sustains `5/2`
+  beats across the measure 23 barline — one note; the renderer draws any tie glyph.
+  Hammer/pull/tap are new onsets with an attack value, never links. The slide-chain example
+  replaces a three-note Charter link chain with one note and three waypoints (the last one
+  unpitched).
 - **Bends.** Note-relative `[offset, semitones]` pairs across the sustain: up to 1, full bend
   held to beat 3, released by 4. A pre-bend is a pair at offset `"0"`.
-- **Chords.** Templates hold name/frets/fingers (index 0 = low string; `null` = unplayed) plus
-  the arpeggio flag; instances reference by table index and carry event-level techniques.
-  Per-string deviations (one string rings longer, vibrato on one string) go in the sparse
-  `strings` override list — only the overridden fields appear.
+- **Chords and arpeggios.** The `"20:1"` F5 strum is three simultaneous notes under a shape
+  span — each string carries its own true sustain and techniques (the bass strings chug palm-
+  muted for one beat; the top string rings two with vibrato), with no override machinery. The
+  `"20:3"` Am shape spans sequential notes: an arpeggio, recognized from the same data. Sounding
+  truth never depends on shapes; strip the `shapes` array and the audio content is unchanged —
+  shapes add the notation layer (chord boxes, names, brackets, fingerings via the template).
+  Validation can advise when sounding notes under a span disagree with the template posture.
 - **FHPs.** Position + fret, `width` only when not 4.
 - **Sections.** Navigation/practice markers; the type vocabulary starts small and grows as
-  needed (no commitment to Charter's 31 kinds).
+  needed (no commitment to Charter's 31 kinds; Rocksmith's name+number pairs collapse to type,
+  with repeat numbering derivable).
 - **Deliberately absent.** Difficulty levels and phrase-max-difficulty (true-tab decision),
-  link-next (onset model), end positions (durations), handshape spans (chord sustain covers the
-  first version; revisit if arpeggio display needs more), charting-only flags
+  link-next (onset model), end positions (durations), chord-instance events and per-string
+  override lists (notes+shapes factoring), a template `arpeggio` flag (derivable from note
+  timing under the span), separate hopo/picking fields (single `attack`), charting-only flags
   (ignore/pass-other-notes), vocals/showlights/crowd events.
+
+A reference conversion exists: `Periphery - Marigold (Chart Reference).rhp` (Rock Hero Stuff)
+contains a full Rocksmith-to-draft-format conversion of the Marigold lead chart at
+`song/charts/<uuid>.chart.json` — 1421 true-tab events flattened from 15 difficulty levels, 28
+link chains merged into slide waypoints, 943 hand-warped ebeats compressed to 135 tempo anchors
+plus 29 signature changes, and 91 shape spans. The chart predates the notes+shapes factoring
+(it still contains chord-instance events); regenerate it from the conversion script when the
+format settles.
 
 ## Relationship to other plans
 
