@@ -89,26 +89,26 @@ TEST_CASE("TabView colors strings by their standard-window position", "[ui][tab-
     CHECK(tabStringColor(1, 11) == juce::Colour{0xff00b5a0});
 }
 
-// Standard tablature orientation: the highest string takes the top lane. Lane spacing pins to
-// the six-string reference density, so fewer strings center a smaller block and hosts that grow
-// the bounds proportionally for more strings land on the same spacing.
-TEST_CASE("TabView stacks lanes at the reference density", "[ui][tab-view]")
+// Standard tablature orientation: the highest string takes the top lane. Lanes evenly fill the
+// row, and the host sizes the row in proportion to the string count, so the per-lane spacing is
+// identical (20px here) whether it is a four-string bass, a six-string guitar, or an eight-string.
+TEST_CASE("TabView stacks lanes evenly across a proportional row", "[ui][tab-view]")
 {
-    const juce::Rectangle<int> bounds{0, 0, 100, 120};
+    // Six strings across the reference-height row: 20px lanes from the top edge down.
+    const juce::Rectangle<int> six{0, 0, 100, 120};
+    CHECK(tabLaneCenterY(6, 6, six) == Catch::Approx(10.0f));
+    CHECK(tabLaneCenterY(1, 6, six) == Catch::Approx(110.0f));
 
-    // Six strings fill the bounds exactly: 20px lanes from the top edge down.
-    CHECK(tabLaneCenterY(6, 6, bounds) == Catch::Approx(10.0f));
-    CHECK(tabLaneCenterY(1, 6, bounds) == Catch::Approx(110.0f));
+    // Four-string bass: the host shrinks the row to fit, so lanes stay at 20px with no margin.
+    const juce::Rectangle<int> bass{0, 0, 100, 80};
+    CHECK(tabLaneCenterY(4, 4, bass) == Catch::Approx(10.0f));
+    CHECK(tabLaneCenterY(1, 4, bass) == Catch::Approx(70.0f));
 
-    // Two strings keep the 20px lanes and center their 40px block in the 120px bounds.
-    CHECK(tabLaneCenterY(2, 2, bounds) == Catch::Approx(50.0f));
-    CHECK(tabLaneCenterY(1, 2, bounds) == Catch::Approx(70.0f));
-
-    // Eight strings in bounds grown by a third (the host's row growth) keep the 20px lanes.
-    const juce::Rectangle<int> grown_bounds{0, 0, 100, 160};
-    CHECK(tabLaneCenterY(8, 8, grown_bounds) == Catch::Approx(10.0f));
-    CHECK(tabLaneCenterY(7, 8, grown_bounds) == Catch::Approx(30.0f));
-    CHECK(tabLaneCenterY(1, 8, grown_bounds) == Catch::Approx(150.0f));
+    // Eight-string: the host grows the row, so lanes still hold the same 20px spacing.
+    const juce::Rectangle<int> eight{0, 0, 100, 160};
+    CHECK(tabLaneCenterY(8, 8, eight) == Catch::Approx(10.0f));
+    CHECK(tabLaneCenterY(7, 8, eight) == Catch::Approx(30.0f));
+    CHECK(tabLaneCenterY(1, 8, eight) == Catch::Approx(150.0f));
 }
 
 // The range query bounds candidates by sorted starts and the prefix maximum of sustain ends.
