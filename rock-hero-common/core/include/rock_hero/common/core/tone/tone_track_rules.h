@@ -33,6 +33,12 @@ enum class ToneTrackErrorCode : std::uint8_t
 
     /*! \brief A region's tone document reference is not a canonical package path. */
     InvalidToneDocumentRef,
+
+    /*! \brief An edit referenced a region id that is not present on the track. */
+    RegionNotFound,
+
+    /*! \brief A slice position does not fall strictly inside the region being sliced. */
+    SlicePositionOutsideRegion,
 };
 
 /*! \brief Recoverable failure produced by tone-track structural validation. */
