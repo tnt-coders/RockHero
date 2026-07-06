@@ -253,6 +253,35 @@ What each piece encodes, and the edge cases it covers:
   timing under the span), separate hopo/picking fields (single `attack`), charting-only flags
   (ignore/pass-other-notes), vocals/showlights/crowd events.
 
+### String count, micro-bends, and forward extensions (2026-07-06)
+
+- **The format is string-count-generic; the target is at least 10 strings.** `tuning.strings`
+  length is the single authority: `string` values range 1..N, template arrays are N long, and
+  nothing anywhere assumes 6. The renderer divides the lane height by N and draws from a palette.
+  String colors extrapolate Rocksmith's own system rather than adopting Charter's: Rocksmith's
+  six are the RYB painter's wheel — primaries in order (red, yellow, blue for E A D) then
+  secondaries in derivation order (orange, green, purple for G B e) — interleaved so adjacent
+  strings always contrast strongly. Strings below low E continue with the wheel's tertiary tier,
+  ordered for the same adjacent contrast going down: 7th (low B) **teal** `(0, 181, 160)`, 8th
+  (low F#) **magenta** `(255, 0, 144)`, 9th (low C#) **chartreuse** `(170, 220, 0)`, 10th (low
+  G#/A) **indigo** `(88, 84, 255)`. Teal beside the red low E mirrors the original set's
+  blue-beside-orange complementarity. Exact RGB values are display configuration, finalized
+  visually during the tab-rendering slice; the format carries no colors.
+- **Quarter bends (and finer) are already representable.** Bend pair values are plain numbers in
+  semitones; the corpus already contains 0.5 (quarter-tone curls), and 0.25 or any other
+  granularity needs no format change. Rocksmith's coarseness is an importer limitation, not a
+  format one.
+- **Whammy bar (future, additive).** Sketch: a `whammy` payload on the note using the same
+  two-column pair encoding as `bend` — `[[offset, semitones]]` — with *signed* values (dives go
+  negative). Kept distinct from `bend` because a bend is a finger on one string (non-negative,
+  per string) while the bar bends every sounding string and dives; consumers that treat them
+  identically may merge the curves at render time. Purely additive when it lands.
+- **Between-fret harmonics (future, additive).** Natural harmonics sound at node points that are
+  not fret positions (the 3.2 / 2.7 / 2.2 family). Sketch: an optional `touch` number on
+  harmonic notes carrying the precise fractional touch position (`"fret": 3, "harmonic":
+  "natural", "touch": 3.18`), where `fret` stays the integer display anchor. Purely additive; no
+  editor authors it yet, but the format will not need to change when one does.
+
 ### Corpus validation (2026-07-06)
 
 The format was pressure-tested against a 39-song Rocksmith corpus (BTBAM epics, Opeth, Yes,
