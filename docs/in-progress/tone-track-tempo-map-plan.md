@@ -167,7 +167,8 @@ Row height and future automation sub-lanes (2026-07-05): the tone row is a fixed
 strip (30 px), not a half track — regions only need to show their name. When parameter-automation
 authoring arrives, clicking a tone region should expand per-automation sub-lanes beneath the strip
 (disclosure-style, like DAW automation lanes fold out of a track header) and collapse back to the
-strip. Design the expansion then; the strip is the collapsed state it folds back to.
+strip. Design the expansion then; the strip is the collapsed state it folds back to. That work is
+explicitly sequenced after the note-storage format and tablature display (see Non-Goals).
 
 Not first pass:
 
@@ -412,7 +413,13 @@ Spikes to run at the start of slice 5, before committing to the bake shape:
 
 - No note, chord, tuning, or gameplay chart storage.
 - No general grid-position system beyond tone-region endpoints.
-- No plugin parameter automation authoring.
+- No plugin parameter automation authoring. Sequencing decision (2026-07-05): coarse whole-rig
+  tone switching (slice 5) is the minimum usable product; user-facing parameter automation
+  (authoring UI, per-parameter curves, sub-lanes, undo/persistence of user curves) is deferred
+  until after the note-storage format and the tablature-over-waveform display (waveform
+  optionally hidable behind the tab) are sorted out. Do not conflate it with slice 5's baked
+  branch-gain curves — those are internal switching plumbing the user never sees, and slice 5
+  does not depend on any of the deferred work.
 - No Tracktion clips or tracks exposed to editor UI/core.
 - No graph editor.
 - No promise to unload inactive tones for CPU savings.
