@@ -6,6 +6,8 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
+#include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/song/audio_asset.h>
 #include <rock_hero/common/core/song/difficulty.h>
 #include <rock_hero/common/core/timeline/timeline.h>
@@ -66,6 +68,22 @@ struct Arrangement
     persisted tone track on re-save.
     */
     ToneTrack tone_track;
+
+    /*!
+    \brief Package-relative chart document reference (`charts/<uuid>.chart.json`), or empty.
+
+    The chart file is the authoritative persisted form; saves validate its presence but do not
+    rewrite it until chart editing exists.
+    */
+    std::string chart_ref;
+
+    /*!
+    \brief Chart content loaded from chart_ref at package read, when a reference exists.
+
+    Runtime convenience for display and gameplay consumers; not compared field-by-field against
+    the file on save because the file remains authoritative while charts are read-only.
+    */
+    std::optional<Chart> chart;
 
     /*!
     \brief Calculates the range occupied by the arrangement audio on the session timeline.

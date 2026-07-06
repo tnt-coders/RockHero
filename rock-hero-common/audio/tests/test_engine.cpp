@@ -1,4 +1,4 @@
-#include <algorithm>
+﻿#include <algorithm>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <concepts>
@@ -80,6 +80,8 @@ static_assert(std::derived_from<Engine, IThumbnailFactory>);
             .audio_duration = common::core::TimeDuration{},
             .tone_document_ref = {},
             .tone_track = {},
+            .chart_ref = {},
+            .chart = {},
         });
     return song;
 }
@@ -814,6 +816,8 @@ TEST_CASE(
             .audio_duration = common::core::TimeDuration{1.0},
             .tone_document_ref = {},
             .tone_track = {},
+            .chart_ref = {},
+            .chart = {},
         });
 
     transport.removeListener(recorder);

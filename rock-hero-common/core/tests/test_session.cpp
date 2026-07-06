@@ -1,4 +1,4 @@
-#include <catch2/catch_test_macros.hpp>
+﻿#include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <rock_hero/common/core/session/session.h>
 #include <rock_hero/common/core/song/audio_asset.h>
@@ -31,6 +31,8 @@ namespace
             .audio_duration = duration,
             .tone_document_ref = {},
             .tone_track = {},
+            .chart_ref = {},
+            .chart = {},
         });
     return song;
 }
@@ -157,6 +159,8 @@ TEST_CASE("Session loadSong stores the selected arrangement index", "[core][sess
             .audio_duration = TimeDuration{9.0},
             .tone_document_ref = {},
             .tone_track = {},
+            .chart_ref = {},
+            .chart = {},
         });
     song.arrangements.push_back(
         Arrangement{
@@ -167,6 +171,8 @@ TEST_CASE("Session loadSong stores the selected arrangement index", "[core][sess
             .audio_duration = TimeDuration{5.0},
             .tone_document_ref = {},
             .tone_track = {},
+            .chart_ref = {},
+            .chart = {},
         });
 
     const bool loaded = session.loadSong(std::move(song), 1);
@@ -199,6 +205,8 @@ TEST_CASE("Session loadSong rejects arrangement without duration", "[core][sessi
             .audio_duration = TimeDuration{6.0},
             .tone_document_ref = {},
             .tone_track = {},
+            .chart_ref = {},
+            .chart = {},
         });
     song.arrangements.push_back(
         Arrangement{
@@ -209,6 +217,8 @@ TEST_CASE("Session loadSong rejects arrangement without duration", "[core][sessi
             .audio_duration = TimeDuration{},
             .tone_document_ref = {},
             .tone_track = {},
+            .chart_ref = {},
+            .chart = {},
         });
 
     const bool loaded = session.loadSong(std::move(song), 0);
