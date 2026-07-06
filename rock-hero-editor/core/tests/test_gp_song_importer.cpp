@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <cmath>
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
@@ -409,6 +410,40 @@ TEST_CASE("Guitar Pro import ignores negative frame padding", "[core][gp-import]
     REQUIRE(song.has_value());
     REQUIRE(song->arrangements.size() == 1);
     CHECK(song->arrangements.front().audio_asset.start_offset.seconds == 0.0);
+
+    std::filesystem::remove_all(scratch, cleanup_error);
+}
+
+// Guitar Pro sync frames divided by 44100 rarely land on a whole millisecond, but the package
+// format stores anchor seconds at three decimals, so an unrounded map imports yet cannot be saved.
+// Every anchor must be snapped onto the millisecond grid.
+TEST_CASE("Guitar Pro import snaps tempo anchors to the millisecond grid", "[core][gp-import]")
+{
+    const std::filesystem::path scratch =
+        std::filesystem::temp_directory_path() / "rh_gp_anchor_grid_test";
+    std::error_code cleanup_error;
+    std::filesystem::remove_all(scratch, cleanup_error);
+    const std::filesystem::path workspace = scratch / "song";
+    std::filesystem::create_directories(workspace);
+
+    // 88289 frames / 44100 = 2.00201814... seconds, which is not a whole millisecond.
+    const std::string gpif = fixtureWithReplacement(
+        "<FrameOffset>88200</FrameOffset>", "<FrameOffset>88289</FrameOffset>");
+    const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
+
+    GpSongImporter importer;
+    const auto song = importer.importSong(archive, workspace);
+    REQUIRE(song.has_value());
+
+    const auto& anchors = song->tempo_map.anchors();
+    REQUIRE(anchors.size() >= 2);
+    for (const common::core::BeatAnchor& anchor : anchors)
+    {
+        const double milliseconds = anchor.seconds * 1000.0;
+        CHECK(std::abs(milliseconds - std::llround(milliseconds)) < 1.0e-6);
+    }
+    // The off-grid sync rounds to the nearest millisecond rather than staying at 2.00201814.
+    CHECK(song->tempo_map.secondsAtBeat(2, 1) == Catch::Approx(2.002));
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }
