@@ -26,6 +26,7 @@ add_executable(
     test_gain.cpp
     test_input_calibration.cpp
     test_live_rig_gain_plugin.cpp
+    test_multi_tone_rack.cpp
     test_tone_branch_gain_plugin.cpp
     test_thumbnail_source.cpp
     test_transport.cpp
