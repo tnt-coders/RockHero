@@ -36,6 +36,7 @@ constexpr int g_publish_command{7};
 constexpr int g_undo_command{101};
 constexpr int g_redo_command{102};
 constexpr int g_arrangement_selector_width{132};
+constexpr int g_arrangement_caption_width{84};
 constexpr int g_menu_bar_height{24};
 constexpr int g_content_inset{8};
 constexpr int g_control_gap{8};
@@ -279,8 +280,12 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     addAndMakeVisible(m_transport_controls);
     addAndMakeVisible(m_position_display);
     addAndMakeVisible(m_grid_spacing_selector);
+    m_arrangement_caption.setComponentID("arrangement_caption");
+    m_arrangement_caption.setText("Arrangement", juce::dontSendNotification);
+    m_arrangement_caption.setJustificationType(juce::Justification::centredRight);
+    m_arrangement_caption.setInterceptsMouseClicks(false, false);
+    addAndMakeVisible(m_arrangement_caption);
     m_arrangement_selector.setComponentID("arrangement_selector");
-    m_arrangement_selector.setTextWhenNothingSelected("Arrangement");
     m_arrangement_selector.onChange = [this] {
         const int item_index = m_arrangement_selector.getSelectedItemIndex();
         const auto& choices = m_state.arrangement.choices;
@@ -486,6 +491,8 @@ void EditorView::resized()
     // whatever right-edge width the block leaves free (hiding below its minimum), so the
     // centered block wins over the meter's preferred width. The readout slot width already
     // includes the g_content_inset its bounds trim off, so the block width is a plain sum.
+    m_arrangement_caption.setBounds(
+        control_row.removeFromLeft(std::min(g_arrangement_caption_width, control_row.getWidth())));
     m_arrangement_selector.setBounds(
         control_row.removeFromLeft(std::min(g_arrangement_selector_width, control_row.getWidth()))
             .reduced(0, 4));
