@@ -171,6 +171,16 @@ struct ChartNote
     /*! \brief Harmonic timbre applied to the note. */
     NoteHarmonic harmonic{NoteHarmonic::None};
 
+    /*!
+    \brief Precise fractional touch position for harmonics that sound between frets.
+
+    Natural-harmonic node points are not fret positions (the 3.2 / 2.7 / 5.8 family), so
+    harmonic notes may carry the exact touch position here while `fret` stays the integer
+    display anchor. Only meaningful when `harmonic` is set; absent when the touch position is
+    the fret itself.
+    */
+    std::optional<double> touch{};
+
     /*! \brief True when the note is played with vibrato. */
     bool vibrato{false};
 

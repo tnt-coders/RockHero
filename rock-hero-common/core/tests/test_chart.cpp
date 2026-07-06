@@ -89,6 +89,7 @@ namespace
             .fret = 5,
             .sustain = Fraction{1},
             .harmonic = NoteHarmonic::Pinch,
+            .touch = 3.2,
             .tremolo = true,
             .accent = true,
             .bend = {},
@@ -251,6 +252,13 @@ TEST_CASE("Chart rules reject structural violations", "[core][chart]")
     const auto bad_template_result = validateChartRules(bad_template, tempo_map);
     REQUIRE_FALSE(bad_template_result.has_value());
     CHECK(bad_template_result.error().code == ChartErrorCode::InvalidTemplate);
+
+    // A harmonic touch position needs a harmonic and a real neck position.
+    Chart touch_without_harmonic = makeFullChart();
+    touch_without_harmonic.notes[0].touch = 3.2;
+    const auto touch_result = validateChartRules(touch_without_harmonic, tempo_map);
+    REQUIRE_FALSE(touch_result.has_value());
+    CHECK(touch_result.error().code == ChartErrorCode::InvalidNote);
 
     // Cent offsets span a full octave because real bass arrangements charted on guitar strings
     // pitch down twelve hundred cents; anything beyond that is junk data.
