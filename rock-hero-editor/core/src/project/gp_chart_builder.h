@@ -12,6 +12,7 @@
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/editor/core/project/song_import_error.h>
 #include <string>
 #include <vector>
 
@@ -54,8 +55,8 @@ combined sustains, matching the format's one-onset-one-note model, and technique
 chart's fields with unrepresentable ornaments recorded in the notes list.
 
 \param score Parsed score to convert.
-\return Built song data, or a human-readable failure message.
+\return Built song data, or a typed import failure describing the unconvertible score.
 */
-[[nodiscard]] std::expected<GpBuiltSong, std::string> buildGpSong(const GpScore& score);
+[[nodiscard]] std::expected<GpBuiltSong, SongImportError> buildGpSong(const GpScore& score);
 
 } // namespace rock_hero::editor::core

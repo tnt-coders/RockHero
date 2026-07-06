@@ -16,6 +16,15 @@ namespace
 
 using common::core::Fraction;
 
+// Every parser rejection means the same thing to the import boundary: the score data cannot
+// become a valid song. This wraps the message in the importer's typed error.
+[[nodiscard]] std::unexpected<SongImportError> invalidScore(std::string message)
+{
+    return std::unexpected{
+        SongImportError{SongImportErrorCode::InvalidImportedSong, std::move(message)}
+    };
+}
+
 // The chart's Fraction is a value type without arithmetic; rhythm math stays in tiny rationals.
 [[nodiscard]] constexpr Fraction multiplyFractions(Fraction lhs, Fraction rhs) noexcept
 {
@@ -122,7 +131,8 @@ constexpr double g_sync_frame_rate{44100.0};
 }
 
 // Converts a rhythm element to its duration as a fraction of a whole note.
-[[nodiscard]] std::expected<Fraction, std::string> rhythmDuration(const juce::XmlElement& rhythm)
+[[nodiscard]] std::expected<Fraction, SongImportError> rhythmDuration(
+    const juce::XmlElement& rhythm)
 {
     const std::string value = childText(rhythm, "NoteValue");
     Fraction duration{1, 4};
@@ -156,7 +166,7 @@ constexpr double g_sync_frame_rate{44100.0};
     }
     else
     {
-        return std::unexpected{"unknown rhythm value: " + value};
+        return invalidScore("unknown rhythm value: " + value);
     }
 
     if (const juce::XmlElement* const dot = rhythm.getChildByName("AugmentationDot");
@@ -175,7 +185,7 @@ constexpr double g_sync_frame_rate{44100.0};
         const int den = tuplet->getIntAttribute("den", 1);
         if (num <= 0 || den <= 0)
         {
-            return std::unexpected{"invalid tuplet on rhythm"};
+            return invalidScore("invalid tuplet on rhythm");
         }
         duration = multiplyFractions(duration, Fraction{den, num});
     }
@@ -247,7 +257,10 @@ constexpr double g_sync_frame_rate{44100.0};
         bend.middle_value = bend_value("BendMiddleValue", 0.0);
         bend.destination_value = bend_value("BendDestinationValue", 0.0);
         bend.origin_offset = bend_value("BendOriginOffset", 0.0);
-        bend.middle_offset = bend_value("BendMiddleOffset1", 50.0);
+        bend.middle_offset1 = bend_value("BendMiddleOffset1", 50.0);
+        // The middle value holds between the two middle offsets; a missing second offset means
+        // the plateau collapses to the single middle point.
+        bend.middle_offset2 = bend_value("BendMiddleOffset2", bend.middle_offset1);
         bend.destination_offset = bend_value("BendDestinationOffset", 100.0);
         note.bend = bend;
     }
@@ -325,13 +338,13 @@ void parseAutomations(const juce::XmlElement& root, GpScore& score)
 
 } // namespace
 
-std::expected<GpScore, std::string> parseGpScore(const std::string& gpif_xml)
+std::expected<GpScore, SongImportError> parseGpScore(const std::string& gpif_xml)
 {
     const std::unique_ptr<juce::XmlElement> root = juce::XmlDocument::parse(
         juce::String::fromUTF8(gpif_xml.data(), static_cast<int>(gpif_xml.size())));
     if (root == nullptr || !root->hasTagName("GPIF"))
     {
-        return std::unexpected{"score.gpif is not a GPIF XML document"};
+        return invalidScore("score.gpif is not a GPIF XML document");
     }
 
     GpScore score;
@@ -373,7 +386,7 @@ std::expected<GpScore, std::string> parseGpScore(const std::string& gpif_xml)
     const juce::XmlElement* const tracks = root->getChildByName("Tracks");
     if (master_bars == nullptr || tracks == nullptr)
     {
-        return std::unexpected{"score.gpif is missing MasterBars or Tracks"};
+        return invalidScore("score.gpif is missing MasterBars or Tracks");
     }
 
     // Reject the linearization features the chart format cannot represent.
@@ -383,9 +396,8 @@ std::expected<GpScore, std::string> parseGpScore(const std::string& gpif_xml)
             master_bar->getChildByName("AlternateEndings") != nullptr ||
             master_bar->getChildByName("Directions") != nullptr)
         {
-            return std::unexpected{
-                "score uses repeats or jump directions; export it linearly and re-import"
-            };
+            return invalidScore(
+                "score uses repeats or jump directions; export it linearly and re-import");
         }
     }
 
@@ -414,7 +426,7 @@ std::expected<GpScore, std::string> parseGpScore(const std::string& gpif_xml)
         }
         if (track.tuning_midi.empty())
         {
-            return std::unexpected{"track has no string tuning: " + track.name};
+            return invalidScore("track has no string tuning: " + track.name);
         }
         score.tracks.push_back(std::move(track));
     }
@@ -427,13 +439,13 @@ std::expected<GpScore, std::string> parseGpScore(const std::string& gpif_xml)
         const auto slash = time.find('/');
         if (slash == std::string::npos)
         {
-            return std::unexpected{"master bar has no time signature"};
+            return invalidScore("master bar has no time signature");
         }
         bar.numerator = juce::String{time.substr(0, slash)}.getIntValue();
         bar.denominator = juce::String{time.substr(slash + 1)}.getIntValue();
         if (bar.numerator <= 0 || bar.denominator <= 0)
         {
-            return std::unexpected{"master bar time signature is invalid: " + time};
+            return invalidScore("master bar time signature is invalid: " + time);
         }
         if (const juce::XmlElement* const section = master_bar->getChildByName("Section");
             section != nullptr)
@@ -448,7 +460,7 @@ std::expected<GpScore, std::string> parseGpScore(const std::string& gpif_xml)
         const std::vector<int> bar_ids = idList(childText(*master_bar, "Bars"));
         if (bar_ids.size() != score.tracks.size())
         {
-            return std::unexpected{"master bar does not reference every track"};
+            return invalidScore("master bar does not reference every track");
         }
 
         for (std::size_t track_index = 0; track_index < bar_ids.size(); ++track_index)
@@ -457,7 +469,7 @@ std::expected<GpScore, std::string> parseGpScore(const std::string& gpif_xml)
             const auto bar_entry = bars_table.find(bar_ids[track_index]);
             if (bar_entry == bars_table.end())
             {
-                return std::unexpected{"master bar references a missing bar"};
+                return invalidScore("master bar references a missing bar");
             }
 
             for (const int voice_id : idList(childText(*bar_entry->second, "Voices")))
@@ -469,7 +481,7 @@ std::expected<GpScore, std::string> parseGpScore(const std::string& gpif_xml)
                 const auto voice_entry = voices_table.find(voice_id);
                 if (voice_entry == voices_table.end())
                 {
-                    return std::unexpected{"bar references a missing voice"};
+                    return invalidScore("bar references a missing voice");
                 }
 
                 std::vector<GpBeat> beats;
@@ -478,7 +490,7 @@ std::expected<GpScore, std::string> parseGpScore(const std::string& gpif_xml)
                     const auto beat_entry = beats_table.find(beat_id);
                     if (beat_entry == beats_table.end())
                     {
-                        return std::unexpected{"voice references a missing beat"};
+                        return invalidScore("voice references a missing beat");
                     }
                     const juce::XmlElement& beat_element = *beat_entry->second;
 
@@ -488,7 +500,7 @@ std::expected<GpScore, std::string> parseGpScore(const std::string& gpif_xml)
                         rhythm == nullptr ? -1 : rhythm->getIntAttribute("ref", -1));
                     if (rhythm_entry == rhythms_table.end())
                     {
-                        return std::unexpected{"beat references a missing rhythm"};
+                        return invalidScore("beat references a missing rhythm");
                     }
                     auto duration = rhythmDuration(*rhythm_entry->second);
                     if (!duration.has_value())
@@ -506,7 +518,7 @@ std::expected<GpScore, std::string> parseGpScore(const std::string& gpif_xml)
                         const auto note_entry = notes_table.find(note_id);
                         if (note_entry == notes_table.end())
                         {
-                            return std::unexpected{"beat references a missing note"};
+                            return invalidScore("beat references a missing note");
                         }
                         beat.notes.push_back(parseNote(*note_entry->second));
                     }

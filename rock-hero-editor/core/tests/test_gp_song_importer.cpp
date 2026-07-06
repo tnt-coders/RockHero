@@ -2,6 +2,7 @@
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <rock_hero/common/core/chart/chart.h>
@@ -119,14 +120,26 @@ constexpr const char* g_fixture_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
 </GPIF>
 )";
 
-// Builds the fixture .gp archive on disk and returns its path.
-[[nodiscard]] std::filesystem::path writeFixtureArchive(const std::filesystem::path& scratch)
+// Returns the fixture gpif with the first occurrence of a marker replaced, for score variants.
+[[nodiscard]] std::string fixtureWithReplacement(
+    const std::string& marker, const std::string& replacement)
+{
+    std::string gpif{g_fixture_gpif};
+    const std::size_t position = gpif.find(marker);
+    REQUIRE(position != std::string::npos);
+    gpif.replace(position, marker.size(), replacement);
+    return gpif;
+}
+
+// Builds a .gp archive on disk from the given gpif text and returns its path.
+[[nodiscard]] std::filesystem::path writeFixtureArchive(
+    const std::filesystem::path& scratch, const std::string& gpif_text)
 {
     const std::filesystem::path content = scratch / "gp_content";
     std::filesystem::create_directories(content / "Content" / "Assets");
     {
         std::ofstream gpif{content / "Content" / "score.gpif", std::ios::binary};
-        gpif << g_fixture_gpif;
+        gpif << gpif_text;
     }
     {
         std::ofstream audio{content / "Content" / "Assets" / "audio.wav", std::ios::binary};
@@ -149,7 +162,7 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     const std::filesystem::path workspace = scratch / "song";
     std::filesystem::create_directories(workspace);
 
-    const std::filesystem::path archive = writeFixtureArchive(scratch);
+    const std::filesystem::path archive = writeFixtureArchive(scratch, g_fixture_gpif);
     GpSongImporter importer;
     const auto song = importer.importSong(archive, workspace);
     REQUIRE(song.has_value());
@@ -215,6 +228,101 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(chart.notes[4].bend[1].semitones == Catch::Approx(1.0));
     CHECK(chart.notes[4].bend[2].offset == Fraction{1, 2});
     CHECK(chart.notes[4].bend[2].semitones == Catch::Approx(2.0));
+
+    std::filesystem::remove_all(scratch, cleanup_error);
+}
+
+TEST_CASE("Guitar Pro import pins the terminal downbeat to a final sync point", "[core][gp-import]")
+{
+    const std::filesystem::path scratch =
+        std::filesystem::temp_directory_path() / "rh_gp_terminal_sync_test";
+    std::error_code cleanup_error;
+    std::filesystem::remove_all(scratch, cleanup_error);
+    const std::filesystem::path workspace = scratch / "song";
+    std::filesystem::create_directories(workspace);
+
+    // A sync point at the end of the last bar rolls over onto the terminal downbeat (measure
+    // three, beat one). Its 4.2-second frame offset must pin the map's end exactly; constant-
+    // tempo extrapolation from the bar-two sync would land at 4.0 seconds instead.
+    const std::string gpif = fixtureWithReplacement(
+        "</Automations>",
+        "<Automation><Type>SyncPoint</Type><Bar>1</Bar><Position>1</Position>\n"
+        "<Value><BarIndex>1</BarIndex><BarOccurrence>0</BarOccurrence>"
+        "<ModifiedTempo>120</ModifiedTempo>\n"
+        "<OriginalTempo>120</OriginalTempo><FrameOffset>185220</FrameOffset></Value>"
+        "</Automation>\n</Automations>");
+    const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
+
+    GpSongImporter importer;
+    const auto song = importer.importSong(archive, workspace);
+    REQUIRE(song.has_value());
+    CHECK(song->tempo_map.secondsAtBeat(2, 1) == Catch::Approx(2.0));
+    CHECK(song->tempo_map.secondsAtBeat(3, 1) == Catch::Approx(4.2));
+
+    std::filesystem::remove_all(scratch, cleanup_error);
+}
+
+TEST_CASE("Guitar Pro import drops sync points that regress on the grid", "[core][gp-import]")
+{
+    const std::filesystem::path scratch =
+        std::filesystem::temp_directory_path() / "rh_gp_sync_regress_test";
+    std::error_code cleanup_error;
+    std::filesystem::remove_all(scratch, cleanup_error);
+    const std::filesystem::path workspace = scratch / "song";
+    std::filesystem::create_directories(workspace);
+
+    // This sync point advances in audio time but points back to bar one after the bar-two sync;
+    // accepting it would corrupt the anchor order, so it must be dropped and beat 1:3 must keep
+    // its interpolated one-second position.
+    const std::string gpif = fixtureWithReplacement(
+        "</Automations>",
+        "<Automation><Type>SyncPoint</Type><Bar>0</Bar><Position>0.5</Position>\n"
+        "<Value><BarIndex>0</BarIndex><BarOccurrence>0</BarOccurrence>"
+        "<ModifiedTempo>130</ModifiedTempo>\n"
+        "<OriginalTempo>120</OriginalTempo><FrameOffset>132300</FrameOffset></Value>"
+        "</Automation>\n</Automations>");
+    const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
+
+    GpSongImporter importer;
+    const auto song = importer.importSong(archive, workspace);
+    REQUIRE(song.has_value());
+    CHECK(song->tempo_map.secondsAtBeat(1, 3) == Catch::Approx(1.0));
+    CHECK(song->tempo_map.secondsAtBeat(2, 1) == Catch::Approx(2.0));
+
+    std::filesystem::remove_all(scratch, cleanup_error);
+}
+
+TEST_CASE("Guitar Pro import keeps the bend plateau between middle offsets", "[core][gp-import]")
+{
+    const std::filesystem::path scratch =
+        std::filesystem::temp_directory_path() / "rh_gp_bend_plateau_test";
+    std::error_code cleanup_error;
+    std::filesystem::remove_all(scratch, cleanup_error);
+    const std::filesystem::path workspace = scratch / "song";
+    std::filesystem::create_directories(workspace);
+
+    // Distinct middle offsets hold the middle bend value from half to three quarters of the
+    // eighth-note sustain, so the chart curve gains a fourth point instead of collapsing the
+    // plateau to a single point.
+    const std::string gpif = fixtureWithReplacement(
+        "<Property name=\"BendMiddleOffset2\"><Float>50.000000</Float></Property>",
+        "<Property name=\"BendMiddleOffset2\"><Float>75.000000</Float></Property>");
+    const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
+
+    GpSongImporter importer;
+    const auto song = importer.importSong(archive, workspace);
+    REQUIRE(song.has_value());
+    REQUIRE(song->arrangements.size() == 1);
+    REQUIRE(song->arrangements.front().chart.has_value());
+    const common::core::Chart& chart = *song->arrangements.front().chart;
+    REQUIRE(chart.notes.size() == 5);
+    REQUIRE(chart.notes[4].bend.size() == 4);
+    CHECK(chart.notes[4].bend[1].offset == Fraction{1, 4});
+    CHECK(chart.notes[4].bend[1].semitones == Catch::Approx(1.0));
+    CHECK(chart.notes[4].bend[2].offset == Fraction{3, 8});
+    CHECK(chart.notes[4].bend[2].semitones == Catch::Approx(1.0));
+    CHECK(chart.notes[4].bend[3].offset == Fraction{1, 2});
+    CHECK(chart.notes[4].bend[3].semitones == Catch::Approx(2.0));
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }
