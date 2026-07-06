@@ -72,10 +72,10 @@ TEST_CASE("EditorView lays out toolbar below the menu bar", "[ui][editor-view]")
     // beside them. The playback block (buttons + position readout) wants its whole width
     // centered on the window, but at this window width the selectors clamp the block to start
     // right of them.
-    CHECK(arrangement_caption.getBounds() == juce::Rectangle<int>{8, 28, 84, 32});
-    CHECK(arrangement_selector.getBounds() == juce::Rectangle<int>{96, 28, 124, 32});
-    CHECK(grid_selector.getBounds() == juce::Rectangle<int>{232, 28, 132, 32});
-    CHECK(controls.getBounds() == juce::Rectangle<int>{364, 28, 96, 32});
+    CHECK(arrangement_caption.getBounds() == juce::Rectangle<int>{8, 28, 100, 32});
+    CHECK(arrangement_selector.getBounds() == juce::Rectangle<int>{112, 28, 124, 32});
+    CHECK(grid_selector.getBounds() == juce::Rectangle<int>{248, 28, 132, 32});
+    CHECK(controls.getBounds() == juce::Rectangle<int>{380, 28, 96, 32});
     CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 484, 80});
     CHECK(timeline_ruler.getBounds() == juce::Rectangle<int>{0, 0, 484, 53});
     CHECK(viewport.getBounds() == juce::Rectangle<int>{0, 53, 484, 27});
