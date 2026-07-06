@@ -51,7 +51,14 @@ namespace
 {
     if (!selected_arrangement.has_value())
     {
-        return 0;
+        // A fresh open carries no saved choice: default to the Lead part so the primary guitar
+        // shows first, falling back to the first arrangement when the song has no Lead. A future
+        // user path preference will slot in ahead of this default.
+        const auto lead = std::ranges::find(
+            song.arrangements, common::core::Part::Lead, &common::core::Arrangement::part);
+        return lead == song.arrangements.end()
+                   ? 0
+                   : static_cast<std::size_t>(std::distance(song.arrangements.begin(), lead));
     }
 
     const auto found = std::ranges::find_if(

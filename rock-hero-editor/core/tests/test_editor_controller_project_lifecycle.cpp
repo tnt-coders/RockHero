@@ -905,8 +905,9 @@ TEST_CASE("EditorController prompts before exit with unsaved import", "[core][ed
     CHECK_FALSE(settings.lastOpenProject().has_value());
 }
 
-// Project packages do not carry editor selection state, so the controller opens index zero.
-TEST_CASE("EditorController defaults open to first arrangement", "[core][editor-controller]")
+// Project packages do not carry editor selection state, so a fresh open defaults to the Lead
+// arrangement (here also the first) rather than replaying a saved choice.
+TEST_CASE("EditorController defaults open to the Lead arrangement", "[core][editor-controller]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -934,6 +935,71 @@ TEST_CASE("EditorController defaults open to first arrangement", "[core][editor-
     REQUIRE(controller.session().currentArrangement() != nullptr);
     CHECK(controller.session().currentArrangement()->part == common::core::Part::Lead);
     CHECK(controller.session().currentArrangement()->audio_asset == lead_asset);
+}
+
+// The switcher lists arrangements Lead, Rhythm, Bass and a fresh open selects the Lead even when
+// the song stores the parts in another order, so the primary guitar always shows first.
+TEST_CASE("EditorController orders arrangements and defaults to Lead", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    const auto make_arrangement =
+        [](std::string id, common::core::Part part, std::filesystem::path path) {
+            return common::core::Arrangement{
+                .id = std::move(id),
+                .part = part,
+                .difficulty = common::core::DifficultyRating{},
+                .audio_asset =
+                    common::core::AudioAsset{
+                        .path = std::move(path), .normalization = std::nullopt, .start_offset = {}
+                    },
+                .audio_duration = common::core::TimeDuration{},
+                .tone_document_ref = {},
+                .tone_track = {},
+                .chart_ref = {},
+                .chart = {},
+            };
+        };
+
+    // Song order is Bass, Rhythm, Lead — the reverse of the desired display order.
+    common::core::Song song;
+    song.arrangements.push_back(
+        make_arrangement(g_bass_arrangement_id, common::core::Part::Bass, "bass.wav"));
+    song.arrangements.push_back(make_arrangement(
+        "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e", common::core::Part::Rhythm, "rhythm.wav"));
+    song.arrangements.push_back(
+        make_arrangement(g_lead_arrangement_id, common::core::Part::Lead, "lead.wav"));
+    project_services.next_song = std::move(song);
+
+    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+
+    // The Lead is selected by default even though it is stored last.
+    REQUIRE(controller.session().currentArrangement() != nullptr);
+    CHECK(controller.session().currentArrangement()->part == common::core::Part::Lead);
+
+    REQUIRE(view.last_state.has_value());
+    if (view.last_state.has_value())
+    {
+        const std::vector<ArrangementChoiceViewState>& choices =
+            view.last_state->arrangement.choices;
+        REQUIRE(choices.size() == 3);
+        CHECK(choices[0].label == "Lead");
+        CHECK(choices[0].selected);
+        CHECK(choices[1].label == "Rhythm");
+        CHECK(choices[2].label == "Bass");
+    }
 }
 
 // Opening a project validates every arrangement before the selected arrangement is loaded.
