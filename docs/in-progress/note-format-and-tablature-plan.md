@@ -157,6 +157,19 @@ Structure and metadata:
 
 - Exact sub-beat token spelling (`"12:3+1/2"` vs. alternatives) and whether whole-beat positions
   keep the bare `"12:3"` form (they should).
+- **Link-next replacement (proposed direction, pending confirmation).** Charter/Rocksmith model
+  tied notes as separate events joined by a `linkNext` flag; 26 Charter files handle it, its
+  editors must keep chain endpoints/strings consistent, and Charter's own `ArrangementFixer`
+  contains a repair pass that merges technique-free linked notes back into one note — evidence
+  the flag makes invalid states representable. Proposed RockHero model: **one physical onset =
+  one note event; no link flag.** A note's sustain carries positioned payloads instead — Charter
+  already does exactly this for bends (`BendValue` points inside the note) — so a linked slide
+  chain becomes fret waypoints `(position, fret, pitched|unpitched)` within one note, and bend
+  releases across what importers see as tie chains become one bend curve. Importers flatten
+  tie/link chains at the boundary. Hammer-ons/pull-offs/taps are new onsets by definition and
+  stay separate notes. Measure-crossing sustains stay one note; a barline tie is a rendering
+  glyph, not data. Whole-note vibrato/tremolo flags to start; positioned technique spans only if
+  a real chart demands a mid-sustain change the payloads cannot express.
 - How much of Charter's charting-only metadata (ignore, pass-other-notes, phrase/section
   taxonomy) RockHero adopts versus simplifies.
 - Where the waveform-hidden toggle persists (app settings vs. per-project resume state).
