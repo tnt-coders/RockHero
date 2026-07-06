@@ -14,8 +14,9 @@ add_library(rock_hero::common::audio_testing ALIAS rock_hero_common_audio_testin
 target_include_directories(rock_hero_common_audio_testing
                            INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
-target_link_libraries(rock_hero_common_audio_testing INTERFACE rock_hero::common::audio
-                                                               rock_hero::juce_audio_devices)
+target_link_libraries(
+    rock_hero_common_audio_testing INTERFACE rock_hero::common::audio rock_hero::juce_audio_devices
+                                             rock_hero::juce_audio_formats)
 
 # Keep audio-port contract tests and concrete Engine adapter coverage in one audio test target.
 add_executable(
@@ -23,6 +24,7 @@ add_executable(
     test_song_audio.cpp
     test_audio_device_settings.cpp
     test_audio_normalization.cpp
+    test_audio_transcode.cpp
     test_gain.cpp
     test_input_calibration.cpp
     test_live_rig_gain_plugin.cpp

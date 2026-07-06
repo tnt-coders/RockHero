@@ -29,6 +29,7 @@ target_sources(
             src/shared/audio_path_util.h
             src/shared/meter_reader.h
             src/song/audio_normalization.cpp
+            src/song/audio_transcode.cpp
             src/song/song_audio_error.cpp
             src/tracktion/engine_behaviors.cpp
             src/tracktion/engine_behaviors.h
