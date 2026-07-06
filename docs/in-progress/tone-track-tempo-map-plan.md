@@ -286,11 +286,19 @@ the submodule moves):
   product has one live path plus a backing stem, so the default should be **compensation off**.
   The setting is edit-global. Keep the per-tone reported-latency surfacing/warning regardless;
   reporting accuracy still depends on each plugin's `getLatencySeconds()`.
-- **Region-selection audition switches by seeking.** Seek/stop follow-through is automatic
-  because parameter streams track the transport position while stopped — which also means a
-  manually-set branch gain would be overwritten on the next block. So "select a region outside
-  the cursor and hear its tone" must move the transport to the region (consistent with the
-  editor's click-to-seek behavior), not poke gains directly.
+- **Paused tone preview keeps the cursor in place via per-curve bypass.** Seek/stop
+  follow-through is automatic because parameter streams track the transport position while
+  stopped — which also means a naively-set branch gain would be overwritten on the next block.
+  The engine's lever for this: every `AutomationCurve` has a `bypass` flag ("this curve is
+  disabled, having no effect on the AutomatableParameter",
+  `model/automation/tracktion_AutomationCurve.h:39`); a bypassed curve makes the parameter hold
+  its directly-set value (`updateFromAutomationSources` falls back to `currentParameterValue`,
+  `tracktion_AutomatableParameter.cpp:1182`). So while **paused**, selecting a region away from
+  the cursor enters preview: bypass the branch-gain curves, set the selected branch's gain
+  directly (still per-sample smoothed), cursor untouched. Pressing Play (or seeking) exits
+  preview: clear bypass, the baked schedule wins, and the editor's existing play-snap moves the
+  selection back to the region under the cursor. Bypass is a property change, not a child
+  add/remove, so toggling it does not trigger the rack graph rebuild.
 - **Optional finer switch timing exists.** `PluginManager::canUseFineGrainAutomation`
   (`playback/graph/tracktion_PluginNode.cpp:18`) grants approved plugins 128-sample sub-block
   automation. Registering it for just the branch-gain plugins drops switch quantization from
