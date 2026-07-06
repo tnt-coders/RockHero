@@ -1190,7 +1190,9 @@ TEST_CASE("EditorController loads live rig on open", "[core][editor-controller]"
     {
         const auto& load_request = live_rig.last_load_request.value();
         CHECK(load_request.song_directory == std::filesystem::path{"song"});
-        CHECK(load_request.tone_document_ref == g_tone_document_ref);
+        CHECK(
+            load_request.tone_document_refs ==
+            std::vector<std::string>{std::string{g_tone_document_ref}});
     }
 
     const EditorViewState* state = stateOrNull(view.last_state);

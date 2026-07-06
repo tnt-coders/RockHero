@@ -3,6 +3,7 @@
 #include "shared/audio_path_util.h"
 #include "tracktion/live_rig_gain_plugin.h"
 
+#include <algorithm>
 #include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/shared/json.h>
 #include <rock_hero/common/core/shared/juce_path.h>
@@ -12,6 +13,10 @@ namespace rock_hero::common::audio
 
 namespace
 {
+
+// Runtime-only tone reference for the single passthrough branch a project without authored
+// tones receives; never persisted, because capture writes the caller-supplied reference.
+constexpr const char* g_placeholder_tone_ref = "placeholder";
 
 // Maps monitoring rebuild failures into live-rig mutation errors.
 [[nodiscard]] LiveRigError liveRigErrorFromLiveInputError(const LiveInputError& error)
@@ -324,6 +329,7 @@ std::expected<void, LiveRigError> Engine::Impl::clearUserLiveRigPlugins()
             plugin->removeFromParent();
         }
     }
+    resetToneRackState();
 
     return validateStructuralLiveRigPlugins();
 }
@@ -372,6 +378,119 @@ std::expected<void, LiveRigError> Engine::Impl::applyGainToPlugin(
 
     plugin->setGain(gain);
     return {};
+}
+
+ToneRackBranch* Engine::Impl::audibleToneBranch()
+{
+    const std::optional<std::size_t> index = audibleBranchIndex();
+    if (!m_tone_rack.has_value() || !index.has_value())
+    {
+        return nullptr;
+    }
+    return &m_tone_rack->branches[*index];
+}
+
+const ToneRackBranch* Engine::Impl::audibleToneBranch() const
+{
+    const std::optional<std::size_t> index = audibleBranchIndex();
+    if (!m_tone_rack.has_value() || !index.has_value())
+    {
+        return nullptr;
+    }
+    return &m_tone_rack->branches[*index];
+}
+
+std::optional<std::size_t> Engine::Impl::audibleBranchIndex() const
+{
+    if (!m_tone_rack.has_value())
+    {
+        return std::nullopt;
+    }
+    for (std::size_t index = 0; index < m_tone_rack->branches.size(); ++index)
+    {
+        if (m_tone_rack->branches[index].tone_document_ref == m_audible_tone_ref)
+        {
+            return index;
+        }
+    }
+    return std::nullopt;
+}
+
+std::expected<void, LiveRigError> Engine::Impl::applyAudibleTone(
+    const std::string& tone_document_ref)
+{
+    if (!m_tone_rack.has_value() || !setAudibleBranch(*m_tone_rack, tone_document_ref))
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::InvalidToneDocument,
+            "Tone is not loaded in the multi-tone rig: " + tone_document_ref,
+        }};
+    }
+
+    m_audible_tone_ref = tone_document_ref;
+    const std::optional<std::size_t> branch_index = audibleBranchIndex();
+    if (branch_index.has_value() && *branch_index < m_branch_output_gains.size())
+    {
+        return applyGainToPlugin(m_output_gain_plugin_id, m_branch_output_gains[*branch_index]);
+    }
+    return {};
+}
+
+// The rack instance on the track is removed by the non-structural plugin sweep; this releases
+// the rack type itself plus the per-branch bookkeeping.
+void Engine::Impl::resetToneRackState()
+{
+    if (m_tone_rack.has_value() && m_edit != nullptr && m_tone_rack->rack_type != nullptr)
+    {
+        m_edit->getRackList().removeRackType(m_tone_rack->rack_type);
+    }
+    m_tone_rack.reset();
+    m_tone_rack_instance_id = {};
+    m_audible_tone_ref.clear();
+    m_branch_output_gains.clear();
+    m_branch_display_metadata.clear();
+}
+
+// Walks the audible branch and pairs each plugin with its retained panel layout; positions past
+// the retained metadata fall back to a gapless layout.
+LiveRigLoadResult Engine::Impl::audibleToneResult() const
+{
+    LiveRigLoadResult result;
+    const ToneRackBranch* const branch = audibleToneBranch();
+    const std::optional<std::size_t> branch_index = audibleBranchIndex();
+    if (branch == nullptr || !branch_index.has_value())
+    {
+        return result;
+    }
+
+    static const BranchDisplayMetadata g_empty_metadata{};
+    const BranchDisplayMetadata& metadata = *branch_index < m_branch_display_metadata.size()
+                                                ? m_branch_display_metadata[*branch_index]
+                                                : g_empty_metadata;
+    result.plugins.reserve(branch->chain.size());
+    for (std::size_t plugin_index = 0; plugin_index < branch->chain.size(); ++plugin_index)
+    {
+        const auto* const external_plugin =
+            dynamic_cast<const tracktion::ExternalPlugin*>(branch->chain[plugin_index].get());
+        if (external_plugin == nullptr)
+        {
+            continue;
+        }
+        result.plugins.push_back(makePluginChainEntry(*external_plugin, plugin_index));
+        if (plugin_index < metadata.block_indices.size())
+        {
+            result.plugins.back().block_index = metadata.block_indices[plugin_index];
+        }
+        if (plugin_index < metadata.display_type_overrides.size())
+        {
+            result.plugins.back().display_type_override =
+                metadata.display_type_overrides[plugin_index];
+        }
+    }
+    result.output_gain = *branch_index < m_branch_output_gains.size()
+                             ? m_branch_output_gains[*branch_index]
+                             : readGainFromPlugin(m_output_gain_plugin_id);
+    return result;
 }
 
 // Clears the instrument plugin chain without touching the active backing arrangement.
@@ -438,7 +557,35 @@ std::expected<void, LiveRigError> Engine::setOutputGain(Gain gain)
         return std::unexpected{std::move(applied.error())};
     }
 
+    // Output gain is a per-tone value; remember it on the audible branch so switching away and
+    // back restores the edit.
+    const std::optional<std::size_t> branch_index = m_impl->audibleBranchIndex();
+    if (branch_index.has_value() && *branch_index < m_impl->m_branch_output_gains.size())
+    {
+        m_impl->m_branch_output_gains[*branch_index] = gain;
+    }
+
     return {};
+}
+
+// Switches the audible preloaded tone; only smoothed branch gains move, never the graph.
+std::expected<LiveRigLoadResult, LiveRigError> Engine::setAudibleTone(
+    const std::string& tone_document_ref)
+{
+    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        return std::unexpected{LiveRigError{LiveRigErrorCode::MessageThreadRequired}};
+    }
+
+    if (tone_document_ref != m_impl->m_audible_tone_ref)
+    {
+        if (auto applied = m_impl->applyAudibleTone(tone_document_ref); !applied.has_value())
+        {
+            return std::unexpected{std::move(applied.error())};
+        }
+    }
+
+    return m_impl->audibleToneResult();
 }
 
 // Captures the current Tracktion live rig chain into a tone document plus plugin-state sidecars.
@@ -497,28 +644,26 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
         .tone_document_ref = tone_document_ref.generic_string(),
         .plugins = {},
     };
-    const tracktion::Plugin::Array plugins = instrument_track->pluginList.getPlugins();
-    document.chain.reserve(static_cast<std::size_t>(plugins.size()));
-    snapshot.plugins.reserve(static_cast<std::size_t>(plugins.size()));
+    // Only the audible tone is user-editable, so capture walks its branch chain; other branches
+    // cannot drift from their tone documents. Without a loaded rig the chain is empty and the
+    // capture persists just the output gain, matching the pre-rack empty-chain behavior.
+    const ToneRackBranch* const audible_branch = m_impl->audibleToneBranch();
+    const std::vector<tracktion::Plugin::Ptr> chain_plugins =
+        audible_branch != nullptr ? audible_branch->chain : std::vector<tracktion::Plugin::Ptr>{};
+    document.chain.reserve(chain_plugins.size());
+    snapshot.plugins.reserve(chain_plugins.size());
     const std::filesystem::path plugin_state_directory =
         toneDocumentStateDirectory(tone_document_ref);
 
     std::size_t captured_plugin_index = 0;
-    for (tracktion::Plugin* const plugin : plugins)
+    for (const tracktion::Plugin::Ptr& plugin : chain_plugins)
     {
         if (plugin == nullptr)
         {
             continue;
         }
 
-        // Structural plugins are captured as authored tone state or runtime-only infrastructure,
-        // not as chain entries.
-        if (m_impl->isStructuralLiveRigPlugin(plugin))
-        {
-            continue;
-        }
-
-        auto* const external_plugin = dynamic_cast<tracktion::ExternalPlugin*>(plugin);
+        auto* const external_plugin = dynamic_cast<tracktion::ExternalPlugin*>(plugin.get());
         if (external_plugin == nullptr)
         {
             m_impl->rebuildInstrumentMonitoringGraphBestEffort(
@@ -590,6 +735,21 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
         return std::unexpected{std::move(write_result.error())};
     }
 
+    // The captured layout is now this tone's authoritative panel layout; retain it so switching
+    // away and back restores it.
+    if (const std::optional<std::size_t> branch_index = m_impl->audibleBranchIndex();
+        branch_index.has_value() && *branch_index < m_impl->m_branch_display_metadata.size())
+    {
+        Impl::BranchDisplayMetadata& metadata = m_impl->m_branch_display_metadata[*branch_index];
+        metadata.block_indices.clear();
+        metadata.display_type_overrides.clear();
+        for (const PluginRecord& record : document.chain)
+        {
+            metadata.block_indices.push_back(record.block_index);
+            metadata.display_type_overrides.push_back(record.display_type_override);
+        }
+    }
+
     auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
     if (!route_result.has_value())
     {
@@ -614,42 +774,86 @@ void Engine::loadLiveRig(LiveRigLoadRequest request, LiveRigLoadResultCallback o
         return;
     }
 
-    if (request.tone_document_ref.empty())
+    auto operation = std::make_unique<LiveRigLoadOperation>();
+    if (request.tone_document_refs.empty())
     {
-        auto clear_result = clearLiveRig();
-        if (!clear_result.has_value())
-        {
-            on_result(std::unexpected{std::move(clear_result.error())});
-            return;
-        }
-
-        const Gain default_gain{defaultGainDb()};
-        auto output_result = setOutputGain(default_gain);
-        if (!output_result.has_value())
-        {
-            on_result(std::unexpected{std::move(output_result.error())});
-            return;
-        }
-
-        on_result(
-            LiveRigLoadResult{
-                .plugins = {},
-                .output_gain = default_gain,
+        // A rig must always exist so the panel can build a chain from scratch on a project with
+        // no authored tones yet: load one passthrough branch under a placeholder tone. Capture
+        // never reads the branch reference, so the placeholder is runtime-only.
+        request.audible_tone_ref = g_placeholder_tone_ref;
+        operation->tones.push_back(
+            LiveRigLoadOperation::ToneLoad{
+                .tone_document_ref = std::string{g_placeholder_tone_ref},
+                .chain = {},
+                .display_names = {},
+                .output_gain = Gain{defaultGainDb()},
+                .loaded_plugins = {},
             });
-        return;
     }
-
-    if (request.song_directory.empty())
+    else
     {
-        on_result(std::unexpected{LiveRigError{LiveRigErrorCode::InvalidRequest}});
-        return;
-    }
+        if (request.song_directory.empty())
+        {
+            on_result(std::unexpected{LiveRigError{LiveRigErrorCode::InvalidRequest}});
+            return;
+        }
 
-    auto document = readToneDocument(request.song_directory, request.tone_document_ref);
-    if (!document.has_value())
-    {
-        on_result(std::unexpected{std::move(document.error())});
-        return;
+        // The audible tone must be one of the loaded set; default to the first tone when unset
+        // so legacy single-tone callers stay trivial.
+        if (request.audible_tone_ref.empty())
+        {
+            request.audible_tone_ref = request.tone_document_refs.front();
+        }
+        if (std::ranges::find(request.tone_document_refs, request.audible_tone_ref) ==
+            request.tone_document_refs.end())
+        {
+            on_result(
+                std::unexpected{LiveRigError{
+                    LiveRigErrorCode::InvalidRequest,
+                    "Audible tone is not part of the requested tone set: " +
+                        request.audible_tone_ref,
+                }});
+            return;
+        }
+
+        operation->tones.reserve(request.tone_document_refs.size());
+        for (const std::string& tone_ref : request.tone_document_refs)
+        {
+            // Duplicate references share one branch; callers normally dedupe already.
+            const bool already_loading = std::ranges::any_of(
+                operation->tones, [&tone_ref](const LiveRigLoadOperation::ToneLoad& tone) {
+                    return tone.tone_document_ref == tone_ref;
+                });
+            if (already_loading)
+            {
+                continue;
+            }
+
+            auto document = readToneDocument(request.song_directory, tone_ref);
+            if (!document.has_value())
+            {
+                on_result(std::unexpected{std::move(document.error())});
+                return;
+            }
+
+            LiveRigLoadOperation::ToneLoad tone_load{
+                .tone_document_ref = tone_ref,
+                .chain = std::move(document->chain),
+                .display_names = {},
+                .output_gain = document->output_gain,
+                .loaded_plugins = {},
+            };
+            tone_load.display_names.reserve(tone_load.chain.size());
+            for (std::size_t plugin_index = 0; plugin_index < tone_load.chain.size();
+                 ++plugin_index)
+            {
+                tone_load.display_names.push_back(
+                    pluginDisplayName(tone_load.chain[plugin_index].identity, plugin_index));
+            }
+            operation->total_plugins += tone_load.chain.size();
+            tone_load.loaded_plugins.reserve(tone_load.chain.size());
+            operation->tones.push_back(std::move(tone_load));
+        }
     }
 
     if (m_impl->instrumentTrack() == nullptr)
@@ -676,22 +880,20 @@ void Engine::loadLiveRig(LiveRigLoadRequest request, LiveRigLoadResultCallback o
         return;
     }
 
-    auto operation = std::make_unique<LiveRigLoadOperation>();
     operation->request = std::move(request);
-    operation->chain = std::move(document->chain);
-    operation->output_gain = document->output_gain;
-    operation->display_names.reserve(operation->chain.size());
-    for (std::size_t plugin_index = 0; plugin_index < operation->chain.size(); ++plugin_index)
-    {
-        operation->display_names.push_back(
-            pluginDisplayName(operation->chain[plugin_index].identity, plugin_index));
-    }
-    operation->result.plugins.reserve(operation->chain.size());
     operation->on_result = std::move(on_result);
 
-    reportLiveRigLoadProgress(operation->request, 0, operation->chain.size());
+    reportLiveRigLoadProgress(operation->request, 0, operation->total_plugins);
 
     m_impl->m_load_op = std::move(operation);
+
+    // A plugin-less load has no heavy construction to paint around, so it finalizes
+    // synchronously, matching the pre-multi-tone empty-load contract callers rely on.
+    if (m_impl->m_load_op->total_plugins == 0)
+    {
+        m_impl->beginNextPluginStep();
+        return;
+    }
 
     // Yield through the caller-provided paint fence so the initial "Loading live rig..." state
     // actually paints before plugin construction starts.
@@ -715,44 +917,30 @@ void Engine::Impl::beginNextPluginStep()
         return;
     }
 
-    const std::size_t total_plugins = m_load_op->chain.size();
-    if (m_load_op->next_index >= total_plugins)
+    // Advance across tones whose chains are exhausted (or empty) to the next plugin to load.
+    while (m_load_op->next_tone < m_load_op->tones.size() &&
+           m_load_op->next_plugin >= m_load_op->tones[m_load_op->next_tone].chain.size())
     {
-        auto structural_valid = validateStructuralLiveRigPlugins();
-        if (!structural_valid.has_value())
-        {
-            abortLiveRigLoad(std::move(structural_valid.error()));
-            return;
-        }
+        ++m_load_op->next_tone;
+        m_load_op->next_plugin = 0;
+    }
 
-        auto output_gain_applied =
-            applyGainToPlugin(m_output_gain_plugin_id, m_load_op->output_gain);
-        if (!output_gain_applied.has_value())
-        {
-            abortLiveRigLoad(std::move(output_gain_applied.error()));
-            return;
-        }
-
-        auto route_result = rebuildInstrumentMonitoringGraph();
-        if (!route_result.has_value())
-        {
-            abortLiveRigLoad(liveRigErrorFromLiveInputError(route_result.error()));
-            return;
-        }
-
-        endPluginUndoCaptureDeferral();
-        auto operation = std::move(m_load_op);
-        operation->result.output_gain = operation->output_gain;
-        operation->on_result(std::move(operation->result));
+    if (m_load_op->next_tone >= m_load_op->tones.size())
+    {
+        finalizeLiveRigLoad();
         return;
     }
 
-    const std::size_t plugin_index = m_load_op->next_index;
-    const std::string& display_name = m_load_op->display_names[plugin_index];
+    const LiveRigLoadOperation::ToneLoad& tone = m_load_op->tones[m_load_op->next_tone];
+    const std::string& display_name = tone.display_names[m_load_op->next_plugin];
 
     // "Loading X" before the heavy work so the bar updates to the new plugin name immediately.
     reportLiveRigLoadProgress(
-        m_load_op->request, plugin_index, total_plugins, plugin_index, display_name);
+        m_load_op->request,
+        m_load_op->completed_plugins,
+        m_load_op->total_plugins,
+        m_load_op->completed_plugins,
+        display_name);
 
     std::weak_ptr<bool> load_alive_source = m_alive;
     yieldThenContinue([this, load_alive = std::move(load_alive_source)] {
@@ -762,6 +950,115 @@ void Engine::Impl::beginNextPluginStep()
         }
         executePluginStep();
     });
+}
+
+// Assembles the rack from the loaded chains, places its instance on the track, applies the
+// audible tone, and delivers the audible tone's chain to the caller.
+void Engine::Impl::finalizeLiveRigLoad()
+{
+    if (m_load_op == nullptr)
+    {
+        return;
+    }
+
+    std::vector<ToneRackBranchRequest> branch_requests;
+    branch_requests.reserve(m_load_op->tones.size());
+    for (LiveRigLoadOperation::ToneLoad& tone : m_load_op->tones)
+    {
+        branch_requests.push_back(
+            ToneRackBranchRequest{
+                .tone_document_ref = tone.tone_document_ref,
+                .chain = std::move(tone.loaded_plugins),
+            });
+    }
+
+    auto built_rack = buildToneRack(*m_edit, branch_requests);
+    if (!built_rack.has_value())
+    {
+        abortLiveRigLoad(std::move(built_rack.error()));
+        return;
+    }
+    // Adopt the rack immediately so every abort path below tears it down through the
+    // non-structural sweep plus resetToneRackState().
+    m_tone_rack = std::move(*built_rack);
+    m_branch_output_gains.clear();
+    m_branch_output_gains.reserve(m_load_op->tones.size());
+    m_branch_display_metadata.clear();
+    m_branch_display_metadata.reserve(m_load_op->tones.size());
+    for (const LiveRigLoadOperation::ToneLoad& tone : m_load_op->tones)
+    {
+        m_branch_output_gains.push_back(tone.output_gain);
+        BranchDisplayMetadata metadata;
+        metadata.block_indices.reserve(tone.chain.size());
+        metadata.display_type_overrides.reserve(tone.chain.size());
+        for (const PluginRecord& record : tone.chain)
+        {
+            metadata.block_indices.push_back(record.block_index);
+            metadata.display_type_overrides.push_back(record.display_type_override);
+        }
+        m_branch_display_metadata.push_back(std::move(metadata));
+    }
+
+    auto rack_instance = createToneRackInstance(*m_edit, *m_tone_rack->rack_type);
+    if (!rack_instance.has_value())
+    {
+        abortLiveRigLoad(std::move(rack_instance.error()));
+        return;
+    }
+
+    tracktion::AudioTrack* const instrument_track = instrumentTrack();
+    const tracktion::Plugin* const output_gain = findStructuralGainPlugin(m_output_gain_plugin_id);
+    const int insert_index = instrument_track != nullptr && output_gain != nullptr
+                                 ? instrument_track->pluginList.indexOf(output_gain)
+                                 : -1;
+    if (insert_index < 0)
+    {
+        abortLiveRigLoad(
+            LiveRigError{
+                LiveRigErrorCode::PluginRestoreFailed,
+                "Structural live rig output gain plugin is missing",
+            });
+        return;
+    }
+    instrument_track->pluginList.insertPlugin(*rack_instance, insert_index, nullptr);
+    if (!instrument_track->pluginList.contains(rack_instance->get()))
+    {
+        abortLiveRigLoad(
+            LiveRigError{
+                LiveRigErrorCode::PluginRestoreFailed,
+                "Could not place the multi-tone rack on the instrument track",
+            });
+        return;
+    }
+    m_tone_rack_instance_id = (*rack_instance)->itemID;
+
+    auto structural_valid = validateStructuralLiveRigPlugins();
+    if (!structural_valid.has_value())
+    {
+        abortLiveRigLoad(std::move(structural_valid.error()));
+        return;
+    }
+
+    auto audible_applied = applyAudibleTone(m_load_op->request.audible_tone_ref);
+    if (!audible_applied.has_value())
+    {
+        abortLiveRigLoad(std::move(audible_applied.error()));
+        return;
+    }
+
+    auto route_result = rebuildInstrumentMonitoringGraph();
+    if (!route_result.has_value())
+    {
+        abortLiveRigLoad(liveRigErrorFromLiveInputError(route_result.error()));
+        return;
+    }
+
+    // The caller's result is the audible tone's chain, carrying the authored block layout.
+    LiveRigLoadResult result = audibleToneResult();
+
+    endPluginUndoCaptureDeferral();
+    auto operation = std::move(m_load_op);
+    operation->on_result(std::move(result));
 }
 
 // Performs the heavy work for the current plugin (scan-if-needed, read state, insert,
@@ -774,10 +1071,10 @@ void Engine::Impl::executePluginStep()
         return;
     }
 
-    const std::size_t plugin_index = m_load_op->next_index;
-    const std::size_t total_plugins = m_load_op->chain.size();
-    const PluginRecord& plugin = m_load_op->chain[plugin_index];
-    const std::string& display_name = m_load_op->display_names[plugin_index];
+    LiveRigLoadOperation::ToneLoad& tone = m_load_op->tones[m_load_op->next_tone];
+    const std::size_t plugin_index = m_load_op->next_plugin;
+    const PluginRecord& plugin = tone.chain[plugin_index];
+    const std::string& display_name = tone.display_names[plugin_index];
 
     auto plugin_known = ensureKnownPluginForIdentity(plugin.identity);
     if (!plugin_known.has_value())
@@ -805,36 +1102,20 @@ void Engine::Impl::executePluginStep()
         return;
     }
 
-    tracktion::AudioTrack* const instrument_track = instrumentTrack();
-    if (instrument_track == nullptr)
-    {
-        abortLiveRigLoad(LiveRigError{LiveRigErrorCode::TrackMissing});
-        return;
-    }
-
-    const tracktion::Plugin* const output_gain = findStructuralGainPlugin(m_output_gain_plugin_id);
-    const int insert_index =
-        output_gain != nullptr ? instrument_track->pluginList.indexOf(output_gain) : -1;
-    if (insert_index < 0)
-    {
-        abortLiveRigLoad(
-            LiveRigError{
-                LiveRigErrorCode::PluginRestoreFailed,
-                "Structural live rig output gain plugin is missing",
-            });
-        return;
-    }
-
-    const tracktion::Plugin::Ptr inserted_plugin =
-        instrument_track->pluginList.insertPlugin(*plugin_state, insert_index);
+    // Plugins restore free-floating through the plugin cache and stay unparented until the
+    // finalize step assembles every chain into the multi-tone rack.
+    const juce::ValueTree state_copy = plugin_state->createCopy();
+    tracktion::EditItemID::readOrCreateNewID(*m_edit, state_copy);
+    const tracktion::Plugin::Ptr restored_plugin =
+        m_edit->getPluginCache().getOrCreatePluginFor(state_copy);
     auto* const external_plugin =
-        inserted_plugin != nullptr ? dynamic_cast<tracktion::ExternalPlugin*>(inserted_plugin.get())
+        restored_plugin != nullptr ? dynamic_cast<tracktion::ExternalPlugin*>(restored_plugin.get())
                                    : nullptr;
     if (external_plugin == nullptr)
     {
         abortLiveRigLoad(
             LiveRigError{
-                LiveRigErrorCode::PluginRestoreFailed, "Could not insert persisted tone plugin"
+                LiveRigErrorCode::PluginRestoreFailed, "Could not restore persisted tone plugin"
             });
         return;
     }
@@ -847,22 +1128,17 @@ void Engine::Impl::executePluginStep()
         return;
     }
 
-    m_load_op->result.plugins.push_back(
-        makePluginChainEntry(*external_plugin, m_load_op->result.plugins.size()));
-    // The runtime chain has no gap concept, so carry the authored block placement from the parsed
-    // tone document into the restored chain entry.
-    m_load_op->result.plugins.back().block_index = m_load_op->chain[plugin_index].block_index;
-    m_load_op->result.plugins.back().display_type_override =
-        m_load_op->chain[plugin_index].display_type_override;
-    m_load_op->next_index = plugin_index + 1;
+    tone.loaded_plugins.push_back(restored_plugin);
+    m_load_op->next_plugin = plugin_index + 1;
+    ++m_load_op->completed_plugins;
 
     // "Loaded X" advances the bar to N+1/T so the user sees the per-plugin completion the spec
     // calls for, and so a one-plugin chain hits 100% before the overlay clears.
     reportLiveRigLoadProgress(
         m_load_op->request,
-        m_load_op->result.plugins.size(),
-        total_plugins,
-        plugin_index,
+        m_load_op->completed_plugins,
+        m_load_op->total_plugins,
+        m_load_op->completed_plugins - 1,
         display_name);
 
     std::weak_ptr<bool> load_alive_source = m_alive;

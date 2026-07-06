@@ -572,6 +572,20 @@ struct FakeLiveRig final : public common::audio::ILiveRig
         return true;
     }
 
+    // Records audible-tone switches and returns the configured load result as the new chain.
+    [[nodiscard]] std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>
+    setAudibleTone(const std::string& tone_document_ref) override
+    {
+        last_audible_tone_ref = tone_document_ref;
+        set_audible_tone_call_count += 1;
+        if (next_set_audible_tone_error.has_value())
+        {
+            return std::unexpected{*next_set_audible_tone_error};
+        }
+
+        return next_load_result;
+    }
+
     // Records explicit clear requests made during project teardown.
     [[nodiscard]] std::expected<void, common::audio::LiveRigError> clearLiveRig() override
     {
@@ -652,6 +666,15 @@ struct FakeLiveRig final : public common::audio::ILiveRig
 
     // Optional output-gain error returned instead of success.
     std::optional<common::audio::LiveRigError> next_set_output_gain_error{};
+
+    // Optional audible-tone error returned instead of success.
+    std::optional<common::audio::LiveRigError> next_set_audible_tone_error{};
+
+    // Last audible tone reference observed by the fake.
+    std::optional<std::string> last_audible_tone_ref{};
+
+    // Number of setAudibleTone calls received.
+    int set_audible_tone_call_count{0};
 
     // When set, loadLiveRig stores its completion so tests can finish it explicitly.
     bool defer_load_completion{false};

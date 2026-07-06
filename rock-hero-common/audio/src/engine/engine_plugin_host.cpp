@@ -4,7 +4,6 @@
 #include "shared/audio_path_util.h"
 #include "tracktion/live_rig_gain_plugin.h"
 #include "tracktion/plugin_dirty_tracking.h"
-#include "tracktion/plugin_move_index.h"
 
 #include <chrono>
 #include <exception>
@@ -440,20 +439,21 @@ std::vector<PluginCandidate> Engine::Impl::knownPluginCatalogForScannedFiles(
     return plugin_candidates;
 }
 
+// The user-visible chain is the audible tone's rack branch: the panel binds to the selected
+// tone, and only the selected tone is editable.
 PluginChainSnapshot Engine::Impl::pluginChainSnapshot() const
 {
     PluginChainSnapshot snapshot;
-    const tracktion::AudioTrack* const instrument_track = instrumentTrack();
-    if (instrument_track == nullptr)
+    const ToneRackBranch* const branch = audibleToneBranch();
+    if (branch == nullptr)
     {
         return snapshot;
     }
 
-    const tracktion::Plugin::Array plugins = instrument_track->pluginList.getPlugins();
-    snapshot.plugins.reserve(static_cast<std::size_t>(plugins.size()));
-    for (const tracktion::Plugin* const plugin : plugins)
+    snapshot.plugins.reserve(branch->chain.size());
+    for (const tracktion::Plugin::Ptr& plugin : branch->chain)
     {
-        if (plugin == nullptr || isStructuralLiveRigPlugin(plugin))
+        if (plugin == nullptr)
         {
             continue;
         }
@@ -466,16 +466,16 @@ PluginChainSnapshot Engine::Impl::pluginChainSnapshot() const
 
 std::size_t Engine::Impl::userVisiblePluginCount(const tracktion::Plugin* ignored_plugin) const
 {
-    const tracktion::AudioTrack* const instrument_track = instrumentTrack();
-    if (instrument_track == nullptr)
+    const ToneRackBranch* const branch = audibleToneBranch();
+    if (branch == nullptr)
     {
         return 0;
     }
 
     std::size_t count = 0;
-    for (const tracktion::Plugin* const plugin : instrument_track->pluginList)
+    for (const tracktion::Plugin::Ptr& plugin : branch->chain)
     {
-        if (plugin != nullptr && plugin != ignored_plugin && !isStructuralLiveRigPlugin(plugin))
+        if (plugin != nullptr && plugin.get() != ignored_plugin)
         {
             ++count;
         }
@@ -483,76 +483,26 @@ std::size_t Engine::Impl::userVisiblePluginCount(const tracktion::Plugin* ignore
     return count;
 }
 
-std::expected<int, PluginHostError> Engine::Impl::tracktionIndexForUserPluginSlot(
-    std::size_t chain_index, const tracktion::Plugin* ignored_plugin) const
-{
-    const tracktion::AudioTrack* const instrument_track = instrumentTrack();
-    if (instrument_track == nullptr)
-    {
-        return std::unexpected{PluginHostError{PluginHostErrorCode::TrackMissing}};
-    }
-
-    std::size_t user_index = 0;
-    for (int raw_index = 0; raw_index < instrument_track->pluginList.size(); ++raw_index)
-    {
-        const tracktion::Plugin* const plugin = instrument_track->pluginList[raw_index];
-        if (plugin == nullptr || plugin == ignored_plugin || isStructuralLiveRigPlugin(plugin))
-        {
-            continue;
-        }
-
-        if (user_index == chain_index)
-        {
-            return raw_index;
-        }
-        ++user_index;
-    }
-
-    if (user_index != chain_index)
-    {
-        return std::unexpected{PluginHostError{PluginHostErrorCode::InvalidChainIndex}};
-    }
-
-    const tracktion::Plugin* const output_gain = findStructuralGainPlugin(m_output_gain_plugin_id);
-    const int output_gain_index =
-        output_gain != nullptr ? instrument_track->pluginList.indexOf(output_gain) : -1;
-    if (output_gain_index < 0)
-    {
-        return std::unexpected{PluginHostError{
-            PluginHostErrorCode::PluginInsertionFailed,
-            "Structural live rig output gain plugin is missing",
-        }};
-    }
-    return output_gain_index;
-}
-
 std::optional<std::size_t> Engine::Impl::userVisiblePluginIndexOf(
     const tracktion::Plugin* target_plugin) const
 {
-    if (target_plugin == nullptr || isStructuralLiveRigPlugin(target_plugin))
+    if (target_plugin == nullptr)
     {
         return std::nullopt;
     }
 
-    const tracktion::AudioTrack* const instrument_track = instrumentTrack();
-    if (instrument_track == nullptr)
+    const ToneRackBranch* const branch = audibleToneBranch();
+    if (branch == nullptr)
     {
         return std::nullopt;
     }
 
-    std::size_t user_index = 0;
-    for (const tracktion::Plugin* const plugin : instrument_track->pluginList)
+    for (std::size_t index = 0; index < branch->chain.size(); ++index)
     {
-        if (plugin == nullptr || isStructuralLiveRigPlugin(plugin))
+        if (branch->chain[index].get() == target_plugin)
         {
-            continue;
+            return index;
         }
-
-        if (plugin == target_plugin)
-        {
-            return user_index;
-        }
-        ++user_index;
     }
 
     return std::nullopt;
@@ -626,22 +576,24 @@ std::expected<void, LiveRigError> Engine::Impl::ensureKnownPluginForIdentity(
     }};
 }
 
+// Searches every tone branch, not just the audible one: undo restores and open plugin windows
+// may target plugins from tones that are no longer selected.
 tracktion::Plugin* Engine::Impl::findInstrumentPluginInstance(const std::string& instance_id) const
 {
-    const tracktion::AudioTrack* const instrument_track = instrumentTrack();
-    if (instrument_track == nullptr)
+    if (!m_tone_rack.has_value())
     {
         return nullptr;
     }
 
     const juce::String target_id{instance_id};
-    // The returned plugin may be mutated by callers such as removePlugin().
-    // NOLINTNEXTLINE(misc-const-correctness)
-    for (tracktion::Plugin* const plugin : instrument_track->pluginList)
+    for (const ToneRackBranch& branch : m_tone_rack->branches)
     {
-        if (plugin != nullptr && plugin->itemID.toString() == target_id)
+        for (const tracktion::Plugin::Ptr& plugin : branch.chain)
         {
-            return plugin;
+            if (plugin != nullptr && plugin->itemID.toString() == target_id)
+            {
+                return plugin.get();
+            }
         }
     }
 
@@ -768,20 +720,28 @@ void Engine::Impl::refreshPluginEditObservers(
 {
     m_plugin_parameter_dirty_trackers.clear();
     m_plugin_state_trackers.clear();
-    const tracktion::AudioTrack* const instrument_track = instrumentTrack();
-    if (instrument_track == nullptr)
+    if (!m_tone_rack.has_value())
     {
         notifyPluginEditPendingStateChanged();
         return;
     }
 
-    for (tracktion::Plugin* const plugin : instrument_track->pluginList)
+    // Observe every branch, not just the audible one: plugin windows opened before a selection
+    // switch stay live, and their edits must keep flowing into dirty tracking and undo.
+    std::vector<tracktion::Plugin*> observed_plugins;
+    for (const ToneRackBranch& branch : m_tone_rack->branches)
     {
-        if (plugin == nullptr || isStructuralLiveRigPlugin(plugin))
+        for (const tracktion::Plugin::Ptr& plugin : branch.chain)
         {
-            continue;
+            if (plugin != nullptr)
+            {
+                observed_plugins.push_back(plugin.get());
+            }
         }
+    }
 
+    for (tracktion::Plugin* const plugin : observed_plugins)
+    {
         auto* const external_plugin = dynamic_cast<tracktion::ExternalPlugin*>(plugin);
         if (external_plugin == nullptr)
         {
@@ -949,37 +909,6 @@ std::expected<PluginInsertResult, PluginHostError> Engine::Impl::insertPluginCan
         return std::unexpected{PluginHostError{PluginHostErrorCode::MessageThreadRequired}};
     }
 
-    tracktion::AudioTrack* const instrument_track = instrumentTrack();
-    if (instrument_track == nullptr)
-    {
-        return std::unexpected{PluginHostError{PluginHostErrorCode::TrackMissing}};
-    }
-
-    if (!instrument_track->pluginList.canInsertPlugin())
-    {
-        return std::unexpected{PluginHostError{PluginHostErrorCode::PluginInsertionFailed}};
-    }
-
-    const std::size_t plugin_count = userVisiblePluginCount();
-    if (chain_index > plugin_count)
-    {
-        return std::unexpected{PluginHostError{PluginHostErrorCode::InvalidChainIndex}};
-    }
-
-    if (plugin_count >= g_max_signal_chain_plugins)
-    {
-        return std::unexpected{PluginHostError{
-            PluginHostErrorCode::PluginChainLimitExceeded,
-            pluginChainLimitExceededMessage(plugin_count),
-        }};
-    }
-
-    auto insert_position = tracktionIndexForUserPluginSlot(chain_index);
-    if (!insert_position.has_value())
-    {
-        return std::unexpected{std::move(insert_position.error())};
-    }
-
     std::unique_ptr<juce::PluginDescription> description = findKnownPlugin(plugin_candidate.id);
     std::string resolved_plugin_id = plugin_candidate.id;
     if (description == nullptr)
@@ -1015,9 +944,29 @@ std::expected<PluginInsertResult, PluginHostError> Engine::Impl::insertPluginCan
             }};
         }
     }
+
+    const std::optional<std::size_t> branch_index = audibleBranchIndex();
+    if (!branch_index.has_value())
+    {
+        return std::unexpected{PluginHostError{PluginHostErrorCode::TrackMissing}};
+    }
+
+    const std::size_t plugin_count = userVisiblePluginCount();
+    if (chain_index > plugin_count)
+    {
+        return std::unexpected{PluginHostError{PluginHostErrorCode::InvalidChainIndex}};
+    }
+
+    if (plugin_count >= g_max_signal_chain_plugins)
+    {
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginChainLimitExceeded,
+            pluginChainLimitExceededMessage(plugin_count),
+        }};
+    }
     tracktion::Plugin::Ptr plugin;
     auto mutation_result = mutateAndReroutePluginChain(
-        [this, &description, &instrument_track, &insert_position, &plugin]
+        [this, &description, branch_index, chain_index, &plugin]
         -> std::expected<void, PluginChainMutationFailure> {
             plugin = m_edit->getPluginCache().createNewPlugin(
                 tracktion::ExternalPlugin::xmlTypeName, *description);
@@ -1051,21 +1000,28 @@ std::expected<PluginInsertResult, PluginHostError> Engine::Impl::insertPluginCan
                 }
             }
 
-            instrument_track->pluginList.insertPlugin(plugin, *insert_position, nullptr);
-            if (instrument_track->pluginList.indexOf(plugin.get()) < 0)
+            if (auto inserted = insertIntoBranch(*m_tone_rack, *branch_index, chain_index, plugin);
+                !inserted.has_value())
             {
                 return std::unexpected{PluginChainMutationFailure{
-                    .error = PluginHostError{PluginHostErrorCode::PluginInsertionFailed},
+                    .error =
+                        PluginHostError{
+                            PluginHostErrorCode::PluginInsertionFailed,
+                            std::move(inserted.error().message),
+                        },
                     .reroute_context = "plugin insertion rollback failed",
                 }};
             }
 
             return {};
         },
-        [&plugin] {
-            if (plugin != nullptr)
+        [this, branch_index, &plugin] {
+            const std::optional<std::size_t> inserted_index =
+                userVisiblePluginIndexOf(plugin.get());
+            if (inserted_index.has_value() &&
+                !removeFromBranch(*m_tone_rack, *branch_index, *inserted_index).has_value())
             {
-                plugin->deleteFromParent();
+                logInstrumentMonitoringFailure("plugin insertion rollback could not unwire");
             }
         },
         "plugin insertion route rollback failed");
@@ -1106,19 +1062,19 @@ std::expected<PluginChainSnapshot, PluginHostError> Engine::movePlugin(
         return std::unexpected{PluginHostError{PluginHostErrorCode::MessageThreadRequired}};
     }
 
-    tracktion::AudioTrack* const instrument_track = m_impl->instrumentTrack();
-    if (instrument_track == nullptr)
-    {
-        return std::unexpected{PluginHostError{PluginHostErrorCode::TrackMissing}};
-    }
-
-    tracktion::Plugin* const plugin = m_impl->findInstrumentPluginInstance(instance_id);
-    if (plugin == nullptr || m_impl->isStructuralLiveRigPlugin(plugin))
+    const tracktion::Plugin* const plugin = m_impl->findInstrumentPluginInstance(instance_id);
+    if (plugin == nullptr)
     {
         return std::unexpected{PluginHostError{
             PluginHostErrorCode::PluginInstanceNotFound,
             "Plugin instance was not found: " + instance_id
         }};
+    }
+
+    const std::optional<std::size_t> branch_index = m_impl->audibleBranchIndex();
+    if (!branch_index.has_value())
+    {
+        return std::unexpected{PluginHostError{PluginHostErrorCode::TrackMissing}};
     }
 
     const std::size_t plugin_count = m_impl->userVisiblePluginCount();
@@ -1130,6 +1086,7 @@ std::expected<PluginChainSnapshot, PluginHostError> Engine::movePlugin(
     const std::optional<std::size_t> current_index = m_impl->userVisiblePluginIndexOf(plugin);
     if (!current_index.has_value())
     {
+        // The plugin exists but lives on a non-audible branch, which the panel cannot move.
         return std::unexpected{PluginHostError{
             PluginHostErrorCode::PluginInstanceNotFound,
             "Plugin instance was not found: " + instance_id
@@ -1141,51 +1098,33 @@ std::expected<PluginChainSnapshot, PluginHostError> Engine::movePlugin(
         return m_impl->pluginChainSnapshot();
     }
 
-    const int original_tracktion_index = instrument_track->pluginList.indexOf(plugin);
-    auto destination_tracktion_index =
-        m_impl->tracktionIndexForUserPluginSlot(destination_index, plugin);
-    if (!destination_tracktion_index.has_value())
-    {
-        return std::unexpected{std::move(destination_tracktion_index.error())};
-    }
-
-    const tracktion::Plugin::Ptr moved_plugin{plugin};
-    const auto rollback_move =
-        [this, &instrument_track, &moved_plugin, current_index, original_tracktion_index] {
-            auto rollback_tracktion_index =
-                m_impl->tracktionIndexForUserPluginSlot(*current_index, moved_plugin.get());
-            instrument_track->pluginList.insertPlugin(
-                moved_plugin,
-                rollback_tracktion_index.has_value() ? *rollback_tracktion_index
-                                                     : original_tracktion_index,
-                nullptr);
-        };
-
-    const int move_insert_index = tracktionInsertionIndexForExistingPluginMove(
-        original_tracktion_index, *destination_tracktion_index);
     auto mutation_result = m_impl->mutateAndReroutePluginChain(
-        [&instrument_track,
-         moved_plugin,
-         move_insert_index,
-         plugin,
-         destination_index,
-         &rollback_move,
-         this] -> std::expected<void, PluginChainMutationFailure> {
-            instrument_track->pluginList.insertPlugin(moved_plugin, move_insert_index, nullptr);
-            if (instrument_track->pluginList.indexOf(plugin) < 0 ||
-                m_impl->userVisiblePluginIndexOf(plugin) !=
-                    std::optional<std::size_t>{destination_index})
+        [this, branch_index, current_index, destination_index]
+        -> std::expected<void, PluginChainMutationFailure> {
+            if (auto moved = moveWithinBranch(
+                    *m_impl->m_tone_rack, *branch_index, *current_index, destination_index);
+                !moved.has_value())
             {
-                rollback_move();
                 return std::unexpected{PluginChainMutationFailure{
-                    .error = PluginHostError{PluginHostErrorCode::PluginMoveFailed},
+                    .error =
+                        PluginHostError{
+                            PluginHostErrorCode::PluginMoveFailed,
+                            std::move(moved.error().message),
+                        },
                     .reroute_context = "plugin move rollback failed",
                 }};
             }
 
             return {};
         },
-        rollback_move,
+        [this, branch_index, current_index, destination_index] {
+            if (!moveWithinBranch(
+                     *m_impl->m_tone_rack, *branch_index, destination_index, *current_index)
+                     .has_value())
+            {
+                logInstrumentMonitoringFailure("plugin move rollback could not rewire");
+            }
+        },
         "plugin move route rollback failed");
     if (!mutation_result.has_value())
     {
@@ -1204,14 +1143,8 @@ std::expected<PluginChainSnapshot, PluginHostError> Engine::removePlugin(
         return std::unexpected{PluginHostError{PluginHostErrorCode::MessageThreadRequired}};
     }
 
-    tracktion::AudioTrack* const instrument_track = m_impl->instrumentTrack();
-    if (instrument_track == nullptr)
-    {
-        return std::unexpected{PluginHostError{PluginHostErrorCode::TrackMissing}};
-    }
-
     tracktion::Plugin* const plugin = m_impl->findInstrumentPluginInstance(instance_id);
-    if (plugin == nullptr || m_impl->isStructuralLiveRigPlugin(plugin))
+    if (plugin == nullptr)
     {
         return std::unexpected{PluginHostError{
             PluginHostErrorCode::PluginInstanceNotFound,
@@ -1219,24 +1152,48 @@ std::expected<PluginChainSnapshot, PluginHostError> Engine::removePlugin(
         }};
     }
 
-    const int original_tracktion_index = instrument_track->pluginList.indexOf(plugin);
+    const std::optional<std::size_t> branch_index = m_impl->audibleBranchIndex();
+    if (!branch_index.has_value())
+    {
+        return std::unexpected{PluginHostError{PluginHostErrorCode::TrackMissing}};
+    }
+
+    const std::optional<std::size_t> current_index = m_impl->userVisiblePluginIndexOf(plugin);
+    if (!current_index.has_value())
+    {
+        // The plugin exists but lives on a non-audible branch, which the panel cannot remove.
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginInstanceNotFound,
+            "Plugin instance was not found: " + instance_id
+        }};
+    }
+
     const tracktion::Plugin::Ptr removed_plugin{plugin};
     auto mutation_result = m_impl->mutateAndReroutePluginChain(
-        [&instrument_track, plugin] -> std::expected<void, PluginChainMutationFailure> {
-            plugin->removeFromParent();
-            if (instrument_track->pluginList.indexOf(plugin) >= 0)
+        [this, branch_index, current_index] -> std::expected<void, PluginChainMutationFailure> {
+            if (auto removed =
+                    removeFromBranch(*m_impl->m_tone_rack, *branch_index, *current_index);
+                !removed.has_value())
             {
                 return std::unexpected{PluginChainMutationFailure{
-                    .error = PluginHostError{PluginHostErrorCode::PluginRemovalFailed},
+                    .error =
+                        PluginHostError{
+                            PluginHostErrorCode::PluginRemovalFailed,
+                            std::move(removed.error().message),
+                        },
                     .reroute_context = "plugin removal rollback failed",
                 }};
             }
 
             return {};
         },
-        [&instrument_track, removed_plugin, original_tracktion_index] {
-            instrument_track->pluginList.insertPlugin(
-                removed_plugin, original_tracktion_index, nullptr);
+        [this, branch_index, current_index, removed_plugin] {
+            if (!insertIntoBranch(
+                     *m_impl->m_tone_rack, *branch_index, *current_index, removed_plugin)
+                     .has_value())
+            {
+                logInstrumentMonitoringFailure("plugin removal rollback could not rewire");
+            }
         },
         "plugin removal route rollback failed");
     if (!mutation_result.has_value())
@@ -1298,37 +1255,6 @@ std::expected<PluginChainSnapshot, PluginHostError> Engine::recreatePluginStateP
         return std::unexpected{std::move(plugin_state.error())};
     }
 
-    tracktion::AudioTrack* const instrument_track = m_impl->instrumentTrack();
-    if (instrument_track == nullptr)
-    {
-        return std::unexpected{PluginHostError{PluginHostErrorCode::TrackMissing}};
-    }
-
-    if (!instrument_track->pluginList.canInsertPlugin())
-    {
-        return std::unexpected{PluginHostError{PluginHostErrorCode::PluginInsertionFailed}};
-    }
-
-    const std::size_t plugin_count = m_impl->userVisiblePluginCount();
-    if (chain_index > plugin_count)
-    {
-        return std::unexpected{PluginHostError{PluginHostErrorCode::InvalidChainIndex}};
-    }
-
-    if (plugin_count >= g_max_signal_chain_plugins)
-    {
-        return std::unexpected{PluginHostError{
-            PluginHostErrorCode::PluginChainLimitExceeded,
-            pluginChainLimitExceededMessage(plugin_count),
-        }};
-    }
-
-    auto insert_position = m_impl->tracktionIndexForUserPluginSlot(chain_index);
-    if (!insert_position.has_value())
-    {
-        return std::unexpected{std::move(insert_position.error())};
-    }
-
     const std::string original_instance_id = pluginInstanceIdFromState(*plugin_state);
     if (original_instance_id.empty())
     {
@@ -1346,48 +1272,40 @@ std::expected<PluginChainSnapshot, PluginHostError> Engine::recreatePluginStateP
         }};
     }
 
+    const std::optional<std::size_t> branch_index = m_impl->audibleBranchIndex();
+    if (!branch_index.has_value())
+    {
+        return std::unexpected{PluginHostError{PluginHostErrorCode::TrackMissing}};
+    }
+
+    const std::size_t plugin_count = m_impl->userVisiblePluginCount();
+    if (chain_index > plugin_count)
+    {
+        return std::unexpected{PluginHostError{PluginHostErrorCode::InvalidChainIndex}};
+    }
+
+    if (plugin_count >= g_max_signal_chain_plugins)
+    {
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginChainLimitExceeded,
+            pluginChainLimitExceededMessage(plugin_count),
+        }};
+    }
+
     tracktion::Plugin::Ptr inserted_plugin;
     auto mutation_result = m_impl->mutateAndReroutePluginChain(
-        [&instrument_track,
-         &plugin_state,
-         &insert_position,
-         &inserted_plugin,
-         &original_instance_id] -> std::expected<void, PluginChainMutationFailure> {
-            auto remove_partial_insert =
-                [&instrument_track,
-                 &inserted_plugin] -> std::expected<void, PluginChainMutationFailure> {
-                if (inserted_plugin != nullptr)
-                {
-                    const tracktion::Plugin* const inserted_plugin_ptr = inserted_plugin.get();
-                    inserted_plugin->deleteFromParent();
-                    if (instrument_track->pluginList.indexOf(inserted_plugin_ptr) >= 0)
-                    {
-                        return std::unexpected{PluginChainMutationFailure{
-                            .error =
-                                PluginHostError{
-                                    PluginHostErrorCode::RollbackContractViolation,
-                                    "Could not remove partial recreated plugin",
-                                },
-                            .reroute_context = "plugin-state recreate rollback failed",
-                        }};
-                    }
-                }
-                inserted_plugin = nullptr;
-                return {};
-            };
-
-            inserted_plugin = instrument_track->pluginList.insertPlugin(
-                plugin_state->createCopy(), *insert_position);
+        [this, branch_index, chain_index, &plugin_state, &inserted_plugin, &original_instance_id]
+        -> std::expected<void, PluginChainMutationFailure> {
+            // The captured state carries the original instance id, which the cache preserves.
+            inserted_plugin =
+                m_impl->m_edit->getPluginCache().getOrCreatePluginFor(plugin_state->createCopy());
             auto* const external_plugin =
                 inserted_plugin != nullptr
                     ? dynamic_cast<tracktion::ExternalPlugin*>(inserted_plugin.get())
                     : nullptr;
             if (external_plugin == nullptr)
             {
-                if (auto removed = remove_partial_insert(); !removed.has_value())
-                {
-                    return std::unexpected{std::move(removed.error())};
-                }
+                inserted_plugin = nullptr;
                 return std::unexpected{PluginChainMutationFailure{
                     .error =
                         PluginHostError{
@@ -1401,10 +1319,7 @@ std::expected<PluginChainSnapshot, PluginHostError> Engine::recreatePluginStateP
             const juce::String load_error = external_plugin->getLoadError();
             if (load_error.isNotEmpty())
             {
-                if (auto removed = remove_partial_insert(); !removed.has_value())
-                {
-                    return std::unexpected{std::move(removed.error())};
-                }
+                inserted_plugin = nullptr;
                 return std::unexpected{PluginChainMutationFailure{
                     .error =
                         PluginHostError{
@@ -1415,26 +1330,11 @@ std::expected<PluginChainSnapshot, PluginHostError> Engine::recreatePluginStateP
                 }};
             }
 
-            if (instrument_track->pluginList.indexOf(inserted_plugin.get()) < 0)
-            {
-                if (auto removed = remove_partial_insert(); !removed.has_value())
-                {
-                    return std::unexpected{std::move(removed.error())};
-                }
-                return std::unexpected{PluginChainMutationFailure{
-                    .error = PluginHostError{PluginHostErrorCode::PluginInsertionFailed},
-                    .reroute_context = "plugin-state recreate rollback failed",
-                }};
-            }
-
             const std::string restored_instance_id =
                 inserted_plugin->itemID.toString().toStdString();
             if (restored_instance_id != original_instance_id)
             {
-                if (auto removed = remove_partial_insert(); !removed.has_value())
-                {
-                    return std::unexpected{std::move(removed.error())};
-                }
+                inserted_plugin = nullptr;
                 return std::unexpected{PluginChainMutationFailure{
                     .error =
                         PluginHostError{
@@ -1445,12 +1345,30 @@ std::expected<PluginChainSnapshot, PluginHostError> Engine::recreatePluginStateP
                 }};
             }
 
+            if (auto inserted = insertIntoBranch(
+                    *m_impl->m_tone_rack, *branch_index, chain_index, inserted_plugin);
+                !inserted.has_value())
+            {
+                inserted_plugin = nullptr;
+                return std::unexpected{PluginChainMutationFailure{
+                    .error =
+                        PluginHostError{
+                            PluginHostErrorCode::PluginInsertionFailed,
+                            std::move(inserted.error().message),
+                        },
+                    .reroute_context = "plugin-state recreate rollback failed",
+                }};
+            }
+
             return {};
         },
-        [&inserted_plugin] {
-            if (inserted_plugin != nullptr)
+        [this, branch_index, &inserted_plugin] {
+            const std::optional<std::size_t> inserted_index =
+                m_impl->userVisiblePluginIndexOf(inserted_plugin.get());
+            if (inserted_index.has_value() &&
+                !removeFromBranch(*m_impl->m_tone_rack, *branch_index, *inserted_index).has_value())
             {
-                inserted_plugin->deleteFromParent();
+                logInstrumentMonitoringFailure("plugin-state recreate rollback could not unwire");
             }
         },
         "plugin-state recreate route rollback failed");

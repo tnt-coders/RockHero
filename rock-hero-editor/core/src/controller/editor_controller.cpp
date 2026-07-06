@@ -1582,7 +1582,7 @@ void EditorController::Impl::performActionImpl(EditorAction::PlayPause /*action*
     {
         // Starting playback snaps the tone selection to the region under the cursor; the
         // tone row then keeps it following boundary crossings at render cadence.
-        m_selected_tone_region_id = toneRegionIdAt(m_transport.position());
+        applyToneSelection(toneRegionIdAt(m_transport.position()));
         m_transport.play();
     }
 }
@@ -1595,7 +1595,7 @@ void EditorController::Impl::performActionImpl(EditorAction::Stop /*action*/)
         return;
     }
     m_transport.stop();
-    m_selected_tone_region_id = toneRegionIdAt(common::core::TimePosition{});
+    applyToneSelection(toneRegionIdAt(common::core::TimePosition{}));
 
     if (!transport_state.playing)
     {
@@ -1611,7 +1611,7 @@ void EditorController::Impl::performActionImpl(EditorAction::SeekTimeline action
     m_transport.seek(position);
     // Selection follows the cursor: the region under the new position becomes the tone
     // context.
-    m_selected_tone_region_id = toneRegionIdAt(position);
+    applyToneSelection(toneRegionIdAt(position));
     updateView();
 }
 
