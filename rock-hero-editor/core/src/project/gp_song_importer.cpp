@@ -4,12 +4,14 @@
 #include "project/gp_score_parser.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <expected>
 #include <filesystem>
 #include <juce_core/juce_core.h>
 #include <memory>
 #include <optional>
+#include <rock_hero/common/audio/song/audio_transcode.h>
 #include <rock_hero/common/core/chart/chart_document.h>
 #include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/shared/juce_path.h>
@@ -99,7 +101,10 @@ std::expected<common::core::Song, SongImportError> GpSongImporter::importSong(
         }};
     }
 
-    // Copy the embedded backing audio into the workspace, keeping its container format.
+    // Bring the embedded backing audio into the workspace as FLAC, RockHero's canonical package
+    // format: lossless, compact, and decoded identically for playback and the waveform thumbnail
+    // (lossy sources decode differently for each, so their waveforms drift). An already-FLAC source
+    // is copied; anything else is transcoded.
     const auto audio_bytes = readZipEntry(archive, juce::String{score->embedded_audio_entry});
     if (!audio_bytes.has_value())
     {
@@ -108,23 +113,58 @@ std::expected<common::core::Song, SongImportError> GpSongImporter::importSong(
             "Could not extract the embedded backing audio: " + score->embedded_audio_entry,
         }};
     }
-    std::string audio_extension =
-        std::filesystem::path{score->embedded_audio_entry}.extension().string();
-    if (audio_extension.empty())
-    {
-        audio_extension = ".wav";
-    }
-    const std::filesystem::path audio_relative =
-        std::filesystem::path{"audio"} / ("backing" + audio_extension);
-    const juce::File audio_file =
+    const std::filesystem::path audio_relative = std::filesystem::path{"audio"} / "backing.flac";
+    const juce::File flac_file =
         common::core::juceFileFromPath(workspace_directory / audio_relative);
-    if (!audio_file.getParentDirectory().createDirectory() ||
-        !audio_file.replaceWithData(audio_bytes->getData(), audio_bytes->getSize()))
+    if (!flac_file.getParentDirectory().createDirectory())
     {
         return std::unexpected{SongImportError{
             SongImportErrorCode::ExtractionFailed,
-            "Could not write the backing audio into the workspace",
+            "Could not create the workspace audio directory",
         }};
+    }
+
+    std::string source_extension =
+        std::filesystem::path{score->embedded_audio_entry}.extension().string();
+    std::ranges::transform(source_extension, source_extension.begin(), [](unsigned char character) {
+        return static_cast<char>(std::tolower(character));
+    });
+
+    if (source_extension == ".flac")
+    {
+        if (!flac_file.replaceWithData(audio_bytes->getData(), audio_bytes->getSize()))
+        {
+            return std::unexpected{SongImportError{
+                SongImportErrorCode::ExtractionFailed,
+                "Could not write the backing audio into the workspace",
+            }};
+        }
+    }
+    else
+    {
+        // Stage the source beside the target, transcode it to FLAC, then drop the staged copy.
+        const std::filesystem::path staged_source_path = workspace_directory /
+                                                         std::filesystem::path{"audio"} /
+                                                         ("backing_source" + source_extension);
+        const juce::File staged_source_file = common::core::juceFileFromPath(staged_source_path);
+        if (!staged_source_file.replaceWithData(audio_bytes->getData(), audio_bytes->getSize()))
+        {
+            return std::unexpected{SongImportError{
+                SongImportErrorCode::ExtractionFailed,
+                "Could not write the backing audio into the workspace",
+            }};
+        }
+
+        const auto transcoded = common::audio::transcodeToFlac(
+            staged_source_path, workspace_directory / audio_relative);
+        staged_source_file.deleteFile();
+        if (!transcoded.has_value())
+        {
+            return std::unexpected{SongImportError{
+                SongImportErrorCode::InvalidImportedSong,
+                "Could not convert the backing audio to FLAC: " + transcoded.error().message,
+            }};
+        }
     }
 
     // Positive frame padding is silence Guitar Pro places before the audio when the recording's
