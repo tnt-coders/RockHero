@@ -11,9 +11,6 @@ namespace rock_hero::common::core
 namespace
 {
 
-// Frets above the low twenties do not exist on real instruments; leave headroom for extended
-// range hardware without accepting junk data.
-constexpr int g_max_fret{30};
 constexpr int g_max_capo{12};
 // A full octave: fine tuning stays within a semitone, but real bass arrangements charted on
 // guitar strings pitch down a whole octave via -1200 cents (a common charting practice).
