@@ -249,7 +249,7 @@ TEST_CASE("ArrangementView hides the waveform behind the tablature lane", "[ui][
         });
     view.setState(makeArrangementState(std::filesystem::path{"full_mix.wav"}));
     REQUIRE(thumbnail_factory.thumbnails.size() == 1);
-    RecordingThumbnail* const thumbnail = thumbnail_factory.thumbnails.front();
+    const RecordingThumbnail* const thumbnail = thumbnail_factory.thumbnails.front();
     const juce::Image image(juce::Image::RGB, 100, 24, true);
 
     view.setWaveformVisible(false);
