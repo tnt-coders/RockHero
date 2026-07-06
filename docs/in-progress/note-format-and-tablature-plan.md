@@ -26,7 +26,7 @@ Two deliverables, in order:
 
 ## Reference: Charter (MIT)
 
-[Charter](https://github.com/Lordszynencja/Charter) is an MIT-licensed Rocksmith-style chart
+[Charter](https://github.com/Lordszynencja/Charter) is an MIT-licensed RS-format chart
 editor whose notation model was reviewed at source level (2026-07-05) to enumerate what a complete
 guitar notation format needs. Its layout also validates this plan's display direction: Charter
 draws the waveform inside the same editor lane as the notes (`WaveFormDrawer` sits among its chart
@@ -88,7 +88,7 @@ Structure and metadata:
   (`docs/todo/arrangement-difficulty-derivation-plan.md`), so the format keeps them first-class
   even though the 2D view may not render fingerings initially.
 - **One true tab per arrangement — no difficulty levels.** Decision 2026-07-05: Charter carries
-  Rocksmith-style per-difficulty level lists (pared-down variants of each arrangement); RockHero
+  RS-style per-difficulty level lists (pared-down variants of each arrangement); RockHero
   deliberately does not. Each arrangement stores a single TRUE tab — what is actually played — and
   difficulty is a per-arrangement **derived rating**
   (`docs/todo/arrangement-difficulty-derivation-plan.md`), never authored. This avoids manually
@@ -97,7 +97,7 @@ Structure and metadata:
   strummed chords are simultaneous entries under a shape span). Charter's
   `Level`/phrase-max-difficulty machinery is explicitly not adopted.
 - **One physical onset = one note event; no link-next flag.** Decision 2026-07-05.
-  Charter/Rocksmith model tied notes as separate events joined by `linkNext`; 26 Charter files
+  Charter and the RS format model tied notes as separate events joined by `linkNext`; 26 Charter files
   handle it, its editors must keep chain endpoints/strings consistent, and Charter's own
   `ArrangementFixer` contains a repair pass that merges technique-free linked notes back into one
   note — evidence the flag makes invalid states representable. RockHero notes own their whole
@@ -151,7 +151,7 @@ Structure and metadata:
    sustain tail) over the waveform from view state; waveform hide toggle.
 3. **Techniques and chords.** Chord boxes and template names, HOPO/mute/harmonic glyphs, slides,
    bends, vibrato/tremolo; FHP markers.
-4. **Authoring comes later.** Note editing and import (Guitar Pro / Rocksmith XML) are separate
+4. **Authoring comes later.** Note editing and import (Guitar Pro / RS XML) are separate
    future plans; the format must not preclude them (Charter's GP import list is the reference for
    what importers need). Difficulty is never authored — only the derived rating.
 
@@ -173,7 +173,7 @@ the song document. Everything below lives in that chart file. Design rules that 
   Every `notes` entry is one string sounding — there is no note-versus-chord sum type. A strummed
   chord is simultaneous notes at one position. A `shapes` span `{position, sustain, chord}` marks
   the hand holding a template posture, and covers strummed chords, chugged riffs on one shape,
-  and arpeggios with a single mechanism (Rocksmith data confirmed chords and handshapes are ~1:1
+  and arpeggios with a single mechanism (RS corpus data confirmed chords and handshapes are ~1:1
   duplicates when modeled separately). Whether a shape is a chord box or an arpeggio bracket is
   derivable from whether its notes arrive together or sequentially — no stored flag.
 - **One `attack` field for how an onset is produced.** `hammer | pull | tap | pop | slap`
@@ -249,7 +249,7 @@ What each piece encodes, and the edge cases it covers:
   Validation can advise when sounding notes under a span disagree with the template posture.
 - **FHPs.** Position + fret, `width` only when not 4.
 - **Sections.** Navigation/practice markers; the type vocabulary starts small and grows as
-  needed (no commitment to Charter's 31 kinds; Rocksmith's name+number pairs collapse to type,
+  needed (no commitment to Charter's 31 kinds; the RS format's name+number pairs collapse to type,
   with repeat numbering derivable).
 - **Deliberately absent.** Difficulty levels and phrase-max-difficulty (true-tab decision),
   link-next (onset model), end positions (durations), chord-instance events and per-string
@@ -262,8 +262,8 @@ What each piece encodes, and the edge cases it covers:
 - **The format is string-count-generic; the target is at least 10 strings.** `tuning.strings`
   length is the single authority: `string` values range 1..N, template arrays are N long, and
   nothing anywhere assumes 6. The renderer divides the lane height by N and draws from a palette.
-  String colors extrapolate Rocksmith's own system rather than adopting Charter's: Rocksmith's
-  six are the RYB painter's wheel — primaries in order (red, yellow, blue for E A D) then
+  String colors for extended-range strings extrapolate the standard six rather than adopting
+  Charter's extras: the standard six are the RYB painter's wheel — primaries in order (red, yellow, blue for E A D) then
   secondaries in derivation order (orange, green, purple for G B e) — interleaved so adjacent
   strings always contrast strongly. Strings below low E continue with the wheel's tertiary tier,
   ordered for the same adjacent contrast going down: 7th (low B) **teal** `(0, 181, 160)`, 8th
@@ -273,7 +273,7 @@ What each piece encodes, and the edge cases it covers:
   visually during the tab-rendering slice; the format carries no colors.
 - **Quarter bends (and finer) are already representable.** Bend pair values are plain numbers in
   semitones; the corpus already contains 0.5 (quarter-tone curls), and 0.25 or any other
-  granularity needs no format change. Rocksmith's coarseness is an importer limitation, not a
+  granularity needs no format change. the RS format's coarseness is an importer limitation, not a
   format one.
 - **Whammy bar (future, additive).** Sketch: a `whammy` payload on the note using the same
   two-column pair encoding as `bend` — `[[offset, semitones]]` — with *signed* values (dives go
@@ -288,12 +288,12 @@ What each piece encodes, and the edge cases it covers:
 
 ### Corpus validation (2026-07-06)
 
-The format was pressure-tested against a 39-song Rocksmith corpus (BTBAM epics, Opeth, Yes,
+The format was pressure-tested against a 39-song RS-format corpus (BTBAM epics, Opeth, Yes,
 Dire Straits, Protest The Hero, Funkadelic, Periphery — official DLC and CDLC, DD and non-DD),
 fully converted into reference packages under
 `Rock Hero Stuff/Chart References/*.rhp`. Each package is openable in the editor today
 (current-format `song.json`, warp-anchor tempo map derived from the source ebeats, converted
-audio, tone regions generated from Rocksmith tone changes with empty tone documents ready for
+audio, tone regions generated from the source charts' tone changes with empty tone documents ready for
 authoring) and carries the full converted chart per arrangement at
 `song/charts/<arrangement-uuid>.chart.json` (unreferenced until the chart reader lands).
 `_conversion_report.json` in the same folder records per-song statistics.
@@ -315,7 +315,7 @@ What ~260k converted notes across the corpus established:
   class); bend offsets ≥ 0 and ≤ sustain; shape `chord` indexes in range; shape sustain > 0;
   template `frets`/`fingers` array length equals the tuning's string count (4 for bass).
 
-Importer findings recorded for the future import plan: Rocksmith `bendValue.step` is already in
+Importer findings recorded for the future import plan: RS `bendValue.step` is already in
 semitones; `linkNext` semantically means "the next note on this string continues" (follow by
 next-onset-within-tolerance, not exact end-time match — official DLC has millisecond gaps);
 source charts contain dangling links and zero-sustain instant slides that need repair on import;

@@ -16,7 +16,7 @@ namespace
 constexpr int g_max_fret{30};
 constexpr int g_max_capo{12};
 // A full octave: fine tuning stays within a semitone, but real bass arrangements charted on
-// guitar strings pitch down a whole octave via -1200 cents (a standard Rocksmith practice).
+// guitar strings pitch down a whole octave via -1200 cents (a common charting practice).
 constexpr double g_max_cent_offset{1200.0};
 
 [[nodiscard]] bool isValidGridPosition(const GridPosition& position, const TempoMap& tempo_map)
