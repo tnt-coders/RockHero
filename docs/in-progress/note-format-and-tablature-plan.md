@@ -149,6 +149,82 @@ Structure and metadata:
    future plans; the format must not preclude them (Charter's GP import list is the reference for
    what importers need). Difficulty is never authored — only the derived rating.
 
+## Format Mockup (v1 draft, 2026-07-06 — under active discussion)
+
+The chart is an arrangement-owned sidecar, like `toneDocument`: the arrangement entry in
+`song.json` gains `"chart": "charts/<uuid>.chart.json"`, keeping thousands of note lines out of
+the song document. Everything below lives in that chart file. Design rules that keep it clean:
+
+- **Every fact is stated once.** Durations are beat-fraction tokens, never end positions (moving
+  a note touches one field). Intra-note payloads (bends, slides) use *note-relative* beat
+  offsets, so moving a note never rewrites its payloads. Techniques appear only when present.
+- **Positions reuse the tempo-map token grammar.** `"27:3"` is a whole beat; `"27:3+1/2"` is an
+  exact rational sub-beat. Beat-fraction durations/offsets are bare fraction tokens (`"3/2"`).
+- **One `notes` stream.** A sound is a single note (`string`/`fret`) or a chord instance
+  (`chord` referencing the template table). No difficulty levels; this is the true tab.
+- **Curve payloads are two-column pairs.** `[offset, value]`, like coordinates — self-evident
+  and dense where entries are many.
+
+```json
+{
+  "formatVersion": 1,
+  "tuning": { "strings": ["E2", "A2", "D3", "G3", "B3", "E4"], "capo": 0, "centOffset": 0.0 },
+  "chords": [
+    { "name": "F5", "frets": [1, 3, 3, null, null, null], "fingers": [1, 3, 4, null, null, null] },
+    { "name": "Am-arp", "frets": [null, 0, 2, 2, 1, 0], "fingers": [null, null, 2, 3, 1, null], "arpeggio": true }
+  ],
+  "notes": [
+    { "at": "12:1", "string": 3, "fret": 5 },
+    { "at": "12:1+1/2", "string": 3, "fret": 7, "hopo": "hammer" },
+    { "at": "12:2", "string": 3, "fret": 5, "hopo": "pull", "sustain": "1/2" },
+    { "at": "12:3", "string": 2, "fret": 9, "hopo": "tap", "accent": true },
+    { "at": "13:1", "string": 4, "fret": 5, "sustain": "2", "vibrato": true },
+    { "at": "13:3", "string": 5, "fret": 0, "mute": "palm", "tremolo": true, "sustain": "1" },
+    { "at": "14:1", "string": 5, "fret": 3, "mute": "full" },
+    { "at": "14:2", "string": 2, "fret": 12, "harmonic": "natural" },
+    { "at": "14:3", "string": 5, "fret": 5, "harmonic": "pinch", "sustain": "1" },
+    { "at": "15:1", "string": 6, "fret": 3, "picking": "slap" },
+    { "at": "15:1+1/2", "string": 6, "fret": 5, "picking": "pop" },
+    { "at": "16:1", "string": 4, "fret": 7, "sustain": "4",
+      "bend": [["1/2", 1.0], ["1", 2.0], ["3", 2.0], ["4", 0.0]] },
+    { "at": "18:1", "string": 4, "fret": 5, "sustain": "3",
+      "slides": [{ "at": "1", "fret": 9 }, { "at": "2", "fret": 7 }, { "at": "3", "fret": 12, "unpitched": true }] },
+    { "at": "20:1", "chord": 0, "sustain": "1" },
+    { "at": "20:3", "chord": 1, "sustain": "2",
+      "strings": [{ "string": 5, "sustain": "4", "vibrato": true }] },
+    { "at": "22:4", "string": 3, "fret": 14, "sustain": "5/2" }
+  ],
+  "fhps": [
+    { "at": "12:1", "fret": 5 },
+    { "at": "16:1", "fret": 7, "width": 5 }
+  ],
+  "sections": [
+    { "at": "12:1", "type": "verse" },
+    { "at": "20:1", "type": "chorus" }
+  ]
+}
+```
+
+What each piece encodes, and the edge cases it covers:
+
+- **Onset model.** Each entry is one physical onset. The `"22:4"` note sustains `5/2` beats
+  across the measure 23 barline — one note; the renderer draws any tie glyph. HOPO/tap are new
+  onsets with a flag, never links. The slide-chain example replaces a three-note Charter
+  link chain with one note and three waypoints (the last one unpitched).
+- **Bends.** Note-relative `[offset, semitones]` pairs across the sustain: up to 1, full bend
+  held to beat 3, released by 4. A pre-bend is a pair at offset `"0"`.
+- **Chords.** Templates hold name/frets/fingers (index 0 = low string; `null` = unplayed) plus
+  the arpeggio flag; instances reference by table index and carry event-level techniques.
+  Per-string deviations (one string rings longer, vibrato on one string) go in the sparse
+  `strings` override list — only the overridden fields appear.
+- **FHPs.** Position + fret, `width` only when not 4.
+- **Sections.** Navigation/practice markers; the type vocabulary starts small and grows as
+  needed (no commitment to Charter's 31 kinds).
+- **Deliberately absent.** Difficulty levels and phrase-max-difficulty (true-tab decision),
+  link-next (onset model), end positions (durations), handshape spans (chord sustain covers the
+  first version; revisit if arpeggio display needs more), charting-only flags
+  (ignore/pass-other-notes), vocals/showlights/crowd events.
+
 ## Relationship to other plans
 
 - Owns the deferred chart-storage questions (grid tokens, chord modeling, technique
