@@ -140,4 +140,120 @@ TEST_CASE("Multi-tone rack branch gains are independent", "[audio][multi-tone-ra
     CHECK(second_gain->getCurrentValue() == Catch::Approx(1.0f));
 }
 
+// Verifies audible-branch switching drives exactly one branch to full gain.
+TEST_CASE("Multi-tone rack switches the audible branch", "[audio][multi-tone-rack]")
+{
+    const MultiToneRackHarness harness;
+    tracktion::Edit& edit = *harness.edit;
+
+    const std::vector<ToneRackBranchRequest> requests{
+        ToneRackBranchRequest{
+            .tone_document_ref = "tones/aaaaaaaa-1111-4111-8111-111111111111/tone.json",
+            .chain = {},
+        },
+        ToneRackBranchRequest{
+            .tone_document_ref = "tones/bbbbbbbb-2222-4222-8222-222222222222/tone.json",
+            .chain = {},
+        },
+    };
+    auto built = buildToneRack(edit, requests);
+    REQUIRE(built.has_value());
+
+    REQUIRE(setAudibleBranch(*built, requests[1].tone_document_ref));
+    CHECK(
+        built->branches[0].branch_gain->branchGainParameter()->getCurrentValue() ==
+        Catch::Approx(0.0f));
+    CHECK(
+        built->branches[1].branch_gain->branchGainParameter()->getCurrentValue() ==
+        Catch::Approx(1.0f));
+
+    // Unknown tones leave the gains untouched.
+    CHECK_FALSE(setAudibleBranch(*built, "tones/cccccccc-3333-4333-8333-333333333333/tone.json"));
+    CHECK(
+        built->branches[1].branch_gain->branchGainParameter()->getCurrentValue() ==
+        Catch::Approx(1.0f));
+}
+
+// Verifies chain mutations rewire branch hops and never disturb the other branch.
+TEST_CASE("Multi-tone rack inserts removes and moves within a branch", "[audio][multi-tone-rack]")
+{
+    const MultiToneRackHarness harness;
+    tracktion::Edit& edit = *harness.edit;
+
+    const std::vector<ToneRackBranchRequest> requests{
+        ToneRackBranchRequest{
+            .tone_document_ref = "tones/aaaaaaaa-1111-4111-8111-111111111111/tone.json",
+            .chain = {},
+        },
+        ToneRackBranchRequest{
+            .tone_document_ref = "tones/bbbbbbbb-2222-4222-8222-222222222222/tone.json",
+            .chain = {},
+        },
+    };
+    auto built = buildToneRack(edit, requests);
+    REQUIRE(built.has_value());
+    const tracktion::EditItemID gain_id = built->branches[0].branch_gain->itemID;
+    const tracktion::EditItemID other_gain_id = built->branches[1].branch_gain->itemID;
+
+    // Insert first into the empty branch, then prepend a second plugin in front of it.
+    const tracktion::Plugin::Ptr second = createChainStandIn(edit);
+    REQUIRE(insertIntoBranch(*built, 0, 0, second).has_value());
+    const tracktion::Plugin::Ptr first = createChainStandIn(edit);
+    REQUIRE(insertIntoBranch(*built, 0, 0, first).has_value());
+    REQUIRE(built->branches[0].chain.size() == 2);
+    CHECK(built->branches[0].chain[0] == first);
+    CHECK(built->branches[0].chain[1] == second);
+    CHECK(hasStereoConnection(*built->rack_type, {}, first->itemID));
+    CHECK(hasStereoConnection(*built->rack_type, first->itemID, second->itemID));
+    CHECK(hasStereoConnection(*built->rack_type, second->itemID, gain_id));
+    CHECK_FALSE(hasStereoConnection(*built->rack_type, {}, gain_id));
+
+    // Move the first plugin behind the second one.
+    REQUIRE(moveWithinBranch(*built, 0, 0, 1).has_value());
+    CHECK(built->branches[0].chain[0] == second);
+    CHECK(built->branches[0].chain[1] == first);
+    CHECK(hasStereoConnection(*built->rack_type, {}, second->itemID));
+    CHECK(hasStereoConnection(*built->rack_type, second->itemID, first->itemID));
+    CHECK(hasStereoConnection(*built->rack_type, first->itemID, gain_id));
+
+    // Remove the now-first plugin; the survivor bridges input to gain around it.
+    REQUIRE(removeFromBranch(*built, 0, 0).has_value());
+    REQUIRE(built->branches[0].chain.size() == 1);
+    CHECK(built->branches[0].chain[0] == first);
+    CHECK(hasStereoConnection(*built->rack_type, {}, first->itemID));
+    CHECK(hasStereoConnection(*built->rack_type, first->itemID, gain_id));
+    CHECK(built->rack_type->getPluginForID(second->itemID) == nullptr);
+
+    // The untouched branch still runs input -> gain -> output.
+    CHECK(hasStereoConnection(*built->rack_type, {}, other_gain_id));
+    CHECK(hasStereoConnection(*built->rack_type, other_gain_id, {}));
+
+    // Out-of-range coordinates are rejected without changing the chain.
+    CHECK_FALSE(removeFromBranch(*built, 0, 5).has_value());
+    CHECK_FALSE(insertIntoBranch(*built, 9, 0, createChainStandIn(edit)).has_value());
+    CHECK(built->branches[0].chain.size() == 1);
+}
+
+// Verifies the rack instance plugin is created ready for track placement.
+TEST_CASE("Multi-tone rack creates a track instance", "[audio][multi-tone-rack]")
+{
+    const MultiToneRackHarness harness;
+    tracktion::Edit& edit = *harness.edit;
+
+    const std::vector<ToneRackBranchRequest> requests{
+        ToneRackBranchRequest{
+            .tone_document_ref = "tones/aaaaaaaa-1111-4111-8111-111111111111/tone.json",
+            .chain = {},
+        },
+    };
+    const auto built = buildToneRack(edit, requests);
+    REQUIRE(built.has_value());
+
+    const auto instance = createToneRackInstance(edit, *built->rack_type);
+    REQUIRE(instance.has_value());
+    auto* const rack_instance = dynamic_cast<tracktion::RackInstance*>(instance->get());
+    REQUIRE(rack_instance != nullptr);
+    CHECK(rack_instance->type == built->rack_type);
+}
+
 } // namespace rock_hero::common::audio
