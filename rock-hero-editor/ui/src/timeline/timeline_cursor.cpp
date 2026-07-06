@@ -1,5 +1,7 @@
 #include "timeline_cursor.h"
 
+#include "shared/editor_theme.h"
+
 #include <algorithm>
 #include <cmath>
 #include <rock_hero/editor/core/timeline/timeline_geometry.h>
@@ -60,7 +62,7 @@ void drawTimelineCursor(
 
     const int cursor_column =
         std::clamp(static_cast<int>(std::round(*cursor_x)), 0, component.getWidth() - 1);
-    g.setColour(juce::Colours::white);
+    g.setColour(editorTheme().playback_cursor);
     g.fillRect(cursor_column, top, 1, component.getHeight() - top);
 }
 

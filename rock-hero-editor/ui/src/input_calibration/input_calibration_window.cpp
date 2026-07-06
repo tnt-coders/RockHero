@@ -1,6 +1,7 @@
 #include "input_calibration_window.h"
 
 #include "shared/audio_level_meter.h"
+#include "shared/editor_theme.h"
 
 #include <BinaryData.h>
 #include <memory>
@@ -341,8 +342,7 @@ InputCalibrationWindow::InputCalibrationWindow(
     core::IEditorController& controller, const common::audio::ILiveInput* live_input,
     const core::InputCalibrationPrompt& prompt, juce::Component* centering_component)
     : juce::DocumentWindow(
-          "Input Calibration", juce::Colours::darkgrey.darker(0.16f),
-          juce::DocumentWindow::closeButton)
+          "Input Calibration", editorTheme().bar_background, juce::DocumentWindow::closeButton)
 {
     setComponentID("input_calibration_window");
     setUsingNativeTitleBar(true);

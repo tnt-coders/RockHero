@@ -1,6 +1,6 @@
 #include "menu_look_and_feel.h"
 
-#include "shared/editor_colors.h"
+#include "shared/editor_theme.h"
 
 namespace rock_hero::editor::ui
 {
@@ -10,7 +10,7 @@ void MenuLookAndFeel::drawMenuBarBackground(
     juce::Graphics& g, int /*width*/, int /*height*/, bool /*is_mouse_over_bar*/,
     juce::MenuBarComponent& /*menu_bar*/)
 {
-    g.fillAll(g_editor_background_color);
+    g.fillAll(editorTheme().window_background);
 }
 
 // Keeps the menu item readable on the flat strip and uses a simple hover fill.

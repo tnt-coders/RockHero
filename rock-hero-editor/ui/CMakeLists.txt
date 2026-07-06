@@ -27,8 +27,8 @@ target_sources(
             src/main_window/menu_look_and_feel.h
             src/shared/audio_level_meter.cpp
             src/shared/audio_level_meter.h
-            src/shared/editor_colors.cpp
-            src/shared/editor_colors.h
+            src/shared/editor_theme.cpp
+            src/shared/editor_theme.h
             src/shared/text_metrics.cpp
             src/shared/text_metrics.h
             src/signal_chain/insert_slot_view.cpp

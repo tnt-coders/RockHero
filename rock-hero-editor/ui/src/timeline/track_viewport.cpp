@@ -1,6 +1,6 @@
 #include "track_viewport.h"
 
-#include "shared/editor_colors.h"
+#include "shared/editor_theme.h"
 #include "tab/tab_view.h"
 #include "timeline/arrangement_view.h"
 #include "timeline/cursor_overlay.h"
@@ -16,10 +16,6 @@ namespace rock_hero::editor::ui
 
 namespace
 {
-
-// Tone row band: darker than the viewport backdrop, lighter than the waveform row, so the
-// three surfaces read as distinct layers under one shared grid.
-const juce::Colour g_tone_track_background{juce::Colour{0xff14181e}};
 
 constexpr int g_track_canvas_default_height{720};
 constexpr int g_tracks_visible_at_default_size{3};
@@ -119,17 +115,17 @@ void drawTempoGridDots(
 
     if (!subdivision_dots.isEmpty())
     {
-        g.setColour(g_subdivision_grid_color);
+        g.setColour(editorTheme().grid_subdivision);
         g.fillRectList(subdivision_dots);
     }
     if (!beat_dots.isEmpty())
     {
-        g.setColour(g_beat_grid_color);
+        g.setColour(editorTheme().grid_beat);
         g.fillRectList(beat_dots);
     }
     if (!measure_dots.isEmpty())
     {
-        g.setColour(g_measure_grid_color);
+        g.setColour(editorTheme().grid_measure);
         g.fillRectList(measure_dots);
     }
 }
@@ -186,7 +182,7 @@ void TrackViewport::Content::setGridLines(const std::vector<core::TempoGridLine>
 void TrackViewport::Content::paint(juce::Graphics& g)
 {
     const auto bounds = getLocalBounds();
-    g.fillAll(g_track_viewport_color);
+    g.fillAll(editorTheme().timeline_backdrop);
 
     if (m_project_loaded)
     {
@@ -194,9 +190,9 @@ void TrackViewport::Content::paint(juce::Graphics& g)
         // then the tempo grid over every band; row content components draw above the grid
         // (sparse visualizations let it show through, discrete regions cover it), and the
         // cursor overlay owns everything transient on top.
-        g.setColour(juce::Colours::black);
+        g.setColour(editorTheme().waveform_row_background);
         g.fillRect(bounds.withHeight(m_owner.primaryTrackHeight()));
-        g.setColour(g_tone_track_background);
+        g.setColour(editorTheme().tone_row_background);
         g.fillRect(
             juce::Rectangle<int>{
                 0, m_owner.primaryTrackHeight(), bounds.getWidth(), m_owner.toneTrackHeight()
@@ -205,7 +201,7 @@ void TrackViewport::Content::paint(juce::Graphics& g)
         return;
     }
 
-    g.setColour(juce::Colours::lightgrey);
+    g.setColour(editorTheme().muted_text);
     g.drawText("No Project Loaded", bounds, juce::Justification::centred);
 }
 
@@ -384,7 +380,7 @@ void TrackViewport::setRestoredZoomPixelsPerSecond(double pixels_per_second)
 // Paints the area around zoomed content when the viewport is larger than the canvas.
 void TrackViewport::paint(juce::Graphics& g)
 {
-    g.fillAll(g_track_viewport_color);
+    g.fillAll(editorTheme().timeline_backdrop);
 }
 
 // Keeps the viewport responsive while preserving zoom-derived content bounds.

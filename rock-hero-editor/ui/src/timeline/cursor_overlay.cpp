@@ -1,5 +1,6 @@
 #include "cursor_overlay.h"
 
+#include "shared/editor_theme.h"
 #include "timeline/timeline_cursor.h"
 
 #include <utility>
@@ -42,7 +43,7 @@ void CursorOverlay::paint(juce::Graphics& g)
 
     if (m_snap_guide.has_value())
     {
-        g.setColour(juce::Colours::lightskyblue.withAlpha(0.85f));
+        g.setColour(editorTheme().accent.withAlpha(0.85f));
         g.drawLine(m_snap_guide->x, 0.0f, m_snap_guide->x, static_cast<float>(getHeight()), 1.4f);
         if (m_snap_guide->label.isNotEmpty())
         {
