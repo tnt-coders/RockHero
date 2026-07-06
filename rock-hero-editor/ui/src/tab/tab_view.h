@@ -42,8 +42,7 @@ chartreuse, indigo — and cycle that tier for even lower lanes.
 \param displayed_string_count Total number of displayed lanes.
 \return Lane color for note heads and sustains on this string.
 */
-[[nodiscard]] juce::Colour tabStringColor(
-    int displayed_string, int displayed_string_count) noexcept;
+[[nodiscard]] juce::Colour tabStringColor(int displayed_string, int displayed_string_count);
 
 /*!
 \brief Returns the vertical center of one string lane inside the tablature bounds.
