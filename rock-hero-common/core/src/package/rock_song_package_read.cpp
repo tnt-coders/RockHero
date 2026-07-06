@@ -253,11 +253,18 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
         const auto normalization =
             readOptionalNormalization(Json::value(asset_json, "normalization"));
 
+        // Absent offset means the audio starts at the score's first beat; pre-offset packages
+        // simply omit the field.
+        const TimeDuration start_offset{
+            Json::tryReadDouble(asset_json, "startOffset").value_or(0.0)
+        };
+
         const auto inserted = audio_assets.emplace(
             *id,
             AudioAsset{
                 .path = resolved_path->lexically_normal(),
                 .normalization = normalization,
+                .start_offset = start_offset,
             });
         if (!inserted.second)
         {

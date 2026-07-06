@@ -310,7 +310,9 @@ template <class ComponentType>
 {
     return core::ArrangementViewState{
         .audio_asset =
-            common::core::AudioAsset{.path = std::move(path), .normalization = std::nullopt},
+            common::core::AudioAsset{
+                .path = std::move(path), .normalization = std::nullopt, .start_offset = {}
+            },
         .audio_duration = common::core::TimeDuration{duration_seconds},
         .choices = {},
     };

@@ -115,7 +115,11 @@ std::expected<void, SongAudioError> Engine::setActiveArrangement(
     auto& transport = m_impl->m_edit->getTransport();
     m_impl->stopTransportAndReleaseContext();
 
-    const auto start = tracktion::TimePosition{};
+    // A positive asset start offset delays the clip so a backing recording whose content begins
+    // after the score's first beat still lines up; the gap before it plays as silence. Almost
+    // always zero, in which case the clip sits at the timeline origin as before.
+    const auto start =
+        tracktion::TimePosition::fromSeconds(arrangement.audio_asset.start_offset.seconds);
     const auto length = tracktion::TimeDuration::fromSeconds(arrangement.audio_duration.seconds);
     const tracktion::ClipPosition wave_clip_position{
         .time = {start, start + length}, .offset = tracktion::TimeDuration{}

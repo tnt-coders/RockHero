@@ -420,7 +420,8 @@ public:
             .id = g_lead_arrangement_id,
             .part = Part::Lead,
             .difficulty = DifficultyRating{},
-            .audio_asset = AudioAsset{.path = audio_path, .normalization = std::nullopt},
+            .audio_asset =
+                AudioAsset{.path = audio_path, .normalization = std::nullopt, .start_offset = {}},
             .audio_duration = TimeDuration{},
             .tone_document_ref = {},
             .tone_track = {},
@@ -800,7 +801,7 @@ TEST_CASE("Project save imports external arrangement audio", "[core][project]")
     REQUIRE(song.has_value());
     REQUIRE(song->arrangements.size() == 1);
     song->arrangements.front().audio_asset =
-        AudioAsset{.path = external_audio_path, .normalization = std::nullopt};
+        AudioAsset{.path = external_audio_path, .normalization = std::nullopt, .start_offset = {}};
 
     const auto saved = project.save(*song);
     REQUIRE(saved.has_value());

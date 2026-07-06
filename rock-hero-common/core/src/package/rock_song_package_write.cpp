@@ -197,6 +197,7 @@ struct AudioAssetDocumentEntry
     std::string id;
     std::string path;
     std::optional<AudioNormalization> normalization;
+    TimeDuration start_offset;
 };
 
 // One authored tone region retained between validation and final JSON formatting.
@@ -255,6 +256,13 @@ struct ArrangementDocumentEntry
         line += ", \"validationSha256\": ";
         line += jsonString(entry.normalization->validation_sha256);
         line += " }";
+    }
+    // Omit the offset when the audio starts at the score's first beat, so assets without an
+    // alignment offset round-trip byte-for-byte with pre-offset packages.
+    if (entry.start_offset.seconds != 0.0)
+    {
+        line += ", \"startOffset\": ";
+        line += formatJsonDouble(entry.start_offset.seconds);
     }
     line += " }";
 
@@ -574,6 +582,7 @@ struct SongDocumentForSave
                     .id = generated_id,
                     .path = relative_audio_name,
                     .normalization = arrangement.audio_asset.normalization,
+                    .start_offset = arrangement.audio_asset.start_offset,
                 });
             audio_id = audio_ids_by_path.emplace(relative_audio_name, generated_id).first;
         }

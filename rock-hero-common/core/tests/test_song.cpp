@@ -43,7 +43,9 @@ TEST_CASE("Song holds multiple arrangements", "[core][song]")
             .difficulty = DifficultyRating{2},
             .audio_asset =
                 AudioAsset{
-                    .path = std::filesystem::path{"lead.wav"}, .normalization = std::nullopt
+                    .path = std::filesystem::path{"lead.wav"},
+                    .normalization = std::nullopt,
+                    .start_offset = {},
                 },
             .audio_duration = TimeDuration{},
             .tone_document_ref = {},
@@ -58,7 +60,9 @@ TEST_CASE("Song holds multiple arrangements", "[core][song]")
             .difficulty = DifficultyRating{9},
             .audio_asset =
                 AudioAsset{
-                    .path = std::filesystem::path{"bass.wav"}, .normalization = std::nullopt
+                    .path = std::filesystem::path{"bass.wav"},
+                    .normalization = std::nullopt,
+                    .start_offset = {},
                 },
             .audio_duration = TimeDuration{},
             .tone_document_ref = {},
@@ -100,7 +104,9 @@ TEST_CASE("Song stores top-level value fields", "[core][song]")
          .difficulty = DifficultyRating{6},
          .audio_asset =
              AudioAsset{
-                 .path = std::filesystem::path{"audio/rhythm.wav"}, .normalization = std::nullopt
+                 .path = std::filesystem::path{"audio/rhythm.wav"},
+                 .normalization = std::nullopt,
+                 .start_offset = {},
              },
          .audio_duration = TimeDuration{42.0},
          .tone_document_ref = "tone/rhythm.json",
