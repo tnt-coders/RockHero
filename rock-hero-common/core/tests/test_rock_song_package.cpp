@@ -176,7 +176,7 @@ void writeAudioFile(const std::filesystem::path& path)
 // Writes a minimal package directory fixture that can be edited by negative read tests.
 void writeReadablePackageDirectory(const std::filesystem::path& package_directory)
 {
-    writeAudioFile(package_directory / "audio" / "backing.wav");
+    writeAudioFile(package_directory / "audio" / "backing.flac");
 }
 
 // Writes a readable package whose song.json carries a caller-supplied tempo-map fragment so negative
@@ -195,7 +195,7 @@ void writePackageDirectoryWithTempoMap(
             "audioAssets": [
                 {
                     "id": "backing",
-                    "path": "audio/backing.wav"
+                    "path": "audio/backing.flac"
                 }
             ],
             "arrangements": [
@@ -236,7 +236,7 @@ TEST_CASE("Package IDs use canonical UUIDv4 text", "[core][rock-song-package]")
 TEST_CASE("Rock song package directory writes native song data", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temporary_directory;
-    const std::filesystem::path source_audio = temporary_directory.path() / "source.wav";
+    const std::filesystem::path source_audio = temporary_directory.path() / "source.flac";
     writeAudioFile(source_audio);
 
     const std::filesystem::path package_directory = temporary_directory.path() / "package";
@@ -246,7 +246,7 @@ TEST_CASE("Rock song package directory writes native song data", "[core][rock-so
     REQUIRE(written->size() == 1);
     CHECK(written->front() == std::string{g_lead_arrangement_id});
     CHECK(std::filesystem::is_regular_file(package_directory / "song.json"));
-    CHECK(std::filesystem::is_regular_file(package_directory / "audio" / "source.wav"));
+    CHECK(std::filesystem::is_regular_file(package_directory / "audio" / "source.flac"));
 
     const auto read_song = readRockSongPackageDirectory(package_directory);
 
@@ -257,14 +257,15 @@ TEST_CASE("Rock song package directory writes native song data", "[core][rock-so
     CHECK(read_song->tempo_map == TempoMap::defaultMap(TimeDuration{4.0}));
     CHECK(read_song->arrangements.front().id == std::string{g_lead_arrangement_id});
     CHECK(
-        read_song->arrangements.front().audio_asset.path == package_directory / "audio/source.wav");
+        read_song->arrangements.front().audio_asset.path ==
+        package_directory / "audio/source.flac");
 }
 
 // Verifies Rock song package archive writing uses a readable native ZIP package.
 TEST_CASE("Rock song package archive round-trips native song data", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temporary_directory;
-    const std::filesystem::path source_audio = temporary_directory.path() / "source.wav";
+    const std::filesystem::path source_audio = temporary_directory.path() / "source.flac";
     writeAudioFile(source_audio);
 
     const std::filesystem::path package_archive = temporary_directory.path() / "song.rock";
@@ -285,14 +286,14 @@ TEST_CASE("Rock song package archive round-trips native song data", "[core][rock
     CHECK(read_song->arrangements.front().id == std::string{g_lead_arrangement_id});
     CHECK(
         read_song->arrangements.front().audio_asset.path ==
-        extracted_directory / "audio/source.wav");
+        extracted_directory / "audio/source.flac");
 }
 
 // Verifies empty arrangement IDs are generated as canonical UUIDv4 package IDs.
 TEST_CASE("Rock song package directory generates arrangement IDs", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temporary_directory;
-    const std::filesystem::path source_audio = temporary_directory.path() / "source.wav";
+    const std::filesystem::path source_audio = temporary_directory.path() / "source.flac";
     writeAudioFile(source_audio);
 
     Song song = makeSong(source_audio);
@@ -317,7 +318,7 @@ TEST_CASE("Rock song package directory generates arrangement IDs", "[core][rock-
 TEST_CASE("Rock song package write rejects non-UUID arrangement IDs", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temporary_directory;
-    const std::filesystem::path source_audio = temporary_directory.path() / "source.wav";
+    const std::filesystem::path source_audio = temporary_directory.path() / "source.flac";
     writeAudioFile(source_audio);
 
     Song song = makeSong(source_audio);
@@ -329,14 +330,14 @@ TEST_CASE("Rock song package write rejects non-UUID arrangement IDs", "[core][ro
     REQUIRE_FALSE(written.has_value());
     CHECK(written.error().code == SongPackageErrorCode::InvalidSongDocument);
     CHECK(written.error().message.find("arrangement id") != std::string::npos);
-    CHECK_FALSE(std::filesystem::exists(package_directory / "audio" / "source.wav"));
+    CHECK_FALSE(std::filesystem::exists(package_directory / "audio" / "source.flac"));
 }
 
 // Verifies package directory persistence keeps arrangement tone-document references.
 TEST_CASE("Rock song package directory preserves tone refs", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temporary_directory;
-    const std::filesystem::path source_audio = temporary_directory.path() / "source.wav";
+    const std::filesystem::path source_audio = temporary_directory.path() / "source.flac";
     writeAudioFile(source_audio);
 
     const std::filesystem::path package_directory = temporary_directory.path() / "package";
@@ -359,7 +360,7 @@ TEST_CASE("Rock song package directory preserves tone refs", "[core][rock-song-p
 TEST_CASE("Rock song package archive preserves tone refs", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temporary_directory;
-    const std::filesystem::path source_audio = temporary_directory.path() / "source.wav";
+    const std::filesystem::path source_audio = temporary_directory.path() / "source.flac";
     writeAudioFile(source_audio);
 
     const std::filesystem::path package_archive = temporary_directory.path() / "song.rock";
@@ -384,7 +385,7 @@ TEST_CASE("Rock song package archive preserves tone refs", "[core][rock-song-pac
 TEST_CASE("Rock song package write rejects missing tone refs", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temporary_directory;
-    const std::filesystem::path source_audio = temporary_directory.path() / "source.wav";
+    const std::filesystem::path source_audio = temporary_directory.path() / "source.flac";
     writeAudioFile(source_audio);
 
     const std::filesystem::path package_directory = temporary_directory.path() / "package";
@@ -394,7 +395,7 @@ TEST_CASE("Rock song package write rejects missing tone refs", "[core][rock-song
     REQUIRE_FALSE(written.has_value());
     CHECK(written.error().code == SongPackageErrorCode::InvalidSongDocument);
     CHECK(written.error().message.find("tone document") != std::string::npos);
-    CHECK_FALSE(std::filesystem::exists(package_directory / "audio" / "source.wav"));
+    CHECK_FALSE(std::filesystem::exists(package_directory / "audio" / "source.flac"));
 }
 
 // Verifies package loading rejects tone-document paths that cannot resolve inside the package.
@@ -412,7 +413,7 @@ TEST_CASE("Rock song package rejects unsafe tone refs", "[core][rock-song-packag
             "audioAssets": [
                 {
                     "id": "backing",
-                    "path": "audio/backing.wav"
+                    "path": "audio/backing.flac"
                 }
             ],
             "arrangements": [
@@ -439,7 +440,7 @@ TEST_CASE("Rock song package rejects unsafe tone refs", "[core][rock-song-packag
 TEST_CASE("Rock song package round-trips normalization metadata", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temporary_directory;
-    const std::filesystem::path source_audio = temporary_directory.path() / "source.wav";
+    const std::filesystem::path source_audio = temporary_directory.path() / "source.flac";
     writeAudioFile(source_audio);
 
     const std::filesystem::path package_directory = temporary_directory.path() / "package";
@@ -462,7 +463,7 @@ TEST_CASE("Rock song package round-trips normalization metadata", "[core][rock-s
 TEST_CASE("Rock song package round-trips audio start offset", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temporary_directory;
-    const std::filesystem::path source_audio = temporary_directory.path() / "source.wav";
+    const std::filesystem::path source_audio = temporary_directory.path() / "source.flac";
     writeAudioFile(source_audio);
 
     Song song = makeSong(source_audio);
@@ -493,7 +494,7 @@ TEST_CASE("Rock song package reads an explicit audio start offset", "[core][rock
             "audioAssets": [
                 {
                     "id": "backing",
-                    "path": "audio/backing.wav",
+                    "path": "audio/backing.flac",
                     "startOffset": 0.5
                 }
             ],
@@ -530,7 +531,7 @@ TEST_CASE("Rock song package without normalization still loads", "[core][rock-so
             "audioAssets": [
                 {
                     "id": "backing",
-                    "path": "audio/backing.wav"
+                    "path": "audio/backing.flac"
                 }
             ],
             "arrangements": [
@@ -567,7 +568,7 @@ TEST_CASE(
             "audioAssets": [
                 {
                     "id": "backing",
-                    "path": "audio/backing.wav",
+                    "path": "audio/backing.flac",
                     "normalization": null
                 }
             ],
@@ -605,7 +606,7 @@ TEST_CASE(
             "audioAssets": [
                 {
                     "id": "backing",
-                    "path": "audio/backing.wav",
+                    "path": "audio/backing.flac",
                     "normalization": {
                         "gainDb": -4.0
                     }
@@ -635,7 +636,7 @@ TEST_CASE(
     "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temporary_directory;
-    const std::filesystem::path source_audio = temporary_directory.path() / "source.wav";
+    const std::filesystem::path source_audio = temporary_directory.path() / "source.flac";
     writeAudioFile(source_audio);
 
     Song song = makeSong(source_audio);
@@ -707,7 +708,7 @@ TEST_CASE("Rock song package requires tempo map", "[core][rock-song-package]")
             "audioAssets": [
                 {
                     "id": "backing",
-                    "path": "audio/backing.wav"
+                    "path": "audio/backing.flac"
                 }
             ],
             "arrangements": [
@@ -726,6 +727,43 @@ TEST_CASE("Rock song package requires tempo map", "[core][rock-song-package]")
     REQUIRE_FALSE(read_song.has_value());
     CHECK(read_song.error().code == SongPackageErrorCode::InvalidSongDocument);
     CHECK(read_song.error().message.find("tempoMap") != std::string::npos);
+}
+
+// Verifies the reader rejects packages whose backing audio is not FLAC. FLAC is the canonical package
+// audio format, so WAV/Ogg/other-format packages are no longer supported and must be re-imported.
+TEST_CASE("Rock song package rejects non-FLAC backing audio", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    writeAudioFile(package_directory / "audio" / "backing.ogg");
+    writeTextFile(
+        package_directory / "song.json",
+        R"({
+            "formatVersion": 1,)" +
+            tempoMapJsonFragment() +
+            R"(
+            "audioAssets": [
+                {
+                    "id": "backing",
+                    "path": "audio/backing.ogg"
+                }
+            ],
+            "arrangements": [
+                {
+                    "id": ")" +
+            std::string{g_lead_arrangement_id} +
+            R"(",
+                    "part": "Lead",
+                    "audio": "backing"
+                }
+            ]
+        })");
+
+    const auto read_song = readRockSongPackageDirectory(package_directory);
+
+    REQUIRE_FALSE(read_song.has_value());
+    CHECK(read_song.error().code == SongPackageErrorCode::InvalidAudioAsset);
+    CHECK(read_song.error().message.find("FLAC") != std::string::npos);
 }
 
 // Verifies the reader rejects tempo maps that break grid invariants. Each fragment parses and passes
@@ -794,7 +832,7 @@ TEST_CASE("Rock song package round-trips authored tone regions", "[core][rock-so
 {
     const TemporaryRockSongPackageDirectory temp;
     const std::filesystem::path package_directory = temp.path() / "package";
-    const std::filesystem::path source_audio = package_directory / "audio" / "backing.wav";
+    const std::filesystem::path source_audio = package_directory / "audio" / "backing.flac";
     writeAudioFile(source_audio);
     writeTextFile(package_directory / toneDocumentPath(g_tone_id), "{}");
 
@@ -829,7 +867,7 @@ TEST_CASE("Rock song package write rejects overlapping tone regions", "[core][ro
 {
     const TemporaryRockSongPackageDirectory temp;
     const std::filesystem::path package_directory = temp.path() / "package";
-    const std::filesystem::path source_audio = package_directory / "audio" / "backing.wav";
+    const std::filesystem::path source_audio = package_directory / "audio" / "backing.flac";
     writeAudioFile(source_audio);
     writeTextFile(package_directory / toneDocumentPath(g_tone_id), "{}");
 
@@ -862,7 +900,7 @@ TEST_CASE(
 {
     const TemporaryRockSongPackageDirectory temp;
     const std::filesystem::path package_directory = temp.path() / "package";
-    const std::filesystem::path source_audio = package_directory / "audio" / "backing.wav";
+    const std::filesystem::path source_audio = package_directory / "audio" / "backing.flac";
     writeAudioFile(source_audio);
     writeTextFile(package_directory / toneDocumentPath(g_tone_id), "{}");
 
@@ -896,7 +934,7 @@ TEST_CASE(
             tempoMapJsonFragment() +
             R"(
             "audioAssets": [
-                { "id": "backing", "path": "audio/backing.wav" }
+                { "id": "backing", "path": "audio/backing.flac" }
             ],
             "arrangements": [
                 {
@@ -924,7 +962,7 @@ TEST_CASE("Rock song package round-trips a chart reference", "[core][rock-song-p
 {
     const TemporaryRockSongPackageDirectory temp;
     const std::filesystem::path package_directory = temp.path() / "package";
-    const std::filesystem::path source_audio = package_directory / "audio" / "backing.wav";
+    const std::filesystem::path source_audio = package_directory / "audio" / "backing.flac";
     writeAudioFile(source_audio);
 
     Chart chart;
@@ -963,7 +1001,7 @@ TEST_CASE("Rock song package write rejects missing chart documents", "[core][roc
 {
     const TemporaryRockSongPackageDirectory temp;
     const std::filesystem::path package_directory = temp.path() / "package";
-    const std::filesystem::path source_audio = package_directory / "audio" / "backing.wav";
+    const std::filesystem::path source_audio = package_directory / "audio" / "backing.flac";
     writeAudioFile(source_audio);
 
     Song song = makeSong(source_audio);
@@ -980,7 +1018,7 @@ TEST_CASE(
 {
     const TemporaryRockSongPackageDirectory temp;
     const std::filesystem::path package_directory = temp.path() / "package";
-    const std::filesystem::path source_audio = package_directory / "audio" / "backing.wav";
+    const std::filesystem::path source_audio = package_directory / "audio" / "backing.flac";
     writeAudioFile(source_audio);
 
     // Beat 9 does not exist in the fixture's 4/4 grid.
@@ -1017,7 +1055,7 @@ TEST_CASE(
 {
     const TemporaryRockSongPackageDirectory temp;
     const std::filesystem::path package_directory = temp.path() / "package";
-    const std::filesystem::path source_audio = package_directory / "audio" / "backing.wav";
+    const std::filesystem::path source_audio = package_directory / "audio" / "backing.flac";
     writeAudioFile(source_audio);
 
     Song song = makeSong(source_audio);
