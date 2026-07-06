@@ -199,6 +199,9 @@ struct EditorViewState
     /*! \brief Reports whether a project arrangement is currently loaded for display. */
     bool project_loaded{false};
 
+    /*! \brief Open project package path, or empty when the loaded work has no project file yet. */
+    std::optional<std::filesystem::path> project_file{};
+
     /*!
     \brief Monotonic id of the loaded project, bumped on each successful open/restore/import.
 
