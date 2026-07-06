@@ -19,9 +19,30 @@ namespace
     core::TabViewState state;
     state.string_count = 6;
     state.notes = {
-        core::TabNoteView{.start_seconds = 1.0, .end_seconds = 9.0, .string = 1, .fret = 3},
-        core::TabNoteView{.start_seconds = 2.0, .end_seconds = 2.5, .string = 4, .fret = 7},
-        core::TabNoteView{.start_seconds = 12.0, .end_seconds = 12.0, .string = 6, .fret = 0},
+        core::TabNoteView{
+            .start_seconds = 1.0,
+            .end_seconds = 9.0,
+            .string = 1,
+            .fret = 3,
+            .bend = {},
+            .slides = {},
+        },
+        core::TabNoteView{
+            .start_seconds = 2.0,
+            .end_seconds = 2.5,
+            .string = 4,
+            .fret = 7,
+            .bend = {},
+            .slides = {},
+        },
+        core::TabNoteView{
+            .start_seconds = 12.0,
+            .end_seconds = 12.0,
+            .string = 6,
+            .fret = 0,
+            .bend = {},
+            .slides = {},
+        },
     };
     return std::make_shared<const core::TabViewState>(std::move(state));
 }
@@ -130,6 +151,93 @@ TEST_CASE("TabView draws string-colored note heads", "[ui][tab-view]")
 
     // The empty lanes above stay untouched.
     CHECK(image.getPixelAt(10, 30).getARGB() == 0);
+}
+
+// Techniques, shape spans, and fret-hand positions all draw without touching empty lanes.
+TEST_CASE("TabView draws techniques, shapes, and fret-hand positions", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::TabViewState state;
+    state.string_count = 6;
+    state.notes = {
+        core::TabNoteView{
+            .start_seconds = 2.0,
+            .end_seconds = 8.0,
+            .string = 1,
+            .fret = 5,
+            .attack = common::core::NoteAttack::Hammer,
+            .mute = common::core::NoteMute::Palm,
+            .vibrato = true,
+            .accent = true,
+            .bend = {core::TabBendPointView{.seconds = 4.0, .semitones = 2.0}},
+            .slides = {core::TabSlideView{.seconds = 7.0, .fret = 9, .unpitched = false}},
+        },
+        core::TabNoteView{
+            .start_seconds = 3.0,
+            .end_seconds = 6.0,
+            .string = 2,
+            .fret = 12,
+            .harmonic = common::core::NoteHarmonic::Natural,
+            .tremolo = true,
+            .bend = {},
+            .slides = {},
+        },
+        core::TabNoteView{
+            .start_seconds = 3.0,
+            .end_seconds = 3.0,
+            .string = 3,
+            .fret = 7,
+            .mute = common::core::NoteMute::Full,
+            .harmonic = common::core::NoteHarmonic::Pinch,
+            .bend = {},
+            .slides = {},
+        },
+    };
+    state.shapes = {
+        core::TabShapeView{
+            .start_seconds = 2.0, .end_seconds = 6.0, .name = "A5", .arpeggio = false
+        },
+        core::TabShapeView{
+            .start_seconds = 10.0, .end_seconds = 12.0, .name = "Dm", .arpeggio = true
+        },
+    };
+    state.fret_hand_positions = {
+        core::TabFhpView{.seconds = 2.0, .fret = 5, .width = 4},
+    };
+
+    TabView view;
+    view.setBounds(0, 0, 400, 240);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        });
+    view.setState(std::make_shared<const core::TabViewState>(std::move(state)), 0);
+
+    const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
+    juce::Graphics graphics{image};
+    view.paint(graphics);
+
+    // The strummed A5 span tints the background inside its range and not outside it.
+    CHECK(image.getPixelAt(60, 5).getARGB() != 0);
+    CHECK(image.getPixelAt(150, 5).getARGB() == 0);
+
+    // The tremolo strip stays clipped to its sustain: nothing straggles past the note end.
+    // String 2 lane of six in 240px: center y = 180. Note ends at 6.0s → x = 120.
+    bool tremolo_inside = false;
+    for (int x = 62; x < 118; ++x)
+    {
+        tremolo_inside = tremolo_inside || image.getPixelAt(x, 180).getARGB() != 0;
+    }
+    CHECK(tremolo_inside);
+    // Stop short of x=199 where the Dm arpeggio's antialiased dashed border begins.
+    for (int x = 122; x < 198; ++x)
+    {
+        CHECK(image.getPixelAt(x, 180).getARGB() == 0);
+    }
+
+    // The vibrato-and-slide note still anchors its head at the onset on the bottom lane.
+    CHECK(image.getPixelAt(33, 220).getARGB() != 0);
 }
 
 // A null projection draws nothing and never dereferences missing chart data.
