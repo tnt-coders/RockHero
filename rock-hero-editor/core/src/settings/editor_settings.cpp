@@ -20,6 +20,8 @@ namespace
 constexpr const char* g_last_open_project_key{"lastOpenProject"};
 constexpr const char* g_interrupted_restore_project_key{"interruptedRestoreProject"};
 constexpr const char* g_audio_device_state_key{"audioDeviceState"};
+constexpr const char* g_waveform_visible_key{"waveformVisible"};
+constexpr const char* g_tab_minimum_displayed_strings_key{"tabMinimumDisplayedStrings"};
 constexpr int g_settings_xml_format_version{1};
 constexpr const char* g_format_version_property{"formatVersion"};
 
@@ -674,6 +676,51 @@ std::expected<void, EditorSettingsError> EditorSettings::setAudioDeviceState(
     }
 
     return saveIfNeeded(m_properties, "Could not save audio device state setting.");
+}
+
+// Reads the app-wide waveform visibility preference for the timeline's tablature lane.
+std::optional<bool> EditorSettings::waveformVisible() const
+{
+    if (!m_properties.containsKey(g_waveform_visible_key))
+    {
+        return std::nullopt;
+    }
+
+    return m_properties.getBoolValue(g_waveform_visible_key);
+}
+
+// Stores the app-wide waveform visibility preference.
+std::expected<void, EditorSettingsError> EditorSettings::setWaveformVisible(bool visible)
+{
+    m_properties.setValue(g_waveform_visible_key, visible);
+    return saveIfNeeded(m_properties, "Could not save waveform visibility setting.");
+}
+
+// Reads the app-wide minimum number of tablature string lanes to display.
+std::optional<int> EditorSettings::tabMinimumDisplayedStrings() const
+{
+    if (!m_properties.containsKey(g_tab_minimum_displayed_strings_key))
+    {
+        return std::nullopt;
+    }
+
+    return m_properties.getIntValue(g_tab_minimum_displayed_strings_key);
+}
+
+// Stores the app-wide minimum number of tablature string lanes to display.
+std::expected<void, EditorSettingsError> EditorSettings::setTabMinimumDisplayedStrings(
+    int minimum_strings)
+{
+    if (minimum_strings < 0)
+    {
+        return std::unexpected{EditorSettingsError{
+            EditorSettingsErrorCode::InvalidSettingValue,
+            "Cannot save a negative tablature string display minimum."
+        }};
+    }
+
+    m_properties.setValue(g_tab_minimum_displayed_strings_key, minimum_strings);
+    return saveIfNeeded(m_properties, "Could not save tablature string display setting.");
 }
 
 // Reads the app-local resume cursor associated with one project path.

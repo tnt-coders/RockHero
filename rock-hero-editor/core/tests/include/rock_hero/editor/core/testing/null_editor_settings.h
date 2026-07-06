@@ -83,6 +83,43 @@ public:
     }
 
     /*!
+    \brief Reports that no waveform visibility preference is stored.
+    \return Always empty.
+    */
+    [[nodiscard]] std::optional<bool> waveformVisible() const override
+    {
+        return std::nullopt;
+    }
+
+    /*!
+    \brief Ignores waveform visibility writes.
+    \return Always empty success.
+    */
+    [[nodiscard]] std::expected<void, EditorSettingsError> setWaveformVisible(bool) override
+    {
+        return {};
+    }
+
+    /*!
+    \brief Reports that no tablature string display minimum is stored.
+    \return Always empty.
+    */
+    [[nodiscard]] std::optional<int> tabMinimumDisplayedStrings() const override
+    {
+        return std::nullopt;
+    }
+
+    /*!
+    \brief Ignores tablature string display minimum writes.
+    \return Always empty success.
+    */
+    [[nodiscard]] std::expected<void, EditorSettingsError> setTabMinimumDisplayedStrings(
+        int) override
+    {
+        return {};
+    }
+
+    /*!
     \brief Reports that no app-local project cursor is stored.
     \return Always empty optional success.
     */

@@ -14,7 +14,6 @@ namespace
 // Frets above the low twenties do not exist on real instruments; leave headroom for extended
 // range hardware without accepting junk data.
 constexpr int g_max_fret{30};
-constexpr int g_max_strings{15};
 constexpr int g_max_capo{12};
 constexpr double g_max_cent_offset{100.0};
 
@@ -35,12 +34,12 @@ constexpr double g_max_cent_offset{100.0};
 std::expected<void, ChartError> validateChartRules(const Chart& chart, const TempoMap& tempo_map)
 {
     const auto string_count = static_cast<int>(chart.tuning.strings.size());
-    if (string_count < 1 || string_count > g_max_strings)
+    if (string_count < 1 || string_count > g_max_chart_strings)
     {
         return std::unexpected{ChartError{
             .code = ChartErrorCode::InvalidTuning,
-            .message = "chart tuning must name between 1 and " + std::to_string(g_max_strings) +
-                       " strings",
+            .message = "chart tuning must name between 1 and " +
+                       std::to_string(g_max_chart_strings) + " strings",
         }};
     }
     for (const std::string& open_string : chart.tuning.strings)
