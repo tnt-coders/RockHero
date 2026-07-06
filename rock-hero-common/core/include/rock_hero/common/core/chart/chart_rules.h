@@ -21,6 +21,15 @@ Shared with display code so lane-count controls and validation agree on one auth
 */
 inline constexpr int g_max_chart_strings{15};
 
+/*!
+\brief Highest fret a note, slide waypoint, touch position, or fret-hand position may reference.
+
+Frets above the low twenties do not exist on real instruments; the cap leaves headroom for
+extended-range hardware without accepting junk data. Shared with import code so fret clamping
+and validation agree on one authority.
+*/
+inline constexpr int g_max_fret{30};
+
 /*! \brief Stable chart validation failure kind. */
 enum class ChartErrorCode : std::uint8_t
 {
