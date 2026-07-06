@@ -101,6 +101,17 @@ public:
     void setVisibleTimeline(common::core::TimeRange visible_timeline);
 
     /*!
+    \brief Records the content x of the visible viewport's left edge so region labels pin there.
+
+    The row scrolls inside the timeline viewport, so a region label drawn at the region's start
+    scrolls off with it. Pinning the label to the visible left edge (like the tempo and time
+    signature ruler) keeps the active tone name readable at all times.
+
+    \param content_left_x Viewport view-position x, in this row's content coordinates.
+    */
+    void setVisibleContentLeft(int content_left_x);
+
+    /*!
     \brief Applies the current tone-track render state.
     \param state State derived by the editor controller.
     */
@@ -198,6 +209,9 @@ private:
 
     // Visible timeline range represented by the component width.
     common::core::TimeRange m_visible_timeline{};
+
+    // Content x of the visible viewport's left edge; region labels pin here as the row scrolls.
+    int m_visible_content_left{0};
 
     // Last render state pushed by the editor controller.
     core::ToneTrackViewState m_state{};
