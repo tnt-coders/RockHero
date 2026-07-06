@@ -3,6 +3,7 @@
 #include "project/gp_chart_builder.h"
 #include "project/gp_score_parser.h"
 
+#include <algorithm>
 #include <expected>
 #include <filesystem>
 #include <juce_core/juce_core.h>
@@ -125,6 +126,16 @@ std::expected<common::core::Song, SongImportError> GpSongImporter::importSong(
         }};
     }
 
+    // Positive frame padding is silence Guitar Pro places before the audio when the recording's
+    // content starts after the score's first beat; it becomes the backing audio's start offset so
+    // the notes line up. Guitar Pro counts it in fixed 44.1kHz frames regardless of the asset's
+    // real sample rate (verified against 48kHz corpus assets whose sync tempos only reproduce at
+    // 44100). Negative padding is cosmetic leading silence that does not shift note timing.
+    constexpr double g_gp_frame_rate{44100.0};
+    const common::core::TimeDuration audio_start_offset{
+        std::max(0, score->frame_padding) / g_gp_frame_rate
+    };
+
     // Materialize the song: one arrangement per built track, sharing the backing audio, each
     // with its chart document written beside the audio.
     common::core::Song song;
@@ -153,6 +164,7 @@ std::expected<common::core::Song, SongImportError> GpSongImporter::importSong(
                     common::core::AudioAsset{
                         .path = audio_relative,
                         .normalization = std::nullopt,
+                        .start_offset = audio_start_offset,
                     },
                 .audio_duration = common::core::TimeDuration{},
                 .tone_document_ref = {},

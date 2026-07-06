@@ -185,10 +185,14 @@ TEST_CASE("EditorController deferred save clears busy before open", "[core][edit
     controller.attachView(view);
 
     const common::core::AudioAsset original_asset{
-        .path = std::filesystem::path{"original.wav"}, .normalization = std::nullopt
+        .path = std::filesystem::path{"original.wav"},
+        .normalization = std::nullopt,
+        .start_offset = {}
     };
     const common::core::AudioAsset replacement_asset{
-        .path = std::filesystem::path{"replacement.wav"}, .normalization = std::nullopt
+        .path = std::filesystem::path{"replacement.wav"},
+        .normalization = std::nullopt,
+        .start_offset = {}
     };
     audio_devices.current_input_identity = makeInputDeviceIdentity();
     project_services.next_song = makeSong(original_asset.path);

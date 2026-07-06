@@ -94,7 +94,9 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK_FALSE(empty_state.restore_interrupted_prompt.has_value());
 
     const common::core::AudioAsset audio_asset{
-        .path = std::filesystem::path{"full_mix.wav"}, .normalization = std::nullopt
+        .path = std::filesystem::path{"full_mix.wav"},
+        .normalization = std::nullopt,
+        .start_offset = {}
     };
     const EditorViewState loaded_state{
         .open_enabled = true,
@@ -495,7 +497,7 @@ TEST_CASE("EditorController coalesces reentrant audio callbacks", "[core][editor
     };
 
     const common::core::AudioAsset replacement{
-        .path = std::filesystem::path{"loop.wav"}, .normalization = std::nullopt
+        .path = std::filesystem::path{"loop.wav"}, .normalization = std::nullopt, .start_offset = {}
     };
     project_services.next_song = makeSong(replacement.path);
     controller.onOpenRequested(std::filesystem::path{"loop.rhp"});

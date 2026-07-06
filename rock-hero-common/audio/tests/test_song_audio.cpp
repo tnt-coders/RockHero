@@ -21,7 +21,9 @@ namespace
             .difficulty = common::core::DifficultyRating{},
             .audio_asset =
                 common::core::AudioAsset{
-                    .path = std::move(audio_path), .normalization = std::nullopt
+                    .path = std::move(audio_path),
+                    .normalization = std::nullopt,
+                    .start_offset = {},
                 },
             .audio_duration = common::core::TimeDuration{},
             .tone_document_ref = {},
@@ -81,10 +83,11 @@ TEST_CASE("ISongAudio sets active arrangement", "[audio][song-audio]")
 
     CHECK(active_set.has_value());
     CHECK(
-        audio.last_active_audio_asset ==
-        std::optional{common::core::AudioAsset{
-            .path = std::filesystem::path{"drums.wav"}, .normalization = std::nullopt
-        }});
+        audio.last_active_audio_asset == std::optional{common::core::AudioAsset{
+                                             .path = std::filesystem::path{"drums.wav"},
+                                             .normalization = std::nullopt,
+                                             .start_offset = {},
+                                         }});
     CHECK(audio.set_active_arrangement_call_count == 1);
 }
 

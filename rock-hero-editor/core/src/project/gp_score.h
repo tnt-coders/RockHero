@@ -181,6 +181,15 @@ struct GpScore
     /*! \brief Audio sync points in score order; empty when the score has no backing audio. */
     std::vector<GpSyncPoint> sync_points;
 
+    /*!
+    \brief Backing-track frame padding in fixed 44.1kHz frames.
+
+    A positive value is silence Guitar Pro places before the audio to align a recording whose
+    content starts after the score's first beat; the importer turns it into the backing audio's
+    start offset. Always counted in 44100-rate frames regardless of the asset's real sample rate.
+    */
+    int frame_padding{0};
+
     /*! \brief Instrument tracks. */
     std::vector<GpTrack> tracks;
 
