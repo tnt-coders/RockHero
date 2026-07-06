@@ -44,10 +44,16 @@ forward, so stale parallel plans do not accumulate.
    tone. The backend should make that seamless by switching or ramping preloaded tone slots, not by
    hard tearing down and rebuilding the live rig at the boundary.
 7. **Switches are evaluated against the transport clock, not pushed from outside.** A region
-   schedule should bake to branch-gain automation on the audio timeline, preferably with
-   sample-accurate switch timing. The editor must not poll transport position and push it back to
-   trigger switches. That would be a second clock, which the architecture's single-source-of-timing
-   rule forbids. The only position told to the backend explicitly is a seek/scrub resync.
+   schedule should bake to branch-gain automation on the audio timeline. The editor must not poll
+   transport position and push it back to trigger switches. That would be a second clock, which
+   the architecture's single-source-of-timing rule forbids. The only position told to the backend
+   explicitly is a seek/scrub resync — and source verification shows even that may be unnecessary
+   (see the verified mechanism notes below). Timing precision, verified against the vendored
+   engine: automation is evaluated once per audio block at the block start
+   (`Plugin::applyToBufferWithAutomation`, `plugins/tracktion_Plugin.cpp:656`), not per sample, so
+   switch onsets quantize to the block (~3-10 ms at typical settings) and the per-sample
+   `juce::SmoothedValue` ramp inside `VolumeAndPanPlugin` keeps the transition click-free. That
+   meets the product bar ("instant, no dropout"); do not chase literal sample accuracy.
 
 ## Persistence Direction
 
@@ -157,12 +163,18 @@ First pass:
 7. Snap resized endpoints to tempo-map beats.
 8. Keep transport cursor, horizontal zoom, and scrolling shared with the waveform.
 
+Row height and future automation sub-lanes (2026-07-05): the tone row is a fixed label-height
+strip (30 px), not a half track — regions only need to show their name. When parameter-automation
+authoring arrives, clicking a tone region should expand per-automation sub-lanes beneath the strip
+(disclosure-style, like DAW automation lanes fold out of a track header) and collapse back to the
+strip. Design the expansion then; the strip is the collapsed state it folds back to.
+
 Not first pass:
 
 - Moving tone regions by dragging the body.
 - Creating regions from empty-space clicks.
 - Crossfade handles.
-- Parameter automation curves.
+- Parameter automation curves (and the expand/collapse automation sub-lanes above).
 - Tone slot library UI.
 - Sub-beat grid controls.
 
@@ -221,6 +233,42 @@ Backend implementation direction:
 - Do not rebuild the audio graph at the moment of a region boundary.
 - Prefer a RackType-backed multi-tone graph when implementing true seamless switching.
 
+Verified mechanism notes (2026-07-05 deep review against the vendored engine; re-verify only if
+the submodule moves):
+
+- **Branch gain must be a plugin.** `RackConnection` carries only endpoint IDs and pins, no gain
+  (`plugins/internal/tracktion_RackType.h:14`). Terminate each branch with a gain stage:
+  `tracktion::engine::VolumeAndPanPlugin` (automatable `volParam`, per-sample smoothed) or our
+  `LiveRigGainPlugin` extended with an `AutomatableParameter` (today its gain is an atomic set
+  from the message thread, not automatable, and `canBeAddedToRack()` returns false). This answers
+  the tone-rack plan's open "which gain node" question in favor of a real per-branch plugin.
+- **Curve authoring.** Bake the schedule with
+  `parameter->getCurve().addPoint(time, value, curve_shape)` (0.0f = linear). Curve edits are
+  message-thread ValueTree work; rebaking after a region edit does not rebuild the graph.
+- **Smoothing time.** `VolumeAndPanPlugin::smoothingRampTimeSeconds` defaults to 0.05 s
+  (`plugins/internal/tracktion_VolumeAndPan.h:78`) and is a settable public member; tune it at or
+  below the baked ramp so the smoother does not stretch the authored 5-10 ms crossfade.
+- **Automation read gate.** Playback follows curves only while
+  `AutomationRecordManager::isReadingAutomation()` is true; it defaults to true and persists in
+  the per-edit transport state (`model/automation/tracktion_AutomationRecordManager.cpp:79`).
+  The rig setup must assert/restore this so a stray toggle cannot silently freeze tone switching.
+- **Rack plugins follow automation like track plugins.** Each rack plugin is processed through a
+  `PluginNode` calling `applyToBufferWithAutomation`
+  (`playback/graph/tracktion_RackNode.cpp:397`), so branch-gain curves inside the rack play back
+  with no extra wiring.
+- **Seek resync is automatic.** When stopped or scrubbing, parameter streams follow
+  `TransportControl::getPosition()` (`plugins/tracktion_Plugin.cpp:676`), and the live-input
+  graph keeps processing while stopped, so branch gains snap to the playhead without an explicit
+  position push. Keep `setToneTimelinePosition` out of the first backend implementation; add it
+  only if a real resync gap shows up under test.
+- **Latency equals the worst branch.** The graph auto-inserts `LatencyNode`s at sum points so
+  parallel branches stay aligned (`tracktion_graph/nodes/tracktion_SummingNode.h`,
+  `tracktion_ConnectedNode.h`); the rack's end-to-end latency therefore becomes the maximum
+  branch latency **at all times**, including while playing a low-latency tone. For live guitar
+  monitoring this means one lookahead-heavy plugin in any tone raises monitoring latency for the
+  whole arrangement. Surface per-tone reported latency during preload and warn; compensation is
+  only as accurate as each plugin's `getLatencySeconds()`.
+
 Preloading every referenced tone keeps several full plugin chains (amp sims can be heavy) loaded and
 processing at once. This is an accepted, **currently unmeasured** tradeoff, consistent with the
 architecture's pre-activated silent-plugin pattern. It is not a known problem. Do not design a
@@ -245,8 +293,9 @@ e.g. by bypass-ramping inactive branches rather than only zeroing their gain.
      (`editor/core/src/tone/tone_track_projection`), never stored, so untouched projects never
      gain a persisted tone track on re-save.
    - Added public `ToneTrackViewState` and the `tone_track` slice on `EditorViewState`.
-   - Added `ToneTrackView` (editor/ui `tone/`), hosted by `TrackViewport` below the waveform at
-     half a primary track height. The row is intentionally transparent so the shared tempo grid
+   - Added `ToneTrackView` (editor/ui `tone/`), hosted by `TrackViewport` below the waveform as
+     a fixed label-height strip (initially half a primary track; compacted 2026-07-05, see the
+     row-height note under Editor UI Scope). The row is intentionally transparent so the shared tempo grid
      shows through between regions; the synthesized default region renders as a dim read-only
      continuation while authored regions render as filled labeled blocks.
 
