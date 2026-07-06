@@ -396,18 +396,41 @@ Spikes to run at the start of slice 5, before committing to the bake shape:
      `TimelineSnapGuide` with a `measure:beat` readout drawn during edge drags (the DAW-standard
      alignment cue chosen over grid-over-content rendering).
 
-4. **Save/load behavior**
-   - Persist authored tone regions.
-   - Keep tone document reference validation on save/publish/import.
-   - Add package tests for tone-track JSON and compatibility with legacy `toneDocument`.
+4. **Save/load behavior** (complete — landed with slices 2-3; audited 2026-07-05)
+   - Authored tone regions persist through `song.json` `toneTrack` and round-trip
+     (`test_rock_song_package.cpp`); the writer rejects overlaps, terminal-anchor violations, and
+     missing tone documents; the reader rejects malformed tokens; legacy `toneDocument`-only
+     arrangements never gain a persisted `toneTrack` because emission is conditional on authored
+     regions.
 
-5. **Runtime switching**
+5. **Runtime switching** (active)
    - Add an audio boundary for prepared tone timelines.
    - Convert regions to seconds through `TempoMap`.
    - Preload referenced tones before playback switching (dedupe by `tone_document_ref`).
    - Bake region boundaries to transport-evaluated branch-gain automation; switching is automatic as
-     the transport plays. Reserve an explicit position call for seek/scrub resync only.
+     the transport plays.
    - Add adapter tests for preload/switch policy with fakes first, then focused Tracktion tests.
+
+   Sub-phases (2026-07-05):
+
+   1. **5a — Branch-gain plugin.** Adapter-private `ToneBranchGainPlugin`: linear 0..1 branch
+      gain as an `AutomatableParameter` (`addAutomatableParameter` + `attachToCurrentValue`, the
+      `VolumeAndPanPlugin` pattern), per-sample `juce::SmoothedValue` ramping sized to the baked
+      crossfade, `canBeAddedToRack() == true`. Distinct from `LiveRigGainPlugin` (dB trim,
+      message-thread, deliberately rack-refusing). Headless Tracktion tests: parameter follows
+      curve points, honors curve bypass, smooths without discontinuities.
+   2. **5b — Multi-tone rack assembly.** Build one `RackType` from the arrangement's deduped tone
+      documents: per-tone plugin chain branch terminated by a `ToneBranchGainPlugin`, rack input
+      fan-out, summed output, one `RackInstance` on the instrument track. Reconcile with the
+      existing flat-`pluginList` live rig: signal-chain panel, capture, undo, and meters must see
+      the selected tone's chain. This is the integration-heavy sub-phase.
+   3. **5c — Schedule baking + editor-core wiring.** `IToneTimelinePlayer` port; editor core
+      converts regions to seconds and hands the schedule over on load and after region edits;
+      backend bakes branch-gain curves (coalesced rebuild expected, see mechanism notes).
+   4. **5d — Paused preview + selection wiring.** Curve bypass + direct gain set while paused;
+      play/seek exits preview (mechanism notes above).
+   5. **5e — Spikes and listening pass.** The three spikes from the adversarial review as
+      offline-render tests where possible, plus a manual listening pass in the app.
 
 ## Non-Goals
 
