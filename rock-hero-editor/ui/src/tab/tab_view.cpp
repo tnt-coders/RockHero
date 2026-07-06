@@ -196,8 +196,10 @@ struct TabLaneMetrics
     metrics.visible_timeline = visible_timeline;
     metrics.displayed_count = displayed_count;
     metrics.extra_lanes = displayed_count - chart_string_count;
+    // Reference-density lane height, matching tabLaneCenterY's spacing.
     metrics.lane_height =
-        static_cast<float>(bounds.getHeight()) / static_cast<float>(displayed_count);
+        static_cast<float>(bounds.getHeight()) /
+        static_cast<float>(std::max(displayed_count, g_tab_reference_string_count));
     metrics.note_height = std::min(g_charter_note_height, metrics.lane_height / 1.5f);
     // Charter keeps the tail height odd so the tail centers on the string line.
     const auto odd = [](float value) {
@@ -874,14 +876,22 @@ juce::Colour tabStringColor(int displayed_string, int displayed_string_count)
         tertiary_index % g_tertiary_string_colors.size())};
 }
 
-// Standard tablature orientation: highest string on top, lowest on the bottom.
+// Standard tablature orientation: highest string on top, lowest on the bottom. Spacing is
+// pinned to the reference density (a sixth of the bounds height), so counts below the reference
+// center their smaller lane block; counts above it rely on the host growing the bounds
+// proportionally, which makes height-over-count land on the same reference density.
 float tabLaneCenterY(
     int displayed_string, int displayed_string_count, juce::Rectangle<int> bounds) noexcept
 {
     const float lane_height =
-        static_cast<float>(bounds.getHeight()) / static_cast<float>(displayed_string_count);
+        static_cast<float>(bounds.getHeight()) /
+        static_cast<float>(std::max(displayed_string_count, g_tab_reference_string_count));
+    const float block_top = static_cast<float>(bounds.getY()) +
+                            (static_cast<float>(bounds.getHeight()) -
+                             static_cast<float>(displayed_string_count) * lane_height) /
+                                2.0f;
     const auto lane_index = static_cast<float>(displayed_string_count - displayed_string);
-    return static_cast<float>(bounds.getY()) + (lane_index + 0.5f) * lane_height;
+    return block_top + (lane_index + 0.5f) * lane_height;
 }
 
 // Sorted starts bound the range's end; the non-decreasing prefix maximum of sustain ends bounds
