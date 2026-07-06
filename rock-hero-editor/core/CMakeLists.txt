@@ -27,6 +27,13 @@ target_sources(
             src/input_calibration/input_calibration_handlers.cpp
             src/input_calibration/input_calibration_workflow.cpp
             src/input_calibration/input_calibration_workflow.h
+            src/project/gp_chart_builder.cpp
+            src/project/gp_chart_builder.h
+            src/project/gp_score.h
+            src/project/gp_score_parser.cpp
+            src/project/gp_score_parser.h
+            src/project/gp_song_importer.cpp
+            src/project/gp_song_importer.h
             src/project/project.cpp
             src/project/project_error.cpp
             src/project/project_handlers.cpp

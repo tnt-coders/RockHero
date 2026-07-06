@@ -8,6 +8,7 @@
 #include "editor_controller_impl.h"
 #include "editor_undo_history.h"
 #include "input_calibration/input_calibration_workflow.h"
+#include "project/gp_song_importer.h"
 #include "project/project_io.h"
 #include "project/rock_song_importer.h"
 #include "shared/editor_controller_logging.h"
@@ -539,6 +540,13 @@ void logEditorUndoTransitionResult(
     if (extension == ".rock")
     {
         RockSongImporter importer;
+        const AudioNormalizationAnalyzer analyzer =
+            makeReportingAudioNormalizationAnalyzer(report_progress);
+        return project.import(file, importer, {}, analyzer);
+    }
+    if (extension == ".gp")
+    {
+        GpSongImporter importer;
         const AudioNormalizationAnalyzer analyzer =
             makeReportingAudioNormalizationAnalyzer(report_progress);
         return project.import(file, importer, {}, analyzer);
