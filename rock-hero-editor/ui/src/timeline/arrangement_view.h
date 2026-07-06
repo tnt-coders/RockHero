@@ -129,6 +129,17 @@ public:
     void setState(const core::ArrangementViewState& state);
 
     /*!
+    \brief Shows or hides the waveform drawing behind the tablature lane.
+
+    Hiding suppresses all waveform painting, including its status text, so the lane reads as a
+    clean tablature backdrop; click handling and thumbnail state are unaffected and the waveform
+    returns instantly when re-shown.
+
+    \param waveform_visible True when the waveform should draw.
+    */
+    void setWaveformVisible(bool waveform_visible);
+
+    /*!
     \brief Adds a local click listener.
     \param listener Listener to notify until it is removed.
     */
@@ -161,6 +172,9 @@ private:
 
     // Current framework-free arrangement-view state last applied by the parent view.
     core::ArrangementViewState m_state{};
+
+    // False while the user hides the waveform behind the tablature lane.
+    bool m_waveform_visible{true};
 
     // Editor-visible timeline range used to choose the waveform span.
     common::core::TimeRange m_visible_timeline{};

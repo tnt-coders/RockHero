@@ -24,6 +24,7 @@ namespace rock_hero::editor::ui
 
 class ArrangementView;
 class CursorOverlay;
+class TabView;
 class ToneTrackView;
 
 /*!
@@ -92,13 +93,14 @@ public:
 
     \param controller Controller that receives ruler-level and canvas-level timeline seek intents.
     \param arrangement_view Waveform view hosted as the first track row; must outlive this shell.
+    \param tab_view Tablature lane drawn over the waveform row; must outlive this shell.
     \param tone_track_view Tone track row hosted below the waveform; must outlive this shell.
     \param cursor_overlay Editor-wide cursor overlay hosted above the canvas; must outlive this
     shell.
     \param transport Read-only transport sampled to keep playback visible during follow.
     */
     TrackViewport(
-        core::IEditorController& controller, ArrangementView& arrangement_view,
+        core::IEditorController& controller, ArrangementView& arrangement_view, TabView& tab_view,
         ToneTrackView& tone_track_view, CursorOverlay& cursor_overlay,
         const common::audio::ITransport& transport);
 
@@ -276,6 +278,9 @@ private:
 
     // Existing waveform view hosted as the first track row.
     ArrangementView& m_arrangement_view;
+
+    // Tablature lane drawn over the waveform row, under the cursor overlay.
+    TabView& m_tab_view;
 
     // Tone track row hosted below the waveform on the shared canvas.
     ToneTrackView& m_tone_track_view;

@@ -12,6 +12,7 @@
 #include <memory>
 #include <optional>
 #include <rock_hero/common/audio/song/i_thumbnail.h>
+#include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/song/audio_asset.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -35,6 +36,10 @@ constexpr int g_exit_command{6};
 constexpr int g_publish_command{7};
 constexpr int g_undo_command{101};
 constexpr int g_redo_command{102};
+constexpr int g_show_waveform_command{201};
+// Tablature lane-count menu ids encode the requested minimum as an offset from this base, with
+// the base itself meaning "match the chart" (a zero minimum).
+constexpr int g_tab_strings_command_base{210};
 constexpr int g_arrangement_selector_width{132};
 // Wide enough for "Arrangement" at the default label font plus the label's side insets;
 // anything narrower makes juce::Label shrink-to-fit the text below the "Grid" caption size.
@@ -239,7 +244,7 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
           std::make_unique<CursorOverlay>(controller, audio_ports.transport, m_state.tempo_map))
     , m_track_viewport(
           std::make_unique<TrackViewport>(
-              controller, m_arrangement_view, m_tone_track_view, *m_cursor_overlay,
+              controller, m_arrangement_view, m_tab_view, m_tone_track_view, *m_cursor_overlay,
               audio_ports.transport))
     , m_meter_vblank_attachment(this, [this] {
         refreshAudioMeters();
@@ -263,6 +268,7 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     m_audio_device_button.setText("Audio Device");
     m_audio_device_button.onClick = [this] { showAudioDeviceSettingsWindow(); };
     m_arrangement_view.setComponentID("arrangement_view");
+    m_tab_view.setComponentID("tab_view");
     m_tone_track_view.setComponentID("tone_track_view");
     m_tone_track_view.setSnapGuideCallback([this](std::optional<TimelineSnapGuide> guide) {
         m_cursor_overlay->setSnapGuide(std::move(guide));
@@ -388,6 +394,10 @@ void EditorView::setState(const core::EditorViewState& state)
 
     m_arrangement_view.setVisibleTimeline(m_state.visible_timeline);
     m_arrangement_view.setState(m_state.arrangement);
+    m_arrangement_view.setWaveformVisible(m_state.waveform_visible);
+
+    m_tab_view.setVisibleTimeline(m_state.visible_timeline);
+    m_tab_view.setState(m_state.tab, m_state.tab_minimum_displayed_strings);
 
     m_tone_track_view.setVisibleTimeline(m_state.visible_timeline);
     m_tone_track_view.setState(m_state.tone_track);
@@ -604,7 +614,7 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
 // Returns the top-level editor menus displayed by the editor.
 juce::StringArray EditorView::getMenuBarNames()
 {
-    return {"File", "Edit"};
+    return {"File", "Edit", "View"};
 }
 
 // Builds menus using only controller-derived state.
@@ -632,6 +642,37 @@ juce::PopupMenu EditorView::getMenuForIndex(int top_level_menu_index, const juce
             g_undo_command, editCommandText("Undo", m_state.undo_label), m_state.undo_enabled);
         menu.addItem(
             g_redo_command, editCommandText("Redo", m_state.redo_label), m_state.redo_enabled);
+        return menu;
+    }
+
+    if (top_level_menu_index == 2 && menu_name == "View")
+    {
+        juce::PopupMenu menu;
+        menu.addItem(
+            g_show_waveform_command,
+            "Show Waveform",
+            m_state.project_loaded,
+            m_state.waveform_visible);
+
+        // The lane-count submenu offers "match the chart" plus explicit minimums up to the
+        // format's string cap; picking fewer lanes than the chart has can never hide notes
+        // because the chart's own count floors the displayed count.
+        const bool has_chart = m_state.tab != nullptr && m_state.tab->string_count > 0;
+        juce::PopupMenu strings_menu;
+        strings_menu.addItem(
+            g_tab_strings_command_base,
+            "Match Chart",
+            has_chart,
+            m_state.tab_minimum_displayed_strings == 0);
+        for (int count = 4; count <= common::core::g_max_chart_strings; ++count)
+        {
+            strings_menu.addItem(
+                g_tab_strings_command_base + count,
+                juce::String{count} + " Strings",
+                has_chart,
+                m_state.tab_minimum_displayed_strings == count);
+        }
+        menu.addSubMenu("Tablature Strings", strings_menu, has_chart);
         return menu;
     }
 
@@ -720,8 +761,24 @@ void EditorView::menuItemSelected(int menu_item_id, int /*top_level_menu_index*/
             m_controller.onExitRequested();
             break;
         }
+        case g_show_waveform_command:
+        {
+            if (m_state.project_loaded)
+            {
+                m_controller.onWaveformVisibleChangeRequested(!m_state.waveform_visible);
+            }
+            break;
+        }
         default:
         {
+            // Lane-count submenu ids encode the requested minimum as an offset from the base;
+            // the base itself requests a zero minimum (match the chart).
+            if (menu_item_id >= g_tab_strings_command_base &&
+                menu_item_id <= g_tab_strings_command_base + common::core::g_max_chart_strings)
+            {
+                m_controller.onTabMinimumDisplayedStringsChangeRequested(
+                    menu_item_id - g_tab_strings_command_base);
+            }
             break;
         }
     }
