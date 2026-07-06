@@ -1,5 +1,6 @@
 #include "signal_chain_view.h"
 
+#include "shared/editor_theme.h"
 #include "signal_chain/insert_slot_view.h"
 #include "signal_chain/plugin_drag.h"
 #include "signal_chain/plugin_tile_view.h"
@@ -39,8 +40,6 @@ constexpr int g_calibrate_button_height{26};
 constexpr int g_output_gain_visual_width{
     g_gain_slider_width + g_gain_meter_gap + g_gain_meter_width
 };
-const juce::Colour g_panel_background{juce::Colours::darkgrey.darker(0.24f)};
-const juce::Colour g_panel_header_background{juce::Colours::darkgrey.darker(0.34f)};
 const juce::Colour g_panel_border{juce::Colours::black.withAlpha(0.45f)};
 const juce::Colour g_path_background{juce::Colour{0xff101318}};
 const juce::Colour g_signal_path_line{juce::Colours::white.withAlpha(0.82f)};
@@ -285,7 +284,7 @@ void SignalChainView::setMeterLevels(
 void SignalChainView::paint(juce::Graphics& g)
 {
     const auto bounds = getLocalBounds();
-    g.fillAll(g_panel_background);
+    g.fillAll(editorTheme().panel_background);
     g.setColour(g_panel_border);
     g.drawRect(bounds);
 
@@ -308,7 +307,7 @@ void SignalChainView::paint(juce::Graphics& g)
     area.removeFromRight(g_panel_inset);
     auto header = area.removeFromTop(g_header_height);
 
-    g.setColour(g_panel_header_background);
+    g.setColour(editorTheme().panel_header);
     g.fillRect(header);
     g.setColour(juce::Colours::white);
     g.setFont(juce::FontOptions{16.0f, juce::Font::bold});

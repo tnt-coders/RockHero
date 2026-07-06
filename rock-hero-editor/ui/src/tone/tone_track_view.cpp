@@ -1,5 +1,7 @@
 #include "tone_track_view.h"
 
+#include "shared/editor_theme.h"
+
 #include <algorithm>
 #include <cmath>
 #include <rock_hero/editor/core/timeline/timeline_geometry.h>
@@ -16,9 +18,9 @@ constexpr int g_region_corner_radius{4};
 constexpr int g_region_label_inset{8};
 constexpr int g_edge_grab_width{6};
 const juce::Colour g_tone_region_fill{juce::Colour{0xff2b4a66}};
-const juce::Colour g_tone_region_border{juce::Colours::lightskyblue.withAlpha(0.65f)};
+const juce::Colour g_tone_region_border{editorTheme().accent.withAlpha(0.65f)};
 const juce::Colour g_tone_region_selected_fill{juce::Colour{0xff35597a}};
-const juce::Colour g_tone_region_selected_border{juce::Colours::lightskyblue};
+const juce::Colour g_tone_region_selected_border{editorTheme().accent};
 const juce::Colour g_tone_region_label{juce::Colours::white.withAlpha(0.92f)};
 // The synthesized legacy-default region reads as a passive continuation, not authored content.
 const juce::Colour g_default_region_fill{juce::Colours::white.withAlpha(0.05f)};

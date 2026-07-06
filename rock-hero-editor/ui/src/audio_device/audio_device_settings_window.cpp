@@ -1,6 +1,7 @@
 #include "audio_device_settings_window.h"
 
 #include "audio_device/audio_device_settings_view.h"
+#include "shared/editor_theme.h"
 
 #include <memory>
 #include <rock_hero/common/audio/device/audio_device_settings.h>
@@ -21,7 +22,7 @@ public:
     AudioDeviceSettingsDialogWindow(
         juce::Component* centering_component, AudioDeviceSettingsWindow::ClosedCallback closed)
         : juce::DialogWindow(
-              "Audio Device Settings", juce::Colours::darkgrey.darker(0.16F), true, true,
+              "Audio Device Settings", editorTheme().bar_background, true, true,
               centering_component != nullptr
                   ? juce::Component::getApproximateScaleFactorForComponent(centering_component)
                   : 1.0F)

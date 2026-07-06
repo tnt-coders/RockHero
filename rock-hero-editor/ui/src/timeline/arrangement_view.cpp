@@ -1,5 +1,7 @@
 #include "arrangement_view.h"
 
+#include "shared/editor_theme.h"
+
 #include <algorithm>
 #include <cmath>
 #include <optional>
@@ -217,21 +219,21 @@ void ArrangementView::paint(juce::Graphics& g)
 
     if (!m_state.hasAudio())
     {
-        g.setColour(juce::Colours::grey);
+        g.setColour(editorTheme().muted_text);
         g.drawText("No audio loaded", bounds, juce::Justification::centred);
         return;
     }
 
     if (!m_thumbnail)
     {
-        g.setColour(juce::Colours::grey);
+        g.setColour(editorTheme().muted_text);
         g.drawText("Waveform unavailable", bounds, juce::Justification::centred);
         return;
     }
 
     if (!m_thumbnail->hasSource())
     {
-        g.setColour(juce::Colours::grey);
+        g.setColour(editorTheme().muted_text);
         g.drawText("Preparing waveform", bounds, juce::Justification::centred);
         return;
     }
@@ -239,7 +241,7 @@ void ArrangementView::paint(juce::Graphics& g)
     if (m_thumbnail->isGeneratingProxy())
     {
         const auto pct = static_cast<int>(m_thumbnail->getProxyProgress() * 100.0f);
-        g.setColour(juce::Colours::white);
+        g.setColour(editorTheme().primary_text);
         g.drawText(
             "Building waveform: " + juce::String{pct} + "%", bounds, juce::Justification::centred);
         return;
@@ -260,11 +262,11 @@ void ArrangementView::paint(juce::Graphics& g)
             static_cast<float>(std::pow(10.0, m_state.audio_asset->normalization->gain_db / 20.0));
     }
 
-    g.setColour(juce::Colours::lightgreen);
+    g.setColour(editorTheme().waveform);
     if (!m_thumbnail->drawChannels(
             g, draw_request->bounds, draw_request->visible_range, vertical_zoom))
     {
-        g.setColour(juce::Colours::grey);
+        g.setColour(editorTheme().muted_text);
         g.drawText("Waveform unavailable", bounds, juce::Justification::centred);
         return;
     }

@@ -1,5 +1,6 @@
 #include "insert_slot_view.h"
 
+#include "shared/editor_theme.h"
 #include "signal_chain/plugin_drag.h"
 
 #include <algorithm>
@@ -16,7 +17,7 @@ constexpr int g_insert_rail_width{28};
 // Insert rails stay faintly visible for discoverability.
 constexpr float g_idle_insert_affordance_alpha{0.12f};
 const juce::Colour g_insert_slot_placeholder{juce::Colours::white.withAlpha(0.16f)};
-const juce::Colour g_insert_slot_drop_line{juce::Colours::lightskyblue};
+const juce::Colour g_insert_slot_drop_line{editorTheme().accent};
 
 } // namespace
 
