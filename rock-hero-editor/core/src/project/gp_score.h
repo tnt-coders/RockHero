@@ -53,7 +53,7 @@ struct GpBend
     /*! \brief Bend amount at the onset, 100 = one whole step. */
     double origin_value{0.0};
 
-    /*! \brief Bend amount at the middle point. */
+    /*! \brief Bend amount held between the two middle offsets. */
     double middle_value{0.0};
 
     /*! \brief Bend amount at the note end. */
@@ -62,8 +62,11 @@ struct GpBend
     /*! \brief Onset hold length in percent of the note duration. */
     double origin_offset{0.0};
 
-    /*! \brief Middle point position in percent of the note duration. */
-    double middle_offset{0.0};
+    /*! \brief Middle plateau start in percent of the note duration. */
+    double middle_offset1{50.0};
+
+    /*! \brief Middle plateau end in percent of the note duration; equal offsets mean a point. */
+    double middle_offset2{50.0};
 
     /*! \brief Destination hold start in percent of the note duration. */
     double destination_offset{100.0};

@@ -8,6 +8,7 @@
 #include "project/gp_score.h"
 
 #include <expected>
+#include <rock_hero/editor/core/project/song_import_error.h>
 #include <string>
 
 namespace rock_hero::editor::core
@@ -20,8 +21,8 @@ Accepts linear GP7/GP8 scores. Scores using repeats, alternate endings, or jump 
 rejected with a clear message because the chart format stores linear time only.
 
 \param gpif_xml Full text of Content/score.gpif from a .gp archive.
-\return Parsed score, or a human-readable failure message.
+\return Parsed score, or a typed import failure describing the unusable score.
 */
-[[nodiscard]] std::expected<GpScore, std::string> parseGpScore(const std::string& gpif_xml);
+[[nodiscard]] std::expected<GpScore, SongImportError> parseGpScore(const std::string& gpif_xml);
 
 } // namespace rock_hero::editor::core
