@@ -63,14 +63,28 @@ struct ArrangementViewState
     }
 
     /*!
-    \brief Calculates the visible timeline range for the current audio.
-    \return Timeline range from zero through the audio duration.
+    \brief Returns the asset's start offset, or zero when no audio is assigned.
+
+    A positive offset delays the backing audio on the timeline so a recording whose content begins
+    after the song's first beat lines up; the waveform sits at this offset with silence before it.
+
+    \return Seconds the audio is offset from the timeline origin.
+    */
+    [[nodiscard]] constexpr double audioStartOffsetSeconds() const noexcept
+    {
+        return audio_asset.has_value() ? audio_asset->start_offset.seconds : 0.0;
+    }
+
+    /*!
+    \brief Calculates the timeline range the audio occupies, accounting for its start offset.
+    \return Timeline range from the start offset through the offset plus the audio duration.
     */
     [[nodiscard]] constexpr common::core::TimeRange audioTimelineRange() const noexcept
     {
+        const double offset = audioStartOffsetSeconds();
         return common::core::TimeRange{
-            .start = common::core::TimePosition{},
-            .end = common::core::TimePosition{audio_duration.seconds},
+            .start = common::core::TimePosition{offset},
+            .end = common::core::TimePosition{offset + audio_duration.seconds},
         };
     }
 

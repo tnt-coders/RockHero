@@ -9,10 +9,15 @@ namespace rock_hero::common::core
 namespace
 {
 
-// Derives the displayed timeline from the current arrangement audio.
+// Derives the displayed timeline from the current arrangement audio. The timeline always begins
+// at the song's first beat and runs through the end of the audio, which a positive asset offset
+// pushes later (silence fills the gap before the audio starts).
 [[nodiscard]] TimeRange calculateTimeline(const Arrangement& arrangement) noexcept
 {
-    return arrangement.audioTimelineRange();
+    return TimeRange{
+        .start = TimePosition{},
+        .end = arrangement.audioTimelineRange().end,
+    };
 }
 
 // Reports whether backend audio loading prepared the arrangement for a playable session.

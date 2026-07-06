@@ -42,15 +42,16 @@ public:
     int click_count{0};
 };
 
-// Builds arrangement-view state with full-source audio.
+// Builds arrangement-view state with full-source audio and an optional timeline start offset.
 [[nodiscard]] core::ArrangementViewState makeArrangementState(
     std::filesystem::path path,
-    common::core::TimeDuration duration = common::core::TimeDuration{4.0})
+    common::core::TimeDuration duration = common::core::TimeDuration{4.0},
+    common::core::TimeDuration start_offset = {})
 {
     return core::ArrangementViewState{
         .audio_asset =
             common::core::AudioAsset{
-                .path = std::move(path), .normalization = std::nullopt, .start_offset = {}
+                .path = std::move(path), .normalization = std::nullopt, .start_offset = start_offset
             },
         .audio_duration = duration,
         .choices = {},
@@ -153,6 +154,79 @@ TEST_CASE("ArrangementView draws the visible waveform range", "[ui][arrangement-
                                                }});
     CHECK(thumbnail->last_draw_bounds == std::optional{image.getBounds()});
     CHECK(thumbnail->last_vertical_zoom == std::optional{1.0f});
+}
+
+// Verifies a positive audio start offset shifts the waveform later on the timeline: the thumbnail
+// is asked for a source range shifted back by the offset (source time starts at zero) while the
+// drawn bounds stay under the timeline window, so the waveform lands beneath the audio it plays.
+TEST_CASE(
+    "ArrangementView offsets the waveform by the audio start offset", "[ui][arrangement-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    RecordingThumbnailFactory thumbnail_factory;
+    ArrangementView view;
+    view.setBounds(0, 0, 100, 24);
+    view.setThumbnailFactory(thumbnail_factory);
+    // Audio starts 2s in and runs 10s, occupying timeline [2, 12]. The visible window [2, 6] is
+    // fully inside it, so the whole width draws the source's first four seconds.
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{2.0},
+            .end = common::core::TimePosition{6.0},
+        });
+    view.setState(makeArrangementState(
+        std::filesystem::path{"full_mix.wav"},
+        common::core::TimeDuration{10.0},
+        common::core::TimeDuration{2.0}));
+    REQUIRE(thumbnail_factory.thumbnails.size() == 1);
+    RecordingThumbnail* const thumbnail = thumbnail_factory.thumbnails.front();
+    const juce::Image image(juce::Image::RGB, 100, 24, true);
+    juce::Graphics graphics{image};
+
+    view.paint(graphics);
+
+    CHECK(
+        thumbnail->last_drawn_visible_range == std::optional{common::core::TimeRange{
+                                                   .start = common::core::TimePosition{0.0},
+                                                   .end = common::core::TimePosition{4.0},
+                                               }});
+    CHECK(thumbnail->last_draw_bounds == std::optional{image.getBounds()});
+}
+
+// Verifies the timeline start offset pushes the beginning of a short audio clip to the right,
+// leaving silent space before the waveform.
+TEST_CASE("ArrangementView leaves a gap before offset audio", "[ui][arrangement-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    RecordingThumbnailFactory thumbnail_factory;
+    ArrangementView view;
+    view.setBounds(0, 0, 100, 24);
+    view.setThumbnailFactory(thumbnail_factory);
+    // Audio starts 2s in and runs 4s, occupying timeline [2, 6] of the visible [0, 10] window.
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{10.0},
+        });
+    view.setState(makeArrangementState(
+        std::filesystem::path{"full_mix.wav"},
+        common::core::TimeDuration{4.0},
+        common::core::TimeDuration{2.0}));
+    REQUIRE(thumbnail_factory.thumbnails.size() == 1);
+    RecordingThumbnail* const thumbnail = thumbnail_factory.thumbnails.front();
+    const juce::Image image(juce::Image::RGB, 100, 24, true);
+    juce::Graphics graphics{image};
+
+    view.paint(graphics);
+
+    // Timeline [2, 6] of a 100px [0, 10] window is the 20..60 px band; the source draws its full
+    // [0, 4] seconds there.
+    CHECK(thumbnail->last_draw_bounds == std::optional{juce::Rectangle<int>{20, 0, 40, 24}});
+    CHECK(
+        thumbnail->last_drawn_visible_range == std::optional{common::core::TimeRange{
+                                                   .start = common::core::TimePosition{0.0},
+                                                   .end = common::core::TimePosition{4.0},
+                                               }});
 }
 
 // Verifies audio shorter than the visible range is drawn into the matching view subset.
