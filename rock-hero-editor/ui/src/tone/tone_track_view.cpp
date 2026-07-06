@@ -11,8 +11,8 @@ namespace rock_hero::editor::ui
 namespace
 {
 
-constexpr int g_region_vertical_inset{6};
-constexpr int g_region_corner_radius{6};
+constexpr int g_region_vertical_inset{4};
+constexpr int g_region_corner_radius{4};
 constexpr int g_region_label_inset{8};
 constexpr int g_edge_grab_width{6};
 const juce::Colour g_tone_region_fill{juce::Colour{0xff2b4a66}};
