@@ -1,7 +1,9 @@
 # Note Format and 2D Tablature Plan
 
-Status: drafted 2026-07-05, queued behind the tone plan's slice 5 (runtime tone switching). This
-becomes the active work after that tone pass lands.
+Status: formalized 2026-07-05 at the direction level (positions, true tab, chords, onset model
+all decided); the detailed format spec is deliberately open for an in-depth back-and-forth design
+pass that begins after the tone plan's slice 5 (runtime tone switching) lands. Queued behind that
+tone pass.
 
 ## Goal
 
@@ -88,6 +90,19 @@ Structure and metadata:
   `sounds` stream per arrangement: a sound is a note or a chord instance (sum type in the domain
   model, one object per line in JSON). Charter's `Level`/phrase-max-difficulty machinery is
   explicitly not adopted.
+- **One physical onset = one note event; no link-next flag.** Decision 2026-07-05.
+  Charter/Rocksmith model tied notes as separate events joined by `linkNext`; 26 Charter files
+  handle it, its editors must keep chain endpoints/strings consistent, and Charter's own
+  `ArrangementFixer` contains a repair pass that merges technique-free linked notes back into one
+  note — evidence the flag makes invalid states representable. RockHero notes own their whole
+  sustain, and techniques that evolve during the sustain are positioned payloads inside the note —
+  Charter already does exactly this for bends (`BendValue` points inside the note). A linked
+  slide chain becomes fret waypoints `(position, fret, pitched|unpitched)` within one note; bend
+  releases across what importers see as tie chains become one bend curve. Importers flatten
+  tie/link chains at the boundary. Hammer-ons/pull-offs/taps are new onsets by definition and
+  stay separate notes. Measure-crossing sustains stay one note; a barline tie is a rendering
+  glyph, not data. Whole-note vibrato/tremolo flags to start; positioned technique spans only if
+  a real chart demands a mid-sustain change the payloads cannot express.
 - **Technique fields are optional with defaults.** A plain quarter note should serialize as a tiny
   one-line object; techniques appear only when present (same style as tone regions omitting empty
   names).
@@ -157,19 +172,6 @@ Structure and metadata:
 
 - Exact sub-beat token spelling (`"12:3+1/2"` vs. alternatives) and whether whole-beat positions
   keep the bare `"12:3"` form (they should).
-- **Link-next replacement (proposed direction, pending confirmation).** Charter/Rocksmith model
-  tied notes as separate events joined by a `linkNext` flag; 26 Charter files handle it, its
-  editors must keep chain endpoints/strings consistent, and Charter's own `ArrangementFixer`
-  contains a repair pass that merges technique-free linked notes back into one note — evidence
-  the flag makes invalid states representable. Proposed RockHero model: **one physical onset =
-  one note event; no link flag.** A note's sustain carries positioned payloads instead — Charter
-  already does exactly this for bends (`BendValue` points inside the note) — so a linked slide
-  chain becomes fret waypoints `(position, fret, pitched|unpitched)` within one note, and bend
-  releases across what importers see as tie chains become one bend curve. Importers flatten
-  tie/link chains at the boundary. Hammer-ons/pull-offs/taps are new onsets by definition and
-  stay separate notes. Measure-crossing sustains stay one note; a barline tie is a rendering
-  glyph, not data. Whole-note vibrato/tremolo flags to start; positioned technique spans only if
-  a real chart demands a mid-sustain change the payloads cannot express.
 - How much of Charter's charting-only metadata (ignore, pass-other-notes, phrase/section
   taxonomy) RockHero adopts versus simplifies.
 - Where the waveform-hidden toggle persists (app settings vs. per-project resume state).
