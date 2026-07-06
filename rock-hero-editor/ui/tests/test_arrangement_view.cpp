@@ -234,6 +234,39 @@ TEST_CASE("ArrangementView skips off-audio paint clips", "[ui][arrangement-view]
     CHECK_FALSE(thumbnail->last_draw_bounds.has_value());
 }
 
+// Verifies hiding the waveform suppresses thumbnail drawing until it is re-shown.
+TEST_CASE("ArrangementView hides the waveform behind the tablature lane", "[ui][arrangement-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    RecordingThumbnailFactory thumbnail_factory;
+    ArrangementView view;
+    view.setBounds(0, 0, 100, 24);
+    view.setThumbnailFactory(thumbnail_factory);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{4.0},
+        });
+    view.setState(makeArrangementState(std::filesystem::path{"full_mix.wav"}));
+    REQUIRE(thumbnail_factory.thumbnails.size() == 1);
+    RecordingThumbnail* const thumbnail = thumbnail_factory.thumbnails.front();
+    const juce::Image image(juce::Image::RGB, 100, 24, true);
+
+    view.setWaveformVisible(false);
+    {
+        juce::Graphics graphics{image};
+        view.paint(graphics);
+    }
+    CHECK_FALSE(thumbnail->last_drawn_visible_range.has_value());
+
+    view.setWaveformVisible(true);
+    {
+        juce::Graphics graphics{image};
+        view.paint(graphics);
+    }
+    CHECK(thumbnail->last_drawn_visible_range.has_value());
+}
+
 // Verifies local hit testing emits a normalized horizontal click position.
 TEST_CASE("ArrangementView reports normalized click position", "[ui][arrangement-view]")
 {

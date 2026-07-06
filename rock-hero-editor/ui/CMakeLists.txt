@@ -46,6 +46,8 @@ target_sources(
             src/signal_chain/signal_chain_view.cpp
             src/signal_chain/signal_chain_view.h
             src/signal_chain/signal_chain_view_metrics.h
+            src/tab/tab_view.cpp
+            src/tab/tab_view.h
             src/timeline/arrangement_view.cpp
             src/timeline/arrangement_view.h
             src/timeline/cursor_overlay.cpp

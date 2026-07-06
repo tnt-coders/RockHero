@@ -167,6 +167,18 @@ void ArrangementView::setState(const core::ArrangementViewState& state)
     repaint();
 }
 
+// Shows or hides all waveform painting while leaving thumbnail and click state untouched.
+void ArrangementView::setWaveformVisible(bool waveform_visible)
+{
+    if (m_waveform_visible == waveform_visible)
+    {
+        return;
+    }
+
+    m_waveform_visible = waveform_visible;
+    repaint();
+}
+
 // Registers a local click listener for normalized arrangement-view intent.
 void ArrangementView::addListener(Listener& listener)
 {
@@ -196,6 +208,11 @@ void ArrangementView::mouseDown(const juce::MouseEvent& event)
 // Draws status text and the currently visible waveform range over the parent-owned track canvas.
 void ArrangementView::paint(juce::Graphics& g)
 {
+    if (!m_waveform_visible)
+    {
+        return;
+    }
+
     const auto bounds = getLocalBounds();
 
     if (!m_state.hasAudio())
