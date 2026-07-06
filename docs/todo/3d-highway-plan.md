@@ -7,44 +7,44 @@ without re-deriving the reference analysis.
 
 ## Goal
 
-A Rocksmith-feeling 3D note highway for the game executable: the player looks down a
-guitar-neck-shaped board scrolling toward them, with string-colored note heads on fret lanes,
-sustain rails, technique glyphs, and a camera that keeps the playable fret region readable at all
-times. Rendering is SDL3 + bgfx (not OpenGL); the chart format v2 (arrangement sidecar
-`charts/<uuid>.chart.json`) is the single data source, and it already carries everything listed
-here — no format changes are required by this plan.
+A 3D note highway for the game executable: the player looks down a guitar-neck-shaped board
+scrolling toward them, with string-colored note heads on fret lanes, sustain rails, technique
+glyphs, and a camera that keeps the playable fret region readable at all times. Rendering is
+SDL3 + bgfx (not OpenGL); the chart format v2 (arrangement sidecar `charts/<uuid>.chart.json`) is
+the single data source, and it already carries everything listed here — no format changes are
+required by this plan.
 
-Two reference points define "correct":
-
-- **Rocksmith 2014** defines the feel: readable at speed, calm camera, the note "lands" on a
-  fretboard pinned near the bottom of the screen.
-- **[Charter](https://github.com/Lordszynencja/Charter)** (MIT) is the implementation reference.
-  Its `preview3D` package was analyzed at source level (2026-07-06, files under
-  `src/main/java/log/charter/gui/components/preview3D/`). Charter generally achieves the
-  Rocksmith feel and its geometry/camera decisions are worth adopting; its implementation has
-  measurable rough edges that this plan explicitly fixes rather than ports (see
-  [Charter defects and what we do instead](#charter-defects-and-what-we-do-instead)).
+**The visual target is [Charter](https://github.com/Lordszynencja/Charter)'s 3D preview, matched
+very closely.** Charter (MIT) is the settled look for this project's 2D notation, and its 3D
+preview is the settled starting point for the highway: the board layout, camera behavior, note
+presentation, and effects described below should look near-identical to Charter's preview when
+implemented. Charter's `preview3D` package was analyzed at source level (2026-07-06, files under
+`src/main/java/log/charter/gui/components/preview3D/`); this document records that analysis
+precisely so the look can be reproduced without re-reading the Java. Charter is a very good
+jumping-off point, not a finished one — a small number of implementation defects and rough edges
+are called out in [Charter defects and what we do instead](#charter-defects-and-what-we-do-instead),
+and only those diverge from Charter's behavior. Improvements beyond that list should be proposed,
+not silently made: match first, improve deliberately.
 
 ## Reference Analysis: How Charter's 3D View Works
 
 ### World coordinate system (`Preview3DUtils`)
 
 One world space shared by every drawer; all sizes below are Charter's literal constants and are
-good starting values:
+the starting values for ours:
 
 - **X = fret axis.** `fretPositions[fret]`: fret 0 at x=0, each fret 1.2 units wide
   (`firstFretDistance = 1.2`, length multiplier 1 → equal-width frets by default; a multiplier
   under 1 would give realistic narrowing toward the body).
 - **Y = string axis.** Board surface ("chartboard") at y=0; strings stacked upward with
   `stringDistance = 0.35`; bottom string at y=0.35. String order optionally inverted by config;
-  Rocksmith's default puts the low string at the bottom of the screen.
+  the default puts the low string at the bottom of the screen.
 - **Z = time axis.** `z = (t_note - t_now) * 0.02 / scrollSpeed` — a pure linear map from
   seconds-until-hit to depth. The hit line is z=0. Visibility window ~1600ms * scrollSpeed.
 - Note head half-width 0.48 (`firstFretDistance / 2.5`), sustain tail half-width one third of
-  that, a full-step bend lifts the tail by `0.35 * 0.8` (i.e. `stringDistance * 0.8` per
-  half-step... Charter's `bendHalfstepDistance` is per half-step).
+  that, and a bend lifts the tail by `stringDistance * 0.8` per half-step.
 
-### Camera (`Preview3DCameraHandler`) — the part the user called out
+### Camera (`Preview3DCameraHandler`) — the part that makes it read well
 
 Charter's camera is *nearly* fixed, and that is exactly why it reads well:
 
@@ -55,16 +55,16 @@ Charter's camera is *nearly* fixed, and that is exactly why it reads well:
    being exactly zero is what keeps screen verticals from tilting; the tiny X/Y rotations give
    the "looking slightly down and across" composition. (Because rotX is nonzero, verticals are
    not *mathematically* vertical — just imperceptibly close, and the pinning step below hides
-   the residual. Our design does strictly better; see below.)
+   the residual. Our implementation makes the property exact; see below.)
 3. **The fretboard pin** (`anchorYZCrossingToBottom`): after building the full view-projection,
    Charter transforms the world point `(camX, 0, 0)` — the board surface at the camera's fret
    focus, at the hit line — into NDC, reads its NDC Y, and appends a **pure translation in NDC
    space** that places that point at NDC y = -0.9 (just above the bottom edge). The comment in
    the source says "IMPORTANT: X offset is intentionally zero": the board is pinned vertically
    only, and slides left/right freely as the fret focus moves. A pure NDC translation cannot
-   rotate or skew anything, so the pin never disturbs the verticality of strings/frets. This is
-   the "fixed position near the bottom, slides left and right" behavior that makes Charter feel
-   right, and it must be reproduced.
+   rotate or skew anything, so the pin never disturbs the verticality of strings/frets. This
+   "fixed position near the bottom, slides left and right" behavior is one of the key features
+   that makes Charter's preview feel right to read, and it must be reproduced exactly.
 4. **Fret focus**: scan fret-hand positions in the window `[now, now + 3000ms]`; take min/max
    fret; the camera X target is the world middle of that fret range, blended 10% toward a fixed
    whole-neck weighted position (damps extreme jumps); the fret *span* target drives camera
@@ -72,7 +72,7 @@ Charter's camera is *nearly* fixed, and that is exactly why it reads well:
    approached with exponential smoothing `mix = 1 - pow(1 - 0.7, frameTime)` — frame-rate
    independent, ~70% of remaining distance per second.
 5. Background gets a separate matrix: same camera with position/parallax divided by 4 plus a
-   slow sinusoidal sway — a cheap parallax sky.
+   slow sinusoidal sway — a cheap parallax backdrop.
 6. Optional camera shake on hits (disabled-by-default "secret"); strength scales with chord
    size, decays cubically over 1s.
 
@@ -87,8 +87,8 @@ immediate-mode vertex lists per frame.
 
 ### Board furniture
 
-- **Strings** (`Preview3DStringsFretsDrawer`): one colored line per string across the full neck
-  at z=0..(actually drawn at the hit plane as lines along X), lane-colored per string.
+- **Strings** (`Preview3DStringsFretsDrawer`): one colored line per string across the full neck,
+  lane-colored per string (the same per-string color derivation the 2D lane uses).
 - **Frets**: thin vertical quads at each fret position. Three states: inactive, *active* (within
   the current + upcoming FHP fret windows), and *highlighted* — a 100ms sqrt-decay flash of the
   two frets bracketing each note as it is hit, with the fret quad thickening up to 4x. This
@@ -145,26 +145,10 @@ highlight texture** (atlas texture where R multiplies the tint color, G adds whi
 is alpha mask — one texture serves every string color), video. All geometry is rebuilt and
 streamed every frame; there are no persistent vertex buffers.
 
-## Rocksmith Comparison (what to keep, add, or skip)
-
-Charter reproduces most of Rocksmith's functional language: string-colored heads with technique
-overlays, open-note bars spanning the hand window, bend-curved sustain rails, FHP-lit lanes,
-anticipation cues, fret-number rail, pinned board. Differences that matter for feel:
-
-- **Rocksmith's camera** cuts between framings and glides more cinematically; Charter's single
-  smoothed camera is simpler and arguably *more* readable. Keep Charter's model; add framing
-  variety later only if the static shot feels sterile.
-- **Rocksmith's venue** (animated stage, lighting, crowd) is atmosphere we replace with a cheap
-  parallax background layer initially (Charter's `/4` parallax trick), leaving venue rendering
-  as a separate future feature.
-- **Rocksmith renders misses/ghosts** and gameplay scoring feedback; that belongs to the
-  detection/scoring system, not this plan — but the renderer must expose hooks (hit, miss,
-  anticipation state come from outside).
-- Rocksmith fades/dims already-passed notes quickly; Charter's fading shader does the same.
-
 ## Charter Defects and What We Do Instead
 
-Verified in source; do not port these as-is:
+Verified in source; these are the only intended departures from Charter's preview, and every one
+is an implementation defect or performance wart, not a style choice:
 
 1. **Per-millisecond tail tessellation** (`getTimeValuesToDrawForEveryPoint`): a 5-second
    vibrato note builds ~15,000 vertices every frame. Ours: sample tails adaptively at fixed
@@ -172,9 +156,9 @@ Verified in source; do not port these as-is:
    which is visually identical and two orders of magnitude cheaper.
 2. **Tremolo/vibrato wobble is unclamped at tail ends**: the modulation phase is absolute time
    (`pointTime % period`), so a tail can begin or end mid-oscillation — the same "unclean edges"
-   the user flagged in Charter's 2D tremolo (we already fixed the 2D analog by clipping to the
-   sustain rect). Ours: phase the modulation from the note onset and taper its amplitude to zero
-   over the first/last ~10% of the tail so rails start and end on the string line.
+   flagged and fixed in the 2D tremolo tail. Ours: phase the modulation from the note onset and
+   taper its amplitude to zero over the first/last ~10% of the tail so rails start and end on
+   the string line. The rail's shape language is otherwise identical.
 3. **Per-frame text texture generation** (`setTextInTexture` per fret number per frame): ours
    pre-rasterizes a glyph atlas once (bgfx has no text; we need an atlas anyway).
 4. **Immediate-mode rebuild of static geometry**: strings, frets, inlays never change; ours puts
@@ -184,9 +168,12 @@ Verified in source; do not port these as-is:
    derives from one frame clock, and randomness is seeded per event, so replays/pauses behave.
 6. **Magic-constant soup**: Charter's camera/board constants work but live scattered as
    literals. Ours: one `HighwayMetrics` struct (documented defaults copied from the analysis
-   above) so tuning is one file.
-7. **GEQUAL/reversed depth without need**: fine in OpenGL, but we simply use conventional
-   LESS-EQUAL depth in bgfx unless precision demands otherwise.
+   above) so tuning is one file. The *values* stay Charter's.
+7. **Rotation-approximated verticality**: Charter's small rotX/rotY make verticals only
+   approximately vertical, then hides the residual with the NDC pin. Ours achieves the same
+   composition with an off-axis (lens-shift) frustum and zero rotation, which maps
+   world-vertical lines to screen-vertical lines *exactly* — the same picture Charter renders,
+   with the property Charter aims for made mathematically true (and unit-testable).
 
 ## Our Design
 
@@ -203,10 +190,10 @@ Verified in source; do not port these as-is:
   - `highway/highway_camera.*` — pure math: fret-focus scan (FHP window → target camX/span),
     exponential smoothing step, world→clip matrices, and the NDC pin offset. Unit-test that a
     world-vertical segment projects to a screen-vertical segment for every legal camera state —
-    that is the invariant the user cares about, and it becomes a regression test instead of a
-    property we hope holds.
+    the invariant becomes a regression test instead of a property we hope holds.
   - `highway/highway_metrics.h` — every world-space constant (fret width, string spacing,
-    time-to-Z scale, visibility window, pin height, focus speeds) in one documented struct.
+    time-to-Z scale, visibility window, pin height, focus speeds) in one documented struct,
+    initialized to Charter's values.
 - **`rock-hero-game/ui`** — SDL3 window/input/loop, bgfx device and passes, drawers, glyph and
   technique-icon atlases. No chart or tempo-map types leak in; it consumes `HighwayViewState`
   plus per-frame transport time, exactly like editor views consume `EditorViewState`.
@@ -216,60 +203,47 @@ Verified in source; do not port these as-is:
 
 ### Coordinate system and camera (the definitive choice)
 
-Adopt Charter's world axes and proven constants (X fret / Y string / Z seconds-scaled), but build
-the camera **without any rotation at all**:
-
-1. Place the eye above and behind the hit line, looking straight down -Z (no roll, no pitch, no
-   yaw).
-2. Achieve Charter's "looking slightly down and across" composition with an **off-axis
-   (lens-shift) perspective frustum** — asymmetric left/right and top/bottom near-plane extents,
-   exactly like a tilt-shift architectural photo. An off-axis frustum with zero rotation maps
-   world-vertical lines to screen-vertical lines *exactly*, for all points, not just near the
-   center; Charter's small rotations only approximate this. This is the superior form of the
-   property the user named, and it is also simpler (one matrix, no rotation bookkeeping).
-3. Keep Charter's **NDC-space vertical pin**: project the board point `(camX, 0, 0)`, then add a
-   pure NDC translation putting it at a configured screen height (default NDC y = -0.9). Pin
-   vertically only; X follows the fret focus so the board slides left/right. (With the off-axis
-   frustum the pin could be folded into the frustum's vertical shift analytically; do that if it
-   stays readable, otherwise keep the explicit two-step — behavior is identical.)
-4. Keep Charter's **fret-focus algorithm** unchanged (FHP window 3s ahead → min/max fret →
-   center target with 10% whole-neck bias; span drives out-zoom; exponential smoothing
-   `1 - pow(1 - k, dt)` with k≈0.7/s). It is simple and proven; the TODO in Charter's source
-   ("weighted average instead of focusing speed") is not needed.
-5. Aspect correction via the frustum extents, not post-scale.
+Adopt Charter's world axes and constants exactly (X fret / Y string / Z seconds-scaled), and
+reproduce Charter's camera behavior — the near-static framing, the FHP-driven fret focus with
+exponential smoothing, and the NDC-space vertical pin with free horizontal slide — with one
+internal difference (defect 7): the eye has no rotation and the composition comes from an
+off-axis (lens-shift) perspective frustum, so the picture matches Charter's while world-vertical
+lines project exactly vertical. The pin math is unchanged: project the board point
+`(camX, 0, 0)`, then add a pure NDC translation putting it at a configured screen height
+(default NDC y = -0.9). Aspect correction via the frustum extents rather than post-scale.
 
 ### Content, in implementation order
 
 Phase 1 — **board and notes** (playable skeleton):
-- Static board: strings (our 2D RYB palette — one authority for string colors shared with the
-  tab view), frets, inlays, retained buffers.
+- Static board: strings (the same per-string palette and color derivation as the 2D tab lane —
+  one authority for string colors), frets, inlays, retained buffers.
 - Beat/measure bars with distance fade; FHP lane highlights.
-- Note heads (rounded-quad texture, string tint, fret-centered), open-note bars spanning the
-  FHP window, note shadows, plain sustain rails, far-to-near sorting, passed-note fade.
+- Note heads (Charter's atlas-tinted presentation), open-note bars spanning the FHP window, note
+  shadows, plain sustain rails, far-to-near sorting, passed-note fade.
 - Fret-number rail from the glyph atlas.
 
 Phase 2 — **camera**: fret focus + off-axis frustum + NDC pin + smoothing; the verticality unit
 test; scroll-speed setting.
 
 Phase 3 — **techniques** (all data already in the chart format):
-- Bend-curved rails with per-bend-point interpolation, outer-string bend inversion, prebend
-  offset at the head; bend amount labels only if readability testing wants them (Rocksmith
-  doesn't label in 3D).
-- Vibrato/tremolo rails with onset-phased, end-tapered modulation (the clean-edges fix).
-- Slide rails with Charter's easing curves (pitched `sin³`, unpitched reversed sine) — these
-  match Rocksmith's read well; unpitched slides additionally dim toward the end.
-- Technique icon quads: hammer/pull/tap, palm/full mute, pop/slap, harmonic head variants
-  (natural = diamond silhouette, matching our 2D language), accents.
+- Bend-curved rails with per-bend-point interpolation, outer-string bend inversion, and prebend
+  offset at the head.
+- Vibrato/tremolo rails with onset-phased, end-tapered modulation (defect 2's fix; otherwise
+  Charter's shapes).
+- Slide rails with Charter's easing curves (pitched `sin³`, unpitched reversed sine); unpitched
+  slides additionally dim toward the end.
+- Technique icon quads: hammer/pull/tap, palm/full mute, pop/slap, harmonic head variants,
+  accents — Charter's atlas language throughout.
 - Chord boxes with template names and fingering panels; arpeggio (shape-span with sequential
-  onsets) rendered as an outlined box, consistent with the 2D view's derivation — the highway
-  derives chord-vs-arpeggio the same way (no stored flag).
+  onsets) rendered as Charter renders arpeggio handshapes — the highway derives
+  chord-vs-arpeggio the same way the 2D lane does (no stored flag).
 - Anticipation rings and fret hit-flash.
 
 Phase 4 — **feel polish**: hit particle bursts (from gameplay hit events, not chart data),
 parallax background, section/lyric overlays if the game wants them, optional camera shake.
 
 Forward extensions the format already sketches (render support added when the data lands):
-whammy dives = signed bend curve on the rail; between-fret harmonics (`touch`) = diamond head
+whammy dives = signed bend curve on the rail; between-fret harmonics (`touch`) = harmonic head
 positioned at the fractional touch position instead of the fret middle.
 
 ### bgfx pipeline sketch
@@ -281,8 +255,8 @@ positioned at the fractional touch position instead of the fret middle.
   atlas serve all string colors), glyph text.
 - Static board: retained vertex/index buffers. Dynamic content: bgfx transient buffers filled
   from `HighwayViewState` each frame; visible-note range via the same
-  sorted-starts + prefix-max-sustain-end binary search we shipped in the 2D `TabView` (promote
-  that helper if sharing is clean).
+  sorted-starts + prefix-max-sustain-end binary search the 2D `TabView` shipped (promote that
+  helper if sharing is clean).
 - SDL3 owns the window and input; bgfx initialized with the native window handle; vsync on;
   render loop samples transport time, steps camera smoothing with real dt, builds the frame.
 
@@ -309,5 +283,5 @@ positioned at the fractional touch position instead of the fret middle.
   dependency rules allow either).
 - Fret width taper (`fretLengthMultiplier < 1`) for realism vs Charter's equal-width default —
   pick after seeing real charts on screen.
-- Whether chord fingering panels show by default (Rocksmith shows them contextually).
+- Whether chord fingering panels show by default.
 - Scroll speed / visibility window as player settings and their interaction with difficulty.
