@@ -83,6 +83,24 @@ public:
     */
     void recreatePluginWindowContentAsync(tracktion::Plugin& plugin) override;
 
+    /*!
+    \brief Creates waveform thumbnails fine enough for the editor's deepest timeline zoom.
+
+    JUCE's AudioThumbnail switches to reading sample levels straight from the audio file once a
+    view zooms past the thumbnail's stored resolution, and that path silently draws nothing for
+    Tracktion-managed thumbnails whose reader has been released (see the implementation for the
+    source trace). Storing thumbnails at a finer resolution keeps every reachable editor zoom on
+    the always-available stored-data path.
+
+    \param source_samples_per_thumbnail_sample Tracktion's default granularity; ignored.
+    \param format_manager Format manager the thumbnail reads through.
+    \param cache Thumbnail cache the thumbnail registers with.
+    \return The thumbnail instance backing a Tracktion SmartThumbnail.
+    */
+    std::unique_ptr<juce::AudioThumbnailBase> createAudioThumbnail(
+        int source_samples_per_thumbnail_sample, juce::AudioFormatManager& format_manager,
+        juce::AudioThumbnailCache& cache) override;
+
 private:
     PluginWindowCommandDispatcher m_command_dispatcher;
 };

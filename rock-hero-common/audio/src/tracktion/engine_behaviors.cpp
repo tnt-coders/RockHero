@@ -132,4 +132,38 @@ void RockHeroUIBehavior::recreatePluginWindowContentAsync(tracktion::Plugin& plu
     tracktion::UIBehaviour::recreatePluginWindowContentAsync(plugin);
 }
 
+namespace
+{
+
+// Waveform thumbnails must stay drawable from their stored min/max data at the editor's deepest
+// zoom. juce::AudioThumbnail reads sample levels straight from the audio file whenever a view's
+// time-per-pixel drops below the stored granularity (refillCache in juce_AudioThumbnail.cpp),
+// but Tracktion feeds thumbnails through setReader (SmartThumbnail::createThumbnailReader in
+// tracktion_AudioFile.cpp), and JUCE's LevelDataSource destroys a reader-based source's reader
+// the moment the thumbnail is fully loaded (LevelDataSource::initialise) with no way to recreate
+// it — so that direct-read path silently draws nothing once a cached thumbnail is restored,
+// which the playback cursor's strip repaints expose as an erased waveform trail. Sixteen samples
+// per stored point keeps the stored-data path in use up to sample_rate / 16 pixels per second
+// (2756 px/s for 44.1kHz audio), comfortably past the timeline's 1264 px/s maximum zoom for any
+// real backing track.
+constexpr int g_thumbnail_samples_per_point{16};
+
+// Distinct type so Tracktion's thumbnail cache hashing (which keys cache files by the thumbnail
+// type's typeid) never pairs these thumbnails with files cached at the old coarser granularity.
+class HighResolutionAudioThumbnail final : public juce::AudioThumbnail
+{
+public:
+    using juce::AudioThumbnail::AudioThumbnail;
+};
+
+} // namespace
+
+std::unique_ptr<juce::AudioThumbnailBase> RockHeroUIBehavior::createAudioThumbnail(
+    [[maybe_unused]] int source_samples_per_thumbnail_sample,
+    juce::AudioFormatManager& format_manager, juce::AudioThumbnailCache& cache)
+{
+    return std::make_unique<HighResolutionAudioThumbnail>(
+        g_thumbnail_samples_per_point, format_manager, cache);
+}
+
 } // namespace rock_hero::common::audio
