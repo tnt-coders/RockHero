@@ -27,6 +27,14 @@ The returned value is a canonical lowercase dashed RFC 4122 version 4 UUID strin
 [[nodiscard]] std::string toneDocumentRefForToneId(std::string_view tone_id);
 
 /*!
+\brief Extracts the tone ID from a canonical tone document reference.
+\param tone_document_ref Package-relative tone document reference.
+\return The `<uuid>` segment of a canonical `tones/<uuid>/tone.json` reference, or an empty
+string when the reference is not canonical.
+*/
+[[nodiscard]] std::string toneIdFromToneDocumentRef(std::string_view tone_document_ref);
+
+/*!
 \brief Reports whether an ID is canonical lowercase dashed UUIDv4 text.
 \param id Candidate package ID text.
 \return True when the ID is exactly the spelling Rock Hero persists.
