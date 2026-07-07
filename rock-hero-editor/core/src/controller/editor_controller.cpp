@@ -822,13 +822,13 @@ void EditorController::onToneCreateNewRequested(
 void EditorController::onToneAutomationLaneAddRequested(
     std::string instance_id, std::string param_id)
 {
-    m_impl->onToneAutomationLaneAddRequested(std::move(instance_id), std::move(param_id));
+    m_impl->onToneAutomationLaneAddRequested(instance_id, std::move(param_id));
 }
 
 void EditorController::onToneAutomationLaneRemoveRequested(
     std::string instance_id, std::string param_id)
 {
-    m_impl->onToneAutomationLaneRemoveRequested(std::move(instance_id), std::move(param_id));
+    m_impl->onToneAutomationLaneRemoveRequested(instance_id, param_id);
 }
 
 void EditorController::onSetToneAutomationPoints(
@@ -1996,22 +1996,11 @@ EditorViewState EditorController::Impl::deriveViewState() const
         };
         state.tone_track =
             toneTrackViewStateFor(*arrangement, state.tempo_map, m_selected_tone_region_id);
-        std::unordered_map<std::string, ToneAutomationBinding> automation_bindings;
-        automation_bindings.reserve(m_tone_plugin_identities.size());
-        for (const auto& [instance_id, identity] : m_tone_plugin_identities)
-        {
-            automation_bindings.emplace(
-                identity.plugin_id,
-                ToneAutomationBinding{
-                    .instance_id = instance_id,
-                    .tone_document_ref = identity.tone_document_ref,
-                });
-        }
         state.tone_automation = toneAutomationViewStateFor(
             *arrangement,
             state.tempo_map,
             selectedToneDocumentRef(),
-            automation_bindings,
+            m_tone_plugin_bindings,
             m_open_automation_lanes,
             m_tone_automation);
 

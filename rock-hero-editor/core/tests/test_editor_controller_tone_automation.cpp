@@ -240,6 +240,41 @@ TEST_CASE(
 }
 
 TEST_CASE(
+    "EditorController keeps automation lanes bound across rig reloads", "[core][tone-automation]")
+{
+    AutomationEditor editor;
+    editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
+    REQUIRE(editor.automation().lanes.size() == 1);
+    CHECK(editor.automation().lanes.front().resolved);
+
+    // A rig reload recreates every plugin instance: the same durable stable id comes back under
+    // a brand-new instance id. Creating a new tone triggers exactly such a reload.
+    constexpr const char* reloaded_instance = "plugin-instance-2";
+    editor.tone_automation.parameters.clear();
+    editor.tone_automation.parameters.push_back(makeParam());
+    editor.tone_automation.parameters.front().instance_id = reloaded_instance;
+    editor.live_rig.next_load_result.tone_chains = {
+        common::audio::LoadedToneChainIdentities{
+            .tone_document_ref = std::string{g_tone_document_ref},
+            .plugins = {common::audio::LoadedTonePluginIdentity{
+                .instance_id = reloaded_instance,
+                .stable_id = g_plugin_id,
+            }},
+        },
+    };
+    editor.controller.onToneCreateNewRequested(
+        common::core::ToneGridPosition{.measure = 2, .beat = 1}, "Solo");
+
+    // Back on the original tone, the open lane must resolve through the durable plugin id to the
+    // reloaded instance instead of dangling on the dead one.
+    editor.controller.onToneRegionSelected(g_region);
+    REQUIRE(editor.automation().lanes.size() == 1);
+    CHECK(editor.automation().lanes.front().resolved);
+    CHECK(editor.automation().lanes.front().instance_id == reloaded_instance);
+    CHECK(editor.automation().lanes.front().name == "Gain");
+}
+
+TEST_CASE(
     "EditorController mirrors the song tempo map at rig-load completion", "[core][tone-automation]")
 {
     const AutomationEditor editor;

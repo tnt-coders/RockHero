@@ -160,8 +160,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onToneBoundaryMoveRequested(
         std::string right_region_id, common::core::ToneGridPosition position);
     void onToneCreateNewRequested(common::core::ToneGridPosition position, std::string name);
-    void onToneAutomationLaneAddRequested(std::string instance_id, std::string param_id);
-    void onToneAutomationLaneRemoveRequested(std::string instance_id, std::string param_id);
+    void onToneAutomationLaneAddRequested(const std::string& instance_id, std::string param_id);
+    void onToneAutomationLaneRemoveRequested(
+        const std::string& instance_id, const std::string& param_id);
     void onSetToneAutomationPoints(
         std::string instance_id, std::string param_id,
         std::vector<common::core::ToneAutomationPoint> points);
@@ -515,8 +516,15 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Runtime association from live plugin instance ids to durable automation identity. Merged
     // from load-result tone chains (minting ids the documents did not carry yet) and extended at
     // plugin insert. Never erased within a session: id-preserving undo can revive an instance id,
-    // and a stale entry is harmless because nothing references dead instance ids.
+    // and a stale entry is harmless because nothing resolves THROUGH dead instance ids — the
+    // reverse direction (durable id to live instance) lives in m_tone_plugin_bindings, which is
+    // rebuilt wholesale so it can never pick a stale instance.
     std::unordered_map<std::string, ToneAutomationIdentity> m_tone_plugin_identities{};
+
+    // Reverse association from durable plugin ids to the CURRENTLY live instance and owning tone.
+    // Replaced wholesale at every rig-load completion (reloads recreate every instance id) and
+    // extended at plugin insert; automation lanes and derived-curve rebuilds resolve through it.
+    std::unordered_map<std::string, ToneAutomationBinding> m_tone_plugin_bindings{};
 
     // Tone references the loaded rig currently hosts as branches, from the last load result.
     // Undo/redo can restore model references to tones a later reload dropped (reset repoints and

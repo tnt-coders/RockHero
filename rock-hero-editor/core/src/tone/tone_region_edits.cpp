@@ -126,6 +126,25 @@ std::expected<void, EditorUndoFailureCode> ToneRegionDeleteEdit::undo(
     }
 
     regions.insert(regions.begin() + static_cast<std::ptrdiff_t>(removed_index), removed_region);
+
+    // Restore the catalog tone the delete pruned so the restored region's reference resolves to
+    // a named tone again.
+    if (removed_catalog_tone.has_value())
+    {
+        std::vector<common::core::Tone>* const catalog = context.session.currentToneCatalog();
+        if (catalog == nullptr)
+        {
+            return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+        }
+        const bool present =
+            std::ranges::any_of(*catalog, [this](const common::core::Tone& candidate) {
+                return candidate.tone_document_ref == removed_catalog_tone->tone_document_ref;
+            });
+        if (!present)
+        {
+            catalog->push_back(*removed_catalog_tone);
+        }
+    }
     return std::expected<void, EditorUndoFailureCode>{};
 }
 
@@ -141,6 +160,18 @@ std::expected<void, EditorUndoFailureCode> ToneRegionDeleteEdit::redo(
     if (!deleteToneRegion(*tone_track, removed_region.id).has_value())
     {
         return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+    }
+
+    // Re-prune the catalog tone whose last reference this delete removes.
+    if (removed_catalog_tone.has_value())
+    {
+        if (std::vector<common::core::Tone>* const catalog = context.session.currentToneCatalog();
+            catalog != nullptr)
+        {
+            std::erase_if(*catalog, [this](const common::core::Tone& candidate) {
+                return candidate.tone_document_ref == removed_catalog_tone->tone_document_ref;
+            });
+        }
     }
     return std::expected<void, EditorUndoFailureCode>{};
 }
