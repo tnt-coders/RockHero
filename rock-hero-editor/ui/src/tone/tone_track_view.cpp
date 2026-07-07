@@ -268,7 +268,7 @@ void ToneTrackView::showRegionContextMenu(const core::ToneRegionViewState& regio
     juce::PopupMenu menu;
     menu.addItem(1, "Rename");
     menu.showMenuAsync(
-        juce::PopupMenu::Options{}.withTargetComponent(this),
+        juce::PopupMenu::Options{}.withMousePosition(),
         [this, ref = region.tone_document_ref, name = region.name](int result) {
             if (result == 1)
             {
