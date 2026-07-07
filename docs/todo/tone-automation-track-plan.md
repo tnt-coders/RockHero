@@ -1,6 +1,11 @@
 # Tone Automation Track Plan
 
-Status: deferred UX reference, revised 2026-07-05. The tone track itself now exists
+Status: **SUPERSEDED 2026-07-07** by `docs/in-progress/tone-parameter-automation-plan.md`, the active,
+decisive plan (formal juce-tracktion-expert review complete). This document is kept only as the
+older UX sketch; do not execute from it — the newer plan resolves its open questions and commits to
+an editable-lane design keyed to the shipped item-1 tone model.
+
+Prior status: deferred UX reference, revised 2026-07-05. The tone track itself now exists
 (`ToneTrackView` renders persisted tone regions with selection and resize; see
 `docs/in-progress/tone-track-tempo-map-plan.md`), so this document no longer plans that
 component — it keeps the automation-lane UX that layers on top of it: per-automation sub-lanes
