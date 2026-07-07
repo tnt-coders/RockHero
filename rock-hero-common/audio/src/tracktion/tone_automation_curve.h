@@ -54,4 +54,16 @@ owns undo, so a null undo manager is passed to the backend.
     tracktion::Plugin& plugin, const std::string& param_id,
     std::span<const AutomationCurvePoint> points);
 
+/*!
+\brief Reads one plugin parameter's current live value, normalised to `[0, 1]`.
+
+A single-parameter read cheap enough for per-frame polling by live-tracking automation lanes.
+
+\param plugin Plugin owning the parameter.
+\param param_id Parameter id within the plugin.
+\return The current normalised value, or `nullopt` when \p param_id does not resolve.
+*/
+[[nodiscard]] std::optional<float> readPluginParameterNormValue(
+    tracktion::Plugin& plugin, const std::string& param_id);
+
 } // namespace rock_hero::common::audio

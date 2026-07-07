@@ -46,6 +46,9 @@ struct [[nodiscard]] AutomatableParamInfo
 
     /*! \brief Current parameter value at listing time, normalised to `[0, 1]`. */
     float current_norm_value{0.0F};
+
+    /*! \brief User-facing name of the owning plugin, so multi-plugin chains stay unambiguous. */
+    std::string plugin_name;
 };
 
 /*!
@@ -130,6 +133,23 @@ public:
     [[nodiscard]] virtual std::expected<void, ToneAutomationError> writeParameterCurve(
         const std::string& tone_document_ref, const std::string& instance_id,
         const std::string& param_id, std::span<const AutomationCurvePoint> points) = 0;
+
+    /*!
+    \brief Reads one parameter's current live value, normalised to `[0, 1]`.
+
+    A cheap single-parameter read for per-frame polling: automation lanes without authored points
+    track the live knob, so the view refreshes this value at render cadence rather than relisting
+    the whole chain.
+
+    \param tone_document_ref One of the tone references currently loaded into the live rig.
+    \param instance_id Plugin instance whose parameter is read.
+    \param param_id Parameter id within that plugin.
+    \return The current normalised value, or a typed failure when the tone, plugin, or parameter
+            cannot be resolved.
+    */
+    [[nodiscard]] virtual std::expected<float, ToneAutomationError> readParameterNormValue(
+        const std::string& tone_document_ref, const std::string& instance_id,
+        const std::string& param_id) const = 0;
 
 protected:
     /*! \brief Creates the tone automation interface. */

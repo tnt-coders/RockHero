@@ -169,6 +169,18 @@ Built on branch `work-in-progress` (off `refactor`), each slice green + tested:
 - **UI (slices B–D) — DONE.** `ToneAutomationLanesView` renders lanes under the tone region
   ("+" picker in the first empty lane), with click-add/move/delete gestures, grid snap with Ctrl
   fine placement, resizable lane heights, and full-list musical commits on mouse-up.
+- **Acceptance revisions (2026-07-08, expert-reviewed for minimality):** the "+" picker is
+  hierarchical — one numbered submenu per chain plugin (chain order) with the plugin's parameter
+  groups nested inside — and lane chips read "Plugin · Param", so multi-plugin chains stay
+  unambiguous (`AutomatableParamInfo.plugin_name`). Picking a parameter now opens a
+  **live-tracking lane** instead of authoring a seed point: session-scoped open lanes
+  (`m_open_automation_lanes`, not persisted, not undoable) draw a flat full-width line at the
+  parameter's live value (`IToneAutomation::readParameterNormValue`, polled per vblank with a
+  moved-value gate) until the first point is authored; right-click closes an unauthored lane.
+  Snapped placement stores the grid line's exact musical fraction
+  (`nearestTempoGridPosition`; odd grids like 1/13 round-trip exactly), and only Ctrl-free
+  placement quantizes to the 1/960-beat fine grid. Authored curves extend flat to both canvas
+  edges, and the tempo grid shows through the lanes (canvas paints the automation band).
 - **Slice E — host-tempo mirror — DONE (2026-07-07).** `ISongAudio::mirrorTempoMap` +
   `Engine::mirrorTempoMap` (message-thread/edit guards) delegate to
   `src/tracktion/tempo_mirror.{h,cpp}` `mirrorTempoMapIntoSequence`: one flat step per anchor

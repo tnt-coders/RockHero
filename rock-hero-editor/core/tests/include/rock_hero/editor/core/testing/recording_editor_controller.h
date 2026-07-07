@@ -235,6 +235,14 @@ public:
         lane_add_call_count += 1;
     }
 
+    /*! \copydoc IEditorController::onToneAutomationLaneRemoveRequested */
+    void onToneAutomationLaneRemoveRequested(std::string instance_id, std::string param_id) override
+    {
+        last_lane_remove_instance_id = std::move(instance_id);
+        last_lane_remove_param_id = std::move(param_id);
+        lane_remove_call_count += 1;
+    }
+
     /*! \copydoc IEditorController::onSetToneAutomationPoints */
     void onSetToneAutomationPoints(
         std::string instance_id, std::string param_id,
@@ -549,6 +557,15 @@ public:
 
     /*! \brief Number of onToneAutomationLaneAddRequested() calls received. */
     int lane_add_call_count{0};
+
+    /*! \brief Last plugin instance id reported through onToneAutomationLaneRemoveRequested(). */
+    std::string last_lane_remove_instance_id{};
+
+    /*! \brief Last parameter id reported through onToneAutomationLaneRemoveRequested(). */
+    std::string last_lane_remove_param_id{};
+
+    /*! \brief Number of onToneAutomationLaneRemoveRequested() calls received. */
+    int lane_remove_call_count{0};
 
     /*! \brief Last plugin instance id reported through onSetToneAutomationPoints(). */
     std::string last_automation_instance_id{};

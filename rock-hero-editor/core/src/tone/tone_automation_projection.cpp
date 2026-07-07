@@ -21,6 +21,7 @@ ToneAutomationViewState toneAutomationViewStateFor(
     const common::core::Arrangement& arrangement, const common::core::TempoMap& tempo_map,
     const std::string& selected_tone_document_ref,
     const std::unordered_map<std::string, ToneAutomationBinding>& bindings,
+    const std::vector<OpenAutomationLane>& open_lanes,
     const common::audio::IToneAutomation& tone_automation)
 {
     ToneAutomationViewState state;
@@ -42,6 +43,19 @@ ToneAutomationViewState toneAutomationViewStateFor(
     {
         state.parameters_unavailable = true;
     }
+    const auto parameter_for =
+        [&parameters](
+            const std::string& instance_id,
+            const std::string& param_id) -> const common::audio::AutomatableParamInfo* {
+        for (const common::audio::AutomatableParamInfo& parameter : parameters)
+        {
+            if (parameter.instance_id == instance_id && parameter.param_id == param_id)
+            {
+                return &parameter;
+            }
+        }
+        return nullptr;
+    };
 
     for (const common::core::ToneParameterAutomation& entry : arrangement.tone_automation)
     {
@@ -59,15 +73,15 @@ ToneAutomationViewState toneAutomationViewStateFor(
         lane.param_id = entry.param_id;
         lane.name = entry.param_id;
         lane.resolved = false;
-        for (const common::audio::AutomatableParamInfo& parameter : parameters)
+        if (const common::audio::AutomatableParamInfo* const parameter =
+                parameter_for(lane.instance_id, entry.param_id);
+            parameter != nullptr)
         {
-            if (parameter.instance_id == lane.instance_id && parameter.param_id == entry.param_id)
-            {
-                lane.name = parameter.name;
-                lane.is_discrete = parameter.is_discrete;
-                lane.resolved = true;
-                break;
-            }
+            lane.name = parameter->name;
+            lane.plugin_name = parameter->plugin_name;
+            lane.is_discrete = parameter->is_discrete;
+            lane.live_norm_value = parameter->current_norm_value;
+            lane.resolved = true;
         }
 
         lane.points.reserve(entry.points.size());
@@ -84,7 +98,43 @@ ToneAutomationViewState toneAutomationViewStateFor(
         state.lanes.push_back(std::move(lane));
     }
 
-    // The "+" picker offers every listed parameter that has no lane yet; picking one seeds it.
+    // Open lanes without authored points follow: they track the parameter's live value until the
+    // first point is authored, at which point the model lane above subsumes them.
+    for (const OpenAutomationLane& open_lane : open_lanes)
+    {
+        if (open_lane.tone_document_ref != selected_tone_document_ref)
+        {
+            continue;
+        }
+        const bool already_laned =
+            std::ranges::any_of(state.lanes, [&open_lane](const ToneAutomationLaneViewState& lane) {
+                return lane.instance_id == open_lane.instance_id &&
+                       lane.param_id == open_lane.param_id;
+            });
+        if (already_laned)
+        {
+            continue;
+        }
+
+        ToneAutomationLaneViewState lane;
+        lane.instance_id = open_lane.instance_id;
+        lane.param_id = open_lane.param_id;
+        lane.name = open_lane.param_id;
+        lane.resolved = false;
+        if (const common::audio::AutomatableParamInfo* const parameter =
+                parameter_for(open_lane.instance_id, open_lane.param_id);
+            parameter != nullptr)
+        {
+            lane.name = parameter->name;
+            lane.plugin_name = parameter->plugin_name;
+            lane.is_discrete = parameter->is_discrete;
+            lane.live_norm_value = parameter->current_norm_value;
+            lane.resolved = true;
+        }
+        state.lanes.push_back(std::move(lane));
+    }
+
+    // The "+" picker offers every listed parameter that has no lane yet; picking one opens it.
     for (const common::audio::AutomatableParamInfo& parameter : parameters)
     {
         const bool already_laned =
@@ -102,6 +152,7 @@ ToneAutomationViewState toneAutomationViewStateFor(
                 .param_id = parameter.param_id,
                 .name = parameter.name,
                 .group = parameter.group,
+                .plugin_name = parameter.plugin_name,
             });
     }
     return state;

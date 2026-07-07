@@ -219,16 +219,28 @@ public:
         common::core::ToneGridPosition position, std::string name) = 0;
 
     /*!
-    \brief Handles a request to add an automation lane for a tone-chain plugin parameter.
+    \brief Handles a request to open an automation lane for a tone-chain plugin parameter.
 
-    Seeds the parameter's automation with one point at the selected region's start, valued at the
-    parameter's current setting, so the lane appears without audibly changing the sound. Undoable
-    (undo removes the lane again).
+    Opening a lane authors nothing: the lane tracks the parameter's live value until the first
+    point is added, so the sound never changes and the line never surprises. Session-scoped and
+    not undoable — an open lane with no points is a view arrangement, not an edit.
 
     \param instance_id Plugin instance owning the parameter.
     \param param_id Parameter id within the plugin.
     */
     virtual void onToneAutomationLaneAddRequested(
+        std::string instance_id, std::string param_id) = 0;
+
+    /*!
+    \brief Handles a request to close an automation lane that has no authored points.
+
+    Removes the open lane from the session view; authored lanes are removed by clearing their
+    points instead (an undoable edit).
+
+    \param instance_id Plugin instance owning the parameter.
+    \param param_id Parameter id within the plugin.
+    */
+    virtual void onToneAutomationLaneRemoveRequested(
         std::string instance_id, std::string param_id) = 0;
 
     /*!
