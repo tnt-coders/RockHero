@@ -248,7 +248,11 @@ TEST_CASE(
     CHECK(editor.automation().lanes.front().resolved);
 
     // A rig reload recreates every plugin instance: the same durable stable id comes back under
-    // a brand-new instance id. Creating a new tone triggers exactly such a reload.
+    // a brand-new instance id. Force the create onto the full-reload fallback (the fast path
+    // adds a branch without recreating instances) to exercise exactly that reload.
+    editor.live_rig.next_add_branch_error = common::audio::LiveRigError{
+        common::audio::LiveRigErrorCode::InvalidRequest, "forced fallback"
+    };
     constexpr const char* reloaded_instance = "plugin-instance-2";
     editor.tone_automation.parameters.clear();
     editor.tone_automation.parameters.push_back(makeParam());

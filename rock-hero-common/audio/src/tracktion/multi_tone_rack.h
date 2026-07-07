@@ -78,6 +78,23 @@ fully audible; schedule baking and selection control them afterwards.
     tracktion::Edit& edit, std::span<const ToneRackBranchRequest> requests);
 
 /*!
+\brief Appends one empty (passthrough) branch for a tone to an already-built live rack.
+
+Rack mutations are ValueTree edits that Tracktion coalesces into one asynchronous graph rebuild
+which reuses every live plugin instance, so adding an empty branch — one \ref ToneBranchGainPlugin
+plus its stereo wiring — never re-instantiates existing plugins or stops playback. This is the
+fast path for creating a new (empty) tone; branches with persisted plugins still load through
+\ref buildToneRack.
+
+\param rack Built rack to mutate; a branch handle is appended on success.
+\param edit Tracktion edit that owns the plugin cache.
+\param tone_document_ref Tone the new branch represents.
+\return Empty success, or a typed wiring failure.
+*/
+[[nodiscard]] std::expected<void, LiveRigError> addEmptyToneBranch(
+    ToneRack& rack, tracktion::Edit& edit, const std::string& tone_document_ref);
+
+/*!
 \brief Creates a RackInstance plugin of the rack for placement on the instrument track.
 \param edit Tracktion edit that owns the plugin cache.
 \param rack_type Rack the instance should host.
