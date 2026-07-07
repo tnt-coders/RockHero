@@ -1514,11 +1514,15 @@ void EditorView::createToneMarkerAtPlayhead()
             static_cast<int>(reuse_refs.size()),
             "Use " + juce::String(region.name.empty() ? "tone" : region.name));
     }
-    const int create_new_id = static_cast<int>(reuse_refs.size()) + 1;
-    if (!reuse_refs.empty())
+    if (reuse_refs.empty())
     {
-        menu.addSeparator();
+        // No other tone exists to reuse, so skip the picker and mint a fresh tone directly.
+        m_controller.onToneCreateNewRequested(at, "New Tone");
+        return;
     }
+
+    menu.addSeparator();
+    const int create_new_id = static_cast<int>(reuse_refs.size()) + 1;
     menu.addItem(create_new_id, "New tone");
 
     menu.showMenuAsync(
