@@ -37,14 +37,36 @@ struct ToneGridPosition
         const ToneGridPosition& lhs, const ToneGridPosition& rhs) noexcept = default;
 };
 
-/*! \brief One time-bounded tone region referencing a package tone document. */
+/*!
+\brief A named, reusable tone: a signal chain that the arrangement's tone catalog owns.
+
+The name lives on the tone rather than on each region, so reusing a tone (two regions referencing
+the same document) reads with one consistent name and renaming updates every occurrence at once. The
+signal chain itself is the opaque, audio-owned document at tone_document_ref, which is also the
+tone's stable identity within an arrangement.
+*/
+struct Tone
+{
+    /*! \brief Package-relative tone document (`tones/<uuid>/tone.json`); the tone's stable identity. */
+    std::string tone_document_ref;
+
+    /*! \brief User-facing tone name shown on regions and in the tone picker. */
+    std::string name;
+
+    /*!
+    \brief Compares two tones by their stored fields.
+    \param lhs Left-hand tone.
+    \param rhs Right-hand tone.
+    \return True when both tones store equal values.
+    */
+    friend bool operator==(const Tone& lhs, const Tone& rhs) = default;
+};
+
+/*! \brief One time-bounded region referencing a tone in the arrangement's catalog by document ref. */
 struct ToneRegion
 {
     /*! \brief Stable region identifier (canonical UUID). */
     std::string id;
-
-    /*! \brief User-facing region name; may be empty, in which case views show a fallback. */
-    std::string name;
 
     /*! \brief Musical start of the region (inclusive). */
     ToneGridPosition start;

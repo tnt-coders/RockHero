@@ -212,6 +212,7 @@ std::expected<common::core::Song, SongImportError> GpSongImporter::importSong(
                     },
                 .audio_duration = common::core::TimeDuration{},
                 .tone_document_ref = {},
+                .tones = {},
                 .tone_track = {},
                 .chart_ref = chart_ref,
                 .chart = std::move(arrangement.chart),

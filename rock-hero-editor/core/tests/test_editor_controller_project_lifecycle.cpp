@@ -967,6 +967,7 @@ TEST_CASE("EditorController orders arrangements and defaults to Lead", "[core][e
                     },
                 .audio_duration = common::core::TimeDuration{},
                 .tone_document_ref = {},
+                .tones = {},
                 .tone_track = {},
                 .chart_ref = {},
                 .chart = {},

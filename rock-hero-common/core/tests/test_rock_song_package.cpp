@@ -141,6 +141,7 @@ void writeAudioFile(const std::filesystem::path& path)
                 AudioAsset{.path = audio_path, .normalization = std::nullopt, .start_offset = {}},
             .audio_duration = TimeDuration{},
             .tone_document_ref = {},
+            .tones = {},
             .tone_track = {},
             .chart_ref = {},
             .chart = {},
@@ -840,18 +841,19 @@ TEST_CASE("Rock song package round-trips authored tone regions", "[core][rock-so
     song.arrangements.front().tone_track.regions = {
         ToneRegion{
             .id = std::string{g_verse_region_id},
-            .name = "Clean Verse",
             .start = ToneGridPosition{.measure = 1, .beat = 1},
             .end = ToneGridPosition{.measure = 2, .beat = 1},
             .tone_document_ref = toneDocumentRef(),
         },
         ToneRegion{
             .id = std::string{g_chorus_region_id},
-            .name = std::string{},
             .start = ToneGridPosition{.measure = 2, .beat = 3},
             .end = ToneGridPosition{.measure = 3, .beat = 1},
             .tone_document_ref = toneDocumentRef(),
         },
+    };
+    song.arrangements.front().tones = {
+        Tone{.tone_document_ref = toneDocumentRef(), .name = "Clean Verse"},
     };
 
     const auto written = writeRockSongPackageDirectory(package_directory, song);
@@ -861,6 +863,50 @@ TEST_CASE("Rock song package round-trips authored tone regions", "[core][rock-so
     REQUIRE(loaded.has_value());
     REQUIRE(loaded->arrangements.size() == 1);
     CHECK(loaded->arrangements.front().tone_track == song.arrangements.front().tone_track);
+    // The named-tone catalog round-trips through the "tones" array, so the region label survives.
+    CHECK(loaded->arrangements.front().tones == song.arrangements.front().tones);
+}
+
+// Packages written before the tone catalog carried the name on each region and had no "tones"
+// array. Loading one must rebuild the catalog so those names survive under the new model.
+TEST_CASE(
+    "Rock song package rebuilds the tone catalog from legacy region names",
+    "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    writeReadablePackageDirectory(package_directory);
+    writeTextFile(package_directory / toneDocumentPath(g_tone_id), "{}");
+    writeTextFile(
+        package_directory / "song.json",
+        R"({
+            "formatVersion": 1,)" +
+            tempoMapJsonFragment() +
+            R"(
+            "audioAssets": [ { "id": "backing", "path": "audio/backing.flac" } ],
+            "arrangements": [
+                {
+                    "id": ")" +
+            std::string{g_lead_arrangement_id} +
+            R"(",
+                    "part": "Lead",
+                    "audio": "backing",
+                    "toneTrack": { "regions": [
+                        { "id": ")" +
+            std::string{g_verse_region_id} +
+            R"(", "name": "Legacy Clean", "start": "1:1", "end": "3:1", "toneDocument": ")" +
+            toneDocumentRef() +
+            R"(" }
+                    ] }
+                }
+            ]
+        })");
+
+    const auto read_song = readRockSongPackageDirectory(package_directory);
+
+    REQUIRE(read_song.has_value());
+    REQUIRE(read_song->arrangements.size() == 1);
+    CHECK(toneNameFor(read_song->arrangements.front(), toneDocumentRef()) == "Legacy Clean");
 }
 
 TEST_CASE("Rock song package write rejects overlapping tone regions", "[core][rock-song-package]")
@@ -875,14 +921,12 @@ TEST_CASE("Rock song package write rejects overlapping tone regions", "[core][ro
     song.arrangements.front().tone_track.regions = {
         ToneRegion{
             .id = std::string{g_verse_region_id},
-            .name = "Clean Verse",
             .start = ToneGridPosition{.measure = 1, .beat = 1},
             .end = ToneGridPosition{.measure = 2, .beat = 3},
             .tone_document_ref = toneDocumentRef(),
         },
         ToneRegion{
             .id = std::string{g_chorus_region_id},
-            .name = "Crunch Chorus",
             .start = ToneGridPosition{.measure = 2, .beat = 1},
             .end = ToneGridPosition{.measure = 3, .beat = 1},
             .tone_document_ref = toneDocumentRef(),
@@ -908,7 +952,6 @@ TEST_CASE(
     song.arrangements.front().tone_track.regions = {
         ToneRegion{
             .id = std::string{g_verse_region_id},
-            .name = "Clean Verse",
             .start = ToneGridPosition{.measure = 1, .beat = 1},
             .end = ToneGridPosition{.measure = 9, .beat = 1},
             .tone_document_ref = toneDocumentRef(),
@@ -1062,7 +1105,6 @@ TEST_CASE(
     song.arrangements.front().tone_track.regions = {
         ToneRegion{
             .id = std::string{g_verse_region_id},
-            .name = "Clean Verse",
             .start = ToneGridPosition{.measure = 1, .beat = 1},
             .end = ToneGridPosition{.measure = 2, .beat = 1},
             .tone_document_ref = toneDocumentRef(),
