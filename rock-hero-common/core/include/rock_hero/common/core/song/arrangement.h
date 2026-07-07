@@ -11,6 +11,7 @@
 #include <rock_hero/common/core/song/audio_asset.h>
 #include <rock_hero/common/core/song/difficulty.h>
 #include <rock_hero/common/core/timeline/timeline.h>
+#include <rock_hero/common/core/tone/tone_automation.h>
 #include <rock_hero/common/core/tone/tone_track.h>
 #include <string>
 #include <vector>
@@ -78,6 +79,15 @@ struct Arrangement
     persisted tone track on re-save.
     */
     ToneTrack tone_track;
+
+    /*!
+    \brief Plugin-parameter automation curves for this arrangement's tone chains.
+
+    Musical positions are the source of truth; the audio layer's seconds curves are derived caches
+    rebuilt from these entries. Keyed by durable minted plugin id + parameter id, so entries follow
+    a plugin through chain reorder and survive remove (an unresolved entry renders disabled).
+    */
+    std::vector<ToneParameterAutomation> tone_automation;
 
     /*!
     \brief Package-relative chart document reference (`charts/<uuid>.chart.json`), or empty.
