@@ -10,6 +10,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <rock_hero/common/audio/input/audio_meter_snapshot.h>
 #include <rock_hero/editor/core/signal_chain/signal_chain_view_state.h>
+#include <string>
 
 namespace rock_hero::editor::ui
 {
@@ -52,6 +53,12 @@ public:
     \param state State derived by the editor controller.
     */
     void setState(const core::SignalChainViewState& state);
+
+    /*!
+    rief Names the tone the hosted view is editing; the header shows "Signal Chain - <tone>".
+    \param tone_name Selected tone's user-facing name, or empty for the bare title.
+    */
+    void setToneName(std::string tone_name);
 
     /*!
     \brief Applies live-rig post-fader meter levels.

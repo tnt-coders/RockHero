@@ -149,6 +149,12 @@ public:
     void setState(const core::SignalChainViewState& state);
 
     /*!
+    \brief Names the tone the panel is editing; the header shows "Signal Chain - <tone>".
+    \param tone_name Selected tone's user-facing name, or empty for the bare title.
+    */
+    void setToneName(std::string tone_name);
+
+    /*!
     \brief Applies live-rig post-fader meter levels.
     \param input_level Level after the input gain fader.
     \param output_level Level after the output gain fader.
@@ -214,6 +220,9 @@ private:
 
     // Last render state pushed by the editor controller.
     core::SignalChainViewState m_state{};
+
+    // Selected tone's name shown in the header title; empty paints the bare title.
+    std::string m_tone_name{};
 
     // Raw or calibrated input peak meter positioned on the left side of the plugin chain.
     AudioLevelMeter m_input_meter;

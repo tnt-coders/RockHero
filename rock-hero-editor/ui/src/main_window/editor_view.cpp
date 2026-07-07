@@ -247,12 +247,13 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     , m_master_output_meter(AudioLevelMeterOrientation::Horizontal, "Master")
     , m_signal_chain_panel(*this)
     , m_tone_track_view(*this, m_state.tempo_map, audio_ports.transport)
+    , m_tone_automation_lanes_view(*this, m_state.tempo_map)
     , m_cursor_overlay(
           std::make_unique<CursorOverlay>(controller, audio_ports.transport, m_state.tempo_map))
     , m_track_viewport(
           std::make_unique<TrackViewport>(
-              controller, m_arrangement_view, m_tab_view, m_tone_track_view, *m_cursor_overlay,
-              audio_ports.transport))
+              controller, m_arrangement_view, m_tab_view, m_tone_track_view,
+              m_tone_automation_lanes_view, *m_cursor_overlay, audio_ports.transport))
     , m_meter_vblank_attachment(this, [this] {
         refreshAudioMeters();
         refreshTimeDisplay();
@@ -280,10 +281,28 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     m_tone_track_view.setSnapGuideCallback([this](std::optional<TimelineSnapGuide> guide) {
         m_cursor_overlay->setSnapGuide(std::move(guide));
     });
+    m_tone_automation_lanes_view.setComponentID("tone_automation_lanes_view");
+    m_tone_automation_lanes_view.setSnapGuideCallback(
+        [this](std::optional<TimelineSnapGuide> guide) {
+            m_cursor_overlay->setSnapGuide(std::move(guide));
+        });
+    // Lane heights feed the viewport's height-only relayout, which skips the tempo-grid rescan.
+    m_tone_automation_lanes_view.setHeightsChangedCallback([this] {
+        if (m_track_viewport != nullptr)
+        {
+            m_track_viewport->relayoutForContentHeightChange();
+        }
+    });
     m_cursor_overlay->setHitTestPassThrough([this](juce::Point<int> position) {
         const juce::Rectangle<int> row_bounds = m_tone_track_view.getBounds();
-        return row_bounds.contains(position) &&
-               m_tone_track_view.wantsPointerAt(position - row_bounds.getPosition());
+        if (row_bounds.contains(position) &&
+            m_tone_track_view.wantsPointerAt(position - row_bounds.getPosition()))
+        {
+            return true;
+        }
+        const juce::Rectangle<int> lanes_bounds = m_tone_automation_lanes_view.getBounds();
+        return lanes_bounds.contains(position) &&
+               m_tone_automation_lanes_view.wantsPointerAt(position - lanes_bounds.getPosition());
     });
     m_busy_overlay.setComponentID("busy_overlay");
     m_busy_overlay.setPaintCallback([this] { handleBusyOverlayPainted(); });
@@ -447,6 +466,34 @@ void EditorView::setState(const core::EditorViewState& state)
 
     m_tone_track_view.setVisibleTimeline(m_state.visible_timeline);
     m_tone_track_view.setState(m_state.tone_track);
+
+    m_tone_automation_lanes_view.setVisibleTimeline(m_state.visible_timeline);
+    m_tone_automation_lanes_view.setGridNoteValue(m_state.grid_note_value);
+    // Editing clamps inside the selected tone region's window: the lane is authored per tone but
+    // edited per region instance.
+    common::core::TimeRange selected_region_window{};
+    for (const core::ToneRegionViewState& region : m_state.tone_track.regions)
+    {
+        if (region.selected)
+        {
+            selected_region_window = region.time_range;
+            break;
+        }
+    }
+    m_tone_automation_lanes_view.setEditableWindow(selected_region_window);
+    m_tone_automation_lanes_view.setState(m_state.tone_automation);
+
+    // The panel edits the selected (== audible) tone, so its header names that tone.
+    std::string selected_tone_name;
+    for (const core::ToneRegionViewState& region : m_state.tone_track.regions)
+    {
+        if (region.selected)
+        {
+            selected_tone_name = region.name;
+            break;
+        }
+    }
+    m_signal_chain_panel.setToneName(std::move(selected_tone_name));
 
     m_cursor_overlay->setVisibleTimelineRange(m_state.visible_timeline);
     m_cursor_overlay->setGridNoteValue(m_state.grid_note_value);
@@ -1468,6 +1515,19 @@ void EditorView::onToneBoundaryMoveRequested(
     std::string right_region_id, common::core::ToneGridPosition position)
 {
     m_controller.onToneBoundaryMoveRequested(std::move(right_region_id), position);
+}
+
+void EditorView::onToneAutomationLaneAddRequested(std::string instance_id, std::string param_id)
+{
+    m_controller.onToneAutomationLaneAddRequested(std::move(instance_id), std::move(param_id));
+}
+
+void EditorView::onToneAutomationPointsEditRequested(
+    std::string instance_id, std::string param_id,
+    std::vector<common::core::ToneAutomationPoint> points)
+{
+    m_controller.onSetToneAutomationPoints(
+        std::move(instance_id), std::move(param_id), std::move(points));
 }
 
 // Shows the tone-picker menu for inserting a tone-change marker at the playhead: the marker snaps to

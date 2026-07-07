@@ -13,6 +13,7 @@
 #include "tab/tab_view.h"
 #include "timeline/arrangement_view.h"
 #include "timeline/grid_spacing_selector.h"
+#include "tone/tone_automation_lanes_view.h"
 #include "tone/tone_track_view.h"
 #include "transport/transport_controls.h"
 
@@ -62,6 +63,7 @@ class EditorView final : public juce::Component,
                          private GridSpacingSelector::Listener,
                          private SignalChainView::Listener,
                          private ToneTrackView::Listener,
+                         private ToneAutomationLanesView::Listener,
                          private PluginBrowserWindow::Listener
 {
 public:
@@ -312,6 +314,14 @@ private:
         std::string region_id, common::core::ToneGridPosition start,
         common::core::ToneGridPosition end) override;
 
+    /*! \copydoc ToneAutomationLanesView::Listener::onToneAutomationLaneAddRequested */
+    void onToneAutomationLaneAddRequested(std::string instance_id, std::string param_id) override;
+
+    /*! \copydoc ToneAutomationLanesView::Listener::onToneAutomationPointsEditRequested */
+    void onToneAutomationPointsEditRequested(
+        std::string instance_id, std::string param_id,
+        std::vector<common::core::ToneAutomationPoint> points) override;
+
     // PluginBrowserWindow::Listener implementation.
     void onPluginBrowserScanRequested() override;
 
@@ -392,6 +402,9 @@ private:
 
     // Tone track row hosted below the waveform inside the track viewport.
     ToneTrackView m_tone_track_view;
+
+    // Automation lanes row hosted below the tone track inside the track viewport.
+    ToneAutomationLanesView m_tone_automation_lanes_view;
 
     // Editor-wide cursor and seek overlay drawn above the zoomable track canvas.
     std::unique_ptr<CursorOverlay> m_cursor_overlay;
