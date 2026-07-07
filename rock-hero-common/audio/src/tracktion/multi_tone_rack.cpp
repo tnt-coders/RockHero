@@ -189,6 +189,63 @@ std::expected<ToneRack, LiveRigError> buildToneRack(
     return tone_rack;
 }
 
+std::expected<void, LiveRigError> addEmptyToneBranch(
+    ToneRack& rack, tracktion::Edit& edit, const std::string& tone_document_ref)
+{
+    if (rack.rack_type == nullptr)
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::InvalidRequest,
+            "Multi-tone rack is not available for a branch add",
+        }};
+    }
+
+    // Rack mutations are ValueTree edits that Tracktion coalesces into one asynchronous graph
+    // rebuild, and that rebuild reuses every live plugin instance — so an empty branch (one gain
+    // plugin plus its wiring) never touches the existing plugins or stops playback.
+    const tracktion::Plugin::Ptr gain_plugin =
+        edit.getPluginCache().createNewPlugin(ToneBranchGainPlugin::createState());
+    auto* const branch_gain = dynamic_cast<ToneBranchGainPlugin*>(gain_plugin.get());
+    if (branch_gain == nullptr)
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::PluginRestoreFailed,
+            "Could not create the tone branch gain for " + tone_document_ref,
+        }};
+    }
+
+    if (!rack.rack_type->addPlugin(
+            gain_plugin,
+            branchPluginPosition(rack.branches.size(), 0, rack.branches.size() + 1),
+            false))
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::PluginRestoreFailed,
+            "Could not place the tone branch gain into the multi-tone rack for " +
+                tone_document_ref,
+        }};
+    }
+
+    // Wire rack input -> branch gain -> rack output on both stereo pins, matching buildToneRack's
+    // empty-chain branch shape.
+    if (!addStereoConnection(*rack.rack_type, {}, branch_gain->itemID) ||
+        !addStereoConnection(*rack.rack_type, branch_gain->itemID, {}))
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::PluginRestoreFailed,
+            "Could not wire the multi-tone rack branch for " + tone_document_ref,
+        }};
+    }
+
+    rack.branches.push_back(
+        ToneRackBranch{
+            .tone_document_ref = tone_document_ref,
+            .chain = {},
+            .branch_gain = branch_gain,
+        });
+    return {};
+}
+
 std::expected<tracktion::Plugin::Ptr, LiveRigError> createToneRackInstance(
     tracktion::Edit& edit, tracktion::RackType& rack_type)
 {

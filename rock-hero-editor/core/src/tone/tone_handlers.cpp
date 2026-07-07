@@ -616,7 +616,46 @@ void EditorController::Impl::performActionImpl(const EditorAction::CreateNewTone
         std::make_unique<ToneCreateWithNewToneEdit>(
             action.position, new_region_id, new_tone_document_ref, action.name));
 
-    reloadLiveRigForToneSet(new_region_id);
+    if (!activateEmptyToneBranch(new_tone_document_ref, new_region_id))
+    {
+        reloadLiveRigForToneSet(new_region_id);
+    }
+}
+
+// Fast path for a freshly minted EMPTY tone: appends a passthrough branch to the live rig
+// (Tracktion reuses every existing plugin instance across the coalesced graph rebuild, so nothing
+// is torn down and playback never stops), then selects the region. No capture is needed because
+// nothing on disk is replaced, and no identities merge because an empty branch has no plugins.
+// Returns false when no rig is loaded or the add fails; the caller falls back to a full reload.
+bool EditorController::Impl::activateEmptyToneBranch(
+    const std::string& tone_document_ref, const std::string& select_region_id)
+{
+    if (!m_project.has_value() || !m_project_audio_ready)
+    {
+        return false;
+    }
+    if (const auto added = m_live_rig.addEmptyToneBranch(tone_document_ref); !added.has_value())
+    {
+        RH_LOG_WARNING(
+            "editor.tone",
+            "Empty tone branch add failed; falling back to a full rig reload "
+            "tone_document_ref={:?} detail={:?}",
+            tone_document_ref,
+            added.error().message);
+        return false;
+    }
+
+    // Keep the loaded-tone bookkeeping coherent so undo/redo coverage checks see the branch; an
+    // empty set means coverage is unknowable (port under test reports no chains) and stays so.
+    if (!m_loaded_tone_refs.empty() &&
+        std::ranges::find(m_loaded_tone_refs, tone_document_ref) == m_loaded_tone_refs.end())
+    {
+        m_loaded_tone_refs.push_back(tone_document_ref);
+    }
+
+    applyToneSelection(select_region_id);
+    updateView();
+    return true;
 }
 
 // Reloads the live rig from the current model so a newly referenced tone gains its own branch, then
@@ -723,7 +762,12 @@ void EditorController::Impl::resetSoleToneRegion(const std::string& region_id)
     }
 
     pushUndoEntry(std::make_unique<ToneResetEdit>(region_id, before_ref, before_name, after_ref));
-    reloadLiveRigForToneSet(region_id);
+    // The reset's fresh tone is empty, so the fast path applies; the previous tone's branch
+    // lingers silently (the same cost as any inaudible tone) until the next full load.
+    if (!activateEmptyToneBranch(after_ref, region_id))
+    {
+        reloadLiveRigForToneSet(region_id);
+    }
 }
 
 // Looks up a tone-chain parameter's user-facing name for the undo label, falling back to its id.
