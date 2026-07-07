@@ -15,6 +15,7 @@ add_executable(
     test_tempo_map.cpp
     test_tone_track_rules.cpp
     test_tone_track_edits.cpp
+    test_tone_track_normalize.cpp
     test_timeline.cpp
     test_juce_path.cpp
     test_logger.cpp
