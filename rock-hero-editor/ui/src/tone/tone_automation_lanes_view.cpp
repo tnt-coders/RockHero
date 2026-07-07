@@ -99,13 +99,16 @@ void ToneAutomationLanesView::setGridNoteValue(common::core::Fraction note_value
 
 void ToneAutomationLanesView::setState(const core::ToneAutomationViewState& state)
 {
-    const std::size_t previous_lane_count = m_state.lanes.size();
+    // Total height, not lane count, is what the viewport lays rows out from: selecting a tone
+    // with zero lanes still grows the view from nothing to the "+" lane, and switching tones can
+    // keep the count while the per-lane stored heights differ.
+    const int previous_total_height = totalHeight();
     m_state = state;
     // Controller pushes replace the model under any in-flight gesture, so drop the gesture
     // instead of editing against stale indices.
     m_drag.reset();
     publishSnapGuide(std::nullopt);
-    if (m_state.lanes.size() != previous_lane_count && m_heights_changed_callback)
+    if (totalHeight() != previous_total_height && m_heights_changed_callback)
     {
         m_heights_changed_callback();
     }
