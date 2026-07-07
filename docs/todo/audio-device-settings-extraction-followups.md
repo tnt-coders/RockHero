@@ -2,7 +2,9 @@
 
 Status: deferred follow-ups. These are intentionally outside the completed extraction and should be
 revisited when the game-side audio settings UI lands or when more settings-view test investment is
-prioritized.
+prioritized. The ChangeListener re-derivation smoke test formerly tracked here was absorbed into
+`docs/plans/13-audio-device-settings-and-calibration.md` Phase 6; the editor-UI follow-ups below
+remain deferred.
 
 ## Context
 
@@ -18,20 +20,6 @@ This document captures concerns raised during code review that were intentionall
 the extraction PR.
 
 ## Open Follow-Ups
-
-### Remaining view-level smoke test
-
-`AudioDeviceSettingsView` now has direct smoke coverage for OK / Cancel preview
-semantics and apply rollback against a mock `juce::AudioDeviceManager` device type.
-One view-level behavior remains open:
-
-- `ChangeListener` re-derivation: when the device manager broadcasts a change while the
-  window is open, the view re-reads its staged state and the combos reflect the new
-  reality without losing user-visible staging the user has already touched (or, if that
-  is the design choice, the staging is intentionally discarded with a documented reason).
-
-A small smoke test for this would pay off twice once the game-side view exists, because
-both views will share the same interaction pattern even if the controls differ.
 
 ### View file size and shape
 
