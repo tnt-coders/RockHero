@@ -300,6 +300,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void clearLiveRig();
     [[nodiscard]] std::filesystem::path currentSongDirectory() const;
     void reloadLiveRigForToneSet(std::string select_region_id);
+    void resetSoleToneRegion(const std::string& region_id);
     void runProjectWriteAction(EditorAction::ProjectWriteAction&& action);
     void completeProjectWriteAction(const std::shared_ptr<ProjectWriteTaskState>& state);
     void applyProjectWriteSuccess(const EditorAction::SaveProject& action);
