@@ -623,6 +623,20 @@ TEST_CASE("Engine live rig clear preserves input gain", "[audio][engine][integra
     CHECK(live_rig.outputGain().db == Catch::Approx(defaultGainDb()));
 }
 
+// Verifies minting a new tone persists a canonical, empty tone document file on disk.
+TEST_CASE("Engine live rig mints an empty tone document", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    const TemporarySongDirectory song_directory;
+    ILiveRig& live_rig = harness.engine;
+
+    const auto minted = live_rig.mintEmptyTone(song_directory.path());
+
+    REQUIRE(minted.has_value());
+    CHECK(common::core::isCanonicalToneDocumentRef(*minted));
+    CHECK(std::filesystem::exists(song_directory.path() / *minted));
+}
+
 // Verifies empty tone loads clear project tone state without clearing input calibration.
 TEST_CASE("Engine live rig loads empty tone", "[audio][engine][integration]")
 {

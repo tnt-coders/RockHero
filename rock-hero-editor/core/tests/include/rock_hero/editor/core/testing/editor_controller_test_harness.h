@@ -497,6 +497,20 @@ struct FakeLiveRig final : public common::audio::ILiveRig
         return next_capture_snapshot;
     }
 
+    // Returns the configured minted tone reference while recording the mint request.
+    [[nodiscard]] std::expected<std::string, common::audio::LiveRigError> mintEmptyTone(
+        const std::filesystem::path& song_directory) override
+    {
+        last_mint_song_directory = song_directory;
+        mint_call_count += 1;
+        if (next_mint_error.has_value())
+        {
+            return std::unexpected{*next_mint_error};
+        }
+
+        return next_mint_ref;
+    }
+
     // Drives the configured load result or error through the new async callback contract while
     // recording the request and replicating the engine's per-plugin progress sequence.
     void loadLiveRig(
@@ -687,6 +701,18 @@ struct FakeLiveRig final : public common::audio::ILiveRig
 
     // Number of capture calls received.
     int capture_call_count{0};
+
+    // Number of mintEmptyTone calls received.
+    int mint_call_count{0};
+
+    // Reference returned by mintEmptyTone unless an error is configured.
+    std::string next_mint_ref{"tones/1f0e9d8c-7b6a-4c5d-8e9f-0a1b2c3d4e5f/tone.json"};
+
+    // When set, mintEmptyTone returns this error instead of a reference.
+    std::optional<common::audio::LiveRigError> next_mint_error{};
+
+    // Song directory recorded from the last mintEmptyTone call.
+    std::optional<std::filesystem::path> last_mint_song_directory{};
 
     // Number of load calls received.
     int load_call_count{0};
