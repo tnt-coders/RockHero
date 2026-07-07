@@ -56,6 +56,15 @@ public:
             std::string region_id, common::core::ToneGridPosition start,
             common::core::ToneGridPosition end) = 0;
 
+        /*!
+        \brief Called when an edge drag commits a new position for the shared boundary between two
+        adjacent regions, so both neighbors move together and coverage stays gap-free.
+        \param right_region_id Region on the later side of the boundary.
+        \param position New musical position for the shared boundary.
+        */
+        virtual void onToneBoundaryMoveRequested(
+            std::string right_region_id, common::core::ToneGridPosition position) = 0;
+
     protected:
         /*! \brief Creates the listener interface. */
         Listener() = default;
