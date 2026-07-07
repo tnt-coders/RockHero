@@ -1,0 +1,36 @@
+{
+    "hooks": {
+        "PreToolUse": [
+            {
+                "matcher": "Write|Edit",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command":
+                            "powershell -NoProfile -ExecutionPolicy Bypass -File .claude/hooks/block-forbidden-name.ps1"
+                    }
+                ]
+            },
+            {
+                "matcher": "Bash|PowerShell",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command":
+                            "powershell -NoProfile -ExecutionPolicy Bypass -File .claude/hooks/block-raw-build-tools.ps1"
+                    }
+                ]
+            }
+        ]
+    },
+    "permissions": {
+        "allow": [
+            "PowerShell(powershell -NoProfile -ExecutionPolicy Bypass -File .\\.agents\\rockhero-build.ps1 *)",
+            "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File ./.agents/rockhero-build.ps1 *)",
+            "PowerShell(pre-commit run *)",
+            "Bash(pre-commit run *)",
+            "PowerShell(rg *)",
+            "Bash(rg *)"
+        ]
+    }
+}
