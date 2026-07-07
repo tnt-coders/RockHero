@@ -226,7 +226,6 @@ struct ArrangementDocumentEntry
     std::string id;
     std::string part;
     std::string audio;
-    std::string tone_id;
     std::vector<ToneCatalogDocumentEntry> tones;
     std::vector<ToneChangeDocumentEntry> tone_changes;
     std::vector<std::string> tone_automation_lines;
@@ -327,11 +326,6 @@ struct ArrangementDocumentEntry
     line += jsonString(entry.part);
     line += ", \"audio\": ";
     line += jsonString(entry.audio);
-    if (!entry.tone_id.empty())
-    {
-        line += ", \"tone\": ";
-        line += jsonString(entry.tone_id);
-    }
     if (!entry.tones.empty())
     {
         line += R"(, "tones": [)";
@@ -524,22 +518,12 @@ struct SongDocumentForSave
     return std::expected<void, SongPackageError>{};
 }
 
-// Validates an arrangement's tone references (legacy document plus authored tone track) without
-// writing anything, so a bad reference fails a save before any side effect occurs.
+// Validates an arrangement's tone references (catalog plus authored tone track) without writing
+// anything, so a bad reference fails a save before any side effect occurs.
 [[nodiscard]] std::expected<void, SongPackageError> validateArrangementToneReference(
     const std::filesystem::path& workspace_directory, const Arrangement& arrangement,
     const TempoMap& tempo_map)
 {
-    if (!arrangement.tone_document_ref.empty())
-    {
-        if (const auto tone_error =
-                validateToneDocumentOnDisk(workspace_directory, arrangement.tone_document_ref);
-            !tone_error.has_value())
-        {
-            return tone_error;
-        }
-    }
-
     if (const auto structural = validateToneTrack(arrangement.tone_track, tempo_map);
         !structural.has_value())
     {
@@ -738,7 +722,6 @@ struct SongDocumentForSave
                 .id = *arrangement_id,
                 .part = partName(arrangement.part),
                 .audio = audio_id->second,
-                .tone_id = toneIdFromToneDocumentRef(arrangement.tone_document_ref),
                 .tones = std::move(tones),
                 .tone_changes = std::move(tone_changes),
                 .tone_automation_lines = std::move(tone_automation_lines),

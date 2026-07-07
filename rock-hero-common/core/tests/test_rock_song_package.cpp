@@ -140,7 +140,6 @@ void writeAudioFile(const std::filesystem::path& path)
             .audio_asset =
                 AudioAsset{.path = audio_path, .normalization = std::nullopt, .start_offset = {}},
             .audio_duration = TimeDuration{},
-            .tone_document_ref = {},
             .tones = {},
             .tone_track = {},
             .tone_automation = {},
@@ -150,11 +149,13 @@ void writeAudioFile(const std::filesystem::path& path)
     return song;
 }
 
-// Builds a native song whose arrangement points at a package-relative tone document.
+// Builds a native song whose arrangement catalogs one package-relative tone document.
 [[nodiscard]] Song makeSongWithToneDocument(const std::filesystem::path& audio_path)
 {
     Song song = makeSong(audio_path);
-    song.arrangements.front().tone_document_ref = toneDocumentRef();
+    song.arrangements.front().tones = {
+        Tone{.tone_document_ref = toneDocumentRef(), .name = "Default"},
+    };
     return song;
 }
 
@@ -357,7 +358,8 @@ TEST_CASE("Rock song package directory preserves tone refs", "[core][rock-song-p
 
     REQUIRE(read_song.has_value());
     REQUIRE(read_song->arrangements.size() == 1);
-    CHECK(read_song->arrangements.front().tone_document_ref == toneDocumentRef());
+    REQUIRE(read_song->arrangements.front().tones.size() == 1);
+    CHECK(read_song->arrangements.front().tones.front().tone_document_ref == toneDocumentRef());
 }
 
 // Verifies published native archives include tone files and preserve the song reference.
@@ -381,7 +383,8 @@ TEST_CASE("Rock song package archive preserves tone refs", "[core][rock-song-pac
 
     REQUIRE(read_song.has_value());
     REQUIRE(read_song->arrangements.size() == 1);
-    CHECK(read_song->arrangements.front().tone_document_ref == toneDocumentRef());
+    REQUIRE(read_song->arrangements.front().tones.size() == 1);
+    CHECK(read_song->arrangements.front().tones.front().tone_document_ref == toneDocumentRef());
     CHECK(std::filesystem::is_regular_file(extracted_directory / toneDocumentPath(g_tone_id)));
 }
 
@@ -402,8 +405,8 @@ TEST_CASE("Rock song package write rejects missing tone refs", "[core][rock-song
     CHECK_FALSE(std::filesystem::exists(package_directory / "audio" / "source.flac"));
 }
 
-// Verifies package loading rejects tone-document paths that cannot resolve inside the package.
-TEST_CASE("Rock song package rejects unsafe tone refs", "[core][rock-song-package]")
+// Verifies package loading rejects tone references whose document is absent from the package.
+TEST_CASE("Rock song package rejects missing tone documents", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temporary_directory;
     const std::filesystem::path package_directory = temporary_directory.path() / "package";
@@ -427,7 +430,9 @@ TEST_CASE("Rock song package rejects unsafe tone refs", "[core][rock-song-packag
             R"(",
                     "part": "Lead",
                     "audio": "backing",
-                    "toneDocument": "../lead.tone.json"
+                    "toneChanges": [ { "start": "1:1", "tone": ")" +
+            std::string{g_tone_id} +
+            R"(" } ]
                 }
             ]
         })");
@@ -436,7 +441,7 @@ TEST_CASE("Rock song package rejects unsafe tone refs", "[core][rock-song-packag
 
     REQUIRE_FALSE(read_song.has_value());
     CHECK(read_song.error().code == SongPackageErrorCode::InvalidArrangement);
-    CHECK(read_song.error().message.find("tone document") != std::string::npos);
+    CHECK(read_song.error().message.find("missing or unsafe") != std::string::npos);
 }
 
 // Verifies songs whose backing audio carries normalization metadata round-trip every persisted
@@ -966,11 +971,9 @@ TEST_CASE(
     CHECK_FALSE(writeRockSongPackageDirectory(package_directory, song).has_value());
 }
 
-// Packages written before the tone catalog carried the name on each region and had no "tones"
-// array. Loading one must rebuild the catalog so those names survive under the new model.
-TEST_CASE(
-    "Rock song package rebuilds the tone catalog from legacy region names",
-    "[core][rock-song-package]")
+// Tone data older than the lean spelling is not read: unrecognized keys are simply ignored, so a
+// package without a "tones" array loads tone-less and the editor's load baseline takes over.
+TEST_CASE("Rock song package ignores unrecognized tone spellings", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temporary_directory;
     const std::filesystem::path package_directory = temporary_directory.path() / "package";
@@ -990,6 +993,9 @@ TEST_CASE(
             R"(",
                     "part": "Lead",
                     "audio": "backing",
+                    "toneDocument": ")" +
+            toneDocumentRef() +
+            R"(",
                     "toneTrack": { "regions": [
                         { "id": ")" +
             std::string{g_verse_region_id} +
@@ -1005,7 +1011,8 @@ TEST_CASE(
 
     REQUIRE(read_song.has_value());
     REQUIRE(read_song->arrangements.size() == 1);
-    CHECK(toneNameFor(read_song->arrangements.front(), toneDocumentRef()) == "Legacy Clean");
+    CHECK(read_song->arrangements.front().tones.empty());
+    CHECK(read_song->arrangements.front().tone_track.regions.empty());
 }
 
 TEST_CASE("Rock song package read rejects malformed tone change ids", "[core][rock-song-package]")
@@ -1123,7 +1130,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "Rock song package read rejects malformed tone region tokens", "[core][rock-song-package]")
+    "Rock song package read rejects malformed tone change tokens", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temp;
     const std::filesystem::path package_directory = temp.path() / "package";
@@ -1145,12 +1152,9 @@ TEST_CASE(
             R"(",
                     "part": "Lead",
                     "audio": "backing",
-                    "toneTrack": { "regions": [
-                        { "id": ")" +
-            std::string{g_verse_region_id} +
-            R"(", "start": "1:1+1/2", "end": "2:1", "toneDocument": ")" + toneDocumentRef() +
-            R"(" }
-                    ] }
+                    "toneChanges": [ { "start": "1:1+1/2", "tone": ")" +
+            std::string{g_tone_id} +
+            R"(" } ]
                 }
             ]
         })");

@@ -34,8 +34,8 @@ enum class Part : std::uint8_t
 \brief One playable route, identified by part and numeric difficulty.
 
 An Arrangement owns the playable data for one path through a song: the backing audio selected for
-that path and the package-relative tone document used by the audio adapter. Chart, tuning, and
-note-event storage are intentionally deferred until note display or gameplay needs the model.
+that path and the named tones its tone track schedules. Chart, tuning, and note-event storage are
+intentionally deferred until note display or gameplay needs the model.
 */
 struct Arrangement
 {
@@ -55,28 +55,21 @@ struct Arrangement
     TimeDuration audio_duration;
 
     /*!
-    \brief Package-relative tone document interpreted by common/audio.
-
-    Interpreted exclusively by common/audio; core validates and persists the reference but treats
-    the target document as opaque audio-owned data.
-    */
-    std::string tone_document_ref;
-
-    /*!
     \brief Named tones this arrangement can use, keyed by their tone document reference.
 
-    The catalog owns tone names; tone_track regions reference a tone by its document ref, and the
-    tone at tone_document_ref (the whole-song default) is always present. Loading rebuilds this from
-    legacy per-region names for packages written before the catalog existed.
+    The catalog owns tone names; tone_track regions reference a tone by its document ref, and
+    loading guarantees every referenced tone has a catalog entry. The tone document itself is
+    interpreted exclusively by common/audio; core treats it as opaque audio-owned data addressed
+    by the canonical `tones/<uuid>/tone.json` reference.
     */
     std::vector<Tone> tones;
 
     /*!
     \brief Authored tone schedule for this arrangement.
 
-    Empty until the user authors tone regions; loading synthesizes a runtime-only default region
-    from tone_document_ref instead of storing one here, so untouched projects never gain a
-    persisted tone track on re-save.
+    Loading normalizes every tone-bearing arrangement to explicit gap-free regions (a tone-less
+    arrangement gets a minted default tone plus a whole-song region as it enters the editor), so
+    the editor splits, selects, and deletes regions uniformly with no synthesized default case.
     */
     ToneTrack tone_track;
 

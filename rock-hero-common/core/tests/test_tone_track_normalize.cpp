@@ -28,7 +28,7 @@ TEST_CASE("ensureExplicitToneRegions materializes the whole-song region", "[core
 {
     Song song = makeSong();
     Arrangement arrangement;
-    arrangement.tone_document_ref = g_default_ref;
+    arrangement.tones = {Tone{.tone_document_ref = g_default_ref, .name = "Clean Verse"}};
     song.arrangements.push_back(arrangement);
 
     ensureExplicitToneRegions(song);
@@ -40,35 +40,7 @@ TEST_CASE("ensureExplicitToneRegions materializes the whole-song region", "[core
     CHECK(region.start == ToneGridPosition{.measure = 1, .beat = 1});
     CHECK(region.end == ToneGridPosition{.measure = 3, .beat = 1});
     CHECK(region.tone_document_ref == g_default_ref);
-}
-
-TEST_CASE(
-    "ensureExplicitToneRegions adds the default tone to the catalog", "[core][tone-normalize]")
-{
-    Song song = makeSong();
-    Arrangement arrangement;
-    arrangement.tone_document_ref = g_default_ref;
-    song.arrangements.push_back(arrangement);
-
-    ensureExplicitToneRegions(song);
-
-    const Arrangement& normalized = song.arrangements.front();
-    REQUIRE(normalized.tones.size() == 1);
-    CHECK(normalized.tones.front().tone_document_ref == g_default_ref);
-    CHECK(normalized.tones.front().name == "Default");
-}
-
-TEST_CASE("ensureExplicitToneRegions preserves an existing catalog name", "[core][tone-normalize]")
-{
-    Song song = makeSong();
-    Arrangement arrangement;
-    arrangement.tone_document_ref = g_default_ref;
-    arrangement.tones = {Tone{.tone_document_ref = g_default_ref, .name = "Clean Verse"}};
-    song.arrangements.push_back(arrangement);
-
-    ensureExplicitToneRegions(song);
-
-    const Arrangement& normalized = song.arrangements.front();
+    // The catalog itself is untouched: the region references the first tone, keeping its name.
     REQUIRE(normalized.tones.size() == 1);
     CHECK(normalized.tones.front().name == "Clean Verse");
 }
@@ -77,7 +49,7 @@ TEST_CASE("ensureExplicitToneRegions leaves authored regions untouched", "[core]
 {
     Song song = makeSong();
     Arrangement arrangement;
-    arrangement.tone_document_ref = g_default_ref;
+    arrangement.tones = {Tone{.tone_document_ref = g_default_ref, .name = "Default"}};
     arrangement.tone_track.regions = {
         ToneRegion{
             .id = "existing",
@@ -99,7 +71,7 @@ TEST_CASE(
     "ensureExplicitToneRegions leaves a tone-less arrangement empty", "[core][tone-normalize]")
 {
     Song song = makeSong();
-    song.arrangements.emplace_back(); // no tone_document_ref
+    song.arrangements.emplace_back(); // empty catalog: the load baseline mints before this runs
 
     ensureExplicitToneRegions(song);
 

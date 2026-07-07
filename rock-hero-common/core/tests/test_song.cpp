@@ -48,7 +48,6 @@ TEST_CASE("Song holds multiple arrangements", "[core][song]")
                     .start_offset = {},
                 },
             .audio_duration = TimeDuration{},
-            .tone_document_ref = {},
             .tones = {},
             .tone_track = {},
             .tone_automation = {},
@@ -67,7 +66,6 @@ TEST_CASE("Song holds multiple arrangements", "[core][song]")
                     .start_offset = {},
                 },
             .audio_duration = TimeDuration{},
-            .tone_document_ref = {},
             .tones = {},
             .tone_track = {},
             .tone_automation = {},
@@ -113,8 +111,7 @@ TEST_CASE("Song stores top-level value fields", "[core][song]")
                  .start_offset = {},
              },
          .audio_duration = TimeDuration{42.0},
-         .tone_document_ref = "tone/rhythm.json",
-         .tones = {},
+         .tones = {Tone{.tone_document_ref = "tones/rhythm/tone.json", .name = "Rhythm"}},
          .tone_track = {},
          .tone_automation = {},
          .chart_ref = {},
@@ -133,7 +130,7 @@ TEST_CASE("Song stores top-level value fields", "[core][song]")
     CHECK(difficultyTier(arrangement.difficulty) == DifficultyTier::Hard);
     CHECK(arrangement.audio_asset.path == std::filesystem::path{"audio/rhythm.wav"});
     CHECK(arrangement.audio_duration == TimeDuration{42.0});
-    CHECK(arrangement.tone_document_ref == "tone/rhythm.json");
+    CHECK(toneNameFor(arrangement, "tones/rhythm/tone.json") == "Rhythm");
 }
 
 } // namespace rock_hero::common::core

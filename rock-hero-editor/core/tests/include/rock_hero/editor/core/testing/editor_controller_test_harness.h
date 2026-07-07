@@ -1293,16 +1293,17 @@ private:
         return audio_asset.path;
     }
 
-    // Returns the first arrangement tone reference so tests can verify persisted song content.
+    // Returns the first arrangement's first catalog tone reference so tests can verify persisted
+    // song content.
     [[nodiscard]] static std::optional<std::string> firstToneDocumentRef(
         const common::core::Song& song)
     {
-        if (song.arrangements.empty())
+        if (song.arrangements.empty() || song.arrangements.front().tones.empty())
         {
             return std::nullopt;
         }
 
-        return song.arrangements.front().tone_document_ref;
+        return song.arrangements.front().tones.front().tone_document_ref;
     }
 };
 
@@ -1407,13 +1408,25 @@ private:
 \brief Builds song data with one arrangement.
 \param path Backing audio path assigned to the Lead arrangement.
 \param timeline_range Timeline range whose duration becomes the arrangement audio duration.
-\param tone_document_ref Optional tone document reference assigned to the arrangement.
+\param tone_document_ref Optional tone reference seeded as the arrangement's "Default" catalog
+tone, matching the shape the load baseline produces; empty leaves the catalog empty so a load
+mints one.
 \return Song fixture with one Lead arrangement.
 */
 [[nodiscard]] inline common::core::Song makeSong(
     std::filesystem::path path, common::core::TimeRange timeline_range = loadedTimelineRange(),
     std::string tone_document_ref = {})
 {
+    std::vector<common::core::Tone> tones;
+    if (!tone_document_ref.empty())
+    {
+        tones.push_back(
+            common::core::Tone{
+                .tone_document_ref = std::move(tone_document_ref),
+                .name = "Default",
+            });
+    }
+
     common::core::Song song;
     song.arrangements.push_back(
         common::core::Arrangement{
@@ -1425,8 +1438,7 @@ private:
                     .path = std::move(path), .normalization = std::nullopt, .start_offset = {}
                 },
             .audio_duration = timeline_range.duration(),
-            .tone_document_ref = std::move(tone_document_ref),
-            .tones = {},
+            .tones = std::move(tones),
             .tone_track = {},
             .tone_automation = {},
             .chart_ref = {},
@@ -1520,7 +1532,6 @@ private:
                     .start_offset = {},
                 },
             .audio_duration = common::core::TimeDuration{},
-            .tone_document_ref = {},
             .tones = {},
             .tone_track = {},
             .tone_automation = {},
@@ -1539,7 +1550,6 @@ private:
                     .start_offset = {},
                 },
             .audio_duration = common::core::TimeDuration{},
-            .tone_document_ref = {},
             .tones = {},
             .tone_track = {},
             .tone_automation = {},

@@ -2113,7 +2113,7 @@ bool EditorController::Impl::hasLoadedArrangement() const
 bool EditorController::Impl::shouldShowLiveRigLoadProgress() const
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
-    return arrangement != nullptr && !arrangement->tone_document_ref.empty();
+    return arrangement != nullptr && !arrangement->tones.empty();
 }
 
 // Reports whether every tone the current arrangement references has a loaded rig branch. An

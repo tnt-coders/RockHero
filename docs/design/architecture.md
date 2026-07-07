@@ -258,7 +258,9 @@ Song
     difficulty        (0 Unknown, 1-10; not persisted yet)
     audio_asset        (required path/identifier for backing audio)
     audio_duration     (full natural duration of the audio asset)
-    tone_document_ref  (package-relative tone document interpreted exclusively by common/audio)
+    tones[*]           (named tone catalog; each tone's document path derives from its UUID as
+                        tones/<uuid>/tone.json and is interpreted exclusively by common/audio)
+    tone_track         (gap-free tone regions referencing catalog tones by document ref)
 \endcode
 
 Arrangement difficulty is intended to be a value *derived* from playable chart data, not authored
@@ -314,10 +316,10 @@ archive structure, safe asset paths, and required arrangement audio references. 
 is committed to the editor session, the editor workflow validates every arrangement's audio through
 the `rock-hero-common/audio` boundary and rejects the project if any asset is unreadable or reports a
 non-positive duration. When an arrangement is selected, the application passes its `audio_asset` to
-`rock-hero-common/audio` for playback and waveform generation, and passes `tone_document_ref` to
-`rock-hero-common/audio` as a package-relative tone document reference. `rock-hero-common/core`
-validates and persists the tone document reference but never interprets the referenced tone data -
-that belongs entirely to `rock-hero-common/audio`.
+`rock-hero-common/audio` for playback and waveform generation, and loads the tones its tone track
+references into `rock-hero-common/audio` by their package-relative tone document references.
+`rock-hero-common/core` validates and persists those references but never interprets the referenced
+tone data - that belongs entirely to `rock-hero-common/audio`.
 
 The editor-facing song-audio boundary is `common::audio::ISongAudio`: it prepares loaded songs by
 validating arrangement audio and filling accepted durations, makes the selected arrangement active
