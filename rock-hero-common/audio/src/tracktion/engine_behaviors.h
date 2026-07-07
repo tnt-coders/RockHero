@@ -68,6 +68,19 @@ public:
     \return Always false.
     */
     bool arePluginsRemappedWhenTempoChanges() override;
+
+    /*!
+    \brief Pins the edit's beat unit to quarter notes regardless of time signature.
+
+    Rock Hero's tempo model is quarter-note-referenced (seconds are linear in quarter-note
+    position between anchors), and the one-way tempo mirror converts every anchor and signature
+    address into quarter positions. Tracktion's default lets one "beat" shrink in x/8 meters,
+    which would silently rescale every mirrored position; fixing the unit at quarters keeps both
+    sides speaking the same axis for the whole application lifetime.
+
+    \return Always false.
+    */
+    bool lengthOfOneBeatDependsOnTimeSignature() override;
 };
 
 /*! \brief Supplies Tracktion with Rock Hero's minimal plugin editor window implementation. */

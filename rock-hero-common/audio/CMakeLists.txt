@@ -51,6 +51,8 @@ target_sources(
             src/tracktion/tone_branch_gain_plugin.h
             src/tracktion/plugin_window.cpp
             src/tracktion/plugin_window.h
+            src/tracktion/tempo_mirror.cpp
+            src/tracktion/tempo_mirror.h
             src/tracktion/tracktion_instrument_wave_device_mapping.cpp
             src/tracktion/tracktion_instrument_wave_device_mapping.h
             src/tracktion/tracktion_thumbnail.cpp

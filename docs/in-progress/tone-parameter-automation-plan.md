@@ -161,8 +161,33 @@ Built on branch `work-in-progress` (off `refactor`), each slice green + tested:
   the settled decision below (Option B / C2) moves the model and memento to musical positions
   persisted in `song.json`, with the Tracktion curve as a derived cache. The seconds-based
   `IToneAutomation` adapter is unchanged.
+- **C2 migration — DONE.** Musical `ToneParameterAutomation` model on `Arrangement`, `song.json`
+  round-trip (`"toneAutomation"`, chart grid-token grammar), durable plugin ids
+  (`PluginRecord.stable_id` minted in editor-core, echoed through capture, merged from
+  `LiveRigLoadResult.tone_chains`), musical mementos, and the load-completion derived-curve
+  rebuild; state hygiene strips `AUTOMATIONCURVE` + `remapOnTempoChange` at capture and load.
+- **UI (slices B–D) — DONE.** `ToneAutomationLanesView` renders lanes under the tone region
+  ("+" picker in the first empty lane), with click-add/move/delete gestures, grid snap with Ctrl
+  fine placement, resizable lane heights, and full-list musical commits on mouse-up.
+- **Slice E — host-tempo mirror — DONE (2026-07-07).** `ISongAudio::mirrorTempoMap` +
+  `Engine::mirrorTempoMap` (message-thread/edit guards) delegate to
+  `src/tracktion/tempo_mirror.{h,cpp}` `mirrorTempoMapIntoSequence`: one flat step per anchor
+  span at quarter-note positions, non-remapping prune (`removeTempo(i, false)`), clamp-free
+  first-entry CachedValue writes + `insertTempo(BeatPosition, bpm, 1.0f)` for the rest, and
+  signature mirroring the same way. `RockHeroEngineBehavior::lengthOfOneBeatDependsOnTimeSignature()
+  → false` pins the edit beat unit to quarters; the backing clip is pinned `syncAbsolute`
+  (defense-in-depth — the mirror's write paths never run Tracktion's remap snapshot, verified at
+  `EditTimecodeRemapperSnapshot::remapEdit`). Editor-core mirrors at the shared rig-load
+  completion beside the derived-curve rebuild; a future tempo-editing flow must re-mirror there
+  too. Tested: focused sequence-content/no-clamp/prune/guard/stability cases
+  (`test_tempo_mirror.cpp`), Engine port integration case, and an editor-core
+  mirror-at-load-completion case.
 
-**Remaining: the UI (slices B–D).** Automation lanes render beneath the tone region on the timeline,
+**All slices complete.** The remaining follow-ups live outside this plan: the capture-scope save
+holes (separate work item) and the slim `docs/todo` note on a future follow/stay warp toggle.
+The UI notes below are retained for reference.
+
+**The UI (slices B–D).** Automation lanes render beneath the tone region on the timeline,
 one lane per automated parameter, drawing `ToneAutomationViewState` curves. The **"+" picker lives in
 the first empty automation lane** directly under the tone region (NOT in the signal-chain panel —
 user correction 2026-07-07): clicking it opens the parameter menu (`listAutomatableParameters`) and

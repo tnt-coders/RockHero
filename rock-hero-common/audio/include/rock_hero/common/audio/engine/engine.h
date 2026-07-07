@@ -183,6 +183,17 @@ public:
     [[nodiscard]] std::expected<void, SongAudioError> clearActiveArrangement() override;
 
     /*!
+    \brief Mirrors the song tempo map into the edit's tempo sequence, one way.
+
+    Write-only derived output: hosted plugins read host tempo from the edit, and RockHero never
+    reads the edit's tempo back. Uses non-remapping, non-clamping inserts with flat step curves,
+    matching RockHero's changes-only-at-anchors tempo model exactly in shape.
+
+    \param tempo_map Song tempo map to mirror.
+    */
+    void mirrorTempoMap(const common::core::TempoMap& tempo_map) override;
+
+    /*!
     \brief Scans conventional VST3 catalog locations through Tracktion's plugin scanner.
     \param progress_callback Optional callback for countable metadata-scan progress.
     \param cancel Cooperative cancellation handle that stops the scan at the next candidate.

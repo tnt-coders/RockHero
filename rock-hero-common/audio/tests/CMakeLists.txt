@@ -30,6 +30,7 @@ add_executable(
     test_live_rig_gain_plugin.cpp
     test_multi_tone_rack.cpp
     test_plugin_state_hygiene.cpp
+    test_tempo_mirror.cpp
     test_tone_automation_curve.cpp
     test_tone_branch_gain_plugin.cpp
     test_thumbnail_source.cpp

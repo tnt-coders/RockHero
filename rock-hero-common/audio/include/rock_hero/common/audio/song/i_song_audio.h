@@ -56,6 +56,18 @@ public:
     */
     [[nodiscard]] virtual std::expected<void, SongAudioError> clearActiveArrangement() = 0;
 
+    /*!
+    \brief Mirrors the song tempo map into the playback backend, one way.
+
+    The backend's tempo state is derived output only — nothing ever reads it back into project
+    state — so hosted plugins receive the song's real tempo and time signature instead of the
+    backend default. Callers re-mirror after load and after any tempo-map change; failures are
+    absorbed as best-effort, matching the other derived caches.
+
+    \param tempo_map Song tempo map to mirror.
+    */
+    virtual void mirrorTempoMap(const common::core::TempoMap& tempo_map) = 0;
+
 protected:
     /*! \brief Creates the song audio port. */
     ISongAudio() = default;
