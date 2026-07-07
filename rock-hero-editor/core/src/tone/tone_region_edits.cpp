@@ -79,7 +79,7 @@ std::expected<void, EditorUndoFailureCode> ToneRegionCreateEdit::redo(
         return std::unexpected{EditorUndoFailureCode::PreflightRejected};
     }
 
-    if (!createToneRegion(*tone_track, at, new_region_id, tone_document_ref).has_value())
+    if (!createToneRegion(*tone_track, position, new_region_id, tone_document_ref).has_value())
     {
         return std::unexpected{EditorUndoFailureCode::PreflightRejected};
     }
@@ -262,7 +262,7 @@ std::expected<void, EditorUndoFailureCode> ToneCreateWithNewToneEdit::redo(
     }
 
     // Recreate the split region first, then re-add the catalog tone it references.
-    if (!createToneRegion(*tone_track, at, new_region_id, tone_document_ref).has_value())
+    if (!createToneRegion(*tone_track, position, new_region_id, tone_document_ref).has_value())
     {
         return std::unexpected{EditorUndoFailureCode::PreflightRejected};
     }

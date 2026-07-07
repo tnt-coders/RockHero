@@ -126,10 +126,13 @@ void EditorController::Impl::onToneRegionResizeRequested(
 }
 
 void EditorController::Impl::onToneRegionCreateRequested(
-    common::core::ToneGridPosition at, std::string new_region_id, std::string tone_document_ref)
+    common::core::ToneGridPosition position, std::string new_region_id,
+    std::string tone_document_ref)
 {
     runAction(
-        EditorAction::CreateToneRegion{at, std::move(new_region_id), std::move(tone_document_ref)});
+        EditorAction::CreateToneRegion{
+            position, std::move(new_region_id), std::move(tone_document_ref)
+        });
 }
 
 void EditorController::Impl::onToneRegionDeleteRequested(std::string region_id)
@@ -149,9 +152,9 @@ void EditorController::Impl::onToneBoundaryMoveRequested(
 }
 
 void EditorController::Impl::onToneCreateNewRequested(
-    common::core::ToneGridPosition at, std::string name)
+    common::core::ToneGridPosition position, std::string name)
 {
-    runAction(EditorAction::CreateNewTone{at, std::move(name)});
+    runAction(EditorAction::CreateNewTone{position, std::move(name)});
 }
 
 // Stores the selection when the id names an authored region; anything else clears it.
@@ -233,14 +236,14 @@ void EditorController::Impl::performActionImpl(const EditorAction::CreateToneReg
     // refreshes the view instead of corrupting gap-free coverage.
     common::core::ToneTrack candidate = *tone_track;
     if (const auto created = common::core::createToneRegion(
-            candidate, action.at, action.new_region_id, action.tone_document_ref);
+            candidate, action.position, action.new_region_id, action.tone_document_ref);
         !created.has_value())
     {
         RH_LOG_WARNING(
             "editor.tone",
             "Rejected tone region create measure={} beat={} detail={:?}",
-            action.at.measure,
-            action.at.beat,
+            action.position.measure,
+            action.position.beat,
             created.error().message);
         updateView();
         return;
@@ -264,7 +267,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::CreateToneReg
                                : std::string{};
     pushUndoEntry(
         std::make_unique<ToneRegionCreateEdit>(
-            action.at, action.new_region_id, action.tone_document_ref, tone_name));
+            action.position, action.new_region_id, action.tone_document_ref, tone_name));
     updateView();
 }
 
@@ -477,14 +480,14 @@ void EditorController::Impl::performActionImpl(const EditorAction::CreateNewTone
     // committing the catalog tone and the region together.
     common::core::ToneTrack candidate = *tone_track;
     if (const auto created = common::core::createToneRegion(
-            candidate, action.at, new_region_id, new_tone_document_ref);
+            candidate, action.position, new_region_id, new_tone_document_ref);
         !created.has_value())
     {
         RH_LOG_WARNING(
             "editor.tone",
             "Rejected new-tone create measure={} beat={} detail={:?}",
-            action.at.measure,
-            action.at.beat,
+            action.position.measure,
+            action.position.beat,
             created.error().message);
         updateView();
         return;
@@ -504,7 +507,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::CreateNewTone
     *tone_track = std::move(candidate);
     pushUndoEntry(
         std::make_unique<ToneCreateWithNewToneEdit>(
-            action.at, new_region_id, new_tone_document_ref, action.name));
+            action.position, new_region_id, new_tone_document_ref, action.name));
 
     reloadLiveRigForToneSet(new_region_id);
 }

@@ -782,9 +782,11 @@ void EditorController::onToneRegionResizeRequested(
 }
 
 void EditorController::onToneRegionCreateRequested(
-    common::core::ToneGridPosition at, std::string new_region_id, std::string tone_document_ref)
+    common::core::ToneGridPosition position, std::string new_region_id,
+    std::string tone_document_ref)
 {
-    m_impl->onToneRegionCreateRequested(at, std::move(new_region_id), std::move(tone_document_ref));
+    m_impl->onToneRegionCreateRequested(
+        position, std::move(new_region_id), std::move(tone_document_ref));
 }
 
 void EditorController::onToneRegionDeleteRequested(std::string region_id)
@@ -803,9 +805,10 @@ void EditorController::onToneBoundaryMoveRequested(
     m_impl->onToneBoundaryMoveRequested(std::move(right_region_id), position);
 }
 
-void EditorController::onToneCreateNewRequested(common::core::ToneGridPosition at, std::string name)
+void EditorController::onToneCreateNewRequested(
+    common::core::ToneGridPosition position, std::string name)
 {
-    m_impl->onToneCreateNewRequested(at, std::move(name));
+    m_impl->onToneCreateNewRequested(position, std::move(name));
 }
 
 void EditorController::onPluginBrowserRequested()

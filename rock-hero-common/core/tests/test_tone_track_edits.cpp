@@ -80,12 +80,12 @@ TEST_CASE("createToneRegion rejects a position not inside any region", "[core][t
 
     // A region start, a region end (both boundaries), and a position past the end are all invalid:
     // there is no region strictly containing them, so there is nothing to split.
-    for (const ToneGridPosition at :
+    for (const ToneGridPosition position :
          {ToneGridPosition{.measure = 1, .beat = 1},
           ToneGridPosition{.measure = 3, .beat = 1},
           ToneGridPosition{.measure = 5, .beat = 1}})
     {
-        const auto result = createToneRegion(track, at, "b", "tones/y/tone.json");
+        const auto result = createToneRegion(track, position, "b", "tones/y/tone.json");
         REQUIRE_FALSE(result.has_value());
         CHECK(result.error().code == ToneTrackErrorCode::PositionOutsideAnyRegion);
     }
