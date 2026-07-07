@@ -195,6 +195,10 @@ namespace
         {
             return "RenameTone";
         }
+        case EditorAction::Id::MoveToneBoundary:
+        {
+            return "MoveToneBoundary";
+        }
     }
 
     return "Unknown";
@@ -237,6 +241,7 @@ namespace
             case EditorAction::Id::CreateToneRegion:
             case EditorAction::Id::DeleteToneRegion:
             case EditorAction::Id::RenameTone:
+            case EditorAction::Id::MoveToneBoundary:
             case EditorAction::Id::SelectArrangement:
             {
                 return "input-calibration-prompt";
@@ -294,6 +299,7 @@ namespace
         case EditorAction::Id::CreateToneRegion:
         case EditorAction::Id::DeleteToneRegion:
         case EditorAction::Id::RenameTone:
+        case EditorAction::Id::MoveToneBoundary:
         case EditorAction::Id::ScanPluginCatalog:
         {
             return "no-loaded-arrangement";
@@ -783,6 +789,12 @@ void EditorController::onToneRegionDeleteRequested(std::string region_id)
 void EditorController::onToneRenameRequested(std::string tone_document_ref, std::string name)
 {
     m_impl->onToneRenameRequested(std::move(tone_document_ref), std::move(name));
+}
+
+void EditorController::onToneBoundaryMoveRequested(
+    std::string right_region_id, common::core::ToneGridPosition position)
+{
+    m_impl->onToneBoundaryMoveRequested(std::move(right_region_id), position);
 }
 
 void EditorController::onPluginBrowserRequested()

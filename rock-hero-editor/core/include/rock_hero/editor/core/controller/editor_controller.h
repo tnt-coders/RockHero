@@ -384,6 +384,10 @@ public:
     /*! \copydoc IEditorController::onToneRenameRequested */
     void onToneRenameRequested(std::string tone_document_ref, std::string name) override;
 
+    /*! \copydoc IEditorController::onToneBoundaryMoveRequested */
+    void onToneBoundaryMoveRequested(
+        std::string right_region_id, common::core::ToneGridPosition position) override;
+
     /*! \brief Shows the scanned plugin browser and starts an initial catalog scan when needed. */
     void onPluginBrowserRequested() override;
 

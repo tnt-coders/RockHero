@@ -107,6 +107,10 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::RenameTone;
     }
+    else if constexpr (std::is_same_v<A, EditorAction::MoveToneBoundary>)
+    {
+        return EditorAction::Id::MoveToneBoundary;
+    }
     else if constexpr (std::is_same_v<A, EditorAction::ShowPluginBrowser>)
     {
         return EditorAction::Id::ShowPluginBrowser;

@@ -140,6 +140,12 @@ void EditorController::Impl::onToneRenameRequested(std::string tone_document_ref
     runAction(EditorAction::RenameTone{std::move(tone_document_ref), std::move(name)});
 }
 
+void EditorController::Impl::onToneBoundaryMoveRequested(
+    std::string right_region_id, common::core::ToneGridPosition position)
+{
+    runAction(EditorAction::MoveToneBoundary{std::move(right_region_id), position});
+}
+
 // Stores the selection when the id names an authored region; anything else clears it.
 void EditorController::Impl::performActionImpl(EditorAction::SelectToneRegion action)
 {
@@ -343,6 +349,63 @@ void EditorController::Impl::performActionImpl(const EditorAction::RenameTone& a
     pushUndoEntry(
         std::make_unique<ToneRenameEdit>(
             action.tone_document_ref, std::move(before_name), action.name));
+    updateView();
+}
+
+// Moves the shared boundary between two adjacent regions so both neighbors meet at the new position
+// (gap-free), and records the inverse. Grid endpoints are audio-inert: the rig switches tones by
+// document ref, so moving a boundary never touches the audio graph.
+void EditorController::Impl::performActionImpl(const EditorAction::MoveToneBoundary& action)
+{
+    common::core::ToneTrack* const tone_track = m_session.currentToneTrack();
+    if (tone_track == nullptr)
+    {
+        return;
+    }
+
+    const auto right = std::ranges::find_if(
+        tone_track->regions, [&action](const common::core::ToneRegion& candidate) {
+            return candidate.id == action.right_region_id;
+        });
+    if (right == tone_track->regions.end() || right == tone_track->regions.begin())
+    {
+        // The first region's start is the pinned song boundary; only interior boundaries move.
+        RH_LOG_WARNING(
+            "editor.tone",
+            "Ignored boundary move for unknown or first tone region region_id={:?}",
+            action.right_region_id);
+        return;
+    }
+
+    if (std::prev(right)->end == action.position && right->start == action.position)
+    {
+        return;
+    }
+
+    // Validate on a candidate first: validateToneTrackRules rejects a position that empties or
+    // reverses either neighbor, so a stale request refreshes the view instead of committing.
+    common::core::ToneTrack candidate = *tone_track;
+    const auto index = static_cast<std::size_t>(std::distance(tone_track->regions.begin(), right));
+    candidate.regions[index - 1].end = action.position;
+    candidate.regions[index].start = action.position;
+    if (const auto valid =
+            common::core::validateToneTrackRules(candidate, session().song().tempo_map);
+        !valid.has_value())
+    {
+        RH_LOG_WARNING(
+            "editor.tone",
+            "Rejected tone boundary move region_id={:?} detail={:?}",
+            action.right_region_id,
+            valid.error().message);
+        updateView();
+        return;
+    }
+
+    const common::core::ToneGridPosition before = right->start;
+    std::prev(right)->end = action.position;
+    right->start = action.position;
+    pushUndoEntry(
+        std::make_unique<ToneBoundaryMoveEdit>(action.right_region_id, before, action.position));
     updateView();
 }
 

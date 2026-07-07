@@ -27,6 +27,7 @@ namespace
         case EditorAction::Id::CreateToneRegion:
         case EditorAction::Id::DeleteToneRegion:
         case EditorAction::Id::RenameTone:
+        case EditorAction::Id::MoveToneBoundary:
         case EditorAction::Id::SelectArrangement:
         {
             return true;
@@ -94,6 +95,7 @@ namespace
             case EditorAction::Id::CreateToneRegion:
             case EditorAction::Id::DeleteToneRegion:
             case EditorAction::Id::RenameTone:
+            case EditorAction::Id::MoveToneBoundary:
             case EditorAction::Id::ShowPluginBrowser:
             case EditorAction::Id::BeginPluginInsert:
             case EditorAction::Id::ScanPluginCatalog:
@@ -162,6 +164,7 @@ namespace
         case EditorAction::Id::CreateToneRegion:
         case EditorAction::Id::DeleteToneRegion:
         case EditorAction::Id::RenameTone:
+        case EditorAction::Id::MoveToneBoundary:
         {
             return conditions.has_loaded_arrangement;
         }
@@ -231,6 +234,7 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::CreateToneRegion:
         case EditorAction::Id::DeleteToneRegion:
         case EditorAction::Id::RenameTone:
+        case EditorAction::Id::MoveToneBoundary:
         case EditorAction::Id::ShowPluginBrowser:
         case EditorAction::Id::BeginPluginInsert:
         case EditorAction::Id::ScanPluginCatalog:
