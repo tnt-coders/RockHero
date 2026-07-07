@@ -1,3 +1,4 @@
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -565,6 +566,35 @@ TEST_CASE("Timeline cursor placement rejects invalid geometry", "[core][tempo-gr
         140.0f,
         TimelineCursorPlacementMode::SnapToGrid);
     CHECK_FALSE(position.has_value());
+}
+
+// Verifies grid snapping yields the line's exact musical address even for note values no fixed
+// fine grid divides, so odd grids (1/13) store the grid line itself, not an approximation.
+TEST_CASE("Nearest tempo grid position is exact for odd note values", "[core][tempo-grid]")
+{
+    const common::core::TempoMap map = makeUniform44Map(2, 4.0);
+    const common::core::Fraction thirteenth_note{1, 13};
+
+    // In 4/4 a 1/13-note step is 4/13 of a beat; the second line of measure 1 sits at beat
+    // 1 + 4/13 (seconds: (4/13) beats * 1 s/beat = ~0.3077 s).
+    const common::core::GridPosition snapped =
+        nearestTempoGridPosition(map, thirteenth_note, common::core::TimePosition{0.3});
+    CHECK(
+        snapped == common::core::GridPosition{
+                       .measure = 1, .beat = 1, .offset = common::core::Fraction{4, 13}
+                   });
+
+    // The time and position variants address the same line.
+    CHECK(
+        nearestTempoGridTime(map, thirteenth_note, common::core::TimePosition{0.3}).seconds ==
+        Catch::Approx(4.0 / 13.0));
+
+    // Whole-beat lines reduce to a zero offset.
+    const common::core::GridPosition on_beat = nearestTempoGridPosition(
+        map, common::core::Fraction{1, 4}, common::core::TimePosition{1.0});
+    CHECK(
+        on_beat ==
+        common::core::GridPosition{.measure = 1, .beat = 2, .offset = common::core::Fraction{}});
 }
 
 } // namespace rock_hero::editor::core

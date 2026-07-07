@@ -48,6 +48,9 @@ struct EditorTheme
     /*! \brief Tone track row band, one step lighter than the waveform row. */
     juce::Colour tone_row_background{0xff1a1e25};
 
+    /*! \brief Tone automation lanes band, between the waveform and tone rows in weight. */
+    juce::Colour automation_row_background{0xff20242a};
+
     /*! \brief Sub-beat subdivision tempo grid dots, dimmest of the grid ranks. */
     juce::Colour grid_subdivision{0xff282a30};
 

@@ -198,6 +198,14 @@ void TrackViewport::Content::paint(juce::Graphics& g)
             juce::Rectangle<int>{
                 0, m_owner.primaryTrackHeight(), bounds.getWidth(), m_owner.toneTrackHeight()
             });
+        // Everything below the tone row is the automation lanes band; painting it here (with the
+        // grid on top) lets the lanes view stay background-free so the grid shows through it.
+        const int lanes_top = m_owner.primaryTrackHeight() + m_owner.toneTrackHeight();
+        g.setColour(editorTheme().automation_row_background);
+        g.fillRect(
+            juce::Rectangle<int>{
+                0, lanes_top, bounds.getWidth(), std::max(0, bounds.getHeight() - lanes_top)
+            });
         drawTempoGridDots(g, m_subdivision_grid_x, m_beat_grid_x, m_measure_grid_x, bounds);
         return;
     }
