@@ -1270,7 +1270,7 @@ std::expected<PluginInstanceState, PluginHostError> Engine::capturePluginState(
     external_plugin->flushPluginStateToValueTree();
     juce::ValueTree captured_state = external_plugin->state.createCopy();
     stripAutomationCurves(captured_state);
-    return makePluginInstanceState(std::move(captured_state));
+    return makePluginInstanceState(captured_state);
 }
 
 // Recreates a captured external-plugin memento as a user-visible plugin with its original id.

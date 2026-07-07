@@ -5,6 +5,7 @@
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/tone/tone_track.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -92,6 +93,12 @@ struct AutomationEditor
     [[nodiscard]] const ToneAutomationViewState& automation() const
     {
         REQUIRE(view.last_state.has_value());
+        // clang-tidy does not treat Catch2 REQUIRE as an optional guard, so assert engagement
+        // explicitly before dereferencing.
+        if (!view.last_state.has_value())
+        {
+            throw std::logic_error("editor pushed no view state");
+        }
         return view.last_state->tone_automation;
     }
 };
