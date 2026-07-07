@@ -29,6 +29,7 @@ definitions, no state added just to make a translation-unit split work.
 #include <functional>
 #include <memory>
 #include <optional>
+#include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <rock_hero/common/audio/device/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/input/i_live_input.h>
 #include <rock_hero/common/audio/live_rig/i_live_rig.h>
@@ -99,8 +100,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         common::audio::ITransport& transport, common::audio::ISongAudio& song_audio,
         common::audio::IAudioDeviceConfiguration& audio_devices,
         common::audio::IPluginHost& plugin_host, common::audio::ILiveRig& live_rig,
-        common::audio::ILiveInput& live_input, EditorController::Services services,
-        EditorController::ExitFunction exit_function,
+        common::audio::IToneAutomation& tone_automation, common::audio::ILiveInput& live_input,
+        EditorController::Services services, EditorController::ExitFunction exit_function,
         EditorController::ProjectOperations project_operations);
     ~Impl() override;
 
@@ -423,6 +424,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // Live rig port used to persist and restore arrangement-owned plugin state.
     common::audio::ILiveRig& m_live_rig;
+
+    // Tone parameter automation port used to read and edit tone-chain plugin curves.
+    common::audio::IToneAutomation& m_tone_automation;
 
     // Live input port used to apply app-local calibration and gate monitoring.
     common::audio::ILiveInput& m_live_input;
