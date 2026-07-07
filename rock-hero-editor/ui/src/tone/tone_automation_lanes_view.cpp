@@ -293,10 +293,11 @@ std::optional<ToneAutomationLanesView::Hit> ToneAutomationLanesView::hitAt(
         return std::nullopt;
     }
 
-    // The trailing empty lane: only its pinned "+" chip claims the pointer.
+    // The trailing empty lane: only its pinned "+" chip claims the pointer. The chip stays
+    // hittable with nothing to offer so the picker can explain the empty state instead of the
+    // affordance silently vanishing.
     const LaneExtent& plus_extent = extents.back();
-    if (local_point.y >= plus_extent.top && local_point.y < plus_extent.top + plus_extent.height &&
-        !m_state.available_parameters.empty())
+    if (local_point.y >= plus_extent.top && local_point.y < plus_extent.top + plus_extent.height)
     {
         const int chip_left = m_visible_content_left + g_chip_inset_x;
         const juce::Rectangle<int> chip{
@@ -495,20 +496,20 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
     {
         graphics.setColour(g_lane_background.withMultipliedAlpha(0.6f));
         graphics.fillRect(plus_bounds);
-        if (!m_state.available_parameters.empty())
-        {
-            const juce::Rectangle<int> chip{
-                m_visible_content_left + g_chip_inset_x,
-                plus_extent.top + g_chip_inset_y,
-                22,
-                plus_extent.height - (2 * g_chip_inset_y)
-            };
-            graphics.setColour(g_chip_fill);
-            graphics.fillRoundedRectangle(chip.toFloat(), g_chip_corner_radius);
-            graphics.setColour(g_chip_text);
-            graphics.setFont(juce::Font{juce::FontOptions{g_chip_font_height + 2.0f}});
-            graphics.drawText("+", chip, juce::Justification::centred);
-        }
+        // The chip is always drawn (dimmed when there is nothing to offer): hiding it made
+        // "empty tone" and "listing failed" indistinguishable from a missing feature.
+        const bool has_offer = !m_state.available_parameters.empty();
+        const juce::Rectangle<int> chip{
+            m_visible_content_left + g_chip_inset_x,
+            plus_extent.top + g_chip_inset_y,
+            22,
+            plus_extent.height - (2 * g_chip_inset_y)
+        };
+        graphics.setColour(g_chip_fill.withMultipliedAlpha(has_offer ? 1.0f : 0.7f));
+        graphics.fillRoundedRectangle(chip.toFloat(), g_chip_corner_radius);
+        graphics.setColour(g_chip_text.withMultipliedAlpha(has_offer ? 1.0f : 0.55f));
+        graphics.setFont(juce::Font{juce::FontOptions{g_chip_font_height + 2.0f}});
+        graphics.drawText("+", chip, juce::Justification::centred);
     }
 }
 
@@ -747,6 +748,19 @@ std::vector<common::core::ToneAutomationPoint> ToneAutomationLanesView::pointsFo
 void ToneAutomationLanesView::showParameterPicker()
 {
     juce::PopupMenu menu;
+    if (m_state.available_parameters.empty())
+    {
+        // Explain the empty offer instead of showing nothing: an unloaded tone cannot be
+        // listed, and an empty tone has no parameters until plugins are added.
+        menu.addItem(
+            -1,
+            m_state.parameters_unavailable ? "Tone parameters unavailable (tone not loaded)"
+                                           : "No automatable parameters in this tone",
+            false);
+        menu.showMenuAsync(juce::PopupMenu::Options{}.withMousePosition().withDeletionCheck(*this));
+        return;
+    }
+
     juce::PopupMenu grouped;
     juce::String open_group;
     int item_id = 1;

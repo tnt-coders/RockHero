@@ -111,6 +111,14 @@ struct ToneAutomationViewState
     std::vector<ToneAutomationParamChoice> available_parameters;
 
     /*!
+    \brief True when parameter listing failed outright (tone not loaded in the rig).
+
+    Distinguishes "this tone has nothing to automate" from "the backend could not answer", so the
+    picker can explain itself instead of both states rendering as an empty offer.
+    */
+    bool parameters_unavailable{false};
+
+    /*!
     \brief Compares two tone-automation view states by their stored values.
     \param lhs Left-hand tone-automation view state.
     \param rhs Right-hand tone-automation view state.
