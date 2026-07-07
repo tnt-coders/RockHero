@@ -43,7 +43,6 @@ constexpr float g_chip_font_height = 12.0f;
 // stored position an exact rational at far finer than audible resolution.
 constexpr int g_fine_grid_denominator = 960;
 
-const juce::Colour g_lane_background{juce::Colour{0xff20242a}};
 const juce::Colour g_lane_separator{juce::Colours::black.withAlpha(0.45f)};
 const juce::Colour g_curve_colour{editorTheme().accent};
 const juce::Colour g_point_fill{juce::Colours::white.withAlpha(0.92f)};
@@ -387,14 +386,9 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
         const core::ToneAutomationLaneViewState& lane = m_state.lanes[lane_index];
         const float lane_alpha = lane.resolved ? 1.0f : g_unresolved_alpha;
 
-        // The canvas paints the automation band and the tempo grid beneath this component, and
-        // the grid must stay visible as the alignment cue for drawing points — so lanes carry no
-        // opaque fill. A faint alternating wash keeps each lane reading as its own surface.
-        if (lane_index % 2 == 1)
-        {
-            graphics.setColour(juce::Colours::white.withAlpha(0.03f));
-            graphics.fillRect(lane_bounds);
-        }
+        // The canvas paints the shared waveform-band and the tempo grid beneath this component,
+        // and the grid must read exactly as it does on the waveform row — so lanes paint no
+        // background at all; separators and name chips carry the lane boundaries.
 
         const int band_top = extent.top + g_value_band_inset;
         const int band_height =
@@ -590,15 +584,12 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
         graphics.drawText(chip_text, chip, juce::Justification::centred);
     }
 
-    // The trailing empty lane carries only the pinned "+" chip.
+    // The trailing empty lane carries only the pinned "+" chip; no fill, so the shared band and
+    // grid read at full strength there too.
     const LaneExtent& plus_extent = extents.back();
     const juce::Rectangle<int> plus_bounds{0, plus_extent.top, getWidth(), plus_extent.height};
     if (plus_bounds.intersects(clip))
     {
-        // A light translucent scrim distinguishes the picker strip from real lanes while keeping
-        // the canvas grid visible through it.
-        graphics.setColour(g_lane_background.withMultipliedAlpha(0.35f));
-        graphics.fillRect(plus_bounds);
         // The chip is always drawn (dimmed when there is nothing to offer): hiding it made
         // "empty tone" and "listing failed" indistinguishable from a missing feature.
         const bool has_offer = !m_state.available_parameters.empty();
