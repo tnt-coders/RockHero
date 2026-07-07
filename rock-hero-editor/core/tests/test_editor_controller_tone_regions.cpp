@@ -259,12 +259,14 @@ TEST_CASE(
     CHECK(editor.regions()[0].end == gridAt(2, 1));
     CHECK(editor.regions()[1].start == gridAt(2, 1));
     CHECK(editor.regions()[1].tone_document_ref == g_minted_ref);
-    // The catalog gained the new tone, and the rig was minted once and reloaded to add its branch.
+    // The catalog gained the new tone. The empty tone takes the incremental fast path: one
+    // branch add on the live rig, no full reload, and no capture (nothing on disk is replaced).
     CHECK(common::core::toneNameFor(editor.arrangement(), g_minted_ref) == "Solo");
     CHECK(editor.live_rig.mint_call_count == 1);
-    CHECK(editor.live_rig.load_call_count == loads_before + 1);
-    // The reload replaces branches from disk, so unsaved branch drift is captured first.
-    CHECK(editor.live_rig.capture_call_count == 1);
+    CHECK(editor.live_rig.add_branch_call_count == 1);
+    CHECK(editor.live_rig.last_added_branch_ref == g_minted_ref);
+    CHECK(editor.live_rig.load_call_count == loads_before);
+    CHECK(editor.live_rig.capture_call_count == 0);
 
     // Undo removes both the region and the catalog tone (pure model).
     editor.controller.onUndoRequested();
@@ -316,8 +318,12 @@ TEST_CASE("EditorController resets the sole tone region on delete", "[core][edit
     REQUIRE(editor.regions().size() == 1);
     const std::string only_id = editor.regions().front().id;
     editor.live_rig.next_mint_ref = g_minted_ref;
-    // The reset's reload reports only the fresh tone's branch, dropping the previous tone from
-    // the rig, exactly as the real engine would.
+    // Force the full-reload fallback: this test exercises the reload path, whose completion
+    // reports only the fresh tone's branch — dropping the previous tone from the rig, exactly as
+    // the real engine would.
+    editor.live_rig.next_add_branch_error = common::audio::LiveRigError{
+        common::audio::LiveRigErrorCode::InvalidRequest, "forced fallback"
+    };
     editor.live_rig.next_load_result.tone_chains = {
         common::audio::LoadedToneChainIdentities{
             .tone_document_ref = g_minted_ref,

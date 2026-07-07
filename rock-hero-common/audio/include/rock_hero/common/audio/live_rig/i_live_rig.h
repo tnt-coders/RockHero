@@ -232,6 +232,20 @@ public:
         const std::filesystem::path& song_directory) = 0;
 
     /*!
+    \brief Appends an empty (passthrough) branch for a tone to the currently loaded rig.
+
+    The fast path for creating a new tone: the branch is one internal gain plugin plus wiring, so
+    the rig's existing plugins are never torn down or re-instantiated and playback never stops.
+    Adding a reference whose branch is already loaded succeeds without changes. Fails when no rig
+    is loaded; the caller falls back to a full loadLiveRig.
+
+    \param tone_document_ref Tone the new branch represents (its document must already exist).
+    \return Empty success, or a typed failure.
+    */
+    [[nodiscard]] virtual std::expected<void, LiveRigError> addEmptyToneBranch(
+        const std::string& tone_document_ref) = 0;
+
+    /*!
     \brief Loads a package-relative tone document into the active live rig chain.
 
     The operation runs cooperatively on the message thread: each plugin is restored in its own

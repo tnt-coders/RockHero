@@ -517,6 +517,19 @@ struct FakeLiveRig final : public common::audio::ILiveRig
         return next_mint_ref;
     }
 
+    // Records the incremental empty-branch add and returns the configured outcome.
+    [[nodiscard]] std::expected<void, common::audio::LiveRigError> addEmptyToneBranch(
+        const std::string& tone_document_ref) override
+    {
+        last_added_branch_ref = tone_document_ref;
+        add_branch_call_count += 1;
+        if (next_add_branch_error.has_value())
+        {
+            return std::unexpected{*next_add_branch_error};
+        }
+        return {};
+    }
+
     // Drives the configured load result or error through the new async callback contract while
     // recording the request and replicating the engine's per-plugin progress sequence.
     void loadLiveRig(
@@ -715,6 +728,15 @@ struct FakeLiveRig final : public common::audio::ILiveRig
 
     // When set, mintEmptyTone returns this error instead of a reference.
     std::optional<common::audio::LiveRigError> next_mint_error{};
+
+    // Tone reference from the most recent addEmptyToneBranch call.
+    std::string last_added_branch_ref{};
+
+    // Number of addEmptyToneBranch calls received.
+    int add_branch_call_count{0};
+
+    // When set, addEmptyToneBranch fails, forcing callers onto the full-reload fallback.
+    std::optional<common::audio::LiveRigError> next_add_branch_error{};
 
     // Song directory recorded from the last mintEmptyTone call.
     std::optional<std::filesystem::path> last_mint_song_directory{};

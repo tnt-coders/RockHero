@@ -820,6 +820,44 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
     return snapshot;
 }
 
+std::expected<void, LiveRigError> Engine::addEmptyToneBranch(const std::string& tone_document_ref)
+{
+    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        return std::unexpected{LiveRigError{LiveRigErrorCode::MessageThreadRequired}};
+    }
+    if (!m_impl->m_tone_rack.has_value() || m_impl->m_edit == nullptr)
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::InvalidRequest,
+            "No loaded rig to add a tone branch to: " + tone_document_ref,
+        }};
+    }
+
+    // A branch left behind by an earlier add (undo keeps the model authoritative and lets rig
+    // branches linger) simply satisfies the request.
+    if (std::ranges::any_of(
+            m_impl->m_tone_rack->branches, [&tone_document_ref](const ToneRackBranch& branch) {
+                return branch.tone_document_ref == tone_document_ref;
+            }))
+    {
+        return {};
+    }
+
+    if (auto added =
+            audio::addEmptyToneBranch(*m_impl->m_tone_rack, *m_impl->m_edit, tone_document_ref);
+        !added.has_value())
+    {
+        return std::unexpected{std::move(added.error())};
+    }
+
+    // The bookkeeping arrays stay parallel to the branches by appending together: unity authored
+    // gain and an empty retained layout, exactly what a fresh empty tone document loads as.
+    m_impl->m_branch_output_gains.push_back(Gain{defaultGainDb()});
+    m_impl->m_branch_display_metadata.push_back(Impl::BranchDisplayMetadata{});
+    return {};
+}
+
 // Writes a fresh empty tone document (empty chain, unity gain) and returns its package-relative
 // reference. Eager persistence lets a subsequent loadLiveRig, which fails on a missing document,
 // pick the new reference up as its own passthrough branch.

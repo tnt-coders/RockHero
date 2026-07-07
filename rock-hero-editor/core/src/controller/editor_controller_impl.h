@@ -318,6 +318,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void clearLiveRig();
     [[nodiscard]] std::filesystem::path currentSongDirectory() const;
     [[nodiscard]] bool loadedRigCoversModelTones() const;
+    [[nodiscard]] bool activateEmptyToneBranch(
+        const std::string& tone_document_ref, const std::string& select_region_id);
     void reloadLiveRigForToneSet(std::string select_region_id);
     void resetSoleToneRegion(const std::string& region_id);
     void runProjectWriteAction(EditorAction::ProjectWriteAction&& action);

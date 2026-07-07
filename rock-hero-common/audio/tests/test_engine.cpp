@@ -862,6 +862,65 @@ TEST_CASE("Engine live rig captures every loaded tone branch", "[audio][engine][
     CHECK(second_document->output_gain.db == Catch::Approx(defaultGainDb()));
 }
 
+// Verifies the incremental empty-branch add registers a switchable, capturable branch without a
+// rig reload, and that adding an already-loaded reference is an idempotent no-op.
+TEST_CASE("Engine live rig adds an empty tone branch incrementally", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    const TemporarySongDirectory song_directory;
+    ILiveRig& live_rig = harness.engine;
+
+    // No rig loaded yet: the add must fail so callers fall back to a full load.
+    CHECK_FALSE(live_rig.addEmptyToneBranch("tones/unloaded/tone.json").has_value());
+
+    const auto first_ref = live_rig.mintEmptyTone(song_directory.path());
+    const auto second_ref = live_rig.mintEmptyTone(song_directory.path());
+    REQUIRE(first_ref.has_value());
+    REQUIRE(second_ref.has_value());
+
+    std::optional<std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>>
+        loaded;
+    live_rig.loadLiveRig(
+        LiveRigLoadRequest{
+            .song_directory = song_directory.path(),
+            .tone_document_refs = {*first_ref},
+            .audible_tone_ref = {},
+            .progress_callback = {},
+            .yield_callback = [](const auto& next) { next(); },
+        },
+        [&loaded](auto value) { loaded = std::move(value); });
+    REQUIRE(loaded.has_value());
+    // clang-tidy does not treat Catch2 REQUIRE as an optional guard, so assert engagement
+    // explicitly before dereferencing.
+    if (!loaded.has_value())
+    {
+        return;
+    }
+    REQUIRE(loaded->has_value());
+
+    REQUIRE(live_rig.addEmptyToneBranch(*second_ref).has_value());
+    // Adding the same reference again is a no-op success (lingering branches satisfy re-adds).
+    REQUIRE(live_rig.addEmptyToneBranch(*second_ref).has_value());
+
+    // The new branch is switchable and capture persists it like any loaded branch, proving the
+    // parallel bookkeeping arrays stayed coherent.
+    CHECK(live_rig.setAudibleTone(*second_ref).has_value());
+    REQUIRE(live_rig.setOutputGain(Gain{-3.0}).has_value());
+    const auto snapshot = live_rig.captureActiveRig(
+        LiveRigCaptureRequest{
+            .song_directory = song_directory.path(),
+            .arrangement_id = g_arrangement_id,
+            .block_indices = {},
+            .display_type_overrides = {},
+
+            .stable_ids = {},
+        });
+    REQUIRE(snapshot.has_value());
+    const auto second_document = readToneDocument(song_directory.path(), *second_ref);
+    REQUIRE(second_document.has_value());
+    CHECK(second_document->output_gain.db == Catch::Approx(-3.0));
+}
+
 // Verifies the single Tracktion arrangement track can replace its loaded audio.
 TEST_CASE("Engine audio port replaces arrangement audio", "[audio][engine][integration]")
 {

@@ -264,6 +264,12 @@ public:
         return std::string{"tones/2f0e9d8c-7b6a-4c5d-8e9f-0a1b2c3d4e5f/tone.json"};
     }
 
+    [[nodiscard]] std::expected<void, common::audio::LiveRigError> addEmptyToneBranch(
+        const std::string&) override
+    {
+        return {};
+    }
+
     void loadLiveRig(
         common::audio::LiveRigLoadRequest,
         common::audio::LiveRigLoadResultCallback completion) override
