@@ -127,6 +127,28 @@ public:
     [[nodiscard]] virtual std::expected<void, ToneAutomationError> writeParameterCurve(
         const std::string& tone_document_ref, const std::string& instance_id,
         const std::string& param_id, std::span<const AutomationCurvePoint> points) = 0;
+
+protected:
+    /*! \brief Creates the tone automation interface. */
+    IToneAutomation() = default;
+
+    /*! \brief Copies the tone automation interface. */
+    IToneAutomation(const IToneAutomation&) = default;
+
+    /*! \brief Moves the tone automation interface. */
+    IToneAutomation(IToneAutomation&&) = default;
+
+    /*!
+    \brief Assigns the tone automation interface from another interface.
+    \return Reference to this tone automation interface.
+    */
+    IToneAutomation& operator=(const IToneAutomation&) = default;
+
+    /*!
+    \brief Move-assigns the tone automation interface from another interface.
+    \return Reference to this tone automation interface.
+    */
+    IToneAutomation& operator=(IToneAutomation&&) = default;
 };
 
 } // namespace rock_hero::common::audio
