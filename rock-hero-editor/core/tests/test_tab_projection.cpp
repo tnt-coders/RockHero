@@ -85,6 +85,7 @@ using common::core::GridPosition;
         .tone_document_ref = {},
         .tones = {},
         .tone_track = {},
+        .tone_automation = {},
         .chart_ref = "charts/4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4.chart.json",
         .chart = std::move(chart),
     };

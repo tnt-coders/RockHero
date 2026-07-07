@@ -51,6 +51,7 @@ TEST_CASE("Song holds multiple arrangements", "[core][song]")
             .tone_document_ref = {},
             .tones = {},
             .tone_track = {},
+            .tone_automation = {},
             .chart_ref = {},
             .chart = {},
         });
@@ -69,6 +70,7 @@ TEST_CASE("Song holds multiple arrangements", "[core][song]")
             .tone_document_ref = {},
             .tones = {},
             .tone_track = {},
+            .tone_automation = {},
             .chart_ref = {},
             .chart = {},
         });
@@ -114,6 +116,7 @@ TEST_CASE("Song stores top-level value fields", "[core][song]")
          .tone_document_ref = "tone/rhythm.json",
          .tones = {},
          .tone_track = {},
+         .tone_automation = {},
          .chart_ref = {},
          .chart = {}});
 

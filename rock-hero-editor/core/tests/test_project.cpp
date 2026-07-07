@@ -426,6 +426,7 @@ public:
             .tone_document_ref = {},
             .tones = {},
             .tone_track = {},
+            .tone_automation = {},
             .chart_ref = {},
             .chart = {},
         });

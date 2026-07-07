@@ -1387,6 +1387,7 @@ private:
             .tone_document_ref = std::move(tone_document_ref),
             .tones = {},
             .tone_track = {},
+            .tone_automation = {},
             .chart_ref = {},
             .chart = {},
         });
@@ -1481,6 +1482,7 @@ private:
             .tone_document_ref = {},
             .tones = {},
             .tone_track = {},
+            .tone_automation = {},
             .chart_ref = {},
             .chart = {},
         });
@@ -1499,6 +1501,7 @@ private:
             .tone_document_ref = {},
             .tones = {},
             .tone_track = {},
+            .tone_automation = {},
             .chart_ref = {},
             .chart = {},
         });

@@ -120,10 +120,8 @@ TEST_CASE("Lanes view reports lane heights plus the plus lane", "[ui][tone-autom
 
 TEST_CASE("Lanes view has zero height with no selected tone", "[ui][tone-automation-lanes]")
 {
-    const LanesHarness harness;
-    ToneAutomationLanesView empty{
-        const_cast<RecordingLanesListener&>(harness.listener), harness.tempo_map
-    };
+    LanesHarness harness;
+    const ToneAutomationLanesView empty{harness.listener, harness.tempo_map};
     CHECK(empty.totalHeight() == 0);
     CHECK_FALSE(empty.wantsPointerAt({10, 10}));
 }
@@ -147,7 +145,7 @@ TEST_CASE("Lanes view claims editable zones and rejects inert ones", "[ui][tone-
 TEST_CASE("Lanes view paints headlessly", "[ui][tone-automation-lanes]")
 {
     LanesHarness harness;
-    juce::Image image{juce::Image::ARGB, 800, 200, true, juce::SoftwareImageType{}};
+    const juce::Image image{juce::Image::ARGB, 800, 200, true, juce::SoftwareImageType{}};
     juce::Graphics graphics{image};
     harness.view.paint(graphics);
     SUCCEED("paint completed without assertions");
