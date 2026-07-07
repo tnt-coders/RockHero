@@ -66,7 +66,12 @@ Consult these documents per the [Bootstrap Rules](#bootstrap-rules) above:
 
 ## Documentation Maintenance Rules
 
-Planning documents live in two buckets:
+Planning documents live in three buckets:
+
+- **`docs/plans/`** — The maintained product roadmap. `00-roadmap.md` and any plan currently being
+  executed are kept aligned with reality; unstarted plans may lag but must be re-verified against
+  the current code before execution begins. See `docs/plans/00-roadmap.md` for ordering, gates,
+  and open decisions.
 
 - **`docs/todo/`** — Deferred plans for work that may happen at some unknown future point. Do not
   keep these continuously synchronized with routine code or design changes. Treat them as plans
