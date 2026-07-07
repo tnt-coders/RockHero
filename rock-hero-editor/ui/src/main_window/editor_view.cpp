@@ -1498,13 +1498,23 @@ void EditorView::createToneMarkerAtPlayhead()
         return; // The marker fell on a boundary or outside any region; there is nothing to split.
     }
 
-    // Offer each distinct catalog tone except the one being split, then a fresh-tone option.
+    // Exclude both the tone being split (the previous tone) and the tone immediately after the new
+    // region (the next tone): choosing either would produce a boundary with no actual tone change on
+    // that side. Offer every other distinct catalog tone, then a fresh-tone option.
+    const auto containing_index =
+        static_cast<std::size_t>(containing - m_state.tone_track.regions.begin());
+    const std::string previous_ref = containing->tone_document_ref;
+    const std::string next_ref =
+        containing_index + 1 < m_state.tone_track.regions.size()
+            ? m_state.tone_track.regions[containing_index + 1].tone_document_ref
+            : std::string{};
+
     juce::PopupMenu menu;
     std::vector<std::string> reuse_refs;
     for (const core::ToneRegionViewState& region : m_state.tone_track.regions)
     {
-        if (region.tone_document_ref.empty() ||
-            region.tone_document_ref == containing->tone_document_ref ||
+        if (region.tone_document_ref.empty() || region.tone_document_ref == previous_ref ||
+            (!next_ref.empty() && region.tone_document_ref == next_ref) ||
             std::ranges::find(reuse_refs, region.tone_document_ref) != reuse_refs.end())
         {
             continue;
