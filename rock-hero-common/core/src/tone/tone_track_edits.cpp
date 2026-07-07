@@ -32,41 +32,32 @@ namespace
 
 } // namespace
 
-std::expected<void, ToneTrackError> sliceToneRegion(
-    ToneTrack& tone_track, const std::string& region_id, ToneGridPosition cut,
-    std::string new_region_id, std::string new_tone_document_ref)
+std::expected<void, ToneTrackError> createToneRegion(
+    ToneTrack& tone_track, ToneGridPosition at, std::string new_region_id,
+    std::string new_tone_document_ref)
 {
-    const auto index = indexOfRegion(tone_track, region_id);
-    if (!index.has_value())
+    const auto container = std::ranges::find_if(tone_track.regions, [at](const ToneRegion& region) {
+        return gridPositionLess(region.start, at) && gridPositionLess(at, region.end);
+    });
+    if (container == tone_track.regions.end())
     {
         return std::unexpected{ToneTrackError{
-            .code = ToneTrackErrorCode::RegionNotFound,
-            .message = "cannot slice unknown tone region: " + region_id,
+            .code = ToneTrackErrorCode::PositionOutsideAnyRegion,
+            .message = "cannot create a tone region at a position that is not inside a region",
         }};
     }
 
-    ToneRegion& region = tone_track.regions[*index];
-    if (!gridPositionLess(region.start, cut) || !gridPositionLess(cut, region.end))
-    {
-        return std::unexpected{ToneTrackError{
-            .code = ToneTrackErrorCode::SlicePositionOutsideRegion,
-            .message = "slice position must fall strictly inside the tone region",
-        }};
-    }
-
-    // Build the right half from the original bounds before shrinking the left half, then insert it
-    // immediately after so the track stays sorted and gap-free.
-    ToneRegion right_region{
+    // Build the new right half from the original bounds before shrinking the left half, then insert
+    // it immediately after so the track stays sorted and gap-free.
+    ToneRegion new_region{
         .id = std::move(new_region_id),
-        .name = region.name,
-        .start = cut,
-        .end = region.end,
+        .name = {},
+        .start = at,
+        .end = container->end,
         .tone_document_ref = std::move(new_tone_document_ref),
     };
-    region.end = cut;
-    tone_track.regions.insert(
-        tone_track.regions.begin() + static_cast<std::ptrdiff_t>(*index) + 1,
-        std::move(right_region));
+    container->end = at;
+    tone_track.regions.insert(std::next(container), std::move(new_region));
     return {};
 }
 
@@ -82,18 +73,25 @@ std::expected<void, ToneTrackError> deleteToneRegion(
         }};
     }
 
+    if (tone_track.regions.size() <= 1)
+    {
+        return std::unexpected{ToneTrackError{
+            .code = ToneTrackErrorCode::CannotRemoveOnlyRegion,
+            .message = "cannot remove the only tone region; the song must always be covered",
+        }};
+    }
+
     const std::size_t position = *index;
     if (position > 0)
     {
         // Extend the previous region over the removed span so no gap opens.
         tone_track.regions[position - 1].end = tone_track.regions[position].end;
     }
-    else if (tone_track.regions.size() > 1)
+    else
     {
         // First region: the next region absorbs the removed span from the front instead.
         tone_track.regions[position + 1].start = tone_track.regions[position].start;
     }
-    // Only region: nothing to extend; the emptied track means the arrangement's whole-song default.
 
     tone_track.regions.erase(tone_track.regions.begin() + static_cast<std::ptrdiff_t>(position));
     return {};

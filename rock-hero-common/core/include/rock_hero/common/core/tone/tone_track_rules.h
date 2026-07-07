@@ -37,8 +37,11 @@ enum class ToneTrackErrorCode : std::uint8_t
     /*! \brief An edit referenced a region id that is not present on the track. */
     RegionNotFound,
 
-    /*! \brief A slice position does not fall strictly inside the region being sliced. */
-    SlicePositionOutsideRegion,
+    /*! \brief A create position does not fall strictly inside any region on the track. */
+    PositionOutsideAnyRegion,
+
+    /*! \brief A delete would remove the only region; the song must always stay covered. */
+    CannotRemoveOnlyRegion,
 };
 
 /*! \brief Recoverable failure produced by tone-track structural validation. */
