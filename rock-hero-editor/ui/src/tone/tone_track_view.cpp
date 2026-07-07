@@ -235,6 +235,14 @@ void ToneTrackView::mouseDown(const juce::MouseEvent& event)
     }
 
     const core::ToneRegionViewState& region = m_state.regions[hit->region_index];
+
+    // A right-click (or track-pad equivalent) on a region body opens its context menu.
+    if (event.mods.isPopupMenu())
+    {
+        showRegionContextMenu(region);
+        return;
+    }
+
     if (hit->edge.has_value())
     {
         m_drag = DragState{
@@ -247,6 +255,26 @@ void ToneTrackView::mouseDown(const juce::MouseEvent& event)
     }
 
     m_pending_select = hit->region_index;
+}
+
+// Opens the region's right-click context menu. Rename mirrors the double-click quick shortcut.
+void ToneTrackView::showRegionContextMenu(const core::ToneRegionViewState& region)
+{
+    if (region.tone_document_ref.empty())
+    {
+        return; // The synthesized default region has no catalog tone to act on.
+    }
+
+    juce::PopupMenu menu;
+    menu.addItem(1, "Rename");
+    menu.showMenuAsync(
+        juce::PopupMenu::Options{}.withTargetComponent(this),
+        [this, ref = region.tone_document_ref, name = region.name](int result) {
+            if (result == 1)
+            {
+                m_listener.onToneRenamePromptRequested(ref, name);
+            }
+        });
 }
 
 void ToneTrackView::mouseDrag(const juce::MouseEvent& event)
