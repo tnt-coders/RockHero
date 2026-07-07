@@ -201,20 +201,22 @@ struct AudioAssetDocumentEntry
     TimeDuration start_offset;
 };
 
-// One authored tone region retained between validation and final JSON formatting. Only the start
-// is persisted: regions tile the song gap-free, so each end is the next region's start (or the
-// tempo-map terminal) and the reader derives it.
-struct ToneRegionDocumentEntry
+// One authored tone change retained between validation and final JSON formatting. Only the start
+// is persisted: changes tile the song gap-free, so each region's end is the next change's start
+// (or the tempo-map terminal) and the reader derives it. Region ids are session-scoped and minted
+// at load, so none is persisted; the tone is named by its catalog ID, from which the reader
+// derives the canonical `tones/<uuid>/tone.json` document path.
+struct ToneChangeDocumentEntry
 {
-    std::string id;
     std::string start;
-    std::string tone_document;
+    std::string tone_id;
 };
 
-// One named catalog tone retained between validation and final JSON formatting.
+// One named catalog tone retained between validation and final JSON formatting. The ID is the
+// tone's UUID; its document path is derived from the canonical layout rather than persisted.
 struct ToneCatalogDocumentEntry
 {
-    std::string tone_document;
+    std::string id;
     std::string name;
 };
 
@@ -224,33 +226,31 @@ struct ArrangementDocumentEntry
     std::string id;
     std::string part;
     std::string audio;
-    std::string tone_document;
+    std::string tone_id;
     std::vector<ToneCatalogDocumentEntry> tones;
-    std::vector<ToneRegionDocumentEntry> tone_regions;
+    std::vector<ToneChangeDocumentEntry> tone_changes;
     std::vector<std::string> tone_automation_lines;
     std::string chart_document;
 };
 
-// Renders one authored tone region as a compact object line. The region carries no name of its own;
-// its name comes from the catalog tone it references.
-[[nodiscard]] std::string formatToneRegionLine(const ToneRegionDocumentEntry& entry)
+// Renders one authored tone change as a compact object line. The change carries no name of its
+// own; its name comes from the catalog tone it references.
+[[nodiscard]] std::string formatToneChangeLine(const ToneChangeDocumentEntry& entry)
 {
-    std::string line = "{ \"id\": ";
-    line += jsonString(entry.id);
-    line += ", \"start\": ";
+    std::string line = "{ \"start\": ";
     line += jsonString(entry.start);
-    line += ", \"toneDocument\": ";
-    line += jsonString(entry.tone_document);
+    line += ", \"tone\": ";
+    line += jsonString(entry.tone_id);
     line += " }";
 
     return line;
 }
 
-// Renders one catalog tone (its document reference and user-facing name) as a compact object line.
+// Renders one catalog tone (its ID and user-facing name) as a compact object line.
 [[nodiscard]] std::string formatToneCatalogLine(const ToneCatalogDocumentEntry& entry)
 {
-    std::string line = "{ \"toneDocument\": ";
-    line += jsonString(entry.tone_document);
+    std::string line = "{ \"id\": ";
+    line += jsonString(entry.id);
     line += ", \"name\": ";
     line += jsonString(entry.name);
     line += " }";
@@ -327,10 +327,10 @@ struct ArrangementDocumentEntry
     line += jsonString(entry.part);
     line += ", \"audio\": ";
     line += jsonString(entry.audio);
-    if (!entry.tone_document.empty())
+    if (!entry.tone_id.empty())
     {
-        line += ", \"toneDocument\": ";
-        line += jsonString(entry.tone_document);
+        line += ", \"tone\": ";
+        line += jsonString(entry.tone_id);
     }
     if (!entry.tones.empty())
     {
@@ -342,15 +342,15 @@ struct ArrangementDocumentEntry
         }
         line += "\n    ]";
     }
-    if (!entry.tone_regions.empty())
+    if (!entry.tone_changes.empty())
     {
-        line += R"(, "toneTrack": { "regions": [)";
-        for (std::size_t index = 0; index < entry.tone_regions.size(); ++index)
+        line += R"(, "toneChanges": [)";
+        for (std::size_t index = 0; index < entry.tone_changes.size(); ++index)
         {
             line += (index == 0 ? "\n      " : ",\n      ");
-            line += formatToneRegionLine(entry.tone_regions[index]);
+            line += formatToneChangeLine(entry.tone_changes[index]);
         }
-        line += "\n    ] }";
+        line += "\n    ]";
     }
     if (!entry.tone_automation_lines.empty())
     {
@@ -556,6 +556,19 @@ struct SongDocumentForSave
         }
     }
 
+    // Catalog tones persist by UUID with the document path derived from the canonical layout, so
+    // every catalog reference must be canonical (and its document present) before a save may
+    // reduce it to an ID.
+    for (const Tone& tone : arrangement.tones)
+    {
+        if (const auto tone_error =
+                validateToneDocumentOnDisk(workspace_directory, tone.tone_document_ref);
+            !tone_error.has_value())
+        {
+            return tone_error;
+        }
+    }
+
     return std::expected<void, SongPackageError>{};
 }
 
@@ -691,15 +704,14 @@ struct SongDocumentForSave
             audio_id = audio_ids_by_path.emplace(relative_audio_name, generated_id).first;
         }
 
-        std::vector<ToneRegionDocumentEntry> tone_regions;
-        tone_regions.reserve(arrangement.tone_track.regions.size());
+        std::vector<ToneChangeDocumentEntry> tone_changes;
+        tone_changes.reserve(arrangement.tone_track.regions.size());
         for (const ToneRegion& region : arrangement.tone_track.regions)
         {
-            tone_regions.push_back(
-                ToneRegionDocumentEntry{
-                    .id = region.id,
+            tone_changes.push_back(
+                ToneChangeDocumentEntry{
                     .start = formatBeatPositionToken(region.start.measure, region.start.beat),
-                    .tone_document = region.tone_document_ref,
+                    .tone_id = toneIdFromToneDocumentRef(region.tone_document_ref),
                 });
         }
 
@@ -709,7 +721,7 @@ struct SongDocumentForSave
         {
             tones.push_back(
                 ToneCatalogDocumentEntry{
-                    .tone_document = tone.tone_document_ref,
+                    .id = toneIdFromToneDocumentRef(tone.tone_document_ref),
                     .name = tone.name,
                 });
         }
@@ -726,9 +738,9 @@ struct SongDocumentForSave
                 .id = *arrangement_id,
                 .part = partName(arrangement.part),
                 .audio = audio_id->second,
-                .tone_document = arrangement.tone_document_ref,
+                .tone_id = toneIdFromToneDocumentRef(arrangement.tone_document_ref),
                 .tones = std::move(tones),
-                .tone_regions = std::move(tone_regions),
+                .tone_changes = std::move(tone_changes),
                 .tone_automation_lines = std::move(tone_automation_lines),
                 .chart_document = arrangement.chart_ref,
             });
