@@ -47,6 +47,16 @@ struct PluginRecord
     Empty means the editor should use its automatic display classification.
     */
     std::string display_type_override;
+
+    /*!
+    \brief Opaque editor-owned durable plugin id carried through the document.
+
+    The editor mints it and keys arrangement-scoped automation in song.json on it, so the
+    association follows the plugin through chain reorder and capture. The audio layer never
+    interprets it. Empty for records written before automation existed; the editor mints one at
+    load and the next capture persists it.
+    */
+    std::string stable_id;
 };
 
 /*! \brief V1 tone document subset currently used by the linear plugin-chain runtime. */

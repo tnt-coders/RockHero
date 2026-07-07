@@ -2,6 +2,7 @@
 #include "live_rig/tone_document.h"
 #include "shared/audio_path_util.h"
 #include "tracktion/live_rig_gain_plugin.h"
+#include "tracktion/plugin_state_hygiene.h"
 
 #include <algorithm>
 #include <rock_hero/common/core/package/package_id.h>
@@ -684,9 +685,17 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
             chain_index < request.display_type_overrides.size()
                 ? request.display_type_overrides[chain_index]
                 : std::string{};
+        const std::string stable_id = chain_index < request.stable_ids.size()
+                                          ? request.stable_ids[chain_index]
+                                          : std::string{};
         external_plugin->flushPluginStateToValueTree();
         juce::ValueTree plugin_state = external_plugin->state.createCopy();
         plugin_state.removeProperty(tracktion::IDs::id, nullptr);
+        // The seconds curve is a derived cache of the arrangement's musical automation, and the
+        // remap flag would let a future edit-tempo write beat-shift that cache behind the mirror's
+        // back; neither belongs in persisted plugin state.
+        stripAutomationCurves(plugin_state);
+        stripTempoRemapFlag(plugin_state);
 
         const std::filesystem::path plugin_state_ref =
             generatedPluginStatePath(plugin_state_directory, chain_index);
@@ -715,6 +724,7 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
                 .tracktion_state_ref = plugin_state_ref.generic_string(),
                 .block_index = block_index,
                 .display_type_override = display_type_override,
+                .stable_id = stable_id,
             });
         snapshot.plugins.push_back(makePluginChainEntry(*external_plugin, chain_index));
         snapshot.plugins.back().block_index = block_index;
@@ -743,10 +753,12 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
         Impl::BranchDisplayMetadata& metadata = m_impl->m_branch_display_metadata[*branch_index];
         metadata.block_indices.clear();
         metadata.display_type_overrides.clear();
+        metadata.stable_ids.clear();
         for (const PluginRecord& record : document.chain)
         {
             metadata.block_indices.push_back(record.block_index);
             metadata.display_type_overrides.push_back(record.display_type_override);
+            metadata.stable_ids.push_back(record.stable_id);
         }
     }
 
@@ -1007,10 +1019,12 @@ void Engine::Impl::finalizeLiveRigLoad()
         BranchDisplayMetadata metadata;
         metadata.block_indices.reserve(tone.chain.size());
         metadata.display_type_overrides.reserve(tone.chain.size());
+        metadata.stable_ids.reserve(tone.chain.size());
         for (const PluginRecord& record : tone.chain)
         {
             metadata.block_indices.push_back(record.block_index);
             metadata.display_type_overrides.push_back(record.display_type_override);
+            metadata.stable_ids.push_back(record.stable_id);
         }
         m_branch_display_metadata.push_back(std::move(metadata));
     }
@@ -1072,6 +1086,41 @@ void Engine::Impl::finalizeLiveRigLoad()
     // The caller's result is the audible tone's chain, carrying the authored block layout.
     LiveRigLoadResult result = audibleToneResult();
 
+    // Per-tone plugin identities are only reported here, fresh from the parsed documents; chain
+    // mutations can positionally stale the retained metadata, so audible switches never repeat
+    // this listing. The editor merges it into its runtime association and owns it afterwards.
+    if (m_tone_rack.has_value())
+    {
+        result.tone_chains.reserve(m_tone_rack->branches.size());
+        for (std::size_t branch_index = 0; branch_index < m_tone_rack->branches.size();
+             ++branch_index)
+        {
+            const ToneRackBranch& branch = m_tone_rack->branches[branch_index];
+            const std::vector<std::string>* const stable_ids =
+                branch_index < m_branch_display_metadata.size()
+                    ? &m_branch_display_metadata[branch_index].stable_ids
+                    : nullptr;
+            LoadedToneChainIdentities identities;
+            identities.tone_document_ref = branch.tone_document_ref;
+            identities.plugins.reserve(branch.chain.size());
+            for (std::size_t plugin_index = 0; plugin_index < branch.chain.size(); ++plugin_index)
+            {
+                if (branch.chain[plugin_index] == nullptr)
+                {
+                    continue;
+                }
+                identities.plugins.push_back(
+                    LoadedTonePluginIdentity{
+                        .instance_id = branch.chain[plugin_index]->itemID.toString().toStdString(),
+                        .stable_id = stable_ids != nullptr && plugin_index < stable_ids->size()
+                                         ? (*stable_ids)[plugin_index]
+                                         : std::string{},
+                    });
+            }
+            result.tone_chains.push_back(std::move(identities));
+        }
+    }
+
     endPluginUndoCaptureDeferral();
     auto operation = std::move(m_load_op);
     operation->on_result(std::move(result));
@@ -1120,7 +1169,12 @@ void Engine::Impl::executePluginStep()
 
     // Plugins restore free-floating through the plugin cache and stay unparented until the
     // finalize step assembles every chain into the multi-tone rack.
-    const juce::ValueTree state_copy = plugin_state->createCopy();
+    juce::ValueTree state_copy = plugin_state->createCopy();
+    // Sidecars written before this build may carry a stale derived curve and the tempo-remap flag;
+    // the live curve is rebuilt from the arrangement's musical automation after the load, and the
+    // flag must never let Tracktion remap that derived curve.
+    stripAutomationCurves(state_copy);
+    stripTempoRemapFlag(state_copy);
     tracktion::EditItemID::readOrCreateNewID(*m_edit, state_copy);
     const tracktion::Plugin::Ptr restored_plugin =
         m_edit->getPluginCache().getOrCreatePluginFor(state_copy);

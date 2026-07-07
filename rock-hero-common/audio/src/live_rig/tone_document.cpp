@@ -157,6 +157,11 @@ constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
             plugin_json.getDynamicObject()->setProperty(
                 "displayTypeOverride", core::Json::makeString(plugin.display_type_override));
         }
+        if (!plugin.stable_id.empty())
+        {
+            plugin_json.getDynamicObject()->setProperty(
+                "stableId", core::Json::makeString(plugin.stable_id));
+        }
 
         chain.append(plugin_json);
     }
@@ -328,6 +333,7 @@ constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
                 .block_index = block_index,
                 .display_type_override =
                     core::Json::readOptionalString(plugin_json, "displayTypeOverride"),
+                .stable_id = core::Json::readOptionalString(plugin_json, "stableId"),
             });
     }
 

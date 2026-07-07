@@ -201,11 +201,14 @@ private:
     std::vector<Gain> m_branch_output_gains;
 
     // Editor-owned panel layout per branch, captured at load and refreshed on capture. Chain
-    // mutations can outrun it; readers fall back to a gapless layout past its size.
+    // mutations can outrun it; readers fall back to a gapless layout past its size. The stable ids
+    // are only trusted at load completion (LiveRigLoadResult.tone_chains), where they are fresh
+    // from the parsed documents and cannot be positionally stale yet.
     struct BranchDisplayMetadata
     {
         std::vector<std::size_t> block_indices;
         std::vector<std::string> display_type_overrides;
+        std::vector<std::string> stable_ids;
     };
     std::vector<BranchDisplayMetadata> m_branch_display_metadata;
 
