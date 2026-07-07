@@ -209,4 +209,51 @@ TEST_CASE("EditorController creates a tone-change region by splitting", "[core][
     CHECK(editor.regions()[1].id == g_region_new);
 }
 
+TEST_CASE(
+    "EditorController moves a shared tone boundary across both neighbors",
+    "[core][editor-controller]")
+{
+    LoadedToneEditor editor{makeTwoRegionSong()};
+    REQUIRE(editor.regions().size() == 2);
+
+    editor.controller.onToneBoundaryMoveRequested(g_region_b, gridAt(2, 3));
+    REQUIRE(editor.regions().size() == 2);
+    CHECK(editor.regions()[0].end == gridAt(2, 3));   // earlier region extends to the new boundary
+    CHECK(editor.regions()[1].start == gridAt(2, 3)); // later region starts there too, no gap
+
+    editor.controller.onUndoRequested();
+    CHECK(editor.regions()[0].end == gridAt(2, 1));
+    CHECK(editor.regions()[1].start == gridAt(2, 1));
+
+    editor.controller.onRedoRequested();
+    CHECK(editor.regions()[0].end == gridAt(2, 3));
+    CHECK(editor.regions()[1].start == gridAt(2, 3));
+}
+
+TEST_CASE(
+    "EditorController ignores a boundary move on the first region", "[core][editor-controller]")
+{
+    LoadedToneEditor editor{makeTwoRegionSong()};
+
+    // The first region has no earlier neighbor; its start is the pinned song boundary.
+    editor.controller.onToneBoundaryMoveRequested(g_region_a, gridAt(1, 3));
+
+    CHECK(editor.regions()[0].start == gridAt(1, 1));
+    CHECK(editor.regions()[0].end == gridAt(2, 1));
+    CHECK(editor.regions()[1].start == gridAt(2, 1));
+}
+
+TEST_CASE(
+    "EditorController rejects a boundary move that empties a region", "[core][editor-controller]")
+{
+    LoadedToneEditor editor{makeTwoRegionSong()};
+
+    // Moving the boundary onto the later region's end would leave it empty; rules reject it.
+    editor.controller.onToneBoundaryMoveRequested(g_region_b, gridAt(3, 1));
+
+    CHECK(editor.regions()[0].end == gridAt(2, 1));
+    CHECK(editor.regions()[1].start == gridAt(2, 1));
+    CHECK(editor.regions()[1].end == gridAt(3, 1));
+}
+
 } // namespace rock_hero::editor::core
