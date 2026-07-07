@@ -139,6 +139,37 @@ reality and decisions 1–5 against the vendored source, with these load-bearing
   true. A test asserting on **processed audio** after a write must pump the message loop first;
   `readParameterCurve` reads the ValueTree directly so it round-trips synchronously.
 
+## Implementation status (2026-07-07)
+
+Built on branch `work-in-progress` (off `refactor`), each slice green + tested:
+
+- **Audio adapter — DONE.** `IToneAutomation` port (`list/read/write`, normalised values, seconds)
+  + engine impl; Tracktion-touching curve logic in `src/tracktion/tone_automation_curve.{h,cpp}`,
+  headless-tested against an internal `VolumeAndPanPlugin` (round-trip, clear, unresolved id).
+- **Port wiring — DONE.** Threaded through `Editor`/`EditorController`/`Impl`/`EditorEditContext`;
+  `FakeToneAutomation` in the controller harness.
+- **View state + projection — DONE.** `ToneAutomationViewState` on `EditorViewState`;
+  `toneAutomationViewStateFor` reads the selected tone's curves; unit-tested.
+- **Editing + undo — DONE.** **Design simplification adopted:** a single
+  `SetToneAutomationPoints` action + `ToneAutomationPointsEdit` point-list memento subsumes
+  add/remove/edit lane (picking a param seeds a point → lane appears; clearing to empty → lane
+  gone), so no separate add/remove-lane actions or open-set state are needed. `onSetToneAutomationPoints`
+  intent wired through `IEditorController`; controller tests cover write→project and undo/redo.
+- **P0 chunk-memento decoupling — DONE.** `capturePluginState` strips `AUTOMATIONCURVE`; the
+  in-place restore preserves live curves — the two undo domains are provably disjoint.
+- **Storage simplification adopted:** points are **seconds-based end to end** (action, memento,
+  backend). Grid-snap still happens in musical space in the UI; musical-position storage + a
+  tempo-edit re-derivation pass are deferred (they add value only once a tempo-edit remap exists,
+  which nothing triggers today — the backend curve is seconds regardless).
+
+**Remaining: the UI (slices B–D).** A "+" parameter picker in the signal-chain panel
+(`listAutomatableParameters` → `onSetToneAutomationPoints` with a seed point), `Signal Chain - <tone>`
+title, automation lanes beneath the tone strip drawing `ToneAutomationViewState` curves, interactive
+add/move/delete points with grid-snap (Ctrl bypass), vertically resizable lanes, and disabled/discrete
+rendering. The interactive lane is complex graphics/UI — consult the `juce-tracktion-expert` before
+building it, per the standing rule. It is a pure consumer of the finished editor-core intent + view
+state, so it needs no further backend work; a to-do note tracks it if this doc moves to `docs/todo`.
+
 ## Architecture
 
 ### Audio adapter — the only Tracktion touchpoint (`rock-hero-common/audio`)
