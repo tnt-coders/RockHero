@@ -162,6 +162,37 @@ public:
         std::string region_id, common::core::ToneGridPosition start,
         common::core::ToneGridPosition end) = 0;
 
+    /*!
+    \brief Handles a request to insert a tone-change region at a grid position.
+
+    Splits the region under \p at so the earlier tone runs up to the marker and the new region
+    covers the remainder. The new region references an existing catalog tone; minting a fresh tone
+    is a separate step the caller performs before issuing this request.
+
+    \param at Grid position at which the tone changes; must fall strictly inside a region.
+    \param new_region_id Canonical id minted for the new region beginning at \p at.
+    \param tone_document_ref Existing catalog tone the new region references.
+    */
+    virtual void onToneRegionCreateRequested(
+        common::core::ToneGridPosition at, std::string new_region_id,
+        std::string tone_document_ref) = 0;
+
+    /*!
+    \brief Handles a request to delete a tone region, merging its span into a neighbor.
+    \param region_id Stable id of the region to delete.
+    */
+    virtual void onToneRegionDeleteRequested(std::string region_id) = 0;
+
+    /*!
+    \brief Handles a request to rename a tone in the arrangement's tone catalog.
+
+    The name lives on the catalog tone, so every region referencing it relabels together.
+
+    \param tone_document_ref Document ref of the catalog tone to rename.
+    \param name New user-facing tone name.
+    */
+    virtual void onToneRenameRequested(std::string tone_document_ref, std::string name) = 0;
+
     /*! \brief Handles a request to show the scanned plugin browser. */
     virtual void onPluginBrowserRequested() = 0;
 

@@ -95,6 +95,18 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::ResizeToneRegion;
     }
+    else if constexpr (std::is_same_v<A, EditorAction::CreateToneRegion>)
+    {
+        return EditorAction::Id::CreateToneRegion;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::DeleteToneRegion>)
+    {
+        return EditorAction::Id::DeleteToneRegion;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::RenameTone>)
+    {
+        return EditorAction::Id::RenameTone;
+    }
     else if constexpr (std::is_same_v<A, EditorAction::ShowPluginBrowser>)
     {
         return EditorAction::Id::ShowPluginBrowser;

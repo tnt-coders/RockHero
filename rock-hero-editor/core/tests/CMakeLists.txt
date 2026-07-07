@@ -27,6 +27,7 @@ add_executable(
     test_editor_controller_output_gain.cpp
     test_editor_controller_plugins.cpp
     test_editor_controller_project_lifecycle.cpp
+    test_editor_controller_tone_regions.cpp
     test_editor_controller_restore.cpp
     test_editor_controller_state.cpp
     test_editor_controller_transport.cpp
