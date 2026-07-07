@@ -838,12 +838,14 @@ TEST_CASE("Rock song package round-trips authored tone regions", "[core][rock-so
     writeAudioFile(source_audio);
     writeTextFile(package_directory / toneDocumentPath(g_tone_id), "{}");
 
+    // Regions tile the song gap-free, matching the marker format: only starts persist, and each
+    // end derives as the next region's start (the tempo-map terminal, 3:1, for the last).
     Song song = makeSongWithToneDocument(source_audio);
     song.arrangements.front().tone_track.regions = {
         ToneRegion{
             .id = std::string{g_verse_region_id},
             .start = ToneGridPosition{.measure = 1, .beat = 1},
-            .end = ToneGridPosition{.measure = 2, .beat = 1},
+            .end = ToneGridPosition{.measure = 2, .beat = 3},
             .tone_document_ref = toneDocumentRef(),
         },
         ToneRegion{
