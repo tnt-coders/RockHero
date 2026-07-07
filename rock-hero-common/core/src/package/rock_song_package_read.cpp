@@ -506,24 +506,21 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
 
         const auto id = Json::tryReadString(region_json, "id");
         const auto start_text = Json::tryReadString(region_json, "start");
-        const auto end_text = Json::tryReadString(region_json, "end");
         const auto tone_document = Json::tryReadString(region_json, "toneDocument");
-        if (!id.has_value() || !start_text.has_value() || !end_text.has_value() ||
-            !tone_document.has_value())
+        if (!id.has_value() || !start_text.has_value() || !tone_document.has_value())
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidArrangement,
-                "tone regions require id, start, end, and toneDocument fields",
+                "tone regions require id, start, and toneDocument fields",
             }};
         }
 
         const auto start = parseBeatPositionToken(*start_text);
-        const auto end = parseBeatPositionToken(*end_text);
-        if (!start.has_value() || !end.has_value())
+        if (!start.has_value())
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidArrangement,
-                "tone region endpoints must be \"<measure>:<beat>\" tokens",
+                "tone region start must be a \"<measure>:<beat>\" token",
             }};
         }
 
@@ -531,9 +528,26 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
             ToneRegion{
                 .id = *id,
                 .start = ToneGridPosition{.measure = start->measure, .beat = start->beat},
-                .end = ToneGridPosition{.measure = end->measure, .beat = end->beat},
+                .end = ToneGridPosition{},
                 .tone_document_ref = *tone_document,
             });
+    }
+
+    // Regions are persisted as tone-change markers: only starts are stored, and each end derives
+    // as the next region's start (the terminal anchor beat for the last), so gaps are structurally
+    // unrepresentable. Files written before this format carried an "end" field; it is ignored and
+    // the derived tiling takes over (a former gap simply extends its preceding tone, which matches
+    // playback behavior: a gap kept the previous tone ringing anyway).
+    if (!tone_track.regions.empty())
+    {
+        for (std::size_t index = 0; index + 1 < tone_track.regions.size(); ++index)
+        {
+            tone_track.regions[index].end = tone_track.regions[index + 1].start;
+        }
+        const auto [terminal_measure, terminal_beat] =
+            tempo_map.beatAtGlobalIndex(tempo_map.terminalGlobalBeatIndex());
+        tone_track.regions.back().end =
+            ToneGridPosition{.measure = terminal_measure, .beat = terminal_beat};
     }
 
     if (const auto structural = validateToneTrack(tone_track, tempo_map); !structural.has_value())

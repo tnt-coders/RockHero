@@ -201,12 +201,13 @@ struct AudioAssetDocumentEntry
     TimeDuration start_offset;
 };
 
-// One authored tone region retained between validation and final JSON formatting.
+// One authored tone region retained between validation and final JSON formatting. Only the start
+// is persisted: regions tile the song gap-free, so each end is the next region's start (or the
+// tempo-map terminal) and the reader derives it.
 struct ToneRegionDocumentEntry
 {
     std::string id;
     std::string start;
-    std::string end;
     std::string tone_document;
 };
 
@@ -238,8 +239,6 @@ struct ArrangementDocumentEntry
     line += jsonString(entry.id);
     line += ", \"start\": ";
     line += jsonString(entry.start);
-    line += ", \"end\": ";
-    line += jsonString(entry.end);
     line += ", \"toneDocument\": ";
     line += jsonString(entry.tone_document);
     line += " }";
@@ -700,7 +699,6 @@ struct SongDocumentForSave
                 ToneRegionDocumentEntry{
                     .id = region.id,
                     .start = formatBeatPositionToken(region.start.measure, region.start.beat),
-                    .end = formatBeatPositionToken(region.end.measure, region.end.beat),
                     .tone_document = region.tone_document_ref,
                 });
         }
