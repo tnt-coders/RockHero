@@ -650,6 +650,20 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
         return true;
     }
 
+    // Delete removes the selected tone region (merging into a neighbor, or resetting the sole
+    // region). Only acts when a region is selected; otherwise the key falls through.
+    if (key == juce::KeyPress{juce::KeyPress::deleteKey})
+    {
+        const auto selected = std::ranges::find_if(
+            m_state.tone_track.regions,
+            [](const core::ToneRegionViewState& region) { return region.selected; });
+        if (selected != m_state.tone_track.regions.end() && !selected->id.empty())
+        {
+            m_controller.onToneRegionDeleteRequested(selected->id);
+            return true;
+        }
+    }
+
     return false;
 }
 
@@ -1436,6 +1450,13 @@ void EditorView::onToneRegionResizeRequested(
     std::string region_id, common::core::ToneGridPosition start, common::core::ToneGridPosition end)
 {
     m_controller.onToneRegionResizeRequested(std::move(region_id), start, end);
+}
+
+// Routes a committed tone-boundary move to the controller.
+void EditorView::onToneBoundaryMoveRequested(
+    std::string right_region_id, common::core::ToneGridPosition position)
+{
+    m_controller.onToneBoundaryMoveRequested(std::move(right_region_id), position);
 }
 
 void EditorView::onOutputGainChanged(double gain_db)

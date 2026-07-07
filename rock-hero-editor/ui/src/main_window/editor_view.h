@@ -288,6 +288,10 @@ private:
     /*! \copydoc ToneTrackView::Listener::onToneRegionSelected */
     void onToneRegionSelected(std::string region_id) override;
 
+    /*! \copydoc ToneTrackView::Listener::onToneBoundaryMoveRequested */
+    void onToneBoundaryMoveRequested(
+        std::string right_region_id, common::core::ToneGridPosition position) override;
+
     /*! \copydoc ToneTrackView::Listener::onToneRegionResizeRequested */
     void onToneRegionResizeRequested(
         std::string region_id, common::core::ToneGridPosition start,
