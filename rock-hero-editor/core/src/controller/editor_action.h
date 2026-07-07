@@ -258,6 +258,68 @@ struct EditorAction
         common::core::ToneGridPosition end;
     };
 
+    /*! \brief Split the region under a grid position into a new tone-change region. */
+    struct CreateToneRegion
+    {
+        /*!
+        \brief Creates a tone-region create action.
+        \param at_value Grid position at which the tone changes; must fall strictly inside a region.
+        \param new_region_id_value Canonical id minted for the new region beginning at \p at_value.
+        \param tone_document_ref_value Existing catalog tone the new region references.
+        */
+        CreateToneRegion(
+            common::core::ToneGridPosition at_value, std::string new_region_id_value,
+            std::string tone_document_ref_value)
+            : at(at_value)
+            , new_region_id(std::move(new_region_id_value))
+            , tone_document_ref(std::move(tone_document_ref_value))
+        {}
+
+        /*! \brief Grid position at which the tone changes. */
+        common::core::ToneGridPosition at;
+
+        /*! \brief Canonical id minted for the new region beginning at the marker. */
+        std::string new_region_id;
+
+        /*! \brief Existing catalog tone the new region references. */
+        std::string tone_document_ref;
+    };
+
+    /*! \brief Delete a tone region, merging its span into a neighbor. */
+    struct DeleteToneRegion
+    {
+        /*!
+        \brief Creates a tone-region delete action.
+        \param region_id_value Stable id of the region to delete.
+        */
+        explicit DeleteToneRegion(std::string region_id_value)
+            : region_id(std::move(region_id_value))
+        {}
+
+        /*! \brief Stable id of the region to delete. */
+        std::string region_id;
+    };
+
+    /*! \brief Rename a tone in the arrangement's tone catalog. */
+    struct RenameTone
+    {
+        /*!
+        \brief Creates a tone-rename action.
+        \param tone_document_ref_value Document ref of the catalog tone to rename.
+        \param name_value New user-facing tone name.
+        */
+        RenameTone(std::string tone_document_ref_value, std::string name_value)
+            : tone_document_ref(std::move(tone_document_ref_value))
+            , name(std::move(name_value))
+        {}
+
+        /*! \brief Document ref of the catalog tone to rename. */
+        std::string tone_document_ref;
+
+        /*! \brief New user-facing tone name. */
+        std::string name;
+    };
+
     /*! \brief Show the scanned plugin browser. */
     struct ShowPluginBrowser
     {
@@ -410,9 +472,10 @@ struct EditorAction
         OpenProject, RestoreProject, ImportSong, SaveProject, SaveProjectAs, PublishProject,
         CloseProject, ExitApplication, ResolveUnsavedChangesPrompt, CancelSaveAsPrompt,
         CancelBusyOperation, Undo, Redo, PlayPause, Stop, SeekTimeline, SetGridNoteValue,
-        SelectArrangement, SelectToneRegion, ResizeToneRegion, ShowPluginBrowser, BeginPluginInsert,
-        ScanPluginCatalog, InsertSelectedPlugin, RemovePlugin, MovePlugin, SetSignalChainPlacement,
-        SetPluginDisplayTypeOverride, OpenPlugin>;
+        SelectArrangement, SelectToneRegion, ResizeToneRegion, CreateToneRegion, DeleteToneRegion,
+        RenameTone, ShowPluginBrowser, BeginPluginInsert, ScanPluginCatalog, InsertSelectedPlugin,
+        RemovePlugin, MovePlugin, SetSignalChainPlacement, SetPluginDisplayTypeOverride,
+        OpenPlugin>;
 };
 
 /*!

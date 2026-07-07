@@ -187,6 +187,29 @@ public:
         last_tone_region_end = end;
     }
 
+    /*! \copydoc IEditorController::onToneRegionCreateRequested */
+    void onToneRegionCreateRequested(
+        common::core::ToneGridPosition at, std::string new_region_id,
+        std::string tone_document_ref) override
+    {
+        last_created_tone_region_at = at;
+        last_created_tone_region_id = std::move(new_region_id);
+        last_created_tone_document_ref = std::move(tone_document_ref);
+    }
+
+    /*! \copydoc IEditorController::onToneRegionDeleteRequested */
+    void onToneRegionDeleteRequested(std::string region_id) override
+    {
+        last_deleted_tone_region_id = std::move(region_id);
+    }
+
+    /*! \copydoc IEditorController::onToneRenameRequested */
+    void onToneRenameRequested(std::string tone_document_ref, std::string name) override
+    {
+        last_renamed_tone_document_ref = std::move(tone_document_ref);
+        last_renamed_tone_name = std::move(name);
+    }
+
     /*!
     \brief Records the view-reported timeline zoom.
     \param pixels_per_second Reported horizontal timeline scale.
@@ -451,6 +474,24 @@ public:
 
     /*! \brief Last resize end reported through onToneRegionResizeRequested(). */
     common::core::ToneGridPosition last_tone_region_end{};
+
+    /*! \brief Last marker position reported through onToneRegionCreateRequested(). */
+    common::core::ToneGridPosition last_created_tone_region_at{};
+
+    /*! \brief Last new region id reported through onToneRegionCreateRequested(). */
+    std::string last_created_tone_region_id{};
+
+    /*! \brief Last tone document ref reported through onToneRegionCreateRequested(). */
+    std::string last_created_tone_document_ref{};
+
+    /*! \brief Last tone region id reported through onToneRegionDeleteRequested(). */
+    std::string last_deleted_tone_region_id{};
+
+    /*! \brief Last tone document ref reported through onToneRenameRequested(). */
+    std::string last_renamed_tone_document_ref{};
+
+    /*! \brief Last tone name reported through onToneRenameRequested(). */
+    std::string last_renamed_tone_name{};
 
     /*! \brief Last timeline zoom reported through onTimelineZoomChanged(). */
     std::optional<double> last_timeline_zoom_pixels_per_second{};

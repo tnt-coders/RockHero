@@ -214,6 +214,9 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::SelectArrangement:
         case core::EditorActionId::SelectToneRegion:
         case core::EditorActionId::ResizeToneRegion:
+        case core::EditorActionId::CreateToneRegion:
+        case core::EditorActionId::DeleteToneRegion:
+        case core::EditorActionId::RenameTone:
         {
             return "Save changes before continuing?";
         }

@@ -1,7 +1,11 @@
 #include "tone_region_edits.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <rock_hero/common/core/session/session.h>
+#include <rock_hero/common/core/tone/tone_track_edits.h>
+#include <string>
+#include <vector>
 
 namespace rock_hero::editor::core
 {
@@ -44,6 +48,141 @@ std::expected<void, EditorUndoFailureCode> ToneRegionResizeEdit::applyEndpoints(
 
     region->start = start;
     region->end = end;
+    return std::expected<void, EditorUndoFailureCode>{};
+}
+
+std::expected<void, EditorUndoFailureCode> ToneRegionCreateEdit::undo(
+    EditorEditContext& context) const
+{
+    common::core::ToneTrack* const tone_track = context.session.currentToneTrack();
+    if (tone_track == nullptr)
+    {
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+    }
+
+    // Undoing a create removes the region that began at the marker; deleteToneRegion merges its
+    // span back into the region it was split from, restoring the original single span.
+    if (!deleteToneRegion(*tone_track, new_region_id).has_value())
+    {
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+    }
+    return std::expected<void, EditorUndoFailureCode>{};
+}
+
+std::expected<void, EditorUndoFailureCode> ToneRegionCreateEdit::redo(
+    EditorEditContext& context) const
+{
+    common::core::ToneTrack* const tone_track = context.session.currentToneTrack();
+    if (tone_track == nullptr)
+    {
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+    }
+
+    if (!createToneRegion(*tone_track, at, new_region_id, tone_document_ref).has_value())
+    {
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+    }
+    return std::expected<void, EditorUndoFailureCode>{};
+}
+
+std::string ToneRegionCreateEdit::label() const
+{
+    return "Insert " + (tone_name.empty() ? std::string{"Tone Change"} : tone_name);
+}
+
+std::expected<void, EditorUndoFailureCode> ToneRegionDeleteEdit::undo(
+    EditorEditContext& context) const
+{
+    common::core::ToneTrack* const tone_track = context.session.currentToneTrack();
+    if (tone_track == nullptr)
+    {
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+    }
+
+    std::vector<common::core::ToneRegion>& regions = tone_track->regions;
+    if (removed_index > regions.size())
+    {
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+    }
+
+    // Shrink the neighbor that had absorbed the removed span back to its original endpoint, then
+    // reinsert the removed region at its original index so coverage matches the pre-delete state.
+    if (absorbed_by_prev)
+    {
+        if (removed_index == 0 || removed_index - 1 >= regions.size())
+        {
+            return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+        }
+        regions[removed_index - 1].end = removed_region.start;
+    }
+    else
+    {
+        if (removed_index >= regions.size())
+        {
+            return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+        }
+        regions[removed_index].start = removed_region.end;
+    }
+
+    regions.insert(regions.begin() + static_cast<std::ptrdiff_t>(removed_index), removed_region);
+    return std::expected<void, EditorUndoFailureCode>{};
+}
+
+std::expected<void, EditorUndoFailureCode> ToneRegionDeleteEdit::redo(
+    EditorEditContext& context) const
+{
+    common::core::ToneTrack* const tone_track = context.session.currentToneTrack();
+    if (tone_track == nullptr)
+    {
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+    }
+
+    if (!deleteToneRegion(*tone_track, removed_region.id).has_value())
+    {
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+    }
+    return std::expected<void, EditorUndoFailureCode>{};
+}
+
+std::string ToneRegionDeleteEdit::label() const
+{
+    return "Delete " + (region_name.empty() ? std::string{"Tone Region"} : region_name);
+}
+
+std::expected<void, EditorUndoFailureCode> ToneRenameEdit::undo(EditorEditContext& context) const
+{
+    return applyName(context, before_name);
+}
+
+std::expected<void, EditorUndoFailureCode> ToneRenameEdit::redo(EditorEditContext& context) const
+{
+    return applyName(context, after_name);
+}
+
+std::string ToneRenameEdit::label() const
+{
+    return "Rename " + (after_name.empty() ? std::string{"Tone"} : after_name);
+}
+
+// Writes the supplied name onto the catalog tone identified by tone_document_ref.
+std::expected<void, EditorUndoFailureCode> ToneRenameEdit::applyName(
+    EditorEditContext& context, const std::string& name) const
+{
+    std::vector<common::core::Tone>* const catalog = context.session.currentToneCatalog();
+    if (catalog == nullptr)
+    {
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+    }
+
+    const auto tone = std::ranges::find_if(*catalog, [this](const common::core::Tone& candidate) {
+        return candidate.tone_document_ref == tone_document_ref;
+    });
+    if (tone == catalog->end())
+    {
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+    }
+
+    tone->name = name;
     return std::expected<void, EditorUndoFailureCode>{};
 }
 

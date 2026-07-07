@@ -24,6 +24,9 @@ namespace
         case EditorAction::Id::Undo:
         case EditorAction::Id::Redo:
         case EditorAction::Id::ResizeToneRegion:
+        case EditorAction::Id::CreateToneRegion:
+        case EditorAction::Id::DeleteToneRegion:
+        case EditorAction::Id::RenameTone:
         case EditorAction::Id::SelectArrangement:
         {
             return true;
@@ -88,6 +91,9 @@ namespace
             case EditorAction::Id::SelectArrangement:
             case EditorAction::Id::SelectToneRegion:
             case EditorAction::Id::ResizeToneRegion:
+            case EditorAction::Id::CreateToneRegion:
+            case EditorAction::Id::DeleteToneRegion:
+            case EditorAction::Id::RenameTone:
             case EditorAction::Id::ShowPluginBrowser:
             case EditorAction::Id::BeginPluginInsert:
             case EditorAction::Id::ScanPluginCatalog:
@@ -153,6 +159,9 @@ namespace
         case EditorAction::Id::SelectArrangement:
         case EditorAction::Id::SelectToneRegion:
         case EditorAction::Id::ResizeToneRegion:
+        case EditorAction::Id::CreateToneRegion:
+        case EditorAction::Id::DeleteToneRegion:
+        case EditorAction::Id::RenameTone:
         {
             return conditions.has_loaded_arrangement;
         }
@@ -219,6 +228,9 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::SelectArrangement:
         case EditorAction::Id::SelectToneRegion:
         case EditorAction::Id::ResizeToneRegion:
+        case EditorAction::Id::CreateToneRegion:
+        case EditorAction::Id::DeleteToneRegion:
+        case EditorAction::Id::RenameTone:
         case EditorAction::Id::ShowPluginBrowser:
         case EditorAction::Id::BeginPluginInsert:
         case EditorAction::Id::ScanPluginCatalog:

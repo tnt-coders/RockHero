@@ -2,10 +2,15 @@
 #include "tone/tone_region_edits.h"
 
 #include <algorithm>
+#include <cstddef>
+#include <iterator>
 #include <memory>
 #include <rock_hero/common/core/shared/logger.h>
+#include <rock_hero/common/core/tone/tone_track_edits.h>
 #include <rock_hero/common/core/tone/tone_track_rules.h>
+#include <string>
 #include <utility>
+#include <vector>
 
 namespace rock_hero::editor::core
 {
@@ -118,6 +123,23 @@ void EditorController::Impl::onToneRegionResizeRequested(
     runAction(EditorAction::ResizeToneRegion{std::move(region_id), start, end});
 }
 
+void EditorController::Impl::onToneRegionCreateRequested(
+    common::core::ToneGridPosition at, std::string new_region_id, std::string tone_document_ref)
+{
+    runAction(
+        EditorAction::CreateToneRegion{at, std::move(new_region_id), std::move(tone_document_ref)});
+}
+
+void EditorController::Impl::onToneRegionDeleteRequested(std::string region_id)
+{
+    runAction(EditorAction::DeleteToneRegion{std::move(region_id)});
+}
+
+void EditorController::Impl::onToneRenameRequested(std::string tone_document_ref, std::string name)
+{
+    runAction(EditorAction::RenameTone{std::move(tone_document_ref), std::move(name)});
+}
+
 // Stores the selection when the id names an authored region; anything else clears it.
 void EditorController::Impl::performActionImpl(EditorAction::SelectToneRegion action)
 {
@@ -179,6 +201,148 @@ void EditorController::Impl::performActionImpl(const EditorAction::ResizeToneReg
     pushUndoEntry(
         std::make_unique<ToneRegionResizeEdit>(
             action.region_id, tone_name, before_start, before_end, action.start, action.end));
+    updateView();
+}
+
+// Splits the region under the marker into a new tone-change region and records its inverse. The new
+// region references an existing catalog tone; minting a fresh tone is a caller-side precondition.
+void EditorController::Impl::performActionImpl(const EditorAction::CreateToneRegion& action)
+{
+    common::core::ToneTrack* const tone_track = m_session.currentToneTrack();
+    if (tone_track == nullptr)
+    {
+        return;
+    }
+
+    // Apply the split to a candidate first: createToneRegion enforces that the marker falls inside a
+    // region, and validateToneTrackRules catches a duplicate id or bad grid, so a stale request
+    // refreshes the view instead of corrupting gap-free coverage.
+    common::core::ToneTrack candidate = *tone_track;
+    if (const auto created = common::core::createToneRegion(
+            candidate, action.at, action.new_region_id, action.tone_document_ref);
+        !created.has_value())
+    {
+        RH_LOG_WARNING(
+            "editor.tone",
+            "Rejected tone region create measure={} beat={} detail={:?}",
+            action.at.measure,
+            action.at.beat,
+            created.error().message);
+        updateView();
+        return;
+    }
+
+    if (const auto valid =
+            common::core::validateToneTrackRules(candidate, session().song().tempo_map);
+        !valid.has_value())
+    {
+        RH_LOG_WARNING(
+            "editor.tone", "Rejected tone region create detail={:?}", valid.error().message);
+        updateView();
+        return;
+    }
+
+    *tone_track = std::move(candidate);
+
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    const std::string tone_name =
+        arrangement != nullptr ? common::core::toneNameFor(*arrangement, action.tone_document_ref)
+                               : std::string{};
+    pushUndoEntry(
+        std::make_unique<ToneRegionCreateEdit>(
+            action.at, action.new_region_id, action.tone_document_ref, tone_name));
+    updateView();
+}
+
+// Deletes a tone region, merging its span into a neighbor, and records its inverse. Deleting the
+// only region is the reset case (clear the tone's chain and rename it "default"); that needs the
+// audio boundary and is handled separately, so here it is rejected and left to the caller.
+void EditorController::Impl::performActionImpl(const EditorAction::DeleteToneRegion& action)
+{
+    common::core::ToneTrack* const tone_track = m_session.currentToneTrack();
+    if (tone_track == nullptr)
+    {
+        return;
+    }
+
+    const auto region = std::ranges::find_if(
+        tone_track->regions, [&action](const common::core::ToneRegion& candidate) {
+            return candidate.id == action.region_id;
+        });
+    if (region == tone_track->regions.end())
+    {
+        RH_LOG_WARNING(
+            "editor.tone",
+            "Ignored delete for unknown tone region region_id={:?}",
+            action.region_id);
+        return;
+    }
+
+    // Capture what the inverse needs before the merge erases it: the full region, its index, and
+    // which neighbor absorbs its span (the previous region unless the removed region is first). The
+    // region is copied out (not referenced) because deleteToneRegion erases it from the vector.
+    const auto removed_index =
+        static_cast<std::size_t>(std::distance(tone_track->regions.begin(), region));
+    common::core::ToneRegion removed_region = *region;
+    const bool absorbed_by_prev = removed_index > 0;
+
+    if (const auto deleted = common::core::deleteToneRegion(*tone_track, action.region_id);
+        !deleted.has_value())
+    {
+        RH_LOG_WARNING(
+            "editor.tone",
+            "Tone region delete not applied region_id={:?} detail={:?}",
+            action.region_id,
+            deleted.error().message);
+        updateView();
+        return;
+    }
+
+    // Selection follows the span: if the deleted region was selected, select the neighbor that now
+    // covers it so the signal-chain panel stays bound to an existing region.
+    if (m_selected_tone_region_id == action.region_id)
+    {
+        const std::size_t neighbor_index = absorbed_by_prev ? removed_index - 1 : removed_index;
+        applyToneSelection(
+            neighbor_index < tone_track->regions.size() ? tone_track->regions[neighbor_index].id
+                                                        : std::string{});
+    }
+
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    const std::string tone_name =
+        arrangement != nullptr
+            ? common::core::toneNameFor(*arrangement, removed_region.tone_document_ref)
+            : std::string{};
+    pushUndoEntry(
+        std::make_unique<ToneRegionDeleteEdit>(
+            removed_index, std::move(removed_region), tone_name, absorbed_by_prev));
+    updateView();
+}
+
+// Renames a catalog tone and records the inverse. Region labels derive from the catalog, so every
+// region referencing the tone relabels together on the next view refresh.
+void EditorController::Impl::performActionImpl(const EditorAction::RenameTone& action)
+{
+    std::vector<common::core::Tone>* const catalog = m_session.currentToneCatalog();
+    if (catalog == nullptr)
+    {
+        return;
+    }
+
+    const auto tone =
+        std::ranges::find_if(*catalog, [&action](const common::core::Tone& candidate) {
+            return candidate.tone_document_ref == action.tone_document_ref;
+        });
+    if (tone == catalog->end() || tone->name == action.name)
+    {
+        return;
+    }
+
+    std::string before_name = tone->name;
+    tone->name = action.name;
+    pushUndoEntry(
+        std::make_unique<ToneRenameEdit>(
+            action.tone_document_ref, std::move(before_name), action.name));
     updateView();
 }
 

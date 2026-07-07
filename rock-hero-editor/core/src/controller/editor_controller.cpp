@@ -183,6 +183,18 @@ namespace
         {
             return "ResizeToneRegion";
         }
+        case EditorAction::Id::CreateToneRegion:
+        {
+            return "CreateToneRegion";
+        }
+        case EditorAction::Id::DeleteToneRegion:
+        {
+            return "DeleteToneRegion";
+        }
+        case EditorAction::Id::RenameTone:
+        {
+            return "RenameTone";
+        }
     }
 
     return "Unknown";
@@ -222,6 +234,9 @@ namespace
             case EditorAction::Id::SetPluginDisplayTypeOverride:
             case EditorAction::Id::OpenPlugin:
             case EditorAction::Id::ResizeToneRegion:
+            case EditorAction::Id::CreateToneRegion:
+            case EditorAction::Id::DeleteToneRegion:
+            case EditorAction::Id::RenameTone:
             case EditorAction::Id::SelectArrangement:
             {
                 return "input-calibration-prompt";
@@ -276,6 +291,9 @@ namespace
         case EditorAction::Id::SelectArrangement:
         case EditorAction::Id::SelectToneRegion:
         case EditorAction::Id::ResizeToneRegion:
+        case EditorAction::Id::CreateToneRegion:
+        case EditorAction::Id::DeleteToneRegion:
+        case EditorAction::Id::RenameTone:
         case EditorAction::Id::ScanPluginCatalog:
         {
             return "no-loaded-arrangement";
@@ -749,6 +767,22 @@ void EditorController::onToneRegionResizeRequested(
     std::string region_id, common::core::ToneGridPosition start, common::core::ToneGridPosition end)
 {
     m_impl->onToneRegionResizeRequested(std::move(region_id), start, end);
+}
+
+void EditorController::onToneRegionCreateRequested(
+    common::core::ToneGridPosition at, std::string new_region_id, std::string tone_document_ref)
+{
+    m_impl->onToneRegionCreateRequested(at, std::move(new_region_id), std::move(tone_document_ref));
+}
+
+void EditorController::onToneRegionDeleteRequested(std::string region_id)
+{
+    m_impl->onToneRegionDeleteRequested(std::move(region_id));
+}
+
+void EditorController::onToneRenameRequested(std::string tone_document_ref, std::string name)
+{
+    m_impl->onToneRenameRequested(std::move(tone_document_ref), std::move(name));
 }
 
 void EditorController::onPluginBrowserRequested()
