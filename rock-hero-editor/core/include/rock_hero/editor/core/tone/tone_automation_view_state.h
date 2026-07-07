@@ -73,6 +73,31 @@ struct ToneAutomationLaneViewState
         const ToneAutomationLaneViewState& lhs, const ToneAutomationLaneViewState& rhs) = default;
 };
 
+/*! \brief One parameter the "+" picker can open a new lane for. */
+struct ToneAutomationParamChoice
+{
+    /*! \brief Owning plugin instance id. */
+    std::string instance_id;
+
+    /*! \brief Parameter id within the plugin. */
+    std::string param_id;
+
+    /*! \brief User-facing parameter name. */
+    std::string name;
+
+    /*! \brief Parameter group for submenu nesting; empty when ungrouped. */
+    std::string group;
+
+    /*!
+    \brief Compares two parameter choices by their stored values.
+    \param lhs Left-hand choice.
+    \param rhs Right-hand choice.
+    \return True when both choices store equal values.
+    */
+    friend bool operator==(
+        const ToneAutomationParamChoice& lhs, const ToneAutomationParamChoice& rhs) = default;
+};
+
 /*! \brief View-facing state for the selected tone's automation lanes. */
 struct ToneAutomationViewState
 {
@@ -81,6 +106,9 @@ struct ToneAutomationViewState
 
     /*! \brief Shown automation lanes for the selected tone, in display order. */
     std::vector<ToneAutomationLaneViewState> lanes;
+
+    /*! \brief Parameters without a lane yet, offered by the empty lane's "+" picker. */
+    std::vector<ToneAutomationParamChoice> available_parameters;
 
     /*!
     \brief Compares two tone-automation view states by their stored values.

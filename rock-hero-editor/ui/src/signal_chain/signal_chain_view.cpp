@@ -258,6 +258,17 @@ SignalChainView::~SignalChainView()
 }
 
 // Stores the render state and updates controls whose enabledness is derived outside the view.
+// Repaints the header title with the selected tone's name appended.
+void SignalChainView::setToneName(std::string tone_name)
+{
+    if (m_tone_name == tone_name)
+    {
+        return;
+    }
+    m_tone_name = std::move(tone_name);
+    repaint();
+}
+
 void SignalChainView::setState(const core::SignalChainViewState& state)
 {
     m_block_layout.applyPlugins(state.plugins);
@@ -311,7 +322,10 @@ void SignalChainView::paint(juce::Graphics& g)
     g.fillRect(header);
     g.setColour(juce::Colours::white);
     g.setFont(juce::FontOptions{16.0f, juce::Font::bold});
-    g.drawFittedText("Signal Chain", header.reduced(8, 0), juce::Justification::centredLeft, 1);
+    const juce::String header_title =
+        m_tone_name.empty() ? juce::String{"Signal Chain"}
+                            : juce::String{"Signal Chain - "} + juce::String{m_tone_name};
+    g.drawFittedText(header_title, header.reduced(8, 0), juce::Justification::centredLeft, 1);
 
     area.removeFromTop(g_panel_inset);
     const auto chain_area = area;
