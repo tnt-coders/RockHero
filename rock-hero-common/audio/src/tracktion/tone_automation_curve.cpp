@@ -39,7 +39,7 @@ void collectAutomatableParameters(
             continue;
         }
 
-        tracktion::AutomatableParameter& parameter = *sub_node->parameter;
+        const tracktion::AutomatableParameter& parameter = *sub_node->parameter;
         if (isSyntheticMixParameter(parameter.paramID))
         {
             continue;

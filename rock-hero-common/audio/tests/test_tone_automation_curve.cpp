@@ -77,12 +77,15 @@ TEST_CASE(
     const std::optional<std::vector<AutomationCurvePoint>> read_back =
         readPluginParameterCurve(*plugin, param_id);
     REQUIRE(read_back.has_value());
-    REQUIRE(read_back->size() == points.size());
-    for (std::size_t index = 0; index < points.size(); ++index)
+    if (read_back.has_value())
     {
-        CHECK(read_back->at(index).seconds == Catch::Approx(points[index].seconds));
-        CHECK(read_back->at(index).norm_value == Catch::Approx(points[index].norm_value));
-        CHECK(read_back->at(index).curve_shape == Catch::Approx(points[index].curve_shape));
+        REQUIRE(read_back->size() == points.size());
+        for (std::size_t index = 0; index < points.size(); ++index)
+        {
+            CHECK(read_back->at(index).seconds == Catch::Approx(points[index].seconds));
+            CHECK(read_back->at(index).norm_value == Catch::Approx(points[index].norm_value));
+            CHECK(read_back->at(index).curve_shape == Catch::Approx(points[index].curve_shape));
+        }
     }
 }
 
@@ -104,7 +107,10 @@ TEST_CASE(
     const std::optional<std::vector<AutomationCurvePoint>> read_back =
         readPluginParameterCurve(*plugin, param_id);
     REQUIRE(read_back.has_value());
-    CHECK(read_back->empty());
+    if (read_back.has_value())
+    {
+        CHECK(read_back->empty());
+    }
 }
 
 TEST_CASE("Unresolved parameter ids fail cleanly", "[audio][tone-automation]")
