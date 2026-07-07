@@ -63,6 +63,25 @@ std::string EditorController::Impl::toneRegionIdAt(common::core::TimePosition po
     return {};
 }
 
+// Names the tone document referenced by the currently selected region, or empty when nothing is
+// selected. Scopes the automation-lane projection to the selected tone.
+std::string EditorController::Impl::selectedToneDocumentRef() const
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || m_selected_tone_region_id.empty())
+    {
+        return {};
+    }
+    for (const common::core::ToneRegion& region : arrangement->tone_track.regions)
+    {
+        if (region.id == m_selected_tone_region_id)
+        {
+            return region.tone_document_ref;
+        }
+    }
+    return {};
+}
+
 // Stores the tone selection and switches the audible rig tone to match. Selection and audibility
 // are one concept: the selected tone is the one heard and the one the signal-chain panel edits.
 void EditorController::Impl::applyToneSelection(std::string region_id)
