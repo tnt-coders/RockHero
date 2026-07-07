@@ -1,0 +1,461 @@
+# RockHero implementation roadmap
+
+Status: Living document — maintained continuously. Date: 2026-07-06. Baseline `refactor @ 13e82fb0`.
+
+This is the consolidated product roadmap. Every plan under `docs/plans/` follows the shared
+template (status line, goal, constraints, verified current-state inventory, phased implementation,
+final acceptance bundle). Plan file numbers are stable file names, **not** execution order —
+execution order is defined below and is optimized to reach milestone 0 quickly and to de-risk
+note detection early.
+
+Maintenance rules:
+
+- `00-roadmap.md` and any plan currently being executed are kept aligned with reality; unstarted
+  plans may lag but must be re-verified against code (fresh inventory stamp) before execution.
+- When a plan phase completes, update the [Status board](#status-board) line for that plan.
+- Cross-plan references always use repo-relative path + phase number.
+- NAMING FIREWALL: the commercial real-guitar game that inspired this project is never named in
+  any repo file — use "RS"/neutral phrasing. Charter (MIT) may be cited by name.
+
+---
+
+## 1. Dependency graph
+
+```mermaid
+graph TD
+    subgraph Foundation
+        P10[10 format versioning + chart identity]
+        P11[11 derived difficulty calculator]
+        P12[12 playback clock]
+        P13[13 audio device settings + calibration]
+    end
+    subgraph Game
+        P20[20 game architecture + render stack GATE]
+        P21[21 game audio engine + session]
+        P22[22 note detection]
+        P23[23 detection verification harness]
+        P24[24 scoring / star power / failure]
+        P25[25 note highway 3D]
+        P26[26 startup / menus / library]
+        P27[27 in-song flow / results / profiles]
+    end
+    subgraph Editor
+        P40[40 chart editing]
+        P41[41 tempo map authoring]
+        P42[42 chart validation]
+        P43[43 song information + art]
+        P44[44 editor 3D preview]
+        P45[45 editor theme + string colors]
+        P46[46 editor keybinds]
+    end
+    subgraph Deferred
+        P28[28 practice mode]
+        P29[29 online leaderboards]
+    end
+
+    P10 --> P43
+    P10 --> P29
+    P10 --> P26
+    P10 --> P24
+    P10 --> P11
+    P10 --> P27
+    P12 --> P21
+    P12 --> P24
+    P12 --> P25
+    P12 --> P44
+    P12 --> P28
+    P13 --> P24
+    P13 --> P26
+    P13 --> P21
+    P13 --> P27
+    P20 --> P21
+    P20 --> P25
+    P20 --> P44
+    P20 --> P26
+    P20 --> P27
+    P20 --> P28
+    P21 --> P25
+    P21 --> P28
+    P21 --> P27
+    P21 --> P22
+    P22 --> P23
+    P22 --> P24
+    P22 --> P26
+    P22 --> P29
+    P23 --> P24
+    P23 --> P29
+    P23 --> P28
+    P24 --> P25
+    P24 --> P27
+    P24 --> P26
+    P24 --> P29
+    P25 --> P44
+    P26 --> P27
+    P27 --> P26
+    P27 --> P28
+    P41 --> P40
+    P42 --> P40
+    P42 --> P26
+    P42 --> P43
+    P43 --> P26
+    P45 --> P25
+    P45 --> P44
+    P45 --> P40
+    P11 --> P26
+    P46 -.non-blocking.-> P40
+    P46 -.non-blocking.-> P41
+    P46 -.non-blocking.-> P44
+```
+
+Notes on cyclic-looking edges: 26 ↔ 27 is an ordering constraint, not a cycle —
+docs/plans/27-in-song-flow-results-profiles.md Phase 1 (IGameSettings) must land before
+docs/plans/26-game-startup-menus-library.md Phase 4 (settings consumption); 26's menu input layer
+(Phase 5) then precedes 27 Phase 6 (pause/results UI). 21 → 22 is an infrastructure edge only
+(the engine 22's dry tap rides on); 22 Phase 1 (contract) has no upstream dependency at all.
+
+---
+
+## 2. Gates
+
+| Gate | Defined in | Condition | Blocks |
+|---|---|---|---|
+| **G10-DECISIONS** | docs/plans/10-format-versioning-and-chart-identity.md Phase 0 | User signs off 10-Q1..Q5 | 10 Phases 1–5; 43 blocked until 10 Phase 2 (migration ladder); 29/26/24/11/27 hash consumers blocked until 10 Phase 3 (each carries a nullable-hash interim, so only the final hash-keyed behavior waits) |
+| **G20-RENDER** | docs/plans/20-game-architecture-and-render-stack.md Phases 0a–0c | Platform scope declared; SDL3+bgfx spike passes criteria S1–S6 (JUCE/Tracktion message-loop coexistence, bgfx-in-JUCE-child-HWND, Conan-vs-vendored, shaderc in the build graph, headless Noop CI path, measured CI cost); renderer-sharing seam chosen; STOP → user sign-off; architecture.md update confirmed | 20 Phases 1–4; 25 Phase 3+; 44 (all code phases); 26 Phases 5–9; 27 Phase 6; 28 Phase 6; creation of the game-render-expert agent |
+| **G21-TRACKTION-GO** | docs/plans/21-game-audio-engine-and-session.md Phase 0 | Tracktion-in-game GO confirmed (constraint (g)); signed off jointly with 20 Phase 0b criterion S1 | 21 final shell integration only — 21 Phases 1–6 run in the existing JUCE game shell before G20-RENDER closes |
+| **GATE-A (detection contract)** | docs/plans/22-note-detection.md Phase 1 | Detectability matrix + per-register latency budget co-signed with plan 24 | 22 Phases 2+; 24 Phase 2 (provisional-hit machine); 23 Phases 1/2/6 (event schema, bot, metrics) |
+| **GATE-B (algorithm selection)** | docs/plans/22-note-detection.md Phase 3 | Algorithm survey (dsp-guitar-detection-expert) sign-off incl. DSP dependency policy | 22 Phase 6 (v1 detectors) |
+| **G28-STRETCH** | docs/plans/28-practice-mode.md Phase 0 | Time-stretch backend spike + licensing sign-off (architecture.md licensing-table update needs user confirmation) | 28 Phases 1+ (plan itself Deferred) |
+| **G29-STABILITY** | docs/plans/29-online-leaderboards.md Phase 0a, measured by plan 23's harness | Byte-identical replay determinism; cross-version per-song score delta ≤0.5% p95 / ≤1.0% max; per-technique precision/recall drift ≤1pp; onset-latency p95 shift ≤5ms; sustained across two releases over ≥4 weeks (numbers to be reconciled with 22's metric definitions at 29 Phase 0) | 29 entirely (also gated on hosting/identity/licensing sign-off, 29 Phase 0b) |
+| **G41-TS (time signatures)** | docs/plans/41-tempo-map-authoring.md open question Q1 | Content policy for beats-per-measure edits chosen | 41 Phase 6 only |
+| **G43-METADATA** | docs/plans/43-song-information-and-art.md Phase 0 | 43-Q1..Q6 sign-off (publish-vs-save split etc.) | 43 Phases 1–5 |
+| **G45-STRINGS** | docs/plans/45-editor-theme-and-string-colors.md Phase 5 | Explicit decision to raise `g_max_chart_strings` to 10 (one-way door once 9/10-string content exists); consumer survey + STOP | 45 Phase 5 only; coordinates with 22's latency budget |
+| **G46-KEYMAP** | docs/plans/46-editor-keybinds.md Phase 0 | Default keymap + sharing model + mirroring policy sign-off | 46 Phases 1–5 |
+
+Known tensions from the planning mandate, and where each is resolved (none papered over):
+
+1. GH-exact scoring vs detection physics → 24's provisional-hit state machine is mandatory (GATE-A latency budget drives it).
+2. Required-metadata export denial vs save==publish normalize-don't-reject → 43-Q1 (recommend split publish gate; G43-METADATA).
+3. Chart hash vs load normalization rewriting bytes → 10 Phase 3: semantic hash, never byte-level (settled in plan 10).
+4. Editor 3D preview + layering rule (a) → G20-RENDER Phase 0c seam: shared scene model in common, bgfx never enters common.
+5. >8 strings vs `g_max_chart_strings` → G45-STRINGS domain gate, not a theme toggle.
+6. Keybind centralization crossing into common → 46 Phase 4's injected-binding-data seam (common stays editor-free).
+7. Game never rewrites user packages → 11 Phase 5 contract: game recomputes only into 26's library cache.
+8. AGPL + hosted leaderboards → 29-Q3 licensing decision + architecture.md amendment (part of G29 sign-off).
+9. Smooth-scroll follow evaluation is the USER's pending decision → 44 references docs/todo/smooth-scroll-follow-evaluation.md and stops; that doc stays untouched.
+10. Intensity sorting before the calculator lands → 26 ships the "Unknown" bucket (sorts last) per 11 Phase 5; never authored values.
+
+---
+
+## 3. Recommended execution order
+
+Ordered to reach milestone 0 fast and de-risk note detection early — **not** numeric order.
+Stages may overlap where dependencies allow; each bullet names the plan phases in scope.
+
+**Stage 1 — Foundations (start immediately, parallel-friendly)**
+1. docs/plans/13-audio-device-settings-and-calibration.md Phases 1–2 (shared settings store, editor migration) — earliest shared-infrastructure win; Phases 3–6 may trail.
+2. docs/plans/12-playback-clock.md Phases 1–4 (clock port, engine publishes, audio-derived publishing, extrapolator) — milestone 0's render loop needs this; Phase 5 closeout with first consumers.
+3. docs/plans/10-format-versioning-and-chart-identity.md Phase 0 (answer 10-Q1..Q5) then Phases 1–5 — unblocks the widest set of downstream consumers; cheap, pure, no UI.
+4. docs/plans/22-note-detection.md Phase 1 (detection contract — GATE-A) co-authored with docs/plans/24-scoring-star-power-failure.md Phase 1. **This is the single most schedule-critical de-risking step**: it costs no DSP work and settles the latency-budget physics everything else designs around.
+
+**Stage 2 — Decision gates (run while Stage 1 finishes)**
+5. docs/plans/20-game-architecture-and-render-stack.md Phases 0a–0c (G20-RENDER spike + seam, STOP).
+6. docs/plans/21-game-audio-engine-and-session.md Phase 0 (G21-TRACKTION-GO, signed jointly with 20 Phase 0b S1).
+
+**Stage 3 — Milestone-0 depth-first + detection de-risk in parallel**
+7. docs/plans/21-game-audio-engine-and-session.md Phases 1–6 (speed/loop plumbing, GameplaySession, tone switching, mix, latency stance, hardcoded-song soak). Phases 1–5 do not wait for G20-RENDER; Phase 6 is milestone 0's audio half.
+8. docs/plans/22-note-detection.md Phases 2–3 (dry tap in common/audio; algorithm survey → GATE-B), then Phases 4–7 (tuning math, pipeline skeleton, v1 detectors, tuner). The tuner ships in the current JUCE shell — not blocked on G20-RENDER.
+9. docs/plans/23-detection-verification-harness.md Phases 1–3 (event stream, autoplay bot, shared fixture generators) as soon as GATE-A closes; Phases 4–6 alongside 22 Phase 6.
+10. docs/plans/45-editor-theme-and-string-colors.md Phase 1 (shared string palette in common/ui) — small, and it blocks 25 Phase 3.
+11. docs/plans/20-game-architecture-and-render-stack.md Phases 1–4 (window/loop swap, resource pack, frame clock, dev diagnostics) after G20-RENDER.
+12. docs/plans/25-note-highway-3d.md Phases 1–3 (headless scene model, camera math — both pre-gate; board+notes playable skeleton after G20-RENDER). → **MILESTONE 0**.
+
+**Stage 4 — Gameplay loop**
+13. docs/plans/24-scoring-star-power-failure.md Phases 2–4 (provisional-hit machine on replayed events, score record format, failure meter) — gate-independent, pure game/core; Phases 5–6 (IMidiTrigger, star power) after their decisions.
+14. docs/plans/25-note-highway-3d.md Phases 4–5 (techniques; feedback/HUD fed by 24's events).
+15. docs/plans/22-note-detection.md Phase 8 (tuning-gate policy) and docs/plans/23-detection-verification-harness.md Phase 7 (local corpus soak).
+
+**Stage 5 — Game shell**
+16. docs/plans/27-in-song-flow-results-profiles.md Phase 1 (IGameSettings — must precede 26 Phase 4), then Phases 2–4.
+17. docs/plans/26-game-startup-menus-library.md Phases 1–4 (peek reader, library index, scan, settings), then 5–8 after G20-RENDER (menus, startup, Quick Play, onboarding); Phase 9 (previews) after 43.
+18. docs/plans/27-in-song-flow-results-profiles.md Phases 5–6 (session integration, pause/fail/results UI).
+19. docs/plans/11-derived-difficulty-calculator.md Phases 1–5 (any time after 10 Phase 3; calibration checkpoint is a user sign-off).
+20. docs/plans/42-chart-validation.md Phases 1–6 (arithmetic/pitch utilities early — 40 and 22 reuse them; corpus calibration STOP at Phase 5).
+
+**Stage 6 — Editor track (interleaves with Stages 3–5 at will; independent of the game gates)**
+21. docs/plans/43-song-information-and-art.md Phase 0 → Phases 1–5 (after 10 Phase 2).
+22. docs/plans/41-tempo-map-authoring.md Phases 1–5 (Phase 6 behind G41-TS); start Phase 2 only after the in-flight docs/in-progress/tone-track-tempo-map-plan.md editor work commits.
+23. docs/plans/40-chart-editing.md Phases 1–10 (Phase 2 waits for the in-flight tone work; from-scratch charting promise waits on 41 Phases 1–4).
+24. docs/plans/46-editor-keybinds.md Phase 0 → Phases 1–5.
+25. docs/plans/45-editor-theme-and-string-colors.md Phases 2–4 (presets, selection, colorblind-safe); Phase 5 behind G45-STRINGS; Phase 6 stretch.
+26. docs/plans/44-editor-3d-preview.md Phases 1–5 (after G20-RENDER + 25 Phases 1–2 + 12 + 45 Phase 1).
+
+**Stage 7 — Deferred**
+27. docs/plans/28-practice-mode.md (G28-STRETCH spike first; its one NOW requirement — speed factor + loop-seek in the interfaces — is already delegated to 21 Phase 1 and 12).
+28. docs/plans/29-online-leaderboards.md (G29-STABILITY + hosting/identity/licensing sign-off).
+
+---
+
+## 4. Milestone 0 — first-playable vertical slice
+
+Definition: **one hardcoded song, fixed audio devices, one preloaded tone, no menus, no-fail,
+keyboard start.** A player plugs in, launches the executable with a dev song path, presses a key,
+and plays the song on a rendered 3D highway with the backing track and their live tone audible.
+
+Composed of exactly these plan phases:
+
+| Ingredient | Plan phase |
+|---|---|
+| Playback clock + extrapolation | docs/plans/12-playback-clock.md Phases 1–4 |
+| Render stack landed (window, loop, frame clock) | docs/plans/20-game-architecture-and-render-stack.md Phases 0a–0c (gate) + 1 + 3 |
+| Tracktion-in-game GO | docs/plans/21-game-audio-engine-and-session.md Phase 0 |
+| GameplaySession spine (load → play → live rig) | docs/plans/21-game-audio-engine-and-session.md Phases 2–3 |
+| Hardcoded-song playthrough soak (audio half) | docs/plans/21-game-audio-engine-and-session.md Phase 6 |
+| Shared string palette | docs/plans/45-editor-theme-and-string-colors.md Phase 1 |
+| Highway scene model + camera + playable skeleton | docs/plans/25-note-highway-3d.md Phases 1–3 |
+
+Explicitly **not** in milestone 0: detection/scoring (22/24 — de-risked in parallel, integrated
+after), menus/library (26), settings UI/calibration wizard (13 architecture may land, fixed
+devices suffice), results (27), techniques rendering polish (25 Phases 4–5). No-fail is trivially
+satisfied because no failure meter exists yet.
+
+Milestone 0 exit: 21 Phase 6's manual soak checklist signed off **and** 25 Phase 3's exit
+criteria (notes scroll in time against the clock with correct lane colors) witnessed on the same
+build; result noted on the status board.
+
+---
+
+## 5. Decisions needed
+
+Every open question from every plan, grouped by plan, each with the plan writer's
+recommendation. Answer format: the question ID plus your choice (e.g. "10-Q1: A"); any
+unanswered item keeps its plan decision-gated. Recommendations are marked **R:**.
+
+### docs/plans/10-format-versioning-and-chart-identity.md (gates G10-DECISIONS)
+
+- **10-Q1** formatVersion bump rule: (A) bump on every persisted-schema change; (B) additive changes stay in-version; (C) major.minor split. **R: A** — hand-built writers drop unknown fields, so version+hard-reject is the only data-loss firewall.
+- **10-Q2** hash persistence: (A) compute-on-demand, never persisted in the package; (B) stored in song.json at export, validated on read. **R: A** — no staleness, avoids the save==publish tension; consumers store (algorithm id, hex).
+- **10-Q3** SHA-256 provider for common/core: (A) link the existing rock_hero juce_cryptography wrapper + one-line design-doc permission extension (needs your confirmation); (B) vendored SHA-256; (C) hash in common/audio (rejected: layering). **R: A**.
+- **10-Q4** chart-file vs song.json versioning: (A) independent integer ladders per document kind; (B) one package-wide version. **R: A**.
+- **10-Q5** hash scope: (A) entire chart file + tempo map; (B) scoring-relevant subset only. **R: A** — identity = exact authored content; plan 29 can add a looser comparability key later.
+- **10-D1** (design-doc confirmations bundled with this gate): bump policy recorded in architecture.md; juce_cryptography permission for common/core. Confirm both.
+
+### docs/plans/11-derived-difficulty-calculator.md
+
+- **11-Q1** persistence timing: (A) persist rating into song.json immediately (additive field); (B) editor recompute-on-load only, persistence deferred. **R: A** — deferring forces plan 26 to parse charts.
+- **11-Q2** calibration method for the 1–10 mapping: (A) you rate ~12–15 reference corpus arrangements, fit a monotonic mapping; (B) percentile calibration over the 135-chart corpus; (C) hand-tuned thresholds. **R: A** with (B) as cross-check; thresholds ship as constants only.
+- **11-Q3** cache the raw scalar beside the integer: (A) store both rating and 3-decimal intensity; (B) integer only. **R: A** — otherwise 26's intensity sort collapses into ten coarse buckets.
+
+### docs/plans/12-playback-clock.md
+
+- **12-Q1** snapshot time domain: (A) timeline nanoseconds only at v1, seqlock upgrade revisited at 24's provisional-hit contract; (B) add an output-stream sample-position field now. **R: A**.
+- **12-Q2** editor cursor migration: (A) migrate the cursor overlay to IPlaybackClock now and delete ITransport::position(); (B) keep the current correct message-thread path, revisit at plan 44 / the smooth-scroll decision. **R: B**.
+- **12-Q3** extrapolation feel defaults (120 ms snap, 5% drift slew, pause hold, snap on resume/seek/loop): (A) accept as starting defaults, tune live during plan 25; (B) review the numbers now. **R: A**.
+
+### docs/plans/13-audio-device-settings-and-calibration.md
+
+- **13-Q1** legacy editor settings keys after migration: (A) keep one release; (B) clear immediately (migration test-covered). **R: B**.
+- **13-Q2** video-offset storage: (A) one machine-global value, display name advisory; (B) per-monitor keying now. **R: A** — wizard remeasures in under a minute; schema field reserved.
+- **13-Q3** per-product buffer-size override: (A) one shared device configuration for both products; (B) per-product override layer now. **R: A**.
+- **13-Q4** WASAPI-Shared during gameplay: (A) allow with visible high-latency warning above ~15 ms; (B) allow scoring, force monitoring off; (C) refuse shared mode. **R: A** — calibration keeps scoring correct; (C) locks out users without ASIO.
+- **13-Q5** device-loss recovery: (A) auto-pause + non-destructive state + explicit re-setup prompt, never silently switching hardware; (B) silent re-open of default device. **R: A**.
+
+### docs/plans/20-game-architecture-and-render-stack.md (gates G20-RENDER)
+
+- **20-Q1** platform scope (Phase 0a): (A) Windows-first with cross-platform-preserving choices; (B) Windows-only commitment; (C) multi-platform CI now. **R: A**.
+- **20-Q2** spike candidate set (Phase 0b): (A) SDL3+bgfx only; (B) SDL3+bgfx primary + JUCE-window+bgfx fallback branch; (C) also SDL3+SDL_GPU. **R: B**.
+- **20-Q3** renderer-sharing seam (Phase 0c): (1) headless highway scene model in rock-hero-common/core with thin per-product render backends; (2) shared bgfx surface component in common/ui with Tracktion-style isolation; (3) no sharing (rejected). **R: 1**.
+- **20-Q4** dependency delivery: (A) Conan pins; (B) vendored submodules. **R: A** if spike criterion S3 shows clean recipes under the CLion-CMake+VsDevCmd/Ninja environment, else B.
+- **20-Q5** dev-diagnostics activation: (A) all builds behind a runtime flag; (B) debug-only compilation. **R: A**.
+- **20-Q6** frame pacing default: (A) vsync ON with frame-time instrumentation, toggle later in 26's video settings; (B) uncapped with limiter. **R: A**.
+
+### docs/plans/21-game-audio-engine-and-session.md
+
+- **21-Q1** missing-plugin fallback: (A) refuse to start the song; (B) skip unloadable plugins, play partial tone with pre-song warning; (C) substitute a bundled default clean tone. **R: B, with C when an entire tone chain fails** — never block gameplay, never fail silently; run marked "tone degraded" for 24's record.
+- **21-Q2** per-tone reported-latency policy for live monitoring: (A) warn pre-song above ~10 ms summed reported latency, play anyway; (B) hard-refuse above a cap; (C) silent. **R: A** — with PDC off, only the active branch's real latency applies; scoring taps dry input.
+- **21-Q3** mix-volume scope: global, per-song, or both. **R: global at v1** (persisted via 27's IGameSettings); per-song override deferred.
+
+### docs/plans/22-note-detection.md (gates GATE-A, GATE-B)
+
+- **22-Q1** v1 detectability tiers (GATE-A): adopt the draft matrix (notably Pop/Slap = Cosmetic, pinch-harmonic timbre = Cosmetic, palm-mute quality = Cosmetic with the note still scored, bend curve = Lenient with scored endpoint)? **R: adopt for v1**, revisit per-technique once plan 23 produces real precision/recall numbers.
+- **22-Q2** DSP dependency policy (GATE-B): (a) implement chosen mono-pitch + onset algorithms in-repo; (b) adopt a third-party library (aubio GPL-3, Essentia AGPL, cycfi/Q MIT; Conan availability unverified). **R: in-repo for v1**; adopt a library only on a decisive survey-cited quality win.
+- **22-Q3** tuner capo policy: (a) gate on capo-on sounding pitches ("place your capo at fret N"); (b) tune open strings, capo unverified. **R: a**.
+- **22-Q4** tuning-gate strictness default: any settled string > 10 cents vs average > 5 cents vs configurable. **R: any string > 10 cents**, always skippable, configurable later via 27's settings.
+
+### docs/plans/23-detection-verification-harness.md
+
+- **23-Q1** fixture-song license: (a) CC0 for the whole fixture tree; (b) repo AGPLv3. **R: CC0** — removes all downstream reuse questions for non-product test assets.
+- **23-Q2** committed-audio mechanism: (a) plain git, soft 30 MB / hard 50 MB FLAC budget; (b) Git LFS from day one; (c) fixtures submodule. **R: a** — mono DI FLAC is ~1–1.5 MB/min, v1 fits; revisit LFS only on overflow.
+- **23-Q3** DI corpus source: (a) you self-author 3–5 short songs/etudes and record DI takes per the Phase 5 protocol; (b) source freely-licensed third-party DI recordings. **R: a** — controlled tuning/technique coverage, unambiguous licensing.
+- **23-Q4** baseline update policy: (a) manual regeneration behind an env flag with reviewed committed diffs; (b) CI auto-ratchet. **R: a** — auto-ratchet hides metric drift and hurts bisection.
+
+### docs/plans/24-scoring-star-power-failure.md
+
+- **24-Q1** star-power earning model (format has no SP phrase markers): (a) derived phrases via a versioned generator + game-side cache, no format change; (b) authored phrase markers via 10 + 40; (c) continuous streak accrual. **R: a** — (b) contradicts derived-over-authored.
+- **24-Q2** does star-power deploy rescue the failure meter: (a) yes — GH-authentic immediate boost + 2x meter gain while active; (b) no, score-only. **R: a**.
+- **24-Q3** IMidiTrigger port placement: (a) rock-hero-game/audio; (b) rock-hero-common/audio now. **R: a** — only the game needs pedals today; extraction later is mechanical.
+- **24-Q4** meter/star-power visual direction (feeds 25): (A) stage-atmosphere lighting/crowd; (B) amp-top diegetic VU needle + charge lamp; (C) highway edge-light strips. **R: C with B's charge-lamp accent**.
+- **24-Q5** vendored JUCE 8.0.12 MIDI UAF (removeConsumer adds instead of removes): (a) design around now (one MidiInput per identifier process-wide + engine-exclusion checkpoint); (b) patch the submodule; (c) wait for a routine submodule bump. **R: a**.
+
+### docs/plans/25-note-highway-3d.md
+
+- **25-Q1** fret-width taper: (a) Charter equal-width default; (b) realistic taper. **R: a** — field already exists in HighwayMetrics, revisit with real charts; not blocking.
+- **25-Q2** chord fingering panels: (a) on by default (Charter parity); (b) off with setting. **R: a**, setting either way.
+- **25-Q3** scroll speed / visibility window: (a) free player setting, no difficulty coupling; (b) tied to derived difficulty; (c) fixed at v1. **R: a**, persisted via 27's store.
+- **25-Q4** camera shake on hits: (a) Phase 5 behind a default-off setting; (b) drop. **R: a** — replay-safe after the deterministic-seed fix.
+
+### docs/plans/26-game-startup-menus-library.md
+
+- **26-Q1** library index home: (a) rock-hero-game/core with the reusable peek reader in common/core; (b) entirely in common/core. **R: a**.
+- **26-Q2** index storage: (a) versioned JSON + thumbnail files with atomic replace; (b) juce::PropertiesFile; (c) SQLite. **R: a** — inspectable, testable, zero new dependencies.
+- **26-Q3** gamepad backend: (a) SDL3 gamepad subsystem; (b) minimal Win32 XInput adapter behind the same port; (c) defer gamepad, ship keyboard + MIDI pedal first. **R: a**, falling back to (c) if G20-RENDER rejects SDL3 — JUCE has no gamepad support.
+- **26-Q4** bindable-action sharing with editor keybinds (mirrors 46-Q2 — answer once): (a) parallel systems by design; (b) shared bindable-action concept in common. **R: a** — polled game input and JUCE KeyPress dispatch differ in kind; share only naming conventions.
+- **26-Q5** bundled starter song: (a) ship one self-authored freely-licensed starter package as a game resource (dual-use as a 23 CI fixture); (b) suggest the first library entry + empty-library help screen. **R: a**.
+
+### docs/plans/27-in-song-flow-results-profiles.md
+
+- **27-Q1** pause with one footswitch mapped: (A) press = star power / long-hold = pause; (B) pause needs its own binding, Esc keyboard fallback; (C) user-selectable defaulting to B. **R: B at v1**, binding model leaves C open.
+- **27-Q2** song-start count-in: (A) always audible click; (B) visual-only 3-2-1 with guaranteed ≥3.0 s runway (lead-in silence inserted when needed); (C) settings toggle from day one. **R: B**; audible click reserved for resume pre-roll.
+- **27-Q3** resume pre-roll: (A) fixed 3.0 s rewind; (B) measure-snapped ≥3.0 s rewind with click + non-scoring ghost replay (verdicts immutable); (C) unpause in place. **R: B** — re-place the fretting hand; pausing can never farm score.
+
+### docs/plans/28-practice-mode.md (Deferred; gates G28-STRETCH)
+
+- **28-Q1** time-stretch backend: (A) SoundTouch (vendored, one macro, LGPL v2.1, moderate quality); (B) RubberBand (better quality, not vendored, GPL/commercial dual license); (C) Elastique (commercial, incompatible with zero-cost AGPLv3 distribution). **R: A** for v1; re-evaluate B only if Phase 0 listening tests fail. Requires an architecture.md licensing-table row — confirm.
+- **28-Q2** speed range/step: (A) 50–100% UI in 5% steps; (B) 25–100%; (C) include 100–125% over-speed. **R: A for the UI**, port accepts 0.25–1.5 so range stays UI policy.
+- **28-Q3** what practice runs record: (A) accuracy-only, nothing persisted; (B) verdict slices in a separate practice-stats store, never the score store, never leaderboard-eligible; (C) normal score records flagged with the speed modifier. **R: B**.
+- **28-Q4** hit-window domain at reduced speed: (A) wall-clock-constant windows; (B) song-time windows; (C) song-time capped at 1.5x. **R: A**, co-owned with 24's hit-window spec.
+- **28-Q5** loop pre-roll: (A) fixed 2 s; (B) one full measure (min 1.5 s), configurable, count-in click on by default; (C) none. **R: B**; pre-roll notes dimmed and unscored.
+
+### docs/plans/29-online-leaderboards.md (Deferred; gates G29-STABILITY)
+
+- **29-Q1** hosting: (A) budget VPS ~$4–7/mo; (B) serverless/free tier; (C) home self-host. **R: A** (B if cost must be zero; C rejected on the RS-leaderboard-companion-app availability record).
+- **29-Q2** identity/auth: (A) client-generated keypair + self-asserted display name; (B) third-party OAuth; (C) email magic links. **R: A at v1**, optional B later.
+- **29-Q3** backend licensing under AGPLv3: (A) backend in this repo under AGPL, API serves the Corresponding Source link; (B) separate repo/license sharing no project source. **R: A**; either way architecture.md § Licensing needs a confirmed update when the backend lands.
+- **29-Q4** backend stack: (A) small C++ service reusing the project's score-record/re-scoring code; (B) managed-runtime service with a reimplemented validator pinned to plan 23 golden fixtures. **R: A if 29-Q3 = A**, else B with golden cross-validation.
+- **29-Q5** board visibility: (A) invite-code groups; (B) global public board. **R: A at v1**.
+- **29-Q6** ruleset-bump policy: (A) freeze old boards read-only, start new per ruleset major; (B) wipe. **R: A**.
+
+### docs/plans/40-chart-editing.md
+
+- **40-Q1** arpeggio handling: (A) no dedicated editor — the shapes editor covers arpeggios (bracket rendering derives from note arrival); (B) dedicated authoring mode; (C) stored arpeggio flag (format change via 10). **R: A**.
+- **40-Q2** same-string sustain overlap on edit: (A) reject the edit; (B) auto-truncate the earlier sustain inside the same compound undo entry; (C) allow, warn only. **R: B** — GP-like feel, every commit point stays valid; 42 flags residual import overlaps.
+- **40-Q3** tab-lane click semantics: (A) glyph hits select, empty click still seeks, empty drag = marquee; (B) explicit edit-mode toggle; (C) lane clicks always select, seek moves to the ruler. **R: A**.
+- **40-Q4** sub-plan registration: (A) one plan; (B) split Phase 7/8 into 40a/40b if a phase exceeds a session. **R: A now, B on demand** — the names docs/plans/40a-chord-template-and-shape-editor.md and docs/plans/40b-curve-payload-editors.md are hereby reserved.
+
+### docs/plans/41-tempo-map-authoring.md (Phase 6 gated on 41-Q1)
+
+- **41-Q1** time-signature edit content policy: (A) preserve global-beat positions via a pure re-addressing transform (time-preserving, measure numbers shift); (B) preserve literal m:b tokens (content shifts in time, destructive clamping); (C) forbid TS edits once downstream content exists. **R: A**.
+- **41-Q2** onset analysis source: (A) self-written spectral-flux kernel in common/core + decode adapter in common/audio (no new dependency, reusable by 22/23); (B) third-party DSP dependency; (C) editor-local kernel. **R: A**.
+- **41-Q3** tap-tempo semantics: (A) constant-BPM fit over the tapped span, one undoable edit; (B) anchor-per-tap on downbeats (bakes key jitter into anchors). **R: A**.
+
+### docs/plans/42-chart-validation.md
+
+- **42-Q1** same-string sustain-overlap severity: (a) structural reject at read; (b) truncate on load; (c) lint Warning only (endpoint == next onset is legal adjacency, never flagged). **R: c** — existing packages must keep loading; Phase 5 reports corpus frequency before freezing severity.
+- **42-Q2** corpus harness form: (a) env-gated Catch2 [corpus-lint] suite (skips when ROCKHERO_CORPUS_DIR unset); (b) standalone tools/chart-lint executable; (c) both. **R: a first**.
+- **42-Q3** may lint findings ever block: (a) advisory-only, always saveable; (b) Warning+ blocks a future explicit publish action. **R: a now**; blocking semantics revisit under 43's publish-split decision.
+
+### docs/plans/43-song-information-and-art.md (gates G43-METADATA)
+
+- **43-Q1** required metadata vs save==publish: (A) split publish-only validation from save (pure publishBlockers gate before publish; shared writer stays validation-free); (B) placeholder-with-warning auto-fill; (C) enforce in the shared writer. **R: A** — publish and save are already distinct code paths.
+- **43-Q2** which fields hard-block publish: (A) all five (title, artist, album, year, art); (B) title/artist/year hard, album+art soft. **R: A**; game keeps a fallback tile for legacy packages.
+- **43-Q3** canonical art policy: (A) transcode at import to one JPEG master (q0.85, max 1024 px, downscale-only, alpha flattened); (B) store original passthrough. **R: A** (JUCE JPEG writer drops alpha uncomposited; software rescale aliases beyond 2x).
+- **43-Q4** sort-field storage: (A) store only explicit overrides, dialog pre-fills article-stripped suggestion, consumers fall back to raw metadata; (B) always write derived sort fields. **R: A**.
+- **43-Q5** shared art codec placement: (A) rock-hero-common/ui art/ feature folder (needs juce_graphics; both products need it); (B) duplicate per product; (C) extend common/core's JUCE permission. **R: A**.
+- **43-Q6** chart "version" field: (A) no authored version — identity via 10's chart hash; (B) authored integer. **R: A** (derived over authored).
+
+### docs/plans/44-editor-3d-preview.md
+
+- **44-Q1** chart-driven cue scope in the preview: (a) render anticipation rings + rolling flip (same drawers as the game); (b) omit for a calmer authoring view. **R: a** — previewing the game's actual read is the point.
+- **44-Q2** drawer duplication vs shared geometry layer: (a) accept thin-drawer duplication in game/ui and editor/ui (hard math already shared in common); (b) extract a renderer-agnostic geometry-command layer into common. **R: a to start**, revisit with measured overlap; registered with G20-RENDER's gate record.
+- **44-Q3** shared shader/atlas asset home: (a) shared build-time asset location under rock-hero-common (no library dependency), compiled/deployed per product; (b) duplicate in editor/ui. **R: a**; coordinate with 20 Phase 2 and 25 Phase 3 before either lands its shader tree.
+- **44-Q4** transport keys in the focused preview window: (a) none; (b) play/pause (+seek) forwarded, via 46's map when landed. **R: b** (plugin windows set the precedent).
+
+### docs/plans/45-editor-theme-and-string-colors.md (Phase 5 gated by G45-STRINGS)
+
+- **45-Q1** colorblind-safe preset method (gates Phase 4): (A) Okabe-Ito-derived preset validated by an automated CVD-simulation pairwise-distance test, final hexes signed off visually; (B) hue-rotate the classic palette; (C) rely on lane position, skip the preset. **R: A** (C conflicts with the roadmap requirement that a colorblind-safe preset ships).
+- **45-Q2** classic preset lanes 8–10: (A) keep the shipped Charter near-white gray 8th, adopt RYB chartreuse/indigo for 9/10, fix the stale tab_view.h doc; (B) restore the full RYB tier incl. magenta 8th. **R: A**.
+- **45-Q3** v1 theme delivery: (A) built-in presets only; (B) file-based user themes at v1. **R: A**; user files are the Phase 6 stretch.
+- **45-Q4** when to raise g_max_chart_strings to 10: (A) immediately after Phase 4; (B) defer until a concrete extended-range need. **R: A**, noting detection support lags display support (22) and it is a one-way door once 9/10-string content exists.
+
+### docs/plans/46-editor-keybinds.md (gates G46-KEYMAP)
+
+- **46-Q1** default keymap appendix: (a) approve tier A as listed (de-facto keys + conservative file-menu standards; tier B reservation-only); (b) edit specific rows. **R: a** — diff-mode persistence merges later default changes under user overrides; only command IDs lock forever.
+- **46-Q2** editor/game bindable-action sharing (mirrors 26-Q4 — answer once): (a) parallel systems (JUCE ApplicationCommandManager for the editor, headless resolver in game/core; shared semantics conventions only); (b) one shared concept in common first. **R: a**.
+- **46-Q3** rebinding the three plugin-window-mirrored commands (Undo/Redo/PlayPause) to chords the Win32 hook cannot mirror: (a) restrict capture to mirrorable chords for those commands; (b) allow any chord with a persistent "not active while a plugin window is focused" note. **R: b**.
+
+### Roadmap-level items
+
+- **RM-1** Licensing audit thread: AGPLv3 network-source obligations (29-Q3), SoundTouch licensing-table row (28-Q1), CC0 fixture tree (23-Q1) — treat as one licensing pass when 28/29 activate.
+- **RM-2** Reserved sub-plan names per 40-Q4: docs/plans/40a-chord-template-and-shape-editor.md, docs/plans/40b-curve-payload-editors.md — create only if a phase exceeds a session.
+- **RM-3** Design-doc updates queued behind user confirmation: 10-D1 (bump policy + juce_cryptography permission), 20's architecture.md render-stack update at gate close, 28's licensing-table row, 29's Licensing section amendment.
+
+---
+
+## 6. docs/todo/ disposition table
+
+Semantics: **ABSORBED** = content re-verified and merged into the named plan (source deleted, or
+moved to docs/completed/ if it records finished work); **SUPERSEDED** = body replaced with a
+one-line pointer; **UNTOUCHED** = stays as a docs/todo deferred plan (stale-allowed per
+CLAUDE.md). docs/in-progress/ docs are active work — referenced by plans, never absorbed.
+
+| docs/todo file | Disposition | Action | Rationale |
+|---|---|---|---|
+| 3d-highway-plan.md | ABSORBED into docs/plans/25-note-highway-3d.md | delete | Full absorption with re-verification (Charter analysis, seven defects, module placement preserved; stale format-v2 phrasing corrected) |
+| arrangement-difficulty-derivation-plan.md | ABSORBED into docs/plans/11-derived-difficulty-calculator.md | delete | Fully promoted; preconditions now met (FHPs exist, GP import landed), signature corrected |
+| thread-safe-transport-readback.md | ABSORBED into docs/plans/12-playback-clock.md | delete | Fully promoted; stale steps (audible-time read, TransportState) corrected against code |
+| shared-user-audio-settings-plan.md | ABSORBED into docs/plans/13-audio-device-settings-and-calibration.md | delete | Fully promoted; feature-folder placement and already-shipped narrowing corrected |
+| audio-device-settings-extraction-followups.md | PARTIALLY ABSORBED into docs/plans/13-audio-device-settings-and-calibration.md Phase 6 | edit: strip the absorbed ChangeListener smoke-test item, keep editor-UI follow-ups (view split, window caps) with a pointer to plan 13 | Only the re-derivation smoke test was absorbed; editor-UI follow-ups remain valid deferred work outside the 21-plan set |
+| smooth-scroll-follow-evaluation.md | UNTOUCHED (MUST) | none | Pending USER decision, already re-raised; plan 44 references it and stops (known tension 9) |
+| gp-track-part-mapping.md | UNTOUCHED | none | GP-import workflow stopgap outside the 21-plan set; still accurate as a deferred plan |
+| tone-rack-plan.md | SUPERSEDED by docs/in-progress/tone-track-tempo-map-plan.md (slice 5) | replace body with pointer | Largely subsumed by the in-flight tone work; keeping the stale body invites re-implementation of retired surfaces |
+| tone-automation-track-plan.md | UNTOUCHED | none | Deferred tone-parameter automation; no plan in this set covers it |
+| tempo-grid-declutter-plan.md | UNTOUCHED | none (stale warning stands) | Self-declares partial staleness; motivating perf problem separately fixed; plan 41 lists it out of scope — re-verify fully before any execution |
+| test-fixture-opportunities-plan.md | UNTOUCHED | none (stale warning stands) | Sequences against a completed plan; overlaps plan 23 Phase 3's common fixture target — reconcile against docs/plans/23 before executing |
+| trompeloeil-adoption-plan.md | UNTOUCHED | none | Independent test-tooling proposal, out of roadmap scope |
+| test-coverage-badge-plan.md | UNTOUCHED | none (stale-layout warning: predates product-scope restructure) | CI/tooling nicety, out of roadmap scope; paths reference the retired libs/apps layout |
+| core-domain-logging-targets-plan.md | UNTOUCHED | none (stale-layout warning: predates product-scope restructure) | Out of roadmap scope; known stale in load-bearing ways — full re-verification required before use |
+| cpp26-migration.md | UNTOUCHED | none | Toolchain migration, deliberately deferred |
+| audio-asset-catalog-thumbnail-cache-plan.md | UNTOUCHED | none | Waveform-thumbnail caching (editor timeline) — verified unrelated to plan 43's album art |
+| audio-engine-multi-track-support.md | UNTOUCHED | none (stale warning: cites retired Engine::createTrack/IEdit/EditCoordinator surfaces per plan 21's inventory) | Deferred engine capability; must be rewritten against current ports before use |
+| multiple-audio-clips-plan.md | UNTOUCHED | none | Deferred editor capability outside the 21-plan set |
+| editor-pending-events-design.md | UNTOUCHED | none | Deferred editor-core design note, out of roadmap scope |
+| editor-structure-deferred-work.md | UNTOUCHED | none | Deferred structural cleanup, out of roadmap scope |
+| editor-ui-scale.md | UNTOUCHED | none | Deferred; plan 26 cites only its game-exclusion decision |
+| plugin-window-persistence.md | UNTOUCHED | none | Deferred editor capability, out of roadmap scope |
+| remaining-god-object-decomposition-plan.md | UNTOUCHED | none | Deferred cleanup (engine.cpp seam split), out of roadmap scope |
+| timeline-origin-rethink.md | UNTOUCHED | none | Deferred; plan 41 lists it out of scope |
+| native-package-write-safety-followups.md | PARTIALLY ABSORBED into docs/plans/10-format-versioning-and-chart-identity.md Phase 5 | replace body with pointer to plan 10 (atomic-replace core absorbed; broader plan/commit split re-deferred and recorded in plan 10) | Conservative pointer rather than delete because absorption was partial |
+| audio-device-settings-performance-investigation.md | UNTOUCHED | none | Deferred investigation, out of roadmap scope |
+| ci-build-speed-options.md | UNTOUCHED | none | CI tooling; plan 20's spike measures CI cost (criterion S6) but does not absorb this doc |
+
+---
+
+## 7. Status board
+
+One line per plan; update the right-hand cell as phases complete.
+
+| Plan | Status | Scope (one line) | Progress |
+|---|---|---|---|
+| docs/plans/10-format-versioning-and-chart-identity.md | Decision-gated (G10-DECISIONS) | formatVersion policy, migration ladder, semantic chart-identity hash (RHCI-1), atomic package replace | Not started |
+| docs/plans/11-derived-difficulty-calculator.md | Ready | Versioned pure difficulty calculator, corpus calibration, additive persistence, game-side degraded contract | Not started |
+| docs/plans/12-playback-clock.md | Ready | IPlaybackClock atomic mirror of audio-derived time + consumer-side extrapolation policy | Not started |
+| docs/plans/13-audio-device-settings-and-calibration.md | Ready | Shared per-device settings store, latency-offset model, calibration capture, device-loss policy | Not started |
+| docs/plans/20-game-architecture-and-render-stack.md | Decision-gated (G20-RENDER) | Platform scope, SDL3+bgfx spike, renderer-sharing seam, window/loop, resources, threading, dev diagnostics | Not started |
+| docs/plans/21-game-audio-engine-and-session.md | Decision-gated (G21-TRACKTION-GO) | Tracktion-in-game GO, GameplaySession spine, tone switching, mix, latency stance, milestone-0 audio soak | Not started |
+| docs/plans/22-note-detection.md | Decision-gated (GATE-A, GATE-B) | Detection contract + latency budget, dry tap, algorithm survey, pipeline, v1 detectors, tuner, tuning gate | Not started |
+| docs/plans/23-detection-verification-harness.md | Ready | Event-log replay, autoplay bot, fixture generators, synth render sweeps, CC0 DI corpus, regression metrics | Not started |
+| docs/plans/24-scoring-star-power-failure.md | Decision-gated (24-Q1..Q5) | Provisional-hit scoring machine, technique matrix, score record format, failure meter, MIDI star power | Not started |
+| docs/plans/25-note-highway-3d.md | Decision-gated (via G20-RENDER) | Headless highway scene model, camera, Charter-parity board/notes/techniques, feedback + debug HUD | Not started |
+| docs/plans/26-game-startup-menus-library.md | Ready (Phases 5–9 behind G20-RENDER) | Package peek reader, library index cache, scan, menus, Quick Play, onboarding, previews | Not started |
+| docs/plans/27-in-song-flow-results-profiles.md | Ready (Phases 5–6 gated) | IGameSettings + profile, local score store, in-song flow machine, results computation and UI | Not started |
+| docs/plans/28-practice-mode.md | Deferred (G28-STRETCH) | Section looping, pitch-preserved slow-down, per-section accuracy; NOW requirement delegated to 21/12 | Not started |
+| docs/plans/29-online-leaderboards.md | Deferred + Decision-gated (G29-STABILITY) | Friends-scale boards, unchanged score-record upload, server-side re-scoring, AGPL-aware hosting | Not started |
+| docs/plans/40-chart-editing.md | Ready | Full chart authorability: selection, notes, techniques, curves, templates/shapes/FHPs/sections, bulk edit | Not started |
+| docs/plans/41-tempo-map-authoring.md | Ready (Phase 6 behind G41-TS) | Anchor place/drag, tap tempo, onset-assisted snapping, TS editing within the warp-anchor model | Not started |
+| docs/plans/42-chart-validation.md | Ready | Advisory lint engine + rule set v1 in common/core, corpus-calibrated severities, editor report | Not started |
+| docs/plans/43-song-information-and-art.md | Decision-gated (G43-METADATA) | song.json metadata/art/sort/preview fields, Song Information dialog, shared art codec, publish gate | Not started |
+| docs/plans/44-editor-3d-preview.md | Decision-gated (via G20-RENDER) | Fullscreen-capable editor preview window sharing the highway scene model; playback follow + live edits | Not started |
+| docs/plans/45-editor-theme-and-string-colors.md | Ready (Phase 5 behind G45-STRINGS) | Shared string palette in common/ui, theme presets, colorblind-safe preset, string-cap raise gate | Not started |
+| docs/plans/46-editor-keybinds.md | Decision-gated (G46-KEYMAP) | JUCE command-manager keybinds, config UI, diff persistence, plugin-window shortcut injection seam | Not started |
+
+Milestone 0: **not reached** — exit = docs/plans/21-game-audio-engine-and-session.md Phase 6 soak
+checklist + docs/plans/25-note-highway-3d.md Phase 3 exit criteria witnessed on the same build.
