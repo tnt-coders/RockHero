@@ -288,9 +288,16 @@ private:
     /*! \copydoc ToneTrackView::Listener::onToneRegionSelected */
     void onToneRegionSelected(std::string region_id) override;
 
+    /*! \brief Shows the tone-picker menu to insert a tone-change marker at the playhead. */
+    void createToneMarkerAtPlayhead();
+
     /*! \copydoc ToneTrackView::Listener::onToneBoundaryMoveRequested */
     void onToneBoundaryMoveRequested(
         std::string right_region_id, common::core::ToneGridPosition position) override;
+
+    /*! \copydoc ToneTrackView::Listener::onToneRenamePromptRequested */
+    void onToneRenamePromptRequested(
+        std::string tone_document_ref, std::string current_name) override;
 
     /*! \copydoc ToneTrackView::Listener::onToneRegionResizeRequested */
     void onToneRegionResizeRequested(
