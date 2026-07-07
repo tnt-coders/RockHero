@@ -162,13 +162,20 @@ Built on branch `work-in-progress` (off `refactor`), each slice green + tested:
   tempo-edit re-derivation pass are deferred (they add value only once a tempo-edit remap exists,
   which nothing triggers today — the backend curve is seconds regardless).
 
-**Remaining: the UI (slices B–D).** A "+" parameter picker in the signal-chain panel
-(`listAutomatableParameters` → `onSetToneAutomationPoints` with a seed point), `Signal Chain - <tone>`
-title, automation lanes beneath the tone strip drawing `ToneAutomationViewState` curves, interactive
-add/move/delete points with grid-snap (Ctrl bypass), vertically resizable lanes, and disabled/discrete
-rendering. The interactive lane is complex graphics/UI — consult the `juce-tracktion-expert` before
-building it, per the standing rule. It is a pure consumer of the finished editor-core intent + view
-state, so it needs no further backend work; a to-do note tracks it if this doc moves to `docs/todo`.
+**Remaining: the UI (slices B–D).** Automation lanes render beneath the tone region on the timeline,
+one lane per automated parameter, drawing `ToneAutomationViewState` curves. The **"+" picker lives in
+the first empty automation lane** directly under the tone region (NOT in the signal-chain panel —
+user correction 2026-07-07): clicking it opens the parameter menu (`listAutomatableParameters`) and
+choosing a parameter seeds the lane (`onSetToneAutomationPoints` with a seed point), after which the
+"+" moves down to the next empty lane. Then: interactive add/move/delete points with grid-snap (Ctrl
+bypass), vertically resizable lanes, and disabled/discrete rendering. The interactive lane is complex
+graphics/UI — consult the `juce-tracktion-expert` before building it, per the standing rule. It is a
+pure consumer of the finished editor-core intent + view state, so it needs no further backend work.
+
+**Open design question to resolve first (see below): musical/grid storage vs the seconds-based
+storage currently implemented.** If we move the editor-core model + memento to musical positions
+(converting to seconds only at the audio port), the UI produces musical grid positions directly and
+the action/memento carry those; the seconds-based shortcut below would be revised.
 
 ## Architecture
 
