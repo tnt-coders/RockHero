@@ -491,6 +491,10 @@ void EditorController::Impl::startLiveRigLoadStage(
                     common::audio::PluginChainSnapshot{.plugins = rig_result->plugins});
                 m_output_gain_db = rig_result->output_gain.db;
                 m_output_gain_preview_before.reset();
+                // Load-fresh plugin identities key the arrangement's musical automation; merge
+                // them, then rebuild the derived playback curves the sidecars no longer carry.
+                mergeToneChainIdentities(rig_result->tone_chains);
+                rebuildToneAutomationCurves();
                 applyLiveInputGate();
                 if (!report_progress)
                 {
@@ -938,6 +942,7 @@ std::expected<void, common::audio::LiveRigError> EditorController::Impl::capture
             .existing_tone_document_ref = arrangement->tone_document_ref,
             .block_indices = m_signal_chain.blockIndices(),
             .display_type_overrides = m_signal_chain.displayTypeOverrideTokens(),
+            .stable_ids = captureStableIds(),
         });
     if (!snapshot.has_value())
     {

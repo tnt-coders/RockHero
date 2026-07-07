@@ -819,15 +819,18 @@ void EditorController::onToneCreateNewRequested(
     m_impl->onToneCreateNewRequested(position, std::move(name));
 }
 
+void EditorController::onToneAutomationLaneAddRequested(
+    std::string instance_id, std::string param_id)
+{
+    m_impl->onToneAutomationLaneAddRequested(std::move(instance_id), std::move(param_id));
+}
+
 void EditorController::onSetToneAutomationPoints(
-    std::string tone_document_ref, std::string instance_id, std::string param_id,
-    std::vector<common::audio::AutomationCurvePoint> points)
+    std::string instance_id, std::string param_id,
+    std::vector<common::core::ToneAutomationPoint> points)
 {
     m_impl->onSetToneAutomationPoints(
-        std::move(tone_document_ref),
-        std::move(instance_id),
-        std::move(param_id),
-        std::move(points));
+        std::move(instance_id), std::move(param_id), std::move(points));
 }
 
 void EditorController::onPluginBrowserRequested()
@@ -1976,8 +1979,23 @@ EditorViewState EditorController::Impl::deriveViewState() const
         };
         state.tone_track =
             toneTrackViewStateFor(*arrangement, state.tempo_map, m_selected_tone_region_id);
-        state.tone_automation =
-            toneAutomationViewStateFor(m_tone_automation, selectedToneDocumentRef());
+        std::unordered_map<std::string, ToneAutomationBinding> automation_bindings;
+        automation_bindings.reserve(m_tone_plugin_identities.size());
+        for (const auto& [instance_id, identity] : m_tone_plugin_identities)
+        {
+            automation_bindings.emplace(
+                identity.plugin_id,
+                ToneAutomationBinding{
+                    .instance_id = instance_id,
+                    .tone_document_ref = identity.tone_document_ref,
+                });
+        }
+        state.tone_automation = toneAutomationViewStateFor(
+            *arrangement,
+            state.tempo_map,
+            selectedToneDocumentRef(),
+            automation_bindings,
+            m_tone_automation);
 
         // The tab projection resolves thousands of positions to seconds, so it is memoized per
         // displayed arrangement. Charts and the tempo map are immutable while a project is open,
