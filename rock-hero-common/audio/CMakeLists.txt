@@ -7,7 +7,8 @@ find_package(libebur128 CONFIG REQUIRED)
 # Shared audio ports, audio-device settings policy, and the default Tracktion/JUCE-backed adapter.
 target_sources(
     rock_hero_common_audio
-    PRIVATE src/device/audio_device_configuration_error.cpp
+    PRIVATE src/automation/tone_automation_error.cpp
+            src/device/audio_device_configuration_error.cpp
             src/device/audio_device_settings.cpp
             src/engine/engine.cpp
             src/engine/engine_device_config.cpp
@@ -16,6 +17,7 @@ target_sources(
             src/engine/engine_live_rig.cpp
             src/engine/engine_plugin_host.cpp
             src/engine/engine_song_audio.cpp
+            src/engine/engine_tone_automation.cpp
             src/engine/engine_transport.cpp
             src/input/input_calibration.cpp
             src/input/live_input_error.cpp
@@ -41,6 +43,8 @@ target_sources(
             src/tracktion/monitoring_mode_transition.h
             src/tracktion/plugin_dirty_tracking.cpp
             src/tracktion/plugin_dirty_tracking.h
+            src/tracktion/tone_automation_curve.cpp
+            src/tracktion/tone_automation_curve.h
             src/tracktion/tone_branch_gain_plugin.cpp
             src/tracktion/tone_branch_gain_plugin.h
             src/tracktion/plugin_window.cpp
