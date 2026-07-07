@@ -90,6 +90,9 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Move the shared boundary between two adjacent tone regions. */
     MoveToneBoundary,
 
+    /*! \brief Create a new empty tone and split the region under a grid position to reference it. */
+    CreateNewTone,
+
     /*! \brief Show the scanned plugin browser. */
     ShowPluginBrowser,
 

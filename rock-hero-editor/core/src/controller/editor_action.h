@@ -341,6 +341,27 @@ struct EditorAction
         common::core::ToneGridPosition position;
     };
 
+    /*! \brief Create a new empty tone and split the region under a grid position to reference it. */
+    struct CreateNewTone
+    {
+        /*!
+        \brief Creates a new-tone action.
+        \param at_value Grid position at which the new tone begins; must fall strictly inside a
+        region.
+        \param name_value User-facing name for the new tone.
+        */
+        CreateNewTone(common::core::ToneGridPosition at_value, std::string name_value)
+            : at(at_value)
+            , name(std::move(name_value))
+        {}
+
+        /*! \brief Grid position at which the new tone begins. */
+        common::core::ToneGridPosition at;
+
+        /*! \brief User-facing name for the new tone. */
+        std::string name;
+    };
+
     /*! \brief Show the scanned plugin browser. */
     struct ShowPluginBrowser
     {
@@ -494,8 +515,8 @@ struct EditorAction
         CloseProject, ExitApplication, ResolveUnsavedChangesPrompt, CancelSaveAsPrompt,
         CancelBusyOperation, Undo, Redo, PlayPause, Stop, SeekTimeline, SetGridNoteValue,
         SelectArrangement, SelectToneRegion, ResizeToneRegion, CreateToneRegion, DeleteToneRegion,
-        RenameTone, MoveToneBoundary, ShowPluginBrowser, BeginPluginInsert, ScanPluginCatalog,
-        InsertSelectedPlugin, RemovePlugin, MovePlugin, SetSignalChainPlacement,
+        RenameTone, MoveToneBoundary, CreateNewTone, ShowPluginBrowser, BeginPluginInsert,
+        ScanPluginCatalog, InsertSelectedPlugin, RemovePlugin, MovePlugin, SetSignalChainPlacement,
         SetPluginDisplayTypeOverride, OpenPlugin>;
 };
 

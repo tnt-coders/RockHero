@@ -16,6 +16,7 @@ constexpr const char* g_second_tone_ref = "tones/1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3
 constexpr const char* g_region_a = "5a1f0c3d-7e2b-4a9c-8d1e-2f3a4b5c6d7e";
 constexpr const char* g_region_b = "6b2e1d4f-8a3c-4b1d-9e2f-3a4b5c6d7e8f";
 constexpr const char* g_region_new = "7c3f2e5a-9b4d-4c2e-af3a-4b5c6d7e8f90";
+constexpr const char* g_minted_ref = "tones/3a4b5c6d-7e8f-4a1b-8c2d-9e0f1a2b3c4d/tone.json";
 
 [[nodiscard]] common::core::ToneGridPosition gridAt(int measure, int beat)
 {
@@ -80,13 +81,15 @@ struct LoadedToneEditor
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
     FakeProjectServices project_services;
     EditorController controller;
     FakeEditorView view;
 
     explicit LoadedToneEditor(common::core::Song song)
         : controller{
-              audioPorts(transport, audio),
+              audioPorts(transport, audio, plugin_host, live_rig),
               defaultControllerServices(),
               noopExitFunction(),
               EditorController::ProjectOperations{
@@ -254,6 +257,40 @@ TEST_CASE(
     CHECK(editor.regions()[0].end == gridAt(2, 1));
     CHECK(editor.regions()[1].start == gridAt(2, 1));
     CHECK(editor.regions()[1].end == gridAt(3, 1));
+}
+
+TEST_CASE(
+    "EditorController creates a new tone by minting and splitting", "[core][editor-controller]")
+{
+    LoadedToneEditor editor{makeSingleRegionSong()};
+    REQUIRE(editor.regions().size() == 1);
+    editor.live_rig.next_mint_ref = g_minted_ref;
+    const int loads_before = editor.live_rig.load_call_count;
+
+    editor.controller.onToneCreateNewRequested(gridAt(2, 1), "Solo");
+
+    // The region is split and the later half references the freshly minted tone.
+    REQUIRE(editor.regions().size() == 2);
+    CHECK(editor.regions()[0].end == gridAt(2, 1));
+    CHECK(editor.regions()[1].start == gridAt(2, 1));
+    CHECK(editor.regions()[1].tone_document_ref == g_minted_ref);
+    // The catalog gained the new tone, and the rig was minted once and reloaded to add its branch.
+    CHECK(common::core::toneNameFor(editor.arrangement(), g_minted_ref) == "Solo");
+    CHECK(editor.live_rig.mint_call_count == 1);
+    CHECK(editor.live_rig.load_call_count == loads_before + 1);
+
+    // Undo removes both the region and the catalog tone (pure model).
+    editor.controller.onUndoRequested();
+    REQUIRE(editor.regions().size() == 1);
+    CHECK(editor.regions().front().end == gridAt(3, 1));
+    CHECK(common::core::toneNameFor(editor.arrangement(), g_minted_ref).empty());
+
+    // Redo recreates both without re-minting.
+    editor.controller.onRedoRequested();
+    REQUIRE(editor.regions().size() == 2);
+    CHECK(editor.regions()[1].tone_document_ref == g_minted_ref);
+    CHECK(common::core::toneNameFor(editor.arrangement(), g_minted_ref) == "Solo");
+    CHECK(editor.live_rig.mint_call_count == 1);
 }
 
 } // namespace rock_hero::editor::core

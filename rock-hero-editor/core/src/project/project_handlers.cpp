@@ -1051,6 +1051,17 @@ void EditorController::Impl::restoreLiveRig(
             }));
 }
 
+// Resolves the current project's native-song directory. Returns empty when no project is loaded;
+// callers already guard that a project is loaded before minting or reloading against this path.
+std::filesystem::path EditorController::Impl::currentSongDirectory() const
+{
+    if (!m_project.has_value())
+    {
+        return {};
+    }
+    return songDirectoryForProject(*m_project);
+}
+
 // Clears the audio backend's live rig chain as part of project teardown.
 void EditorController::Impl::clearLiveRig()
 {
