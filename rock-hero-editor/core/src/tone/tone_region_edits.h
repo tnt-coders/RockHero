@@ -9,6 +9,7 @@
 
 #include <cstddef>
 #include <expected>
+#include <optional>
 #include <rock_hero/common/core/tone/tone_track.h>
 #include <string>
 #include <utility>
@@ -150,14 +151,18 @@ struct [[nodiscard]] ToneRegionDeleteEdit final : IEdit
     \param region_name_value User-facing tone name used for the undo label.
     \param absorbed_by_prev_value True when the previous region absorbed the removed span; false
     when the removed region was first and the next region's start was extended back instead.
+    \param removed_catalog_tone_value Catalog tone the delete pruned because this region was its
+    last reference, or empty when other regions still reference the tone.
     */
     ToneRegionDeleteEdit(
         std::size_t removed_index_value, common::core::ToneRegion removed_region_value,
-        std::string region_name_value, bool absorbed_by_prev_value)
+        std::string region_name_value, bool absorbed_by_prev_value,
+        std::optional<common::core::Tone> removed_catalog_tone_value)
         : removed_index(removed_index_value)
         , removed_region(std::move(removed_region_value))
         , region_name(std::move(region_name_value))
         , absorbed_by_prev(absorbed_by_prev_value)
+        , removed_catalog_tone(std::move(removed_catalog_tone_value))
     {}
 
     /*!
@@ -191,6 +196,9 @@ struct [[nodiscard]] ToneRegionDeleteEdit final : IEdit
 
     /*! \brief True when the previous region absorbed the removed span rather than the next. */
     bool absorbed_by_prev;
+
+    /*! \brief Catalog tone pruned with the region's last reference; restored on undo. */
+    std::optional<common::core::Tone> removed_catalog_tone;
 };
 
 /*! \brief Inverse-command edit that restores a tone's previous catalog name. */

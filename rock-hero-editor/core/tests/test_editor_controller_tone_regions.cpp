@@ -280,6 +280,36 @@ TEST_CASE(
     CHECK(editor.live_rig.mint_call_count == 1);
 }
 
+TEST_CASE(
+    "EditorController frees a tone's name when its last region is deleted",
+    "[core][editor-controller]")
+{
+    LoadedToneEditor editor{makeSingleRegionSong()};
+    editor.live_rig.next_mint_ref = g_minted_ref;
+    editor.controller.onToneCreateNewRequested(gridAt(2, 1), "Solo");
+    REQUIRE(editor.regions().size() == 2);
+    const std::string solo_region_id = editor.regions()[1].id;
+
+    // Deleting the tone's only region prunes it from the catalog too: a phantom entry would keep
+    // owning the name while nothing could reach the tone.
+    editor.controller.onToneRegionDeleteRequested(solo_region_id);
+    REQUIRE(editor.regions().size() == 1);
+    CHECK(common::core::toneNameFor(editor.arrangement(), g_minted_ref).empty());
+
+    // Undo restores the region together with its catalog entry; redo prunes both again.
+    editor.controller.onUndoRequested();
+    CHECK(common::core::toneNameFor(editor.arrangement(), g_minted_ref) == "Solo");
+    editor.controller.onRedoRequested();
+    CHECK(common::core::toneNameFor(editor.arrangement(), g_minted_ref).empty());
+
+    // The freed name is reusable: creating another "Solo" succeeds instead of reporting a
+    // duplicate.
+    editor.controller.onToneCreateNewRequested(gridAt(2, 1), "Solo");
+    REQUIRE(editor.regions().size() == 2);
+    CHECK(common::core::toneNameFor(editor.arrangement(), g_minted_ref) == "Solo");
+    CHECK(editor.view.shown_errors.empty());
+}
+
 TEST_CASE("EditorController resets the sole tone region on delete", "[core][editor-controller]")
 {
     LoadedToneEditor editor{makeSingleRegionSong()};
