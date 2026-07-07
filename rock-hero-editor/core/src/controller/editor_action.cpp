@@ -151,6 +151,10 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::OpenPlugin;
     }
+    else if constexpr (std::is_same_v<A, EditorAction::SetToneAutomationPoints>)
+    {
+        return EditorAction::Id::SetToneAutomationPoints;
+    }
     else
     {
         static_assert(g_dependent_false<A>, "Unhandled editor action alternative");

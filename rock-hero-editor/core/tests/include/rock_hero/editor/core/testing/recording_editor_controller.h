@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <functional>
 #include <optional>
+#include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <rock_hero/common/audio/input/live_input_error.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/timeline.h>
@@ -224,6 +225,18 @@ public:
     {
         last_create_new_tone_position = position;
         last_create_new_tone_name = std::move(name);
+    }
+
+    /*! \copydoc IEditorController::onSetToneAutomationPoints */
+    void onSetToneAutomationPoints(
+        std::string tone_document_ref, std::string instance_id, std::string param_id,
+        std::vector<common::audio::AutomationCurvePoint> points) override
+    {
+        last_automation_tone_ref = std::move(tone_document_ref);
+        last_automation_instance_id = std::move(instance_id);
+        last_automation_param_id = std::move(param_id);
+        last_automation_points = std::move(points);
+        set_tone_automation_points_call_count += 1;
     }
 
     /*!
@@ -520,6 +533,21 @@ public:
 
     /*! \brief Last name reported through onToneCreateNewRequested(). */
     std::string last_create_new_tone_name{};
+
+    /*! \brief Last tone ref reported through onSetToneAutomationPoints(). */
+    std::string last_automation_tone_ref{};
+
+    /*! \brief Last plugin instance id reported through onSetToneAutomationPoints(). */
+    std::string last_automation_instance_id{};
+
+    /*! \brief Last parameter id reported through onSetToneAutomationPoints(). */
+    std::string last_automation_param_id{};
+
+    /*! \brief Last curve points reported through onSetToneAutomationPoints(). */
+    std::vector<common::audio::AutomationCurvePoint> last_automation_points{};
+
+    /*! \brief Number of onSetToneAutomationPoints() calls received. */
+    int set_tone_automation_points_call_count{0};
 
     /*! \brief Last timeline zoom reported through onTimelineZoomChanged(). */
     std::optional<double> last_timeline_zoom_pixels_per_second{};
