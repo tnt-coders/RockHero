@@ -1536,7 +1536,7 @@ void EditorView::createToneMarkerAtPlayhead()
     menu.addItem(create_new_id, "New tone");
 
     menu.showMenuAsync(
-        juce::PopupMenu::Options{}.withTargetComponent(this),
+        juce::PopupMenu::Options{}.withMousePosition(),
         [this, position, reuse_refs, create_new_id](int result) {
             if (result == create_new_id)
             {
