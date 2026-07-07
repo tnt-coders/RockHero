@@ -18,6 +18,7 @@
 #include <rock_hero/editor/core/signal_chain/signal_chain_view_state.h>
 #include <rock_hero/editor/core/tab/tab_view_state.h>
 #include <rock_hero/editor/core/timeline/arrangement_view_state.h>
+#include <rock_hero/editor/core/tone/tone_automation_view_state.h>
 #include <rock_hero/editor/core/tone/tone_track_view_state.h>
 #include <rock_hero/editor/core/transport/transport_view_state.h>
 #include <string>
@@ -256,6 +257,9 @@ struct EditorViewState
 
     /*! \brief Current tone track row state shown below the backing waveform. */
     ToneTrackViewState tone_track{};
+
+    /*! \brief Automation lanes for the selected tone, shown beneath the tone strip. */
+    ToneAutomationViewState tone_automation{};
 
     /*!
     \brief Seconds-resolved chart content for the current arrangement's tablature lane.
