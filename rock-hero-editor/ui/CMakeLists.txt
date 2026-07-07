@@ -60,6 +60,8 @@ target_sources(
             src/timeline/timeline_ruler.h
             src/timeline/track_viewport.cpp
             src/timeline/track_viewport.h
+            src/tone/tone_automation_lanes_view.cpp
+            src/tone/tone_automation_lanes_view.h
             src/tone/tone_track_view.cpp
             src/tone/tone_track_view.h
             src/transport/transport_controls.cpp

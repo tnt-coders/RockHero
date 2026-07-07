@@ -5,6 +5,7 @@
 #include "timeline/arrangement_view.h"
 #include "timeline/cursor_overlay.h"
 #include "timeline/timeline_cursor.h"
+#include "tone/tone_automation_lanes_view.h"
 #include "tone/tone_track_view.h"
 
 #include <algorithm>
@@ -225,12 +226,13 @@ void TrackViewport::TimelineViewport::visibleAreaChanged(
 // Installs the existing waveform track and cursor overlay into viewport-owned content.
 TrackViewport::TrackViewport(
     core::IEditorController& controller, ArrangementView& arrangement_view, TabView& tab_view,
-    ToneTrackView& tone_track_view, CursorOverlay& cursor_overlay,
-    const common::audio::ITransport& transport)
+    ToneTrackView& tone_track_view, ToneAutomationLanesView& tone_automation_lanes_view,
+    CursorOverlay& cursor_overlay, const common::audio::ITransport& transport)
     : m_controller(controller)
     , m_arrangement_view(arrangement_view)
     , m_tab_view(tab_view)
     , m_tone_track_view(tone_track_view)
+    , m_tone_automation_lanes_view(tone_automation_lanes_view)
     , m_cursor_overlay(cursor_overlay)
     , m_transport(transport)
     , m_content(*this)
@@ -258,6 +260,7 @@ TrackViewport::TrackViewport(
     m_content.addChildComponent(m_arrangement_view);
     m_content.addChildComponent(m_tab_view);
     m_content.addChildComponent(m_tone_track_view);
+    m_content.addChildComponent(m_tone_automation_lanes_view);
     m_content.addChildComponent(m_cursor_overlay);
     m_content.setSize(g_track_canvas_width, g_track_canvas_default_height);
     m_timeline_ruler.setCursorPlacementCallback([this](common::core::TimePosition position) {
@@ -289,6 +292,7 @@ void TrackViewport::setProjectLoaded(bool project_loaded)
     m_arrangement_view.setVisible(project_loaded);
     m_tab_view.setVisible(project_loaded);
     m_tone_track_view.setVisible(project_loaded);
+    m_tone_automation_lanes_view.setVisible(project_loaded);
     m_cursor_overlay.setVisible(project_loaded);
     layoutScaledCanvas();
     repaint();
@@ -475,7 +479,8 @@ int TrackViewport::scaledContentHeight(int content_width) const noexcept
     const int horizontal_scrollbar_height =
         needsHorizontalScrollbar(content_width) ? m_viewport.getScrollBarThickness() : 0;
     const int visible_height = std::max(0, m_viewport.getHeight() - horizontal_scrollbar_height);
-    const int track_rows_height = primaryTrackHeight() + toneTrackHeight();
+    const int track_rows_height =
+        primaryTrackHeight() + toneTrackHeight() + m_tone_automation_lanes_view.totalHeight();
     return std::max({defaultVisibleCanvasHeight(), visible_height, track_rows_height});
 }
 
@@ -488,10 +493,32 @@ void TrackViewport::layoutScaledCanvas()
     m_arrangement_view.setBounds(0, 0, m_content.getWidth(), primaryTrackHeight());
     m_tab_view.setBounds(m_arrangement_view.getBounds());
     m_tone_track_view.setBounds(0, primaryTrackHeight(), m_content.getWidth(), toneTrackHeight());
+    m_tone_automation_lanes_view.setBounds(
+        0,
+        primaryTrackHeight() + toneTrackHeight(),
+        m_content.getWidth(),
+        m_tone_automation_lanes_view.totalHeight());
     m_cursor_overlay.setBounds(m_content.getLocalBounds());
     m_cursor_overlay.toFront(false);
     updateRulerView();
     refreshTimelineGrid();
+}
+
+// Relays out the canvas after a vertical-only change. Mirrors layoutScaledCanvas but ends in the
+// span-checked grid refresh, so per-frame lane resize drags never rescan the tempo map.
+void TrackViewport::relayoutForContentHeightChange()
+{
+    const int content_width = m_content.getWidth();
+    m_content.setSize(content_width, scaledContentHeight(content_width));
+    m_tone_automation_lanes_view.setBounds(
+        0,
+        primaryTrackHeight() + toneTrackHeight(),
+        content_width,
+        m_tone_automation_lanes_view.totalHeight());
+    m_cursor_overlay.setBounds(m_content.getLocalBounds());
+    m_cursor_overlay.toFront(false);
+    updateRulerView();
+    refreshTimelineGridForViewChange();
 }
 
 // Changes the horizontal timeline scale around the current transport cursor.
@@ -668,9 +695,10 @@ void TrackViewport::updateRulerView()
 {
     m_timeline_ruler.setTimelineView(
         m_timeline_range, m_content.getWidth(), m_viewport.getViewPositionX());
-    // The tone row scrolls with the content, so it needs the viewport left edge to pin its region
-    // labels there (the ruler is a separate pinned overlay and does not).
+    // The tone row and automation lanes scroll with the content, so they need the viewport left
+    // edge to pin their labels there (the ruler is a separate pinned overlay and does not).
     m_tone_track_view.setVisibleContentLeft(m_viewport.getViewPositionX());
+    m_tone_automation_lanes_view.setVisibleContentLeft(m_viewport.getViewPositionX());
 }
 
 // Returns the content-coordinate span the shared grid scan must cover: the viewport's view

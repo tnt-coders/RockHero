@@ -19,6 +19,12 @@ void SignalChainPanel::setState(const core::SignalChainViewState& state)
     m_signal_chain_view.setState(state);
 }
 
+// Forwards the tone name to the hosted view's header title.
+void SignalChainPanel::setToneName(std::string tone_name)
+{
+    m_signal_chain_view.setToneName(std::move(tone_name));
+}
+
 // Delegates continuously sampled live-rig meters to the hosted view.
 void SignalChainPanel::setMeterLevels(
     common::audio::AudioMeterLevel input_level, common::audio::AudioMeterLevel output_level)

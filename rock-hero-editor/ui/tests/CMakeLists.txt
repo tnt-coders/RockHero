@@ -24,6 +24,7 @@ add_executable(
     test_editor_view_audio_controls.cpp
     test_editor_view_busy_overlay.cpp
     test_editor_view_layout.cpp
+    test_tone_automation_lanes_view.cpp
     test_editor_view_signal_chain.cpp
     test_editor_view_state.cpp
     test_editor_view_timeline.cpp

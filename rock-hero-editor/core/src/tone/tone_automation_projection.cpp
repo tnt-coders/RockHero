@@ -1,5 +1,6 @@
 #include "tone/tone_automation_projection.h"
 
+#include <algorithm>
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <utility>
 #include <vector>
@@ -76,6 +77,27 @@ ToneAutomationViewState toneAutomationViewStateFor(
                 });
         }
         state.lanes.push_back(std::move(lane));
+    }
+
+    // The "+" picker offers every listed parameter that has no lane yet; picking one seeds it.
+    for (const common::audio::AutomatableParamInfo& parameter : parameters)
+    {
+        const bool already_laned =
+            std::ranges::any_of(state.lanes, [&parameter](const ToneAutomationLaneViewState& lane) {
+                return lane.instance_id == parameter.instance_id &&
+                       lane.param_id == parameter.param_id;
+            });
+        if (already_laned)
+        {
+            continue;
+        }
+        state.available_parameters.push_back(
+            ToneAutomationParamChoice{
+                .instance_id = parameter.instance_id,
+                .param_id = parameter.param_id,
+                .name = parameter.name,
+                .group = parameter.group,
+            });
     }
     return state;
 }

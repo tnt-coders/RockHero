@@ -25,6 +25,7 @@ namespace rock_hero::editor::ui
 class ArrangementView;
 class CursorOverlay;
 class TabView;
+class ToneAutomationLanesView;
 class ToneTrackView;
 
 /*!
@@ -95,14 +96,16 @@ public:
     \param arrangement_view Waveform view hosted as the first track row; must outlive this shell.
     \param tab_view Tablature lane drawn over the waveform row; must outlive this shell.
     \param tone_track_view Tone track row hosted below the waveform; must outlive this shell.
+    \param tone_automation_lanes_view Automation lanes row hosted below the tone track; must
+    outlive this shell.
     \param cursor_overlay Editor-wide cursor overlay hosted above the canvas; must outlive this
     shell.
     \param transport Read-only transport sampled to keep playback visible during follow.
     */
     TrackViewport(
         core::IEditorController& controller, ArrangementView& arrangement_view, TabView& tab_view,
-        ToneTrackView& tone_track_view, CursorOverlay& cursor_overlay,
-        const common::audio::ITransport& transport);
+        ToneTrackView& tone_track_view, ToneAutomationLanesView& tone_automation_lanes_view,
+        CursorOverlay& cursor_overlay, const common::audio::ITransport& transport);
 
     /*! \brief Uses default destruction because the viewed component is owned by this shell. */
     ~TrackViewport() override = default;
@@ -139,6 +142,15 @@ public:
     \param timeline_range Full timeline range represented by the zoomed content width.
     */
     void setTimelineRange(common::core::TimeRange timeline_range);
+
+    /*!
+    \brief Relays out the canvas after a vertical-only content change (lane add/remove/resize).
+
+    Identical to the zoom relayout except it ends in the span-checked grid refresh: a height-only
+    change leaves the horizontal span untouched, so per-frame lane resize drags never rescan the
+    tempo map.
+    */
+    void relayoutForContentHeightChange();
 
     /*!
     \brief Stores the tempo map and grid note value used by the content grid and the ruler.
@@ -296,6 +308,9 @@ private:
 
     // Tone track row hosted below the waveform on the shared canvas.
     ToneTrackView& m_tone_track_view;
+
+    // Automation lanes row hosted below the tone track; its total height feeds content layout.
+    ToneAutomationLanesView& m_tone_automation_lanes_view;
 
     // Full-canvas cursor and click overlay.
     CursorOverlay& m_cursor_overlay;
