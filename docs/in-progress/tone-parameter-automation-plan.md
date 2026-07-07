@@ -93,6 +93,52 @@ Do this on a **separate branch off `refactor`** (per the original item-5 require
    `paramID` no longer resolves (VST2 index reordering; `:799-802`) must render **disabled**, never
    crash.
 
+## Expert re-validation (2026-07-07 — corrections applied during execution; these win on conflict)
+
+A second `juce-tracktion-expert` source pass (immediately before execution) confirmed the audio
+reality and decisions 1–5 against the vendored source, with these load-bearing corrections.
+
+- **P0 prerequisite — decouple the plugin-chunk undo domain from the `AUTOMATIONCURVE` child (not in
+  the original plan; the single most important correctness item).** The existing plugin-parameter
+  chunk-undo path `copyPluginStatePreservingInstanceId` (`engine_plugin_host.cpp:128-133`) does
+  `removeAllChildren` + re-add-copies, and the runtime child-add rebind only fires for
+  `IDs::name == paramID` (`tracktion_AutomatableParameter.cpp:1247`), never for an `AUTOMATIONCURVE`
+  child (keyed by `IDs::paramID`). So any plugin-chunk undo/redo on a tone-branch plugin that also
+  carries a curve orphans the live curve binding and clobbers the curve to the chunk snapshot. Fix
+  (RockHero-side, and semantically correct — a curve is timeline data, not plugin-parameter state):
+  strip `AUTOMATIONCURVE` children from the chunk-memento **capture** (`capturePluginState`,
+  `engine_plugin_host.cpp:1239-1240`) and **skip** `AUTOMATIONCURVE` in both the remove and re-add
+  loops of `copyPluginStatePreservingInstanceId`. Leave the per-tone **sidecar** capture
+  (`engine_live_rig.cpp:687-688`) untouched — it must keep the curve for free persistence
+  (decision 2). The two undo domains then provably never touch the same subtree.
+- **Lane identity = `(instance_id, param_id)`, never `param_id` alone.** paramID is unique per plugin,
+  not per branch; two VST2s in one chain can both expose paramID `"0"`. Add `instance_id` to
+  `AutomatableParamInfo`, `AddToneAutomationLane`, and `RemoveToneAutomationLane`
+  (`SetToneAutomationPoints` already carries it). instance_id = the owning plugin's Tracktion
+  `itemID` string.
+- **Picker is built from `getParameterTree()`, not `getFlattenedParameterTree()`** (the flattened
+  call loses group names, `tracktion_AutomatableEditItem.cpp:117-127`). Recurse
+  `getParameterTree().rootNode->subNodes` (`tracktion_AutomatableParameterTree.h:27-68`): `Group`
+  node → submenu (`getGroupName()`), `Parameter` node → item. Filter the synthetic params by paramID
+  string **"dry level"** / **"wet level"** (`tracktion_ExternalPlugin.cpp:671-672`), not the C++
+  member names.
+- **Curve write/read API (exact, non-deprecated).** Write: `auto& c = param->getCurve();
+  c.clear(nullptr);` then per point `c.addPoint(EditPosition(TimePosition::fromSeconds(sec)),
+  param->valueRange.convertFrom0to1(norm), shape, nullptr);` — the `EditPosition` overload
+  (`tracktion_AutomationCurve.h:89`), NOT the deprecated `TimePosition` one (`:127`). Read:
+  `for (int i=0; i<c.getNumPoints(); ++i)` → `c.getPointTime(i).inSeconds()` (`:121`),
+  `param->valueRange.convertTo0to1(c.getPointValue(i))` (`:71`), `c.getPointCurve(i)` (`:72`). Curve
+  values are parameter-native; always convert via `valueRange` (identity for external + branch-gain
+  `{0,1}`, correct for any native-range plugin). curve_shape ∈ [-1,1], time ≥ 0. Resolve the param
+  via `plugin->getAutomatableParameterByID(param_id)` (`tracktion_AutomatableEditItem.h:31`); null →
+  render the lane disabled.
+- **Port shape: a NEW framework-free `IToneAutomation` port**, not an `ILiveRig` extension (ILiveRig
+  is a cohesive rig-lifecycle seam). One engine adapter implements both.
+- **Threading:** editing curves while playing is safe (audio reads a decoupled snapshot; iterator
+  rebuild deferred ~10 ms and swapped under `parameterStreamLock`). Keep `isReadingAutomation()`
+  true. A test asserting on **processed audio** after a write must pump the message loop first;
+  `readParameterCurve` reads the ValueTree directly so it round-trips synchronously.
+
 ## Architecture
 
 ### Audio adapter — the only Tracktion touchpoint (`rock-hero-common/audio`)
