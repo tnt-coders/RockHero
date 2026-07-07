@@ -3,8 +3,10 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <iterator>
 #include <memory>
+#include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/tone/tone_track_edits.h>
 #include <rock_hero/common/core/tone/tone_track_rules.h>
@@ -144,6 +146,12 @@ void EditorController::Impl::onToneBoundaryMoveRequested(
     std::string right_region_id, common::core::ToneGridPosition position)
 {
     runAction(EditorAction::MoveToneBoundary{std::move(right_region_id), position});
+}
+
+void EditorController::Impl::onToneCreateNewRequested(
+    common::core::ToneGridPosition at, std::string name)
+{
+    runAction(EditorAction::CreateNewTone{at, std::move(name)});
 }
 
 // Stores the selection when the id names an authored region; anything else clears it.
@@ -407,6 +415,107 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveToneBound
     pushUndoEntry(
         std::make_unique<ToneBoundaryMoveEdit>(action.right_region_id, before, action.position));
     updateView();
+}
+
+// Creates a new empty tone: mints its document, splits the region under the marker to reference it,
+// records one atomic memento (catalog tone + region), then reloads the rig so the tone gains a
+// branch and becomes the selection. Undo/redo are pure model; the minted branch lingers harmlessly.
+void EditorController::Impl::performActionImpl(const EditorAction::CreateNewTone& action)
+{
+    if (!m_project.has_value())
+    {
+        return;
+    }
+    common::core::ToneTrack* const tone_track = m_session.currentToneTrack();
+    std::vector<common::core::Tone>* const catalog = m_session.currentToneCatalog();
+    if (tone_track == nullptr || catalog == nullptr)
+    {
+        return;
+    }
+
+    // Mint the empty tone document first: loadLiveRig fails on a missing file, so the reference must
+    // exist before a region points at it. A rejected split below leaves the file as an orphan (kept
+    // and collected at publish), consistent with the tone-model design.
+    auto minted = m_live_rig.mintEmptyTone(currentSongDirectory());
+    if (!minted.has_value())
+    {
+        reportError(std::string{"Could not create a new tone: "} + minted.error().message);
+        return;
+    }
+    const std::string new_tone_document_ref = std::move(*minted);
+    const std::string new_region_id = common::core::generatePackageId();
+
+    // Validate the split on a candidate (position inside a region, canonical ids and refs) before
+    // committing the catalog tone and the region together.
+    common::core::ToneTrack candidate = *tone_track;
+    if (const auto created = common::core::createToneRegion(
+            candidate, action.at, new_region_id, new_tone_document_ref);
+        !created.has_value())
+    {
+        RH_LOG_WARNING(
+            "editor.tone",
+            "Rejected new-tone create measure={} beat={} detail={:?}",
+            action.at.measure,
+            action.at.beat,
+            created.error().message);
+        updateView();
+        return;
+    }
+    if (const auto valid =
+            common::core::validateToneTrackRules(candidate, session().song().tempo_map);
+        !valid.has_value())
+    {
+        RH_LOG_WARNING(
+            "editor.tone", "Rejected new-tone create detail={:?}", valid.error().message);
+        updateView();
+        return;
+    }
+
+    catalog->push_back(
+        common::core::Tone{.tone_document_ref = new_tone_document_ref, .name = action.name});
+    *tone_track = std::move(candidate);
+    pushUndoEntry(
+        std::make_unique<ToneCreateWithNewToneEdit>(
+            action.at, new_region_id, new_tone_document_ref, action.name));
+
+    reloadLiveRigForToneSet(new_region_id);
+}
+
+// Reloads the live rig from the current model so a newly referenced tone gains its own branch, then
+// selects the given region. Runs behind the loading busy overlay like the arrangement-switch load.
+// Undo/redo intentionally skip this: the model is the source of truth and the rig re-derives on the
+// next full load, so a branch left behind by an undone create is harmless.
+void EditorController::Impl::reloadLiveRigForToneSet(std::string select_region_id)
+{
+    if (!m_project.has_value() || !m_project_audio_ready)
+    {
+        // No live rig to reload yet; the model already holds the tone. Select it and refresh.
+        applyToneSelection(std::move(select_region_id));
+        updateView();
+        return;
+    }
+
+    const std::uint64_t token = beginBusy(BusyOperation::LoadingLiveRig);
+    updateView();
+    runLiveRigLoadStage(
+        ProjectLoadLiveRigStage{
+            .token = token,
+            .song_directory = currentSongDirectory(),
+            .finish = [this, select_region_id](
+                          std::expected<void, common::audio::LiveRigError> rig_result) {
+                if (!rig_result.has_value())
+                {
+                    finishBusyOperation();
+                    reportError(
+                        std::string{"Could not load the new tone: "} + rig_result.error().message);
+                    updateView();
+                    return;
+                }
+                applyToneSelection(select_region_id);
+                finishBusyOperation();
+                updateView();
+            },
+        });
 }
 
 } // namespace rock_hero::editor::core

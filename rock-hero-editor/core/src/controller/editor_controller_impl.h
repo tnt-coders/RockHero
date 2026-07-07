@@ -148,6 +148,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onToneRenameRequested(std::string tone_document_ref, std::string name);
     void onToneBoundaryMoveRequested(
         std::string right_region_id, common::core::ToneGridPosition position);
+    void onToneCreateNewRequested(common::core::ToneGridPosition at, std::string name);
     void onPluginBrowserRequested();
     void onPluginInsertSlotSelected(std::size_t chain_index, std::size_t block_index);
     void onPluginBrowserClosed();
@@ -206,6 +207,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::DeleteToneRegion& action);
     void performActionImpl(const EditorAction::RenameTone& action);
     void performActionImpl(const EditorAction::MoveToneBoundary& action);
+    void performActionImpl(const EditorAction::CreateNewTone& action);
     void performActionImpl(EditorAction::ShowPluginBrowser action);
     void performActionImpl(EditorAction::BeginPluginInsert action);
     void performActionImpl(EditorAction::ScanPluginCatalog action);
@@ -296,6 +298,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
             void(std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>)>
             on_loaded);
     void clearLiveRig();
+    [[nodiscard]] std::filesystem::path currentSongDirectory() const;
+    void reloadLiveRigForToneSet(std::string select_region_id);
     void runProjectWriteAction(EditorAction::ProjectWriteAction&& action);
     void completeProjectWriteAction(const std::shared_ptr<ProjectWriteTaskState>& state);
     void applyProjectWriteSuccess(const EditorAction::SaveProject& action);
