@@ -8,6 +8,7 @@
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <optional>
+#include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <rock_hero/common/audio/device/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/input/i_audio_meter_source.h>
 #include <rock_hero/common/audio/input/i_live_input.h>
@@ -25,6 +26,7 @@
 #include <rock_hero/editor/core/testing/null_editor_settings.h>
 #include <rock_hero/editor/ui/main_window/editor.h>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -105,9 +107,32 @@ class FakeEditorAudioPorts final : public common::audio::IAudioDeviceConfigurati
                                    public common::audio::IPluginHost,
                                    public common::audio::ILiveRig,
                                    public common::audio::ILiveInput,
-                                   public common::audio::IAudioMeterSource
+                                   public common::audio::IAudioMeterSource,
+                                   public common::audio::IToneAutomation
 {
 public:
+    // Tone automation port: no tones are loaded in these view tests, so every query is empty.
+    [[nodiscard]] std::expected<
+        std::vector<common::audio::AutomatableParamInfo>, common::audio::ToneAutomationError>
+    listAutomatableParameters(const std::string&) const override
+    {
+        return std::vector<common::audio::AutomatableParamInfo>{};
+    }
+
+    [[nodiscard]] std::expected<
+        std::vector<common::audio::AutomationCurvePoint>, common::audio::ToneAutomationError>
+    readParameterCurve(const std::string&, const std::string&, const std::string&) const override
+    {
+        return std::vector<common::audio::AutomationCurvePoint>{};
+    }
+
+    [[nodiscard]] std::expected<void, common::audio::ToneAutomationError> writeParameterCurve(
+        const std::string&, const std::string&, const std::string&,
+        std::span<const common::audio::AutomationCurvePoint>) override
+    {
+        return {};
+    }
+
     [[nodiscard]] juce::AudioDeviceManager& deviceManager() noexcept override
     {
         return m_device_manager;
@@ -331,6 +356,7 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor]")
             .audio_devices = audio_ports,
             .plugin_host = audio_ports,
             .live_rig = audio_ports,
+            .tone_automation = audio_ports,
             .live_input = audio_ports,
             .meter_source = audio_ports,
         },

@@ -633,8 +633,9 @@ EditorController::EditorController(
     : m_impl(
           std::make_unique<Impl>(
               audio_ports.transport, audio_ports.song_audio, audio_ports.audio_devices,
-              audio_ports.plugin_host, audio_ports.live_rig, audio_ports.live_input, services,
-              std::move(exit_function), std::move(project_operations)))
+              audio_ports.plugin_host, audio_ports.live_rig, audio_ports.tone_automation,
+              audio_ports.live_input, services, std::move(exit_function),
+              std::move(project_operations)))
 {}
 
 // Releases the pimpl after the public controller's listener callbacks can no longer be invoked.
@@ -930,14 +931,15 @@ EditorController::Impl::Impl(
     common::audio::ITransport& transport, common::audio::ISongAudio& song_audio,
     common::audio::IAudioDeviceConfiguration& audio_devices,
     common::audio::IPluginHost& plugin_host, common::audio::ILiveRig& live_rig,
-    common::audio::ILiveInput& live_input, EditorController::Services services,
-    EditorController::ExitFunction exit_function,
+    common::audio::IToneAutomation& tone_automation, common::audio::ILiveInput& live_input,
+    EditorController::Services services, EditorController::ExitFunction exit_function,
     EditorController::ProjectOperations project_operations)
     : m_transport(transport)
     , m_song_audio(song_audio)
     , m_audio_devices(audio_devices)
     , m_plugin_host(plugin_host)
     , m_live_rig(live_rig)
+    , m_tone_automation(tone_automation)
     , m_live_input(live_input)
     , m_open_function(
           project_operations.open_function ? std::move(project_operations.open_function)
@@ -1590,6 +1592,7 @@ EditorEditContext EditorController::Impl::editContext() noexcept
         .signal_chain = m_signal_chain,
         .plugin_host = m_plugin_host,
         .live_rig = m_live_rig,
+        .tone_automation = m_tone_automation,
         .output_gain_db = m_output_gain_db,
     };
 }

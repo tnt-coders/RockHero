@@ -43,6 +43,7 @@ Editor::Editor(
               .audio_devices = audio_ports.audio_devices,
               .plugin_host = audio_ports.plugin_host,
               .live_rig = audio_ports.live_rig,
+              .tone_automation = audio_ports.tone_automation,
               .live_input = audio_ports.live_input,
           },
           core::EditorController::Services{

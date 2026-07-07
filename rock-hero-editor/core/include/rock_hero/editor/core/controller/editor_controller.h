@@ -28,6 +28,7 @@ class ILiveInput;
 class ILiveRig;
 class IPluginHost;
 class ISongAudio;
+class IToneAutomation;
 class ITransport;
 } // namespace rock_hero::common::audio
 
@@ -162,6 +163,9 @@ public:
 
         /*! \brief Live rig port used to save and restore tone documents. */
         common::audio::ILiveRig& live_rig;
+
+        /*! \brief Tone parameter automation port used to read and edit tone-chain plugin curves. */
+        common::audio::IToneAutomation& tone_automation;
 
         /*! \brief Live-input port used for monitoring and calibration. */
         common::audio::ILiveInput& live_input;
