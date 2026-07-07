@@ -176,6 +176,21 @@ public:
         const LiveRigCaptureRequest& request) = 0;
 
     /*!
+    \brief Writes a fresh empty tone document into the song workspace.
+
+    Creates a tone whose chain is empty and whose output gain is unity, and returns its
+    package-relative reference. The tone is not loaded into the rig by this call: the caller stores
+    the reference on the arrangement and reloads the rig (loadLiveRig) to give the tone its own
+    branch. Minting eagerly (before the reference is stored) is required because loadLiveRig fails
+    on a reference whose document file does not yet exist.
+
+    \param song_directory Native song workspace directory that owns package-relative tone files.
+    \return The new tone's package-relative document reference, or a typed failure.
+    */
+    [[nodiscard]] virtual std::expected<std::string, LiveRigError> mintEmptyTone(
+        const std::filesystem::path& song_directory) = 0;
+
+    /*!
     \brief Loads a package-relative tone document into the active live rig chain.
 
     The operation runs cooperatively on the message thread: each plugin is restored in its own

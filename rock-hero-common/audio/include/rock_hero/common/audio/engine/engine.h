@@ -314,6 +314,14 @@ public:
         const LiveRigCaptureRequest& request) override;
 
     /*!
+    \brief Writes a fresh empty tone document into the song workspace.
+    \param song_directory Native song workspace directory that owns package-relative tone files.
+    \return The new tone's package-relative document reference, or a typed failure.
+    */
+    [[nodiscard]] std::expected<std::string, LiveRigError> mintEmptyTone(
+        const std::filesystem::path& song_directory) override;
+
+    /*!
     \brief Loads a package-relative tone document into the active live rig chain.
 
     Plugin restoration is driven cooperatively via the message loop: each plugin is restored in
