@@ -24,6 +24,12 @@ struct StubToneAutomation final : public common::audio::IToneAutomation
         std::vector<common::audio::AutomatableParamInfo>, common::audio::ToneAutomationError>
     listAutomatableParameters(const std::string&) const override
     {
+        if (fail_listing)
+        {
+            return std::unexpected{common::audio::ToneAutomationError{
+                common::audio::ToneAutomationErrorCode::ToneNotLoaded, "not loaded"
+            }};
+        }
         return parameters;
     }
 
@@ -42,6 +48,8 @@ struct StubToneAutomation final : public common::audio::IToneAutomation
     }
 
     std::vector<common::audio::AutomatableParamInfo> parameters;
+
+    bool fail_listing{false};
 };
 
 // Builds a param descriptor with every field set so designated init stays warning-clean.
@@ -166,6 +174,27 @@ TEST_CASE(
     REQUIRE(state.lanes.size() == 1);
     CHECK_FALSE(state.lanes.front().resolved);
     CHECK(state.lanes.front().name == "gain");
+}
+
+TEST_CASE("toneAutomationViewStateFor flags failed parameter listings", "[core][tone-automation]")
+{
+    const common::core::TempoMap tempo_map =
+        common::core::TempoMap::defaultMap(common::core::TimeDuration{4.0});
+    const common::core::Arrangement arrangement = makeArrangement();
+    StubToneAutomation port;
+    port.fail_listing = true;
+
+    const ToneAutomationViewState state =
+        toneAutomationViewStateFor(arrangement, tempo_map, "tones/x/tone.json", {}, port);
+
+    // A failed listing is not the same as an empty tone: the picker reports it distinctly.
+    CHECK(state.parameters_unavailable);
+    CHECK(state.available_parameters.empty());
+
+    const StubToneAutomation empty_port;
+    const ToneAutomationViewState empty_state =
+        toneAutomationViewStateFor(arrangement, tempo_map, "tones/x/tone.json", {}, empty_port);
+    CHECK_FALSE(empty_state.parameters_unavailable);
 }
 
 } // namespace rock_hero::editor::core
