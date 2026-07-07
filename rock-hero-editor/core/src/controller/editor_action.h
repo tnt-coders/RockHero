@@ -8,9 +8,9 @@
 #include <cstddef>
 #include <filesystem>
 #include <optional>
-#include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/timeline.h>
+#include <rock_hero/common/core/tone/tone_automation.h>
 #include <rock_hero/common/core/tone/tone_track.h>
 #include <rock_hero/editor/core/controller/editor_action_id.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
@@ -503,28 +503,23 @@ struct EditorAction
         std::string instance_id;
     };
 
-    /*! \brief Replace a tone-chain plugin parameter's automation curve with a new point list. */
+    /*! \brief Replace a tone-chain plugin parameter's automation with a new musical point list. */
     struct SetToneAutomationPoints
     {
         /*!
         \brief Creates a set-tone-automation-points action.
-        \param tone_document_ref_value Tone whose plugin parameter is edited.
         \param instance_id_value Plugin instance owning the parameter.
         \param param_id_value Parameter id within the plugin.
-        \param points_value Replacement curve points, normalised value, in ascending time.
+        \param points_value Replacement points at musical positions, in ascending order; empty
+        removes the parameter's automation entirely.
         */
         SetToneAutomationPoints(
-            std::string tone_document_ref_value, std::string instance_id_value,
-            std::string param_id_value,
-            std::vector<common::audio::AutomationCurvePoint> points_value)
-            : tone_document_ref(std::move(tone_document_ref_value))
-            , instance_id(std::move(instance_id_value))
+            std::string instance_id_value, std::string param_id_value,
+            std::vector<common::core::ToneAutomationPoint> points_value)
+            : instance_id(std::move(instance_id_value))
             , param_id(std::move(param_id_value))
             , points(std::move(points_value))
         {}
-
-        /*! \brief Tone whose plugin parameter is edited. */
-        std::string tone_document_ref;
 
         /*! \brief Plugin instance owning the parameter. */
         std::string instance_id;
@@ -532,8 +527,8 @@ struct EditorAction
         /*! \brief Parameter id within the plugin. */
         std::string param_id;
 
-        /*! \brief Replacement curve points, normalised value, in ascending time. */
-        std::vector<common::audio::AutomationCurvePoint> points;
+        /*! \brief Replacement points at musical positions, in ascending order. */
+        std::vector<common::core::ToneAutomationPoint> points;
     };
 
     /*! \brief Variant carrying project package write actions. */

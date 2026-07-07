@@ -122,4 +122,15 @@ std::vector<Tone>* Session::currentToneCatalog() noexcept
     return &m_song.arrangements[m_current_arrangement_index].tones;
 }
 
+// Returns mutable access to the current arrangement's plugin-parameter automation.
+std::vector<ToneParameterAutomation>* Session::currentToneAutomation() noexcept
+{
+    if (m_current_arrangement_index >= m_song.arrangements.size())
+    {
+        return nullptr;
+    }
+
+    return &m_song.arrangements[m_current_arrangement_index].tone_automation;
+}
+
 } // namespace rock_hero::common::core

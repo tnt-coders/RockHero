@@ -1,8 +1,11 @@
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
+#include <rock_hero/common/audio/live_rig/i_live_rig.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/common/core/tone/tone_automation.h>
 #include <rock_hero/common/core/tone/tone_track.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <stdexcept>
@@ -17,11 +20,21 @@ namespace
 
 constexpr const char* g_region = "5a1f0c3d-7e2b-4a9c-8d1e-2f3a4b5c6d7e";
 constexpr const char* g_instance = "plugin-instance-1";
+constexpr const char* g_plugin_id = "3f8a2b1c-4d5e-4f60-8a9b-0c1d2e3f4a5b";
 constexpr const char* g_param = "gain";
 
 [[nodiscard]] common::core::ToneGridPosition gridAt(int measure, int beat)
 {
     return common::core::ToneGridPosition{.measure = measure, .beat = beat};
+}
+
+[[nodiscard]] common::core::GridPosition pointAt(int measure, int beat, int numerator = 0)
+{
+    return common::core::GridPosition{
+        .measure = measure,
+        .beat = beat,
+        .offset = numerator == 0 ? common::core::Fraction{} : common::core::Fraction{numerator, 2},
+    };
 }
 
 // One whole-song region referencing the harness default tone, over a 4/4 map with terminal 3.1.
@@ -57,11 +70,13 @@ constexpr const char* g_param = "gain";
         .is_discrete = false,
         .labels = {},
         .default_norm_value = 0.5F,
+        .current_norm_value = 0.4F,
     };
 }
 
-// Loads the automation song with the region selected, so the selected tone drives the projection,
-// and a tone-automation fake that exposes one parameter.
+// Loads the automation song with the region selected and a live-rig fake whose load result reports
+// the tone chain identity, so the controller's plugin association is populated the way a real load
+// populates it.
 struct AutomationEditor
 {
     FakeTransport transport;
@@ -73,7 +88,7 @@ struct AutomationEditor
     EditorController controller;
     FakeEditorView view;
 
-    AutomationEditor()
+    explicit AutomationEditor(common::core::Song song = makeAutomationSong())
         : controller{
               audioPorts(transport, audio, plugin_host, live_rig, tone_automation),
               defaultControllerServices(),
@@ -84,7 +99,16 @@ struct AutomationEditor
           }
     {
         tone_automation.parameters.push_back(makeParam());
-        project_services.next_song = makeAutomationSong();
+        live_rig.next_load_result.tone_chains = {
+            common::audio::LoadedToneChainIdentities{
+                .tone_document_ref = std::string{g_tone_document_ref},
+                .plugins = {common::audio::LoadedTonePluginIdentity{
+                    .instance_id = g_instance,
+                    .stable_id = g_plugin_id,
+                }},
+            },
+        };
+        project_services.next_song = std::move(song);
         controller.attachView(view);
         controller.onOpenRequested(std::filesystem::path{"song.rhp"});
         controller.onToneRegionSelected(g_region);
@@ -101,46 +125,116 @@ struct AutomationEditor
         }
         return view.last_state->tone_automation;
     }
+
+    [[nodiscard]] const std::vector<common::core::ToneParameterAutomation>& model() const
+    {
+        return controller.session().currentArrangement()->tone_automation;
+    }
 };
 
 } // namespace
 
 TEST_CASE(
-    "EditorController writes tone automation points and projects a lane", "[core][tone-automation]")
+    "EditorController seeds a lane at the selected region start on lane add",
+    "[core][tone-automation]")
 {
     AutomationEditor editor;
-    const std::vector<common::audio::AutomationCurvePoint> points{
-        common::audio::AutomationCurvePoint{.seconds = 0.0, .norm_value = 0.2F},
-        common::audio::AutomationCurvePoint{.seconds = 2.0, .norm_value = 0.8F},
+
+    editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
+
+    REQUIRE(editor.model().size() == 1);
+    CHECK(editor.model().front().plugin_id == g_plugin_id);
+    CHECK(editor.model().front().param_id == g_param);
+    REQUIRE(editor.model().front().points.size() == 1);
+    CHECK(editor.model().front().points.front().position == pointAt(1, 1));
+    CHECK(editor.model().front().points.front().norm_value == 0.4F);
+
+    REQUIRE(editor.automation().lanes.size() == 1);
+    CHECK(editor.automation().lanes.front().instance_id == g_instance);
+    CHECK(editor.automation().lanes.front().name == "Gain");
+    CHECK(editor.automation().lanes.front().resolved);
+    // The derived playback curve was rewritten alongside the model.
+    CHECK(editor.tone_automation.write_call_count == 1);
+}
+
+TEST_CASE(
+    "EditorController stores musical automation points and derives seconds",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor;
+    const std::vector<common::core::ToneAutomationPoint> points{
+        common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.2F},
+        common::core::ToneAutomationPoint{
+            .position = pointAt(2, 1, 1), .norm_value = 0.8F, .curve_shape = 0.0F
+        },
     };
 
-    editor.controller.onSetToneAutomationPoints(g_tone_document_ref, g_instance, g_param, points);
+    editor.controller.onSetToneAutomationPoints(g_instance, g_param, points);
 
-    CHECK(editor.tone_automation.write_call_count == 1);
+    REQUIRE(editor.model().size() == 1);
+    CHECK(editor.model().front().points == points);
+
+    // The default 4/4 map runs at 120 BPM (0.5 s per beat): measure 2 beat 1 plus half a beat is
+    // global beat 4.5 , i.e. 2.25 seconds.
+    const auto written = editor.tone_automation.curves.find(
+        FakeToneAutomation::curveKey(g_tone_document_ref, g_instance, g_param));
+    REQUIRE(written != editor.tone_automation.curves.end());
+    REQUIRE(written->second.size() == 2);
+    CHECK(written->second.back().seconds == Catch::Approx(2.25));
+    CHECK(written->second.back().norm_value == 0.8F);
+
     REQUIRE(editor.automation().lanes.size() == 1);
-    CHECK(editor.automation().lanes.front().param_id == g_param);
-    CHECK(editor.automation().lanes.front().name == "Gain");
     REQUIRE(editor.automation().lanes.front().points.size() == 2);
-    CHECK(editor.automation().lanes.front().points.back().norm_value == 0.8F);
+    CHECK(editor.automation().lanes.front().points.back().seconds == Catch::Approx(2.25));
+    CHECK(editor.automation().lanes.front().points.back().position == pointAt(2, 1, 1));
 }
 
 TEST_CASE("EditorController undoes and redoes a tone automation edit", "[core][tone-automation]")
 {
     AutomationEditor editor;
-    const std::vector<common::audio::AutomationCurvePoint> points{
-        common::audio::AutomationCurvePoint{.seconds = 1.0, .norm_value = 0.6F},
+    const std::vector<common::core::ToneAutomationPoint> points{
+        common::core::ToneAutomationPoint{.position = pointAt(1, 2), .norm_value = 0.6F},
     };
 
-    editor.controller.onSetToneAutomationPoints(g_tone_document_ref, g_instance, g_param, points);
+    editor.controller.onSetToneAutomationPoints(g_instance, g_param, points);
     REQUIRE(editor.automation().lanes.size() == 1);
 
     editor.controller.onUndoRequested();
+    CHECK(editor.model().empty());
     CHECK(editor.automation().lanes.empty());
 
     editor.controller.onRedoRequested();
+    REQUIRE(editor.model().size() == 1);
     REQUIRE(editor.automation().lanes.size() == 1);
-    REQUIRE(editor.automation().lanes.front().points.size() == 1);
     CHECK(editor.automation().lanes.front().points.front().norm_value == 0.6F);
+}
+
+TEST_CASE(
+    "EditorController rebuilds derived curves from persisted automation at load",
+    "[core][tone-automation]")
+{
+    common::core::Song song = makeAutomationSong();
+    song.arrangements.front().tone_automation = {
+        common::core::ToneParameterAutomation{
+            .plugin_id = g_plugin_id,
+            .param_id = g_param,
+            .points = {
+                common::core::ToneAutomationPoint{.position = pointAt(2, 1), .norm_value = 0.75F}
+            },
+        },
+    };
+    const AutomationEditor editor{std::move(song)};
+
+    // The load-completion rebuild wrote the derived curve from the persisted musical truth.
+    const auto written = editor.tone_automation.curves.find(
+        FakeToneAutomation::curveKey(g_tone_document_ref, g_instance, g_param));
+    REQUIRE(written != editor.tone_automation.curves.end());
+    REQUIRE(written->second.size() == 1);
+    CHECK(written->second.front().seconds == Catch::Approx(2.0));
+    CHECK(written->second.front().norm_value == 0.75F);
+
+    REQUIRE(editor.automation().lanes.size() == 1);
+    CHECK(editor.automation().lanes.front().resolved);
 }
 
 } // namespace rock_hero::editor::core

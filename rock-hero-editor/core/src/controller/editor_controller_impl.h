@@ -50,6 +50,7 @@ definitions, no state added just to make a translation-unit split work.
 #include <rock_hero/editor/core/tasks/i_editor_task_runner.h>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 namespace rock_hero::editor::core
@@ -137,6 +138,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onArrangementSelected(std::string arrangement_id);
     [[nodiscard]] std::string toneRegionIdAt(common::core::TimePosition position) const;
     [[nodiscard]] std::string selectedToneDocumentRef() const;
+    void mergeToneChainIdentities(
+        const std::vector<common::audio::LoadedToneChainIdentities>& tone_chains);
+    void rebuildToneAutomationCurves();
+    [[nodiscard]] std::vector<std::string> captureStableIds();
     [[nodiscard]] std::string automationParameterName(
         const std::string& tone_document_ref, const std::string& instance_id,
         const std::string& param_id) const;
@@ -154,9 +159,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onToneBoundaryMoveRequested(
         std::string right_region_id, common::core::ToneGridPosition position);
     void onToneCreateNewRequested(common::core::ToneGridPosition position, std::string name);
+    void onToneAutomationLaneAddRequested(std::string instance_id, std::string param_id);
     void onSetToneAutomationPoints(
-        std::string tone_document_ref, std::string instance_id, std::string param_id,
-        std::vector<common::audio::AutomationCurvePoint> points);
+        std::string instance_id, std::string param_id,
+        std::vector<common::core::ToneAutomationPoint> points);
     void onPluginBrowserRequested();
     void onPluginInsertSlotSelected(std::size_t chain_index, std::size_t block_index);
     void onPluginBrowserClosed();
@@ -491,6 +497,22 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Stable id of the selected authored tone region; empty when nothing is selected.
     // Cleared on project close and load because ids are project-local.
     std::string m_selected_tone_region_id{};
+
+    // Durable automation identity of one live tone-chain plugin instance.
+    struct ToneAutomationIdentity
+    {
+        // Minted durable plugin id persisted through PluginRecord and keyed in song.json.
+        std::string plugin_id;
+
+        // Tone document whose chain the plugin belongs to.
+        std::string tone_document_ref;
+    };
+
+    // Runtime association from live plugin instance ids to durable automation identity. Merged
+    // from load-result tone chains (minting ids the documents did not carry yet) and extended at
+    // plugin insert. Never erased within a session: id-preserving undo can revive an instance id,
+    // and a stale entry is harmless because nothing references dead instance ids.
+    std::unordered_map<std::string, ToneAutomationIdentity> m_tone_plugin_identities{};
 
     // Memoized tab projection for the displayed arrangement; see deriveViewState for the cache
     // rule (arrangement id keys it because charts are immutable while a project is open).

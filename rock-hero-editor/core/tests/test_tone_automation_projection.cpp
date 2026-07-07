@@ -1,9 +1,13 @@
 #include "tone/tone_automation_projection.h"
 
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
+#include <rock_hero/common/core/song/arrangement.h>
+#include <rock_hero/common/core/timeline/tempo_map.h>
 #include <span>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -13,7 +17,7 @@ namespace rock_hero::editor::core
 namespace
 {
 
-// Minimal automation port returning fixed parameters and per-parameter curves for projection tests.
+// Minimal automation port returning fixed parameter metadata for projection tests.
 struct StubToneAutomation final : public common::audio::IToneAutomation
 {
     [[nodiscard]] std::expected<
@@ -25,17 +29,8 @@ struct StubToneAutomation final : public common::audio::IToneAutomation
 
     [[nodiscard]] std::expected<
         std::vector<common::audio::AutomationCurvePoint>, common::audio::ToneAutomationError>
-    readParameterCurve(
-        const std::string&, const std::string& instance_id,
-        const std::string& param_id) const override
+    readParameterCurve(const std::string&, const std::string&, const std::string&) const override
     {
-        for (const auto& entry : curves)
-        {
-            if (entry.first.first == instance_id && entry.first.second == param_id)
-            {
-                return entry.second;
-            }
-        }
         return std::vector<common::audio::AutomationCurvePoint>{};
     }
 
@@ -47,9 +42,6 @@ struct StubToneAutomation final : public common::audio::IToneAutomation
     }
 
     std::vector<common::audio::AutomatableParamInfo> parameters;
-    std::vector<std::pair<
-        std::pair<std::string, std::string>, std::vector<common::audio::AutomationCurvePoint>>>
-        curves;
 };
 
 // Builds a param descriptor with every field set so designated init stays warning-clean.
@@ -64,45 +56,116 @@ struct StubToneAutomation final : public common::audio::IToneAutomation
         .is_discrete = false,
         .labels = {},
         .default_norm_value = 0.0F,
+        .current_norm_value = 0.0F,
     };
+}
+
+[[nodiscard]] common::core::Arrangement makeArrangement()
+{
+    common::core::Arrangement arrangement;
+    arrangement.tone_automation = {
+        common::core::ToneParameterAutomation{
+            .plugin_id = "plugin-a",
+            .param_id = "gain",
+            .points =
+                {
+                    common::core::ToneAutomationPoint{
+                        .position = {.measure = 1, .beat = 1, .offset = {}},
+                        .norm_value = 0.2F,
+                        .curve_shape = 0.0F,
+                    },
+                    common::core::ToneAutomationPoint{
+                        .position =
+                            {.measure = 2, .beat = 1, .offset = common::core::Fraction{1, 2}},
+                        .norm_value = 0.8F,
+                        .curve_shape = 0.0F,
+                    },
+                },
+        },
+        common::core::ToneParameterAutomation{
+            .plugin_id = "plugin-other-tone",
+            .param_id = "mix",
+            .points = {common::core::ToneAutomationPoint{
+                .position = {.measure = 1, .beat = 1, .offset = {}},
+                .norm_value = 0.5F,
+                .curve_shape = 0.0F,
+            }},
+        },
+    };
+    return arrangement;
 }
 
 } // namespace
 
-TEST_CASE(
-    "toneAutomationViewStateFor is empty for an empty tone reference", "[core][tone-automation]")
+TEST_CASE("secondsAtGridPosition converts exact fractions", "[core][tone-automation]")
 {
-    const StubToneAutomation port;
-    const ToneAutomationViewState state = toneAutomationViewStateFor(port, "");
-    CHECK(state.tone_document_ref.empty());
-    CHECK(state.lanes.empty());
+    const common::core::TempoMap tempo_map =
+        common::core::TempoMap::defaultMap(common::core::TimeDuration{4.0});
+    // Default map: 120 BPM 4/4, so measure 2 beat 1 + 1/2 beat = global beat 4.5 = 2.25 s.
+    CHECK(
+        secondsAtGridPosition(
+            tempo_map,
+            common::core::GridPosition{
+                .measure = 2, .beat = 1, .offset = common::core::Fraction{1, 2}
+            }) == Catch::Approx(2.25));
 }
 
 TEST_CASE(
-    "toneAutomationViewStateFor emits a lane only for parameters that carry a curve",
+    "toneAutomationViewStateFor shows only the selected tone's bound lanes",
     "[core][tone-automation]")
 {
+    const common::core::TempoMap tempo_map =
+        common::core::TempoMap::defaultMap(common::core::TimeDuration{4.0});
+    const common::core::Arrangement arrangement = makeArrangement();
     StubToneAutomation port;
-    port.parameters.push_back(makeParam("plug-1", "gain", "Gain"));
-    port.parameters.push_back(makeParam("plug-1", "tone", "Tone"));
-    port.curves.push_back(
-        {{"plug-1", "gain"},
-         {
-             common::audio::AutomationCurvePoint{.seconds = 0.0, .norm_value = 0.2F},
-             common::audio::AutomationCurvePoint{.seconds = 2.0, .norm_value = 0.8F},
-         }});
+    port.parameters.push_back(makeParam("instance-a", "gain", "Gain"));
 
-    const ToneAutomationViewState state = toneAutomationViewStateFor(port, "tones/x/tone.json");
+    const std::unordered_map<std::string, ToneAutomationBinding> bindings{
+        {"plugin-a",
+         ToneAutomationBinding{
+             .instance_id = "instance-a", .tone_document_ref = "tones/x/tone.json"
+         }},
+        {"plugin-other-tone",
+         ToneAutomationBinding{
+             .instance_id = "instance-b", .tone_document_ref = "tones/y/tone.json"
+         }},
+    };
+
+    const ToneAutomationViewState state =
+        toneAutomationViewStateFor(arrangement, tempo_map, "tones/x/tone.json", bindings, port);
 
     CHECK(state.tone_document_ref == "tones/x/tone.json");
     REQUIRE(state.lanes.size() == 1);
-    CHECK(state.lanes.front().instance_id == "plug-1");
-    CHECK(state.lanes.front().param_id == "gain");
+    CHECK(state.lanes.front().instance_id == "instance-a");
     CHECK(state.lanes.front().name == "Gain");
     CHECK(state.lanes.front().resolved);
     REQUIRE(state.lanes.front().points.size() == 2);
+    CHECK(state.lanes.front().points.back().seconds == Catch::Approx(2.25));
     CHECK(state.lanes.front().points.back().norm_value == 0.8F);
-    CHECK(state.lanes.front().points.back().seconds == 2.0);
+}
+
+TEST_CASE(
+    "toneAutomationViewStateFor renders unknown parameters as unresolved lanes",
+    "[core][tone-automation]")
+{
+    const common::core::TempoMap tempo_map =
+        common::core::TempoMap::defaultMap(common::core::TimeDuration{4.0});
+    const common::core::Arrangement arrangement = makeArrangement();
+    const StubToneAutomation port; // No parameters listed: the plugin failed to resolve.
+
+    const std::unordered_map<std::string, ToneAutomationBinding> bindings{
+        {"plugin-a",
+         ToneAutomationBinding{
+             .instance_id = "instance-a", .tone_document_ref = "tones/x/tone.json"
+         }},
+    };
+
+    const ToneAutomationViewState state =
+        toneAutomationViewStateFor(arrangement, tempo_map, "tones/x/tone.json", bindings, port);
+
+    REQUIRE(state.lanes.size() == 1);
+    CHECK_FALSE(state.lanes.front().resolved);
+    CHECK(state.lanes.front().name == "gain");
 }
 
 } // namespace rock_hero::editor::core

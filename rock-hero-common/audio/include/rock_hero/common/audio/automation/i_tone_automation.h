@@ -43,6 +43,9 @@ struct [[nodiscard]] AutomatableParamInfo
 
     /*! \brief Default parameter value, normalised to `[0, 1]`. */
     float default_norm_value{0.0F};
+
+    /*! \brief Current parameter value at listing time, normalised to `[0, 1]`. */
+    float current_norm_value{0.0F};
 };
 
 /*!
