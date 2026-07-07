@@ -361,6 +361,16 @@ void EditorController::Impl::performActionImpl(const EditorAction::RenameTone& a
         return;
     }
 
+    // Tone names are unique within an arrangement so region labels stay unambiguous.
+    if (std::ranges::any_of(*catalog, [&action](const common::core::Tone& candidate) {
+            return candidate.tone_document_ref != action.tone_document_ref &&
+                   candidate.name == action.name;
+        }))
+    {
+        reportError("A tone named \"" + action.name + "\" already exists in this arrangement.");
+        return;
+    }
+
     std::string before_name = tone->name;
     tone->name = action.name;
     pushUndoEntry(
@@ -439,6 +449,15 @@ void EditorController::Impl::performActionImpl(const EditorAction::CreateNewTone
     std::vector<common::core::Tone>* const catalog = m_session.currentToneCatalog();
     if (tone_track == nullptr || catalog == nullptr)
     {
+        return;
+    }
+
+    // Tone names are unique within an arrangement; reject a duplicate before minting anything.
+    if (std::ranges::any_of(*catalog, [&action](const common::core::Tone& candidate) {
+            return candidate.name == action.name;
+        }))
+    {
+        reportError("A tone named \"" + action.name + "\" already exists in this arrangement.");
         return;
     }
 

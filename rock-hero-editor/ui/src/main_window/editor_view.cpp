@@ -1526,8 +1526,8 @@ void EditorView::createToneMarkerAtPlayhead()
     }
     if (reuse_refs.empty())
     {
-        // No other tone exists to reuse, so skip the picker and mint a fresh tone directly.
-        m_controller.onToneCreateNewRequested(at, "New Tone");
+        // No other tone exists to reuse, so skip the picker and prompt for a fresh tone directly.
+        promptForNewTone(at);
         return;
     }
 
@@ -1540,7 +1540,7 @@ void EditorView::createToneMarkerAtPlayhead()
         [this, at, reuse_refs, create_new_id](int result) {
             if (result == create_new_id)
             {
-                m_controller.onToneCreateNewRequested(at, "New Tone");
+                promptForNewTone(at);
             }
             else if (result >= 1 && std::cmp_less_equal(result, reuse_refs.size()))
             {
@@ -1552,29 +1552,59 @@ void EditorView::createToneMarkerAtPlayhead()
         });
 }
 
-// Prompts for a new tone name (pre-filled with the current name) and forwards the rename to the
-// controller. The heap window frees itself once the modal prompt is dismissed.
-void EditorView::onToneRenamePromptRequested(
-    std::string tone_document_ref, std::string current_name)
+// Shows a modal single-field text prompt and invokes on_accept with the entered text when confirmed.
+// The heap window frees itself once the modal prompt is dismissed.
+void EditorView::promptForText(
+    const juce::String& title, const juce::String& message, const juce::String& initial_value,
+    const juce::String& accept_label, std::function<void(const juce::String&)> on_accept)
 {
-    auto window = std::make_unique<juce::AlertWindow>(
-        "Rename Tone", "Enter a new name for this tone:", juce::MessageBoxIconType::QuestionIcon);
-    window->addTextEditor("name", current_name);
-    window->addButton("Rename", 1, juce::KeyPress{juce::KeyPress::returnKey});
+    auto window =
+        std::make_unique<juce::AlertWindow>(title, message, juce::MessageBoxIconType::QuestionIcon);
+    window->addTextEditor("value", initial_value);
+    window->addButton(accept_label, 1, juce::KeyPress{juce::KeyPress::returnKey});
     window->addButton("Cancel", 0, juce::KeyPress{juce::KeyPress::escapeKey});
 
     juce::AlertWindow* const window_ptr = window.release();
     window_ptr->enterModalState(
         true,
         juce::ModalCallbackFunction::create(
-            [this, window_ptr, ref = std::move(tone_document_ref)](int result) {
-                if (result == 1)
+            [window_ptr, on_accept = std::move(on_accept)](int result) {
+                if (result == 1 && on_accept)
                 {
-                    m_controller.onToneRenameRequested(
-                        ref, window_ptr->getTextEditorContents("name").toStdString());
+                    on_accept(window_ptr->getTextEditorContents("value"));
                 }
             }),
         true);
+}
+
+// Prompts for a new tone name (defaulting to "New Tone") and asks the controller to mint it at the
+// marker; editor-core rejects and reports a duplicate name.
+void EditorView::promptForNewTone(common::core::ToneGridPosition at)
+{
+    promptForText(
+        "New Tone",
+        "Enter a name for the new tone:",
+        "New Tone",
+        "Create",
+        [this, at](const juce::String& name) {
+            const juce::String trimmed = name.trim();
+            m_controller.onToneCreateNewRequested(
+                at, (trimmed.isEmpty() ? juce::String{"New Tone"} : trimmed).toStdString());
+        });
+}
+
+// Prompts for a new name for the double-clicked tone and forwards the rename to the controller.
+void EditorView::onToneRenamePromptRequested(
+    std::string tone_document_ref, std::string current_name)
+{
+    promptForText(
+        "Rename Tone",
+        "Enter a new name for this tone:",
+        current_name,
+        "Rename",
+        [this, ref = std::move(tone_document_ref)](const juce::String& name) {
+            m_controller.onToneRenameRequested(ref, name.toStdString());
+        });
 }
 
 void EditorView::onOutputGainChanged(double gain_db)
