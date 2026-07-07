@@ -403,7 +403,23 @@ Spikes to run at the start of slice 5, before committing to the bake shape:
      arrangements never gain a persisted `toneTrack` because emission is conditional on authored
      regions.
 
-5. **Runtime switching** (active)
+5. **Runtime switching** (shipped 2026-07-07 via vblank cursor-follow; baked automation superseded)
+
+   **Status (2026-07-07).** Runtime tone switching is complete and clean, but it is delivered by a
+   simpler mechanism than the baked automation this slice originally specified.
+   `ToneTrackView::advanceActiveRegion()` runs on a vblank attachment; when the transport crosses a
+   region boundary it emits one discrete `onToneRegionSelected` intent →
+   `EditorController::Impl::applyToneSelection` → `ILiveRig::setAudibleTone` → the multi-tone rack's
+   `setAudibleBranch`, whose `ToneBranchGainPlugin` per-sample smoother makes the swap click-free.
+   Sub-phases **5a** (branch-gain plugin) and **5b** (multi-tone rack) shipped and are the audio
+   substrate this rests on. Sub-phases **5c–5e** (edit-timeline schedule baking,
+   `IToneTimelinePlayer`, paused-preview curve bypass, crossfade spikes) are **superseded for the
+   editor**: cursor-follow needs none of them, there is no offline-render path in the editor, and
+   the smoother already prevents clicks. Baked automation is the right answer only if a future
+   **offline bounce** or the **game runtime** (playback with no editor UI) later needs
+   UI-independent switching; revive 5c–5e at that point. The original design bullets and sub-phases
+   below are retained for that future.
+
    - Add an audio boundary for prepared tone timelines.
    - Convert regions to seconds through `TempoMap`.
    - Preload referenced tones before playback switching (dedupe by `tone_document_ref`).
