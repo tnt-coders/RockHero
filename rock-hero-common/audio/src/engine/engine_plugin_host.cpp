@@ -93,6 +93,21 @@ constexpr auto g_plugin_scan_timeout = std::chrono::seconds{30};
     return item_id.isValid() ? item_id.toString().toStdString() : std::string{};
 }
 
+// Removes AUTOMATIONCURVE children so the plugin-chunk undo memento never carries automation
+// curves: curves belong to RockHero's separate point-list undo domain (tone_automation_edits), and
+// the chunk restore path cannot rebind a live curve, so keeping the two domains disjoint means a
+// chunk undo/redo can never clobber an authored automation curve.
+void stripAutomationCurves(juce::ValueTree& plugin_state)
+{
+    for (int index = plugin_state.getNumChildren(); --index >= 0;)
+    {
+        if (plugin_state.getChild(index).hasType(tracktion::IDs::AUTOMATIONCURVE))
+        {
+            plugin_state.removeChild(index, nullptr);
+        }
+    }
+}
+
 // Copies serialized plugin state to an existing live plugin without changing its runtime id.
 void copyPluginStatePreservingInstanceId(
     tracktion::Plugin& target_plugin, const juce::ValueTree& source_state)
@@ -125,11 +140,27 @@ void copyPluginStatePreservingInstanceId(
         }
     }
 
-    target_state.removeAllChildren(nullptr);
+    // Preserve any live AUTOMATIONCURVE children. Automation curves are timeline data owned by
+    // RockHero's own point-list undo (see tone_automation_edits), not plugin-parameter state, and
+    // the plugin-chunk memento never carries them (see capturePluginState). Wiping them here would
+    // strand the parameter's live curve binding, because the runtime rebind only re-points a curve
+    // on an IDs::name==paramID child add, never on an AUTOMATIONCURVE add.
+    for (int index = target_state.getNumChildren(); --index >= 0;)
+    {
+        if (!target_state.getChild(index).hasType(tracktion::IDs::AUTOMATIONCURVE))
+        {
+            target_state.removeChild(index, nullptr);
+        }
+    }
+    int insert_index = 0;
     const int source_child_count = source_state.getNumChildren();
     for (int index = 0; index < source_child_count; ++index)
     {
-        target_state.addChild(source_state.getChild(index).createCopy(), index, nullptr);
+        const juce::ValueTree source_child = source_state.getChild(index);
+        if (!source_child.hasType(tracktion::IDs::AUTOMATIONCURVE))
+        {
+            target_state.addChild(source_child.createCopy(), insert_index++, nullptr);
+        }
     }
 
     target_plugin.itemID.writeID(target_state, nullptr);
@@ -1237,7 +1268,9 @@ std::expected<PluginInstanceState, PluginHostError> Engine::capturePluginState(
     }
 
     external_plugin->flushPluginStateToValueTree();
-    return makePluginInstanceState(external_plugin->state.createCopy());
+    juce::ValueTree captured_state = external_plugin->state.createCopy();
+    stripAutomationCurves(captured_state);
+    return makePluginInstanceState(std::move(captured_state));
 }
 
 // Recreates a captured external-plugin memento as a user-visible plugin with its original id.
