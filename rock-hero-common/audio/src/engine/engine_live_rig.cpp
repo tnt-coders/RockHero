@@ -758,6 +758,22 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
     return snapshot;
 }
 
+// Writes a fresh empty tone document (empty chain, unity gain) and returns its package-relative
+// reference. Eager persistence lets a subsequent loadLiveRig, which fails on a missing document,
+// pick the new reference up as its own passthrough branch.
+std::expected<std::string, LiveRigError> Engine::mintEmptyTone(
+    const std::filesystem::path& song_directory)
+{
+    const std::filesystem::path relative_path = generatedToneDocumentPath();
+    const ToneDocument document{.chain = {}, .output_gain = Gain{defaultGainDb()}};
+    if (auto written = writeToneDocument(song_directory / relative_path, document);
+        !written.has_value())
+    {
+        return std::unexpected{std::move(written.error())};
+    }
+    return relative_path.generic_string();
+}
+
 // Kicks off the cooperative async live rig load: validates the request, reads the tone document
 // up front, clears the existing chain, and posts the first plugin step on the message loop so
 // the busy overlay has a chance to paint before plugin construction starts.
