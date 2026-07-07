@@ -282,4 +282,50 @@ std::string ToneCreateWithNewToneEdit::label() const
     return "Add " + (name.empty() ? std::string{"Tone"} : name);
 }
 
+std::expected<void, EditorUndoFailureCode> ToneResetEdit::undo(EditorEditContext& context) const
+{
+    return applyReset(context, before_ref, after_ref, before_ref, before_name);
+}
+
+std::expected<void, EditorUndoFailureCode> ToneResetEdit::redo(EditorEditContext& context) const
+{
+    return applyReset(context, after_ref, before_ref, after_ref, "Default");
+}
+
+std::string ToneResetEdit::label() const
+{
+    return "Reset Tone";
+}
+
+// Repoints the sole region to region_ref and rewrites the catalog entry currently keyed by
+// catalog_from so it becomes {catalog_to, catalog_name}, keeping region and catalog in sync.
+std::expected<void, EditorUndoFailureCode> ToneResetEdit::applyReset(
+    EditorEditContext& context, const std::string& region_ref, const std::string& catalog_from,
+    const std::string& catalog_to, const std::string& catalog_name) const
+{
+    common::core::ToneTrack* const tone_track = context.session.currentToneTrack();
+    std::vector<common::core::Tone>* const catalog = context.session.currentToneCatalog();
+    if (tone_track == nullptr || catalog == nullptr)
+    {
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+    }
+
+    const auto region = std::ranges::find_if(
+        tone_track->regions,
+        [this](const common::core::ToneRegion& candidate) { return candidate.id == region_id; });
+    const auto tone =
+        std::ranges::find_if(*catalog, [&catalog_from](const common::core::Tone& candidate) {
+            return candidate.tone_document_ref == catalog_from;
+        });
+    if (region == tone_track->regions.end() || tone == catalog->end())
+    {
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+    }
+
+    region->tone_document_ref = region_ref;
+    tone->tone_document_ref = catalog_to;
+    tone->name = catalog_name;
+    return std::expected<void, EditorUndoFailureCode>{};
+}
+
 } // namespace rock_hero::editor::core

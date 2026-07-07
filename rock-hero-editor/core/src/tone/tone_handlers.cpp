@@ -292,6 +292,15 @@ void EditorController::Impl::performActionImpl(const EditorAction::DeleteToneReg
         return;
     }
 
+    if (tone_track->regions.size() == 1)
+    {
+        // Deleting the only region is a reset, not a merge: repoint it to a fresh empty "Default"
+        // tone rather than removing the song's coverage. That path mints and reloads the rig, so it
+        // is handled separately from the coverage-preserving merge below.
+        resetSoleToneRegion(action.region_id);
+        return;
+    }
+
     // Capture what the inverse needs before the merge erases it: the full region, its index, and
     // which neighbor absorbs its span (the previous region unless the removed region is first). The
     // region is copied out (not referenced) because deleteToneRegion erases it from the vector.
@@ -516,6 +525,62 @@ void EditorController::Impl::reloadLiveRigForToneSet(std::string select_region_i
                 updateView();
             },
         });
+}
+
+// Resets the sole tone region to a fresh empty "Default" tone: mints a new empty document, repoints
+// the region and its catalog entry to it, records the inverse, then reloads the rig. The previous
+// tone's document is left on disk as an orphan (collected at publish), per the tone-model design.
+void EditorController::Impl::resetSoleToneRegion(const std::string& region_id)
+{
+    if (!m_project.has_value())
+    {
+        return;
+    }
+    common::core::ToneTrack* const tone_track = m_session.currentToneTrack();
+    std::vector<common::core::Tone>* const catalog = m_session.currentToneCatalog();
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (tone_track == nullptr || catalog == nullptr || arrangement == nullptr)
+    {
+        return;
+    }
+
+    const auto region = std::ranges::find_if(
+        tone_track->regions, [&region_id](const common::core::ToneRegion& candidate) {
+            return candidate.id == region_id;
+        });
+    if (region == tone_track->regions.end())
+    {
+        return;
+    }
+    const std::string before_ref = region->tone_document_ref;
+    const std::string before_name = common::core::toneNameFor(*arrangement, before_ref);
+
+    auto minted = m_live_rig.mintEmptyTone(currentSongDirectory());
+    if (!minted.has_value())
+    {
+        reportError(std::string{"Could not reset the tone: "} + minted.error().message);
+        return;
+    }
+    const std::string after_ref = std::move(*minted);
+
+    // Repoint the region and its catalog entry to the fresh empty tone named "Default".
+    region->tone_document_ref = after_ref;
+    const auto tone =
+        std::ranges::find_if(*catalog, [&before_ref](const common::core::Tone& candidate) {
+            return candidate.tone_document_ref == before_ref;
+        });
+    if (tone != catalog->end())
+    {
+        tone->tone_document_ref = after_ref;
+        tone->name = "Default";
+    }
+    else
+    {
+        catalog->push_back(common::core::Tone{.tone_document_ref = after_ref, .name = "Default"});
+    }
+
+    pushUndoEntry(std::make_unique<ToneResetEdit>(region_id, before_ref, before_name, after_ref));
+    reloadLiveRigForToneSet(region_id);
 }
 
 } // namespace rock_hero::editor::core
