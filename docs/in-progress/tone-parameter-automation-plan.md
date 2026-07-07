@@ -157,10 +157,10 @@ Built on branch `work-in-progress` (off `refactor`), each slice green + tested:
   intent wired through `IEditorController`; controller tests cover write→project and undo/redo.
 - **P0 chunk-memento decoupling — DONE.** `capturePluginState` strips `AUTOMATIONCURVE`; the
   in-place restore preserves live curves — the two undo domains are provably disjoint.
-- **Storage simplification adopted:** points are **seconds-based end to end** (action, memento,
-  backend). Grid-snap still happens in musical space in the UI; musical-position storage + a
-  tempo-edit re-derivation pass are deferred (they add value only once a tempo-edit remap exists,
-  which nothing triggers today — the backend curve is seconds regardless).
+- **Storage — SUPERSEDED (2026-07-07):** the first pass stored points seconds-based end to end;
+  the settled decision below (Option B / C2) moves the model and memento to musical positions
+  persisted in `song.json`, with the Tracktion curve as a derived cache. The seconds-based
+  `IToneAutomation` adapter is unchanged.
 
 **Remaining: the UI (slices B–D).** Automation lanes render beneath the tone region on the timeline,
 one lane per automated parameter, drawing `ToneAutomationViewState` curves. The **"+" picker lives in
@@ -169,38 +169,77 @@ user correction 2026-07-07): clicking it opens the parameter menu (`listAutomata
 choosing a parameter seeds the lane (`onSetToneAutomationPoints` with a seed point), after which the
 "+" moves down to the next empty lane. Then: interactive add/move/delete points with grid-snap (Ctrl
 bypass), vertically resizable lanes, and disabled/discrete rendering. The interactive lane is complex
-graphics/UI — consult the `juce-tracktion-expert` before building it, per the standing rule. It is a
-pure consumer of the finished editor-core intent + view state, so it needs no further backend work.
+graphics/UI — consult the `juce-tracktion-expert` before building it, per the standing rule. It
+consumes the editor-core intent + view state, which move to musical positions per the settled
+storage decision below (that backend migration precedes or accompanies the UI).
 
-## Storage decision: Option B — RockHero-owned musical automation (2026-07-07)
+## Storage decision: SETTLED (2026-07-07) — Option B with musical truth in `song.json` (C2)
 
-**User decided (2026-07-07): automation must be RockHero-owned musical data that respects grid /
-tempo-map edits.** The seconds-based storage currently implemented (action/memento/projection) is a
-Tracktion-owned shortcut and will be revised. Musical positions become the source of truth; the
-Tracktion `AutomationCurve` (seconds) becomes a **derived playback cache**, rebuilt via
-`writeParameterCurve` (musical→seconds through RockHero's `TempoMap`) at load and on every tempo-map
-edit. The `IToneAutomation` audio adapter stays exactly as built — it is already the seconds boundary.
+**Settled after a final-gate re-verification (third `juce-tracktion-expert` pass, run on Fable,
+instructed to re-derive every inherited claim from vendored source and to try to break the design;
+verdict: GO).** Automation is RockHero-owned musical data that follows grid/tempo-map edits. The
+Tracktion base `AutomationCurve` (seconds) is a **derived playback cache**, rebuilt via
+`writeParameterCurve` (musical→seconds through the song `TempoMap`) after load and on every
+tempo-map edit, and **stripped from saved plugin state**. The seconds `IToneAutomation` adapter
+stays exactly as built.
 
-**Decision NOT yet final — pending a juce-tracktion-expert pass (running) + user confirmation.** The
-open sub-question the expert is evaluating is **where the musical truth physically lives**:
+**Storage home: `song.json`, arrangement-scoped (C2) — the final gate OVERTURNED the earlier
+nest-in-PluginRecord lean (C1):**
 
-- **(a) `song.json`-owned** (arrangement-scoped, mirroring `toneTrack`): fully RockHero-format,
-  consistent with tone regions/notes. Cost: automation must be keyed stably to a plugin
-  (chain_index vs a stable id) and RockHero must bookkeep the plugin↔automation association across
-  plugin reorder/remove.
-- **(b) plugin-state-child**: a RockHero-namespaced child ValueTree of `plugin->state`, riding in
-  the per-plugin Tracktion state file so it **follows the plugin automatically** through
-  reorder/remove/capture. Cost: automation data physically lives in the Tracktion plugin-state XML
-  (we own its schema, but it is not `song.json`); depends on Tracktion preserving unknown children
-  through flush/save/load.
+- **Fact — the persistence trigger decides it.** tone.json is written only by `captureActiveRig`,
+  which captures **only the audible branch** and runs only on save/arrangement-switch. Automation
+  undo/redo applies by stored tone ref to any loaded branch after the selection has moved, so under
+  C1/C3 an automation change on a non-audible tone is silently lost on save. Under C2 the hole
+  disappears structurally: undo mutates the session model, `song.json` persists from the model
+  regardless of capture, and the live curve is only cache. Rule: **persistence never relies on
+  capture; an automation undo updates the model (truth) and best-effort rewrites the live curve.**
+- **Fact — port surface:** C1 needed `LiveRigLoadResult`/`LiveRigCaptureRequest` widened with
+  per-tone opaque musical payloads both directions; C2 needs only an opaque id pass-through.
+- **Judgment (ours):** automation is timeline data and belongs with tone regions in `song.json`;
+  tone.json stays a pure, timeline-free rig preset — which directly serves the planned
+  signal-chain export/import (an exported preset must not drag song-specific automation along).
+- **C3 (RockHero child in `plugin->state`) rejected:** RockHero's own chunk restore deletes unknown
+  children (the P0 preserve-matrix would grow), every child mutation fires `Plugin::changed()` into
+  the dirty tracker (spurious chunk-undo entries), and the capture-scope hole remains.
 
-Shared to both: strip the redundant persisted `AUTOMATIONCURVE` on save (it is derived), rebuild it
-on load; rewrite curves on tempo-map edit; editor-core action/memento carry musical positions. Do
-**not** implement until the expert reports and the user picks (a) vs (b).
+**Plugin identity (the piece that previously sank song.json keying):** editor-core maintains the
+runtime `instance_id ↔ automation` association in memory — sound because every chain mutation
+(add/move/remove/undo-reinsert/load) goes through editor-core-initiated port calls — and persists a
+**minted durable per-plugin id** through `PluginRecord` as an opaque pass-through (the existing
+`block_indices`/`display_type_overrides` precedent). No RockHero identity is written into Tracktion
+trees. Mint ids before any plugin-chunk memento can be captured in a session, or older mementos
+lose them on restore.
 
-Editing flow once decided: the UI produces musical grid positions (snap in musical space); the
-`onSetToneAutomationPoints` intent + memento carry musical positions; the handler updates the
-RockHero model and rewrites the derived Tracktion curve.
+**Load / tempo-edit rebuild:** editor-core-orchestrated, as a final cooperative load stage through
+the existing seconds port, readiness-gated per plugin (`isInitialisingAsync()` false and
+`getAutomatableParameterByID != nullptr`). On the only reachable path today (Windows; VST3/VST2/LV2
+all instantiate synchronously in this vendored JUCE — async is macOS/AUv3-only) the gate is
+trivially satisfied. Straggler policy for a future async format: lane renders `resolved=false`;
+re-run the rebuild on the plugin's Selectable change after instance completion. **Never replace an
+`AUTOMATIONCURVE` node to rebuild a curve** — the final gate proved there is NO live rebind path at
+all (the `IDs::name` rebind branch is dead code for plugin params); always write through the bound
+curve, which is exactly the committed adapter's path.
+
+**Strip-on-save (expanded):** capture strips `AUTOMATIONCURVE` children (redundant derived data;
+absence is clean, and an emptied curve otherwise leaves an empty parented husk) **and strips the
+persisted `remapOnTempoChange="1"`** that `createNewPlugin` writes into every RockHero-created
+plugin's state (`EngineBehaviour::arePluginsRemappedWhenTempoChanges()` defaults true and is not
+overridden — a prior-pass error corrected by the final gate). Tempo-remap inertness rests on a
+single invariant — **RockHero never writes the edit's tempo sequence** — which stays an enforced,
+grep-able rule (no `getTempoSequence`/`insertTempo`/`setBpm` writes in `rock-hero-common`).
+
+**Migration of already-built code:** editor-core action/memento/projection move from seconds to
+musical positions (exact song-format grammar; sub-beat capable via the fractional substrate);
+automation becomes part of the arrangement session model + `song.json` format; the UI snaps in
+musical space and emits musical positions; `readParameterCurve` drops off the production path
+(kept as a test affordance).
+
+**Adjacent pre-existing capture-scope debt (found by the final gate; separate work item, NOT this
+plan):** (1) plugin-chain edits on a non-audible tone are lost the same way automation would have
+been (capture writes only the audible branch — and writes it to `arrangement->tone_document_ref`
+rather than the region's tone ref, possibly unreconciled with the tone-catalog model); (2)
+`reloadLiveRigForToneSet` (create/reset tone) reloads all branches from documents without capturing
+first, discarding unsaved audible-tone chain edits.
 
 ## Architecture
 
