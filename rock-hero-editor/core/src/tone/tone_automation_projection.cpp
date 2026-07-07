@@ -99,17 +99,21 @@ ToneAutomationViewState toneAutomationViewStateFor(
     }
 
     // Open lanes without authored points follow: they track the parameter's live value until the
-    // first point is authored, at which point the model lane above subsumes them.
+    // first point is authored, at which point the model lane above subsumes them. Open lanes are
+    // keyed by durable plugin id and resolve to the live instance through the bindings, so they
+    // survive rig reloads (which recreate every plugin instance).
     for (const OpenAutomationLane& open_lane : open_lanes)
     {
         if (open_lane.tone_document_ref != selected_tone_document_ref)
         {
             continue;
         }
-        const bool already_laned =
-            std::ranges::any_of(state.lanes, [&open_lane](const ToneAutomationLaneViewState& lane) {
-                return lane.instance_id == open_lane.instance_id &&
-                       lane.param_id == open_lane.param_id;
+        const auto binding = bindings.find(open_lane.plugin_id);
+        const std::string instance_id =
+            binding != bindings.end() ? binding->second.instance_id : std::string{};
+        const bool already_laned = std::ranges::any_of(
+            state.lanes, [&instance_id, &open_lane](const ToneAutomationLaneViewState& lane) {
+                return lane.instance_id == instance_id && lane.param_id == open_lane.param_id;
             });
         if (already_laned)
         {
@@ -117,12 +121,12 @@ ToneAutomationViewState toneAutomationViewStateFor(
         }
 
         ToneAutomationLaneViewState lane;
-        lane.instance_id = open_lane.instance_id;
+        lane.instance_id = instance_id;
         lane.param_id = open_lane.param_id;
         lane.name = open_lane.param_id;
         lane.resolved = false;
         if (const common::audio::AutomatableParamInfo* const parameter =
-                parameter_for(open_lane.instance_id, open_lane.param_id);
+                parameter_for(instance_id, open_lane.param_id);
             parameter != nullptr)
         {
             lane.name = parameter->name;

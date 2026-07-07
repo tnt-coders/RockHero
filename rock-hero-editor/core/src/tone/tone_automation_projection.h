@@ -37,14 +37,16 @@ struct ToneAutomationBinding
 Opened by the picker and closed by the lane's remove gesture; it tracks the parameter's live
 value until the first point is authored, at which point the arrangement's model entry takes over.
 Not persisted and not undoable: an open lane with no points is a view arrangement, not an edit.
+Keyed by the durable plugin id, not the instance id, so open lanes survive rig reloads (which
+recreate every plugin instance).
 */
 struct OpenAutomationLane
 {
     /*! \brief Tone whose chain owns the lane's plugin. */
     std::string tone_document_ref;
 
-    /*! \brief Owning plugin instance id. */
-    std::string instance_id;
+    /*! \brief Owning plugin's durable id (resolved to the live instance through the bindings). */
+    std::string plugin_id;
 
     /*! \brief Parameter id within the plugin. */
     std::string param_id;

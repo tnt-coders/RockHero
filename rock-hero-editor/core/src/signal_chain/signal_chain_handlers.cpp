@@ -340,10 +340,17 @@ void EditorController::Impl::completeSelectedPluginInsert(
     const std::string inserted_instance_id = insert_result->inserted_instance_id;
     // Mint the inserted plugin's durable automation identity now: the insert targets the audible
     // (== selected) tone, and the id persists through the next capture's PluginRecord pass-through.
+    const std::string inserted_plugin_id = common::core::generatePackageId();
     m_tone_plugin_identities.emplace(
         inserted_instance_id,
         ToneAutomationIdentity{
-            .plugin_id = common::core::generatePackageId(),
+            .plugin_id = inserted_plugin_id,
+            .tone_document_ref = selectedToneDocumentRef(),
+        });
+    m_tone_plugin_bindings.insert_or_assign(
+        inserted_plugin_id,
+        ToneAutomationBinding{
+            .instance_id = inserted_instance_id,
             .tone_document_ref = selectedToneDocumentRef(),
         });
     applySignalChainMutationSnapshot(insert_result->snapshot);

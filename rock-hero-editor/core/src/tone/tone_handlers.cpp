@@ -180,7 +180,7 @@ void EditorController::Impl::onToneCreateNewRequested(
 // Opens a session-scoped tracking lane; nothing is authored, so this is a direct view-state
 // mutation (like selection), not an undoable action.
 void EditorController::Impl::onToneAutomationLaneAddRequested(
-    std::string instance_id, std::string param_id)
+    const std::string& instance_id, std::string param_id)
 {
     const auto identity = m_tone_plugin_identities.find(instance_id);
     if (identity == m_tone_plugin_identities.end())
@@ -194,7 +194,7 @@ void EditorController::Impl::onToneAutomationLaneAddRequested(
 
     const OpenAutomationLane open_lane{
         .tone_document_ref = identity->second.tone_document_ref,
-        .instance_id = std::move(instance_id),
+        .plugin_id = identity->second.plugin_id,
         .param_id = std::move(param_id),
     };
     if (std::ranges::find(m_open_automation_lanes, open_lane) == m_open_automation_lanes.end())
@@ -207,11 +207,17 @@ void EditorController::Impl::onToneAutomationLaneAddRequested(
 // Closes an open tracking lane. Authored lanes are unaffected: their removal is an undoable
 // points edit, and the projection subsumes any matching open entry while points exist.
 void EditorController::Impl::onToneAutomationLaneRemoveRequested(
-    std::string instance_id, std::string param_id)
+    const std::string& instance_id, const std::string& param_id)
 {
+    const auto identity = m_tone_plugin_identities.find(instance_id);
+    if (identity == m_tone_plugin_identities.end())
+    {
+        return;
+    }
+    const std::string& plugin_id = identity->second.plugin_id;
     const auto removed = std::ranges::remove_if(
-        m_open_automation_lanes, [&instance_id, &param_id](const OpenAutomationLane& open_lane) {
-            return open_lane.instance_id == instance_id && open_lane.param_id == param_id;
+        m_open_automation_lanes, [&plugin_id, &param_id](const OpenAutomationLane& open_lane) {
+            return open_lane.plugin_id == plugin_id && open_lane.param_id == param_id;
         });
     if (removed.empty())
     {
@@ -413,9 +419,36 @@ void EditorController::Impl::performActionImpl(const EditorAction::DeleteToneReg
         arrangement != nullptr
             ? common::core::toneNameFor(*arrangement, removed_region.tone_document_ref)
             : std::string{};
+
+    // When the deleted region was the tone's last reference, the tone leaves the catalog too:
+    // a phantom entry would keep owning its name (blocking reuse) while nothing can reach it.
+    // The document stays on disk as an orphan, collected at publish, like every removed tone.
+    std::optional<common::core::Tone> removed_catalog_tone;
+    std::vector<common::core::Tone>* const catalog = m_session.currentToneCatalog();
+    const bool still_referenced = std::ranges::any_of(
+        tone_track->regions, [&removed_region](const common::core::ToneRegion& candidate) {
+            return candidate.tone_document_ref == removed_region.tone_document_ref;
+        });
+    if (catalog != nullptr && !still_referenced)
+    {
+        const auto tone =
+            std::ranges::find_if(*catalog, [&removed_region](const common::core::Tone& candidate) {
+                return candidate.tone_document_ref == removed_region.tone_document_ref;
+            });
+        if (tone != catalog->end())
+        {
+            removed_catalog_tone = *tone;
+            catalog->erase(tone);
+        }
+    }
+
     pushUndoEntry(
         std::make_unique<ToneRegionDeleteEdit>(
-            removed_index, std::move(removed_region), tone_name, absorbed_by_prev));
+            removed_index,
+            std::move(removed_region),
+            tone_name,
+            absorbed_by_prev,
+            std::move(removed_catalog_tone)));
     updateView();
 }
 
@@ -744,6 +777,9 @@ std::vector<std::string> EditorController::Impl::captureStableIds()
 void EditorController::Impl::mergeToneChainIdentities(
     const std::vector<common::audio::LoadedToneChainIdentities>& tone_chains)
 {
+    // The load recreated every plugin instance, so the durable-id-to-live-instance bindings are
+    // rebuilt from scratch; keeping older entries would let a dead instance shadow the live one.
+    m_tone_plugin_bindings.clear();
     for (const common::audio::LoadedToneChainIdentities& chain : tone_chains)
     {
         for (const common::audio::LoadedTonePluginIdentity& plugin : chain.plugins)
@@ -754,6 +790,12 @@ void EditorController::Impl::mergeToneChainIdentities(
                 plugin.instance_id,
                 ToneAutomationIdentity{
                     .plugin_id = plugin_id,
+                    .tone_document_ref = chain.tone_document_ref,
+                });
+            m_tone_plugin_bindings.insert_or_assign(
+                plugin_id,
+                ToneAutomationBinding{
+                    .instance_id = plugin.instance_id,
                     .tone_document_ref = chain.tone_document_ref,
                 });
         }
@@ -775,18 +817,15 @@ void EditorController::Impl::rebuildToneAutomationCurves()
     EditorEditContext context = editContext();
     for (const common::core::ToneParameterAutomation& entry : arrangement->tone_automation)
     {
-        const auto binding =
-            std::ranges::find_if(m_tone_plugin_identities, [&entry](const auto& candidate) {
-                return candidate.second.plugin_id == entry.plugin_id;
-            });
-        if (binding == m_tone_plugin_identities.end())
+        const auto binding = m_tone_plugin_bindings.find(entry.plugin_id);
+        if (binding == m_tone_plugin_bindings.end())
         {
             continue;
         }
         rewriteDerivedToneCurve(
             context,
             binding->second.tone_document_ref,
-            binding->first,
+            binding->second.instance_id,
             entry.param_id,
             entry.points);
     }
