@@ -5,16 +5,25 @@
 
 #pragma once
 
+#include <rock_hero/common/core/chart/chart.h>
 #include <string>
 #include <vector>
 
 namespace rock_hero::editor::core
 {
 
-/*! \brief One automation curve point rendered on a lane, in absolute song seconds. */
+/*! \brief One automation curve point rendered on a lane. */
 struct ToneAutomationPointViewState
 {
-    /*! \brief Edit-timeline position in seconds. */
+    /*!
+    \brief Exact musical position of the point (the stored truth).
+
+    The view echoes this back bit-identically for points a gesture did not move, so value-only
+    edits never re-derive musical positions from display seconds.
+    */
+    common::core::GridPosition position;
+
+    /*! \brief Display position in absolute song seconds, derived through the tempo map. */
     double seconds{0.0};
 
     /*! \brief Parameter value normalised to `[0, 1]`. */

@@ -397,10 +397,13 @@ public:
     void onToneCreateNewRequested(
         common::core::ToneGridPosition position, std::string name) override;
 
+    /*! \copydoc IEditorController::onToneAutomationLaneAddRequested */
+    void onToneAutomationLaneAddRequested(std::string instance_id, std::string param_id) override;
+
     /*! \copydoc IEditorController::onSetToneAutomationPoints */
     void onSetToneAutomationPoints(
-        std::string tone_document_ref, std::string instance_id, std::string param_id,
-        std::vector<common::audio::AutomationCurvePoint> points) override;
+        std::string instance_id, std::string param_id,
+        std::vector<common::core::ToneAutomationPoint> points) override;
 
     /*! \brief Shows the scanned plugin browser and starts an initial catalog scan when needed. */
     void onPluginBrowserRequested() override;

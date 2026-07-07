@@ -177,16 +177,71 @@ void EditorController::Impl::onToneCreateNewRequested(
     runAction(EditorAction::CreateNewTone{position, std::move(name)});
 }
 
+// Seeds a new lane with one point at the selected region's start, valued at the parameter's
+// current setting, so adding a lane never audibly changes the sound. Runs through the same
+// SetToneAutomationPoints action as every other automation mutation, so it is undoable for free.
+void EditorController::Impl::onToneAutomationLaneAddRequested(
+    std::string instance_id, std::string param_id)
+{
+    const auto identity = m_tone_plugin_identities.find(instance_id);
+    if (identity == m_tone_plugin_identities.end())
+    {
+        RH_LOG_WARNING(
+            "editor.tone",
+            "Ignored lane add for unknown plugin instance instance_id={:?}",
+            instance_id);
+        return;
+    }
+
+    common::core::GridPosition seed_position{.measure = 1, .beat = 1, .offset = {}};
+    if (const common::core::Arrangement* const arrangement = session().currentArrangement();
+        arrangement != nullptr)
+    {
+        for (const common::core::ToneRegion& region : arrangement->tone_track.regions)
+        {
+            if (region.id == m_selected_tone_region_id)
+            {
+                seed_position.measure = region.start.measure;
+                seed_position.beat = region.start.beat;
+                break;
+            }
+        }
+    }
+
+    float seed_value = 0.0F;
+    if (const auto parameters =
+            m_tone_automation.listAutomatableParameters(identity->second.tone_document_ref);
+        parameters.has_value())
+    {
+        for (const common::audio::AutomatableParamInfo& parameter : *parameters)
+        {
+            if (parameter.instance_id == instance_id && parameter.param_id == param_id)
+            {
+                seed_value = parameter.current_norm_value;
+                break;
+            }
+        }
+    }
+
+    runAction(
+        EditorAction::SetToneAutomationPoints{
+            std::move(instance_id),
+            std::move(param_id),
+            {common::core::ToneAutomationPoint{
+                .position = seed_position,
+                .norm_value = seed_value,
+                .curve_shape = 0.0F,
+            }},
+        });
+}
+
 void EditorController::Impl::onSetToneAutomationPoints(
-    std::string tone_document_ref, std::string instance_id, std::string param_id,
-    std::vector<common::audio::AutomationCurvePoint> points)
+    std::string instance_id, std::string param_id,
+    std::vector<common::core::ToneAutomationPoint> points)
 {
     runAction(
         EditorAction::SetToneAutomationPoints{
-            std::move(tone_document_ref),
-            std::move(instance_id),
-            std::move(param_id),
-            std::move(points)
+            std::move(instance_id), std::move(param_id), std::move(points)
         });
 }
 
@@ -657,49 +712,166 @@ std::string EditorController::Impl::automationParameterName(
     return param_id;
 }
 
-// Replaces a tone-chain plugin parameter's automation curve and records its inverse. The curve in
-// the tone's plugin state is authoritative, so the memento captures the point list before and after;
-// an edit whose points match the current curve records nothing.
-void EditorController::Impl::performActionImpl(const EditorAction::SetToneAutomationPoints& action)
+// Supplies the audible chain's durable plugin ids for capture, in chain order, minting ids for
+// instances the association does not know yet (first save of a chain built before ids existed).
+std::vector<std::string> EditorController::Impl::captureStableIds()
 {
-    const auto before = m_tone_automation.readParameterCurve(
-        action.tone_document_ref, action.instance_id, action.param_id);
-    if (!before.has_value())
+    std::vector<std::string> stable_ids;
+    const std::vector<PluginViewState>& plugins = m_signal_chain.plugins();
+    stable_ids.reserve(plugins.size());
+    for (const PluginViewState& plugin : plugins)
     {
-        RH_LOG_WARNING(
-            "editor.tone",
-            "Ignored automation edit for unresolved parameter tone={:?} instance={:?} param={:?}",
-            action.tone_document_ref,
-            action.instance_id,
-            action.param_id);
-        return;
+        auto identity = m_tone_plugin_identities.find(plugin.instance_id);
+        if (identity == m_tone_plugin_identities.end())
+        {
+            identity = m_tone_plugin_identities
+                           .emplace(
+                               plugin.instance_id,
+                               ToneAutomationIdentity{
+                                   .plugin_id = common::core::generatePackageId(),
+                                   .tone_document_ref = selectedToneDocumentRef(),
+                               })
+                           .first;
+        }
+        stable_ids.push_back(identity->second.plugin_id);
     }
-    if (*before == action.points)
+    return stable_ids;
+}
+
+// Merges load-reported plugin identities into the runtime association, minting durable ids for
+// records the documents did not carry yet. Upsert-only: id-preserving undo can revive an instance
+// id, so entries are never erased within a session.
+void EditorController::Impl::mergeToneChainIdentities(
+    const std::vector<common::audio::LoadedToneChainIdentities>& tone_chains)
+{
+    for (const common::audio::LoadedToneChainIdentities& chain : tone_chains)
+    {
+        for (const common::audio::LoadedTonePluginIdentity& plugin : chain.plugins)
+        {
+            const std::string plugin_id =
+                plugin.stable_id.empty() ? common::core::generatePackageId() : plugin.stable_id;
+            m_tone_plugin_identities.insert_or_assign(
+                plugin.instance_id,
+                ToneAutomationIdentity{
+                    .plugin_id = plugin_id,
+                    .tone_document_ref = chain.tone_document_ref,
+                });
+        }
+    }
+}
+
+// Rewrites every derived playback curve from the arrangement's musical automation. Runs after a
+// rig load (the curves were stripped from persisted plugin state) and would run after any future
+// tempo-map edit; entries whose plugin is not currently loaded are skipped and reconcile on the
+// next load that resolves them.
+void EditorController::Impl::rebuildToneAutomationCurves()
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr)
     {
         return;
     }
 
-    const auto written = m_tone_automation.writeParameterCurve(
-        action.tone_document_ref, action.instance_id, action.param_id, action.points);
-    if (!written.has_value())
+    EditorEditContext context = editContext();
+    for (const common::core::ToneParameterAutomation& entry : arrangement->tone_automation)
+    {
+        const auto binding =
+            std::ranges::find_if(m_tone_plugin_identities, [&entry](const auto& candidate) {
+                return candidate.second.plugin_id == entry.plugin_id;
+            });
+        if (binding == m_tone_plugin_identities.end())
+        {
+            continue;
+        }
+        rewriteDerivedToneCurve(
+            context,
+            binding->second.tone_document_ref,
+            binding->first,
+            entry.param_id,
+            entry.points);
+    }
+}
+
+// Replaces a tone-chain plugin parameter's automation and records its inverse. The arrangement's
+// musical points are the persisted truth; the derived playback curve is rewritten best-effort, and
+// an edit whose points match the current model records nothing.
+void EditorController::Impl::performActionImpl(const EditorAction::SetToneAutomationPoints& action)
+{
+    const auto identity = m_tone_plugin_identities.find(action.instance_id);
+    if (identity == m_tone_plugin_identities.end())
     {
         RH_LOG_WARNING(
             "editor.tone",
-            "Rejected automation edit tone={:?} param={:?} detail={:?}",
-            action.tone_document_ref,
-            action.param_id,
-            written.error().message);
-        updateView();
+            "Ignored automation edit for unknown plugin instance instance_id={:?}",
+            action.instance_id);
         return;
     }
+
+    std::vector<common::core::ToneParameterAutomation>* const automation =
+        m_session.currentToneAutomation();
+    if (automation == nullptr)
+    {
+        return;
+    }
+
+    if (!action.points.empty())
+    {
+        const common::core::ToneParameterAutomation candidate{
+            .plugin_id = identity->second.plugin_id,
+            .param_id = action.param_id,
+            .points = action.points,
+        };
+        if (!isValidToneParameterAutomation(candidate, session().song().tempo_map))
+        {
+            // The view snaps and clamps before emitting the intent, so a violation means the
+            // request went stale; refresh the view so lanes snap back to the model.
+            RH_LOG_WARNING(
+                "editor.tone",
+                "Rejected invalid automation points instance_id={:?} param={:?}",
+                action.instance_id,
+                action.param_id);
+            updateView();
+            return;
+        }
+    }
+
+    const auto existing = std::ranges::find_if(
+        *automation, [&](const common::core::ToneParameterAutomation& candidate) {
+            return candidate.plugin_id == identity->second.plugin_id &&
+                   candidate.param_id == action.param_id;
+        });
+    std::vector<common::core::ToneAutomationPoint> before;
+    if (existing != automation->end())
+    {
+        before = existing->points;
+    }
+    if (before == action.points)
+    {
+        return;
+    }
+
+    EditorEditContext context = editContext();
+    if (!applyToneAutomationModel(
+            m_session, identity->second.plugin_id, action.param_id, action.points))
+    {
+        return;
+    }
+    rewriteDerivedToneCurve(
+        context,
+        identity->second.tone_document_ref,
+        action.instance_id,
+        action.param_id,
+        action.points);
 
     pushUndoEntry(
         std::make_unique<ToneAutomationPointsEdit>(
-            action.tone_document_ref,
+            identity->second.plugin_id,
             action.instance_id,
             action.param_id,
-            automationParameterName(action.tone_document_ref, action.instance_id, action.param_id),
-            *before,
+            identity->second.tone_document_ref,
+            automationParameterName(
+                identity->second.tone_document_ref, action.instance_id, action.param_id),
+            std::move(before),
             action.points));
     updateView();
 }

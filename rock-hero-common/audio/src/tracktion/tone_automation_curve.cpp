@@ -66,6 +66,8 @@ void collectAutomatableParameters(
                 .default_norm_value = default_value.has_value()
                                           ? parameter.valueRange.convertTo0to1(*default_value)
                                           : 0.0F,
+                .current_norm_value =
+                    parameter.valueRange.convertTo0to1(parameter.getCurrentValue()),
             });
     }
 }

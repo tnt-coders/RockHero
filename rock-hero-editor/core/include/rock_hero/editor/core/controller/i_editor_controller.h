@@ -10,10 +10,10 @@
 #include <filesystem>
 #include <functional>
 #include <optional>
-#include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <rock_hero/common/audio/input/live_input_error.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/timeline.h>
+#include <rock_hero/common/core/tone/tone_automation.h>
 #include <rock_hero/common/core/tone/tone_track.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <rock_hero/editor/core/signal_chain/plugin_block_assignment.h>
@@ -219,19 +219,32 @@ public:
         common::core::ToneGridPosition position, std::string name) = 0;
 
     /*!
-    \brief Handles a request to replace a tone-chain plugin parameter's automation curve.
+    \brief Handles a request to add an automation lane for a tone-chain plugin parameter.
 
-    The supplied points become the parameter's whole curve (an empty list clears it); the edit is
-    undoable. Points are seconds-based and normalised to `[0, 1]`.
+    Seeds the parameter's automation with one point at the selected region's start, valued at the
+    parameter's current setting, so the lane appears without audibly changing the sound. Undoable
+    (undo removes the lane again).
 
-    \param tone_document_ref Tone whose plugin parameter is edited.
     \param instance_id Plugin instance owning the parameter.
     \param param_id Parameter id within the plugin.
-    \param points Replacement curve points, in ascending time.
+    */
+    virtual void onToneAutomationLaneAddRequested(
+        std::string instance_id, std::string param_id) = 0;
+
+    /*!
+    \brief Handles a request to replace a tone-chain plugin parameter's automation points.
+
+    The supplied musical points become the parameter's whole automation (an empty list removes it
+    and its lane); the edit is undoable. Positions are exact musical grid positions — the stored
+    truth — and the derived playback curve is rewritten from them.
+
+    \param instance_id Plugin instance owning the parameter.
+    \param param_id Parameter id within the plugin.
+    \param points Replacement points in ascending musical order, values normalised to `[0, 1]`.
     */
     virtual void onSetToneAutomationPoints(
-        std::string tone_document_ref, std::string instance_id, std::string param_id,
-        std::vector<common::audio::AutomationCurvePoint> points) = 0;
+        std::string instance_id, std::string param_id,
+        std::vector<common::core::ToneAutomationPoint> points) = 0;
 
     /*! \brief Handles a request to show the scanned plugin browser. */
     virtual void onPluginBrowserRequested() = 0;

@@ -77,6 +77,17 @@ public:
     [[nodiscard]] std::vector<Tone>* currentToneCatalog() noexcept;
 
     /*!
+    \brief Returns mutable access to the current arrangement's plugin-parameter automation.
+
+    The third narrow mutation surface the tone editing workflow needs: automation points are the
+    persisted musical truth the automation lanes edit, while broader arrangement fields stay
+    read-only through this session.
+
+    \return Current arrangement's automation entries, or null when no arrangement is loaded.
+    */
+    [[nodiscard]] std::vector<ToneParameterAutomation>* currentToneAutomation() noexcept;
+
+    /*!
     \brief Replaces the current session song.
 
     The selected arrangement index is stored as session state, not as persistent arrangement
