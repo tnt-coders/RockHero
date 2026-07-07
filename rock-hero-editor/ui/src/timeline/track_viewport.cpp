@@ -200,8 +200,9 @@ void TrackViewport::Content::paint(juce::Graphics& g)
             });
         // Everything below the tone row is the automation lanes band; painting it here (with the
         // grid on top) lets the lanes view stay background-free so the grid shows through it.
+        // The lanes share the waveform row's band so the grid reads identically on both.
         const int lanes_top = m_owner.primaryTrackHeight() + m_owner.toneTrackHeight();
-        g.setColour(editorTheme().automation_row_background);
+        g.setColour(editorTheme().waveform_row_background);
         g.fillRect(
             juce::Rectangle<int>{
                 0, lanes_top, bounds.getWidth(), std::max(0, bounds.getHeight() - lanes_top)
