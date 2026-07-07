@@ -12,7 +12,8 @@ from the score's audio sync points, converts every track to a chart (ties merge 
 notes, GP bends/slides/harmonics map onto the format, between-fret harmonics use the `touch`
 field), and copies the embedded backing audio into the workspace; validated against a 101-file
 local corpus (111 arrangements, ~196k notes, zero failures). Remaining from this plan: note
-authoring UI and an RS XML importer, which stay future work. The 3D display has its own plan at
+authoring UI, an RS XML importer, and the mid-sustain vibrato spans decided 2026-07-06 (see
+Forward extensions), which stay future work. The 3D display has its own plan at
 `docs/todo/3d-highway-plan.md`.
 
 ## Goal
@@ -82,8 +83,8 @@ Structure and metadata:
 ## Format Direction
 
 - **Positions extend the tempo-map token grammar.** Whole-beat positions stay `"<measure>:<beat>"`;
-  sub-beat positions extend it with an exact fraction, e.g. `"12:3+1/2"` (grammar to be finalized
-  in slice 1). This resolves the token question deferred from the tempo-map slice, and Charter's
+  sub-beat positions extend it with an exact fraction, e.g. `"12:3+1/2"` (settled in slice 1: a
+  proper fraction strictly inside the beat, so every position has one spelling). This resolves the token question deferred from the tempo-map slice, and Charter's
   rational-fraction positions confirm exact fractions (never floats, never milliseconds) are the
   right substrate. Seconds are always derived through the tempo map, exactly like tone regions.
 - **Chords are templates plus shape spans, never chord events.** Decision 2026-07-06 (superseding
@@ -113,8 +114,35 @@ Structure and metadata:
   releases across what importers see as tie chains become one bend curve. Importers flatten
   tie/link chains at the boundary. Hammer-ons/pull-offs/taps are new onsets by definition and
   stay separate notes. Measure-crossing sustains stay one note; a barline tie is a rendering
-  glyph, not data. Whole-note vibrato/tremolo flags to start; positioned technique spans only if
-  a real chart demands a mid-sustain change the payloads cannot express.
+  glyph, not data. Whole-note technique flags to start; positioned spans arrive
+  only when a real chart demands a mid-sustain change the payloads cannot express — vibrato met
+  that bar 2026-07-06 (see Mid-sustain vibrato spans under Forward extensions); tremolo stays
+  whole-note because tremolo is re-picking, so a mid-sustain "start" is new onsets, not an
+  evolving hold.
+- **Linking is an editor command over payload storage, never a stored flag.** Decision 2026-07-06:
+  the no-link-next choice was re-examined against editing ergonomics (create a note inline, set
+  its technique, press L to join it to the previous note) via source-level review of Charter's
+  link machinery, the RS-format checker tooling, and Guitar Pro's gesture semantics — and upheld.
+  GP's own "L" is its tie key, and GP defines a tie as lengthening the preceding note's duration:
+  the desired gesture already has merge semantics. Charter keeps link storage sane only with
+  three defensive layers (draw-time wrong-link rendering, save-time fixers whose
+  `joinSimilarLinkedNotes` deletes technique-free links — converging on merged form — and
+  validators), official RS DLC violates its own ≤1 ms link-adjacency invariant, and the RS
+  runtime draws no head for link children (one scored onset plus a piecewise tail — the merged
+  note is already the runtime semantic). When authoring lands, "L" on the selected note merges it
+  into its same-string predecessor: same fret → extend the predecessor's sustain and absorb the
+  note's techniques as positioned payloads (a zero-sustain technique-carrying note is a pure
+  payload boundary, e.g. a vibrato-span onset); different fret → append a slide waypoint at the
+  note's onset offset (linked = pitched; unpitched slides stay explicit). Hammer-on/pull-off/tap
+  are never link targets — new onsets keep their own gesture, exactly as GP separates tie (L)
+  from HOPO (H). Segments between payload boundaries are view entities the editor synthesizes for
+  selection and property editing: every discrete mid-sustain state change (a slide waypoint, a
+  vibrato span edge) draws a linked-appearance note head at its boundary — the tab renderer
+  already does exactly this for slide waypoints — so each change point is a visible, clickable
+  target with its own properties, and authoring reads like Charter's linked notes while the file
+  stores one merged note. Continuous payloads (bend points, future whammy) edit as curve handles
+  on the tail rather than heads. Split/unlink is the inverse command and must synthesize an
+  attack at the seam — editor policy, not format.
 - **Technique fields are optional with defaults.** A plain quarter note should serialize as a tiny
   one-line object; techniques appear only when present (same style as tone regions omitting empty
   names).
@@ -281,6 +309,22 @@ What each piece encodes, and the edge cases it covers:
   semitones; the corpus already contains 0.5 (quarter-tone curls), and 0.25 or any other
   granularity needs no format change. the RS format's coarseness is an importer limitation, not a
   format one.
+- **Mid-sustain vibrato spans (decided 2026-07-06; lands with the next format touch).** Vibrato is
+  a whole-note flag today, and the GP importer OR-smears tie chains that add vibrato mid-hold
+  (`gp_chart_builder.cpp` merges tied segments' vibrato with `||`), so the corpus already meets
+  the "real chart demands it" bar. The field becomes bool-or-spans with one canonical spelling
+  per state: omitted = none; `"vibrato": true` = the whole sustain (unchanged — this stays the
+  spelling for the common case, and stays legal on zero-sustain notes as an onset mark);
+  `"vibrato": [{ "offset": "3/2" }]` = starts 1.5 beats in and runs to the sustain end (omitted
+  `"until"` means to-end); `"vibrato": [{ "offset": "0", "until": "3/2" }]` = starts with vibrato
+  and settles; multiple spans encode on-off-on pulses. Canonical-uniqueness rules mirror the
+  position grammar's proper-fraction rule: spans require sustain > 0; offsets ≥ 0, strictly
+  ascending, < sustain; every span except the last carries `"until"`; `"until"` exceeds its own
+  offset, falls strictly before the next span's offset (touching spans merge into one), and on
+  the last span is strictly less than the sustain (equal-to-sustain is spelled by omitting it); a
+  lone `{ "offset": "0" }` span is rejected because that state is spelled `true`. Validation is
+  the same note-local loop shape as bends and slides. When this lands, the GP tie merge records
+  vibrato onset offsets (rebased like bend points) instead of OR-ing them away.
 - **Whammy bar (future, additive).** Sketch: a `whammy` payload on the note using the same
   two-column pair encoding as `bend` — `[[offset, semitones]]` — with *signed* values (dives go
   negative). Kept distinct from `bend` because a bend is a finger on one string (non-negative,
@@ -328,6 +372,15 @@ source charts contain dangling links and zero-sustain instant slides that need r
 measure numbering must be renormalized sequentially; the RS `ignore` scoring flag is dropped;
 RS section name+number pairs collapse to `type`.
 
+GP importer follow-ups recorded 2026-07-06 from a tie-merge fidelity audit: a slide flag on the
+final tied segment is silently lost (tie destinations never reach the slide resolver — queued as
+its own fix); tied segments' vibrato is OR-smeared across the merged note until vibrato spans
+land; a tied segment's bend point landing exactly on the previous segment's last offset is
+dropped by the strict-ascending append guard; tie flattening currently emits no conversion note
+for any of these; and GP's legato-vs-shift slide distinction (arrival re-picked or not) is
+collapsed on import, leaving legato arrivals as picked onsets — a scoring-fidelity nuance to
+restore when gameplay needs it.
+
 ## Relationship to other plans
 
 - Owns the deferred chart-storage questions (grid tokens, chord modeling, technique
@@ -349,8 +402,10 @@ RS section name+number pairs collapse to `type`.
 
 ## Open Questions
 
-- Exact sub-beat token spelling (`"12:3+1/2"` vs. alternatives) and whether whole-beat positions
-  keep the bare `"12:3"` form (they should).
+- Same-string sustain overlap is unvalidated: no rule compares a note's sustain endpoint against
+  the next onset on its string (nothing in the codebase computes endpoint positions today).
+  Decide the semantics — reject, truncate, or allow — when note authoring lands; the link/merge
+  command needs the endpoint arithmetic anyway.
 - How much of Charter's charting-only metadata (ignore, pass-other-notes, phrase/section
   taxonomy) RockHero adopts versus simplifies.
 - Where the waveform-hidden toggle persists (app settings vs. per-project resume state).
