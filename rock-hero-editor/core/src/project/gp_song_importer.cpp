@@ -214,6 +214,7 @@ std::expected<common::core::Song, SongImportError> GpSongImporter::importSong(
                 .tone_document_ref = {},
                 .tones = {},
                 .tone_track = {},
+                .tone_automation = {},
                 .chart_ref = chart_ref,
                 .chart = std::move(arrangement.chart),
             });

@@ -392,8 +392,8 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
         // points whose segments can intersect the clip build the stroked path.
         juce::Path curve;
         bool path_started = false;
-        const float clip_left = static_cast<float>(clip.getX() - g_point_hit_radius);
-        const float clip_right = static_cast<float>(clip.getRight() + g_point_hit_radius);
+        const auto clip_left = static_cast<float>(clip.getX() - g_point_hit_radius);
+        const auto clip_right = static_cast<float>(clip.getRight() + g_point_hit_radius);
         std::optional<float> previous_x;
         float previous_y = 0.0f;
         for (const DrawnPoint& point : drawn)

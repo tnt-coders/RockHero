@@ -83,6 +83,7 @@ static_assert(std::derived_from<Engine, IThumbnailFactory>);
             .tone_document_ref = {},
             .tones = {},
             .tone_track = {},
+            .tone_automation = {},
             .chart_ref = {},
             .chart = {},
         });
@@ -613,6 +614,8 @@ TEST_CASE("Engine plugin host rejects missing recreated plugin", "[audio][engine
             .existing_tone_document_ref = {},
             .block_indices = {},
             .display_type_overrides = {},
+
+            .stable_ids = {},
         });
     REQUIRE(snapshot.has_value());
     CHECK(snapshot->plugins.empty());
@@ -704,6 +707,8 @@ TEST_CASE("Engine live rig loads tone without clearing input gain", "[audio][eng
             .existing_tone_document_ref = {},
             .block_indices = {},
             .display_type_overrides = {},
+
+            .stable_ids = {},
         });
 
     REQUIRE(snapshot.has_value());
@@ -758,6 +763,8 @@ TEST_CASE("Engine live rig output gain persists through capture", "[audio][engin
             .existing_tone_document_ref = {},
             .block_indices = {},
             .display_type_overrides = {},
+
+            .stable_ids = {},
         });
 
     REQUIRE(snapshot.has_value());
@@ -796,6 +803,8 @@ TEST_CASE("Engine live rig captures UUID tone refs", "[audio][engine][integratio
             .existing_tone_document_ref = {},
             .block_indices = {},
             .display_type_overrides = {},
+
+            .stable_ids = {},
         });
 
     if (!snapshot.has_value())
@@ -861,6 +870,7 @@ TEST_CASE(
             .tone_document_ref = {},
             .tones = {},
             .tone_track = {},
+            .tone_automation = {},
             .chart_ref = {},
             .chart = {},
         });

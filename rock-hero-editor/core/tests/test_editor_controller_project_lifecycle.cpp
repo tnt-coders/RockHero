@@ -969,6 +969,7 @@ TEST_CASE("EditorController orders arrangements and defaults to Lead", "[core][e
                 .tone_document_ref = {},
                 .tones = {},
                 .tone_track = {},
+                .tone_automation = {},
                 .chart_ref = {},
                 .chart = {},
             };
