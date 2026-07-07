@@ -309,6 +309,9 @@ early-returns if reading is off, `:246-249`).
   add/move/delete with grid-snap (Ctrl bypass); undo/redo. This is the core of the feature.
 - **Slice D — resizable lanes + polish.** Vertical resize; discrete-param rendering; disabled state
   for unresolved `paramID`; value-label ticks via `valueToString`.
+- **Slice E — host-tempo mirror (scheduled last; closes the 120 BPM gap).** One-way, write-only
+  mirror of the song `TempoMap` into `edit.tempoSequence` so tempo-synced plugins see real host
+  tempo. Details in the dedicated end-of-plan section.
 
 ## Testing strategy
 
@@ -334,7 +337,47 @@ early-returns if reading is off, `:246-249`).
 ## Non-goals (first pass)
 
 - No `AutomationCurveModifier` (per-clip curves / looping / auto-replication across a tone's regions).
-- No tempo-sync of RockHero's `TempoMap` into the Tracktion edit.
+- No reading of `edit.tempoSequence` back into RockHero state, ever — the tempo authority never
+  moves. (The former blanket "no tempo-sync into the edit" non-goal is narrowed: the one-way
+  write-only mirror is now IN scope as Slice E; what stays out of scope is reads and any authority
+  transfer.)
 - No exposure of Tracktion `Track`/`Clip`/`RackType`/`Plugin`/`AutomatableParameter` to editor UI code
   — the port is framework-free (seconds + normalised values + string ids only).
 - No crossfade/tone-gain shaping on the region rectangles (separate future feature).
+
+## Slice E — host-tempo mirror (end of plan; closes the 120 BPM gap)
+
+**Problem (source-verified by the final-gate pass):** hosted plugins receive host tempo through
+Tracktion's `PluginPlayHead`, which reads `edit.tempoSequence` — and RockHero never writes it, so a
+tempo-synced plugin in a tone chain sees the default constant 120 BPM, never the song's tempo map.
+For a guitar rig (host-synced delays and modulation), that is a real user-visible defect whenever a
+song's tempo differs from 120.
+
+**Fix: a one-way, write-only mirror.** After project load and after every tempo-map edit, rewrite
+`edit.tempoSequence` from the song `TempoMap` — the same derived-output pattern as the automation
+curve cache. Nothing ever reads the edit's tempo back into RockHero state; the timing authority
+does not move.
+
+Preconditions (all verified in the final-gate pass; each is load-bearing):
+
+- **Non-remapping writes only.** `TempoSequence::insertTempo` does not remap; `TempoSetting::setBpm`
+  / `setCurve` remap by default and must not be used with remapping enabled.
+- **Pin the backing wave clip to absolute sync first.** Its default `syncType` is `syncBarsBeats`,
+  so an unpinned clip would be beat-preservingly MOVED by tempo writes.
+- **Scrub `remapOnTempoChange="1"` from plugin state** (strip-on-save already does this per the
+  settled storage decision), so Tracktion never beat-remaps the derived automation curves under the
+  mirror.
+- **Invariant update:** "no edit-tempo writes in rock-hero-common" narrows to "edit-tempo writes
+  happen only inside the mirror unit, and nothing anywhere reads `edit.tempoSequence` into RockHero
+  state" — keep it grep-able.
+
+Open implementation detail: map RockHero's metronome-linear tempo segments onto `TempoSetting`
+curve semantics faithfully (verify at implementation). Mid-ramp divergence would only affect a
+synced effect's LFO phase, never RockHero's own timing, which never reads the mirror.
+
+Tests: mirror a nontrivial map and assert the sequence contents (and, where feasible, the
+play-head-reported BPM through a hosted stand-in); assert the backing clip's position and a derived
+automation curve's seconds are unchanged across a mirror rebuild (no remap fired).
+
+Bonus once landed: Tracktion's tempo-driven click track becomes usable for a future charting
+metronome, partially refunding the "metronome won't come free" cost.
