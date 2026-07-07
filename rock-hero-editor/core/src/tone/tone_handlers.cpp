@@ -170,9 +170,15 @@ void EditorController::Impl::performActionImpl(const EditorAction::ResizeToneReg
     const common::core::ToneGridPosition before_end = region->end;
     region->start = action.start;
     region->end = action.end;
+
+    // The region's undo label names its tone, which now lives in the arrangement's tone catalog.
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    const std::string tone_name =
+        arrangement != nullptr ? common::core::toneNameFor(*arrangement, region->tone_document_ref)
+                               : std::string{};
     pushUndoEntry(
         std::make_unique<ToneRegionResizeEdit>(
-            action.region_id, region->name, before_start, before_end, action.start, action.end));
+            action.region_id, tone_name, before_start, before_end, action.start, action.end));
     updateView();
 }
 

@@ -424,6 +424,7 @@ public:
                 AudioAsset{.path = audio_path, .normalization = std::nullopt, .start_offset = {}},
             .audio_duration = TimeDuration{},
             .tone_document_ref = {},
+            .tones = {},
             .tone_track = {},
             .chart_ref = {},
             .chart = {},

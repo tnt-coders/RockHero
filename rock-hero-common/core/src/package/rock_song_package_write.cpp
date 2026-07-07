@@ -204,10 +204,16 @@ struct AudioAssetDocumentEntry
 struct ToneRegionDocumentEntry
 {
     std::string id;
-    std::string name;
     std::string start;
     std::string end;
     std::string tone_document;
+};
+
+// One named catalog tone retained between validation and final JSON formatting.
+struct ToneCatalogDocumentEntry
+{
+    std::string tone_document;
+    std::string name;
 };
 
 // Song-document arrangement entry retained between validation and final JSON formatting.
@@ -217,26 +223,35 @@ struct ArrangementDocumentEntry
     std::string part;
     std::string audio;
     std::string tone_document;
+    std::vector<ToneCatalogDocumentEntry> tones;
     std::vector<ToneRegionDocumentEntry> tone_regions;
     std::string chart_document;
 };
 
-// Renders one authored tone region as a compact object line.
+// Renders one authored tone region as a compact object line. The region carries no name of its own;
+// its name comes from the catalog tone it references.
 [[nodiscard]] std::string formatToneRegionLine(const ToneRegionDocumentEntry& entry)
 {
     std::string line = "{ \"id\": ";
     line += jsonString(entry.id);
-    if (!entry.name.empty())
-    {
-        line += ", \"name\": ";
-        line += jsonString(entry.name);
-    }
     line += ", \"start\": ";
     line += jsonString(entry.start);
     line += ", \"end\": ";
     line += jsonString(entry.end);
     line += ", \"toneDocument\": ";
     line += jsonString(entry.tone_document);
+    line += " }";
+
+    return line;
+}
+
+// Renders one catalog tone (its document reference and user-facing name) as a compact object line.
+[[nodiscard]] std::string formatToneCatalogLine(const ToneCatalogDocumentEntry& entry)
+{
+    std::string line = "{ \"toneDocument\": ";
+    line += jsonString(entry.tone_document);
+    line += ", \"name\": ";
+    line += jsonString(entry.name);
     line += " }";
 
     return line;
@@ -282,6 +297,16 @@ struct ArrangementDocumentEntry
     {
         line += ", \"toneDocument\": ";
         line += jsonString(entry.tone_document);
+    }
+    if (!entry.tones.empty())
+    {
+        line += R"(, "tones": [)";
+        for (std::size_t index = 0; index < entry.tones.size(); ++index)
+        {
+            line += (index == 0 ? "\n      " : ",\n      ");
+            line += formatToneCatalogLine(entry.tones[index]);
+        }
+        line += "\n    ]";
     }
     if (!entry.tone_regions.empty())
     {
@@ -594,10 +619,20 @@ struct SongDocumentForSave
             tone_regions.push_back(
                 ToneRegionDocumentEntry{
                     .id = region.id,
-                    .name = region.name,
                     .start = formatBeatPositionToken(region.start.measure, region.start.beat),
                     .end = formatBeatPositionToken(region.end.measure, region.end.beat),
                     .tone_document = region.tone_document_ref,
+                });
+        }
+
+        std::vector<ToneCatalogDocumentEntry> tones;
+        tones.reserve(arrangement.tones.size());
+        for (const Tone& tone : arrangement.tones)
+        {
+            tones.push_back(
+                ToneCatalogDocumentEntry{
+                    .tone_document = tone.tone_document_ref,
+                    .name = tone.name,
                 });
         }
 
@@ -607,6 +642,7 @@ struct SongDocumentForSave
                 .part = partName(arrangement.part),
                 .audio = audio_id->second,
                 .tone_document = arrangement.tone_document_ref,
+                .tones = std::move(tones),
                 .tone_regions = std::move(tone_regions),
                 .chart_document = arrangement.chart_ref,
             });

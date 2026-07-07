@@ -32,10 +32,15 @@ namespace
 TEST_CASE("Tone track projection resolves authored regions to seconds", "[core][tone]")
 {
     common::core::Arrangement arrangement = makeArrangement();
+    arrangement.tones = {
+        common::core::Tone{
+            .tone_document_ref = "tones/9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d/tone.json",
+            .name = "Clean Verse",
+        },
+    };
     arrangement.tone_track.regions = {
         common::core::ToneRegion{
             .id = "5a1f0c3d-7e2b-4a9c-8d1e-2f3a4b5c6d7e",
-            .name = "Clean Verse",
             .start = common::core::ToneGridPosition{.measure = 1, .beat = 1},
             .end = common::core::ToneGridPosition{.measure = 2, .beat = 1},
             .tone_document_ref = "tones/9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d/tone.json",
@@ -65,7 +70,6 @@ TEST_CASE("Tone track projection marks the selected region", "[core][tone]")
     arrangement.tone_track.regions = {
         common::core::ToneRegion{
             .id = "5a1f0c3d-7e2b-4a9c-8d1e-2f3a4b5c6d7e",
-            .name = "Clean Verse",
             .start = common::core::ToneGridPosition{.measure = 1, .beat = 1},
             .end = common::core::ToneGridPosition{.measure = 2, .beat = 1},
             .tone_document_ref = "tones/9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d/tone.json",

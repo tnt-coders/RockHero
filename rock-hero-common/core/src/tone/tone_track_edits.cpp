@@ -51,7 +51,6 @@ std::expected<void, ToneTrackError> createToneRegion(
     // it immediately after so the track stays sorted and gap-free.
     ToneRegion new_region{
         .id = std::move(new_region_id),
-        .name = {},
         .start = at,
         .end = container->end,
         .tone_document_ref = std::move(new_tone_document_ref),

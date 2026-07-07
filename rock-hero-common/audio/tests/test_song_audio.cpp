@@ -27,6 +27,7 @@ namespace
                 },
             .audio_duration = common::core::TimeDuration{},
             .tone_document_ref = {},
+            .tones = {},
             .tone_track = {},
             .chart_ref = {},
             .chart = {},

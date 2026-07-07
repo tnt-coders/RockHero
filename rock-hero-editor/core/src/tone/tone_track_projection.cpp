@@ -23,7 +23,7 @@ ToneTrackViewState toneTrackViewStateFor(
         state.regions.push_back(
             ToneRegionViewState{
                 .id = std::string{},
-                .name = std::string{},
+                .name = toneNameFor(arrangement, arrangement.tone_document_ref),
                 .grid_start = common::core::ToneGridPosition{.measure = 1, .beat = 1},
                 .grid_end =
                     common::core::ToneGridPosition{
@@ -47,7 +47,7 @@ ToneTrackViewState toneTrackViewStateFor(
         state.regions.push_back(
             ToneRegionViewState{
                 .id = region.id,
-                .name = region.name,
+                .name = toneNameFor(arrangement, region.tone_document_ref),
                 .grid_start = region.start,
                 .grid_end = region.end,
                 .time_range =

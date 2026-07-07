@@ -529,7 +529,6 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
         tone_track.regions.push_back(
             ToneRegion{
                 .id = *id,
-                .name = Json::tryReadString(region_json, "name").value_or(std::string{}),
                 .start = ToneGridPosition{.measure = start->measure, .beat = start->beat},
                 .end = ToneGridPosition{.measure = end->measure, .beat = end->beat},
                 .tone_document_ref = *tone_document,
@@ -553,6 +552,55 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
     }
 
     return tone_track;
+}
+
+// Reads the arrangement's named-tone catalog: the "tones" array when present, or, for packages
+// written before the catalog existed, a catalog rebuilt from the whole-song default tone plus each
+// region's legacy per-region name, so names authored before the catalog survive the load.
+[[nodiscard]] std::vector<Tone> readToneCatalog(
+    const juce::var& arrangement_json, const std::string& default_tone_document_ref)
+{
+    std::vector<Tone> tones;
+    const auto add_tone = [&tones](const std::string& ref, const std::string& name) {
+        if (ref.empty() || std::ranges::any_of(tones, [&ref](const Tone& tone) {
+                return tone.tone_document_ref == ref;
+            }))
+        {
+            return;
+        }
+        tones.push_back(Tone{.tone_document_ref = ref, .name = name});
+    };
+
+    const juce::var& tones_json = Json::value(arrangement_json, "tones");
+    if (tones_json.isArray())
+    {
+        for (const juce::var& tone_json : *tones_json.getArray())
+        {
+            if (const auto ref = Json::tryReadString(tone_json, "toneDocument"); ref.has_value())
+            {
+                add_tone(*ref, Json::tryReadString(tone_json, "name").value_or(std::string{}));
+            }
+        }
+        return tones;
+    }
+
+    // Legacy fallback: the default tone is unnamed, so label it "Default"; region names came from
+    // the regions themselves before the catalog owned them.
+    add_tone(default_tone_document_ref, "Default");
+    const juce::var& regions_json =
+        Json::value(Json::value(arrangement_json, "toneTrack"), "regions");
+    if (regions_json.isArray())
+    {
+        for (const juce::var& region_json : *regions_json.getArray())
+        {
+            if (const auto ref = Json::tryReadString(region_json, "toneDocument"); ref.has_value())
+            {
+                add_tone(*ref, Json::tryReadString(region_json, "name").value_or(std::string{}));
+            }
+        }
+    }
+
+    return tones;
 }
 
 // Reads arrangements from song-document entries into project-owned core values.
@@ -707,6 +755,10 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
             }};
         }
 
+        // Build the catalog before tone_document_ref is moved out; it names the default tone and,
+        // for legacy packages, recovers the per-region names that used to live on the regions.
+        std::vector<Tone> tones = readToneCatalog(arrangement_json, tone_document_ref);
+
         arrangements.push_back(
             Arrangement{
                 .id = *id,
@@ -715,6 +767,7 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
                 .audio_asset = audio_asset->second,
                 .audio_duration = TimeDuration{},
                 .tone_document_ref = std::move(tone_document_ref),
+                .tones = std::move(tones),
                 .tone_track = std::move(*tone_track),
                 .chart_ref = std::move(chart_ref),
                 .chart = std::move(chart),
