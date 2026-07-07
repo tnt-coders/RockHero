@@ -140,6 +140,11 @@ Verified against code on 2026-07-06, refactor @ 13e82fb0.
   transport port, with non-1.0 speed returning a typed error until this plan lands), Phase 2
   (GameplaySession spine with speed/loop pass-throughs), Phase 3 (tone switching correct across
   loop wraps and instant restarts).
+- docs/plans/47-editor-loop-selection.md — the expected first implementer of the Tracktion-backed
+  loop range on the shared transport port (whichever-executes-first rule in that plan's
+  Decisions, shared with docs/plans/21-game-audio-engine-and-session.md Phase 1). Once its
+  Phase 1 lands, Phase 0 checkpoint e reduces to re-verifying the landed surface and Phase 2
+  hardens and extends wrap tests instead of first-implementing the loop.
 - docs/plans/12-playback-clock.md — Phases 1–3 (snapshot carries `playback_rate`), Phase 4
   (extrapolator snaps on loop-wrap backward jumps). Practice at 50% must not produce a smoothed
   clock gliding through the wrap.
@@ -245,7 +250,9 @@ Assumes open question 1 answered (default assumption: SoundTouch).
   d. Confirm 1.0 speed pays no stretch cost (engine comment claims "stays cheap at 1x",
      `engine_song_audio.cpp:152-153` — written for elastique; re-verify for SoundTouch).
   e. Loop range semantics on `tracktion::engine::TransportControl` (shared checkpoint with
-     docs/plans/21 Phase 1 if that phase shipped loop as typed-NotSupported).
+     docs/plans/47-editor-loop-selection.md Phase 1 — the expected first implementer of the
+     Tracktion-backed loop — and docs/plans/21 Phase 1; if either has landed the functional
+     loop, this reduces to re-verifying the landed surface).
 - Deliverable: a findings note (quality listening result at 50%/75%, CPU per buffer, measured
   latency delta, PDC answer) appended to this plan.
 - Exit criteria: **STOP — present findings and get user sign-off on backend and route.** Phases
@@ -283,9 +290,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
 Scope: make loop-region playback wrap cleanly: wrap fires a plan-12 boundary publish (backward
 jump → extrapolator snap), tone regions re-apply at the wrap target (docs/plans/21 Phase 3 test
 matrix already covers wrap — extend it, don't duplicate), and wrap-to-pre-roll positioning is a
-plain `seek` so no new engine concept is needed. If docs/plans/21 Phase 1 shipped loop as typed
-NotSupported (its rollback note allows that), implement the Tracktion-backed loop here using
-Phase 0 checkpoint e. Files: engine transport/song-audio TUs; public-header impact: none.
+plain `seek` so no new engine concept is needed. docs/plans/47-editor-loop-selection.md Phase 1
+is the expected first implementer of the Tracktion-backed loop range (whichever-executes-first
+rule); when it has landed, this phase hardens and extends wrap tests over that implementation.
+Only if neither that plan nor docs/plans/21 Phase 1 landed a functional loop (21's rollback note
+allows typed NotSupported) implement the Tracktion-backed loop here using Phase 0 checkpoint e.
+Files: engine transport/song-audio TUs; public-header impact: none.
 
 Testing (`rock_hero_common_audio_tests`): loop set/clear round-trip; playback confined to range;
 position after wrap == loop start (± one buffer); clock snapshot after wrap is inside the range.
