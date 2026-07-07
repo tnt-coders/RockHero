@@ -360,8 +360,13 @@ does not move.
 
 Preconditions (all verified in the final-gate pass; each is load-bearing):
 
-- **Non-remapping writes only.** `TempoSequence::insertTempo` does not remap; `TempoSetting::setBpm`
-  / `setCurve` remap by default and must not be used with remapping enabled.
+- **Non-remapping, non-clamping writes only.** `TempoSequence::insertTempo` neither remaps nor
+  clamps; `TempoSetting::setBpm` / `setCurve` remap by default AND clamp BPM to [20, 300] (real
+  imported charts exceed 300 BPM), so the official mutators must not be used.
+- **Beat-unit translation.** Tracktion's default engine beat is time-signature-denominator-dependent
+  (`LengthOfOneBeat::dependsOnTimeSignature`, an `EngineBehaviour` default), while RockHero's map is
+  quarter-note-referenced: the mirror must translate quarter↔engine-beat, or set the
+  `EngineBehaviour` quarter-note override (which is then fixed for the app's lifetime).
 - **Pin the backing wave clip to absolute sync first.** Its default `syncType` is `syncBarsBeats`,
   so an unpinned clip would be beat-preservingly MOVED by tempo writes.
 - **Scrub `remapOnTempoChange="1"` from plugin state** (strip-on-save already does this per the
@@ -371,9 +376,11 @@ Preconditions (all verified in the final-gate pass; each is load-bearing):
   happen only inside the mirror unit, and nothing anywhere reads `edit.tempoSequence` into RockHero
   state" — keep it grep-able.
 
-Open implementation detail: map RockHero's metronome-linear tempo segments onto `TempoSetting`
-curve semantics faithfully (verify at implementation). Mid-ramp divergence would only affect a
-synced effect's LFO phase, never RockHero's own timing, which never reads the mirror.
+Fidelity (resolved by the tempo-authority verification pass): RockHero's step tempo
+(changes-only-at-anchors) maps **exactly in shape** to `TempoSetting` `curve = ±1.0` (one flat
+section per span — Tracktion's own time-based `insertTempo` default). Interior segment BPMs pass
+through float casts in the bezier-ends path (~1e-7 relative; microsecond-order drift over a song) —
+irrelevant at this boundary, because nothing RockHero-side ever reads the mirror.
 
 Tests: mirror a nontrivial map and assert the sequence contents (and, where feasible, the
 play-head-reported BPM through a hosted stand-in); assert the backing clip's position and a derived
