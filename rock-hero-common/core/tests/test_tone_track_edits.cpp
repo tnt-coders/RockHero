@@ -18,7 +18,6 @@ namespace
 {
     return ToneRegion{
         .id = std::move(id),
-        .name = "Lead",
         .start = start,
         .end = end,
         .tone_document_ref = std::move(tone_ref),
