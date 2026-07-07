@@ -1579,6 +1579,17 @@ void EditorController::Impl::completeUndoTransition(
 
     const EditorUndoTransitionResult commit = m_undo_history.commit(pending);
     logEditorUndoTransitionResult(is_undo ? "undo.commit" : "redo.commit", commit);
+
+    // Tone-set edits reload the rig when applied, dropping branches the model no longer
+    // references; undoing or redoing them can restore references to those dropped tones (reset
+    // undo brings back the old tone with its plugins). Reload so the rig hosts every referenced
+    // tone again instead of leaving the restored model pointing at missing branches.
+    if (m_project.has_value() && m_project_audio_ready && !loadedRigCoversModelTones())
+    {
+        reloadLiveRigForToneSet(m_selected_tone_region_id);
+        return;
+    }
+
     updateView();
 }
 
@@ -2107,6 +2118,28 @@ bool EditorController::Impl::shouldShowLiveRigLoadProgress() const
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     return arrangement != nullptr && !arrangement->tone_document_ref.empty();
+}
+
+// Reports whether every tone the current arrangement references has a loaded rig branch. An
+// empty loaded set means no load has reported branches yet (or the port under test does not
+// report them); coverage is then unknowable and treated as satisfied.
+bool EditorController::Impl::loadedRigCoversModelTones() const
+{
+    if (m_loaded_tone_refs.empty())
+    {
+        return true;
+    }
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr)
+    {
+        return true;
+    }
+    return std::ranges::all_of(
+        arrangement->tone_track.regions, [this](const common::core::ToneRegion& region) {
+            return region.tone_document_ref.empty() ||
+                   std::ranges::find(m_loaded_tone_refs, region.tone_document_ref) !=
+                       m_loaded_tone_refs.end();
+        });
 }
 
 // Reports whether a busy operation is currently active.

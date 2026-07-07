@@ -286,6 +286,14 @@ TEST_CASE("EditorController resets the sole tone region on delete", "[core][edit
     REQUIRE(editor.regions().size() == 1);
     const std::string only_id = editor.regions().front().id;
     editor.live_rig.next_mint_ref = g_minted_ref;
+    // The reset's reload reports only the fresh tone's branch, dropping the previous tone from
+    // the rig, exactly as the real engine would.
+    editor.live_rig.next_load_result.tone_chains = {
+        common::audio::LoadedToneChainIdentities{
+            .tone_document_ref = g_minted_ref,
+            .plugins = {},
+        },
+    };
     const int loads_before = editor.live_rig.load_call_count;
 
     editor.controller.onToneRegionDeleteRequested(only_id);
@@ -298,10 +306,13 @@ TEST_CASE("EditorController resets the sole tone region on delete", "[core][edit
     CHECK(editor.live_rig.mint_call_count == 1);
     CHECK(editor.live_rig.load_call_count == loads_before + 1);
 
-    // Undo restores the region's previous tone and name.
+    // Undo restores the region's previous tone and name. The rig no longer hosts that tone's
+    // branch (the reset reload dropped it), so the restore must also reload the rig — otherwise
+    // the lanes come back without their plugins.
     editor.controller.onUndoRequested();
     CHECK(editor.regions().front().tone_document_ref == g_tone_document_ref);
     CHECK(common::core::toneNameFor(editor.arrangement(), g_tone_document_ref) == "Clean");
+    CHECK(editor.live_rig.load_call_count == loads_before + 2);
 
     // Redo re-applies the reset.
     editor.controller.onRedoRequested();

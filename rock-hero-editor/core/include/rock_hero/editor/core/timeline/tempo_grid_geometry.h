@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
@@ -120,6 +121,24 @@ result may lie outside any particular visible range; callers bound the seek them
 \return Timeline position of the nearest tempo-grid line.
 */
 [[nodiscard]] common::core::TimePosition nearestTempoGridTime(
+    const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value,
+    common::core::TimePosition target);
+
+/*!
+\brief Finds the musical address of the tempo-grid line nearest to a target position.
+
+Same candidate lines and tie-breaking as nearestTempoGridTime, but the result is the line's exact
+musical position: the within-measure offset is an exact rational in the grid's note denominator,
+so snapped placements of any grid — including odd values like 1/13 — store the grid line itself
+rather than an approximation in some fixed fine grid.
+
+\param tempo_map Song tempo map supplying signatures, the beat grid, and absolute beat times.
+\param grid_note_value Grid step as a fraction of a whole note; an invalid value falls back to
+       the quarter-note grid so rendering and snapping can never diverge.
+\param target Timeline position to snap.
+\return Exact musical position of the nearest tempo-grid line.
+*/
+[[nodiscard]] common::core::GridPosition nearestTempoGridPosition(
     const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value,
     common::core::TimePosition target);
 

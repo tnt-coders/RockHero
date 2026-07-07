@@ -197,22 +197,29 @@ float ToneAutomationLanesView::valueForY(int y, const LaneExtent& extent) const
 std::optional<common::core::GridPosition> ToneAutomationLanesView::musicalPositionForX(
     float content_x, const juce::ModifierKeys& mods) const
 {
-    const std::optional<common::core::TimePosition> placed = core::timelineCursorPlacementTime(
+    const std::optional<common::core::TimePosition> clicked = core::timelineCursorPlacementTime(
         m_tempo_map,
         m_grid_note_value,
         m_visible_timeline,
         getWidth(),
         content_x,
-        placementModeFor(mods));
-    if (!placed.has_value())
+        core::TimelineCursorPlacementMode::Free);
+    if (!clicked.has_value())
     {
         return std::nullopt;
     }
 
-    // Quantize the fractional beat to the 1/960 fine grid: snapped placements land exactly on the
-    // visible grid (whose per-beat subdivisions divide 960), and Ctrl-free placements stay exact
-    // rationals instead of raw doubles.
-    const double global_beat = m_tempo_map.beatPositionAtSeconds(placed->seconds);
+    // Snapped placements store the grid line's own exact musical address, so any grid value —
+    // including odd fractions like 1/13 that no fixed fine grid divides — round-trips exactly.
+    if (placementModeFor(mods) == core::TimelineCursorPlacementMode::SnapToGrid)
+    {
+        return core::nearestTempoGridPosition(m_tempo_map, m_grid_note_value, *clicked);
+    }
+
+    // Ctrl-free placements quantize the fractional beat to the 1/960 fine grid so stored
+    // positions stay exact rationals instead of raw doubles; 960 covers every practical straight,
+    // triplet, and quintuplet subdivision at sub-millisecond resolution.
+    const double global_beat = m_tempo_map.beatPositionAtSeconds(clicked->seconds);
     double whole_beats = 0.0;
     const double beat_fraction = std::modf(std::max(0.0, global_beat), &whole_beats);
     auto beat_index = static_cast<std::int64_t>(whole_beats);
@@ -337,8 +344,8 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
         const core::ToneAutomationLaneViewState& lane = m_state.lanes[lane_index];
         const float lane_alpha = lane.resolved ? 1.0f : g_unresolved_alpha;
 
-        graphics.setColour(g_lane_background);
-        graphics.fillRect(lane_bounds);
+        // No background fill: the canvas paints the automation band and the tempo grid beneath
+        // this component, and the grid must stay visible as the alignment cue for drawing points.
 
         const int band_top = extent.top + g_value_band_inset;
         const int band_height =
@@ -392,6 +399,44 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
             drawn.insert(insert_at, preview);
         }
 
+        // Project the drawn points to lane pixels once, then extend the curve flat to both canvas
+        // edges: the parameter holds its first/last value outside the authored points, so a
+        // single seeded point reads as a full-length line rather than an isolated dot.
+        struct CurvePoint
+        {
+            float x{};
+            float y{};
+            bool authored{};
+        };
+        std::vector<CurvePoint> curve_points;
+        curve_points.reserve(drawn.size() + 2);
+        for (const DrawnPoint& point : drawn)
+        {
+            const std::optional<float> x = xForSeconds(point.seconds);
+            if (!x.has_value())
+            {
+                continue;
+            }
+            curve_points.push_back(
+                CurvePoint{.x = *x, .y = value_to_y(point.norm_value), .authored = true});
+        }
+        if (!curve_points.empty())
+        {
+            curve_points.insert(
+                curve_points.begin(),
+                CurvePoint{
+                    .x = std::min(-1.0f, curve_points.front().x),
+                    .y = curve_points.front().y,
+                    .authored = false,
+                });
+            curve_points.push_back(
+                CurvePoint{
+                    .x = std::max(static_cast<float>(getWidth()) + 1.0f, curve_points.back().x),
+                    .y = curve_points.back().y,
+                    .authored = false,
+                });
+        }
+
         // The playhead strip repaints every lane each frame with a narrow clip, so only the
         // points whose segments can intersect the clip build the stroked path.
         juce::Path curve;
@@ -400,17 +445,10 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
         const auto clip_right = static_cast<float>(clip.getRight() + g_point_hit_radius);
         std::optional<float> previous_x;
         float previous_y = 0.0f;
-        for (const DrawnPoint& point : drawn)
+        for (const CurvePoint& point : curve_points)
         {
-            const float norm_value = point.norm_value;
-            const std::optional<float> x = xForSeconds(point.seconds);
-            if (!x.has_value())
-            {
-                continue;
-            }
-            const float y = value_to_y(norm_value);
-            if (previous_x.has_value() && std::max(*previous_x, *x) >= clip_left &&
-                std::min(*previous_x, *x) <= clip_right)
+            if (previous_x.has_value() && std::max(*previous_x, point.x) >= clip_left &&
+                std::min(*previous_x, point.x) <= clip_right)
             {
                 if (!path_started)
                 {
@@ -419,27 +457,27 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
                 }
                 if (lane.is_discrete)
                 {
-                    curve.lineTo(*x, previous_y);
-                    curve.lineTo(*x, y);
+                    curve.lineTo(point.x, previous_y);
+                    curve.lineTo(point.x, point.y);
                 }
                 else
                 {
-                    curve.lineTo(*x, y);
+                    curve.lineTo(point.x, point.y);
                 }
             }
             else
             {
                 path_started = false;
             }
-            previous_x = x;
-            previous_y = y;
+            previous_x = point.x;
+            previous_y = point.y;
 
-            if (*x >= clip_left && *x <= clip_right)
+            if (point.authored && point.x >= clip_left && point.x <= clip_right)
             {
                 graphics.setColour(g_point_fill.withMultipliedAlpha(lane_alpha));
                 graphics.fillEllipse(
-                    *x - g_point_draw_radius,
-                    y - g_point_draw_radius,
+                    point.x - g_point_draw_radius,
+                    point.y - g_point_draw_radius,
                     2.0f * g_point_draw_radius,
                     2.0f * g_point_draw_radius);
             }
@@ -494,7 +532,9 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
     const juce::Rectangle<int> plus_bounds{0, plus_extent.top, getWidth(), plus_extent.height};
     if (plus_bounds.intersects(clip))
     {
-        graphics.setColour(g_lane_background.withMultipliedAlpha(0.6f));
+        // A light translucent scrim distinguishes the picker strip from real lanes while keeping
+        // the canvas grid visible through it.
+        graphics.setColour(g_lane_background.withMultipliedAlpha(0.35f));
         graphics.fillRect(plus_bounds);
         // The chip is always drawn (dimmed when there is nothing to offer): hiding it made
         // "empty tone" and "listing failed" indistinguishable from a missing feature.

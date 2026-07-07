@@ -499,6 +499,13 @@ void EditorController::Impl::startLiveRigLoadStage(
                 // them, then rebuild the derived playback curves the sidecars no longer carry.
                 mergeToneChainIdentities(rig_result->tone_chains);
                 rebuildToneAutomationCurves();
+                m_loaded_tone_refs.clear();
+                m_loaded_tone_refs.reserve(rig_result->tone_chains.size());
+                for (const common::audio::LoadedToneChainIdentities& chain :
+                     rig_result->tone_chains)
+                {
+                    m_loaded_tone_refs.push_back(chain.tone_document_ref);
+                }
                 // One-way host-tempo mirror so hosted plugins see the song's real tempo map
                 // instead of the backend default. A future tempo-editing flow must re-mirror
                 // after every tempo-map change alongside rebuildToneAutomationCurves().
@@ -1062,6 +1069,7 @@ std::filesystem::path EditorController::Impl::currentSongDirectory() const
 // Clears the audio backend's live rig chain as part of project teardown.
 void EditorController::Impl::clearLiveRig()
 {
+    m_loaded_tone_refs.clear();
     const auto cleared = m_live_rig.clearLiveRig();
     if (!cleared.has_value())
     {
