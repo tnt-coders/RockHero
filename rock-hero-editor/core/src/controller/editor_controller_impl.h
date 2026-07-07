@@ -136,6 +136,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onTabMinimumDisplayedStringsChangeRequested(int minimum_strings);
     void onArrangementSelected(std::string arrangement_id);
     [[nodiscard]] std::string toneRegionIdAt(common::core::TimePosition position) const;
+    [[nodiscard]] std::string selectedToneDocumentRef() const;
     void applyToneSelection(std::string region_id);
     void syncAudibleTone();
     void onToneRegionSelected(std::string region_id);

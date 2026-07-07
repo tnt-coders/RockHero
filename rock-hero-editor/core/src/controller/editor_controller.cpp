@@ -16,6 +16,7 @@
 #include "signal_chain/signal_chain_edits.h"
 #include "signal_chain/signal_chain_workflow.h"
 #include "tab/tab_projection.h"
+#include "tone/tone_automation_projection.h"
 #include "tone/tone_track_projection.h"
 
 #include <algorithm>
@@ -1958,6 +1959,8 @@ EditorViewState EditorController::Impl::deriveViewState() const
         };
         state.tone_track =
             toneTrackViewStateFor(*arrangement, state.tempo_map, m_selected_tone_region_id);
+        state.tone_automation =
+            toneAutomationViewStateFor(m_tone_automation, selectedToneDocumentRef());
 
         // The tab projection resolves thousands of positions to seconds, so it is memoized per
         // displayed arrangement. Charts and the tempo map are immutable while a project is open,
