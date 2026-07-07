@@ -320,6 +320,27 @@ struct EditorAction
         std::string name;
     };
 
+    /*! \brief Move the shared boundary between two adjacent tone regions. */
+    struct MoveToneBoundary
+    {
+        /*!
+        \brief Creates a tone-boundary move action.
+        \param right_region_id_value Region on the later side of the boundary (never the first).
+        \param position_value New grid position for the shared boundary.
+        */
+        MoveToneBoundary(
+            std::string right_region_id_value, common::core::ToneGridPosition position_value)
+            : right_region_id(std::move(right_region_id_value))
+            , position(position_value)
+        {}
+
+        /*! \brief Region on the later side of the boundary; its predecessor is the earlier side. */
+        std::string right_region_id;
+
+        /*! \brief New grid position for the shared boundary (both neighbors move to it). */
+        common::core::ToneGridPosition position;
+    };
+
     /*! \brief Show the scanned plugin browser. */
     struct ShowPluginBrowser
     {
@@ -473,9 +494,9 @@ struct EditorAction
         CloseProject, ExitApplication, ResolveUnsavedChangesPrompt, CancelSaveAsPrompt,
         CancelBusyOperation, Undo, Redo, PlayPause, Stop, SeekTimeline, SetGridNoteValue,
         SelectArrangement, SelectToneRegion, ResizeToneRegion, CreateToneRegion, DeleteToneRegion,
-        RenameTone, ShowPluginBrowser, BeginPluginInsert, ScanPluginCatalog, InsertSelectedPlugin,
-        RemovePlugin, MovePlugin, SetSignalChainPlacement, SetPluginDisplayTypeOverride,
-        OpenPlugin>;
+        RenameTone, MoveToneBoundary, ShowPluginBrowser, BeginPluginInsert, ScanPluginCatalog,
+        InsertSelectedPlugin, RemovePlugin, MovePlugin, SetSignalChainPlacement,
+        SetPluginDisplayTypeOverride, OpenPlugin>;
 };
 
 /*!

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <iterator>
 #include <rock_hero/common/core/session/session.h>
 #include <rock_hero/common/core/tone/tone_track_edits.h>
 #include <string>
@@ -183,6 +184,48 @@ std::expected<void, EditorUndoFailureCode> ToneRenameEdit::applyName(
     }
 
     tone->name = name;
+    return std::expected<void, EditorUndoFailureCode>{};
+}
+
+std::expected<void, EditorUndoFailureCode> ToneBoundaryMoveEdit::undo(
+    EditorEditContext& context) const
+{
+    return applyBoundary(context, before_position);
+}
+
+std::expected<void, EditorUndoFailureCode> ToneBoundaryMoveEdit::redo(
+    EditorEditContext& context) const
+{
+    return applyBoundary(context, after_position);
+}
+
+std::string ToneBoundaryMoveEdit::label() const
+{
+    return "Move Tone Boundary";
+}
+
+// Snaps both sides of the shared boundary (the right region's start and its predecessor's end) to
+// the given position, so coverage stays gap-free.
+std::expected<void, EditorUndoFailureCode> ToneBoundaryMoveEdit::applyBoundary(
+    EditorEditContext& context, common::core::ToneGridPosition position) const
+{
+    common::core::ToneTrack* const tone_track = context.session.currentToneTrack();
+    if (tone_track == nullptr)
+    {
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+    }
+
+    const auto right = std::ranges::find_if(
+        tone_track->regions, [this](const common::core::ToneRegion& candidate) {
+            return candidate.id == right_region_id;
+        });
+    if (right == tone_track->regions.end() || right == tone_track->regions.begin())
+    {
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+    }
+
+    std::prev(right)->end = position;
+    right->start = position;
     return std::expected<void, EditorUndoFailureCode>{};
 }
 

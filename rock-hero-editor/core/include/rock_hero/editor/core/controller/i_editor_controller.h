@@ -193,6 +193,18 @@ public:
     */
     virtual void onToneRenameRequested(std::string tone_document_ref, std::string name) = 0;
 
+    /*!
+    \brief Handles a request to move the shared boundary between two adjacent tone regions.
+
+    Both neighbors move to the new position so gap-free coverage is preserved; the earlier region's
+    end and the later region's start are the same boundary.
+
+    \param right_region_id Region on the later side of the boundary (never the first region).
+    \param position New grid position for the shared boundary.
+    */
+    virtual void onToneBoundaryMoveRequested(
+        std::string right_region_id, common::core::ToneGridPosition position) = 0;
+
     /*! \brief Handles a request to show the scanned plugin browser. */
     virtual void onPluginBrowserRequested() = 0;
 

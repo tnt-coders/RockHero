@@ -87,6 +87,9 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Rename a tone in the arrangement's tone catalog. */
     RenameTone,
 
+    /*! \brief Move the shared boundary between two adjacent tone regions. */
+    MoveToneBoundary,
+
     /*! \brief Show the scanned plugin browser. */
     ShowPluginBrowser,
 

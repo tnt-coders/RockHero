@@ -244,4 +244,55 @@ private:
         EditorEditContext& context, const std::string& name) const;
 };
 
+/*! \brief Inverse-command edit that restores the previous position of a shared region boundary. */
+struct [[nodiscard]] ToneBoundaryMoveEdit final : IEdit
+{
+    /*!
+    \brief Captures a shared-boundary move between two adjacent regions.
+    \param right_region_id_value Region on the later side of the boundary.
+    \param before_position_value Boundary position before the move.
+    \param after_position_value Boundary position after the move.
+    */
+    ToneBoundaryMoveEdit(
+        std::string right_region_id_value, common::core::ToneGridPosition before_position_value,
+        common::core::ToneGridPosition after_position_value)
+        : right_region_id(std::move(right_region_id_value))
+        , before_position(before_position_value)
+        , after_position(after_position_value)
+    {}
+
+    /*!
+    \brief Restores the pre-move boundary position across both neighbors.
+    \param context Apply-time editor/audio dependencies.
+    \return Empty success, or the non-commit failure that should abort the transition.
+    */
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> undo(
+        EditorEditContext& context) const override;
+
+    /*!
+    \brief Re-applies the post-move boundary position across both neighbors.
+    \param context Apply-time editor/audio dependencies.
+    \return Empty success, or the non-commit failure that should abort the transition.
+    */
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> redo(
+        EditorEditContext& context) const override;
+
+    /*! \brief Returns the user-visible command label for menus and diagnostics.
+    \return Human-readable label for the boundary move. */
+    [[nodiscard]] std::string label() const override;
+
+    /*! \brief Region on the later side of the boundary. */
+    std::string right_region_id;
+
+    /*! \brief Boundary position before the move. */
+    common::core::ToneGridPosition before_position;
+
+    /*! \brief Boundary position after the move. */
+    common::core::ToneGridPosition after_position;
+
+private:
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> applyBoundary(
+        EditorEditContext& context, common::core::ToneGridPosition position) const;
+};
+
 } // namespace rock_hero::editor::core
