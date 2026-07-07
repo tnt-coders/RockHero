@@ -172,10 +172,35 @@ bypass), vertically resizable lanes, and disabled/discrete rendering. The intera
 graphics/UI — consult the `juce-tracktion-expert` before building it, per the standing rule. It is a
 pure consumer of the finished editor-core intent + view state, so it needs no further backend work.
 
-**Open design question to resolve first (see below): musical/grid storage vs the seconds-based
-storage currently implemented.** If we move the editor-core model + memento to musical positions
-(converting to seconds only at the audio port), the UI produces musical grid positions directly and
-the action/memento carry those; the seconds-based shortcut below would be revised.
+## Storage decision: Option B — RockHero-owned musical automation (2026-07-07)
+
+**User decided (2026-07-07): automation must be RockHero-owned musical data that respects grid /
+tempo-map edits.** The seconds-based storage currently implemented (action/memento/projection) is a
+Tracktion-owned shortcut and will be revised. Musical positions become the source of truth; the
+Tracktion `AutomationCurve` (seconds) becomes a **derived playback cache**, rebuilt via
+`writeParameterCurve` (musical→seconds through RockHero's `TempoMap`) at load and on every tempo-map
+edit. The `IToneAutomation` audio adapter stays exactly as built — it is already the seconds boundary.
+
+**Decision NOT yet final — pending a juce-tracktion-expert pass (running) + user confirmation.** The
+open sub-question the expert is evaluating is **where the musical truth physically lives**:
+
+- **(a) `song.json`-owned** (arrangement-scoped, mirroring `toneTrack`): fully RockHero-format,
+  consistent with tone regions/notes. Cost: automation must be keyed stably to a plugin
+  (chain_index vs a stable id) and RockHero must bookkeep the plugin↔automation association across
+  plugin reorder/remove.
+- **(b) plugin-state-child**: a RockHero-namespaced child ValueTree of `plugin->state`, riding in
+  the per-plugin Tracktion state file so it **follows the plugin automatically** through
+  reorder/remove/capture. Cost: automation data physically lives in the Tracktion plugin-state XML
+  (we own its schema, but it is not `song.json`); depends on Tracktion preserving unknown children
+  through flush/save/load.
+
+Shared to both: strip the redundant persisted `AUTOMATIONCURVE` on save (it is derived), rebuild it
+on load; rewrite curves on tempo-map edit; editor-core action/memento carry musical positions. Do
+**not** implement until the expert reports and the user picks (a) vs (b).
+
+Editing flow once decided: the UI produces musical grid positions (snap in musical space); the
+`onSetToneAutomationPoints` intent + memento carry musical positions; the handler updates the
+RockHero model and rewrites the derived Tracktion curve.
 
 ## Architecture
 
