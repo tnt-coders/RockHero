@@ -17,6 +17,7 @@ component out, so the cursor overlay and content height stay authoritative.
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <map>
 #include <optional>
+#include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
@@ -59,6 +60,14 @@ public:
             std::string instance_id, std::string param_id,
             std::vector<common::core::ToneAutomationPoint> points) = 0;
 
+        /*!
+        \brief Called when an unauthored tracking lane asks to be closed.
+        \param instance_id Plugin instance owning the parameter.
+        \param param_id Parameter id within the plugin.
+        */
+        virtual void onToneAutomationLaneRemoveRequested(
+            std::string instance_id, std::string param_id) = 0;
+
     protected:
         /*! \brief Creates the listener interface. */
         Listener() = default;
@@ -93,8 +102,12 @@ public:
     \param listener Listener that receives automation intents.
     \param tempo_map Tempo map used for musical snapping; referenced, not copied, so the owner must
     keep it alive for this view's lifetime.
+    \param tone_automation Automation port polled read-only at render cadence so lanes without
+    authored points track the parameter's live value; referenced for this view's lifetime.
     */
-    ToneAutomationLanesView(Listener& listener, const common::core::TempoMap& tempo_map);
+    ToneAutomationLanesView(
+        Listener& listener, const common::core::TempoMap& tempo_map,
+        const common::audio::IToneAutomation& tone_automation);
 
     /*!
     \brief Sets the timeline range represented by the full content width.
@@ -240,11 +253,20 @@ private:
     [[nodiscard]] std::vector<common::core::ToneAutomationPoint> pointsForCommit(
         const MovePointDrag& drag) const;
 
-    // Opens the "+" parameter picker as an async popup menu.
+    // Opens the "+" parameter picker as an async popup menu, grouped per chain plugin.
     void showParameterPicker();
 
     // Opens the delete menu for a right-clicked point.
     void showPointMenu(const PointHit& hit);
+
+    // Opens the remove menu for a right-clicked unauthored tracking lane.
+    void showLaneMenu(std::size_t lane_index);
+
+    // Current tracking-line value for a lane: the live provider when available, else state.
+    [[nodiscard]] float trackingValueFor(const core::ToneAutomationLaneViewState& lane) const;
+
+    // Vblank tick: repaints unauthored lanes whose live value moved since the last frame.
+    void repaintMovedTrackingLanes();
 
     // Publishes the snap guide (or clears it when empty).
     void publishSnapGuide(std::optional<TimelineSnapGuide> guide);
@@ -276,11 +298,21 @@ private:
     // Active gesture, if any; state pushes drop it instead of resizing against stale indices.
     std::optional<DragState> m_drag{};
 
+    // Automation port polled read-only by unauthored tracking lanes; owned by the composition.
+    const common::audio::IToneAutomation& m_tone_automation;
+
     // Shared snap-guide sink; empty publishes clear immediately.
     SnapGuideCallback m_snap_guide_callback{};
 
     // Height-change sink into the track viewport's height-only relayout.
     HeightsChangedCallback m_heights_changed_callback{};
+
+    // Last drawn tracking values keyed like lane heights, so the vblank tick only repaints lanes
+    // whose live value actually moved.
+    mutable std::map<std::pair<std::string, std::string>, float> m_drawn_tracking_values{};
+
+    // Render-cadence tick that repaints unauthored lanes when their live value moves.
+    juce::VBlankAttachment m_vblank_attachment;
 };
 
 } // namespace rock_hero::editor::ui

@@ -54,11 +54,22 @@ struct ToneAutomationLaneViewState
     /*! \brief User-facing parameter name. */
     std::string name;
 
+    /*! \brief User-facing owning-plugin name, so multi-plugin chains stay unambiguous. */
+    std::string plugin_name;
+
     /*! \brief True when the parameter is stepped rather than continuous. */
     bool is_discrete{false};
 
     /*! \brief False when the parameter no longer resolves; the lane renders disabled. */
     bool resolved{true};
+
+    /*!
+    \brief Parameter's live value at projection time, normalised to `[0, 1]`.
+
+    Lanes without authored points render this as a flat tracking line (the view refreshes it at
+    render cadence through the live-value provider); authored lanes ignore it.
+    */
+    float live_norm_value{0.0F};
 
     /*! \brief Curve points in ascending time (the whole curve, absolute seconds). */
     std::vector<ToneAutomationPointViewState> points;
@@ -87,6 +98,9 @@ struct ToneAutomationParamChoice
 
     /*! \brief Parameter group for submenu nesting; empty when ungrouped. */
     std::string group;
+
+    /*! \brief User-facing owning-plugin name for the picker's per-plugin hierarchy. */
+    std::string plugin_name;
 
     /*!
     \brief Compares two parameter choices by their stored values.

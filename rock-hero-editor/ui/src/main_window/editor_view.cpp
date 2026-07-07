@@ -247,7 +247,7 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     , m_master_output_meter(AudioLevelMeterOrientation::Horizontal, "Master")
     , m_signal_chain_panel(*this)
     , m_tone_track_view(*this, m_state.tempo_map, audio_ports.transport)
-    , m_tone_automation_lanes_view(*this, m_state.tempo_map)
+    , m_tone_automation_lanes_view(*this, m_state.tempo_map, audio_ports.tone_automation)
     , m_cursor_overlay(
           std::make_unique<CursorOverlay>(controller, audio_ports.transport, m_state.tempo_map))
     , m_track_viewport(
@@ -1520,6 +1520,11 @@ void EditorView::onToneBoundaryMoveRequested(
 void EditorView::onToneAutomationLaneAddRequested(std::string instance_id, std::string param_id)
 {
     m_controller.onToneAutomationLaneAddRequested(std::move(instance_id), std::move(param_id));
+}
+
+void EditorView::onToneAutomationLaneRemoveRequested(std::string instance_id, std::string param_id)
+{
+    m_controller.onToneAutomationLaneRemoveRequested(std::move(instance_id), std::move(param_id));
 }
 
 void EditorView::onToneAutomationPointsEditRequested(

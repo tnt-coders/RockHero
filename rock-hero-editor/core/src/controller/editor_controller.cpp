@@ -825,6 +825,12 @@ void EditorController::onToneAutomationLaneAddRequested(
     m_impl->onToneAutomationLaneAddRequested(std::move(instance_id), std::move(param_id));
 }
 
+void EditorController::onToneAutomationLaneRemoveRequested(
+    std::string instance_id, std::string param_id)
+{
+    m_impl->onToneAutomationLaneRemoveRequested(std::move(instance_id), std::move(param_id));
+}
+
 void EditorController::onSetToneAutomationPoints(
     std::string instance_id, std::string param_id,
     std::vector<common::core::ToneAutomationPoint> points)
@@ -2006,6 +2012,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
             state.tempo_map,
             selectedToneDocumentRef(),
             automation_bindings,
+            m_open_automation_lanes,
             m_tone_automation);
 
         // The tab projection resolves thousands of positions to seconds, so it is memoized per

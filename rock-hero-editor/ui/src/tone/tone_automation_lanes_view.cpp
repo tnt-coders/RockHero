@@ -69,11 +69,54 @@ constexpr float g_unresolved_alpha = 0.35f;
 } // namespace
 
 ToneAutomationLanesView::ToneAutomationLanesView(
-    Listener& listener, const common::core::TempoMap& tempo_map)
+    Listener& listener, const common::core::TempoMap& tempo_map,
+    const common::audio::IToneAutomation& tone_automation)
     : m_listener(listener)
     , m_tempo_map(tempo_map)
+    , m_tone_automation(tone_automation)
+    , m_vblank_attachment(this, [this] { repaintMovedTrackingLanes(); })
 {
     setOpaque(false);
+}
+
+// Repaints only the unauthored lanes whose live value moved since the last frame, so tracking
+// costs nothing while every lane is authored or the knob is untouched.
+void ToneAutomationLanesView::repaintMovedTrackingLanes()
+{
+    // Vblank callbacks fire regardless of visibility, so gate the poll itself.
+    if (!isShowing() || m_state.tone_document_ref.empty())
+    {
+        return;
+    }
+    const std::vector<LaneExtent> extents = laneExtents();
+    for (std::size_t lane_index = 0; lane_index < m_state.lanes.size(); ++lane_index)
+    {
+        const core::ToneAutomationLaneViewState& lane = m_state.lanes[lane_index];
+        if (!lane.points.empty() || !lane.resolved)
+        {
+            continue;
+        }
+        const float value = trackingValueFor(lane);
+        auto& drawn = m_drawn_tracking_values[{lane.instance_id, lane.param_id}];
+        if (std::abs(drawn - value) < 0.0005f)
+        {
+            continue;
+        }
+        drawn = value;
+        repaint(0, extents[lane_index].top, getWidth(), extents[lane_index].height);
+    }
+}
+
+float ToneAutomationLanesView::trackingValueFor(const core::ToneAutomationLaneViewState& lane) const
+{
+    if (const auto live = m_tone_automation.readParameterNormValue(
+            m_state.tone_document_ref, lane.instance_id, lane.param_id);
+        live.has_value())
+    {
+        return *live;
+    }
+    // An unreadable parameter (tone not loaded) keeps the value the projection last reported.
+    return lane.live_norm_value;
 }
 
 void ToneAutomationLanesView::setVisibleTimeline(common::core::TimeRange visible_timeline)
@@ -436,6 +479,17 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
                     .authored = false,
                 });
         }
+        else if (drawn.empty() && lane.resolved)
+        {
+            // An open lane with no authored points tracks the parameter's live value as a flat
+            // full-width line, so the lane always shows what the plugin is actually doing.
+            const float tracking_value = trackingValueFor(lane);
+            m_drawn_tracking_values[{lane.instance_id, lane.param_id}] = tracking_value;
+            const float y = value_to_y(tracking_value);
+            curve_points.push_back(CurvePoint{.x = -1.0f, .y = y, .authored = false});
+            curve_points.push_back(
+                CurvePoint{.x = static_cast<float>(getWidth()) + 1.0f, .y = y, .authored = false});
+        }
 
         // The playhead strip repaints every lane each frame with a narrow clip, so only the
         // points whose segments can intersect the clip build the stroked path.
@@ -512,9 +566,12 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
         graphics.setColour(g_lane_separator);
         graphics.fillRect(0, extent.top + extent.height - 1, getWidth(), 1);
 
-        // Pinned name chip; unresolved lanes announce the missing plugin inline.
-        const juce::String chip_text =
-            lane.resolved ? juce::String{lane.name} : juce::String{lane.name} + " (plugin missing)";
+        // Pinned name chip names the owning plugin too, so multi-plugin chains stay unambiguous;
+        // unresolved lanes announce the missing plugin inline.
+        const juce::String label = lane.plugin_name.empty() ? juce::String{lane.name}
+                                                            : juce::String{lane.plugin_name} +
+                                                                  " · " + juce::String{lane.name};
+        const juce::String chip_text = lane.resolved ? label : label + " (plugin missing)";
         const juce::Font chip_font{juce::FontOptions{g_chip_font_height}};
         graphics.setFont(chip_font);
         const int chip_width = textWidth(chip_font, chip_text) + (2 * g_chip_inset_x);
@@ -588,6 +645,15 @@ void ToneAutomationLanesView::mouseDown(const juce::MouseEvent& event)
         if (const auto* const point_hit = std::get_if<PointHit>(&*hit))
         {
             showPointMenu(*point_hit);
+        }
+        else if (
+            const auto* const area_hit = std::get_if<LaneAreaHit>(&*hit);
+            area_hit != nullptr && m_state.lanes[area_hit->lane_index].points.empty()
+        )
+        {
+            // Only unauthored tracking lanes offer removal here; authored lanes are removed by
+            // deleting their points.
+            showLaneMenu(area_hit->lane_index);
         }
         return;
     }
@@ -801,32 +867,61 @@ void ToneAutomationLanesView::showParameterPicker()
         return;
     }
 
+    // One expandable submenu per chain plugin (in chain order, numbered so duplicate plugins stay
+    // distinct), with the plugin's parameter groups nested inside. The listing arrives in
+    // plugin-then-tree order, so consecutive runs of one instance id are one plugin.
+    juce::PopupMenu plugin_menu;
     juce::PopupMenu grouped;
     juce::String open_group;
+    juce::String open_instance;
+    juce::String open_plugin_label;
+    int plugin_number = 0;
     int item_id = 1;
+    const auto close_group = [&menu = plugin_menu, &grouped, &open_group] {
+        if (grouped.getNumItems() > 0)
+        {
+            menu.addSubMenu(open_group, grouped);
+            grouped = juce::PopupMenu{};
+        }
+        open_group.clear();
+    };
+    const auto close_plugin = [&menu, &plugin_menu, &open_plugin_label, &close_group] {
+        close_group();
+        if (plugin_menu.getNumItems() > 0)
+        {
+            menu.addSubMenu(open_plugin_label, plugin_menu);
+            plugin_menu = juce::PopupMenu{};
+        }
+    };
     for (const core::ToneAutomationParamChoice& choice : m_state.available_parameters)
     {
+        if (juce::String{choice.instance_id} != open_instance)
+        {
+            close_plugin();
+            open_instance = juce::String{choice.instance_id};
+            ++plugin_number;
+            open_plugin_label = juce::String{plugin_number} + " · " +
+                                (choice.plugin_name.empty() ? juce::String{"Plugin"}
+                                                            : juce::String{choice.plugin_name});
+        }
+
         const juce::String group{choice.group};
+        if (group != open_group)
+        {
+            close_group();
+            open_group = group;
+        }
         if (group.isEmpty())
         {
-            menu.addItem(item_id, juce::String{choice.name});
+            plugin_menu.addItem(item_id, juce::String{choice.name});
         }
         else
         {
-            if (open_group != group && grouped.getNumItems() > 0)
-            {
-                menu.addSubMenu(open_group, grouped);
-                grouped = juce::PopupMenu{};
-            }
-            open_group = group;
             grouped.addItem(item_id, juce::String{choice.name});
         }
         ++item_id;
     }
-    if (grouped.getNumItems() > 0)
-    {
-        menu.addSubMenu(open_group, grouped);
-    }
+    close_plugin();
 
     // Value-captured choices keep the callback safe across state pushes; the deletion check
     // forces a cancel result if this view ever dies while the menu is open.
@@ -840,6 +935,27 @@ void ToneAutomationLanesView::showParameterPicker()
             const core::ToneAutomationParamChoice& choice =
                 choices[static_cast<std::size_t>(result - 1)];
             m_listener.onToneAutomationLaneAddRequested(choice.instance_id, choice.param_id);
+        });
+}
+
+void ToneAutomationLanesView::showLaneMenu(std::size_t lane_index)
+{
+    if (lane_index >= m_state.lanes.size())
+    {
+        return;
+    }
+    juce::PopupMenu menu;
+    menu.addItem(1, "Remove Lane");
+    menu.showMenuAsync(
+        juce::PopupMenu::Options{}.withMousePosition().withDeletionCheck(*this),
+        [this,
+         instance_id = m_state.lanes[lane_index].instance_id,
+         param_id = m_state.lanes[lane_index].param_id](int result) {
+            if (result != 1)
+            {
+                return;
+            }
+            m_listener.onToneAutomationLaneRemoveRequested(instance_id, param_id);
         });
 }
 

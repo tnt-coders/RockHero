@@ -23,6 +23,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
+#include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <rock_hero/common/audio/device/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/input/i_audio_meter_source.h>
 #include <rock_hero/common/audio/input/i_live_input.h>
@@ -89,6 +90,9 @@ public:
 
         /*! \brief Live-input source sampled by the calibration popup. */
         const common::audio::ILiveInput& live_input;
+
+        /*! \brief Automation port polled read-only by live-tracking automation lanes. */
+        const common::audio::IToneAutomation& tone_automation;
     };
 
     /*!
@@ -316,6 +320,10 @@ private:
 
     /*! \copydoc ToneAutomationLanesView::Listener::onToneAutomationLaneAddRequested */
     void onToneAutomationLaneAddRequested(std::string instance_id, std::string param_id) override;
+
+    /*! \copydoc ToneAutomationLanesView::Listener::onToneAutomationLaneRemoveRequested */
+    void onToneAutomationLaneRemoveRequested(
+        std::string instance_id, std::string param_id) override;
 
     /*! \copydoc ToneAutomationLanesView::Listener::onToneAutomationPointsEditRequested */
     void onToneAutomationPointsEditRequested(

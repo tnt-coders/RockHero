@@ -1,9 +1,12 @@
 #include "tone/tone_automation_lanes_view.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <expected>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
@@ -34,6 +37,13 @@ struct RecordingLanesListener final : public ToneAutomationLanesView::Listener
         edit_count += 1;
     }
 
+    void onToneAutomationLaneRemoveRequested(std::string instance_id, std::string param_id) override
+    {
+        last_remove_instance_id = std::move(instance_id);
+        last_remove_param_id = std::move(param_id);
+        remove_count += 1;
+    }
+
     std::string last_add_instance_id;
     std::string last_add_param_id;
     int add_count = 0;
@@ -41,6 +51,9 @@ struct RecordingLanesListener final : public ToneAutomationLanesView::Listener
     std::string last_edit_param_id;
     std::vector<common::core::ToneAutomationPoint> last_edit_points;
     int edit_count = 0;
+    std::string last_remove_instance_id;
+    std::string last_remove_param_id;
+    int remove_count = 0;
 };
 
 [[nodiscard]] core::ToneAutomationViewState makeState()
@@ -78,10 +91,42 @@ struct RecordingLanesListener final : public ToneAutomationLanesView::Listener
             .param_id = "tone",
             .name = "Tone",
             .group = {},
+            .plugin_name = {},
         },
     };
     return state;
 }
+
+// Tone-automation port whose queries all resolve to empty; the geometry tests never read it.
+struct StubToneAutomation final : public common::audio::IToneAutomation
+{
+    [[nodiscard]] std::expected<
+        std::vector<common::audio::AutomatableParamInfo>, common::audio::ToneAutomationError>
+    listAutomatableParameters(const std::string&) const override
+    {
+        return std::vector<common::audio::AutomatableParamInfo>{};
+    }
+
+    [[nodiscard]] std::expected<
+        std::vector<common::audio::AutomationCurvePoint>, common::audio::ToneAutomationError>
+    readParameterCurve(const std::string&, const std::string&, const std::string&) const override
+    {
+        return std::vector<common::audio::AutomationCurvePoint>{};
+    }
+
+    [[nodiscard]] std::expected<void, common::audio::ToneAutomationError> writeParameterCurve(
+        const std::string&, const std::string&, const std::string&,
+        std::span<const common::audio::AutomationCurvePoint>) override
+    {
+        return {};
+    }
+
+    [[nodiscard]] std::expected<float, common::audio::ToneAutomationError> readParameterNormValue(
+        const std::string&, const std::string&, const std::string&) const override
+    {
+        return 0.0F;
+    }
+};
 
 // Owns the JUCE runtime the component needs for fonts and cursors in headless tests.
 struct LanesHarness
@@ -90,7 +135,8 @@ struct LanesHarness
     common::core::TempoMap tempo_map =
         common::core::TempoMap::defaultMap(common::core::TimeDuration{8.0});
     RecordingLanesListener listener;
-    ToneAutomationLanesView view{listener, tempo_map};
+    StubToneAutomation tone_automation;
+    ToneAutomationLanesView view{listener, tempo_map, tone_automation};
 
     LanesHarness()
     {
@@ -121,7 +167,9 @@ TEST_CASE("Lanes view reports lane heights plus the plus lane", "[ui][tone-autom
 TEST_CASE("Lanes view has zero height with no selected tone", "[ui][tone-automation-lanes]")
 {
     LanesHarness harness;
-    const ToneAutomationLanesView empty{harness.listener, harness.tempo_map};
+    const ToneAutomationLanesView empty{
+        harness.listener, harness.tempo_map, harness.tone_automation
+    };
     CHECK(empty.totalHeight() == 0);
     CHECK_FALSE(empty.wantsPointerAt({10, 10}));
 }
@@ -130,7 +178,7 @@ TEST_CASE(
     "Lanes view keeps the plus chip hittable with nothing to offer", "[ui][tone-automation-lanes]")
 {
     LanesHarness harness;
-    ToneAutomationLanesView view{harness.listener, harness.tempo_map};
+    ToneAutomationLanesView view{harness.listener, harness.tempo_map, harness.tone_automation};
     view.setSize(800, 200);
 
     // A selected tone with no lanes and no listable parameters (empty tone, or listing failure)
@@ -149,7 +197,7 @@ TEST_CASE(
     "[ui][tone-automation-lanes]")
 {
     LanesHarness harness;
-    ToneAutomationLanesView view{harness.listener, harness.tempo_map};
+    ToneAutomationLanesView view{harness.listener, harness.tempo_map, harness.tone_automation};
     int heights_changed_count = 0;
     view.setHeightsChangedCallback([&heights_changed_count] { heights_changed_count += 1; });
 

@@ -133,6 +133,12 @@ public:
         return {};
     }
 
+    [[nodiscard]] std::expected<float, common::audio::ToneAutomationError> readParameterNormValue(
+        const std::string&, const std::string&, const std::string&) const override
+    {
+        return 0.0F;
+    }
+
     [[nodiscard]] juce::AudioDeviceManager& deviceManager() noexcept override
     {
         return m_device_manager;

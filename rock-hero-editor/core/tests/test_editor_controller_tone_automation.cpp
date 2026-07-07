@@ -71,6 +71,7 @@ constexpr const char* g_param = "gain";
         .labels = {},
         .default_norm_value = 0.5F,
         .current_norm_value = 0.4F,
+        .plugin_name = {},
     };
 }
 
@@ -135,26 +136,27 @@ struct AutomationEditor
 } // namespace
 
 TEST_CASE(
-    "EditorController seeds a lane at the selected region start on lane add",
-    "[core][tone-automation]")
+    "EditorController opens a tracking lane without authoring points", "[core][tone-automation]")
 {
     AutomationEditor editor;
 
     editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
 
-    REQUIRE(editor.model().size() == 1);
-    CHECK(editor.model().front().plugin_id == g_plugin_id);
-    CHECK(editor.model().front().param_id == g_param);
-    REQUIRE(editor.model().front().points.size() == 1);
-    CHECK(editor.model().front().points.front().position == pointAt(1, 1));
-    CHECK(editor.model().front().points.front().norm_value == 0.4F);
-
+    // Opening a lane authors nothing: the model stays empty and no derived curve is written; the
+    // lane tracks the parameter's live value until the first point is added.
+    CHECK(editor.model().empty());
+    CHECK(editor.tone_automation.write_call_count == 0);
     REQUIRE(editor.automation().lanes.size() == 1);
     CHECK(editor.automation().lanes.front().instance_id == g_instance);
     CHECK(editor.automation().lanes.front().name == "Gain");
+    CHECK(editor.automation().lanes.front().plugin_name.empty());
     CHECK(editor.automation().lanes.front().resolved);
-    // The derived playback curve was rewritten alongside the model.
-    CHECK(editor.tone_automation.write_call_count == 1);
+    CHECK(editor.automation().lanes.front().points.empty());
+    CHECK(editor.automation().lanes.front().live_norm_value == 0.4F);
+
+    // Closing the unauthored lane removes it from the view again.
+    editor.controller.onToneAutomationLaneRemoveRequested(g_instance, g_param);
+    CHECK(editor.automation().lanes.empty());
 }
 
 TEST_CASE(

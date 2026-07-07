@@ -47,6 +47,12 @@ struct StubToneAutomation final : public common::audio::IToneAutomation
         return {};
     }
 
+    [[nodiscard]] std::expected<float, common::audio::ToneAutomationError> readParameterNormValue(
+        const std::string&, const std::string&, const std::string&) const override
+    {
+        return 0.0F;
+    }
+
     std::vector<common::audio::AutomatableParamInfo> parameters;
 
     bool fail_listing{false};
@@ -65,6 +71,7 @@ struct StubToneAutomation final : public common::audio::IToneAutomation
         .labels = {},
         .default_norm_value = 0.0F,
         .current_norm_value = 0.0F,
+        .plugin_name = {},
     };
 }
 
@@ -140,7 +147,7 @@ TEST_CASE(
     };
 
     const ToneAutomationViewState state =
-        toneAutomationViewStateFor(arrangement, tempo_map, "tones/x/tone.json", bindings, port);
+        toneAutomationViewStateFor(arrangement, tempo_map, "tones/x/tone.json", bindings, {}, port);
 
     CHECK(state.tone_document_ref == "tones/x/tone.json");
     REQUIRE(state.lanes.size() == 1);
@@ -169,7 +176,7 @@ TEST_CASE(
     };
 
     const ToneAutomationViewState state =
-        toneAutomationViewStateFor(arrangement, tempo_map, "tones/x/tone.json", bindings, port);
+        toneAutomationViewStateFor(arrangement, tempo_map, "tones/x/tone.json", bindings, {}, port);
 
     REQUIRE(state.lanes.size() == 1);
     CHECK_FALSE(state.lanes.front().resolved);
@@ -185,7 +192,7 @@ TEST_CASE("toneAutomationViewStateFor flags failed parameter listings", "[core][
     port.fail_listing = true;
 
     const ToneAutomationViewState state =
-        toneAutomationViewStateFor(arrangement, tempo_map, "tones/x/tone.json", {}, port);
+        toneAutomationViewStateFor(arrangement, tempo_map, "tones/x/tone.json", {}, {}, port);
 
     // A failed listing is not the same as an empty tone: the picker reports it distinctly.
     CHECK(state.parameters_unavailable);
@@ -193,7 +200,7 @@ TEST_CASE("toneAutomationViewStateFor flags failed parameter listings", "[core][
 
     const StubToneAutomation empty_port;
     const ToneAutomationViewState empty_state =
-        toneAutomationViewStateFor(arrangement, tempo_map, "tones/x/tone.json", {}, empty_port);
+        toneAutomationViewStateFor(arrangement, tempo_map, "tones/x/tone.json", {}, {}, empty_port);
     CHECK_FALSE(empty_state.parameters_unavailable);
 }
 

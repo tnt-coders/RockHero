@@ -820,6 +820,23 @@ struct FakeToneAutomation final : public common::audio::IToneAutomation
         return {};
     }
 
+    // Returns the configured parameter's current value, mirroring the listing metadata.
+    [[nodiscard]] std::expected<float, common::audio::ToneAutomationError> readParameterNormValue(
+        const std::string& /*tone_document_ref*/, const std::string& instance_id,
+        const std::string& param_id) const override
+    {
+        for (const common::audio::AutomatableParamInfo& parameter : parameters)
+        {
+            if (parameter.instance_id == instance_id && parameter.param_id == param_id)
+            {
+                return parameter.current_norm_value;
+            }
+        }
+        return std::unexpected{common::audio::ToneAutomationError{
+            common::audio::ToneAutomationErrorCode::ParameterNotFound, "not found"
+        }};
+    }
+
     // Joins a lane's identity into a single map key.
     [[nodiscard]] static std::string curveKey(
         const std::string& tone_document_ref, const std::string& instance_id,

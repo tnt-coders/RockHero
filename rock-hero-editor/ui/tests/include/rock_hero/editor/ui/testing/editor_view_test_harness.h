@@ -199,6 +199,47 @@ defaultAudioDevices() noexcept
     return g_live_input;
 }
 
+/*! \brief Tone-automation port whose queries all resolve to empty for editor-view tests. */
+struct FakeToneAutomation final : public common::audio::IToneAutomation
+{
+    [[nodiscard]] std::expected<
+        std::vector<common::audio::AutomatableParamInfo>, common::audio::ToneAutomationError>
+    listAutomatableParameters(const std::string&) const override
+    {
+        return std::vector<common::audio::AutomatableParamInfo>{};
+    }
+
+    [[nodiscard]] std::expected<
+        std::vector<common::audio::AutomationCurvePoint>, common::audio::ToneAutomationError>
+    readParameterCurve(const std::string&, const std::string&, const std::string&) const override
+    {
+        return std::vector<common::audio::AutomationCurvePoint>{};
+    }
+
+    [[nodiscard]] std::expected<void, common::audio::ToneAutomationError> writeParameterCurve(
+        const std::string&, const std::string&, const std::string&,
+        std::span<const common::audio::AutomationCurvePoint>) override
+    {
+        return {};
+    }
+
+    [[nodiscard]] std::expected<float, common::audio::ToneAutomationError> readParameterNormValue(
+        const std::string&, const std::string&, const std::string&) const override
+    {
+        return 0.0F;
+    }
+};
+
+/*!
+\brief Supplies a default tone-automation port for editor-view tests.
+\return Process-lifetime fake tone-automation port.
+*/
+[[nodiscard]] inline FakeToneAutomation& defaultToneAutomation() noexcept
+{
+    static FakeToneAutomation g_tone_automation;
+    return g_tone_automation;
+}
+
 /*!
 \brief Builds the editor view audio-port bundle used by most tests.
 \param transport Transport fake used by the view under test.
@@ -214,6 +255,7 @@ defaultAudioDevices() noexcept
         .audio_devices = defaultAudioDevices(),
         .meter_source = defaultAudioMeterSource(),
         .live_input = defaultLiveInput(),
+        .tone_automation = defaultToneAutomation(),
     };
 }
 
@@ -234,6 +276,7 @@ defaultAudioDevices() noexcept
         .audio_devices = defaultAudioDevices(),
         .meter_source = meter_source,
         .live_input = defaultLiveInput(),
+        .tone_automation = defaultToneAutomation(),
     };
 }
 
