@@ -373,6 +373,17 @@ public:
         std::string region_id, common::core::ToneGridPosition start,
         common::core::ToneGridPosition end) override;
 
+    /*! \copydoc IEditorController::onToneRegionCreateRequested */
+    void onToneRegionCreateRequested(
+        common::core::ToneGridPosition at, std::string new_region_id,
+        std::string tone_document_ref) override;
+
+    /*! \copydoc IEditorController::onToneRegionDeleteRequested */
+    void onToneRegionDeleteRequested(std::string region_id) override;
+
+    /*! \copydoc IEditorController::onToneRenameRequested */
+    void onToneRenameRequested(std::string tone_document_ref, std::string name) override;
+
     /*! \brief Shows the scanned plugin browser and starts an initial catalog scan when needed. */
     void onPluginBrowserRequested() override;
 

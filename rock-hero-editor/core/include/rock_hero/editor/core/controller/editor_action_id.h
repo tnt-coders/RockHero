@@ -78,6 +78,15 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Resize a tone region to new musical endpoints. */
     ResizeToneRegion,
 
+    /*! \brief Split the region under a grid position into a new tone-change region. */
+    CreateToneRegion,
+
+    /*! \brief Delete a tone region, merging its span into a neighbor. */
+    DeleteToneRegion,
+
+    /*! \brief Rename a tone in the arrangement's tone catalog. */
+    RenameTone,
+
     /*! \brief Show the scanned plugin browser. */
     ShowPluginBrowser,
 

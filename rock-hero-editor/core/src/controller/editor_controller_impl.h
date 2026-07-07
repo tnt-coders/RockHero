@@ -141,6 +141,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onToneRegionResizeRequested(
         std::string region_id, common::core::ToneGridPosition start,
         common::core::ToneGridPosition end);
+    void onToneRegionCreateRequested(
+        common::core::ToneGridPosition at, std::string new_region_id,
+        std::string tone_document_ref);
+    void onToneRegionDeleteRequested(std::string region_id);
+    void onToneRenameRequested(std::string tone_document_ref, std::string name);
     void onPluginBrowserRequested();
     void onPluginInsertSlotSelected(std::size_t chain_index, std::size_t block_index);
     void onPluginBrowserClosed();
@@ -195,6 +200,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::SelectArrangement& action);
     void performActionImpl(EditorAction::SelectToneRegion action);
     void performActionImpl(const EditorAction::ResizeToneRegion& action);
+    void performActionImpl(const EditorAction::CreateToneRegion& action);
+    void performActionImpl(const EditorAction::DeleteToneRegion& action);
+    void performActionImpl(const EditorAction::RenameTone& action);
     void performActionImpl(EditorAction::ShowPluginBrowser action);
     void performActionImpl(EditorAction::BeginPluginInsert action);
     void performActionImpl(EditorAction::ScanPluginCatalog action);
