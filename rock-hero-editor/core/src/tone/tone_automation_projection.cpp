@@ -30,12 +30,17 @@ ToneAutomationViewState toneAutomationViewStateFor(
         return state;
     }
 
-    // Parameter metadata is best-effort: a tone that is not loaded simply yields unresolved lanes.
+    // Parameter metadata is best-effort: a tone that is not loaded simply yields unresolved lanes,
+    // but the failure is surfaced so the picker can say why it has nothing to offer.
     std::vector<common::audio::AutomatableParamInfo> parameters;
     if (auto listed = tone_automation.listAutomatableParameters(selected_tone_document_ref);
         listed.has_value())
     {
         parameters = std::move(*listed);
+    }
+    else
+    {
+        state.parameters_unavailable = true;
     }
 
     for (const common::core::ToneParameterAutomation& entry : arrangement.tone_automation)

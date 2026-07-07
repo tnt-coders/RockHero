@@ -127,6 +127,24 @@ TEST_CASE("Lanes view has zero height with no selected tone", "[ui][tone-automat
 }
 
 TEST_CASE(
+    "Lanes view keeps the plus chip hittable with nothing to offer", "[ui][tone-automation-lanes]")
+{
+    LanesHarness harness;
+    ToneAutomationLanesView view{harness.listener, harness.tempo_map};
+    view.setSize(800, 200);
+
+    // A selected tone with no lanes and no listable parameters (empty tone, or listing failure)
+    // must still surface the chip so the picker can explain the empty state.
+    core::ToneAutomationViewState lane_free;
+    lane_free.tone_document_ref = "tones/x/tone.json";
+    view.setState(lane_free);
+
+    CHECK(view.totalHeight() == 26);
+    CHECK(view.wantsPointerAt({10, 12}));
+    CHECK_FALSE(view.wantsPointerAt({400, 12}));
+}
+
+TEST_CASE(
     "Lanes view announces height changes for lane-free tone selection",
     "[ui][tone-automation-lanes]")
 {
