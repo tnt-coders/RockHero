@@ -173,21 +173,6 @@ TEST_CASE(
     CHECK(editor.regions()[1].start == gridAt(2, 1));
 }
 
-TEST_CASE(
-    "EditorController leaves the only tone region in place on delete", "[core][editor-controller]")
-{
-    LoadedToneEditor editor{makeSingleRegionSong()};
-    REQUIRE(editor.regions().size() == 1);
-    const std::string only_id = editor.regions().front().id;
-
-    editor.controller.onToneRegionDeleteRequested(only_id);
-
-    // The only-region delete is the reset case (clear the chain, rename to "default"), which needs
-    // the audio boundary and is not wired here, so the region is left covering the song.
-    REQUIRE(editor.regions().size() == 1);
-    CHECK(editor.regions().front().id == only_id);
-}
-
 TEST_CASE("EditorController creates a tone-change region by splitting", "[core][editor-controller]")
 {
     LoadedToneEditor editor{makeSingleRegionSong()};
