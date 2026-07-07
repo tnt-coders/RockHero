@@ -502,9 +502,10 @@ TEST_CASE("EditorController coalesces reentrant audio callbacks", "[core][editor
     project_services.next_song = makeSong(replacement.path);
     controller.onOpenRequested(std::filesystem::path{"loop.rhp"});
 
-    // Loading emits one busy-state push and one final committed-state push; the reentrant
-    // transport callback should not add a third load-related update.
-    CHECK(view.set_state_call_count == pushes_before_load + 2);
+    // Loading emits the busy-state push, the tone-bearing rig-load progress pushes (begin,
+    // presentation-ready, selection sync), and one final committed-state push; the reentrant
+    // transport callback should not add a further load-related update.
+    CHECK(view.set_state_call_count == pushes_before_load + 5);
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
     {

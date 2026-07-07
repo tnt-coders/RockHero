@@ -8,6 +8,7 @@
 #include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/shared/json.h>
 #include <rock_hero/common/core/shared/juce_path.h>
+#include <rock_hero/common/core/shared/logger.h>
 
 namespace rock_hero::common::audio
 {
@@ -603,20 +604,6 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
         return std::unexpected{LiveRigError{LiveRigErrorCode::InvalidRequest}};
     }
 
-    const std::filesystem::path tone_document_ref =
-        request.existing_tone_document_ref.empty()
-            ? generatedToneDocumentPath()
-            : std::filesystem::path{request.existing_tone_document_ref};
-    if (!isSafeRelativePath(tone_document_ref) ||
-        !core::isCanonicalToneDocumentRef(tone_document_ref.generic_string()))
-    {
-        return std::unexpected{LiveRigError{
-            LiveRigErrorCode::InvalidToneDocument,
-            "Tone document path must be tones/<uuid>/tone.json: " +
-                tone_document_ref.generic_string()
-        }};
-    }
-
     const tracktion::AudioTrack* const instrument_track = m_impl->instrumentTrack();
     if (instrument_track == nullptr)
     {
@@ -640,125 +627,188 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
 
     m_impl->stopTransportAndReleaseContext();
 
-    ToneDocument document;
-    LiveRigSnapshot snapshot{
-        .tone_document_ref = tone_document_ref.generic_string(),
-        .plugins = {},
-    };
-    // Only the audible tone is user-editable, so capture walks its branch chain; other branches
-    // cannot drift from their tone documents. Without a loaded rig the chain is empty and the
-    // capture persists just the output gain, matching the pre-rack empty-chain behavior.
-    const ToneRackBranch* const audible_branch = m_impl->audibleToneBranch();
-    const std::vector<tracktion::Plugin::Ptr> chain_plugins =
-        audible_branch != nullptr ? audible_branch->chain : std::vector<tracktion::Plugin::Ptr>{};
-    document.chain.reserve(chain_plugins.size());
-    snapshot.plugins.reserve(chain_plugins.size());
-    const std::filesystem::path plugin_state_directory =
-        toneDocumentStateDirectory(tone_document_ref);
+    LiveRigSnapshot snapshot;
+    snapshot.output_gain = m_impl->readGainFromPlugin(m_impl->m_output_gain_plugin_id);
 
-    std::size_t captured_plugin_index = 0;
-    for (const tracktion::Plugin::Ptr& plugin : chain_plugins)
+    // Every loaded branch persists to its own document: any branch can drift from its file (undo
+    // restores plugin state by instance id, plugin windows stay open across audibility switches),
+    // so audible-only capture would silently lose non-audible edits. Without a loaded rig nothing
+    // has drifted and the documents on disk stay authoritative, so no files are written.
+    const std::optional<std::size_t> audible_index = m_impl->audibleBranchIndex();
+    const std::optional<ToneRack>& tone_rack = m_impl->m_tone_rack;
+    const std::size_t branch_count = tone_rack.has_value() ? tone_rack->branches.size() : 0;
+    for (std::size_t branch_index = 0; branch_index < branch_count; ++branch_index)
     {
-        if (plugin == nullptr)
+        if (!tone_rack.has_value())
+        {
+            break;
+        }
+        const ToneRackBranch& branch = tone_rack->branches[branch_index];
+        // The placeholder branch is runtime-only scaffolding for tone-less rigs and never owns a
+        // document on disk.
+        if (branch.tone_document_ref == g_placeholder_tone_ref)
         {
             continue;
         }
 
-        auto* const external_plugin = dynamic_cast<tracktion::ExternalPlugin*>(plugin.get());
-        if (external_plugin == nullptr)
+        const std::filesystem::path tone_document_ref{branch.tone_document_ref};
+        if (!isSafeRelativePath(tone_document_ref) ||
+            !core::isCanonicalToneDocumentRef(tone_document_ref.generic_string()))
         {
             m_impl->rebuildInstrumentMonitoringGraphBestEffort(
-                "unsupported plugin capture rollback failed");
+                "tone reference validation rollback failed");
             return std::unexpected{LiveRigError{
-                LiveRigErrorCode::UnsupportedPlugin,
-                "Only external plugins can be captured right now: " +
-                    plugin->getName().toStdString()
+                LiveRigErrorCode::InvalidToneDocument,
+                "Tone document path must be tones/<uuid>/tone.json: " +
+                    tone_document_ref.generic_string()
             }};
         }
 
-        const std::size_t chain_index = captured_plugin_index;
-        // The editor owns the visual placement; fall back to a gapless block when none is supplied.
-        const std::size_t block_index = chain_index < request.block_indices.size()
-                                            ? request.block_indices[chain_index]
-                                            : chain_index;
-        const std::string display_type_override =
-            chain_index < request.display_type_overrides.size()
-                ? request.display_type_overrides[chain_index]
-                : std::string{};
-        const std::string stable_id = chain_index < request.stable_ids.size()
-                                          ? request.stable_ids[chain_index]
-                                          : std::string{};
-        external_plugin->flushPluginStateToValueTree();
-        juce::ValueTree plugin_state = external_plugin->state.createCopy();
-        plugin_state.removeProperty(tracktion::IDs::id, nullptr);
-        // The seconds curve is a derived cache of the arrangement's musical automation, and the
-        // remap flag would let a future edit-tempo write beat-shift that cache behind the mirror's
-        // back; neither belongs in persisted plugin state.
-        stripAutomationCurves(plugin_state);
-        stripTempoRemapFlag(plugin_state);
+        const bool is_audible = audible_index.has_value() && *audible_index == branch_index;
+        // The editor's layout vectors describe the audible chain; other branches persist the
+        // layout retained from their load or their last audible capture.
+        static const Impl::BranchDisplayMetadata g_empty_branch_metadata;
+        const Impl::BranchDisplayMetadata& retained_metadata =
+            branch_index < m_impl->m_branch_display_metadata.size()
+                ? m_impl->m_branch_display_metadata[branch_index]
+                : g_empty_branch_metadata;
+        const std::vector<std::size_t>& block_layout =
+            is_audible ? request.block_indices : retained_metadata.block_indices;
+        const std::vector<std::string>& display_layout =
+            is_audible ? request.display_type_overrides : retained_metadata.display_type_overrides;
+        const std::vector<std::string>& stable_id_layout =
+            is_audible ? request.stable_ids : retained_metadata.stable_ids;
 
-        const std::filesystem::path plugin_state_ref =
-            generatedPluginStatePath(plugin_state_directory, chain_index);
-        const std::filesystem::path plugin_state_path = request.song_directory / plugin_state_ref;
-        const auto plugin_state_xml = makePluginStateXml(plugin_state, plugin_state_path);
-        if (!plugin_state_xml.has_value())
+        ToneDocument document;
+        document.chain.reserve(branch.chain.size());
+        if (is_audible)
         {
-            m_impl->rebuildInstrumentMonitoringGraphBestEffort(
-                "plugin-state serialization rollback failed");
-            return std::unexpected{plugin_state_xml.error()};
+            snapshot.plugins.reserve(branch.chain.size());
+        }
+        const std::filesystem::path plugin_state_directory =
+            toneDocumentStateDirectory(tone_document_ref);
+
+        std::size_t captured_plugin_index = 0;
+        for (const tracktion::Plugin::Ptr& plugin : branch.chain)
+        {
+            if (plugin == nullptr)
+            {
+                continue;
+            }
+
+            auto* const external_plugin = dynamic_cast<tracktion::ExternalPlugin*>(plugin.get());
+            if (external_plugin == nullptr)
+            {
+                m_impl->rebuildInstrumentMonitoringGraphBestEffort(
+                    "unsupported plugin capture rollback failed");
+                return std::unexpected{LiveRigError{
+                    LiveRigErrorCode::UnsupportedPlugin,
+                    "Only external plugins can be captured right now: " +
+                        plugin->getName().toStdString()
+                }};
+            }
+
+            const std::size_t chain_index = captured_plugin_index;
+            // The layout owner may supply fewer entries than the chain holds; fall back to a
+            // gapless block and empty tokens as the editor does.
+            const std::size_t block_index =
+                chain_index < block_layout.size() ? block_layout[chain_index] : chain_index;
+            const std::string display_type_override =
+                chain_index < display_layout.size() ? display_layout[chain_index] : std::string{};
+            const std::string stable_id = chain_index < stable_id_layout.size()
+                                              ? stable_id_layout[chain_index]
+                                              : std::string{};
+            // Without a live instance the flush keeps the previously captured chunk; persisting
+            // that is the correct don't-clobber behavior, but it must never pass silently as a
+            // fresh capture (source-verified against the vendored flush path).
+            if (external_plugin->getAudioPluginInstance() == nullptr)
+            {
+                RH_LOG_WARNING(
+                    "audio.live_rig",
+                    "Capturing prior state for plugin without a live instance tone={:?} name={:?}",
+                    branch.tone_document_ref,
+                    external_plugin->getName().toStdString());
+            }
+            external_plugin->flushPluginStateToValueTree();
+            juce::ValueTree plugin_state = external_plugin->state.createCopy();
+            plugin_state.removeProperty(tracktion::IDs::id, nullptr);
+            // The seconds curve is a derived cache of the arrangement's musical automation, and
+            // the remap flag would let a future edit-tempo write beat-shift that cache behind the
+            // mirror's back; neither belongs in persisted plugin state.
+            stripAutomationCurves(plugin_state);
+            stripTempoRemapFlag(plugin_state);
+
+            const std::filesystem::path plugin_state_ref =
+                generatedPluginStatePath(plugin_state_directory, chain_index);
+            const std::filesystem::path plugin_state_path =
+                request.song_directory / plugin_state_ref;
+            const auto plugin_state_xml = makePluginStateXml(plugin_state, plugin_state_path);
+            if (!plugin_state_xml.has_value())
+            {
+                m_impl->rebuildInstrumentMonitoringGraphBestEffort(
+                    "plugin-state serialization rollback failed");
+                return std::unexpected{plugin_state_xml.error()};
+            }
+
+            if (auto write_result = writeTextFile(
+                    plugin_state_path,
+                    *plugin_state_xml,
+                    LiveRigErrorCode::CouldNotWritePluginState);
+                !write_result.has_value())
+            {
+                m_impl->rebuildInstrumentMonitoringGraphBestEffort(
+                    "plugin-state write rollback failed");
+                return std::unexpected{std::move(write_result.error())};
+            }
+
+            document.chain.push_back(
+                PluginRecord{
+                    .id = "plugin-" + std::to_string(chain_index + 1),
+                    .identity = makePluginIdentity(external_plugin->desc),
+                    .tracktion_state_ref = plugin_state_ref.generic_string(),
+                    .block_index = block_index,
+                    .display_type_override = display_type_override,
+                    .stable_id = stable_id,
+                });
+            if (is_audible)
+            {
+                snapshot.plugins.push_back(makePluginChainEntry(*external_plugin, chain_index));
+                snapshot.plugins.back().block_index = block_index;
+                snapshot.plugins.back().display_type_override = display_type_override;
+            }
+            ++captured_plugin_index;
         }
 
-        if (auto write_result = writeTextFile(
-                plugin_state_path, *plugin_state_xml, LiveRigErrorCode::CouldNotWritePluginState);
+        // The audible branch reads the structural output plugin (the live editing surface); other
+        // branches persist their retained authored gain, which audible switching keeps in sync.
+        document.output_gain = is_audible ? snapshot.output_gain
+                                          : (branch_index < m_impl->m_branch_output_gains.size()
+                                                 ? m_impl->m_branch_output_gains[branch_index]
+                                                 : Gain{defaultGainDb()});
+
+        const std::filesystem::path tone_document_path = request.song_directory / tone_document_ref;
+        if (auto write_result = writeToneDocument(tone_document_path, document);
             !write_result.has_value())
         {
             m_impl->rebuildInstrumentMonitoringGraphBestEffort(
-                "plugin-state write rollback failed");
+                "tone document write rollback failed");
             return std::unexpected{std::move(write_result.error())};
         }
 
-        document.chain.push_back(
-            PluginRecord{
-                .id = "plugin-" + std::to_string(chain_index + 1),
-                .identity = makePluginIdentity(external_plugin->desc),
-                .tracktion_state_ref = plugin_state_ref.generic_string(),
-                .block_index = block_index,
-                .display_type_override = display_type_override,
-                .stable_id = stable_id,
-            });
-        snapshot.plugins.push_back(makePluginChainEntry(*external_plugin, chain_index));
-        snapshot.plugins.back().block_index = block_index;
-        snapshot.plugins.back().display_type_override = display_type_override;
-        ++captured_plugin_index;
-    }
-
-    // Read authored output gain from the structural plugin for persistence and snapshot.
-    const Gain captured_output_gain = m_impl->readGainFromPlugin(m_impl->m_output_gain_plugin_id);
-    document.output_gain = captured_output_gain;
-    snapshot.output_gain = captured_output_gain;
-
-    const std::filesystem::path tone_document_path = request.song_directory / tone_document_ref;
-    if (auto write_result = writeToneDocument(tone_document_path, document);
-        !write_result.has_value())
-    {
-        m_impl->rebuildInstrumentMonitoringGraphBestEffort("tone document write rollback failed");
-        return std::unexpected{std::move(write_result.error())};
-    }
-
-    // The captured layout is now this tone's authoritative panel layout; retain it so switching
-    // away and back restores it.
-    if (const std::optional<std::size_t> branch_index = m_impl->audibleBranchIndex();
-        branch_index.has_value() && *branch_index < m_impl->m_branch_display_metadata.size())
-    {
-        Impl::BranchDisplayMetadata& metadata = m_impl->m_branch_display_metadata[*branch_index];
-        metadata.block_indices.clear();
-        metadata.display_type_overrides.clear();
-        metadata.stable_ids.clear();
-        for (const PluginRecord& record : document.chain)
+        // The captured layout is now this tone's authoritative panel layout; retain it so
+        // switching away and back restores it.
+        if (is_audible && branch_index < m_impl->m_branch_display_metadata.size())
         {
-            metadata.block_indices.push_back(record.block_index);
-            metadata.display_type_overrides.push_back(record.display_type_override);
-            metadata.stable_ids.push_back(record.stable_id);
+            Impl::BranchDisplayMetadata& metadata = m_impl->m_branch_display_metadata[branch_index];
+            metadata.block_indices.clear();
+            metadata.display_type_overrides.clear();
+            metadata.stable_ids.clear();
+            for (const PluginRecord& record : document.chain)
+            {
+                metadata.block_indices.push_back(record.block_index);
+                metadata.display_type_overrides.push_back(record.display_type_override);
+                metadata.stable_ids.push_back(record.stable_id);
+            }
         }
     }
 
@@ -807,7 +857,7 @@ void Engine::loadLiveRig(LiveRigLoadRequest request, LiveRigLoadResultCallback o
     {
         // A rig must always exist so the panel can build a chain from scratch on a project with
         // no authored tones yet: load one passthrough branch under a placeholder tone. Capture
-        // never reads the branch reference, so the placeholder is runtime-only.
+        // skips placeholder branches, so the placeholder never owns a document on disk.
         request.audible_tone_ref = g_placeholder_tone_ref;
         operation->tones.push_back(
             LiveRigLoadOperation::ToneLoad{

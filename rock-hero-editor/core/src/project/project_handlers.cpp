@@ -205,7 +205,10 @@ void EditorController::Impl::completeOpenProject(const std::shared_ptr<OpenTaskS
     common::core::Song song = std::move(*state->result);
     const ProjectEditorState editor_state = state->project.editorState();
 
-    auto song_loaded = loadSessionSong(std::move(song), editor_state.selected_arrangement);
+    auto song_loaded = loadSessionSong(
+        std::move(song),
+        songDirectoryForProject(state->project),
+        editor_state.selected_arrangement);
     if (!song_loaded.has_value())
     {
         if (state->clear_last_open_project_on_failure)
@@ -346,7 +349,8 @@ void EditorController::Impl::completeImportSongSource(const std::shared_ptr<Impo
 
     common::core::Song song = std::move(*state->result);
 
-    auto song_loaded = loadSessionSong(std::move(song), std::nullopt);
+    auto song_loaded =
+        loadSessionSong(std::move(song), songDirectoryForProject(state->project), std::nullopt);
     if (!song_loaded.has_value())
     {
         finishBusyOperation();
@@ -823,7 +827,7 @@ auto EditorController::Impl::takeProjectForWrite(EditorAction::ProjectWriteActio
     Project& project = m_project.value();
     auto state = std::make_shared<ProjectWriteTaskState>(std::move(action));
     common::core::Song song = session().song();
-    if (const auto rig_captured = captureLiveRigIntoSong(song, project); !rig_captured.has_value())
+    if (const auto rig_captured = captureLiveRigToDisk(project); !rig_captured.has_value())
     {
         reportError(std::string{"Could not capture live rig: "} + rig_captured.error().message);
         return {};
@@ -868,7 +872,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::SelectArrange
     // Capture the outgoing arrangement's rig into its tone files so switching back restores any
     // unsaved tone edits; the capture also flushes pending plugin state.
     common::core::Song song = session().song();
-    if (const auto captured = captureLiveRigIntoSong(song, *m_project); !captured.has_value())
+    if (const auto captured = captureLiveRigToDisk(*m_project); !captured.has_value())
     {
         reportError(
             std::string{"Could not capture the current arrangement's tones: "} +
@@ -882,7 +886,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::SelectArrange
     m_selected_tone_region_id.clear();
     m_project_audio_ready = false;
 
-    if (const auto loaded = loadSessionSong(std::move(song), action.arrangement_id);
+    if (const auto loaded = loadSessionSong(
+            std::move(song), songDirectoryForProject(*m_project), action.arrangement_id);
         !loaded.has_value())
     {
         // The session commit only happens after the backend accepts the arrangement, so a
@@ -916,10 +921,11 @@ void EditorController::Impl::performActionImpl(const EditorAction::SelectArrange
         });
 }
 
-// Captures the selected arrangement's live rig state into song files before Project IO leaves the
-// message thread.
-std::expected<void, common::audio::LiveRigError> EditorController::Impl::captureLiveRigIntoSong(
-    common::core::Song& song, const Project& project)
+// Captures the selected arrangement's live rig into its tone files before Project IO leaves the
+// message thread. Every loaded tone branch persists to its own document; the model needs no
+// write-back because tone references are established at load and never change during capture.
+std::expected<void, common::audio::LiveRigError> EditorController::Impl::captureLiveRigToDisk(
+    const Project& project)
 {
     const common::core::Arrangement* const current_arrangement = session().currentArrangement();
     if (current_arrangement == nullptr)
@@ -927,23 +933,10 @@ std::expected<void, common::audio::LiveRigError> EditorController::Impl::capture
         return {};
     }
 
-    auto arrangement = std::ranges::find_if(
-        song.arrangements, [current_arrangement](const common::core::Arrangement& item) {
-            return item.id == current_arrangement->id;
-        });
-    if (arrangement == song.arrangements.end())
-    {
-        return std::unexpected{common::audio::LiveRigError{
-            common::audio::LiveRigErrorCode::InvalidRequest,
-            "Current arrangement is missing from the song",
-        }};
-    }
-
     auto snapshot = m_live_rig.captureActiveRig(
         common::audio::LiveRigCaptureRequest{
             .song_directory = songDirectoryForProject(project),
-            .arrangement_id = arrangement->id,
-            .existing_tone_document_ref = arrangement->tone_document_ref,
+            .arrangement_id = current_arrangement->id,
             .block_indices = m_signal_chain.blockIndices(),
             .display_type_overrides = m_signal_chain.displayTypeOverrideTokens(),
             .stable_ids = captureStableIds(),
@@ -958,7 +951,6 @@ std::expected<void, common::audio::LiveRigError> EditorController::Impl::capture
         return std::unexpected{signalChainLimitError(snapshot->plugins.size())};
     }
 
-    arrangement->tone_document_ref = snapshot->tone_document_ref;
     m_signal_chain.replaceSnapshot(
         common::audio::PluginChainSnapshot{.plugins = snapshot->plugins});
     m_output_gain_db = snapshot->output_gain.db;
@@ -989,9 +981,9 @@ void EditorController::Impl::restoreLiveRig(
     }
 
     // Every tone the arrangement's regions reference preloads into its own rig branch so
-    // selection switching never rebuilds plugins; legacy arrangements without authored regions
-    // load their single toneDocument. The audible tone defaults to the first (the engine's
-    // fallback); selection sync moves it once the load finishes.
+    // selection switching never rebuilds plugins. The load baseline guarantees explicit regions,
+    // so the region set is the complete tone set. The audible tone defaults to the first (the
+    // engine's fallback); selection sync moves it once the load finishes.
     std::vector<std::string> tone_document_refs;
     for (const common::core::ToneRegion& region : arrangement->tone_track.regions)
     {
@@ -1001,10 +993,6 @@ void EditorController::Impl::restoreLiveRig(
         {
             tone_document_refs.push_back(region.tone_document_ref);
         }
-    }
-    if (tone_document_refs.empty() && !arrangement->tone_document_ref.empty())
-    {
-        tone_document_refs.push_back(arrangement->tone_document_ref);
     }
 
     common::audio::LiveRigLoadRequest request{
@@ -1400,7 +1388,8 @@ void EditorController::Impl::saveProjectCursorPositionBestEffort(
 
 // Prepares project audio, activates the selected arrangement, and commits the song to Session.
 std::expected<void, common::audio::SongAudioError> EditorController::Impl::loadSessionSong(
-    common::core::Song song, const std::optional<std::string>& selected_arrangement)
+    common::core::Song song, const std::filesystem::path& song_directory,
+    const std::optional<std::string>& selected_arrangement)
 {
     if (song.arrangements.empty())
     {
@@ -1410,9 +1399,29 @@ std::expected<void, common::audio::SongAudioError> EditorController::Impl::loadS
         }};
     }
 
-    // Materialize the implicit whole-song tone region before the song is committed, so the editor
-    // always edits explicit regions and the materialized region is part of the loaded (clean)
-    // baseline rather than showing up as an unsaved change.
+    // Establish the tone baseline before the song is committed: every arrangement gets a real
+    // default tone document (minted here for tone-less imports and pre-tone packages) plus an
+    // explicit catalog entry and whole-song region. This is the single seam that guarantees the
+    // invariant; capture, restore, and the projections no longer handle the tone-less shape. The
+    // materialized state joins the loaded (clean) baseline rather than showing up as an unsaved
+    // change.
+    for (common::core::Arrangement& arrangement : song.arrangements)
+    {
+        if (!arrangement.tone_document_ref.empty())
+        {
+            continue;
+        }
+        auto minted = m_live_rig.mintEmptyTone(song_directory);
+        if (!minted.has_value())
+        {
+            return std::unexpected{common::audio::SongAudioError{
+                common::audio::SongAudioErrorCode::ToneBaselineFailed,
+                "Could not create a default tone for arrangement " + arrangement.id + ": " +
+                    minted.error().message,
+            }};
+        }
+        arrangement.tone_document_ref = std::move(*minted);
+    }
     common::core::ensureExplicitToneRegions(song);
 
     auto prepared = m_song_audio.prepareSong(song);

@@ -53,7 +53,6 @@ TEST_CASE("Tone track projection resolves authored regions to seconds", "[core][
     REQUIRE(state.regions.size() == 1);
     CHECK(state.regions.front().id == arrangement.tone_track.regions.front().id);
     CHECK(state.regions.front().name == "Clean Verse");
-    CHECK_FALSE(state.regions.front().synthesized_default);
     CHECK(state.regions.front().time_range.start.seconds == Catch::Approx(0.0));
     CHECK(state.regions.front().time_range.end.seconds == Catch::Approx(2.0));
     CHECK(
@@ -83,20 +82,17 @@ TEST_CASE("Tone track projection marks the selected region", "[core][tone]")
     CHECK(state.regions.front().selected);
 }
 
-TEST_CASE("Tone track projection synthesizes a legacy default region", "[core][tone]")
+TEST_CASE("Tone track projection renders nothing without explicit regions", "[core][tone]")
 {
+    // The load baseline guarantees explicit regions, so a region-less arrangement (only possible
+    // outside a loaded session) draws no synthetic content.
     common::core::Arrangement arrangement = makeArrangement();
     arrangement.tone_document_ref = "tones/9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d/tone.json";
 
     const ToneTrackViewState state =
         toneTrackViewStateFor(arrangement, makeTempoMap(), std::string{});
 
-    REQUIRE(state.regions.size() == 1);
-    CHECK(state.regions.front().id.empty());
-    CHECK(state.regions.front().name.empty());
-    CHECK(state.regions.front().synthesized_default);
-    CHECK(state.regions.front().time_range.start.seconds == Catch::Approx(0.0));
-    CHECK(state.regions.front().time_range.end.seconds == Catch::Approx(4.0));
+    CHECK(state.regions.empty());
 }
 
 TEST_CASE("Tone track projection is empty without tones", "[core][tone]")

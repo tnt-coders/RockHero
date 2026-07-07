@@ -263,6 +263,8 @@ TEST_CASE(
     CHECK(common::core::toneNameFor(editor.arrangement(), g_minted_ref) == "Solo");
     CHECK(editor.live_rig.mint_call_count == 1);
     CHECK(editor.live_rig.load_call_count == loads_before + 1);
+    // The reload replaces branches from disk, so unsaved branch drift is captured first.
+    CHECK(editor.live_rig.capture_call_count == 1);
 
     // Undo removes both the region and the catalog tone (pure model).
     editor.controller.onUndoRequested();

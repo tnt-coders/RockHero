@@ -19,7 +19,15 @@
 namespace rock_hero::common::audio
 {
 
-/*! \brief Message-thread request to capture the active live rig into song files. */
+/*!
+\brief Message-thread request to capture the loaded live rig into song files.
+
+Capture rewrites every loaded tone branch's document at that branch's own reference: any branch
+can drift from its file (undo restores plugin state by instance id, plugin windows stay open
+across audibility switches), so persisting only the audible branch loses edits. The editor-owned
+layout vectors below describe the audible chain only; other branches persist their retained
+load-time layout.
+*/
 struct [[nodiscard]] LiveRigCaptureRequest
 {
     /*! \brief Native song workspace directory that owns package-relative tone files. */
@@ -27,9 +35,6 @@ struct [[nodiscard]] LiveRigCaptureRequest
 
     /*! \brief Canonical package arrangement ID whose rig is being captured. */
     std::string arrangement_id;
-
-    /*! \brief Existing package-relative tone document path, when one should be overwritten. */
-    std::string existing_tone_document_ref;
 
     /*!
     \brief Opaque editor-owned visual block per user plugin, in chain order.
@@ -60,13 +65,10 @@ struct [[nodiscard]] LiveRigCaptureRequest
     std::vector<std::string> stable_ids;
 };
 
-/*! \brief Result of writing the active live rig into song tone files. */
+/*! \brief Result of writing the loaded live rig into song tone files. */
 struct [[nodiscard]] LiveRigSnapshot
 {
-    /*! \brief Package-relative tone document path to store on the arrangement. */
-    std::string tone_document_ref{};
-
-    /*! \brief Captured chain state for the editor signal-chain panel. */
+    /*! \brief Captured audible chain state for the editor signal-chain panel. */
     std::vector<PluginChainEntry> plugins{};
 
     /*! \brief Captured output gain after the signal chain. */

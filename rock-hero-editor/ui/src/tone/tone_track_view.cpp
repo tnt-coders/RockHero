@@ -23,9 +23,6 @@ const juce::Colour g_tone_region_selected_fill{juce::Colour{0xff35597a}};
 const juce::Colour g_tone_region_selected_border{editorTheme().accent};
 const juce::Colour g_tone_region_label{juce::Colours::white.withAlpha(0.92f)};
 // The synthesized legacy-default region reads as a passive continuation, not authored content.
-const juce::Colour g_default_region_fill{juce::Colours::white.withAlpha(0.05f)};
-const juce::Colour g_default_region_border{juce::Colours::white.withAlpha(0.25f)};
-const juce::Colour g_default_region_label{juce::Colours::white.withAlpha(0.55f)};
 
 // Region names may be empty in the data model; the row still labels every region.
 [[nodiscard]] juce::String regionLabel(const core::ToneRegionViewState& region)
@@ -161,26 +158,11 @@ void ToneTrackView::paint(juce::Graphics& g)
             static_cast<float>(std::max(1, bounds.getHeight() - (g_region_vertical_inset * 2))),
         };
 
-        const bool is_default = region.synthesized_default;
         const bool highlighted = region.selected;
-        if (is_default)
-        {
-            g.setColour(g_default_region_fill);
-        }
-        else
-        {
-            g.setColour(highlighted ? g_tone_region_selected_fill : g_tone_region_fill);
-        }
+        g.setColour(highlighted ? g_tone_region_selected_fill : g_tone_region_fill);
         g.fillRoundedRectangle(region_bounds, static_cast<float>(g_region_corner_radius));
 
-        if (is_default)
-        {
-            g.setColour(g_default_region_border);
-        }
-        else
-        {
-            g.setColour(highlighted ? g_tone_region_selected_border : g_tone_region_border);
-        }
+        g.setColour(highlighted ? g_tone_region_selected_border : g_tone_region_border);
         g.drawRoundedRectangle(
             region_bounds, static_cast<float>(g_region_corner_radius), highlighted ? 2.0f : 1.2f);
 
@@ -199,7 +181,7 @@ void ToneTrackView::paint(juce::Graphics& g)
             label_area.reduced(static_cast<float>(g_region_label_inset), 0.0f).toNearestInt();
         if (label_bounds.getWidth() > 0)
         {
-            g.setColour(is_default ? g_default_region_label : g_tone_region_label);
+            g.setColour(g_tone_region_label);
             g.setFont(juce::FontOptions{13.0f});
             g.drawText(regionLabel(region), label_bounds, juce::Justification::centredLeft, true);
         }
@@ -411,11 +393,6 @@ std::optional<ToneTrackView::RegionHit> ToneTrackView::hitAt(juce::Point<int> lo
     for (std::size_t index = 0; index < m_state.regions.size(); ++index)
     {
         const core::ToneRegionViewState& region = m_state.regions[index];
-        if (region.synthesized_default)
-        {
-            continue;
-        }
-
         const std::optional<std::pair<float, float>> span = regionXSpan(region);
         if (!span.has_value())
         {
@@ -507,8 +484,7 @@ void ToneTrackView::advanceActiveRegion()
     for (std::size_t index = 0; index < m_state.regions.size(); ++index)
     {
         const core::ToneRegionViewState& region = m_state.regions[index];
-        if (!region.synthesized_default && position >= region.time_range.start.seconds &&
-            position < region.time_range.end.seconds)
+        if (position >= region.time_range.start.seconds && position < region.time_range.end.seconds)
         {
             active = index;
             break;

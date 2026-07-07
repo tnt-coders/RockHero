@@ -303,8 +303,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] bool closeProject();
     [[nodiscard]] std::shared_ptr<ProjectWriteTaskState> takeProjectForWrite(
         EditorAction::ProjectWriteAction action);
-    [[nodiscard]] std::expected<void, common::audio::LiveRigError> captureLiveRigIntoSong(
-        common::core::Song& song, const Project& project);
+    [[nodiscard]] std::expected<void, common::audio::LiveRigError> captureLiveRigToDisk(
+        const Project& project);
     void runLiveRigLoadStage(ProjectLoadLiveRigStage stage_state);
     void startLiveRigLoadStage(ProjectLoadLiveRigStage stage_state, bool report_progress);
     void restoreLiveRig(
@@ -339,7 +339,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         std::string_view context);
     [[nodiscard]] std::optional<std::filesystem::path> restorableProjectFileForExit() const;
     [[nodiscard]] std::expected<void, common::audio::SongAudioError> loadSessionSong(
-        common::core::Song song, const std::optional<std::string>& selected_arrangement);
+        common::core::Song song, const std::filesystem::path& song_directory,
+        const std::optional<std::string>& selected_arrangement);
     [[nodiscard]] EditorViewState deriveViewState() const;
     [[nodiscard]] bool isBusy() const noexcept;
     [[nodiscard]] std::uint64_t beginBusy(BusyOperation operation);

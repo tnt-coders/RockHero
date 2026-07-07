@@ -1544,10 +1544,6 @@ void EditorView::createToneMarkerAtPlayhead()
 
     const auto containing = std::ranges::find_if(
         m_state.tone_track.regions, [&](const core::ToneRegionViewState& region) {
-            if (region.synthesized_default)
-            {
-                return false;
-            }
             const std::int64_t start = m_state.tempo_map.globalBeatIndex(
                 region.grid_start.measure, region.grid_start.beat);
             const std::int64_t end =

@@ -37,6 +37,10 @@ namespace
         {
             return "Could not restore live input monitoring after changing backing audio.";
         }
+        case SongAudioErrorCode::ToneBaselineFailed:
+        {
+            return "Could not create an arrangement's default tone document.";
+        }
     }
 
     return "Song audio operation failed.";

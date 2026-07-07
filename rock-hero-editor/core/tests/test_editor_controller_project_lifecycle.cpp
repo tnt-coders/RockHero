@@ -143,9 +143,10 @@ TEST_CASE("EditorController successful open stores audio", "[core][editor-contro
         CHECK(state.save_requires_destination == false);
         CHECK_FALSE(state.unsaved_changes_prompt.has_value());
     }
-    // Each open now produces two pushes: one when busy state begins, one when the task
-    // completion commits or fails. The inline default task runner runs both synchronously.
-    CHECK(view.set_state_call_count == pushes_before_success + 2);
+    // Each open produces the busy-begin push, the tone-bearing rig-load progress pushes (begin,
+    // presentation-ready, selection sync), and the completion push. The inline default task
+    // runner runs them all synchronously.
+    CHECK(view.set_state_call_count == pushes_before_success + 5);
     CHECK(view.shown_errors.size() == 1);
 }
 
@@ -602,9 +603,10 @@ TEST_CASE("EditorController successful import stores audio", "[core][editor-cont
         CHECK(state.project_load_id == 1);
         CHECK(state.save_requires_destination == true);
     }
-    // Each import produces two pushes: one when busy state begins, one when the task completion
-    // commits or fails. The inline default task runner runs both synchronously.
-    CHECK(view.set_state_call_count == pushes_before_success + 2);
+    // Each import produces the busy-begin push, the tone-bearing rig-load progress pushes
+    // (begin, presentation-ready, selection sync), and the completion push. The inline default
+    // task runner runs them all synchronously.
+    CHECK(view.set_state_call_count == pushes_before_success + 5);
     CHECK(view.shown_errors.size() == 1);
 }
 

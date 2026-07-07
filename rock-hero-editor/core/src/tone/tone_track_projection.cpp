@@ -11,37 +11,8 @@ ToneTrackViewState toneTrackViewStateFor(
 {
     ToneTrackViewState state;
 
-    if (arrangement.tone_track.regions.empty())
-    {
-        if (arrangement.tone_document_ref.empty())
-        {
-            return state;
-        }
-
-        const auto [terminal_measure, terminal_beat] =
-            tempo_map.beatAtGlobalIndex(tempo_map.terminalGlobalBeatIndex());
-        state.regions.push_back(
-            ToneRegionViewState{
-                .id = std::string{},
-                .name = toneNameFor(arrangement, arrangement.tone_document_ref),
-                .tone_document_ref = arrangement.tone_document_ref,
-                .grid_start = common::core::ToneGridPosition{.measure = 1, .beat = 1},
-                .grid_end =
-                    common::core::ToneGridPosition{
-                        .measure = terminal_measure, .beat = terminal_beat
-                    },
-                .time_range =
-                    common::core::TimeRange{
-                        .start = common::core::TimePosition{tempo_map.secondsAtBeat(1, 1)},
-                        .end = common::core::TimePosition{tempo_map.secondsAtBeat(
-                            terminal_measure, terminal_beat)},
-                    },
-                .synthesized_default = true,
-                .selected = false,
-            });
-        return state;
-    }
-
+    // The load baseline guarantees explicit regions for every loaded arrangement, so an empty
+    // track only occurs with no arrangement content and simply renders nothing.
     state.regions.reserve(arrangement.tone_track.regions.size());
     for (const common::core::ToneRegion& region : arrangement.tone_track.regions)
     {
@@ -59,7 +30,6 @@ ToneTrackViewState toneTrackViewStateFor(
                         .end = common::core::TimePosition{tempo_map.secondsAtBeat(
                             region.end.measure, region.end.beat)},
                     },
-                .synthesized_default = false,
                 .selected = !selected_region_id.empty() && region.id == selected_region_id,
             });
     }

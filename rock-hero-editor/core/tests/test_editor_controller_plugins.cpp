@@ -571,7 +571,8 @@ TEST_CASE("EditorController adds a browser plugin", "[core][editor-controller]")
     const EditorViewState* final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
     CHECK_FALSE(final_state->busy.has_value());
-    CHECK(view.busy_overlay_paint_callback_count == 1);
+    // One paint-ready wait from the tone-bearing rig load at open, one from the plugin insert.
+    CHECK(view.busy_overlay_paint_callback_count == 2);
     CHECK_FALSE(final_state->plugin_browser.visible);
     REQUIRE(final_state->signal_chain.plugins.size() == 1);
     CHECK(final_state->signal_chain.insert_plugin_enabled);
@@ -1377,6 +1378,44 @@ TEST_CASE(
     CHECK(view.shown_errors.empty());
 }
 
+// Loading a song without tone references establishes the tone baseline: a minted default tone
+// document, a catalog entry, and one explicit whole-song region referencing it.
+TEST_CASE("EditorController mints the tone baseline at load", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    live_rig.next_load_result.plugins.clear();
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+
+    CHECK(live_rig.mint_call_count == 1);
+    CHECK(live_rig.last_mint_song_directory == std::filesystem::path{"song"});
+    const common::core::Arrangement* const arrangement = controller.session().currentArrangement();
+    REQUIRE(arrangement != nullptr);
+    CHECK(arrangement->tone_document_ref == g_minted_tone_ref);
+    REQUIRE(arrangement->tones.size() == 1);
+    CHECK(arrangement->tones.front().tone_document_ref == g_minted_tone_ref);
+    CHECK(arrangement->tones.front().name == "Default");
+    REQUIRE(arrangement->tone_track.regions.size() == 1);
+    CHECK(arrangement->tone_track.regions.front().tone_document_ref == g_minted_tone_ref);
+    CHECK_FALSE(arrangement->tone_track.regions.front().id.empty());
+}
+
 // Saving captures the active live rig and writes its document reference into the song.
 TEST_CASE("EditorController captures live rig before save", "[core][editor-controller]")
 {
@@ -1411,12 +1450,13 @@ TEST_CASE("EditorController captures live rig before save", "[core][editor-contr
         const auto& capture_request = live_rig.last_capture_request.value();
         CHECK(capture_request.song_directory == std::filesystem::path{"song"});
         CHECK(capture_request.arrangement_id == g_lead_arrangement_id);
-        CHECK(capture_request.existing_tone_document_ref.empty());
     }
     CHECK(project_services.save_call_count == 1);
+    // The saved reference is the one the load baseline minted; capture rewrites documents in
+    // place and never renames them.
     CHECK(
         project_services.last_save_tone_document_ref ==
-        std::optional<std::string>{g_tone_document_ref});
+        std::optional<std::string>{g_minted_tone_ref});
 
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
@@ -1576,7 +1616,9 @@ TEST_CASE("EditorController save as clears plugin dirty state", "[core][editor-c
 
     CHECK(project_services.save_as_call_count == 1);
     CHECK(controller.currentProjectFile() == std::optional{std::filesystem::path{"renamed.rhp"}});
-    CHECK(project_services.last_save_as_tone_document_ref == std::optional{g_tone_document_ref});
+    CHECK(
+        project_services.last_save_as_tone_document_ref ==
+        std::optional<std::string>{g_minted_tone_ref});
 
     controller.onExitRequested();
 

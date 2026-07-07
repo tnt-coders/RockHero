@@ -34,14 +34,6 @@ struct ToneRegionViewState
     /*! \brief Region span in song seconds, resolved through the tempo map. */
     common::core::TimeRange time_range;
 
-    /*!
-    \brief True for the runtime-only region synthesized from the legacy tone document.
-
-    A legacy arrangement without an authored tone track displays one full-length default region;
-    the view renders it as a read-only continuation rather than authored content.
-    */
-    bool synthesized_default{false};
-
     /*! \brief True when this region is the current tone selection. */
     bool selected{false};
 

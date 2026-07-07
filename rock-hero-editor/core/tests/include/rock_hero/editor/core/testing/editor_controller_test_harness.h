@@ -63,6 +63,9 @@ constexpr const char* g_bass_arrangement_id = "7aa55c5a-0e97-4e71-8f74-86b05bb6a
 /*! \brief Stable tone document reference used by controller test fixtures. */
 constexpr const char* g_tone_document_ref = "tones/9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d/tone.json";
 
+/*! \brief Tone reference FakeLiveRig mints; the load baseline assigns it to ref-less songs. */
+constexpr const char* g_minted_tone_ref = "tones/1f0e9d8c-7b6a-4c5d-8e9f-0a1b2c3d4e5f/tone.json";
+
 /*! \brief Short alias for the shared configurable audio-device fake. */
 using ConfigurableAudioDeviceConfiguration =
     common::audio::testing::ConfigurableAudioDeviceConfiguration;
@@ -637,7 +640,6 @@ struct FakeLiveRig final : public common::audio::ILiveRig
 
     // Snapshot returned by the next successful capture.
     common::audio::LiveRigSnapshot next_capture_snapshot{
-        .tone_document_ref = g_tone_document_ref,
         .plugins =
             {
                 common::audio::PluginChainEntry{
@@ -709,7 +711,7 @@ struct FakeLiveRig final : public common::audio::ILiveRig
     int mint_call_count{0};
 
     // Reference returned by mintEmptyTone unless an error is configured.
-    std::string next_mint_ref{"tones/1f0e9d8c-7b6a-4c5d-8e9f-0a1b2c3d4e5f/tone.json"};
+    std::string next_mint_ref{g_minted_tone_ref};
 
     // When set, mintEmptyTone returns this error instead of a reference.
     std::optional<common::audio::LiveRigError> next_mint_error{};
