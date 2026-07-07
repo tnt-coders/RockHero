@@ -56,6 +56,18 @@ public:
     \return The structural plugin, or null when the state describes no Rock Hero plugin.
     */
     tracktion::Plugin::Ptr createCustomPlugin(tracktion::PluginCreationInfo info) override;
+
+    /*!
+    \brief Keeps Tracktion from marking new plugins for tempo-change remapping.
+
+    Rock Hero owns musical positions and rewrites derived seconds curves itself; the edit's tempo
+    sequence is written only by the one-way tempo mirror. Without this override every
+    createNewPlugin call persists remapOnTempoChange="1" into plugin state, and Tracktion's remap
+    machinery would fight Rock Hero's own musical-to-seconds rebuilds if the edit tempo ever moves.
+
+    \return Always false.
+    */
+    bool arePluginsRemappedWhenTempoChanges() override;
 };
 
 /*! \brief Supplies Tracktion with Rock Hero's minimal plugin editor window implementation. */

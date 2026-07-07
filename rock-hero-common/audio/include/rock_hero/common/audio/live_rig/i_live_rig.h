@@ -49,6 +49,15 @@ struct [[nodiscard]] LiveRigCaptureRequest
     captured chain. Entries beyond the supplied size default to empty, meaning no override.
     */
     std::vector<std::string> display_type_overrides;
+
+    /*!
+    \brief Opaque editor-owned durable plugin ids per user plugin, in chain order.
+
+    The audio layer writes these through to the tone document without interpreting them; the editor
+    mints them and keys arrangement-scoped automation on them. Index i is the id for the i-th user
+    plugin in the captured chain. Entries beyond the supplied size default to empty.
+    */
+    std::vector<std::string> stable_ids;
 };
 
 /*! \brief Result of writing the active live rig into song tone files. */
@@ -130,6 +139,26 @@ struct [[nodiscard]] LiveRigLoadRequest
     LiveRigLoadYieldCallback yield_callback;
 };
 
+/*! \brief Identity of one loaded tone-chain plugin: runtime instance id plus durable stable id. */
+struct [[nodiscard]] LoadedTonePluginIdentity
+{
+    /*! \brief Runtime plugin instance id (matches plugin chain snapshot instance ids). */
+    std::string instance_id;
+
+    /*! \brief Editor-minted durable plugin id from the tone document; empty when not yet minted. */
+    std::string stable_id;
+};
+
+/*! \brief Identities of one loaded tone's chain plugins, in chain order. */
+struct [[nodiscard]] LoadedToneChainIdentities
+{
+    /*! \brief Tone document reference identifying the loaded branch. */
+    std::string tone_document_ref;
+
+    /*! \brief Chain plugin identities in playback order. */
+    std::vector<LoadedTonePluginIdentity> plugins;
+};
+
 /*! \brief Result of loading an arrangement's tone set into the live rig. */
 struct [[nodiscard]] LiveRigLoadResult
 {
@@ -138,6 +167,16 @@ struct [[nodiscard]] LiveRigLoadResult
 
     /*! \brief The audible tone's restored output gain. */
     Gain output_gain{};
+
+    /*!
+    \brief Plugin identities for every loaded tone, in load order.
+
+    Filled only by loadLiveRig() completions, whose identities come fresh from the parsed tone
+    documents; setAudibleTone() results leave this empty because retained per-branch metadata can
+    go positionally stale after chain mutations. The editor merges these into its runtime
+    instance-to-stable-id association at load completion and maintains it itself afterwards.
+    */
+    std::vector<LoadedToneChainIdentities> tone_chains{};
 };
 
 /*!

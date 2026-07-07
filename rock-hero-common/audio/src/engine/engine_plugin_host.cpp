@@ -4,6 +4,7 @@
 #include "shared/audio_path_util.h"
 #include "tracktion/live_rig_gain_plugin.h"
 #include "tracktion/plugin_dirty_tracking.h"
+#include "tracktion/plugin_state_hygiene.h"
 
 #include <chrono>
 #include <exception>
@@ -91,21 +92,6 @@ constexpr auto g_plugin_scan_timeout = std::chrono::seconds{30};
 {
     const tracktion::EditItemID item_id = tracktion::EditItemID::fromID(plugin_state);
     return item_id.isValid() ? item_id.toString().toStdString() : std::string{};
-}
-
-// Removes AUTOMATIONCURVE children so the plugin-chunk undo memento never carries automation
-// curves: curves belong to RockHero's separate point-list undo domain (tone_automation_edits), and
-// the chunk restore path cannot rebind a live curve, so keeping the two domains disjoint means a
-// chunk undo/redo can never clobber an authored automation curve.
-void stripAutomationCurves(juce::ValueTree& plugin_state)
-{
-    for (int index = plugin_state.getNumChildren(); --index >= 0;)
-    {
-        if (plugin_state.getChild(index).hasType(tracktion::IDs::AUTOMATIONCURVE))
-        {
-            plugin_state.removeChild(index, nullptr);
-        }
-    }
 }
 
 // Copies serialized plugin state to an existing live plugin without changing its runtime id.

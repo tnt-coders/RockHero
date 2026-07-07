@@ -68,6 +68,11 @@ bool RockHeroEngineBehavior::isDescriptionOfWaveDevicesSupported()
     return true;
 }
 
+bool RockHeroEngineBehavior::arePluginsRemappedWhenTempoChanges()
+{
+    return false;
+}
+
 void RockHeroEngineBehavior::describeWaveDevices(
     std::vector<tracktion::WaveDeviceDescription>& descriptions, juce::AudioIODevice& device,
     bool is_input)
