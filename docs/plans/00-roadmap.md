@@ -1,6 +1,6 @@
 # RockHero implementation roadmap
 
-Status: Living document — maintained continuously. Date: 2026-07-06. Baseline `refactor @ 13e82fb0`.
+Status: Living document — maintained continuously. Date: 2026-07-07. Baseline `refactor @ 0ffb6efe`.
 
 This is the consolidated product roadmap. Every plan under `docs/plans/` follows the shared
 template (status line, goal, constraints, verified current-state inventory, phased implementation,
@@ -47,6 +47,7 @@ graph TD
         P44[44 editor 3D preview]
         P45[45 editor theme + string colors]
         P46[46 editor keybinds]
+        P47[47 editor loop selection]
     end
     subgraph Deferred
         P28[28 practice mode]
@@ -105,6 +106,10 @@ graph TD
     P46 -.non-blocking.-> P40
     P46 -.non-blocking.-> P41
     P46 -.non-blocking.-> P44
+    P47 --> P28
+    P47 -.whichever-first loop port.-> P21
+    P40 -.non-blocking.-> P47
+    P46 -.non-blocking.-> P47
 ```
 
 Notes on cyclic-looking edges: 26 ↔ 27 is an ordering constraint, not a cycle —
@@ -112,6 +117,10 @@ docs/plans/27-in-song-flow-results-profiles.md Phase 1 (IGameSettings) must land
 docs/plans/26-game-startup-menus-library.md Phase 4 (settings consumption); 26's menu input layer
 (Phase 5) then precedes 27 Phase 6 (pause/results UI). 21 → 22 is an infrastructure edge only
 (the engine 22's dry tap rides on); 22 Phase 1 (contract) has no upstream dependency at all.
+47's dotted edge to 21 is the whichever-executes-first coordination on the shared loop-port
+surface (47 is expected to execute first and land the Tracktion-backed loop; 21 Phase 1 then
+adds only the speed surface), not a gate; 47 → 28 is plan 28 Phase 2 consuming the landed loop
+backend and reducing to test extension.
 
 ---
 
@@ -188,10 +197,11 @@ Stages may overlap where dependencies allow; each bullet names the plan phases i
 24. docs/plans/46-editor-keybinds.md Phase 0 → Phases 1–5.
 25. docs/plans/45-editor-theme-and-string-colors.md Phases 2–4 (presets, selection, colorblind-safe); Phase 5 behind G45-STRINGS; Phase 6 stretch.
 26. docs/plans/44-editor-3d-preview.md Phases 1–5 (after G20-RENDER + 25 Phases 1–2 + 12 + 45 Phase 1).
+27. docs/plans/47-editor-loop-selection.md Phases 1–4 (no game gates; Phase 1 — the shared loop-region port + Tracktion adapter — can start immediately under the whichever-executes-first rule with 21 Phase 1, and docs/plans/28-practice-mode.md Phase 2 then consumes the landed backend, reducing to test extension).
 
 **Stage 7 — Deferred**
-27. docs/plans/28-practice-mode.md (G28-STRETCH spike first; its one NOW requirement — speed factor + loop-seek in the interfaces — is already delegated to 21 Phase 1 and 12).
-28. docs/plans/29-online-leaderboards.md (G29-STABILITY + hosting/identity/licensing sign-off).
+28. docs/plans/28-practice-mode.md (G28-STRETCH spike first; its one NOW requirement — speed factor + loop-seek in the interfaces — is already delegated to 21 Phase 1 / 47 Phase 1 (whichever executes first) and 12).
+29. docs/plans/29-online-leaderboards.md (G29-STABILITY + hosting/identity/licensing sign-off).
 
 ---
 
@@ -382,6 +392,12 @@ unanswered item keeps its plan decision-gated. Recommendations are marked **R:**
 - **46-Q2** editor/game bindable-action sharing (mirrors 26-Q4 — answer once): (a) parallel systems (JUCE ApplicationCommandManager for the editor, headless resolver in game/core; shared semantics conventions only); (b) one shared concept in common first. **R: a**.
 - **46-Q3** rebinding the three plugin-window-mirrored commands (Undo/Redo/PlayPause) to chords the Win32 hook cannot mirror: (a) restrict capture to mirrorable chords for those commands; (b) allow any chord with a persistent "not active while a plugin window is focused" note. **R: b**.
 
+### docs/plans/47-editor-loop-selection.md
+
+- **47-Q1** drag surface for the time selection: (A) timeline ruler band — the track area keeps click-to-seek and stays free for 40 Phase 3's marquee; (B) track area — collides with plan 40's marquee and the shipped tone-row edge-drags; (C) A now, plus a later modifier-drag in the track area added under plan 40 Phase 3. **R: A, with C recorded as a compatible follow-up.**
+- **47-Q2** loop engagement: (A) explicit toggle — Ctrl+L arms a passive selection; (B) auto-on — a selection existing means playback loops it; Escape/click-away clears. **R: B**, with sub-policies: play outside the selection snaps to loop start (verified Tracktion behavior); pause resumes in place; seek inside keeps the loop; seek outside clears it; arrangement switch keeps and re-engages; tempo edits keep musical positions and re-convert.
+- **47-Q3** persistence home: (A) app-local per-project-path `IEditorSettings` records storing two grid-position tokens (the verified cursor/grid/zoom precedent); (B) project.json editorState beside selectedArrangement. **R: A** — the cursor is app-local per project path, not in project.json (verified); (B) would go stale between saves or start dirtying saves for transient UI state.
+
 ### Roadmap-level items
 
 - **RM-1** Licensing audit thread: AGPLv3 network-source obligations (29-Q3), SoundTouch licensing-table row (28-Q1), CC0 fixture tree (23-Q1) — treat as one licensing pass when 28/29 activate.
@@ -403,9 +419,9 @@ CLAUDE.md). docs/in-progress/ docs are active work — referenced by plans, neve
 | arrangement-difficulty-derivation-plan.md | ABSORBED into docs/plans/11-derived-difficulty-calculator.md | delete | Fully promoted; preconditions now met (FHPs exist, GP import landed), signature corrected |
 | thread-safe-transport-readback.md | ABSORBED into docs/plans/12-playback-clock.md | delete | Fully promoted; stale steps (audible-time read, TransportState) corrected against code |
 | shared-user-audio-settings-plan.md | ABSORBED into docs/plans/13-audio-device-settings-and-calibration.md | delete | Fully promoted; feature-folder placement and already-shipped narrowing corrected |
-| audio-device-settings-extraction-followups.md | PARTIALLY ABSORBED into docs/plans/13-audio-device-settings-and-calibration.md Phase 6 | edit: strip the absorbed ChangeListener smoke-test item, keep editor-UI follow-ups (view split, window caps) with a pointer to plan 13 | Only the re-derivation smoke test was absorbed; editor-UI follow-ups remain valid deferred work outside the 21-plan set |
+| audio-device-settings-extraction-followups.md | PARTIALLY ABSORBED into docs/plans/13-audio-device-settings-and-calibration.md Phase 6 | edit: strip the absorbed ChangeListener smoke-test item, keep editor-UI follow-ups (view split, window caps) with a pointer to plan 13 | Only the re-derivation smoke test was absorbed; editor-UI follow-ups remain valid deferred work outside the roadmap plan set |
 | smooth-scroll-follow-evaluation.md | UNTOUCHED (MUST) | none | Pending USER decision, already re-raised; plan 44 references it and stops (known tension 9) |
-| gp-track-part-mapping.md | UNTOUCHED | none | GP-import workflow stopgap outside the 21-plan set; still accurate as a deferred plan |
+| gp-track-part-mapping.md | UNTOUCHED | none | GP-import workflow stopgap outside the roadmap plan set; still accurate as a deferred plan |
 | tone-rack-plan.md | SUPERSEDED by docs/in-progress/tone-track-tempo-map-plan.md (slice 5) | replace body with pointer | Largely subsumed by the in-flight tone work; keeping the stale body invites re-implementation of retired surfaces |
 | tone-automation-track-plan.md | UNTOUCHED | none | Deferred tone-parameter automation; no plan in this set covers it |
 | tempo-grid-declutter-plan.md | UNTOUCHED | none (stale warning stands) | Self-declares partial staleness; motivating perf problem separately fixed; plan 41 lists it out of scope — re-verify fully before any execution |
@@ -416,7 +432,7 @@ CLAUDE.md). docs/in-progress/ docs are active work — referenced by plans, neve
 | cpp26-migration.md | UNTOUCHED | none | Toolchain migration, deliberately deferred |
 | audio-asset-catalog-thumbnail-cache-plan.md | UNTOUCHED | none | Waveform-thumbnail caching (editor timeline) — verified unrelated to plan 43's album art |
 | audio-engine-multi-track-support.md | UNTOUCHED | none (stale warning: cites retired Engine::createTrack/IEdit/EditCoordinator surfaces per plan 21's inventory) | Deferred engine capability; must be rewritten against current ports before use |
-| multiple-audio-clips-plan.md | UNTOUCHED | none | Deferred editor capability outside the 21-plan set |
+| multiple-audio-clips-plan.md | UNTOUCHED | none | Deferred editor capability outside the roadmap plan set |
 | editor-pending-events-design.md | UNTOUCHED | none | Deferred editor-core design note, out of roadmap scope |
 | editor-structure-deferred-work.md | UNTOUCHED | none | Deferred structural cleanup, out of roadmap scope |
 | editor-ui-scale.md | UNTOUCHED | none | Deferred; plan 26 cites only its game-exclusion decision |
@@ -456,6 +472,7 @@ One line per plan; update the right-hand cell as phases complete.
 | docs/plans/44-editor-3d-preview.md | Decision-gated (via G20-RENDER) | Fullscreen-capable editor preview window sharing the highway scene model; playback follow + live edits | Not started |
 | docs/plans/45-editor-theme-and-string-colors.md | Ready (Phase 5 behind G45-STRINGS) | Shared string palette in common/ui, theme presets, colorblind-safe preset, string-cap raise gate | Not started |
 | docs/plans/46-editor-keybinds.md | Decision-gated (G46-KEYMAP) | JUCE command-manager keybinds, config UI, diff persistence, plugin-window shortcut injection seam | Not started |
+| docs/plans/47-editor-loop-selection.md | Ready (47-Q1..Q3 carry recommendations; Phase 1 coordinated with 21 Phase 1 by whichever-executes-first) | Shared loop-region port + Tracktion adapter; editor ruler-drag loop selection, auto-engagement, app-local persistence | Not started |
 
 Milestone 0: **not reached** — exit = docs/plans/21-game-audio-engine-and-session.md Phase 6 soak
 checklist + docs/plans/25-note-highway-3d.md Phase 3 exit criteria witnessed on the same build.

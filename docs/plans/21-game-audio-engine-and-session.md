@@ -142,6 +142,10 @@ Verified against code on 2026-07-06, refactor @ 3c7febe0.
   values; until then they are session-local.
 - docs/plans/28-practice-mode.md — consumer of the speed factor and loop-region plumbing from
   Phase 1; its time-stretch quality verification does not block this plan.
+- docs/plans/47-editor-loop-selection.md — declares the same shared-port loop surface under a
+  whichever-executes-first rule (its Decisions) and is expected to execute first, landing the
+  Tracktion-backed loop; Phase 1 here then re-verifies the landed surface and adds only the
+  speed methods.
 - docs/in-progress/tone-track-tempo-map-plan.md — slice 5 (runtime switching) is active editor
   work defining the schedule-baking mechanism and its verified Tracktion facts. Reference only;
   Phase 3 coordinates with it instead of duplicating it.
@@ -244,7 +248,9 @@ so docs/plans/28-practice-mode.md is additive, not a rewrite:
   engine_song_audio.cpp:163; the loop-range API needs a **juce-tracktion-expert verification**
   of `TransportControl` loop-range semantics before coding). Loop wrap is a transport-internal
   jump, so tone-branch automation resyncs by the same mechanism as any seek (verified seek-
-  resync fact in Decisions above).
+  resync fact in Decisions above). Coordination: docs/plans/47-editor-loop-selection.md Phase 1
+  shares this exact surface (whichever-executes-first rule) and is expected to land it first —
+  if it has, re-verify the landed loop and add only the speed surface, never re-implement.
 
 Extending the shared port (rather than a game-only port) is deliberate: the editor already
 anticipates practice-speed playback (the engine comment above), transport semantics belong on
