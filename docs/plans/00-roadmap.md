@@ -165,43 +165,44 @@ Stages may overlap where dependencies allow; each bullet names the plan phases i
 2. docs/plans/12-playback-clock.md Phases 1–4 (clock port, engine publishes, audio-derived publishing, extrapolator) — milestone 0's render loop needs this; Phase 5 closeout with first consumers.
 3. docs/plans/10-format-versioning-and-chart-identity.md Phase 0 (answer 10-Q1..Q5) then Phases 1–5 — unblocks the widest set of downstream consumers; cheap, pure, no UI.
 4. docs/plans/22-note-detection.md Phase 1 (detection contract — GATE-A) co-authored with docs/plans/24-scoring-star-power-failure.md Phase 1. **This is the single most schedule-critical de-risking step**: it costs no DSP work and settles the latency-budget physics everything else designs around.
+5. docs/plans/47-editor-loop-selection.md Phase 1 (shared loop-region port + Tracktion adapter in common/audio) — dependency-free and foundation-caliber: it lands the loop backend that docs/plans/28-practice-mode.md Phase 2 consumes, and relieves docs/plans/21-game-audio-engine-and-session.md Phase 1 to add only the speed surface (whichever-executes-first rule).
 
 **Stage 2 — Decision gates (run while Stage 1 finishes)**
-5. docs/plans/20-game-architecture-and-render-stack.md Phases 0a–0c (G20-RENDER spike + seam, STOP).
-6. docs/plans/21-game-audio-engine-and-session.md Phase 0 (G21-TRACKTION-GO, signed jointly with 20 Phase 0b S1).
+6. docs/plans/20-game-architecture-and-render-stack.md Phases 0a–0c (G20-RENDER spike + seam, STOP).
+7. docs/plans/21-game-audio-engine-and-session.md Phase 0 (G21-TRACKTION-GO, signed jointly with 20 Phase 0b S1).
 
 **Stage 3 — Milestone-0 depth-first + detection de-risk in parallel**
-7. docs/plans/21-game-audio-engine-and-session.md Phases 1–6 (speed/loop plumbing, GameplaySession, tone switching, mix, latency stance, hardcoded-song soak). Phases 1–5 do not wait for G20-RENDER; Phase 6 is milestone 0's audio half.
-8. docs/plans/22-note-detection.md Phases 2–3 (dry tap in common/audio; algorithm survey → GATE-B), then Phases 4–7 (tuning math, pipeline skeleton, v1 detectors, tuner). The tuner ships in the current JUCE shell — not blocked on G20-RENDER.
-9. docs/plans/23-detection-verification-harness.md Phases 1–3 (event stream, autoplay bot, shared fixture generators) as soon as GATE-A closes; Phases 4–6 alongside 22 Phase 6.
-10. docs/plans/45-editor-theme-and-string-colors.md Phase 1 (shared string palette in common/ui) — small, and it blocks 25 Phase 3.
-11. docs/plans/20-game-architecture-and-render-stack.md Phases 1–4 (window/loop swap, resource pack, frame clock, dev diagnostics) after G20-RENDER.
-12. docs/plans/25-note-highway-3d.md Phases 1–3 (headless scene model, camera math — both pre-gate; board+notes playable skeleton after G20-RENDER). → **MILESTONE 0**.
+8. docs/plans/21-game-audio-engine-and-session.md Phases 1–6 (speed/loop plumbing — loop re-verified rather than re-implemented if 47 Phase 1 landed first; GameplaySession, tone switching, mix, latency stance, hardcoded-song soak). Phases 1–5 do not wait for G20-RENDER; Phase 6 is milestone 0's audio half.
+9. docs/plans/22-note-detection.md Phases 2–3 (dry tap in common/audio; algorithm survey → GATE-B), then Phases 4–7 (tuning math, pipeline skeleton, v1 detectors, tuner). The tuner ships in the current JUCE shell — not blocked on G20-RENDER.
+10. docs/plans/23-detection-verification-harness.md Phases 1–3 (event stream, autoplay bot, shared fixture generators) as soon as GATE-A closes; Phases 4–6 alongside 22 Phase 6.
+11. docs/plans/45-editor-theme-and-string-colors.md Phase 1 (shared string palette in common/ui) — small, and it blocks 25 Phase 3.
+12. docs/plans/20-game-architecture-and-render-stack.md Phases 1–4 (window/loop swap, resource pack, frame clock, dev diagnostics) after G20-RENDER.
+13. docs/plans/25-note-highway-3d.md Phases 1–3 (headless scene model, camera math — both pre-gate; board+notes playable skeleton after G20-RENDER). → **MILESTONE 0**.
 
 **Stage 4 — Gameplay loop**
-13. docs/plans/24-scoring-star-power-failure.md Phases 2–4 (provisional-hit machine on replayed events, score record format, failure meter) — gate-independent, pure game/core; Phases 5–6 (IMidiTrigger, star power) after their decisions.
-14. docs/plans/25-note-highway-3d.md Phases 4–5 (techniques; feedback/HUD fed by 24's events).
-15. docs/plans/22-note-detection.md Phase 8 (tuning-gate policy) and docs/plans/23-detection-verification-harness.md Phase 7 (local corpus soak).
+14. docs/plans/24-scoring-star-power-failure.md Phases 2–4 (provisional-hit machine on replayed events, score record format, failure meter) — gate-independent, pure game/core; Phases 5–6 (IMidiTrigger, star power) after their decisions.
+15. docs/plans/25-note-highway-3d.md Phases 4–5 (techniques; feedback/HUD fed by 24's events).
+16. docs/plans/22-note-detection.md Phase 8 (tuning-gate policy) and docs/plans/23-detection-verification-harness.md Phase 7 (local corpus soak).
 
 **Stage 5 — Game shell**
-16. docs/plans/27-in-song-flow-results-profiles.md Phase 1 (IGameSettings — must precede 26 Phase 4), then Phases 2–4.
-17. docs/plans/26-game-startup-menus-library.md Phases 1–4 (peek reader, library index, scan, settings), then 5–8 after G20-RENDER (menus, startup, Quick Play, onboarding); Phase 9 (previews) after 43.
-18. docs/plans/27-in-song-flow-results-profiles.md Phases 5–6 (session integration, pause/fail/results UI).
-19. docs/plans/11-derived-difficulty-calculator.md Phases 1–5 (any time after 10 Phase 3; calibration checkpoint is a user sign-off).
-20. docs/plans/42-chart-validation.md Phases 1–6 (arithmetic/pitch utilities early — 40 and 22 reuse them; corpus calibration STOP at Phase 5).
+17. docs/plans/27-in-song-flow-results-profiles.md Phase 1 (IGameSettings — must precede 26 Phase 4), then Phases 2–4.
+18. docs/plans/26-game-startup-menus-library.md Phases 1–4 (peek reader, library index, scan, settings), then 5–8 after G20-RENDER (menus, startup, Quick Play, onboarding); Phase 9 (previews) after 43.
+19. docs/plans/27-in-song-flow-results-profiles.md Phases 5–6 (session integration, pause/fail/results UI).
+20. docs/plans/11-derived-difficulty-calculator.md Phases 1–5 (any time after 10 Phase 3; calibration checkpoint is a user sign-off).
+21. docs/plans/42-chart-validation.md Phases 1–6 (arithmetic/pitch utilities early — 40 and 22 reuse them; corpus calibration STOP at Phase 5).
 
 **Stage 6 — Editor track (interleaves with Stages 3–5 at will; independent of the game gates)**
-21. docs/plans/43-song-information-and-art.md Phase 0 → Phases 1–5 (after 10 Phase 2).
-22. docs/plans/41-tempo-map-authoring.md Phases 1–5 (Phase 6 behind G41-TS); start Phase 2 only after the in-flight docs/in-progress/tone-track-tempo-map-plan.md editor work commits.
-23. docs/plans/40-chart-editing.md Phases 1–10 (Phase 2 waits for the in-flight tone work; from-scratch charting promise waits on 41 Phases 1–4).
-24. docs/plans/46-editor-keybinds.md Phase 0 → Phases 1–5.
-25. docs/plans/45-editor-theme-and-string-colors.md Phases 2–4 (presets, selection, colorblind-safe); Phase 5 behind G45-STRINGS; Phase 6 stretch.
-26. docs/plans/44-editor-3d-preview.md Phases 1–5 (after G20-RENDER + 25 Phases 1–2 + 12 + 45 Phase 1).
-27. docs/plans/47-editor-loop-selection.md Phases 1–4 (no game gates; Phase 1 — the shared loop-region port + Tracktion adapter — can start immediately under the whichever-executes-first rule with 21 Phase 1, and docs/plans/28-practice-mode.md Phase 2 then consumes the landed backend, reducing to test extension).
+22. docs/plans/43-song-information-and-art.md Phase 0 → Phases 1–5 (after 10 Phase 2).
+23. docs/plans/41-tempo-map-authoring.md Phases 1–5 (Phase 6 behind G41-TS); start Phase 2 only after the in-flight docs/in-progress/tone-track-tempo-map-plan.md editor work commits.
+24. docs/plans/40-chart-editing.md Phases 1–10 (Phase 2 waits for the in-flight tone work; from-scratch charting promise waits on 41 Phases 1–4).
+25. docs/plans/46-editor-keybinds.md Phase 0 → Phases 1–5.
+26. docs/plans/45-editor-theme-and-string-colors.md Phases 2–4 (presets, selection, colorblind-safe); Phase 5 behind G45-STRINGS; Phase 6 stretch.
+27. docs/plans/44-editor-3d-preview.md Phases 1–5 (after G20-RENDER + 25 Phases 1–2 + 12 + 45 Phase 1).
+28. docs/plans/47-editor-loop-selection.md Phases 2–4 (editor loop-selection state and persistence, ruler drag surface with grid snap, engagement/wrap semantics; no game gates — Phase 1 already runs as Stage 1 item 5, and docs/plans/28-practice-mode.md Phase 2 consumes the landed backend, reducing to test extension).
 
 **Stage 7 — Deferred**
-28. docs/plans/28-practice-mode.md (G28-STRETCH spike first; its one NOW requirement — speed factor + loop-seek in the interfaces — is already delegated to 21 Phase 1 / 47 Phase 1 (whichever executes first) and 12).
-29. docs/plans/29-online-leaderboards.md (G29-STABILITY + hosting/identity/licensing sign-off).
+29. docs/plans/28-practice-mode.md (G28-STRETCH spike first; its one NOW requirement — speed factor + loop-seek in the interfaces — is already delegated to 21 Phase 1 / 47 Phase 1 (whichever executes first) and 12).
+30. docs/plans/29-online-leaderboards.md (G29-STABILITY + hosting/identity/licensing sign-off).
 
 ---
 
