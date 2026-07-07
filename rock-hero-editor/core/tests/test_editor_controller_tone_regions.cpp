@@ -293,4 +293,33 @@ TEST_CASE(
     CHECK(editor.live_rig.mint_call_count == 1);
 }
 
+TEST_CASE("EditorController resets the sole tone region on delete", "[core][editor-controller]")
+{
+    LoadedToneEditor editor{makeSingleRegionSong()};
+    REQUIRE(editor.regions().size() == 1);
+    const std::string only_id = editor.regions().front().id;
+    editor.live_rig.next_mint_ref = g_minted_ref;
+    const int loads_before = editor.live_rig.load_call_count;
+
+    editor.controller.onToneRegionDeleteRequested(only_id);
+
+    // Coverage is preserved: the region stays but is repointed to a fresh empty "Default" tone.
+    REQUIRE(editor.regions().size() == 1);
+    CHECK(editor.regions().front().id == only_id);
+    CHECK(editor.regions().front().tone_document_ref == g_minted_ref);
+    CHECK(common::core::toneNameFor(editor.arrangement(), g_minted_ref) == "Default");
+    CHECK(editor.live_rig.mint_call_count == 1);
+    CHECK(editor.live_rig.load_call_count == loads_before + 1);
+
+    // Undo restores the region's previous tone and name.
+    editor.controller.onUndoRequested();
+    CHECK(editor.regions().front().tone_document_ref == g_tone_document_ref);
+    CHECK(common::core::toneNameFor(editor.arrangement(), g_tone_document_ref) == "Clean");
+
+    // Redo re-applies the reset.
+    editor.controller.onRedoRequested();
+    CHECK(editor.regions().front().tone_document_ref == g_minted_ref);
+    CHECK(common::core::toneNameFor(editor.arrangement(), g_minted_ref) == "Default");
+}
+
 } // namespace rock_hero::editor::core

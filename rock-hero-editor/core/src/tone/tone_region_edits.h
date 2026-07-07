@@ -354,4 +354,67 @@ struct [[nodiscard]] ToneCreateWithNewToneEdit final : IEdit
     std::string name;
 };
 
+/*!
+\brief Inverse-command edit for resetting the sole tone region: repoints it (and its catalog entry)
+between the previous tone and a fresh empty "Default" tone.
+
+Purely a model edit. The freshly minted document file and both rig branches are left in place across
+undo/redo; the model stays the source of truth for the next full rig reload.
+*/
+struct [[nodiscard]] ToneResetEdit final : IEdit
+{
+    /*!
+    \brief Captures the reset of the sole region to a fresh empty tone.
+    \param region_id_value Id of the sole region being reset.
+    \param before_ref_value Tone the region referenced before the reset.
+    \param before_name_value Catalog name of that tone before the reset.
+    \param after_ref_value Freshly minted empty tone the region references after the reset.
+    */
+    ToneResetEdit(
+        std::string region_id_value, std::string before_ref_value, std::string before_name_value,
+        std::string after_ref_value)
+        : region_id(std::move(region_id_value))
+        , before_ref(std::move(before_ref_value))
+        , before_name(std::move(before_name_value))
+        , after_ref(std::move(after_ref_value))
+    {}
+
+    /*!
+    \brief Repoints the region and its catalog entry back to the previous tone.
+    \param context Apply-time editor/audio dependencies.
+    \return Empty success, or the non-commit failure that should abort the transition.
+    */
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> undo(
+        EditorEditContext& context) const override;
+
+    /*!
+    \brief Repoints the region and its catalog entry to the fresh empty "Default" tone.
+    \param context Apply-time editor/audio dependencies.
+    \return Empty success, or the non-commit failure that should abort the transition.
+    */
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> redo(
+        EditorEditContext& context) const override;
+
+    /*! \brief Returns the user-visible command label for menus and diagnostics.
+    \return Human-readable label for the reset. */
+    [[nodiscard]] std::string label() const override;
+
+    /*! \brief Id of the sole region being reset. */
+    std::string region_id;
+
+    /*! \brief Tone the region referenced before the reset. */
+    std::string before_ref;
+
+    /*! \brief Catalog name of that tone before the reset. */
+    std::string before_name;
+
+    /*! \brief Freshly minted empty tone the region references after the reset. */
+    std::string after_ref;
+
+private:
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> applyReset(
+        EditorEditContext& context, const std::string& region_ref, const std::string& catalog_from,
+        const std::string& catalog_to, const std::string& catalog_name) const;
+};
+
 } // namespace rock_hero::editor::core
