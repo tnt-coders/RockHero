@@ -295,4 +295,63 @@ private:
         EditorEditContext& context, common::core::ToneGridPosition position) const;
 };
 
+/*!
+\brief Inverse-command edit for creating a new tone: removes the catalog tone and its region on
+undo, and recreates both on redo.
+
+Purely a model edit. The minted tone document file and the rig branch it loads into are left in
+place across undo/redo; the branch is unselected and harmless, and the model stays the source of
+truth for the next full rig reload.
+*/
+struct [[nodiscard]] ToneCreateWithNewToneEdit final : IEdit
+{
+    /*!
+    \brief Captures a new-tone creation (a catalog entry plus the split region referencing it).
+    \param at_value Grid position at which the region was split.
+    \param new_region_id_value Id minted for the region beginning at \p at_value.
+    \param tone_document_ref_value Freshly minted tone the new region and catalog entry reference.
+    \param name_value User-facing name given to the new tone.
+    */
+    ToneCreateWithNewToneEdit(
+        common::core::ToneGridPosition at_value, std::string new_region_id_value,
+        std::string tone_document_ref_value, std::string name_value)
+        : at(at_value)
+        , new_region_id(std::move(new_region_id_value))
+        , tone_document_ref(std::move(tone_document_ref_value))
+        , name(std::move(name_value))
+    {}
+
+    /*!
+    \brief Removes the created region and its catalog tone.
+    \param context Apply-time editor/audio dependencies.
+    \return Empty success, or the non-commit failure that should abort the transition.
+    */
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> undo(
+        EditorEditContext& context) const override;
+
+    /*!
+    \brief Recreates the split region and re-adds its catalog tone.
+    \param context Apply-time editor/audio dependencies.
+    \return Empty success, or the non-commit failure that should abort the transition.
+    */
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> redo(
+        EditorEditContext& context) const override;
+
+    /*! \brief Returns the user-visible command label for menus and diagnostics.
+    \return Human-readable label naming the new tone. */
+    [[nodiscard]] std::string label() const override;
+
+    /*! \brief Grid position at which the region was split. */
+    common::core::ToneGridPosition at;
+
+    /*! \brief Id minted for the region beginning at the marker. */
+    std::string new_region_id;
+
+    /*! \brief Freshly minted tone the new region and catalog entry reference. */
+    std::string tone_document_ref;
+
+    /*! \brief User-facing name given to the new tone. */
+    std::string name;
+};
+
 } // namespace rock_hero::editor::core

@@ -218,6 +218,13 @@ public:
         last_boundary_position = position;
     }
 
+    /*! \copydoc IEditorController::onToneCreateNewRequested */
+    void onToneCreateNewRequested(common::core::ToneGridPosition at, std::string name) override
+    {
+        last_create_new_tone_at = at;
+        last_create_new_tone_name = std::move(name);
+    }
+
     /*!
     \brief Records the view-reported timeline zoom.
     \param pixels_per_second Reported horizontal timeline scale.
@@ -506,6 +513,12 @@ public:
 
     /*! \brief Last boundary position reported through onToneBoundaryMoveRequested(). */
     common::core::ToneGridPosition last_boundary_position{};
+
+    /*! \brief Last position reported through onToneCreateNewRequested(). */
+    common::core::ToneGridPosition last_create_new_tone_at{};
+
+    /*! \brief Last name reported through onToneCreateNewRequested(). */
+    std::string last_create_new_tone_name{};
 
     /*! \brief Last timeline zoom reported through onTimelineZoomChanged(). */
     std::optional<double> last_timeline_zoom_pixels_per_second{};

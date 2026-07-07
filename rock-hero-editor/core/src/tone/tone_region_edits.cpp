@@ -229,4 +229,57 @@ std::expected<void, EditorUndoFailureCode> ToneBoundaryMoveEdit::applyBoundary(
     return std::expected<void, EditorUndoFailureCode>{};
 }
 
+std::expected<void, EditorUndoFailureCode> ToneCreateWithNewToneEdit::undo(
+    EditorEditContext& context) const
+{
+    common::core::ToneTrack* const tone_track = context.session.currentToneTrack();
+    std::vector<common::core::Tone>* const catalog = context.session.currentToneCatalog();
+    if (tone_track == nullptr || catalog == nullptr)
+    {
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+    }
+
+    // Remove the created region first (merging its span back into its predecessor), then drop the
+    // catalog tone this edit added. The minted document file is intentionally left in place.
+    if (!deleteToneRegion(*tone_track, new_region_id).has_value())
+    {
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+    }
+    std::erase_if(*catalog, [this](const common::core::Tone& tone) {
+        return tone.tone_document_ref == tone_document_ref;
+    });
+    return std::expected<void, EditorUndoFailureCode>{};
+}
+
+std::expected<void, EditorUndoFailureCode> ToneCreateWithNewToneEdit::redo(
+    EditorEditContext& context) const
+{
+    common::core::ToneTrack* const tone_track = context.session.currentToneTrack();
+    std::vector<common::core::Tone>* const catalog = context.session.currentToneCatalog();
+    if (tone_track == nullptr || catalog == nullptr)
+    {
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+    }
+
+    // Recreate the split region first, then re-add the catalog tone it references.
+    if (!createToneRegion(*tone_track, at, new_region_id, tone_document_ref).has_value())
+    {
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+    }
+    const bool has_tone = std::ranges::any_of(*catalog, [this](const common::core::Tone& tone) {
+        return tone.tone_document_ref == tone_document_ref;
+    });
+    if (!has_tone)
+    {
+        catalog->push_back(
+            common::core::Tone{.tone_document_ref = tone_document_ref, .name = name});
+    }
+    return std::expected<void, EditorUndoFailureCode>{};
+}
+
+std::string ToneCreateWithNewToneEdit::label() const
+{
+    return "Add " + (name.empty() ? std::string{"Tone"} : name);
+}
+
 } // namespace rock_hero::editor::core

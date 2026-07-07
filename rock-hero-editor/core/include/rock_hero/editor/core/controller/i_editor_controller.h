@@ -205,6 +205,17 @@ public:
     virtual void onToneBoundaryMoveRequested(
         std::string right_region_id, common::core::ToneGridPosition position) = 0;
 
+    /*!
+    \brief Handles a request to create a new empty tone at a grid position.
+
+    Mints a fresh empty tone, splits the region under \p at so the part after the marker references
+    the new tone, and reloads the rig so the tone becomes audible and editable.
+
+    \param at Grid position at which the new tone begins; must fall strictly inside a region.
+    \param name User-facing name for the new tone.
+    */
+    virtual void onToneCreateNewRequested(common::core::ToneGridPosition at, std::string name) = 0;
+
     /*! \brief Handles a request to show the scanned plugin browser. */
     virtual void onPluginBrowserRequested() = 0;
 
