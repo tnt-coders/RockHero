@@ -791,7 +791,13 @@ void Engine::Impl::refreshPluginEditObservers(
             [](tracktion::ExternalPlugin& observed_plugin)
                 -> std::expected<PluginInstanceState, PluginHostError> {
                 observed_plugin.flushPluginStateToValueTree();
-                auto state = makePluginInstanceState(observed_plugin.state.createCopy());
+                // Strip automation curves so the dirty tracker's baseline and comparisons stay
+                // curve-agnostic: curve edits already skip this tracker (curveHasChanged is a no-op),
+                // and keeping curves out of its states makes the plugin-parameter and
+                // tone-automation undo domains fully disjoint.
+                juce::ValueTree captured_state = observed_plugin.state.createCopy();
+                stripAutomationCurves(captured_state);
+                auto state = makePluginInstanceState(captured_state);
                 if (!state.has_value())
                 {
                     return std::unexpected{std::move(state.error())};
