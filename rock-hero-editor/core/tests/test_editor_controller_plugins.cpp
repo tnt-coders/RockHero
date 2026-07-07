@@ -1407,7 +1407,6 @@ TEST_CASE("EditorController mints the tone baseline at load", "[core][editor-con
     CHECK(live_rig.last_mint_song_directory == std::filesystem::path{"song"});
     const common::core::Arrangement* const arrangement = controller.session().currentArrangement();
     REQUIRE(arrangement != nullptr);
-    CHECK(arrangement->tone_document_ref == g_minted_tone_ref);
     REQUIRE(arrangement->tones.size() == 1);
     CHECK(arrangement->tones.front().tone_document_ref == g_minted_tone_ref);
     CHECK(arrangement->tones.front().name == "Default");

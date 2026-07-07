@@ -85,9 +85,14 @@ TEST_CASE("Tone track projection marks the selected region", "[core][tone]")
 TEST_CASE("Tone track projection renders nothing without explicit regions", "[core][tone]")
 {
     // The load baseline guarantees explicit regions, so a region-less arrangement (only possible
-    // outside a loaded session) draws no synthetic content.
+    // outside a loaded session) draws no synthetic content even with a cataloged tone.
     common::core::Arrangement arrangement = makeArrangement();
-    arrangement.tone_document_ref = "tones/9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d/tone.json";
+    arrangement.tones = {
+        common::core::Tone{
+            .tone_document_ref = "tones/9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d/tone.json",
+            .name = "Default",
+        },
+    };
 
     const ToneTrackViewState state =
         toneTrackViewStateFor(arrangement, makeTempoMap(), std::string{});

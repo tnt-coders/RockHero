@@ -17,7 +17,7 @@ TEST_CASE("Arrangement default construction is lead unrated", "[core][arrangemen
     CHECK(difficultyTier(arrangement.difficulty) == DifficultyTier::Unknown);
     CHECK(arrangement.audio_asset.path.empty());
     CHECK(arrangement.audio_duration == TimeDuration{});
-    CHECK(arrangement.tone_document_ref.empty());
+    CHECK(arrangement.tones.empty());
 }
 
 // Verifies arrangements own playable route audio and tone metadata intact.
@@ -31,7 +31,7 @@ TEST_CASE("Arrangement holds playable route data", "[core][arrangement]")
         .path = std::filesystem::path{"lead.wav"}, .normalization = std::nullopt, .start_offset = {}
     };
     arr.audio_duration = TimeDuration{12.0};
-    arr.tone_document_ref = "tone/lead.json";
+    arr.tones = {Tone{.tone_document_ref = "tones/lead/tone.json", .name = "Lead"}};
 
     CHECK(arr.id == "lead");
     CHECK(arr.part == Part::Lead);
@@ -39,7 +39,7 @@ TEST_CASE("Arrangement holds playable route data", "[core][arrangement]")
     CHECK(difficultyTier(arr.difficulty) == DifficultyTier::Expert);
     CHECK(arr.audio_asset.path == std::filesystem::path{"lead.wav"});
     CHECK(arr.audio_duration == TimeDuration{12.0});
-    CHECK(arr.tone_document_ref == "tone/lead.json");
+    CHECK(toneNameFor(arr, "tones/lead/tone.json") == "Lead");
     CHECK(
         arr.audioTimelineRange() == TimeRange{
                                         .start = TimePosition{},

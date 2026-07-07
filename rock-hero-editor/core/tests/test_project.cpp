@@ -423,7 +423,6 @@ public:
             .audio_asset =
                 AudioAsset{.path = audio_path, .normalization = std::nullopt, .start_offset = {}},
             .audio_duration = TimeDuration{},
-            .tone_document_ref = {},
             .tones = {},
             .tone_track = {},
             .tone_automation = {},
