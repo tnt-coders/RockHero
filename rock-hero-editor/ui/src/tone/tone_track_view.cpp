@@ -22,7 +22,6 @@ const juce::Colour g_tone_region_border{editorTheme().accent.withAlpha(0.65f)};
 const juce::Colour g_tone_region_selected_fill{juce::Colour{0xff35597a}};
 const juce::Colour g_tone_region_selected_border{editorTheme().accent};
 const juce::Colour g_tone_region_label{juce::Colours::white.withAlpha(0.92f)};
-// The synthesized legacy-default region reads as a passive continuation, not authored content.
 
 // Region names may be empty in the data model; the row still labels every region.
 [[nodiscard]] juce::String regionLabel(const core::ToneRegionViewState& region)
