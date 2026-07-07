@@ -1,4 +1,6 @@
-﻿#include <algorithm>
+﻿#include "live_rig/tone_document.h"
+
+#include <algorithm>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <concepts>
@@ -232,12 +234,6 @@ public:
 private:
     std::filesystem::path m_path;
 };
-
-// Extracts the tone ID segment from tones/<tone-id>/tone.json.
-[[nodiscard]] std::string toneIdFromRef(const std::string& tone_document_ref)
-{
-    return std::filesystem::path{tone_document_ref}.parent_path().filename().generic_string();
-}
 
 // Encodes a small Tracktion plugin-state XML fixture into the port's opaque memento shape.
 [[nodiscard]] PluginInstanceState pluginStateFromXml(std::string_view xml)
@@ -611,7 +607,6 @@ TEST_CASE("Engine plugin host rejects missing recreated plugin", "[audio][engine
         LiveRigCaptureRequest{
             .song_directory = song_directory.path(),
             .arrangement_id = g_arrangement_id,
-            .existing_tone_document_ref = {},
             .block_indices = {},
             .display_type_overrides = {},
 
@@ -699,12 +694,35 @@ TEST_CASE("Engine live rig loads tone without clearing input gain", "[audio][eng
     ILiveRig& live_rig = harness.engine;
     ILiveInput& live_input = harness.engine;
 
+    // Load a real minted tone, author a gain on it, and capture so the branch document carries
+    // that gain; a rig-less capture writes nothing under the all-branch capture model.
+    const auto minted = live_rig.mintEmptyTone(song_directory.path());
+    REQUIRE(minted.has_value());
+    std::optional<std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>>
+        first_load;
+    live_rig.loadLiveRig(
+        LiveRigLoadRequest{
+            .song_directory = song_directory.path(),
+            .tone_document_refs = {*minted},
+            .audible_tone_ref = {},
+            .progress_callback = {},
+            .yield_callback = [](const auto& next) { next(); },
+        },
+        [&first_load](auto value) { first_load = std::move(value); });
+    REQUIRE(first_load.has_value());
+    // clang-tidy does not treat Catch2 REQUIRE as an optional guard, so assert engagement
+    // explicitly before dereferencing.
+    if (!first_load.has_value())
+    {
+        return;
+    }
+    REQUIRE(first_load->has_value());
+
     REQUIRE(live_rig.setOutputGain(Gain{-9.0}).has_value());
     const auto snapshot = live_rig.captureActiveRig(
         LiveRigCaptureRequest{
             .song_directory = song_directory.path(),
             .arrangement_id = g_arrangement_id,
-            .existing_tone_document_ref = {},
             .block_indices = {},
             .display_type_overrides = {},
 
@@ -720,7 +738,7 @@ TEST_CASE("Engine live rig loads tone without clearing input gain", "[audio][eng
     live_rig.loadLiveRig(
         LiveRigLoadRequest{
             .song_directory = song_directory.path(),
-            .tone_document_refs = {snapshot->tone_document_ref},
+            .tone_document_refs = {*minted},
             .audible_tone_ref = {},
             .progress_callback = {},
             .yield_callback = [](const auto& next) { next(); },
@@ -760,7 +778,6 @@ TEST_CASE("Engine live rig output gain persists through capture", "[audio][engin
         LiveRigCaptureRequest{
             .song_directory = song_directory.path(),
             .arrangement_id = g_arrangement_id,
-            .existing_tone_document_ref = {},
             .block_indices = {},
             .display_type_overrides = {},
 
@@ -789,37 +806,60 @@ TEST_CASE(
     CHECK(live_rig.outputGain().db == Catch::Approx(minimumGainDb()));
 }
 
-// Verifies new live rig captures use co-located UUID tone document folders.
-TEST_CASE("Engine live rig captures UUID tone refs", "[audio][engine][integration]")
+// Verifies capture rewrites every loaded branch's document, not just the audible one, and routes
+// the structural output gain to the audible branch while others keep their retained gain.
+TEST_CASE("Engine live rig captures every loaded tone branch", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
     const TemporarySongDirectory song_directory;
     ILiveRig& live_rig = harness.engine;
 
+    const auto first_ref = live_rig.mintEmptyTone(song_directory.path());
+    const auto second_ref = live_rig.mintEmptyTone(song_directory.path());
+    REQUIRE(first_ref.has_value());
+    REQUIRE(second_ref.has_value());
+
+    std::optional<std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>>
+        loaded;
+    live_rig.loadLiveRig(
+        LiveRigLoadRequest{
+            .song_directory = song_directory.path(),
+            .tone_document_refs = {*first_ref, *second_ref},
+            .audible_tone_ref = *first_ref,
+            .progress_callback = {},
+            .yield_callback = [](const auto& next) { next(); },
+        },
+        [&loaded](auto value) { loaded = std::move(value); });
+    REQUIRE(loaded.has_value());
+    // clang-tidy does not treat Catch2 REQUIRE as an optional guard, so assert engagement
+    // explicitly before dereferencing.
+    if (!loaded.has_value())
+    {
+        return;
+    }
+    REQUIRE(loaded->has_value());
+
+    // Author a gain on the audible (first) tone, then capture: both documents must be rewritten,
+    // the first carrying the authored gain and the second keeping its minted unity gain.
+    REQUIRE(live_rig.setOutputGain(Gain{-6.0}).has_value());
     const auto snapshot = live_rig.captureActiveRig(
         LiveRigCaptureRequest{
             .song_directory = song_directory.path(),
             .arrangement_id = g_arrangement_id,
-            .existing_tone_document_ref = {},
             .block_indices = {},
             .display_type_overrides = {},
 
             .stable_ids = {},
         });
-
-    if (!snapshot.has_value())
-    {
-        FAIL(
-            "capture failed with code " << static_cast<int>(snapshot.error().code) << ": "
-                                        << snapshot.error().message);
-    }
     REQUIRE(snapshot.has_value());
-    const std::string& tone_document_ref = snapshot->tone_document_ref;
-    const std::string tone_id = toneIdFromRef(tone_document_ref);
-    CHECK(snapshot->plugins.empty());
-    CHECK(common::core::isCanonicalPackageId(tone_id));
-    CHECK(tone_document_ref == "tones/" + tone_id + "/tone.json");
-    CHECK(std::filesystem::is_regular_file(song_directory.path() / tone_document_ref));
+    CHECK(snapshot->output_gain.db == Catch::Approx(-6.0));
+
+    const auto first_document = readToneDocument(song_directory.path(), *first_ref);
+    const auto second_document = readToneDocument(song_directory.path(), *second_ref);
+    REQUIRE(first_document.has_value());
+    REQUIRE(second_document.has_value());
+    CHECK(first_document->output_gain.db == Catch::Approx(-6.0));
+    CHECK(second_document->output_gain.db == Catch::Approx(defaultGainDb()));
 }
 
 // Verifies the single Tracktion arrangement track can replace its loaded audio.
