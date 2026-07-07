@@ -11,7 +11,9 @@
 #include <fstream>
 #include <functional>
 #include <juce_audio_devices/juce_audio_devices.h>
+#include <map>
 #include <optional>
+#include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <rock_hero/common/audio/device/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/input/i_live_input.h>
 #include <rock_hero/common/audio/input/input_calibration_state.h>
@@ -37,6 +39,7 @@
 #include <rock_hero/editor/core/testing/immediate_message_thread_scheduler.h>
 #include <rock_hero/editor/core/testing/null_editor_settings.h>
 #include <rock_hero/editor/core/testing/recording_editor_controller.h>
+#include <span>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -772,6 +775,81 @@ struct FakeLiveRig final : public common::audio::ILiveRig
 }
 
 /*!
+\brief Configurable, recording fake for the tone parameter automation port.
+
+Stores written curves keyed by (tone, instance, parameter) so writes round-trip through reads, and
+serves a configurable parameter list for picker tests.
+*/
+struct FakeToneAutomation final : public common::audio::IToneAutomation
+{
+    // Returns the configured parameter list while recording the queried tone.
+    [[nodiscard]] std::expected<
+        std::vector<common::audio::AutomatableParamInfo>, common::audio::ToneAutomationError>
+    listAutomatableParameters(const std::string& tone_document_ref) const override
+    {
+        last_listed_tone_ref = tone_document_ref;
+        return parameters;
+    }
+
+    // Returns the stored curve for the key, or an empty curve when none was written.
+    [[nodiscard]] std::expected<
+        std::vector<common::audio::AutomationCurvePoint>, common::audio::ToneAutomationError>
+    readParameterCurve(
+        const std::string& tone_document_ref, const std::string& instance_id,
+        const std::string& param_id) const override
+    {
+        const auto entry = curves.find(curveKey(tone_document_ref, instance_id, param_id));
+        if (entry == curves.end())
+        {
+            return std::vector<common::audio::AutomationCurvePoint>{};
+        }
+        return entry->second;
+    }
+
+    // Stores the supplied points so a later read returns them, while recording the write.
+    [[nodiscard]] std::expected<void, common::audio::ToneAutomationError> writeParameterCurve(
+        const std::string& tone_document_ref, const std::string& instance_id,
+        const std::string& param_id,
+        std::span<const common::audio::AutomationCurvePoint> points) override
+    {
+        write_call_count += 1;
+        curves[curveKey(tone_document_ref, instance_id, param_id)] =
+            std::vector<common::audio::AutomationCurvePoint>{points.begin(), points.end()};
+        return {};
+    }
+
+    // Joins a lane's identity into a single map key.
+    [[nodiscard]] static std::string curveKey(
+        const std::string& tone_document_ref, const std::string& instance_id,
+        const std::string& param_id)
+    {
+        return tone_document_ref + '|' + instance_id + '|' + param_id;
+    }
+
+    /*! \brief Parameter list returned by listAutomatableParameters. */
+    std::vector<common::audio::AutomatableParamInfo> parameters;
+
+    /*! \brief Stored curves keyed by curveKey(); writes update these and reads return them. */
+    std::map<std::string, std::vector<common::audio::AutomationCurvePoint>> curves;
+
+    /*! \brief Tone reference from the most recent listAutomatableParameters call. */
+    mutable std::string last_listed_tone_ref;
+
+    /*! \brief Number of writeParameterCurve calls received. */
+    int write_call_count = 0;
+};
+
+/*!
+\brief Supplies a default tone-automation port for tests that do not care about automation behavior.
+\return Process-lifetime fake tone automation.
+*/
+[[nodiscard]] inline FakeToneAutomation& defaultToneAutomation()
+{
+    static FakeToneAutomation g_tone_automation;
+    return g_tone_automation;
+}
+
+/*!
 \brief Builds the controller audio-port bundle used by most tests.
 
 FakeTransport also implements the live-input port, which preserves the old test composition while
@@ -790,6 +868,7 @@ keeping construction explicit.
         .audio_devices = defaultAudioDevices(),
         .plugin_host = defaultPluginHost(),
         .live_rig = defaultLiveRig(),
+        .tone_automation = defaultToneAutomation(),
         .live_input = transport,
     };
 }
@@ -811,6 +890,7 @@ keeping construction explicit.
         .audio_devices = audio_devices,
         .plugin_host = defaultPluginHost(),
         .live_rig = defaultLiveRig(),
+        .tone_automation = defaultToneAutomation(),
         .live_input = transport,
     };
 }
@@ -831,6 +911,7 @@ keeping construction explicit.
         .audio_devices = defaultAudioDevices(),
         .plugin_host = plugin_host,
         .live_rig = defaultLiveRig(),
+        .tone_automation = defaultToneAutomation(),
         .live_input = transport,
     };
 }
@@ -853,6 +934,7 @@ keeping construction explicit.
         .audio_devices = defaultAudioDevices(),
         .plugin_host = plugin_host,
         .live_rig = live_rig,
+        .tone_automation = defaultToneAutomation(),
         .live_input = transport,
     };
 }
@@ -875,6 +957,7 @@ keeping construction explicit.
         .audio_devices = audio_devices,
         .plugin_host = plugin_host,
         .live_rig = defaultLiveRig(),
+        .tone_automation = defaultToneAutomation(),
         .live_input = transport,
     };
 }
@@ -899,6 +982,7 @@ keeping construction explicit.
         .audio_devices = audio_devices,
         .plugin_host = plugin_host,
         .live_rig = live_rig,
+        .tone_automation = defaultToneAutomation(),
         .live_input = transport,
     };
 }

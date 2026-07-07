@@ -17,6 +17,7 @@ namespace rock_hero::common::audio
 {
 class ILiveRig;
 class IPluginHost;
+class IToneAutomation;
 } // namespace rock_hero::common::audio
 
 namespace rock_hero::common::core
@@ -87,6 +88,9 @@ struct [[nodiscard]] EditorEditContext
 
     /*! \brief Live-rig boundary used by output-gain edits. */
     common::audio::ILiveRig& live_rig;
+
+    /*! \brief Tone parameter automation boundary used by tone-automation curve edits. */
+    common::audio::IToneAutomation& tone_automation;
 
     /*! \brief Controller-owned output-gain mirror refreshed after output-gain undo/redo. */
     double& output_gain_db;
