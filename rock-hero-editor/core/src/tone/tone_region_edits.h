@@ -93,15 +93,15 @@ struct [[nodiscard]] ToneRegionCreateEdit final : IEdit
 {
     /*!
     \brief Captures the split introduced by a tone-region create.
-    \param at_value Grid position at which the region was split.
-    \param new_region_id_value Id minted for the region beginning at \p at_value.
+    \param position_value Grid position at which the region was split.
+    \param new_region_id_value Id minted for the region beginning at \p position_value.
     \param tone_document_ref_value Catalog tone the new region references.
     \param tone_name_value User-facing tone name used for the undo label.
     */
     ToneRegionCreateEdit(
-        common::core::ToneGridPosition at_value, std::string new_region_id_value,
+        common::core::ToneGridPosition position_value, std::string new_region_id_value,
         std::string tone_document_ref_value, std::string tone_name_value)
-        : at(at_value)
+        : position(position_value)
         , new_region_id(std::move(new_region_id_value))
         , tone_document_ref(std::move(tone_document_ref_value))
         , tone_name(std::move(tone_name_value))
@@ -128,7 +128,7 @@ struct [[nodiscard]] ToneRegionCreateEdit final : IEdit
     [[nodiscard]] std::string label() const override;
 
     /*! \brief Grid position at which the region was split. */
-    common::core::ToneGridPosition at;
+    common::core::ToneGridPosition position;
 
     /*! \brief Id minted for the region beginning at the marker. */
     std::string new_region_id;
@@ -307,15 +307,15 @@ struct [[nodiscard]] ToneCreateWithNewToneEdit final : IEdit
 {
     /*!
     \brief Captures a new-tone creation (a catalog entry plus the split region referencing it).
-    \param at_value Grid position at which the region was split.
-    \param new_region_id_value Id minted for the region beginning at \p at_value.
+    \param position_value Grid position at which the region was split.
+    \param new_region_id_value Id minted for the region beginning at \p position_value.
     \param tone_document_ref_value Freshly minted tone the new region and catalog entry reference.
     \param name_value User-facing name given to the new tone.
     */
     ToneCreateWithNewToneEdit(
-        common::core::ToneGridPosition at_value, std::string new_region_id_value,
+        common::core::ToneGridPosition position_value, std::string new_region_id_value,
         std::string tone_document_ref_value, std::string name_value)
-        : at(at_value)
+        : position(position_value)
         , new_region_id(std::move(new_region_id_value))
         , tone_document_ref(std::move(tone_document_ref_value))
         , name(std::move(name_value))
@@ -342,7 +342,7 @@ struct [[nodiscard]] ToneCreateWithNewToneEdit final : IEdit
     [[nodiscard]] std::string label() const override;
 
     /*! \brief Grid position at which the region was split. */
-    common::core::ToneGridPosition at;
+    common::core::ToneGridPosition position;
 
     /*! \brief Id minted for the region beginning at the marker. */
     std::string new_region_id;

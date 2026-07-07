@@ -292,7 +292,7 @@ private:
     void createToneMarkerAtPlayhead();
 
     /*! \brief Prompts for a name and asks the controller to create a new tone at the marker. */
-    void promptForNewTone(common::core::ToneGridPosition at);
+    void promptForNewTone(common::core::ToneGridPosition position);
 
     /*! \brief Shows a modal single-field text prompt, invoking on_accept with the entered text. */
     void promptForText(

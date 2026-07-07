@@ -165,16 +165,16 @@ public:
     /*!
     \brief Handles a request to insert a tone-change region at a grid position.
 
-    Splits the region under \p at so the earlier tone runs up to the marker and the new region
+    Splits the region under \p position so the earlier tone runs up to the marker and the new region
     covers the remainder. The new region references an existing catalog tone; minting a fresh tone
     is a separate step the caller performs before issuing this request.
 
-    \param at Grid position at which the tone changes; must fall strictly inside a region.
-    \param new_region_id Canonical id minted for the new region beginning at \p at.
+    \param position Grid position at which the tone changes; must fall strictly inside a region.
+    \param new_region_id Canonical id minted for the new region beginning at \p position.
     \param tone_document_ref Existing catalog tone the new region references.
     */
     virtual void onToneRegionCreateRequested(
-        common::core::ToneGridPosition at, std::string new_region_id,
+        common::core::ToneGridPosition position, std::string new_region_id,
         std::string tone_document_ref) = 0;
 
     /*!
@@ -208,13 +208,14 @@ public:
     /*!
     \brief Handles a request to create a new empty tone at a grid position.
 
-    Mints a fresh empty tone, splits the region under \p at so the part after the marker references
-    the new tone, and reloads the rig so the tone becomes audible and editable.
+    Mints a fresh empty tone, splits the region under \p position so the part after the marker
+    references the new tone, and reloads the rig so the tone becomes audible and editable.
 
-    \param at Grid position at which the new tone begins; must fall strictly inside a region.
+    \param position Grid position at which the new tone begins; must fall strictly inside a region.
     \param name User-facing name for the new tone.
     */
-    virtual void onToneCreateNewRequested(common::core::ToneGridPosition at, std::string name) = 0;
+    virtual void onToneCreateNewRequested(
+        common::core::ToneGridPosition position, std::string name) = 0;
 
     /*! \brief Handles a request to show the scanned plugin browser. */
     virtual void onPluginBrowserRequested() = 0;

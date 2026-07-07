@@ -189,10 +189,10 @@ public:
 
     /*! \copydoc IEditorController::onToneRegionCreateRequested */
     void onToneRegionCreateRequested(
-        common::core::ToneGridPosition at, std::string new_region_id,
+        common::core::ToneGridPosition position, std::string new_region_id,
         std::string tone_document_ref) override
     {
-        last_created_tone_region_at = at;
+        last_created_tone_region_position = position;
         last_created_tone_region_id = std::move(new_region_id);
         last_created_tone_document_ref = std::move(tone_document_ref);
     }
@@ -219,9 +219,10 @@ public:
     }
 
     /*! \copydoc IEditorController::onToneCreateNewRequested */
-    void onToneCreateNewRequested(common::core::ToneGridPosition at, std::string name) override
+    void onToneCreateNewRequested(
+        common::core::ToneGridPosition position, std::string name) override
     {
-        last_create_new_tone_at = at;
+        last_create_new_tone_position = position;
         last_create_new_tone_name = std::move(name);
     }
 
@@ -491,7 +492,7 @@ public:
     common::core::ToneGridPosition last_tone_region_end{};
 
     /*! \brief Last marker position reported through onToneRegionCreateRequested(). */
-    common::core::ToneGridPosition last_created_tone_region_at{};
+    common::core::ToneGridPosition last_created_tone_region_position{};
 
     /*! \brief Last new region id reported through onToneRegionCreateRequested(). */
     std::string last_created_tone_region_id{};
@@ -515,7 +516,7 @@ public:
     common::core::ToneGridPosition last_boundary_position{};
 
     /*! \brief Last position reported through onToneCreateNewRequested(). */
-    common::core::ToneGridPosition last_create_new_tone_at{};
+    common::core::ToneGridPosition last_create_new_tone_position{};
 
     /*! \brief Last name reported through onToneCreateNewRequested(). */
     std::string last_create_new_tone_name{};

@@ -33,12 +33,14 @@ namespace
 } // namespace
 
 std::expected<void, ToneTrackError> createToneRegion(
-    ToneTrack& tone_track, ToneGridPosition at, std::string new_region_id,
+    ToneTrack& tone_track, ToneGridPosition position, std::string new_region_id,
     std::string new_tone_document_ref)
 {
-    const auto container = std::ranges::find_if(tone_track.regions, [at](const ToneRegion& region) {
-        return gridPositionLess(region.start, at) && gridPositionLess(at, region.end);
-    });
+    const auto container =
+        std::ranges::find_if(tone_track.regions, [position](const ToneRegion& region) {
+            return gridPositionLess(region.start, position) &&
+                   gridPositionLess(position, region.end);
+        });
     if (container == tone_track.regions.end())
     {
         return std::unexpected{ToneTrackError{
@@ -51,11 +53,11 @@ std::expected<void, ToneTrackError> createToneRegion(
     // it immediately after so the track stays sorted and gap-free.
     ToneRegion new_region{
         .id = std::move(new_region_id),
-        .start = at,
+        .start = position,
         .end = container->end,
         .tone_document_ref = std::move(new_tone_document_ref),
     };
-    container->end = at;
+    container->end = position;
     tone_track.regions.insert(std::next(container), std::move(new_region));
     return {};
 }

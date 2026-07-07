@@ -263,20 +263,21 @@ struct EditorAction
     {
         /*!
         \brief Creates a tone-region create action.
-        \param at_value Grid position at which the tone changes; must fall strictly inside a region.
-        \param new_region_id_value Canonical id minted for the new region beginning at \p at_value.
+        \param position_value Grid position at which the tone changes; must fall strictly inside a
+        region.
+        \param new_region_id_value Canonical id minted for the new region beginning at the marker.
         \param tone_document_ref_value Existing catalog tone the new region references.
         */
         CreateToneRegion(
-            common::core::ToneGridPosition at_value, std::string new_region_id_value,
+            common::core::ToneGridPosition position_value, std::string new_region_id_value,
             std::string tone_document_ref_value)
-            : at(at_value)
+            : position(position_value)
             , new_region_id(std::move(new_region_id_value))
             , tone_document_ref(std::move(tone_document_ref_value))
         {}
 
         /*! \brief Grid position at which the tone changes. */
-        common::core::ToneGridPosition at;
+        common::core::ToneGridPosition position;
 
         /*! \brief Canonical id minted for the new region beginning at the marker. */
         std::string new_region_id;
@@ -346,17 +347,17 @@ struct EditorAction
     {
         /*!
         \brief Creates a new-tone action.
-        \param at_value Grid position at which the new tone begins; must fall strictly inside a
+        \param position_value Grid position at which the new tone begins; must fall strictly inside a
         region.
         \param name_value User-facing name for the new tone.
         */
-        CreateNewTone(common::core::ToneGridPosition at_value, std::string name_value)
-            : at(at_value)
+        CreateNewTone(common::core::ToneGridPosition position_value, std::string name_value)
+            : position(position_value)
             , name(std::move(name_value))
         {}
 
         /*! \brief Grid position at which the new tone begins. */
-        common::core::ToneGridPosition at;
+        common::core::ToneGridPosition position;
 
         /*! \brief User-facing name for the new tone. */
         std::string name;

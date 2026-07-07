@@ -16,20 +16,21 @@ namespace rock_hero::common::core
 /*!
 \brief Creates a new tone region by splitting the region that contains a grid position.
 
-The region containing \p at is shrunk to `[start, at)`; a new region `[at, end)` is inserted
-immediately after it, carrying \p new_region_id and \p new_tone_document_ref, so the tone changes at
-\p at while the earlier tone runs up to it. Because the split is adjacent and the outer bounds are
-untouched, coverage stays gap-free by construction. The caller supplies the tone document (a fresh
-empty tone, or an existing one to reuse) and validates canonical ids and grid endpoints separately.
+The region containing \p position is shrunk to `[start, position)`; a new region `[position, end)`
+is inserted immediately after it, carrying \p new_region_id and \p new_tone_document_ref, so the
+tone changes at \p position while the earlier tone runs up to it. Because the split is adjacent and
+the outer bounds are untouched, coverage stays gap-free by construction. The caller supplies the
+tone document (a fresh empty tone, or an existing one to reuse) and validates canonical ids and grid
+endpoints separately.
 
 \param tone_track Tone track to modify in place; unchanged on failure.
-\param at Grid position at which the tone changes; must fall strictly inside a region.
-\param new_region_id Canonical id for the new region beginning at \p at.
+\param position Grid position at which the tone changes; must fall strictly inside a region.
+\param new_region_id Canonical id for the new region beginning at \p position.
 \param new_tone_document_ref Package-relative tone document the new region references.
 \return Empty success, or the reason the create was rejected.
 */
 [[nodiscard]] std::expected<void, ToneTrackError> createToneRegion(
-    ToneTrack& tone_track, ToneGridPosition at, std::string new_region_id,
+    ToneTrack& tone_track, ToneGridPosition position, std::string new_region_id,
     std::string new_tone_document_ref);
 
 /*!

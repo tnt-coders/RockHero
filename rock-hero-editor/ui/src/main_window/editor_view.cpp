@@ -1478,8 +1478,8 @@ void EditorView::createToneMarkerAtPlayhead()
     const auto beat_index =
         static_cast<std::int64_t>(std::llround(m_state.tempo_map.beatPositionAtSeconds(playhead)));
     const auto [measure, beat] = m_state.tempo_map.beatAtGlobalIndex(beat_index);
-    const common::core::ToneGridPosition at{.measure = measure, .beat = beat};
-    const std::int64_t at_index = m_state.tempo_map.globalBeatIndex(measure, beat);
+    const common::core::ToneGridPosition position{.measure = measure, .beat = beat};
+    const std::int64_t marker_index = m_state.tempo_map.globalBeatIndex(measure, beat);
 
     const auto containing = std::ranges::find_if(
         m_state.tone_track.regions, [&](const core::ToneRegionViewState& region) {
@@ -1491,7 +1491,7 @@ void EditorView::createToneMarkerAtPlayhead()
                 region.grid_start.measure, region.grid_start.beat);
             const std::int64_t end =
                 m_state.tempo_map.globalBeatIndex(region.grid_end.measure, region.grid_end.beat);
-            return start < at_index && at_index < end;
+            return start < marker_index && marker_index < end;
         });
     if (containing == m_state.tone_track.regions.end())
     {
@@ -1527,7 +1527,7 @@ void EditorView::createToneMarkerAtPlayhead()
     if (reuse_refs.empty())
     {
         // No other tone exists to reuse, so skip the picker and prompt for a fresh tone directly.
-        promptForNewTone(at);
+        promptForNewTone(position);
         return;
     }
 
@@ -1537,15 +1537,15 @@ void EditorView::createToneMarkerAtPlayhead()
 
     menu.showMenuAsync(
         juce::PopupMenu::Options{}.withTargetComponent(this),
-        [this, at, reuse_refs, create_new_id](int result) {
+        [this, position, reuse_refs, create_new_id](int result) {
             if (result == create_new_id)
             {
-                promptForNewTone(at);
+                promptForNewTone(position);
             }
             else if (result >= 1 && std::cmp_less_equal(result, reuse_refs.size()))
             {
                 m_controller.onToneRegionCreateRequested(
-                    at,
+                    position,
                     common::core::generatePackageId(),
                     reuse_refs[static_cast<std::size_t>(result - 1)]);
             }
@@ -1579,17 +1579,17 @@ void EditorView::promptForText(
 
 // Prompts for a new tone name (defaulting to "New Tone") and asks the controller to mint it at the
 // marker; editor-core rejects and reports a duplicate name.
-void EditorView::promptForNewTone(common::core::ToneGridPosition at)
+void EditorView::promptForNewTone(common::core::ToneGridPosition position)
 {
     promptForText(
         "New Tone",
         "Enter a name for the new tone:",
         "New Tone",
         "Create",
-        [this, at](const juce::String& name) {
+        [this, position](const juce::String& name) {
             const juce::String trimmed = name.trim();
             m_controller.onToneCreateNewRequested(
-                at, (trimmed.isEmpty() ? juce::String{"New Tone"} : trimmed).toStdString());
+                position, (trimmed.isEmpty() ? juce::String{"New Tone"} : trimmed).toStdString());
         });
 }
 
