@@ -314,6 +314,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
             on_loaded);
     void clearLiveRig();
     [[nodiscard]] std::filesystem::path currentSongDirectory() const;
+    [[nodiscard]] bool loadedRigCoversModelTones() const;
     void reloadLiveRigForToneSet(std::string select_region_id);
     void resetSoleToneRegion(const std::string& region_id);
     void runProjectWriteAction(EditorAction::ProjectWriteAction&& action);
@@ -514,6 +515,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // plugin insert. Never erased within a session: id-preserving undo can revive an instance id,
     // and a stale entry is harmless because nothing references dead instance ids.
     std::unordered_map<std::string, ToneAutomationIdentity> m_tone_plugin_identities{};
+
+    // Tone references the loaded rig currently hosts as branches, from the last load result.
+    // Undo/redo can restore model references to tones a later reload dropped (reset repoints and
+    // reloads); comparing against this set detects the divergence so the rig can reload.
+    std::vector<std::string> m_loaded_tone_refs{};
 
     // Memoized tab projection for the displayed arrangement; see deriveViewState for the cache
     // rule (arrangement id keys it because charts are immutable while a project is open).

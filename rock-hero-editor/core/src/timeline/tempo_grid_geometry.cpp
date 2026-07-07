@@ -82,6 +82,20 @@ public:
         return m_measure;
     }
 
+    // Exact musical address of the current line. The within-measure offset stays a rational in
+    // the note denominator, so odd grids (a 1/13 note value) round-trip into stored positions
+    // without any fixed fine-grid approximation.
+    [[nodiscard]] common::core::GridPosition gridPosition() const noexcept
+    {
+        return common::core::GridPosition{
+            .measure = m_measure,
+            .beat = 1 + static_cast<int>(m_offset_units / m_note.denominator),
+            .offset = common::core::Fraction{
+                static_cast<int>(m_offset_units % m_note.denominator), m_note.denominator
+            },
+        };
+    }
+
     // Musical rank of the current line: downbeats outrank whole-beat lines outrank the rest.
     [[nodiscard]] TempoGridLineRank rank() const noexcept
     {
@@ -352,34 +366,55 @@ std::vector<TempoGridLine> visibleTempoGridLines(
     return lines;
 }
 
-// Finds the closest grid time by comparing the two grid lines bracketing the target. Distances are
-// measured in seconds, not pixels, so the snapped time is exact and independent of zoom.
-common::core::TimePosition nearestTempoGridTime(
-    const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value,
+namespace
+{
+
+// Positions the walker on the grid line nearest the target by comparing the two bracketing
+// lines. Distances are measured in seconds, not pixels, so the snap is exact and independent of
+// zoom; the earlier line wins exact halfway targets so repeated clicks snap stably instead of
+// jumping forward.
+void seekNearestGridLine(
+    MeasureGridWalker& walker, const common::core::TempoMap& tempo_map,
     common::core::TimePosition target)
 {
-    const common::core::Fraction note_value = normalizedGridNoteValue(grid_note_value);
-    MeasureGridWalker walker{tempo_map, note_value};
     if (!walker.seekFirstLineAtOrAfter(target.seconds))
     {
         // Every grid line lies before the target, so the last line is the only candidate.
         walker.moveToLastLine();
-        return common::core::TimePosition{tempo_map.secondsAtGlobalBeatPosition(
-            walker.beatPosition())};
+        return;
     }
 
     const double after_seconds = tempo_map.secondsAtGlobalBeatPosition(walker.beatPosition());
     if (!walker.retreat())
     {
-        return common::core::TimePosition{after_seconds};
+        return;
     }
 
-    // The earlier line wins exact halfway targets so repeated clicks snap stably instead of
-    // jumping forward.
     const double before_seconds = tempo_map.secondsAtGlobalBeatPosition(walker.beatPosition());
-    const bool earlier_is_closer =
-        std::abs(before_seconds - target.seconds) <= std::abs(after_seconds - target.seconds);
-    return common::core::TimePosition{earlier_is_closer ? before_seconds : after_seconds};
+    if (std::abs(before_seconds - target.seconds) > std::abs(after_seconds - target.seconds))
+    {
+        walker.advance();
+    }
+}
+
+} // namespace
+
+common::core::TimePosition nearestTempoGridTime(
+    const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value,
+    common::core::TimePosition target)
+{
+    MeasureGridWalker walker{tempo_map, normalizedGridNoteValue(grid_note_value)};
+    seekNearestGridLine(walker, tempo_map, target);
+    return common::core::TimePosition{tempo_map.secondsAtGlobalBeatPosition(walker.beatPosition())};
+}
+
+common::core::GridPosition nearestTempoGridPosition(
+    const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value,
+    common::core::TimePosition target)
+{
+    MeasureGridWalker walker{tempo_map, normalizedGridNoteValue(grid_note_value)};
+    seekNearestGridLine(walker, tempo_map, target);
+    return walker.gridPosition();
 }
 
 // Converts either overlay or ruler clicks through the same placement path. The click column first
