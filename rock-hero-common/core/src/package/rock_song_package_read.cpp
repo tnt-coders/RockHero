@@ -18,6 +18,7 @@
 #include <optional>
 #include <rock_hero/common/core/chart/chart_document.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
+#include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/package/archive_io.h>
 #include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/package/workspace_paths.h>
@@ -603,6 +604,99 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
     return tones;
 }
 
+// Reads one arrangement's optional plugin-parameter automation and validates it against the
+// structural rules. Musical positions are the persisted truth, so points parse as grid-position
+// tokens; the runtime seconds curves are derived later by the editor.
+[[nodiscard]] std::expected<std::vector<ToneParameterAutomation>, SongPackageError>
+readToneAutomation(const juce::var& arrangement_json, const TempoMap& tempo_map)
+{
+    std::vector<ToneParameterAutomation> automation;
+    const juce::var& automation_json = Json::value(arrangement_json, "toneAutomation");
+    if (automation_json.isVoid() || automation_json.isUndefined())
+    {
+        return automation;
+    }
+
+    if (!automation_json.isArray())
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidArrangement,
+            "toneAutomation must be an array when present",
+        }};
+    }
+
+    std::set<std::pair<std::string, std::string>> seen_parameters;
+    automation.reserve(static_cast<std::size_t>(automation_json.size()));
+    for (const juce::var& entry_json : *automation_json.getArray())
+    {
+        const auto plugin_id = Json::tryReadString(entry_json, "plugin");
+        const auto param_id = Json::tryReadString(entry_json, "param");
+        const juce::var& points_json = Json::value(entry_json, "points");
+        if (!plugin_id.has_value() || !param_id.has_value() || !points_json.isArray())
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                "toneAutomation entries require plugin, param, and points fields",
+            }};
+        }
+
+        ToneParameterAutomation entry{
+            .plugin_id = *plugin_id,
+            .param_id = *param_id,
+            .points = {},
+        };
+        entry.points.reserve(static_cast<std::size_t>(points_json.size()));
+        for (const juce::var& point_json : *points_json.getArray())
+        {
+            const auto position_text = Json::tryReadString(point_json, "position");
+            const auto value = Json::tryReadDouble(point_json, "value");
+            if (!position_text.has_value() || !value.has_value())
+            {
+                return std::unexpected{SongPackageError{
+                    SongPackageErrorCode::InvalidArrangement,
+                    "toneAutomation points require position and value fields",
+                }};
+            }
+
+            const auto position = parseGridPositionToken(*position_text);
+            if (!position.has_value())
+            {
+                return std::unexpected{SongPackageError{
+                    SongPackageErrorCode::InvalidArrangement,
+                    "toneAutomation point position is not a grid-position token: " + *position_text,
+                }};
+            }
+
+            entry.points.push_back(
+                ToneAutomationPoint{
+                    .position = *position,
+                    .norm_value = static_cast<float>(*value),
+                    .curve_shape =
+                        static_cast<float>(Json::tryReadDouble(point_json, "shape").value_or(0.0)),
+                });
+        }
+
+        if (!isValidToneParameterAutomation(entry, tempo_map))
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                "toneAutomation entry is invalid for plugin: " + entry.plugin_id,
+            }};
+        }
+        if (!seen_parameters.emplace(entry.plugin_id, entry.param_id).second)
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                "toneAutomation repeats a plugin/parameter pair: " + entry.plugin_id + "/" +
+                    entry.param_id,
+            }};
+        }
+        automation.push_back(std::move(entry));
+    }
+
+    return automation;
+}
+
 // Reads arrangements from song-document entries into project-owned core values.
 [[nodiscard]] std::expected<std::vector<Arrangement>, SongPackageError> readArrangements(
     const std::filesystem::path& directory, const juce::var& song_document,
@@ -704,6 +798,12 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
             return std::unexpected{std::move(tone_track.error())};
         }
 
+        auto tone_automation = readToneAutomation(arrangement_json, tempo_map);
+        if (!tone_automation.has_value())
+        {
+            return std::unexpected{std::move(tone_automation.error())};
+        }
+
         std::string chart_ref;
         std::optional<Chart> chart;
         const juce::var& chart_json = Json::value(arrangement_json, "chart");
@@ -769,6 +869,7 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
                 .tone_document_ref = std::move(tone_document_ref),
                 .tones = std::move(tones),
                 .tone_track = std::move(*tone_track),
+                .tone_automation = std::move(*tone_automation),
                 .chart_ref = std::move(chart_ref),
                 .chart = std::move(chart),
             });

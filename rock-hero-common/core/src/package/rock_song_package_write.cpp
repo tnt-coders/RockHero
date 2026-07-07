@@ -16,6 +16,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/package/archive_io.h>
 #include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/package/workspace_paths.h>
@@ -225,6 +226,7 @@ struct ArrangementDocumentEntry
     std::string tone_document;
     std::vector<ToneCatalogDocumentEntry> tones;
     std::vector<ToneRegionDocumentEntry> tone_regions;
+    std::vector<std::string> tone_automation_lines;
     std::string chart_document;
 };
 
@@ -253,6 +255,39 @@ struct ArrangementDocumentEntry
     line += ", \"name\": ";
     line += jsonString(entry.name);
     line += " }";
+
+    return line;
+}
+
+// Renders one plugin-parameter automation entry with its points inline. Musical positions are the
+// persisted truth (runtime seconds are derived through the tempo map), so points serialize as
+// grid-position tokens; the linear default shape is omitted.
+[[nodiscard]] std::string formatToneAutomationLine(const ToneParameterAutomation& automation)
+{
+    std::string line = "{ \"plugin\": ";
+    line += jsonString(automation.plugin_id);
+    line += ", \"param\": ";
+    line += jsonString(automation.param_id);
+    line += ", \"points\": [ ";
+    for (std::size_t index = 0; index < automation.points.size(); ++index)
+    {
+        const ToneAutomationPoint& point = automation.points[index];
+        if (index != 0)
+        {
+            line += ", ";
+        }
+        line += "{ \"position\": ";
+        line += jsonString(formatGridPositionToken(point.position));
+        line += ", \"value\": ";
+        line += formatJsonDouble(point.norm_value);
+        if (point.curve_shape != 0.0F)
+        {
+            line += ", \"shape\": ";
+            line += formatJsonDouble(point.curve_shape);
+        }
+        line += " }";
+    }
+    line += " ] }";
 
     return line;
 }
@@ -317,6 +352,16 @@ struct ArrangementDocumentEntry
             line += formatToneRegionLine(entry.tone_regions[index]);
         }
         line += "\n    ] }";
+    }
+    if (!entry.tone_automation_lines.empty())
+    {
+        line += R"(, "toneAutomation": [)";
+        for (std::size_t index = 0; index < entry.tone_automation_lines.size(); ++index)
+        {
+            line += (index == 0 ? "\n      " : ",\n      ");
+            line += entry.tone_automation_lines[index];
+        }
+        line += "\n    ]";
     }
     if (!entry.chart_document.empty())
     {
@@ -515,6 +560,35 @@ struct SongDocumentForSave
     return std::expected<void, SongPackageError>{};
 }
 
+// Validates an arrangement's plugin-parameter automation: per-entry structural rules plus at most
+// one entry per (plugin, parameter) pair. Plugin ids are not resolved against tone documents here;
+// an id without a live plugin is a legal unresolved entry by design.
+[[nodiscard]] std::expected<void, SongPackageError> validateArrangementToneAutomation(
+    const Arrangement& arrangement, const TempoMap& tempo_map)
+{
+    std::set<std::pair<std::string, std::string>> seen_parameters;
+    for (const ToneParameterAutomation& automation : arrangement.tone_automation)
+    {
+        if (!isValidToneParameterAutomation(automation, tempo_map))
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                "toneAutomation entry is invalid for plugin: " + automation.plugin_id,
+            }};
+        }
+        if (!seen_parameters.emplace(automation.plugin_id, automation.param_id).second)
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                "toneAutomation repeats a plugin/parameter pair: " + automation.plugin_id + "/" +
+                    automation.param_id,
+            }};
+        }
+    }
+
+    return std::expected<void, SongPackageError>{};
+}
+
 // Creates the JSON song document that represents the supplied session song.
 [[nodiscard]] std::expected<SongDocumentForSave, SongPackageError> buildSongDocumentForSave(
     const std::filesystem::path& workspace_directory, const Song& song)
@@ -559,6 +633,12 @@ struct SongDocumentForSave
             !tone_error.has_value())
         {
             return std::unexpected{tone_error.error()};
+        }
+        if (const auto automation_error =
+                validateArrangementToneAutomation(arrangement, song.tempo_map);
+            !automation_error.has_value())
+        {
+            return std::unexpected{automation_error.error()};
         }
         if (!arrangement.chart_ref.empty())
         {
@@ -636,6 +716,13 @@ struct SongDocumentForSave
                 });
         }
 
+        std::vector<std::string> tone_automation_lines;
+        tone_automation_lines.reserve(arrangement.tone_automation.size());
+        for (const ToneParameterAutomation& automation : arrangement.tone_automation)
+        {
+            tone_automation_lines.push_back(formatToneAutomationLine(automation));
+        }
+
         arrangements.push_back(
             ArrangementDocumentEntry{
                 .id = *arrangement_id,
@@ -644,6 +731,7 @@ struct SongDocumentForSave
                 .tone_document = arrangement.tone_document_ref,
                 .tones = std::move(tones),
                 .tone_regions = std::move(tone_regions),
+                .tone_automation_lines = std::move(tone_automation_lines),
                 .chart_document = arrangement.chart_ref,
             });
         arrangement_ids.push_back(*arrangement_id);

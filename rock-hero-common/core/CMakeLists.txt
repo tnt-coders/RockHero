@@ -21,6 +21,7 @@ target_sources(
             src/shared/logger_error.cpp
             src/song/song.cpp
             src/timeline/tempo_map.cpp
+            src/tone/tone_automation.cpp
             src/tone/tone_track_rules.cpp
             src/tone/tone_track_edits.cpp
             src/tone/tone_track_normalize.cpp)

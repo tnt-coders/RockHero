@@ -867,6 +867,79 @@ TEST_CASE("Rock song package round-trips authored tone regions", "[core][rock-so
     CHECK(loaded->arrangements.front().tones == song.arrangements.front().tones);
 }
 
+TEST_CASE("Rock song package round-trips tone parameter automation", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temp;
+    const std::filesystem::path package_directory = temp.path() / "package";
+    const std::filesystem::path source_audio = package_directory / "audio" / "backing.flac";
+    writeAudioFile(source_audio);
+    writeTextFile(package_directory / toneDocumentPath(g_tone_id), "{}");
+
+    Song song = makeSongWithToneDocument(source_audio);
+    song.arrangements.front().tone_automation = {
+        ToneParameterAutomation{
+            .plugin_id = "3f8a2b1c-4d5e-4f60-8a9b-0c1d2e3f4a5b",
+            .param_id = "gain",
+            .points = {
+                ToneAutomationPoint{
+                    .position = GridPosition{.measure = 1, .beat = 1, .offset = {}},
+                    .norm_value = 0.25F,
+                    .curve_shape = 0.0F,
+                },
+                // A sub-beat position and non-linear shape exercise the full point grammar.
+                ToneAutomationPoint{
+                    .position = GridPosition{.measure = 2, .beat = 3, .offset = Fraction{1, 2}},
+                    .norm_value = 0.75F,
+                    .curve_shape = -0.5F,
+                },
+            },
+        },
+    };
+
+    const auto written = writeRockSongPackageDirectory(package_directory, song);
+    REQUIRE(written.has_value());
+
+    const auto loaded = readRockSongPackageDirectory(package_directory);
+    REQUIRE(loaded.has_value());
+    REQUIRE(loaded->arrangements.size() == 1);
+    CHECK(
+        loaded->arrangements.front().tone_automation == song.arrangements.front().tone_automation);
+}
+
+TEST_CASE(
+    "Rock song package write rejects invalid tone parameter automation",
+    "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temp;
+    const std::filesystem::path package_directory = temp.path() / "package";
+    const std::filesystem::path source_audio = package_directory / "audio" / "backing.flac";
+    writeAudioFile(source_audio);
+    writeTextFile(package_directory / toneDocumentPath(g_tone_id), "{}");
+
+    Song song = makeSongWithToneDocument(source_audio);
+    song.arrangements.front().tone_automation = {
+        ToneParameterAutomation{
+            .plugin_id = "3f8a2b1c-4d5e-4f60-8a9b-0c1d2e3f4a5b",
+            .param_id = "gain",
+            .points = {
+                // Descending positions violate the strictly-ascending rule.
+                ToneAutomationPoint{
+                    .position = GridPosition{.measure = 2, .beat = 1, .offset = {}},
+                    .norm_value = 0.5F,
+                    .curve_shape = 0.0F,
+                },
+                ToneAutomationPoint{
+                    .position = GridPosition{.measure = 1, .beat = 1, .offset = {}},
+                    .norm_value = 0.5F,
+                    .curve_shape = 0.0F,
+                },
+            },
+        },
+    };
+
+    CHECK_FALSE(writeRockSongPackageDirectory(package_directory, song).has_value());
+}
+
 // Packages written before the tone catalog carried the name on each region and had no "tones"
 // array. Loading one must rebuild the catalog so those names survive under the new model.
 TEST_CASE(
