@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <functional>
 #include <optional>
+#include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <rock_hero/common/audio/input/live_input_error.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/timeline.h>
@@ -216,6 +217,21 @@ public:
     */
     virtual void onToneCreateNewRequested(
         common::core::ToneGridPosition position, std::string name) = 0;
+
+    /*!
+    \brief Handles a request to replace a tone-chain plugin parameter's automation curve.
+
+    The supplied points become the parameter's whole curve (an empty list clears it); the edit is
+    undoable. Points are seconds-based and normalised to `[0, 1]`.
+
+    \param tone_document_ref Tone whose plugin parameter is edited.
+    \param instance_id Plugin instance owning the parameter.
+    \param param_id Parameter id within the plugin.
+    \param points Replacement curve points, in ascending time.
+    */
+    virtual void onSetToneAutomationPoints(
+        std::string tone_document_ref, std::string instance_id, std::string param_id,
+        std::vector<common::audio::AutomationCurvePoint> points) = 0;
 
     /*! \brief Handles a request to show the scanned plugin browser. */
     virtual void onPluginBrowserRequested() = 0;

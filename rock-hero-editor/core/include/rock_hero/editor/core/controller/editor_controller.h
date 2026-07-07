@@ -12,6 +12,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <rock_hero/common/core/session/session.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <rock_hero/editor/core/controller/i_editor_controller.h>
@@ -395,6 +396,11 @@ public:
     /*! \copydoc IEditorController::onToneCreateNewRequested */
     void onToneCreateNewRequested(
         common::core::ToneGridPosition position, std::string name) override;
+
+    /*! \copydoc IEditorController::onSetToneAutomationPoints */
+    void onSetToneAutomationPoints(
+        std::string tone_document_ref, std::string instance_id, std::string param_id,
+        std::vector<common::audio::AutomationCurvePoint> points) override;
 
     /*! \brief Shows the scanned plugin browser and starts an initial catalog scan when needed. */
     void onPluginBrowserRequested() override;

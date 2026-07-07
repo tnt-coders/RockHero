@@ -1,4 +1,5 @@
 #include "controller/editor_controller_impl.h"
+#include "tone/tone_automation_edits.h"
 #include "tone/tone_region_edits.h"
 
 #include <algorithm>
@@ -174,6 +175,19 @@ void EditorController::Impl::onToneCreateNewRequested(
     common::core::ToneGridPosition position, std::string name)
 {
     runAction(EditorAction::CreateNewTone{position, std::move(name)});
+}
+
+void EditorController::Impl::onSetToneAutomationPoints(
+    std::string tone_document_ref, std::string instance_id, std::string param_id,
+    std::vector<common::audio::AutomationCurvePoint> points)
+{
+    runAction(
+        EditorAction::SetToneAutomationPoints{
+            std::move(tone_document_ref),
+            std::move(instance_id),
+            std::move(param_id),
+            std::move(points)
+        });
 }
 
 // Stores the selection when the id names an authored region; anything else clears it.
@@ -622,6 +636,72 @@ void EditorController::Impl::resetSoleToneRegion(const std::string& region_id)
 
     pushUndoEntry(std::make_unique<ToneResetEdit>(region_id, before_ref, before_name, after_ref));
     reloadLiveRigForToneSet(region_id);
+}
+
+// Looks up a tone-chain parameter's user-facing name for the undo label, falling back to its id.
+std::string EditorController::Impl::automationParameterName(
+    const std::string& tone_document_ref, const std::string& instance_id,
+    const std::string& param_id) const
+{
+    const auto parameters = m_tone_automation.listAutomatableParameters(tone_document_ref);
+    if (parameters.has_value())
+    {
+        for (const common::audio::AutomatableParamInfo& parameter : *parameters)
+        {
+            if (parameter.instance_id == instance_id && parameter.param_id == param_id)
+            {
+                return parameter.name;
+            }
+        }
+    }
+    return param_id;
+}
+
+// Replaces a tone-chain plugin parameter's automation curve and records its inverse. The curve in
+// the tone's plugin state is authoritative, so the memento captures the point list before and after;
+// an edit whose points match the current curve records nothing.
+void EditorController::Impl::performActionImpl(const EditorAction::SetToneAutomationPoints& action)
+{
+    const auto before = m_tone_automation.readParameterCurve(
+        action.tone_document_ref, action.instance_id, action.param_id);
+    if (!before.has_value())
+    {
+        RH_LOG_WARNING(
+            "editor.tone",
+            "Ignored automation edit for unresolved parameter tone={:?} instance={:?} param={:?}",
+            action.tone_document_ref,
+            action.instance_id,
+            action.param_id);
+        return;
+    }
+    if (*before == action.points)
+    {
+        return;
+    }
+
+    const auto written = m_tone_automation.writeParameterCurve(
+        action.tone_document_ref, action.instance_id, action.param_id, action.points);
+    if (!written.has_value())
+    {
+        RH_LOG_WARNING(
+            "editor.tone",
+            "Rejected automation edit tone={:?} param={:?} detail={:?}",
+            action.tone_document_ref,
+            action.param_id,
+            written.error().message);
+        updateView();
+        return;
+    }
+
+    pushUndoEntry(
+        std::make_unique<ToneAutomationPointsEdit>(
+            action.tone_document_ref,
+            action.instance_id,
+            action.param_id,
+            automationParameterName(action.tone_document_ref, action.instance_id, action.param_id),
+            *before,
+            action.points));
+    updateView();
 }
 
 } // namespace rock_hero::editor::core

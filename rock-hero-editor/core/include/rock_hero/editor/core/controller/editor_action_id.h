@@ -119,6 +119,9 @@ enum class EditorActionId : std::uint8_t
 
     /*! \brief Open a plugin instance editor window. */
     OpenPlugin,
+
+    /*! \brief Replace a tone-chain plugin parameter's automation curve points. */
+    SetToneAutomationPoints,
 };
 
 } // namespace rock_hero::editor::core
