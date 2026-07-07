@@ -21,7 +21,8 @@ namespace
 // skipped.
 void collectAutomatableParameters(
     const tracktion::AutomatableParameterTree::TreeNode& node, const juce::String& group_name,
-    const std::string& instance_id, std::vector<AutomatableParamInfo>& out)
+    const std::string& instance_id, const std::string& plugin_name,
+    std::vector<AutomatableParamInfo>& out)
 {
     for (const tracktion::AutomatableParameterTree::TreeNode* const sub_node : node.subNodes)
     {
@@ -31,7 +32,8 @@ void collectAutomatableParameters(
         }
         if (sub_node->type == tracktion::AutomatableParameterTree::Group)
         {
-            collectAutomatableParameters(*sub_node, sub_node->getGroupName(), instance_id, out);
+            collectAutomatableParameters(
+                *sub_node, sub_node->getGroupName(), instance_id, plugin_name, out);
             continue;
         }
         if (sub_node->parameter == nullptr)
@@ -68,6 +70,7 @@ void collectAutomatableParameters(
                                           : 0.0F,
                 .current_norm_value =
                     parameter.valueRange.convertTo0to1(parameter.getCurrentValue()),
+                .plugin_name = plugin_name,
             });
     }
 }
@@ -85,8 +88,13 @@ std::vector<AutomatableParamInfo> listChainAutomatableParameters(
             continue;
         }
         const std::string instance_id = plugin->itemID.toString().toStdString();
+        const std::string plugin_name = plugin->getName().toStdString();
         collectAutomatableParameters(
-            *plugin->getParameterTree().rootNode, juce::String{}, instance_id, parameters);
+            *plugin->getParameterTree().rootNode,
+            juce::String{},
+            instance_id,
+            plugin_name,
+            parameters);
     }
     return parameters;
 }
@@ -143,6 +151,18 @@ bool writePluginParameterCurve(
             nullptr);
     }
     return true;
+}
+
+std::optional<float> readPluginParameterNormValue(
+    tracktion::Plugin& plugin, const std::string& param_id)
+{
+    const tracktion::AutomatableParameter::Ptr parameter =
+        plugin.getAutomatableParameterByID(juce::String{param_id});
+    if (parameter == nullptr)
+    {
+        return std::nullopt;
+    }
+    return parameter->getCurrentNormalisedValue();
 }
 
 } // namespace rock_hero::common::audio

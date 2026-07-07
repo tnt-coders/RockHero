@@ -389,6 +389,7 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
         m_grid_note_value = common::core::Fraction{1, 4};
         m_timeline_zoom_pixels_per_second = 0.0;
         m_selected_tone_region_id.clear();
+        m_open_automation_lanes.clear();
         resetUndoHistory("undo.reset.import_live_rig_failed");
         finishBusyOperation();
         reportError(
@@ -407,6 +408,7 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
     m_grid_note_value = common::core::Fraction{1, 4};
     m_timeline_zoom_pixels_per_second = 0.0;
     m_selected_tone_region_id.clear();
+    m_open_automation_lanes.clear();
     m_has_untracked_unsaved_changes = false;
     m_session_faulted = false;
     clearDeferredProjectAction();
@@ -801,6 +803,7 @@ bool EditorController::Impl::closeProject()
         m_grid_note_value = common::core::Fraction{1, 4};
         m_timeline_zoom_pixels_per_second = 0.0;
         m_selected_tone_region_id.clear();
+        m_open_automation_lanes.clear();
         m_plugin_catalog.hide();
         resetUndoHistory("undo.reset.close_project_failed");
         updateView();
@@ -816,6 +819,7 @@ bool EditorController::Impl::closeProject()
     m_grid_note_value = common::core::Fraction{1, 4};
     m_timeline_zoom_pixels_per_second = 0.0;
     m_selected_tone_region_id.clear();
+    m_open_automation_lanes.clear();
     m_plugin_catalog.hide();
     resetUndoHistory("undo.reset.close_project");
     return true;
@@ -891,6 +895,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::SelectArrange
     clearLiveRig();
     resetUndoHistory("undo.reset.arrangement_switch");
     m_selected_tone_region_id.clear();
+    m_open_automation_lanes.clear();
     m_project_audio_ready = false;
 
     if (const auto loaded = loadSessionSong(

@@ -400,6 +400,10 @@ public:
     /*! \copydoc IEditorController::onToneAutomationLaneAddRequested */
     void onToneAutomationLaneAddRequested(std::string instance_id, std::string param_id) override;
 
+    /*! \copydoc IEditorController::onToneAutomationLaneRemoveRequested */
+    void onToneAutomationLaneRemoveRequested(
+        std::string instance_id, std::string param_id) override;
+
     /*! \copydoc IEditorController::onSetToneAutomationPoints */
     void onSetToneAutomationPoints(
         std::string instance_id, std::string param_id,

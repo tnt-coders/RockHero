@@ -21,6 +21,7 @@ definitions, no state added just to make a translation-unit split work.
 #include "project/project_io.h"
 #include "signal_chain/plugin_catalog_workflow.h"
 #include "signal_chain/signal_chain_workflow.h"
+#include "tone/tone_automation_projection.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -160,6 +161,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         std::string right_region_id, common::core::ToneGridPosition position);
     void onToneCreateNewRequested(common::core::ToneGridPosition position, std::string name);
     void onToneAutomationLaneAddRequested(std::string instance_id, std::string param_id);
+    void onToneAutomationLaneRemoveRequested(std::string instance_id, std::string param_id);
     void onSetToneAutomationPoints(
         std::string instance_id, std::string param_id,
         std::vector<common::core::ToneAutomationPoint> points);
@@ -520,6 +522,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Undo/redo can restore model references to tones a later reload dropped (reset repoints and
     // reloads); comparing against this set detects the divergence so the rig can reload.
     std::vector<std::string> m_loaded_tone_refs{};
+
+    // Session-scoped automation lanes opened by the picker that have no authored points yet;
+    // they track the parameter's live value. Not persisted and not undoable (a lane with no
+    // points is a view arrangement, not an edit). Cleared with the session.
+    std::vector<OpenAutomationLane> m_open_automation_lanes{};
 
     // Memoized tab projection for the displayed arrangement; see deriveViewState for the cache
     // rule (arrangement id keys it because charts are immutable while a project is open).

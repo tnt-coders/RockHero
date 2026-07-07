@@ -177,9 +177,8 @@ void EditorController::Impl::onToneCreateNewRequested(
     runAction(EditorAction::CreateNewTone{position, std::move(name)});
 }
 
-// Seeds a new lane with one point at the selected region's start, valued at the parameter's
-// current setting, so adding a lane never audibly changes the sound. Runs through the same
-// SetToneAutomationPoints action as every other automation mutation, so it is undoable for free.
+// Opens a session-scoped tracking lane; nothing is authored, so this is a direct view-state
+// mutation (like selection), not an undoable action.
 void EditorController::Impl::onToneAutomationLaneAddRequested(
     std::string instance_id, std::string param_id)
 {
@@ -193,46 +192,33 @@ void EditorController::Impl::onToneAutomationLaneAddRequested(
         return;
     }
 
-    common::core::GridPosition seed_position{.measure = 1, .beat = 1, .offset = {}};
-    if (const common::core::Arrangement* const arrangement = session().currentArrangement();
-        arrangement != nullptr)
+    const OpenAutomationLane open_lane{
+        .tone_document_ref = identity->second.tone_document_ref,
+        .instance_id = std::move(instance_id),
+        .param_id = std::move(param_id),
+    };
+    if (std::ranges::find(m_open_automation_lanes, open_lane) == m_open_automation_lanes.end())
     {
-        for (const common::core::ToneRegion& region : arrangement->tone_track.regions)
-        {
-            if (region.id == m_selected_tone_region_id)
-            {
-                seed_position.measure = region.start.measure;
-                seed_position.beat = region.start.beat;
-                break;
-            }
-        }
+        m_open_automation_lanes.push_back(open_lane);
     }
+    updateView();
+}
 
-    float seed_value = 0.0F;
-    if (const auto parameters =
-            m_tone_automation.listAutomatableParameters(identity->second.tone_document_ref);
-        parameters.has_value())
-    {
-        for (const common::audio::AutomatableParamInfo& parameter : *parameters)
-        {
-            if (parameter.instance_id == instance_id && parameter.param_id == param_id)
-            {
-                seed_value = parameter.current_norm_value;
-                break;
-            }
-        }
-    }
-
-    runAction(
-        EditorAction::SetToneAutomationPoints{
-            std::move(instance_id),
-            std::move(param_id),
-            {common::core::ToneAutomationPoint{
-                .position = seed_position,
-                .norm_value = seed_value,
-                .curve_shape = 0.0F,
-            }},
+// Closes an open tracking lane. Authored lanes are unaffected: their removal is an undoable
+// points edit, and the projection subsumes any matching open entry while points exist.
+void EditorController::Impl::onToneAutomationLaneRemoveRequested(
+    std::string instance_id, std::string param_id)
+{
+    const auto removed = std::ranges::remove_if(
+        m_open_automation_lanes, [&instance_id, &param_id](const OpenAutomationLane& open_lane) {
+            return open_lane.instance_id == instance_id && open_lane.param_id == param_id;
         });
+    if (removed.empty())
+    {
+        return;
+    }
+    m_open_automation_lanes.erase(removed.begin(), removed.end());
+    updateView();
 }
 
 void EditorController::Impl::onSetToneAutomationPoints(
