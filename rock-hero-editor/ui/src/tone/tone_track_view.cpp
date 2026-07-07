@@ -291,7 +291,17 @@ void ToneTrackView::mouseUp(const juce::MouseEvent& event)
             return;
         }
 
-        m_listener.onToneRegionResizeRequested(region.id, drag.preview_start, drag.preview_end);
+        // The dragged edge is an interior boundary shared with a neighbor; move both sides together
+        // by emitting a boundary intent keyed by the region on the later side of the boundary.
+        if (drag.edge == EdgeKind::End && drag.region_index + 1 < m_state.regions.size())
+        {
+            m_listener.onToneBoundaryMoveRequested(
+                m_state.regions[drag.region_index + 1].id, drag.preview_end);
+        }
+        else if (drag.edge == EdgeKind::Start && drag.region_index > 0)
+        {
+            m_listener.onToneBoundaryMoveRequested(region.id, drag.preview_start);
+        }
         return;
     }
 
@@ -352,11 +362,14 @@ std::optional<ToneTrackView::RegionHit> ToneTrackView::hitAt(juce::Point<int> lo
         }
 
         const auto grab = static_cast<float>(g_edge_grab_width);
-        if (std::abs(x - span->first) <= grab)
+        // Only interior boundaries are draggable; the first region's start (song start) and the last
+        // region's end (terminal) are pinned, so every draggable edge is a boundary shared with a
+        // neighbor and moving it keeps coverage gap-free.
+        if (index > 0 && std::abs(x - span->first) <= grab)
         {
             return RegionHit{.region_index = index, .edge = EdgeKind::Start};
         }
-        if (std::abs(x - span->second) <= grab)
+        if (index + 1 < m_state.regions.size() && std::abs(x - span->second) <= grab)
         {
             return RegionHit{.region_index = index, .edge = EdgeKind::End};
         }
