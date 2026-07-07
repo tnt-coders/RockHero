@@ -111,4 +111,15 @@ ToneTrack* Session::currentToneTrack() noexcept
     return &m_song.arrangements[m_current_arrangement_index].tone_track;
 }
 
+// Returns mutable access to the current arrangement's tone catalog.
+std::vector<Tone>* Session::currentToneCatalog() noexcept
+{
+    if (m_current_arrangement_index >= m_song.arrangements.size())
+    {
+        return nullptr;
+    }
+
+    return &m_song.arrangements[m_current_arrangement_index].tones;
+}
+
 } // namespace rock_hero::common::core

@@ -2,6 +2,7 @@
 #include "shared/editor_controller_logging.h"
 
 #include <cassert>
+#include <rock_hero/common/core/tone/tone_track_normalize.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 
 namespace rock_hero::editor::core
@@ -1388,6 +1389,11 @@ std::expected<void, common::audio::SongAudioError> EditorController::Impl::loadS
             "Project song contains no arrangements",
         }};
     }
+
+    // Materialize the implicit whole-song tone region before the song is committed, so the editor
+    // always edits explicit regions and the materialized region is part of the loaded (clean)
+    // baseline rather than showing up as an unsaved change.
+    common::core::ensureExplicitToneRegions(song);
 
     auto prepared = m_song_audio.prepareSong(song);
     if (!prepared.has_value())

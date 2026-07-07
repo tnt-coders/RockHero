@@ -66,6 +66,17 @@ public:
     [[nodiscard]] ToneTrack* currentToneTrack() noexcept;
 
     /*!
+    \brief Returns mutable access to the current arrangement's tone catalog.
+
+    Parallels currentToneTrack() as the second narrow mutation surface the tone editing workflow
+    needs: renaming a tone and creating a tone-change region both edit the catalog, while broader
+    arrangement fields stay read-only through this session.
+
+    \return Current arrangement's tone catalog, or null when no arrangement is loaded.
+    */
+    [[nodiscard]] std::vector<Tone>* currentToneCatalog() noexcept;
+
+    /*!
     \brief Replaces the current session song.
 
     The selected arrangement index is stored as session state, not as persistent arrangement
