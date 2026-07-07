@@ -387,8 +387,14 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
         const core::ToneAutomationLaneViewState& lane = m_state.lanes[lane_index];
         const float lane_alpha = lane.resolved ? 1.0f : g_unresolved_alpha;
 
-        // No background fill: the canvas paints the automation band and the tempo grid beneath
-        // this component, and the grid must stay visible as the alignment cue for drawing points.
+        // The canvas paints the automation band and the tempo grid beneath this component, and
+        // the grid must stay visible as the alignment cue for drawing points — so lanes carry no
+        // opaque fill. A faint alternating wash keeps each lane reading as its own surface.
+        if (lane_index % 2 == 1)
+        {
+            graphics.setColour(juce::Colours::white.withAlpha(0.03f));
+            graphics.fillRect(lane_bounds);
+        }
 
         const int band_top = extent.top + g_value_band_inset;
         const int band_height =
