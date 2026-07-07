@@ -1,5 +1,6 @@
 #include "engine_impl.h"
 #include "shared/audio_path_util.h"
+#include "tracktion/tempo_mirror.h"
 
 #include <rock_hero/common/core/shared/juce_path.h>
 
@@ -153,6 +154,12 @@ std::expected<void, SongAudioError> Engine::setActiveArrangement(
     // track stays cheap at 1x and only pays elastique cost while actually slowed or sped up.
     wave_clip->setUsesProxy(false);
 
+    // The backing recording is pinned to absolute seconds: its placement comes from the audio
+    // asset, never from the edit's beat grid. The one-way tempo mirror's writes never run
+    // Tracktion's remap snapshot, but the default bars/beats sync would let any future
+    // remap-enabled tempo path slide this clip; syncAbsolute makes remapEdit() skip it outright.
+    wave_clip->setSyncType(tracktion::Clip::syncAbsolute);
+
     // Apply persisted normalization gain so playback volume matches the analyzed loudness target.
     if (arrangement.audio_asset.normalization.has_value())
     {
@@ -198,6 +205,18 @@ std::expected<void, SongAudioError> Engine::clearActiveArrangement()
     }
     m_impl->updateTransportState();
     return {};
+}
+
+void Engine::mirrorTempoMap(const common::core::TempoMap& tempo_map)
+{
+    // Best-effort derived write: the mirror only feeds hosted plugins' host-tempo view, so guards
+    // return silently rather than surfacing errors nothing can act on.
+    if (!juce::MessageManager::getInstance()->isThisTheMessageThread() || m_impl->m_edit == nullptr)
+    {
+        return;
+    }
+
+    mirrorTempoMapIntoSequence(m_impl->m_edit->tempoSequence, tempo_map);
 }
 
 } // namespace rock_hero::common::audio
