@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <optional>
+#include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/common/core/tone/tone_track.h>
@@ -502,6 +503,39 @@ struct EditorAction
         std::string instance_id;
     };
 
+    /*! \brief Replace a tone-chain plugin parameter's automation curve with a new point list. */
+    struct SetToneAutomationPoints
+    {
+        /*!
+        \brief Creates a set-tone-automation-points action.
+        \param tone_document_ref_value Tone whose plugin parameter is edited.
+        \param instance_id_value Plugin instance owning the parameter.
+        \param param_id_value Parameter id within the plugin.
+        \param points_value Replacement curve points, normalised value, in ascending time.
+        */
+        SetToneAutomationPoints(
+            std::string tone_document_ref_value, std::string instance_id_value,
+            std::string param_id_value,
+            std::vector<common::audio::AutomationCurvePoint> points_value)
+            : tone_document_ref(std::move(tone_document_ref_value))
+            , instance_id(std::move(instance_id_value))
+            , param_id(std::move(param_id_value))
+            , points(std::move(points_value))
+        {}
+
+        /*! \brief Tone whose plugin parameter is edited. */
+        std::string tone_document_ref;
+
+        /*! \brief Plugin instance owning the parameter. */
+        std::string instance_id;
+
+        /*! \brief Parameter id within the plugin. */
+        std::string param_id;
+
+        /*! \brief Replacement curve points, normalised value, in ascending time. */
+        std::vector<common::audio::AutomationCurvePoint> points;
+    };
+
     /*! \brief Variant carrying project package write actions. */
     using ProjectWriteAction = std::variant<SaveProjectAs, SaveProject, PublishProject>;
 
@@ -518,7 +552,7 @@ struct EditorAction
         SelectArrangement, SelectToneRegion, ResizeToneRegion, CreateToneRegion, DeleteToneRegion,
         RenameTone, MoveToneBoundary, CreateNewTone, ShowPluginBrowser, BeginPluginInsert,
         ScanPluginCatalog, InsertSelectedPlugin, RemovePlugin, MovePlugin, SetSignalChainPlacement,
-        SetPluginDisplayTypeOverride, OpenPlugin>;
+        SetPluginDisplayTypeOverride, OpenPlugin, SetToneAutomationPoints>;
 };
 
 /*!

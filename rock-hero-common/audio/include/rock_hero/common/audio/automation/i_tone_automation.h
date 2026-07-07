@@ -62,6 +62,15 @@ struct [[nodiscard]] AutomationCurvePoint
 
     /*! \brief Segment shape toward the next point, in `[-1, 1]`; 0 is linear. */
     float curve_shape{0.0F};
+
+    /*!
+    \brief Compares two curve points by their stored values.
+    \param lhs Left-hand curve point.
+    \param rhs Right-hand curve point.
+    \return True when both curve points store equal values.
+    */
+    friend bool operator==(const AutomationCurvePoint& lhs, const AutomationCurvePoint& rhs) =
+        default;
 };
 
 /*!

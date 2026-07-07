@@ -204,6 +204,10 @@ namespace
         {
             return "CreateNewTone";
         }
+        case EditorAction::Id::SetToneAutomationPoints:
+        {
+            return "SetToneAutomationPoints";
+        }
     }
 
     return "Unknown";
@@ -248,6 +252,7 @@ namespace
             case EditorAction::Id::RenameTone:
             case EditorAction::Id::MoveToneBoundary:
             case EditorAction::Id::CreateNewTone:
+            case EditorAction::Id::SetToneAutomationPoints:
             case EditorAction::Id::SelectArrangement:
             {
                 return "input-calibration-prompt";
@@ -307,6 +312,7 @@ namespace
         case EditorAction::Id::RenameTone:
         case EditorAction::Id::MoveToneBoundary:
         case EditorAction::Id::CreateNewTone:
+        case EditorAction::Id::SetToneAutomationPoints:
         case EditorAction::Id::ScanPluginCatalog:
         {
             return "no-loaded-arrangement";
@@ -811,6 +817,17 @@ void EditorController::onToneCreateNewRequested(
     common::core::ToneGridPosition position, std::string name)
 {
     m_impl->onToneCreateNewRequested(position, std::move(name));
+}
+
+void EditorController::onSetToneAutomationPoints(
+    std::string tone_document_ref, std::string instance_id, std::string param_id,
+    std::vector<common::audio::AutomationCurvePoint> points)
+{
+    m_impl->onSetToneAutomationPoints(
+        std::move(tone_document_ref),
+        std::move(instance_id),
+        std::move(param_id),
+        std::move(points));
 }
 
 void EditorController::onPluginBrowserRequested()

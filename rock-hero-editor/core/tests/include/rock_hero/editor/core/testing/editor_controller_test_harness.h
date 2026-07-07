@@ -940,6 +940,30 @@ keeping construction explicit.
 }
 
 /*!
+\brief Replaces the plugin-host, live-rig, and tone-automation ports in the test controller bundle.
+\param transport Transport and live-input fake used by the controller under test.
+\param song_audio Song-audio fake used by the controller under test.
+\param plugin_host Plugin-host fake used by the controller under test.
+\param live_rig Live-rig fake used by the controller under test.
+\param tone_automation Tone parameter automation fake used by the controller under test.
+\return Controller audio-port bundle.
+*/
+[[nodiscard]] inline EditorController::AudioPorts audioPorts(
+    FakeTransport& transport, ConfigurableSongAudio& song_audio, RecordingPluginHost& plugin_host,
+    FakeLiveRig& live_rig, FakeToneAutomation& tone_automation)
+{
+    return EditorController::AudioPorts{
+        .transport = transport,
+        .song_audio = song_audio,
+        .audio_devices = defaultAudioDevices(),
+        .plugin_host = plugin_host,
+        .live_rig = live_rig,
+        .tone_automation = tone_automation,
+        .live_input = transport,
+    };
+}
+
+/*!
 \brief Replaces the default audio-device and plugin-host ports in the common test controller bundle.
 \param transport Transport and live-input fake used by the controller under test.
 \param song_audio Song-audio fake used by the controller under test.

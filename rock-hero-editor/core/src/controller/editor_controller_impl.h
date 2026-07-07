@@ -137,6 +137,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onArrangementSelected(std::string arrangement_id);
     [[nodiscard]] std::string toneRegionIdAt(common::core::TimePosition position) const;
     [[nodiscard]] std::string selectedToneDocumentRef() const;
+    [[nodiscard]] std::string automationParameterName(
+        const std::string& tone_document_ref, const std::string& instance_id,
+        const std::string& param_id) const;
     void applyToneSelection(std::string region_id);
     void syncAudibleTone();
     void onToneRegionSelected(std::string region_id);
@@ -151,6 +154,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onToneBoundaryMoveRequested(
         std::string right_region_id, common::core::ToneGridPosition position);
     void onToneCreateNewRequested(common::core::ToneGridPosition position, std::string name);
+    void onSetToneAutomationPoints(
+        std::string tone_document_ref, std::string instance_id, std::string param_id,
+        std::vector<common::audio::AutomationCurvePoint> points);
     void onPluginBrowserRequested();
     void onPluginInsertSlotSelected(std::size_t chain_index, std::size_t block_index);
     void onPluginBrowserClosed();
@@ -210,6 +216,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::RenameTone& action);
     void performActionImpl(const EditorAction::MoveToneBoundary& action);
     void performActionImpl(const EditorAction::CreateNewTone& action);
+    void performActionImpl(const EditorAction::SetToneAutomationPoints& action);
     void performActionImpl(EditorAction::ShowPluginBrowser action);
     void performActionImpl(EditorAction::BeginPluginInsert action);
     void performActionImpl(EditorAction::ScanPluginCatalog action);
