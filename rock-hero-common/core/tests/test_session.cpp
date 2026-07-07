@@ -32,6 +32,7 @@ namespace
             .tone_document_ref = {},
             .tones = {},
             .tone_track = {},
+            .tone_automation = {},
             .chart_ref = {},
             .chart = {},
         });
@@ -180,6 +181,7 @@ TEST_CASE("Session loadSong stores the selected arrangement index", "[core][sess
             .tone_document_ref = {},
             .tones = {},
             .tone_track = {},
+            .tone_automation = {},
             .chart_ref = {},
             .chart = {},
         });
@@ -193,6 +195,7 @@ TEST_CASE("Session loadSong stores the selected arrangement index", "[core][sess
             .tone_document_ref = {},
             .tones = {},
             .tone_track = {},
+            .tone_automation = {},
             .chart_ref = {},
             .chart = {},
         });
@@ -228,6 +231,7 @@ TEST_CASE("Session loadSong rejects arrangement without duration", "[core][sessi
             .tone_document_ref = {},
             .tones = {},
             .tone_track = {},
+            .tone_automation = {},
             .chart_ref = {},
             .chart = {},
         });
@@ -241,6 +245,7 @@ TEST_CASE("Session loadSong rejects arrangement without duration", "[core][sessi
             .tone_document_ref = {},
             .tones = {},
             .tone_track = {},
+            .tone_automation = {},
             .chart_ref = {},
             .chart = {},
         });

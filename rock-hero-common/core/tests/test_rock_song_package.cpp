@@ -143,6 +143,7 @@ void writeAudioFile(const std::filesystem::path& path)
             .tone_document_ref = {},
             .tones = {},
             .tone_track = {},
+            .tone_automation = {},
             .chart_ref = {},
             .chart = {},
         });

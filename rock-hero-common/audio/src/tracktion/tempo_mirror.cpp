@@ -40,7 +40,7 @@ namespace
     const std::vector<double>& measure_starts, const core::TempoMap& tempo_map, int measure,
     int beat)
 {
-    const std::size_t measure_index = static_cast<std::size_t>(measure - 1);
+    const auto measure_index = static_cast<std::size_t>(measure - 1);
     const double start =
         measure_index < measure_starts.size() ? measure_starts[measure_index] : 0.0;
     const core::TimeSignatureChange signature = tempo_map.timeSignatureAt(measure);
