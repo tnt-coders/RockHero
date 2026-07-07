@@ -126,6 +126,29 @@ TEST_CASE("Lanes view has zero height with no selected tone", "[ui][tone-automat
     CHECK_FALSE(empty.wantsPointerAt({10, 10}));
 }
 
+TEST_CASE(
+    "Lanes view announces height changes for lane-free tone selection",
+    "[ui][tone-automation-lanes]")
+{
+    LanesHarness harness;
+    ToneAutomationLanesView view{harness.listener, harness.tempo_map};
+    int heights_changed_count = 0;
+    view.setHeightsChangedCallback([&heights_changed_count] { heights_changed_count += 1; });
+
+    // Selecting a tone with no lanes yet still grows the view from nothing to the "+" lane; the
+    // viewport only re-lays rows out when this callback fires, so silence here hides the picker.
+    core::ToneAutomationViewState lane_free;
+    lane_free.tone_document_ref = "tones/x/tone.json";
+    view.setState(lane_free);
+    CHECK(heights_changed_count == 1);
+    CHECK(view.totalHeight() > 0);
+
+    // Same lane count both sides, so only the height comparison reports the deselection too.
+    view.setState(core::ToneAutomationViewState{});
+    CHECK(heights_changed_count == 2);
+    CHECK(view.totalHeight() == 0);
+}
+
 TEST_CASE("Lanes view claims editable zones and rejects inert ones", "[ui][tone-automation-lanes]")
 {
     const LanesHarness harness;
