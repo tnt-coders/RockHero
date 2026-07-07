@@ -142,13 +142,13 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         std::string region_id, common::core::ToneGridPosition start,
         common::core::ToneGridPosition end);
     void onToneRegionCreateRequested(
-        common::core::ToneGridPosition at, std::string new_region_id,
+        common::core::ToneGridPosition position, std::string new_region_id,
         std::string tone_document_ref);
     void onToneRegionDeleteRequested(std::string region_id);
     void onToneRenameRequested(std::string tone_document_ref, std::string name);
     void onToneBoundaryMoveRequested(
         std::string right_region_id, common::core::ToneGridPosition position);
-    void onToneCreateNewRequested(common::core::ToneGridPosition at, std::string name);
+    void onToneCreateNewRequested(common::core::ToneGridPosition position, std::string name);
     void onPluginBrowserRequested();
     void onPluginInsertSlotSelected(std::size_t chain_index, std::size_t block_index);
     void onPluginBrowserClosed();
