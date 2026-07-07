@@ -73,6 +73,11 @@ bool RockHeroEngineBehavior::arePluginsRemappedWhenTempoChanges()
     return false;
 }
 
+bool RockHeroEngineBehavior::lengthOfOneBeatDependsOnTimeSignature()
+{
+    return false;
+}
+
 void RockHeroEngineBehavior::describeWaveDevices(
     std::vector<tracktion::WaveDeviceDescription>& descriptions, juce::AudioIODevice& device,
     bool is_input)

@@ -237,4 +237,20 @@ TEST_CASE(
     CHECK(editor.automation().lanes.front().resolved);
 }
 
+TEST_CASE(
+    "EditorController mirrors the song tempo map at rig-load completion", "[core][tone-automation]")
+{
+    const AutomationEditor editor;
+
+    // The one-way host-tempo mirror runs beside the derived-curve rebuild so hosted plugins see
+    // the loaded song's tempo map instead of the backend default.
+    CHECK(editor.audio.mirror_tempo_map_call_count == 1);
+    REQUIRE(editor.audio.last_mirrored_tempo_map.has_value());
+    if (editor.audio.last_mirrored_tempo_map.has_value())
+    {
+        CHECK(
+            *editor.audio.last_mirrored_tempo_map == editor.controller.session().song().tempo_map);
+    }
+}
+
 } // namespace rock_hero::editor::core

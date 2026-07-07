@@ -117,6 +117,16 @@ public:
         return {};
     }
 
+    /*!
+    \brief Records the mirrored tempo map for assertion.
+    \param tempo_map Song tempo map mirrored by the object under test.
+    */
+    void mirrorTempoMap(const common::core::TempoMap& tempo_map) override
+    {
+        last_mirrored_tempo_map = tempo_map;
+        mirror_tempo_map_call_count += 1;
+    }
+
     /*! \brief Duration assigned to each arrangement during successful preparation. */
     common::core::TimeDuration next_prepared_audio_duration{common::core::TimeDuration{4.0}};
 
@@ -158,6 +168,12 @@ public:
 
     /*! \brief Number of active-arrangement clear calls received. */
     int clear_active_arrangement_call_count{0};
+
+    /*! \brief Last tempo map mirrored into the backend. */
+    std::optional<common::core::TempoMap> last_mirrored_tempo_map{};
+
+    /*! \brief Number of tempo-mirror calls received. */
+    int mirror_tempo_map_call_count{0};
 };
 
 } // namespace rock_hero::common::audio::testing

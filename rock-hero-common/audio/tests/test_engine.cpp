@@ -444,6 +444,30 @@ TEST_CASE("Engine audio port sets active arrangement", "[audio][engine][integrat
     CHECK(recorder.last_transport_state == TransportState{});
 }
 
+// Verifies the tempo mirror runs through the real port without disturbing loaded playback state.
+// Sequence contents and content stability are covered by the focused tempo-mirror tests; this
+// case guards the Engine-level plumbing (message-thread and edit guards, port dispatch).
+TEST_CASE("Engine audio port mirrors tempo maps", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    ISongAudio& audio = harness.engine;
+    const ITransport& transport = harness.engine;
+    const common::core::TimeDuration duration = requireLoadedFixtureAudio(audio);
+    REQUIRE(duration.seconds > 0.0);
+
+    const common::core::TempoMap tempo_map{
+        {common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}},
+        {
+            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
+            common::core::BeatAnchor{.measure = 2, .beat = 1, .seconds = 2.0},
+        },
+    };
+    audio.mirrorTempoMap(tempo_map);
+
+    CHECK(transport.state() == TransportState{});
+    CHECK(transport.position() == common::core::TimePosition{});
+}
+
 // Verifies song preparation fills fixture audio duration without mutating transport state.
 TEST_CASE("Engine audio port prepares song", "[audio][engine][integration]")
 {

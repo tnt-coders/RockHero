@@ -495,6 +495,10 @@ void EditorController::Impl::startLiveRigLoadStage(
                 // them, then rebuild the derived playback curves the sidecars no longer carry.
                 mergeToneChainIdentities(rig_result->tone_chains);
                 rebuildToneAutomationCurves();
+                // One-way host-tempo mirror so hosted plugins see the song's real tempo map
+                // instead of the backend default. A future tempo-editing flow must re-mirror
+                // after every tempo-map change alongside rebuildToneAutomationCurves().
+                m_song_audio.mirrorTempoMap(session().song().tempo_map);
                 applyLiveInputGate();
                 if (!report_progress)
                 {
