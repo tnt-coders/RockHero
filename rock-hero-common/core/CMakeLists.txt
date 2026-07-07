@@ -22,7 +22,8 @@ target_sources(
             src/song/song.cpp
             src/timeline/tempo_map.cpp
             src/tone/tone_track_rules.cpp
-            src/tone/tone_track_edits.cpp)
+            src/tone/tone_track_edits.cpp
+            src/tone/tone_track_normalize.cpp)
 
 target_include_directories(
     rock_hero_common_core
