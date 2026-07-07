@@ -215,6 +215,9 @@ private:
     [[nodiscard]] std::optional<std::pair<float, float>> regionXSpan(
         const core::ToneRegionViewState& region) const;
 
+    // Opens the right-click context menu for a region (Rename mirrors the double-click shortcut).
+    void showRegionContextMenu(const core::ToneRegionViewState& region);
+
     // Resolves the authored region (and optionally its edge) under a local position.
     [[nodiscard]] std::optional<RegionHit> hitAt(juce::Point<int> local_point) const;
 
