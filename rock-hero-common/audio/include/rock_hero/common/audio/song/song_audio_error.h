@@ -31,6 +31,9 @@ enum class SongAudioErrorCode : std::uint8_t
 
     /*! \brief The backend could not restore live input routing after graph mutation. */
     MonitoringRouteFailed,
+
+    /*! \brief An arrangement's default tone document could not be established at load. */
+    ToneBaselineFailed,
 };
 
 /*! \brief Recoverable song audio failure with a stable code and displayable detail. */

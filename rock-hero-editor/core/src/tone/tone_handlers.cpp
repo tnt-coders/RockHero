@@ -614,6 +614,20 @@ void EditorController::Impl::reloadLiveRigForToneSet(std::string select_region_i
         return;
     }
 
+    // The reload replaces every branch from the documents on disk, so unsaved branch drift must
+    // be captured first or it is silently lost. On capture failure the reload is skipped: the
+    // drifted state stays alive in the current rack, and the new tone gains its branch on the
+    // next successful load.
+    if (const auto captured = captureLiveRigToDisk(*m_project); !captured.has_value())
+    {
+        reportError(
+            std::string{"Could not capture the current tones before reloading: "} +
+            captured.error().message);
+        applyToneSelection(std::move(select_region_id));
+        updateView();
+        return;
+    }
+
     const std::uint64_t token = beginBusy(BusyOperation::LoadingLiveRig);
     updateView();
     runLiveRigLoadStage(
