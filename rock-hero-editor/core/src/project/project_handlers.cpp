@@ -1420,7 +1420,7 @@ std::expected<void, common::audio::SongAudioError> EditorController::Impl::loadS
     // change.
     for (common::core::Arrangement& arrangement : song.arrangements)
     {
-        if (!arrangement.tone_document_ref.empty())
+        if (!arrangement.tones.empty() || !arrangement.tone_track.regions.empty())
         {
             continue;
         }
@@ -1433,7 +1433,8 @@ std::expected<void, common::audio::SongAudioError> EditorController::Impl::loadS
                     minted.error().message,
             }};
         }
-        arrangement.tone_document_ref = std::move(*minted);
+        arrangement.tones.push_back(
+            common::core::Tone{.tone_document_ref = std::move(*minted), .name = "Default"});
     }
     common::core::ensureExplicitToneRegions(song);
 

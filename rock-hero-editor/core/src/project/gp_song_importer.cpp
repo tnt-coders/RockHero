@@ -211,7 +211,6 @@ std::expected<common::core::Song, SongImportError> GpSongImporter::importSong(
                         .start_offset = audio_start_offset,
                     },
                 .audio_duration = common::core::TimeDuration{},
-                .tone_document_ref = {},
                 .tones = {},
                 .tone_track = {},
                 .tone_automation = {},

@@ -82,7 +82,6 @@ using common::core::GridPosition;
         .difficulty = common::core::DifficultyRating{},
         .audio_asset = {},
         .audio_duration = common::core::TimeDuration{16.0},
-        .tone_document_ref = {},
         .tones = {},
         .tone_track = {},
         .tone_automation = {},

@@ -26,7 +26,6 @@ namespace
                     .start_offset = {},
                 },
             .audio_duration = common::core::TimeDuration{},
-            .tone_document_ref = {},
             .tones = {},
             .tone_track = {},
             .tone_automation = {},
