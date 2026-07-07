@@ -222,6 +222,8 @@ TEST_CASE("Package IDs use canonical UUIDv4 text", "[core][rock-song-package]")
     CHECK(isCanonicalPackageId(generated_id));
     CHECK(isCanonicalPackageId(g_lead_arrangement_id));
     CHECK(toneDocumentRefForToneId(g_tone_id) == toneDocumentRef());
+    CHECK(toneIdFromToneDocumentRef(toneDocumentRef()) == g_tone_id);
+    CHECK(toneIdFromToneDocumentRef("tones/lead.tone.json").empty());
     CHECK(isCanonicalToneDocumentRef(toneDocumentRef()));
     CHECK_FALSE(isCanonicalPackageId("lead"));
     CHECK_FALSE(isCanonicalPackageId("4f3a1c5e9d2b48a6b1f0c7e8d9a2b3c4"));
@@ -862,10 +864,31 @@ TEST_CASE("Rock song package round-trips authored tone regions", "[core][rock-so
     const auto written = writeRockSongPackageDirectory(package_directory, song);
     REQUIRE(written.has_value());
 
+    // The document speaks the lean spelling: catalog entries and tone changes carry UUIDs, the
+    // document path derives from the canonical layout, and no per-region id persists.
+    const std::string song_document = readTextFile(package_directory / "song.json");
+    CHECK(song_document.find("\"toneChanges\"") != std::string::npos);
+    CHECK(song_document.find("\"tone\": \"" + std::string{g_tone_id} + "\"") != std::string::npos);
+    CHECK(song_document.find("\"id\": \"" + std::string{g_tone_id} + "\"") != std::string::npos);
+    CHECK(song_document.find("\"toneTrack\"") == std::string::npos);
+    CHECK(song_document.find("\"toneDocument\"") == std::string::npos);
+    CHECK(song_document.find(std::string{g_verse_region_id}) == std::string::npos);
+
     const auto loaded = readRockSongPackageDirectory(package_directory);
     REQUIRE(loaded.has_value());
     REQUIRE(loaded->arrangements.size() == 1);
-    CHECK(loaded->arrangements.front().tone_track == song.arrangements.front().tone_track);
+    // Region ids are minted at load rather than persisted, so the round-trip comparison is
+    // id-agnostic: starts, derived ends, and tone references must survive exactly.
+    const std::vector<ToneRegion>& loaded_regions = loaded->arrangements.front().tone_track.regions;
+    const std::vector<ToneRegion>& authored_regions = song.arrangements.front().tone_track.regions;
+    REQUIRE(loaded_regions.size() == authored_regions.size());
+    for (std::size_t index = 0; index < loaded_regions.size(); ++index)
+    {
+        CHECK(isCanonicalPackageId(loaded_regions[index].id));
+        CHECK(loaded_regions[index].start == authored_regions[index].start);
+        CHECK(loaded_regions[index].end == authored_regions[index].end);
+        CHECK(loaded_regions[index].tone_document_ref == authored_regions[index].tone_document_ref);
+    }
     // The named-tone catalog round-trips through the "tones" array, so the region label survives.
     CHECK(loaded->arrangements.front().tones == song.arrangements.front().tones);
 }
@@ -983,6 +1006,66 @@ TEST_CASE(
     REQUIRE(read_song.has_value());
     REQUIRE(read_song->arrangements.size() == 1);
     CHECK(toneNameFor(read_song->arrangements.front(), toneDocumentRef()) == "Legacy Clean");
+}
+
+TEST_CASE("Rock song package read rejects malformed tone change ids", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    writeReadablePackageDirectory(package_directory);
+    writeTextFile(package_directory / toneDocumentPath(g_tone_id), "{}");
+    writeTextFile(
+        package_directory / "song.json",
+        R"({
+            "formatVersion": 1,)" +
+            tempoMapJsonFragment() +
+            R"(
+            "audioAssets": [ { "id": "backing", "path": "audio/backing.flac" } ],
+            "arrangements": [
+                {
+                    "id": ")" +
+            std::string{g_lead_arrangement_id} +
+            R"(",
+                    "part": "Lead",
+                    "audio": "backing",
+                    "toneChanges": [ { "start": "1:1", "tone": "not-a-uuid" } ]
+                }
+            ]
+        })");
+
+    const auto loaded = readRockSongPackageDirectory(package_directory);
+    REQUIRE_FALSE(loaded.has_value());
+    CHECK(loaded.error().code == SongPackageErrorCode::InvalidArrangement);
+}
+
+TEST_CASE("Rock song package read rejects malformed catalog tone ids", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    writeReadablePackageDirectory(package_directory);
+    writeTextFile(package_directory / toneDocumentPath(g_tone_id), "{}");
+    writeTextFile(
+        package_directory / "song.json",
+        R"({
+            "formatVersion": 1,)" +
+            tempoMapJsonFragment() +
+            R"(
+            "audioAssets": [ { "id": "backing", "path": "audio/backing.flac" } ],
+            "arrangements": [
+                {
+                    "id": ")" +
+            std::string{g_lead_arrangement_id} +
+            R"(",
+                    "part": "Lead",
+                    "audio": "backing",
+                    "tones": [ { "id": "not-a-uuid", "name": "Broken" } ]
+                }
+            ]
+        })");
+
+    const auto loaded = readRockSongPackageDirectory(package_directory);
+    REQUIRE_FALSE(loaded.has_value());
+    CHECK(loaded.error().code == SongPackageErrorCode::InvalidArrangement);
 }
 
 TEST_CASE("Rock song package write rejects overlapping tone regions", "[core][rock-song-package]")

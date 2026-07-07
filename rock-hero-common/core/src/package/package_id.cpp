@@ -45,6 +45,16 @@ std::string toneDocumentRefForToneId(std::string_view tone_id)
            std::string{g_tone_document_suffix};
 }
 
+std::string toneIdFromToneDocumentRef(std::string_view tone_document_ref)
+{
+    if (!isCanonicalToneDocumentRef(tone_document_ref))
+    {
+        return {};
+    }
+
+    return std::string{tone_document_ref.substr(g_tone_document_prefix.size(), g_uuid_length)};
+}
+
 bool isCanonicalPackageId(std::string_view id) noexcept
 {
     if (id.size() != g_uuid_length)

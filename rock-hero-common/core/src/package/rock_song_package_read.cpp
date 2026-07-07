@@ -464,73 +464,124 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
 }
 
 // Reads one arrangement's optional authored tone track and validates it against the tempo map.
+// The current spelling is a flat "toneChanges" array whose entries reference catalog tones by
+// UUID; the legacy "toneTrack" object referenced tone documents by path and is still accepted.
 [[nodiscard]] std::expected<ToneTrack, SongPackageError> readToneTrack(
     const std::filesystem::path& directory, const juce::var& arrangement_json,
     const TempoMap& tempo_map)
 {
     ToneTrack tone_track;
-    const juce::var& tone_track_json = Json::value(arrangement_json, "toneTrack");
-    if (tone_track_json.isVoid() || tone_track_json.isUndefined())
-    {
-        return tone_track;
-    }
 
-    if (!tone_track_json.isObject())
-    {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidArrangement,
-            "arrangement toneTrack must be an object when present",
-        }};
-    }
-
-    const juce::var& regions_json = Json::value(tone_track_json, "regions");
-    if (!regions_json.isArray())
-    {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidArrangement,
-            "toneTrack.regions must be an array",
-        }};
-    }
-
-    tone_track.regions.reserve(static_cast<std::size_t>(regions_json.size()));
-    const juce::Array<juce::var>* const region_array = regions_json.getArray();
-    for (const juce::var& region_json : *region_array)
-    {
-        if (!region_json.isObject())
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                "toneTrack.regions entries must be objects",
-            }};
-        }
-
-        const auto id = Json::tryReadString(region_json, "id");
-        const auto start_text = Json::tryReadString(region_json, "start");
-        const auto tone_document = Json::tryReadString(region_json, "toneDocument");
-        if (!id.has_value() || !start_text.has_value() || !tone_document.has_value())
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                "tone regions require id, start, and toneDocument fields",
-            }};
-        }
-
-        const auto start = parseBeatPositionToken(*start_text);
+    // Region ids are session-scoped and minted here rather than persisted; parsing appends one
+    // marker per entry and the shared tail below derives the ends.
+    const auto append_region =
+        [&tone_track](
+            const std::string& start_text,
+            std::string tone_document_ref) -> std::expected<void, SongPackageError> {
+        const auto start = parseBeatPositionToken(start_text);
         if (!start.has_value())
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidArrangement,
-                "tone region start must be a \"<measure>:<beat>\" token",
+                "tone change start must be a \"<measure>:<beat>\" token",
             }};
         }
 
         tone_track.regions.push_back(
             ToneRegion{
-                .id = *id,
+                .id = generatePackageId(),
                 .start = ToneGridPosition{.measure = start->measure, .beat = start->beat},
                 .end = ToneGridPosition{},
-                .tone_document_ref = *tone_document,
+                .tone_document_ref = std::move(tone_document_ref),
             });
+        return std::expected<void, SongPackageError>{};
+    };
+
+    const juce::var& tone_changes_json = Json::value(arrangement_json, "toneChanges");
+    const juce::var& tone_track_json = Json::value(arrangement_json, "toneTrack");
+    if (!tone_changes_json.isVoid() && !tone_changes_json.isUndefined())
+    {
+        if (!tone_changes_json.isArray())
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                "arrangement toneChanges must be an array when present",
+            }};
+        }
+
+        tone_track.regions.reserve(static_cast<std::size_t>(tone_changes_json.size()));
+        for (const juce::var& change_json : *tone_changes_json.getArray())
+        {
+            const auto start_text = Json::tryReadString(change_json, "start");
+            const auto tone_id = Json::tryReadString(change_json, "tone");
+            if (!change_json.isObject() || !start_text.has_value() || !tone_id.has_value())
+            {
+                return std::unexpected{SongPackageError{
+                    SongPackageErrorCode::InvalidArrangement,
+                    "toneChanges entries require start and tone fields",
+                }};
+            }
+
+            if (!isCanonicalPackageId(*tone_id))
+            {
+                return std::unexpected{SongPackageError{
+                    SongPackageErrorCode::InvalidArrangement,
+                    "tone change tone must be a canonical tone id: " + *tone_id,
+                }};
+            }
+
+            if (const auto appended =
+                    append_region(*start_text, toneDocumentRefForToneId(*tone_id));
+                !appended.has_value())
+            {
+                return std::unexpected{appended.error()};
+            }
+        }
+    }
+    else if (!tone_track_json.isVoid() && !tone_track_json.isUndefined())
+    {
+        if (!tone_track_json.isObject())
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                "arrangement toneTrack must be an object when present",
+            }};
+        }
+
+        const juce::var& regions_json = Json::value(tone_track_json, "regions");
+        if (!regions_json.isArray())
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                "toneTrack.regions must be an array",
+            }};
+        }
+
+        tone_track.regions.reserve(static_cast<std::size_t>(regions_json.size()));
+        for (const juce::var& region_json : *regions_json.getArray())
+        {
+            // Legacy regions carried an "id" (and an "end"); both are ignored now that ids are
+            // minted at load and ends derive from the marker tiling.
+            const auto start_text = Json::tryReadString(region_json, "start");
+            const auto tone_document = Json::tryReadString(region_json, "toneDocument");
+            if (!region_json.isObject() || !start_text.has_value() || !tone_document.has_value())
+            {
+                return std::unexpected{SongPackageError{
+                    SongPackageErrorCode::InvalidArrangement,
+                    "tone regions require start and toneDocument fields",
+                }};
+            }
+
+            if (const auto appended = append_region(*start_text, *tone_document);
+                !appended.has_value())
+            {
+                return std::unexpected{appended.error()};
+            }
+        }
+    }
+    else
+    {
+        return tone_track;
     }
 
     // Regions are persisted as tone-change markers: only starts are stored, and each end derives
@@ -569,11 +620,13 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
     return tone_track;
 }
 
-// Reads the arrangement's named-tone catalog: the "tones" array when present, or, for packages
-// written before the catalog existed, a catalog rebuilt from the whole-song default tone plus each
-// region's legacy per-region name, so names authored before the catalog survive the load.
-[[nodiscard]] std::vector<Tone> readToneCatalog(
-    const juce::var& arrangement_json, const std::string& default_tone_document_ref)
+// Reads the arrangement's named-tone catalog: the "tones" array when present (entries name tones
+// by UUID, or by full document path in the legacy spelling), or, for packages written before the
+// catalog existed, a catalog rebuilt from the whole-song default tone plus each region's legacy
+// per-region name, so names authored before the catalog survive the load.
+[[nodiscard]] std::expected<std::vector<Tone>, SongPackageError> readToneCatalog(
+    const juce::var& arrangement_json, const std::string& default_tone_document_ref,
+    const ToneTrack& tone_track)
 {
     std::vector<Tone> tones;
     const auto add_tone = [&tones](const std::string& ref, const std::string& name) {
@@ -591,28 +644,53 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
     {
         for (const juce::var& tone_json : *tones_json.getArray())
         {
-            if (const auto ref = Json::tryReadString(tone_json, "toneDocument"); ref.has_value())
+            const auto name = Json::tryReadString(tone_json, "name").value_or(std::string{});
+            if (const auto id = Json::tryReadString(tone_json, "id"); id.has_value())
             {
-                add_tone(*ref, Json::tryReadString(tone_json, "name").value_or(std::string{}));
+                if (!isCanonicalPackageId(*id))
+                {
+                    return std::unexpected{SongPackageError{
+                        SongPackageErrorCode::InvalidArrangement,
+                        "catalog tone id must be a canonical tone id: " + *id,
+                    }};
+                }
+                add_tone(toneDocumentRefForToneId(*id), name);
+            }
+            else if (
+                const auto ref = Json::tryReadString(tone_json, "toneDocument"); ref.has_value()
+            )
+            {
+                // Legacy catalog entries carried the full document path instead of the ID.
+                add_tone(*ref, name);
             }
         }
-        return tones;
+    }
+    else
+    {
+        // Legacy fallback: the default tone is unnamed, so label it "Default"; region names came
+        // from the regions themselves before the catalog owned them.
+        add_tone(default_tone_document_ref, "Default");
+        const juce::var& regions_json =
+            Json::value(Json::value(arrangement_json, "toneTrack"), "regions");
+        if (regions_json.isArray())
+        {
+            for (const juce::var& region_json : *regions_json.getArray())
+            {
+                if (const auto ref = Json::tryReadString(region_json, "toneDocument");
+                    ref.has_value())
+                {
+                    add_tone(
+                        *ref, Json::tryReadString(region_json, "name").value_or(std::string{}));
+                }
+            }
+        }
     }
 
-    // Legacy fallback: the default tone is unnamed, so label it "Default"; region names came from
-    // the regions themselves before the catalog owned them.
-    add_tone(default_tone_document_ref, "Default");
-    const juce::var& regions_json =
-        Json::value(Json::value(arrangement_json, "toneTrack"), "regions");
-    if (regions_json.isArray())
+    // Every referenced tone belongs in the catalog; a hand-edited file whose "tones" array missed
+    // one normalizes to an unnamed entry instead of loading with a dangling reference.
+    for (const ToneRegion& region : tone_track.regions)
     {
-        for (const juce::var& region_json : *regions_json.getArray())
-        {
-            if (const auto ref = Json::tryReadString(region_json, "toneDocument"); ref.has_value())
-            {
-                add_tone(*ref, Json::tryReadString(region_json, "name").value_or(std::string{}));
-            }
-        }
+        add_tone(region.tone_document_ref, std::string{});
     }
 
     return tones;
@@ -777,8 +855,25 @@ readToneAutomation(const juce::var& arrangement_json, const TempoMap& tempo_map)
             }};
         }
 
+        // The arrangement's default tone persists as a catalog UUID under "tone"; the legacy
+        // "toneDocument" spelling carried the full document path and is still accepted.
+        const juce::var& tone_id_json = Json::value(arrangement_json, "tone");
         const juce::var& tone_document_json = Json::value(arrangement_json, "toneDocument");
-        if (!tone_document_json.isVoid() && !tone_document_json.isUndefined())
+        if (!tone_id_json.isVoid() && !tone_id_json.isUndefined())
+        {
+            const std::string tone_id =
+                tone_id_json.isString() ? tone_id_json.toString().toStdString() : std::string{};
+            if (!isCanonicalPackageId(tone_id))
+            {
+                return std::unexpected{SongPackageError{
+                    SongPackageErrorCode::InvalidArrangement,
+                    "arrangement tone must be a canonical tone id: " + tone_id,
+                }};
+            }
+
+            tone_document_ref = toneDocumentRefForToneId(tone_id);
+        }
+        else if (!tone_document_json.isVoid() && !tone_document_json.isUndefined())
         {
             if (!tone_document_json.isString() || tone_document_json.toString().isEmpty())
             {
@@ -796,14 +891,15 @@ readToneAutomation(const juce::var& arrangement_json, const TempoMap& tempo_map)
                     "tone document path must be tones/<uuid>/tone.json: " + tone_document_ref,
                 }};
             }
+        }
 
-            if (!resolveExistingFile(directory, tone_document_ref).has_value())
-            {
-                return std::unexpected{SongPackageError{
-                    SongPackageErrorCode::InvalidArrangement,
-                    "tone document is missing or unsafe: " + tone_document_ref,
-                }};
-            }
+        if (!tone_document_ref.empty() &&
+            !resolveExistingFile(directory, tone_document_ref).has_value())
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                "tone document is missing or unsafe: " + tone_document_ref,
+            }};
         }
 
         auto tone_track = readToneTrack(directory, arrangement_json, tempo_map);
@@ -871,7 +967,11 @@ readToneAutomation(const juce::var& arrangement_json, const TempoMap& tempo_map)
 
         // Build the catalog before tone_document_ref is moved out; it names the default tone and,
         // for legacy packages, recovers the per-region names that used to live on the regions.
-        std::vector<Tone> tones = readToneCatalog(arrangement_json, tone_document_ref);
+        auto tones = readToneCatalog(arrangement_json, tone_document_ref, *tone_track);
+        if (!tones.has_value())
+        {
+            return std::unexpected{std::move(tones.error())};
+        }
 
         arrangements.push_back(
             Arrangement{
@@ -881,7 +981,7 @@ readToneAutomation(const juce::var& arrangement_json, const TempoMap& tempo_map)
                 .audio_asset = audio_asset->second,
                 .audio_duration = TimeDuration{},
                 .tone_document_ref = std::move(tone_document_ref),
-                .tones = std::move(tones),
+                .tones = std::move(*tones),
                 .tone_track = std::move(*tone_track),
                 .tone_automation = std::move(*tone_automation),
                 .chart_ref = std::move(chart_ref),
