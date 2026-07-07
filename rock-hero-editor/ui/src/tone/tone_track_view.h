@@ -65,6 +65,14 @@ public:
         virtual void onToneBoundaryMoveRequested(
             std::string right_region_id, common::core::ToneGridPosition position) = 0;
 
+        /*!
+        \brief Called when the user double-clicks a region to rename its tone.
+        \param tone_document_ref Tone the region references.
+        \param current_name Current tone name, used to pre-fill the rename prompt.
+        */
+        virtual void onToneRenamePromptRequested(
+            std::string tone_document_ref, std::string current_name) = 0;
+
     protected:
         /*! \brief Creates the listener interface. */
         Listener() = default;
@@ -172,6 +180,12 @@ public:
     \param event Pointer event delivered by JUCE.
     */
     void mouseUp(const juce::MouseEvent& event) override;
+
+    /*!
+    \brief Opens the rename prompt for the tone of the region under the pointer.
+    \param event Pointer event delivered by JUCE.
+    */
+    void mouseDoubleClick(const juce::MouseEvent& event) override;
 
 private:
     // Which endpoint an active drag is moving.

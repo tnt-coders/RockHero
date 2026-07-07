@@ -22,6 +22,9 @@ struct ToneRegionViewState
     /*! \brief User-facing region name; empty means the view shows a fallback label. */
     std::string name;
 
+    /*! \brief Package-relative tone document the region references; drives rename and reuse menus. */
+    std::string tone_document_ref;
+
     /*! \brief Musical start of the region (inclusive). */
     common::core::ToneGridPosition grid_start;
 

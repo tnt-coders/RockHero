@@ -8,11 +8,14 @@
 #include "timeline/track_viewport.h"
 
 #include <algorithm>
+#include <cmath>
+#include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <optional>
 #include <rock_hero/common/audio/song/i_thumbnail.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
+#include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/song/audio_asset.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -662,6 +665,13 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
             m_controller.onToneRegionDeleteRequested(selected->id);
             return true;
         }
+    }
+
+    // Ctrl+T inserts a tone-change marker at the playhead, splitting the region there.
+    if (key.getModifiers().isCtrlDown() && key.getKeyCode() == 'T')
+    {
+        createToneMarkerAtPlayhead();
+        return true;
     }
 
     return false;
@@ -1457,6 +1467,100 @@ void EditorView::onToneBoundaryMoveRequested(
     std::string right_region_id, common::core::ToneGridPosition position)
 {
     m_controller.onToneBoundaryMoveRequested(std::move(right_region_id), position);
+}
+
+// Shows the tone-picker menu for inserting a tone-change marker at the playhead: the marker snaps to
+// the nearest beat inside the region it splits, and the menu offers reusing an existing catalog tone
+// (excluding the tone being split, i.e. the immediately-preceding one) or minting a fresh empty one.
+void EditorView::createToneMarkerAtPlayhead()
+{
+    const double playhead = m_transport.position().seconds;
+    const auto beat_index =
+        static_cast<std::int64_t>(std::llround(m_state.tempo_map.beatPositionAtSeconds(playhead)));
+    const auto [measure, beat] = m_state.tempo_map.beatAtGlobalIndex(beat_index);
+    const common::core::ToneGridPosition at{.measure = measure, .beat = beat};
+    const std::int64_t at_index = m_state.tempo_map.globalBeatIndex(measure, beat);
+
+    const auto containing = std::ranges::find_if(
+        m_state.tone_track.regions, [&](const core::ToneRegionViewState& region) {
+            if (region.synthesized_default)
+            {
+                return false;
+            }
+            const std::int64_t start = m_state.tempo_map.globalBeatIndex(
+                region.grid_start.measure, region.grid_start.beat);
+            const std::int64_t end =
+                m_state.tempo_map.globalBeatIndex(region.grid_end.measure, region.grid_end.beat);
+            return start < at_index && at_index < end;
+        });
+    if (containing == m_state.tone_track.regions.end())
+    {
+        return; // The marker fell on a boundary or outside any region; there is nothing to split.
+    }
+
+    // Offer each distinct catalog tone except the one being split, then a fresh-tone option.
+    juce::PopupMenu menu;
+    std::vector<std::string> reuse_refs;
+    for (const core::ToneRegionViewState& region : m_state.tone_track.regions)
+    {
+        if (region.tone_document_ref.empty() ||
+            region.tone_document_ref == containing->tone_document_ref ||
+            std::ranges::find(reuse_refs, region.tone_document_ref) != reuse_refs.end())
+        {
+            continue;
+        }
+        reuse_refs.push_back(region.tone_document_ref);
+        menu.addItem(
+            static_cast<int>(reuse_refs.size()),
+            "Use " + juce::String(region.name.empty() ? "tone" : region.name));
+    }
+    const int create_new_id = static_cast<int>(reuse_refs.size()) + 1;
+    if (!reuse_refs.empty())
+    {
+        menu.addSeparator();
+    }
+    menu.addItem(create_new_id, "New tone");
+
+    menu.showMenuAsync(
+        juce::PopupMenu::Options{}.withTargetComponent(this),
+        [this, at, reuse_refs, create_new_id](int result) {
+            if (result == create_new_id)
+            {
+                m_controller.onToneCreateNewRequested(at, "New Tone");
+            }
+            else if (result >= 1 && std::cmp_less_equal(result, reuse_refs.size()))
+            {
+                m_controller.onToneRegionCreateRequested(
+                    at,
+                    common::core::generatePackageId(),
+                    reuse_refs[static_cast<std::size_t>(result - 1)]);
+            }
+        });
+}
+
+// Prompts for a new tone name (pre-filled with the current name) and forwards the rename to the
+// controller. The heap window frees itself once the modal prompt is dismissed.
+void EditorView::onToneRenamePromptRequested(
+    std::string tone_document_ref, std::string current_name)
+{
+    auto window = std::make_unique<juce::AlertWindow>(
+        "Rename Tone", "Enter a new name for this tone:", juce::MessageBoxIconType::QuestionIcon);
+    window->addTextEditor("name", current_name);
+    window->addButton("Rename", 1, juce::KeyPress{juce::KeyPress::returnKey});
+    window->addButton("Cancel", 0, juce::KeyPress{juce::KeyPress::escapeKey});
+
+    juce::AlertWindow* const window_ptr = window.release();
+    window_ptr->enterModalState(
+        true,
+        juce::ModalCallbackFunction::create(
+            [this, window_ptr, ref = std::move(tone_document_ref)](int result) {
+                if (result == 1)
+                {
+                    m_controller.onToneRenameRequested(
+                        ref, window_ptr->getTextEditorContents("name").toStdString());
+                }
+            }),
+        true);
 }
 
 void EditorView::onOutputGainChanged(double gain_db)

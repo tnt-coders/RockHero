@@ -112,14 +112,31 @@ void ToneTrackView::paint(juce::Graphics& g)
     {
         const core::ToneRegionViewState& region = m_state.regions[index];
         common::core::TimeRange span = region.time_range;
-        if (m_drag.has_value() && m_drag->region_index == index)
+        if (m_drag.has_value())
         {
-            span = common::core::TimeRange{
-                .start = common::core::TimePosition{m_tempo_map.secondsAtBeat(
-                    m_drag->preview_start.measure, m_drag->preview_start.beat)},
-                .end = common::core::TimePosition{m_tempo_map.secondsAtBeat(
-                    m_drag->preview_end.measure, m_drag->preview_end.beat)},
+            // Preview the live boundary on BOTH sides so the two regions move in sync under the
+            // cursor: the dragged region's edge follows the pointer, and its neighbor across the
+            // shared boundary follows the same position.
+            const auto seconds_at = [this](const common::core::ToneGridPosition& grid) {
+                return common::core::TimePosition{m_tempo_map.secondsAtBeat(
+                    grid.measure, grid.beat)};
             };
+            if (m_drag->region_index == index)
+            {
+                span.start = seconds_at(m_drag->preview_start);
+                span.end = seconds_at(m_drag->preview_end);
+            }
+            else if (m_drag->edge == EdgeKind::End && index == m_drag->region_index + 1)
+            {
+                span.start = seconds_at(m_drag->preview_end);
+            }
+            else if (
+                m_drag->edge == EdgeKind::Start && m_drag->region_index > 0 &&
+                index == m_drag->region_index - 1
+            )
+            {
+                span.end = seconds_at(m_drag->preview_start);
+            }
         }
 
         const std::optional<float> start_x = core::timelineXForPosition(
@@ -316,6 +333,22 @@ void ToneTrackView::mouseUp(const juce::MouseEvent& event)
     m_pending_select.reset();
 }
 
+void ToneTrackView::mouseDoubleClick(const juce::MouseEvent& event)
+{
+    const std::optional<RegionHit> hit = hitAt(event.getPosition());
+    if (!hit.has_value())
+    {
+        return;
+    }
+
+    const core::ToneRegionViewState& region = m_state.regions[hit->region_index];
+    if (region.tone_document_ref.empty())
+    {
+        return; // The synthesized default region has no catalog tone to rename.
+    }
+    m_listener.onToneRenamePromptRequested(region.tone_document_ref, region.name);
+}
+
 // Maps one region's span to component x coordinates, or empty when unmappable.
 std::optional<std::pair<float, float>> ToneTrackView::regionXSpan(
     const core::ToneRegionViewState& region) const
@@ -411,8 +444,11 @@ std::optional<std::int64_t> ToneTrackView::snappedBeatForDrag(float x) const
         if (m_drag->region_index > 0)
         {
             const core::ToneRegionViewState& previous = m_state.regions[m_drag->region_index - 1];
+            // Boundary semantics: the shared boundary may move left into the previous region, down
+            // to one beat after its start, so neither region ever becomes empty.
             min_beat =
-                m_tempo_map.globalBeatIndex(previous.grid_end.measure, previous.grid_end.beat);
+                m_tempo_map.globalBeatIndex(previous.grid_start.measure, previous.grid_start.beat) +
+                1;
         }
     }
     else
@@ -421,7 +457,9 @@ std::optional<std::int64_t> ToneTrackView::snappedBeatForDrag(float x) const
         if (m_drag->region_index + 1 < m_state.regions.size())
         {
             const core::ToneRegionViewState& next = m_state.regions[m_drag->region_index + 1];
-            max_beat = m_tempo_map.globalBeatIndex(next.grid_start.measure, next.grid_start.beat);
+            // Boundary semantics: the shared boundary may move right into the next region, up to one
+            // beat before its end, so neither region ever becomes empty.
+            max_beat = m_tempo_map.globalBeatIndex(next.grid_end.measure, next.grid_end.beat) - 1;
         }
     }
 
