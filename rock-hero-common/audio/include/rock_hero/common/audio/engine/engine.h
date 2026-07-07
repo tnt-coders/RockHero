@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <optional>
+#include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <rock_hero/common/audio/device/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/input/i_audio_meter_source.h>
 #include <rock_hero/common/audio/input/i_live_input.h>
@@ -15,6 +16,7 @@
 #include <rock_hero/common/audio/song/i_song_audio.h>
 #include <rock_hero/common/audio/song/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -61,6 +63,7 @@ class Engine : public ITransport,
                public IPluginHost,
                public ILiveInput,
                public ILiveRig,
+               public IToneAutomation,
                public IThumbnailFactory
 {
 public:
@@ -406,6 +409,38 @@ public:
     \return Empty success, or a typed failure.
     */
     [[nodiscard]] std::expected<void, LiveRigError> setOutputGain(Gain gain) override;
+
+    /*!
+    \brief Lists the automatable parameters of every plugin in a loaded tone's chain.
+    \param tone_document_ref One of the tone references currently loaded into the live rig.
+    \return The tone's automatable parameters, or a typed failure when the tone is not loaded.
+    */
+    [[nodiscard]] std::expected<std::vector<AutomatableParamInfo>, ToneAutomationError>
+    listAutomatableParameters(const std::string& tone_document_ref) const override;
+
+    /*!
+    \brief Reads the current automation curve points for one tone-chain plugin parameter.
+    \param tone_document_ref One of the tone references currently loaded into the live rig.
+    \param instance_id Plugin instance whose parameter is read.
+    \param param_id Parameter id within that plugin.
+    \return The curve points in ascending time, or a typed failure.
+    */
+    [[nodiscard]] std::expected<std::vector<AutomationCurvePoint>, ToneAutomationError>
+    readParameterCurve(
+        const std::string& tone_document_ref, const std::string& instance_id,
+        const std::string& param_id) const override;
+
+    /*!
+    \brief Replaces one tone-chain plugin parameter's automation curve with the supplied points.
+    \param tone_document_ref One of the tone references currently loaded into the live rig.
+    \param instance_id Plugin instance whose parameter is written.
+    \param param_id Parameter id within that plugin.
+    \param points Replacement curve points, normalised value, in ascending time.
+    \return Empty success, or a typed failure.
+    */
+    [[nodiscard]] std::expected<void, ToneAutomationError> writeParameterCurve(
+        const std::string& tone_document_ref, const std::string& instance_id,
+        const std::string& param_id, std::span<const AutomationCurvePoint> points) override;
 
     /*!
     \brief Returns the JUCE audio device manager backing the engine.
