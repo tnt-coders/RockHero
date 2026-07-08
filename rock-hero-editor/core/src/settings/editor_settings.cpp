@@ -25,24 +25,6 @@ constexpr const char* g_tab_minimum_displayed_strings_key{"tabMinimumDisplayedSt
 constexpr int g_settings_xml_format_version{1};
 constexpr const char* g_format_version_property{"formatVersion"};
 
-struct ProjectCursorState
-{
-    std::filesystem::path project_file;
-    common::core::TimePosition cursor_position{};
-};
-
-struct ProjectGridNoteValueState
-{
-    std::filesystem::path project_file;
-    common::core::Fraction grid_note_value{1, 4};
-};
-
-struct ProjectTimelineZoomState
-{
-    std::filesystem::path project_file;
-    double pixels_per_second{0.0};
-};
-
 // Builds the per-user settings file options used by the editor app.
 [[nodiscard]] juce::PropertiesFile::Options editorSettingsOptions()
 {
@@ -244,220 +226,90 @@ private:
     }
 };
 
-// Cursor records resume one project's transport position across editor sessions.
-struct ProjectCursorCodec
-{
-    using State = ProjectCursorState;
+// One flat settings property per (family, project): key = "<family>:" + normalized project path,
+// value = one string. Each project's value is independent, so a corrupt or missing entry resets
+// only that value rather than a shared list. Family names double as the stored key prefix.
+constexpr std::string_view g_project_cursor_family{"projectCursor"};
+constexpr std::string_view g_project_grid_note_value_family{"projectGridNoteValue"};
+constexpr std::string_view g_project_timeline_zoom_family{"projectTimelineZoom"};
+constexpr std::string_view g_project_selected_arrangement_family{"projectSelectedArrangement"};
 
-    static constexpr const char* g_list_key{"projectCursorPositions"};
-    static constexpr const char* g_list_tag{"PROJECT_CURSOR_POSITIONS"};
-    static constexpr const char* g_item_tag{"POSITION"};
-    static constexpr const char* g_project_file_property{"projectFile"};
-    static constexpr const char* g_position_property{"cursorPosition"};
-    static constexpr EditorSettingsErrorCode g_malformed_history_code{
-        EditorSettingsErrorCode::InvalidProjectCursorHistory
+// Builds the flat settings key holding one family's value for one project path. Paths run through
+// projectSettingsKeyFor so chooser, restore, and test spellings of the same .rhp resolve to one
+// record; an empty project path yields an empty key so pathless writes never share a record.
+[[nodiscard]] juce::String projectSettingKey(
+    std::string_view family, const std::filesystem::path& project_file)
+{
+    const std::filesystem::path key = projectSettingsKeyFor(project_file);
+    if (key.empty())
+    {
+        return {};
+    }
+
+    return juce::String::fromUTF8(family.data(), static_cast<int>(family.size())) + ":" +
+           common::core::juceStringFromPath(key);
+}
+
+// Parses a stored value as a finite double, rejecting empty, malformed, or non-finite text so a
+// corrupt entry reads as absent rather than a bogus number.
+[[nodiscard]] std::optional<double> parseFiniteDouble(const juce::String& text)
+{
+    const std::string value_text = text.toStdString();
+    if (value_text.empty())
+    {
+        return std::nullopt;
+    }
+
+    double value{};
+    const char* const begin = value_text.data();
+    const char* const end = begin + value_text.size();
+    const auto [parsed_to, error] = std::from_chars(begin, end, value);
+    if (error != std::errc{} || parsed_to != end || !std::isfinite(value))
+    {
+        return std::nullopt;
+    }
+
+    return value;
+}
+
+// Parses a stored "numerator/denominator" token as a grid note value, rejecting malformed text or
+// non-positive terms so a corrupt entry reads as absent.
+[[nodiscard]] std::optional<common::core::Fraction> parseGridNoteValue(const juce::String& text)
+{
+    const std::string token = text.toStdString();
+    const std::size_t slash = token.find('/');
+    if (slash == std::string::npos)
+    {
+        return std::nullopt;
+    }
+
+    const auto parse_positive_int = [](std::string_view part) -> std::optional<int> {
+        if (part.empty())
+        {
+            return std::nullopt;
+        }
+        int value{};
+        const char* const begin = part.data();
+        const char* const end = begin + part.size();
+        const auto [parsed_to, error] = std::from_chars(begin, end, value);
+        if (error != std::errc{} || parsed_to != end || value < 1)
+        {
+            return std::nullopt;
+        }
+        return value;
     };
 
-    // Records arrive with keys already normalized: fromXml and the public API both run paths
-    // through projectSettingsKeyFor before the store sees them.
-    [[nodiscard]] static State normalized(State state)
+    const std::optional<int> numerator =
+        parse_positive_int(std::string_view{token}.substr(0, slash));
+    const std::optional<int> denominator =
+        parse_positive_int(std::string_view{token}.substr(slash + 1));
+    if (!numerator.has_value() || !denominator.has_value())
     {
-        return state;
+        return std::nullopt;
     }
 
-    // A storable record has a non-empty path key and a finite resume position.
-    [[nodiscard]] static bool isValid(const State& state)
-    {
-        return !state.project_file.empty() && std::isfinite(state.cursor_position.seconds);
-    }
-
-    // Records address the same project when their normalized path keys match.
-    [[nodiscard]] static bool sameKey(const State& lhs, const State& rhs)
-    {
-        return projectSettingsKeyFor(lhs.project_file) == projectSettingsKeyFor(rhs.project_file);
-    }
-
-    // Converts one XML item into a validated record, dropping incomplete or malformed entries.
-    [[nodiscard]] static std::optional<State> fromXml(const juce::XmlElement& element)
-    {
-        const std::optional<std::string> project_file =
-            readStringAttribute(element, g_project_file_property);
-        const std::optional<double> cursor_position =
-            parseDoubleAttribute(element, g_position_property);
-        if (!project_file.has_value() || project_file->empty() || !cursor_position.has_value() ||
-            !std::isfinite(*cursor_position))
-        {
-            return std::nullopt;
-        }
-
-        std::filesystem::path key = projectSettingsKeyFor(
-            common::core::pathFromJuceString(juce::String::fromUTF8(project_file->c_str())));
-        if (key.empty())
-        {
-            return std::nullopt;
-        }
-
-        return State{
-            .project_file = std::move(key),
-            .cursor_position = common::core::TimePosition{*cursor_position},
-        };
-    }
-
-    // Writes one record's attributes onto its XML item.
-    static void toXml(juce::XmlElement& element, const State& state)
-    {
-        element.setAttribute(
-            g_project_file_property, common::core::juceStringFromPath(state.project_file));
-        element.setAttribute(g_position_property, state.cursor_position.seconds);
-    }
-};
-
-// Grid note-value records resume one project's timeline grid step across editor sessions. The
-// property key is deliberately new: records written by the retired beat-unit grid family live
-// under "projectGridSpacings" and are ignored rather than reinterpreted in the wrong unit, so
-// affected projects reset to the default grid once.
-struct ProjectGridNoteValueCodec
-{
-    using State = ProjectGridNoteValueState;
-
-    static constexpr const char* g_list_key{"projectGridNoteValues"};
-    static constexpr const char* g_list_tag{"PROJECT_GRID_NOTE_VALUES"};
-    static constexpr const char* g_item_tag{"NOTE_VALUE"};
-    static constexpr const char* g_project_file_property{"projectFile"};
-    static constexpr const char* g_numerator_property{"noteValueNumerator"};
-    static constexpr const char* g_denominator_property{"noteValueDenominator"};
-    static constexpr EditorSettingsErrorCode g_malformed_history_code{
-        EditorSettingsErrorCode::InvalidProjectGridNoteValueHistory
-    };
-
-    // Records arrive with keys already normalized, matching ProjectCursorCodec.
-    [[nodiscard]] static State normalized(State state)
-    {
-        return state;
-    }
-
-    // Structural validity only: semantic note-value bounds stay with the controller so this
-    // store never silently rewrites persisted values.
-    [[nodiscard]] static bool isValid(const State& state)
-    {
-        return !state.project_file.empty() && state.grid_note_value.numerator >= 1;
-    }
-
-    // Records address the same project when their normalized path keys match.
-    [[nodiscard]] static bool sameKey(const State& lhs, const State& rhs)
-    {
-        return projectSettingsKeyFor(lhs.project_file) == projectSettingsKeyFor(rhs.project_file);
-    }
-
-    // Converts one XML item into a structurally valid record.
-    [[nodiscard]] static std::optional<State> fromXml(const juce::XmlElement& element)
-    {
-        const std::optional<std::string> project_file =
-            readStringAttribute(element, g_project_file_property);
-        const std::optional<int> numerator = parseIntAttribute(element, g_numerator_property);
-        const std::optional<int> denominator = parseIntAttribute(element, g_denominator_property);
-        if (!project_file.has_value() || project_file->empty() || !numerator.has_value() ||
-            !denominator.has_value() || *numerator < 1 || *denominator < 1)
-        {
-            return std::nullopt;
-        }
-
-        std::filesystem::path key = projectSettingsKeyFor(
-            common::core::pathFromJuceString(juce::String::fromUTF8(project_file->c_str())));
-        if (key.empty())
-        {
-            return std::nullopt;
-        }
-
-        return State{
-            .project_file = std::move(key),
-            .grid_note_value = common::core::Fraction{*numerator, *denominator},
-        };
-    }
-
-    // Writes one record's attributes onto its XML item.
-    static void toXml(juce::XmlElement& element, const State& state)
-    {
-        element.setAttribute(
-            g_project_file_property, common::core::juceStringFromPath(state.project_file));
-        element.setAttribute(g_numerator_property, state.grid_note_value.numerator);
-        element.setAttribute(g_denominator_property, state.grid_note_value.denominator);
-    }
-};
-
-// Timeline zoom records resume one project's horizontal timeline scale across sessions.
-struct ProjectTimelineZoomCodec
-{
-    using State = ProjectTimelineZoomState;
-
-    static constexpr const char* g_list_key{"projectTimelineZooms"};
-    static constexpr const char* g_list_tag{"PROJECT_TIMELINE_ZOOMS"};
-    static constexpr const char* g_item_tag{"ZOOM"};
-    static constexpr const char* g_project_file_property{"projectFile"};
-    static constexpr const char* g_pixels_per_second_property{"pixelsPerSecond"};
-    static constexpr EditorSettingsErrorCode g_malformed_history_code{
-        EditorSettingsErrorCode::InvalidProjectTimelineZoomHistory
-    };
-
-    // Records arrive with keys already normalized, matching ProjectCursorCodec.
-    [[nodiscard]] static State normalized(State state)
-    {
-        return state;
-    }
-
-    // Structural validity only: the view clamps restored zoom to its own timeline bounds, so
-    // this store never silently rewrites persisted values.
-    [[nodiscard]] static bool isValid(const State& state)
-    {
-        return !state.project_file.empty() && std::isfinite(state.pixels_per_second) &&
-               state.pixels_per_second > 0.0;
-    }
-
-    // Records address the same project when their normalized path keys match.
-    [[nodiscard]] static bool sameKey(const State& lhs, const State& rhs)
-    {
-        return projectSettingsKeyFor(lhs.project_file) == projectSettingsKeyFor(rhs.project_file);
-    }
-
-    // Converts one XML item into a structurally valid record.
-    [[nodiscard]] static std::optional<State> fromXml(const juce::XmlElement& element)
-    {
-        const std::optional<std::string> project_file =
-            readStringAttribute(element, g_project_file_property);
-        if (!project_file.has_value() || project_file->empty() ||
-            !element.hasAttribute(g_pixels_per_second_property))
-        {
-            return std::nullopt;
-        }
-
-        const double pixels_per_second =
-            element.getDoubleAttribute(g_pixels_per_second_property, 0.0);
-        if (!std::isfinite(pixels_per_second) || pixels_per_second <= 0.0)
-        {
-            return std::nullopt;
-        }
-
-        std::filesystem::path key = projectSettingsKeyFor(
-            common::core::pathFromJuceString(juce::String::fromUTF8(project_file->c_str())));
-        if (key.empty())
-        {
-            return std::nullopt;
-        }
-
-        return State{
-            .project_file = std::move(key),
-            .pixels_per_second = pixels_per_second,
-        };
-    }
-
-    // Writes one record's attributes onto its XML item.
-    static void toXml(juce::XmlElement& element, const State& state)
-    {
-        element.setAttribute(
-            g_project_file_property, common::core::juceStringFromPath(state.project_file));
-        element.setAttribute(g_pixels_per_second_property, state.pixels_per_second);
-    }
-};
+    return common::core::Fraction{*numerator, *denominator};
+}
 
 // Calibration records remember per-physical-route input gain across device changes.
 struct InputCalibrationCodec
@@ -547,9 +399,6 @@ struct InputCalibrationCodec
     }
 };
 
-using ProjectCursorStore = KeyedRecordStore<ProjectCursorCodec>;
-using ProjectGridNoteValueStore = KeyedRecordStore<ProjectGridNoteValueCodec>;
-using ProjectTimelineZoomStore = KeyedRecordStore<ProjectTimelineZoomCodec>;
 using InputCalibrationStore = KeyedRecordStore<InputCalibrationCodec>;
 
 // Saves pending changes and translates JUCE persistence failure into the settings domain.
@@ -723,40 +572,32 @@ std::expected<void, EditorSettingsError> EditorSettings::setTabMinimumDisplayedS
     return saveIfNeeded(m_properties, "Could not save tablature string display setting.");
 }
 
-// Reads the app-local resume cursor associated with one project path.
-std::expected<std::optional<common::core::TimePosition>, EditorSettingsError> EditorSettings::
-    projectCursorPositionFor(const std::filesystem::path& project_file) const
+// Reads the app-local resume cursor associated with one project path. A missing or unparseable
+// entry reads as absent; the flat key isolates it from every other project's value.
+std::optional<common::core::TimePosition> EditorSettings::projectCursorPositionFor(
+    const std::filesystem::path& project_file) const
 {
-    const std::filesystem::path key = projectSettingsKeyFor(project_file);
-    if (key.empty())
+    const juce::String key = projectSettingKey(g_project_cursor_family, project_file);
+    if (key.isEmpty() || !m_properties.containsKey(key))
     {
         return std::nullopt;
     }
 
-    auto states = ProjectCursorStore::readOrError(
-        m_properties, "Saved project cursor history is not valid XML.");
-    if (!states.has_value())
-    {
-        return std::unexpected{std::move(states.error())};
-    }
-
-    const auto found = std::ranges::find_if(*states, [&key](const ProjectCursorState& state) {
-        return projectSettingsKeyFor(state.project_file) == key;
-    });
-    if (found == states->end())
+    const std::optional<double> seconds = parseFiniteDouble(m_properties.getValue(key));
+    if (!seconds.has_value())
     {
         return std::nullopt;
     }
 
-    return found->cursor_position;
+    return common::core::TimePosition{*seconds};
 }
 
-// Stores one project's app-local resume cursor without treating it as project package data.
+// Stores one project's app-local resume cursor under its own flat key.
 std::expected<void, EditorSettingsError> EditorSettings::saveProjectCursorPosition(
     const std::filesystem::path& project_file, common::core::TimePosition cursor_position)
 {
-    const std::filesystem::path key = projectSettingsKeyFor(project_file);
-    if (key.empty() || !std::isfinite(cursor_position.seconds))
+    const juce::String key = projectSettingKey(g_project_cursor_family, project_file);
+    if (key.isEmpty() || !std::isfinite(cursor_position.seconds))
     {
         return std::unexpected{EditorSettingsError{
             EditorSettingsErrorCode::InvalidSettingValue,
@@ -764,54 +605,29 @@ std::expected<void, EditorSettingsError> EditorSettings::saveProjectCursorPositi
         }};
     }
 
-    auto states = ProjectCursorStore::readOrError(
-        m_properties, "Cannot save project cursor because saved cursor history is invalid.");
-    if (!states.has_value())
-    {
-        return std::unexpected{std::move(states.error())};
-    }
-
-    ProjectCursorStore::replace(
-        *states, ProjectCursorState{.project_file = key, .cursor_position = cursor_position});
-    ProjectCursorStore::write(m_properties, *states);
+    m_properties.setValue(key, juce::String(cursor_position.seconds));
     return saveNow(m_properties, "Could not save project cursor setting.");
 }
 
 // Reads the app-local timeline grid note value associated with one project path.
-std::expected<std::optional<common::core::Fraction>, EditorSettingsError> EditorSettings::
-    projectGridNoteValueFor(const std::filesystem::path& project_file) const
+std::optional<common::core::Fraction> EditorSettings::projectGridNoteValueFor(
+    const std::filesystem::path& project_file) const
 {
-    const std::filesystem::path key = projectSettingsKeyFor(project_file);
-    if (key.empty())
+    const juce::String key = projectSettingKey(g_project_grid_note_value_family, project_file);
+    if (key.isEmpty() || !m_properties.containsKey(key))
     {
         return std::nullopt;
     }
 
-    auto states = ProjectGridNoteValueStore::readOrError(
-        m_properties, "Saved project grid note-value history is not valid XML.");
-    if (!states.has_value())
-    {
-        return std::unexpected{std::move(states.error())};
-    }
-
-    const auto found =
-        std::ranges::find_if(*states, [&key](const ProjectGridNoteValueState& state) {
-            return projectSettingsKeyFor(state.project_file) == key;
-        });
-    if (found == states->end())
-    {
-        return std::nullopt;
-    }
-
-    return found->grid_note_value;
+    return parseGridNoteValue(m_properties.getValue(key));
 }
 
-// Stores one project's app-local grid note value without treating it as project package data.
+// Stores one project's app-local grid note value under its own flat key.
 std::expected<void, EditorSettingsError> EditorSettings::saveProjectGridNoteValue(
     const std::filesystem::path& project_file, common::core::Fraction grid_note_value)
 {
-    const std::filesystem::path key = projectSettingsKeyFor(project_file);
-    if (key.empty() || grid_note_value.numerator < 1)
+    const juce::String key = projectSettingKey(g_project_grid_note_value_family, project_file);
+    if (key.isEmpty() || grid_note_value.numerator < 1 || grid_note_value.denominator < 1)
     {
         return std::unexpected{EditorSettingsError{
             EditorSettingsErrorCode::InvalidSettingValue,
@@ -819,55 +635,37 @@ std::expected<void, EditorSettingsError> EditorSettings::saveProjectGridNoteValu
         }};
     }
 
-    auto states = ProjectGridNoteValueStore::readOrError(
-        m_properties,
-        "Cannot save grid note value because saved grid note-value history is invalid.");
-    if (!states.has_value())
-    {
-        return std::unexpected{std::move(states.error())};
-    }
-
-    ProjectGridNoteValueStore::replace(
-        *states,
-        ProjectGridNoteValueState{.project_file = key, .grid_note_value = grid_note_value});
-    ProjectGridNoteValueStore::write(m_properties, *states);
+    m_properties.setValue(
+        key,
+        juce::String(grid_note_value.numerator) + "/" + juce::String(grid_note_value.denominator));
     return saveNow(m_properties, "Could not save project grid note value setting.");
 }
 
 // Reads the app-local timeline zoom associated with one project path.
-std::expected<std::optional<double>, EditorSettingsError> EditorSettings::projectTimelineZoomFor(
+std::optional<double> EditorSettings::projectTimelineZoomFor(
     const std::filesystem::path& project_file) const
 {
-    const std::filesystem::path key = projectSettingsKeyFor(project_file);
-    if (key.empty())
+    const juce::String key = projectSettingKey(g_project_timeline_zoom_family, project_file);
+    if (key.isEmpty() || !m_properties.containsKey(key))
     {
         return std::nullopt;
     }
 
-    auto states = ProjectTimelineZoomStore::readOrError(
-        m_properties, "Saved project timeline zoom history is not valid XML.");
-    if (!states.has_value())
-    {
-        return std::unexpected{std::move(states.error())};
-    }
-
-    const auto found = std::ranges::find_if(*states, [&key](const ProjectTimelineZoomState& state) {
-        return projectSettingsKeyFor(state.project_file) == key;
-    });
-    if (found == states->end())
+    const std::optional<double> pixels_per_second = parseFiniteDouble(m_properties.getValue(key));
+    if (!pixels_per_second.has_value() || *pixels_per_second <= 0.0)
     {
         return std::nullopt;
     }
 
-    return found->pixels_per_second;
+    return *pixels_per_second;
 }
 
-// Stores one project's app-local timeline zoom without treating it as project package data.
+// Stores one project's app-local timeline zoom under its own flat key.
 std::expected<void, EditorSettingsError> EditorSettings::saveProjectTimelineZoom(
     const std::filesystem::path& project_file, double pixels_per_second)
 {
-    const std::filesystem::path key = projectSettingsKeyFor(project_file);
-    if (key.empty() || !std::isfinite(pixels_per_second) || pixels_per_second <= 0.0)
+    const juce::String key = projectSettingKey(g_project_timeline_zoom_family, project_file);
+    if (key.isEmpty() || !std::isfinite(pixels_per_second) || pixels_per_second <= 0.0)
     {
         return std::unexpected{EditorSettingsError{
             EditorSettingsErrorCode::InvalidSettingValue,
@@ -875,18 +673,44 @@ std::expected<void, EditorSettingsError> EditorSettings::saveProjectTimelineZoom
         }};
     }
 
-    auto states = ProjectTimelineZoomStore::readOrError(
-        m_properties, "Cannot save timeline zoom because saved zoom history is invalid.");
-    if (!states.has_value())
+    m_properties.setValue(key, juce::String(pixels_per_second));
+    return saveNow(m_properties, "Could not save project timeline zoom setting.");
+}
+
+// Reads the app-local displayed-arrangement choice associated with one project path.
+std::optional<std::string> EditorSettings::projectSelectedArrangementFor(
+    const std::filesystem::path& project_file) const
+{
+    const juce::String key = projectSettingKey(g_project_selected_arrangement_family, project_file);
+    if (key.isEmpty() || !m_properties.containsKey(key))
     {
-        return std::unexpected{std::move(states.error())};
+        return std::nullopt;
     }
 
-    ProjectTimelineZoomStore::replace(
-        *states,
-        ProjectTimelineZoomState{.project_file = key, .pixels_per_second = pixels_per_second});
-    ProjectTimelineZoomStore::write(m_properties, *states);
-    return saveNow(m_properties, "Could not save project timeline zoom setting.");
+    const juce::String value = m_properties.getValue(key);
+    if (value.isEmpty())
+    {
+        return std::nullopt;
+    }
+
+    return value.toStdString();
+}
+
+// Stores one project's app-local displayed arrangement under its own flat key.
+std::expected<void, EditorSettingsError> EditorSettings::saveProjectSelectedArrangement(
+    const std::filesystem::path& project_file, std::string arrangement_id)
+{
+    const juce::String key = projectSettingKey(g_project_selected_arrangement_family, project_file);
+    if (key.isEmpty() || arrangement_id.empty())
+    {
+        return std::unexpected{EditorSettingsError{
+            EditorSettingsErrorCode::InvalidSettingValue,
+            "Cannot save a selected arrangement for an invalid project path or empty id."
+        }};
+    }
+
+    m_properties.setValue(key, juce::String::fromUTF8(arrangement_id.c_str()));
+    return saveNow(m_properties, "Could not save project selected-arrangement setting.");
 }
 
 // Reads the calibration history without mutating settings or compacting invalid persisted records.
