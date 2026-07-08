@@ -2,6 +2,7 @@
 #include "shared/editor_controller_logging.h"
 
 #include <cassert>
+#include <initializer_list>
 #include <rock_hero/common/core/tone/tone_track_normalize.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 
@@ -46,32 +47,41 @@ namespace
            std::filesystem::path{std::string{project_io::g_song_directory_name}};
 }
 
-// Resolves persisted arrangement IDs to the current song order, falling back to the first item.
+// Chooses the arrangement shown when there is no usable saved choice: prefer Lead, then Rhythm,
+// then Bass so the most guitar-forward part available shows first, falling back to the first
+// arrangement only when the song carries none of those parts.
+[[nodiscard]] std::size_t defaultArrangementIndex(const common::core::Song& song)
+{
+    for (const common::core::Part preferred :
+         {common::core::Part::Lead, common::core::Part::Rhythm, common::core::Part::Bass})
+    {
+        const auto match =
+            std::ranges::find(song.arrangements, preferred, &common::core::Arrangement::part);
+        if (match != song.arrangements.end())
+        {
+            return static_cast<std::size_t>(std::distance(song.arrangements.begin(), match));
+        }
+    }
+    return 0;
+}
+
+// Resolves a persisted arrangement id to the current song order. A missing choice, or a stored id
+// that no longer matches any arrangement (reachable now that save no longer validates the id), both
+// mean "no usable choice" and fall back to the guitar-forward default rather than raw index 0.
 [[nodiscard]] std::size_t getSelectedArrangementIndex(
     const common::core::Song& song, const std::optional<std::string>& selected_arrangement)
 {
-    if (!selected_arrangement.has_value())
+    if (selected_arrangement.has_value())
     {
-        // A fresh open carries no saved choice: default to the Lead part so the primary guitar
-        // shows first, falling back to the first arrangement when the song has no Lead. A future
-        // user path preference will slot in ahead of this default.
-        const auto lead = std::ranges::find(
-            song.arrangements, common::core::Part::Lead, &common::core::Arrangement::part);
-        return lead == song.arrangements.end()
-                   ? 0
-                   : static_cast<std::size_t>(std::distance(song.arrangements.begin(), lead));
+        const auto found = std::ranges::find(
+            song.arrangements, *selected_arrangement, &common::core::Arrangement::id);
+        if (found != song.arrangements.end())
+        {
+            return static_cast<std::size_t>(std::distance(song.arrangements.begin(), found));
+        }
     }
 
-    const auto found = std::ranges::find_if(
-        song.arrangements, [&selected_arrangement](const common::core::Arrangement& arrangement) {
-            return arrangement.id == *selected_arrangement;
-        });
-    if (found == song.arrangements.end())
-    {
-        return 0;
-    }
-
-    return static_cast<std::size_t>(std::distance(song.arrangements.begin(), found));
+    return defaultArrangementIndex(song);
 }
 
 // Maps Save to the busy operation shown while the worker owns Project IO.
@@ -203,12 +213,14 @@ void EditorController::Impl::completeOpenProject(const std::shared_ptr<OpenTaskS
     }
 
     common::core::Song song = std::move(*state->result);
-    const ProjectEditorState editor_state = state->project.editorState();
 
+    // Restore the last displayed arrangement from app-local settings; an unknown or stale id falls
+    // back to the guitar-forward default inside loadSessionSong, and is never written back as if
+    // the user chose it.
     auto song_loaded = loadSessionSong(
         std::move(song),
         songDirectoryForProject(state->project),
-        editor_state.selected_arrangement);
+        m_settings.projectSelectedArrangementFor(state->file));
     if (!song_loaded.has_value())
     {
         if (state->clear_last_open_project_on_failure)
@@ -846,7 +858,6 @@ auto EditorController::Impl::takeProjectForWrite(EditorAction::ProjectWriteActio
 
     state->project = std::move(project);
     state->song = std::move(song);
-    state->editor_state = projectEditorStateForSave();
     m_project.reset();
     return state;
 }
@@ -906,6 +917,15 @@ void EditorController::Impl::performActionImpl(const EditorAction::SelectArrange
         // failure leaves the previous arrangement displayed; restore its rig below.
         reportError(
             std::string{"Could not activate the selected arrangement: "} + loaded.error().message);
+    }
+    else if (!m_project_file.empty())
+    {
+        // The switch succeeded: remember it as app-local view state so a later reopen returns to
+        // this arrangement. A discrete switch is the only persistence point; there are no
+        // close/save hooks because the value cannot drift between switches.
+        recordSettingsResultBestEffort(
+            m_settings.saveProjectSelectedArrangement(m_project_file, action.arrangement_id),
+            "store project selected arrangement after switch");
     }
 
     const std::uint64_t token = beginBusy(BusyOperation::LoadingLiveRig);
@@ -1105,16 +1125,12 @@ void EditorController::Impl::runProjectWriteAction(EditorAction::ProjectWriteAct
                     using A = std::decay_t<decltype(alternative)>;
                     if constexpr (std::is_same_v<A, EditorAction::SaveProject>)
                     {
-                        task_state->result = save_function(
-                            task_state->project, task_state->song, task_state->editor_state);
+                        task_state->result = save_function(task_state->project, task_state->song);
                     }
                     else if constexpr (std::is_same_v<A, EditorAction::SaveProjectAs>)
                     {
                         task_state->result = save_as_function(
-                            task_state->project,
-                            alternative.file,
-                            task_state->song,
-                            task_state->editor_state);
+                            task_state->project, alternative.file, task_state->song);
                     }
                     else if constexpr (std::is_same_v<A, EditorAction::PublishProject>)
                     {
@@ -1191,6 +1207,15 @@ void EditorController::Impl::applyProjectWriteSuccess(const EditorAction::SavePr
         recordSettingsResultBestEffort(
             m_settings.saveProjectTimelineZoom(m_project_file, m_timeline_zoom_pixels_per_second),
             "store project timeline zoom after save-as");
+    }
+    // Save As is also the first moment the displayed arrangement can be keyed to a path, so a
+    // selection made before the first save survives the reopen.
+    if (const auto* arrangement = session().currentArrangement();
+        arrangement != nullptr && !arrangement->id.empty())
+    {
+        recordSettingsResultBestEffort(
+            m_settings.saveProjectSelectedArrangement(m_project_file, arrangement->id),
+            "store project selected arrangement after save-as");
     }
 }
 
@@ -1293,36 +1318,14 @@ void EditorController::Impl::restoreLastOpenProject()
     runAction(EditorAction::RestoreProject{*project_file});
 }
 
-// Captures editor-only persistence state from the current transport and displayed arrangement.
-ProjectEditorState EditorController::Impl::projectEditorStateForSave() const
-{
-    ProjectEditorState editor_state{.selected_arrangement = std::nullopt};
-
-    const auto* arrangement = session().currentArrangement();
-    if (arrangement != nullptr && !arrangement->id.empty())
-    {
-        editor_state.selected_arrangement = arrangement->id;
-    }
-
-    return editor_state;
-}
-
 // Chooses the cursor restored for a project open from app-local resume state.
 common::core::TimePosition EditorController::Impl::cursorPositionForOpenedProject(
     const std::filesystem::path& project_file) const
 {
-    const auto saved_position = m_settings.projectCursorPositionFor(project_file);
-    if (saved_position.has_value())
+    if (const auto saved_position = m_settings.projectCursorPositionFor(project_file);
+        saved_position.has_value())
     {
-        if (saved_position->has_value())
-        {
-            return session().timeline().clamp(**saved_position);
-        }
-    }
-    else
-    {
-        logEditorControllerBestEffortFailure(
-            "restore project cursor position", saved_position.error().message);
+        return session().timeline().clamp(*saved_position);
     }
 
     return session().timeline().start;
@@ -1333,18 +1336,10 @@ common::core::TimePosition EditorController::Impl::cursorPositionForOpenedProjec
 common::core::Fraction EditorController::Impl::gridNoteValueForOpenedProject(
     const std::filesystem::path& project_file) const
 {
-    const auto saved_note_value = m_settings.projectGridNoteValueFor(project_file);
-    if (saved_note_value.has_value())
+    if (const auto saved_note_value = m_settings.projectGridNoteValueFor(project_file);
+        saved_note_value.has_value() && isValidTempoGridNoteValue(*saved_note_value))
     {
-        if (saved_note_value->has_value() && isValidTempoGridNoteValue(**saved_note_value))
-        {
-            return **saved_note_value;
-        }
-    }
-    else
-    {
-        logEditorControllerBestEffortFailure(
-            "restore project grid note value", saved_note_value.error().message);
+        return *saved_note_value;
     }
 
     return common::core::Fraction{1, 4};
@@ -1356,18 +1351,10 @@ common::core::Fraction EditorController::Impl::gridNoteValueForOpenedProject(
 double EditorController::Impl::timelineZoomForOpenedProject(
     const std::filesystem::path& project_file) const
 {
-    const auto saved_zoom = m_settings.projectTimelineZoomFor(project_file);
-    if (saved_zoom.has_value())
+    if (const auto saved_zoom = m_settings.projectTimelineZoomFor(project_file);
+        saved_zoom.has_value() && std::isfinite(*saved_zoom) && *saved_zoom > 0.0)
     {
-        if (saved_zoom->has_value() && std::isfinite(**saved_zoom) && **saved_zoom > 0.0)
-        {
-            return **saved_zoom;
-        }
-    }
-    else
-    {
-        logEditorControllerBestEffortFailure(
-            "restore project timeline zoom", saved_zoom.error().message);
+        return *saved_zoom;
     }
 
     return 0.0;

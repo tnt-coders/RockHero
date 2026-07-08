@@ -254,8 +254,7 @@ TEST_CASE("EditorController close stores settings cursor", "[core][editor-contro
     controller.onCloseRequested();
 
     const auto stored_cursor = settings.projectCursorPositionFor(files.projectFile());
-    REQUIRE(stored_cursor.has_value());
-    CHECK(*stored_cursor == std::optional{common::core::TimePosition{3.5}});
+    CHECK(stored_cursor == std::optional{common::core::TimePosition{3.5}});
 }
 
 // Exiting persists the editor project path before requesting host shutdown.
@@ -325,14 +324,8 @@ TEST_CASE("EditorController save writes current session song", "[core][editor-co
     CHECK(project_services.save_call_count == 1);
     CHECK(project_services.save_as_call_count == 0);
     CHECK(project_services.last_save_audio_path == std::optional{audio_asset.path});
-    CHECK(
-        project_services.last_save_editor_state ==
-        std::optional{ProjectEditorState{
-            .selected_arrangement = std::string{g_lead_arrangement_id},
-        }});
     const auto stored_cursor = settings.projectCursorPositionFor(files.projectFile());
-    REQUIRE(stored_cursor.has_value());
-    CHECK(*stored_cursor == std::optional{common::core::TimePosition{1.25}});
+    CHECK(stored_cursor == std::optional{common::core::TimePosition{1.25}});
     CHECK(view.shown_errors.empty());
 }
 
@@ -658,11 +651,6 @@ TEST_CASE("EditorController import requires Save As destination", "[core][editor
     CHECK(project_services.last_save_as_file == std::optional{std::filesystem::path{"saved.rhp"}});
     CHECK(project_services.last_save_as_audio_path == std::optional{audio_asset.path});
     CHECK(controller.currentProjectFile() == std::optional{std::filesystem::path{"saved.rhp"}});
-    CHECK(
-        project_services.last_save_as_editor_state ==
-        std::optional{ProjectEditorState{
-            .selected_arrangement = std::string{g_lead_arrangement_id},
-        }});
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
     {
@@ -1003,6 +991,241 @@ TEST_CASE("EditorController orders arrangements and defaults to Lead", "[core][e
         CHECK(choices[1].label == "Rhythm");
         CHECK(choices[2].label == "Bass");
     }
+}
+
+// A fresh open of a song without a Lead part prefers Rhythm over Bass, so the default falls through
+// the preference chain rather than simply picking the first stored arrangement.
+TEST_CASE("EditorController defaults to Rhythm when no Lead exists", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    const auto make_arrangement =
+        [](std::string id, common::core::Part part, std::filesystem::path path) {
+            return common::core::Arrangement{
+                .id = std::move(id),
+                .part = part,
+                .difficulty = common::core::DifficultyRating{},
+                .audio_asset =
+                    common::core::AudioAsset{
+                        .path = std::move(path), .normalization = std::nullopt, .start_offset = {}
+                    },
+                .audio_duration = common::core::TimeDuration{},
+                .tones = {},
+                .tone_track = {},
+                .tone_automation = {},
+                .chart_ref = {},
+                .chart = {},
+            };
+        };
+
+    // Bass is stored first, but Rhythm outranks it in the preference chain.
+    common::core::Song song;
+    song.arrangements.push_back(
+        make_arrangement(g_bass_arrangement_id, common::core::Part::Bass, "bass.wav"));
+    song.arrangements.push_back(make_arrangement(
+        "1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e", common::core::Part::Rhythm, "rhythm.wav"));
+    project_services.next_song = std::move(song);
+
+    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+
+    REQUIRE(controller.session().currentArrangement() != nullptr);
+    CHECK(controller.session().currentArrangement()->part == common::core::Part::Rhythm);
+}
+
+// A fresh open restores the arrangement persisted in app-local settings, overriding the default.
+TEST_CASE("EditorController open restores persisted arrangement", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"open_restores_persisted_arrangement"};
+    files.createProjectFile();
+    EditorSettings settings{files.settingsFile()};
+    REQUIRE(settings.saveProjectSelectedArrangement(files.projectFile(), g_bass_arrangement_id)
+                .has_value());
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_services.next_song = makeTwoArrangementSong(
+        std::filesystem::path{"lead.wav"}, std::filesystem::path{"bass.wav"});
+    controller.onOpenRequested(files.projectFile());
+
+    REQUIRE(controller.session().currentArrangement() != nullptr);
+    CHECK(controller.session().currentArrangement()->part == common::core::Part::Bass);
+}
+
+// A persisted id that no longer matches any arrangement falls back to the guitar-forward walk
+// (Lead), not raw index 0, and the stale value is left untouched rather than laundered.
+TEST_CASE(
+    "EditorController open falls back to walk for a stale arrangement", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"open_stale_arrangement_walks"};
+    files.createProjectFile();
+    EditorSettings settings{files.settingsFile()};
+    REQUIRE(settings.saveProjectSelectedArrangement(files.projectFile(), "no-such-arrangement")
+                .has_value());
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    // Song order is Bass, Lead: raw index 0 is Bass, but the walk prefers Lead.
+    const auto make_arrangement =
+        [](std::string id, common::core::Part part, std::filesystem::path path) {
+            return common::core::Arrangement{
+                .id = std::move(id),
+                .part = part,
+                .difficulty = common::core::DifficultyRating{},
+                .audio_asset =
+                    common::core::AudioAsset{
+                        .path = std::move(path), .normalization = std::nullopt, .start_offset = {}
+                    },
+                .audio_duration = common::core::TimeDuration{},
+                .tones = {},
+                .tone_track = {},
+                .tone_automation = {},
+                .chart_ref = {},
+                .chart = {},
+            };
+        };
+    common::core::Song song;
+    song.arrangements.push_back(
+        make_arrangement(g_bass_arrangement_id, common::core::Part::Bass, "bass.wav"));
+    song.arrangements.push_back(
+        make_arrangement(g_lead_arrangement_id, common::core::Part::Lead, "lead.wav"));
+    project_services.next_song = std::move(song);
+
+    controller.onOpenRequested(files.projectFile());
+
+    REQUIRE(controller.session().currentArrangement() != nullptr);
+    CHECK(controller.session().currentArrangement()->part == common::core::Part::Lead);
+    CHECK(
+        settings.projectSelectedArrangementFor(files.projectFile()) ==
+        std::optional<std::string>{"no-such-arrangement"});
+}
+
+// Opening never writes the derived default back into settings as if the user chose it.
+TEST_CASE(
+    "EditorController open does not persist the default arrangement", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"open_no_arrangement_write_back"};
+    files.createProjectFile();
+    EditorSettings settings{files.settingsFile()};
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_services.next_song = makeTwoArrangementSong(
+        std::filesystem::path{"lead.wav"}, std::filesystem::path{"bass.wav"});
+    controller.onOpenRequested(files.projectFile());
+
+    REQUIRE(controller.session().currentArrangement() != nullptr);
+    CHECK(controller.session().currentArrangement()->part == common::core::Part::Lead);
+    CHECK_FALSE(settings.projectSelectedArrangementFor(files.projectFile()).has_value());
+}
+
+// Switching arrangements persists the new choice as app-local view state for the next open.
+TEST_CASE("EditorController persists arrangement on switch", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"switch_persists_arrangement"};
+    files.createProjectFile();
+    EditorSettings settings{files.settingsFile()};
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_services.next_song = makeTwoArrangementSong(
+        std::filesystem::path{"lead.wav"}, std::filesystem::path{"bass.wav"});
+    controller.onOpenRequested(files.projectFile());
+    REQUIRE(controller.session().currentArrangement() != nullptr);
+    REQUIRE(controller.session().currentArrangement()->part == common::core::Part::Lead);
+
+    controller.onArrangementSelected(std::string{g_bass_arrangement_id});
+
+    REQUIRE(controller.session().currentArrangement() != nullptr);
+    CHECK(controller.session().currentArrangement()->part == common::core::Part::Bass);
+    CHECK(
+        settings.projectSelectedArrangementFor(files.projectFile()) ==
+        std::optional<std::string>{g_bass_arrangement_id});
+}
+
+// Save As keys the displayed arrangement to the chosen path so a pre-first-save selection survives.
+TEST_CASE("EditorController persists arrangement on save-as", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"save_as_persists_arrangement"};
+    EditorSettings settings{files.settingsFile()};
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .import_function = project_services.importFunction(),
+            .save_as_function = project_services.saveAsFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_services.next_import_song = makeSong(std::filesystem::path{"imported.ogg"});
+    controller.onImportRequested(std::filesystem::path{"song.rock"});
+    controller.onSaveAsRequested(files.projectFile());
+
+    CHECK(project_services.save_as_call_count == 1);
+    CHECK(
+        settings.projectSelectedArrangementFor(files.projectFile()) ==
+        std::optional<std::string>{g_lead_arrangement_id});
 }
 
 // Opening a project validates every arrangement before the selected arrangement is loaded.

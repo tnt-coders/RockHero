@@ -1095,12 +1095,10 @@ public:
     }
 
     // Simulates saving through the current project destination.
-    std::expected<void, ProjectError> save(
-        Project&, const common::core::Song& song, ProjectEditorState editor_state)
+    std::expected<void, ProjectError> save(Project&, const common::core::Song& song)
     {
         last_save_audio_path = firstAudioPath(song);
         last_save_tone_document_ref = firstToneDocumentRef(song);
-        last_save_editor_state = std::move(editor_state);
         ++save_call_count;
         if (next_save_error.has_value())
         {
@@ -1114,13 +1112,11 @@ public:
 
     // Simulates Save As and records the destination that becomes the project file.
     std::expected<void, ProjectError> saveAs(
-        Project&, const std::filesystem::path& file, const common::core::Song& song,
-        ProjectEditorState editor_state)
+        Project&, const std::filesystem::path& file, const common::core::Song& song)
     {
         last_save_as_file = file;
         last_save_as_audio_path = firstAudioPath(song);
         last_save_as_tone_document_ref = firstToneDocumentRef(song);
-        last_save_as_editor_state = std::move(editor_state);
         ++save_as_call_count;
         if (next_save_as_error.has_value())
         {
@@ -1174,11 +1170,9 @@ public:
     // Returns the bound save callback shape expected by EditorController services.
     [[nodiscard]] EditorController::SaveFunction saveFunction() noexcept
     {
-        return
-            [this](
-                Project& project, const common::core::Song& song, ProjectEditorState editor_state) {
-                return save(project, song, std::move(editor_state));
-            };
+        return [this](Project& project, const common::core::Song& song) {
+            return save(project, song);
+        };
     }
 
     // Returns the bound Save As callback shape expected by EditorController services.
@@ -1187,10 +1181,7 @@ public:
         return [this](
                    Project& project,
                    const std::filesystem::path& file,
-                   const common::core::Song& song,
-                   ProjectEditorState editor_state) {
-            return saveAs(project, file, song, std::move(editor_state));
-        };
+                   const common::core::Song& song) { return saveAs(project, file, song); };
     }
 
     // Returns the bound publish callback shape expected by EditorController services.
@@ -1252,12 +1243,6 @@ public:
 
     // First arrangement tone document reference seen by publish().
     std::optional<std::string> last_publish_tone_document_ref{};
-
-    // Editor state captured by save().
-    std::optional<ProjectEditorState> last_save_editor_state{};
-
-    // Editor state captured by saveAs().
-    std::optional<ProjectEditorState> last_save_as_editor_state{};
 
     // Number of open calls received.
     int open_call_count{0};
