@@ -192,8 +192,24 @@ void EditorController::Impl::onToneAutomationLaneAddRequested(
         return;
     }
 
+    // The picker only offers parameters listed from the selected tone's live chain, so this plugin
+    // provably belongs to the selected tone. A plugin inserted before any region was selected
+    // carries an empty tone ref on its identity and durable binding; left stale, the projection
+    // filters out both this open lane and any lane authored on it later. Adopt the selected tone's
+    // ref for the identity, its binding, and the new lane so all three resolve consistently.
+    const std::string selected_tone_ref = selectedToneDocumentRef();
+    if (!selected_tone_ref.empty())
+    {
+        identity->second.tone_document_ref = selected_tone_ref;
+        if (const auto binding = m_tone_plugin_bindings.find(identity->second.plugin_id);
+            binding != m_tone_plugin_bindings.end())
+        {
+            binding->second.tone_document_ref = selected_tone_ref;
+        }
+    }
+
     const OpenAutomationLane open_lane{
-        .tone_document_ref = identity->second.tone_document_ref,
+        .tone_document_ref = selected_tone_ref,
         .plugin_id = identity->second.plugin_id,
         .param_id = std::move(param_id),
     };

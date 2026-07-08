@@ -89,7 +89,12 @@ struct AutomationEditor
     EditorController controller;
     FakeEditorView view;
 
-    explicit AutomationEditor(common::core::Song song = makeAutomationSong())
+    // chain_tone_ref is the tone the load reports the plugin chain under. Tests pass an empty ref to
+    // reproduce a plugin whose runtime association has no tone yet (inserted before a region was
+    // selected), so the lane-add path must recover the association from the selection.
+    explicit AutomationEditor(
+        common::core::Song song = makeAutomationSong(),
+        std::string chain_tone_ref = std::string{g_tone_document_ref})
         : controller{
               audioPorts(transport, audio, plugin_host, live_rig, tone_automation),
               defaultControllerServices(),
@@ -102,7 +107,7 @@ struct AutomationEditor
         tone_automation.parameters.push_back(makeParam());
         live_rig.next_load_result.tone_chains = {
             common::audio::LoadedToneChainIdentities{
-                .tone_document_ref = std::string{g_tone_document_ref},
+                .tone_document_ref = std::move(chain_tone_ref),
                 .plugins = {common::audio::LoadedTonePluginIdentity{
                     .instance_id = g_instance,
                     .stable_id = g_plugin_id,
@@ -157,6 +162,32 @@ TEST_CASE(
     // Closing the unauthored lane removes it from the view again.
     editor.controller.onToneAutomationLaneRemoveRequested(g_instance, g_param);
     CHECK(editor.automation().lanes.empty());
+}
+
+TEST_CASE(
+    "EditorController adds a lane for a plugin with no tone association yet",
+    "[core][tone-automation]")
+{
+    // The plugin's runtime association carries an empty tone ref (inserted before a region was
+    // selected). The picker still lists the parameter under the selected tone, so adding a lane
+    // must recover the tone from the selection instead of silently dropping it.
+    AutomationEditor editor{makeAutomationSong(), std::string{}};
+
+    editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
+
+    REQUIRE(editor.automation().lanes.size() == 1);
+    CHECK(editor.automation().lanes.front().instance_id == g_instance);
+    CHECK(editor.automation().lanes.front().resolved);
+
+    // The recovered association also lets a subsequently authored point survive projection, rather
+    // than the lane vanishing the moment it stops being an unauthored tracking lane.
+    editor.controller.onSetToneAutomationPoints(
+        g_instance,
+        g_param,
+        {common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.3F}});
+    REQUIRE(editor.automation().lanes.size() == 1);
+    REQUIRE(editor.automation().lanes.front().points.size() == 1);
+    CHECK(editor.automation().lanes.front().points.front().norm_value == 0.3F);
 }
 
 TEST_CASE(
