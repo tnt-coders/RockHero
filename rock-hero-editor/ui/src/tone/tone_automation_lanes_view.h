@@ -184,6 +184,9 @@ public:
     /*! \brief Commits the active gesture as one intent when it changed anything. */
     void mouseUp(const juce::MouseEvent& event) override;
 
+    /*! \brief Resets a double-clicked point to the parameter's default value. */
+    void mouseDoubleClick(const juce::MouseEvent& event) override;
+
     /*! \brief Clears the hovered-point value readout when the pointer leaves without dragging. */
     void mouseExit(const juce::MouseEvent& event) override;
 

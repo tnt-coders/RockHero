@@ -81,6 +81,7 @@ ToneAutomationViewState toneAutomationViewStateFor(
             lane.plugin_name = parameter->plugin_name;
             lane.is_discrete = parameter->is_discrete;
             lane.live_norm_value = parameter->current_norm_value;
+            lane.default_norm_value = parameter->default_norm_value;
             lane.resolved = true;
         }
 
@@ -133,6 +134,7 @@ ToneAutomationViewState toneAutomationViewStateFor(
             lane.plugin_name = parameter->plugin_name;
             lane.is_discrete = parameter->is_discrete;
             lane.live_norm_value = parameter->current_norm_value;
+            lane.default_norm_value = parameter->default_norm_value;
             lane.resolved = true;
         }
         state.lanes.push_back(std::move(lane));

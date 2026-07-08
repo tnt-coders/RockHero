@@ -853,6 +853,39 @@ void ToneAutomationLanesView::mouseUp(const juce::MouseEvent& /*event*/)
     repaint();
 }
 
+void ToneAutomationLanesView::mouseDoubleClick(const juce::MouseEvent& event)
+{
+    const std::optional<Hit> hit = hitAt(event.getPosition());
+    if (!hit.has_value())
+    {
+        return;
+    }
+    const auto* const point_hit = std::get_if<PointHit>(&*hit);
+    if (point_hit == nullptr)
+    {
+        return;
+    }
+
+    // Reset only the double-clicked point to the parameter's default value; every other point
+    // echoes its stored position and value, so this commits as one full-point-list edit.
+    const core::ToneAutomationLaneViewState& lane = m_state.lanes[point_hit->lane_index];
+    std::vector<common::core::ToneAutomationPoint> points;
+    points.reserve(lane.points.size());
+    for (std::size_t index = 0; index < lane.points.size(); ++index)
+    {
+        const core::ToneAutomationPointViewState& point = lane.points[index];
+        points.push_back(
+            common::core::ToneAutomationPoint{
+                .position = point.position,
+                .norm_value =
+                    index == point_hit->point_index ? lane.default_norm_value : point.norm_value,
+                .curve_shape = point.curve_shape,
+            });
+    }
+    m_listener.onToneAutomationPointsEditRequested(
+        lane.instance_id, lane.param_id, std::move(points));
+}
+
 void ToneAutomationLanesView::mouseExit(const juce::MouseEvent& /*event*/)
 {
     // A drag keeps its readout even when the pointer leaves the component (JUCE keeps delivering
