@@ -66,6 +66,7 @@ struct RecordingLanesListener final : public ToneAutomationLanesView::Listener
     resolved_lane.param_id = "gain";
     resolved_lane.name = "Gain";
     resolved_lane.resolved = true;
+    resolved_lane.default_norm_value = 0.5F;
     resolved_lane.points = {
         core::ToneAutomationPointViewState{
             .position = {.measure = 1, .beat = 1, .offset = {}},
@@ -280,6 +281,22 @@ TEST_CASE("Lanes view tracks the dragged value in the readout", "[ui][tone-autom
     // Releasing ends the gesture and clears the readout.
     harness.view.mouseUp(testing::makeMouseDownEvent(harness.view, 200.0f, 25.0f));
     CHECK_FALSE(harness.view.valueReadoutTextForTest().has_value());
+}
+
+TEST_CASE(
+    "Lanes view resets a double-clicked point to the parameter default",
+    "[ui][tone-automation-lanes]")
+{
+    LanesHarness harness;
+    // Second point (x 200, y 15) has value 0.75; the lane's default is 0.5.
+    harness.view.mouseDoubleClick(testing::makeMouseDownEvent(harness.view, 200.0f, 15.0f));
+
+    REQUIRE(harness.listener.edit_count == 1);
+    CHECK(harness.listener.last_edit_instance_id == "instance-a");
+    REQUIRE(harness.listener.last_edit_points.size() == 2);
+    // Only the double-clicked point resets; the first point keeps its authored value.
+    CHECK(harness.listener.last_edit_points.front().norm_value == 0.25F);
+    CHECK(harness.listener.last_edit_points.back().norm_value == 0.5F);
 }
 
 TEST_CASE("Lanes view paints headlessly", "[ui][tone-automation-lanes]")
