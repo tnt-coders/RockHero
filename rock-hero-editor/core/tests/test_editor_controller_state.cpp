@@ -577,8 +577,7 @@ TEST_CASE(
     CHECK(state->grid_note_value == common::core::Fraction{1, 8});
 
     const auto stored = settings.projectGridNoteValueFor(std::filesystem::path{"loaded.rhp"});
-    REQUIRE(stored.has_value());
-    CHECK(*stored == std::optional{common::core::Fraction{1, 8}});
+    CHECK(stored == std::optional{common::core::Fraction{1, 8}});
 }
 
 // Out-of-bounds note-value intents are ignored so the published grid can never go degenerate.
@@ -723,8 +722,7 @@ TEST_CASE("EditorController persists the grid note value on save-as", "[core][ed
     controller.onSaveAsRequested(std::filesystem::path{"saved.rhp"});
 
     const auto stored = settings.projectGridNoteValueFor(std::filesystem::path{"saved.rhp"});
-    REQUIRE(stored.has_value());
-    CHECK(*stored == std::optional{common::core::Fraction{1, 16}});
+    CHECK(stored == std::optional{common::core::Fraction{1, 16}});
 }
 
 // Both preferences are app-wide display state: published in every derived state, persisted on

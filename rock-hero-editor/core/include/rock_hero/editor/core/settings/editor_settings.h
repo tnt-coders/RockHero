@@ -123,10 +123,10 @@ public:
     /*!
     \brief Reads the app-local resume cursor stored for an editor project path.
     \param project_file Project path whose cursor should be restored.
-    \return Cursor position, absence, or a typed settings failure.
+    \return Cursor position, or absence when none is stored or the stored value is unreadable.
     */
-    [[nodiscard]] std::expected<std::optional<common::core::TimePosition>, EditorSettingsError>
-    projectCursorPositionFor(const std::filesystem::path& project_file) const override;
+    [[nodiscard]] std::optional<common::core::TimePosition> projectCursorPositionFor(
+        const std::filesystem::path& project_file) const override;
 
     /*!
     \brief Stores or replaces the app-local resume cursor for an editor project path.
@@ -141,10 +141,10 @@ public:
     /*!
     \brief Reads the app-local timeline grid note value stored for an editor project path.
     \param project_file Project path whose grid note value should be restored.
-    \return Grid step as a fraction of a whole note, absence, or a typed settings failure.
+    \return Grid step as a fraction of a whole note, or absence when none is stored or unreadable.
     */
-    [[nodiscard]] std::expected<std::optional<common::core::Fraction>, EditorSettingsError>
-    projectGridNoteValueFor(const std::filesystem::path& project_file) const override;
+    [[nodiscard]] std::optional<common::core::Fraction> projectGridNoteValueFor(
+        const std::filesystem::path& project_file) const override;
 
     /*!
     \brief Stores or replaces the app-local timeline grid note value for an editor project path.
@@ -158,9 +158,9 @@ public:
     /*!
     \brief Reads the app-local timeline zoom stored for an editor project path.
     \param project_file Project path whose zoom should be restored.
-    \return Zoom in pixels per second, absence, or a typed settings failure.
+    \return Zoom in pixels per second, or absence when none is stored or the value is unreadable.
     */
-    [[nodiscard]] std::expected<std::optional<double>, EditorSettingsError> projectTimelineZoomFor(
+    [[nodiscard]] std::optional<double> projectTimelineZoomFor(
         const std::filesystem::path& project_file) const override;
 
     /*!
@@ -171,6 +171,23 @@ public:
     */
     [[nodiscard]] std::expected<void, EditorSettingsError> saveProjectTimelineZoom(
         const std::filesystem::path& project_file, double pixels_per_second) override;
+
+    /*!
+    \brief Reads the app-local arrangement to display first for an editor project path.
+    \param project_file Project path whose displayed arrangement should be restored.
+    \return Stored arrangement id, or absence when none is stored or the value is unreadable.
+    */
+    [[nodiscard]] std::optional<std::string> projectSelectedArrangementFor(
+        const std::filesystem::path& project_file) const override;
+
+    /*!
+    \brief Stores or replaces the app-local arrangement to display first for an editor project path.
+    \param project_file Project path that owns the displayed-arrangement choice.
+    \param arrangement_id Arrangement id to display next time this path is opened.
+    \return Empty success, or a typed settings failure.
+    */
+    [[nodiscard]] std::expected<void, EditorSettingsError> saveProjectSelectedArrangement(
+        const std::filesystem::path& project_file, std::string arrangement_id) override;
 
     /*!
     \brief Reads app-local input calibration for one physical input route.

@@ -34,7 +34,6 @@ constexpr const char* g_input_calibration_input_channel_name_key{
 constexpr const char* g_project_cursor_positions_key{"projectCursorPositions"};
 constexpr const char* g_project_grid_note_values_key{"projectGridNoteValues"};
 constexpr const char* g_retired_grid_spacings_key{"projectGridSpacings"};
-constexpr const char* g_project_cursor_positions_tag{"PROJECT_CURSOR_POSITIONS"};
 constexpr const char* g_input_calibration_states_key{"inputCalibrationStates"};
 constexpr const char* g_input_calibrations_tag{"INPUT_CALIBRATIONS"};
 
@@ -164,22 +163,23 @@ void writeRawSetting(
     return std::move(*result);
 }
 
-// Reads project cursor state through the typed settings contract and returns the optional payload.
-[[nodiscard]] std::optional<common::core::TimePosition> projectCursorPositionFor(
-    const EditorSettings& settings, const std::filesystem::path& project_file)
+// Finds the first stored settings key beginning with the given flat-key family prefix, so tests
+// can corrupt a per-project value without recomputing the production path normalization.
+[[nodiscard]] juce::String projectSettingKeyWithPrefix(
+    const std::filesystem::path& settings_file, const juce::String& prefix)
 {
-    auto result = settings.projectCursorPositionFor(project_file);
-    REQUIRE(result.has_value());
-    return *result;
-}
-
-// Reads project grid spacing through the typed settings contract and returns the optional payload.
-[[nodiscard]] std::optional<common::core::Fraction> projectGridNoteValueFor(
-    const EditorSettings& settings, const std::filesystem::path& project_file)
-{
-    auto result = settings.projectGridNoteValueFor(project_file);
-    REQUIRE(result.has_value());
-    return *result;
+    juce::PropertiesFile properties{
+        common::core::juceFileFromPath(settings_file), testSettingsOptions()
+    };
+    const juce::StringArray keys = properties.getAllProperties().getAllKeys();
+    for (const juce::String& key : keys)
+    {
+        if (key.startsWith(prefix))
+        {
+            return key;
+        }
+    }
+    return {};
 }
 
 // Seeds obsolete flat calibration keys so no-migration behavior can be verified.
@@ -343,15 +343,9 @@ TEST_CASE("EditorSettings persists project cursor position", "[core][settings]")
     const EditorSettings reloaded_settings{settings_file.path()};
 
     CHECK(
-        projectCursorPositionFor(reloaded_settings, project_file) ==
+        reloaded_settings.projectCursorPositionFor(project_file) ==
         std::optional{common::core::TimePosition{4.25}});
-    CHECK_FALSE(projectCursorPositionFor(reloaded_settings, other_project_file).has_value());
-
-    const std::unique_ptr<juce::XmlElement> cursor_xml =
-        xmlSettingFor(settings_file.path(), g_project_cursor_positions_key);
-    REQUIRE(cursor_xml != nullptr);
-    CHECK(cursor_xml->hasTagName(g_project_cursor_positions_tag));
-    CHECK(cursor_xml->getNumChildElements() == 1);
+    CHECK_FALSE(reloaded_settings.projectCursorPositionFor(other_project_file).has_value());
 }
 
 // Saving the same project cursor again replaces only that project's resume position.
@@ -368,7 +362,7 @@ TEST_CASE("EditorSettings overwrites project cursor position", "[core][settings]
                 .has_value());
 
     CHECK(
-        projectCursorPositionFor(settings, project_file) ==
+        settings.projectCursorPositionFor(project_file) ==
         std::optional{common::core::TimePosition{7.5}});
 }
 
@@ -390,9 +384,9 @@ TEST_CASE("EditorSettings persists the project grid note value", "[core][setting
     const EditorSettings reloaded_settings{settings_file.path()};
 
     CHECK(
-        projectGridNoteValueFor(reloaded_settings, project_file) ==
+        reloaded_settings.projectGridNoteValueFor(project_file) ==
         std::optional{common::core::Fraction{3, 4}});
-    CHECK_FALSE(projectGridNoteValueFor(reloaded_settings, other_project_file).has_value());
+    CHECK_FALSE(reloaded_settings.projectGridNoteValueFor(other_project_file).has_value());
 }
 
 // Saving again for the same project replaces the record instead of accumulating duplicates.
@@ -413,12 +407,8 @@ TEST_CASE("EditorSettings persists the project timeline zoom", "[core][settings]
 
     const EditorSettings reloaded_settings{settings_file.path()};
 
-    const auto restored = reloaded_settings.projectTimelineZoomFor(project_file);
-    REQUIRE(restored.has_value());
-    CHECK(*restored == std::optional{252.8});
-    const auto missing = reloaded_settings.projectTimelineZoomFor(other_project_file);
-    REQUIRE(missing.has_value());
-    CHECK_FALSE(missing->has_value());
+    CHECK(reloaded_settings.projectTimelineZoomFor(project_file) == std::optional{252.8});
+    CHECK_FALSE(reloaded_settings.projectTimelineZoomFor(other_project_file).has_value());
 }
 
 // Waveform visibility and the tablature lane minimum are app-wide single values (no project
@@ -455,68 +445,93 @@ TEST_CASE("EditorSettings overwrites the project grid note value", "[core][setti
         settings.saveProjectGridNoteValue(project_file, common::core::Fraction{1, 4}).has_value());
 
     CHECK(
-        projectGridNoteValueFor(settings, project_file) ==
+        settings.projectGridNoteValueFor(project_file) ==
         std::optional{common::core::Fraction{1, 4}});
 }
 
-// Malformed grid note-value XML is reported and preserved instead of overwritten by a save
-// attempt.
-TEST_CASE("EditorSettings preserves malformed grid note-value history", "[core][settings]")
+// Old list-format records written before per-project settings flattened to flat keys are orphaned,
+// not migrated: the flat getters never read them, so affected projects simply reset once.
+TEST_CASE("EditorSettings ignores legacy list-format project records", "[core][settings]")
 {
-    const ScopedSettingsFile settings_file{"malformed_project_grid_spacing.settings"};
+    const ScopedSettingsFile settings_file{"legacy_list_project_records.settings"};
     const std::filesystem::path project_file =
-        std::filesystem::path{TEST_SETTINGS_DIR} / "malformed_grid.rhp";
-    writeRawSetting(settings_file.path(), g_project_grid_note_values_key, juce::String{"not-xml"});
-
-    EditorSettings settings{settings_file.path()};
-    const auto loaded = settings.projectGridNoteValueFor(project_file);
-    CHECK_FALSE(loaded.has_value());
-    CHECK(loaded.error().code == EditorSettingsErrorCode::InvalidProjectGridNoteValueHistory);
-
-    const auto saved =
-        settings.saveProjectGridNoteValue(project_file, common::core::Fraction{1, 2});
-    CHECK_FALSE(saved.has_value());
-    CHECK(saved.error().code == EditorSettingsErrorCode::InvalidProjectGridNoteValueHistory);
-    CHECK(rawSettingExists(settings_file.path(), g_project_grid_note_values_key));
-}
-
-// Records written by the retired beat-unit grid family live under a different property key, so
-// they are ignored rather than reinterpreted in the wrong unit; affected projects simply have no
-// stored note value.
-TEST_CASE("EditorSettings ignores retired beat-unit grid records", "[core][settings]")
-{
-    const ScopedSettingsFile settings_file{"retired_grid_spacing_records.settings"};
-    const std::filesystem::path project_file =
-        std::filesystem::path{TEST_SETTINGS_DIR} / "retired_grid.rhp";
+        std::filesystem::path{TEST_SETTINGS_DIR} / "legacy_list.rhp";
+    writeRawSetting(
+        settings_file.path(),
+        g_project_cursor_positions_key,
+        juce::String{"<PROJECT_CURSOR_POSITIONS formatVersion=\"1\"/>"});
+    writeRawSetting(
+        settings_file.path(),
+        g_project_grid_note_values_key,
+        juce::String{"<PROJECT_GRID_NOTE_VALUES formatVersion=\"1\"/>"});
     writeRawSetting(
         settings_file.path(),
         g_retired_grid_spacings_key,
         juce::String{"<PROJECT_GRID_SPACINGS formatVersion=\"1\"/>"});
 
     const EditorSettings settings{settings_file.path()};
-    const auto loaded = settings.projectGridNoteValueFor(project_file);
-    REQUIRE(loaded.has_value());
-    CHECK_FALSE(loaded->has_value());
+    CHECK_FALSE(settings.projectCursorPositionFor(project_file).has_value());
+    CHECK_FALSE(settings.projectGridNoteValueFor(project_file).has_value());
 }
 
-// Malformed cursor XML is reported and preserved instead of overwritten by a save attempt.
-TEST_CASE("EditorSettings preserves malformed cursor history", "[core][settings]")
+// A corrupt flat value reads as absent rather than a bogus number; the flat key isolates it so no
+// other project's independently-keyed value is disturbed.
+TEST_CASE("EditorSettings reads a corrupt project value as absent", "[core][settings]")
 {
-    const ScopedSettingsFile settings_file{"malformed_project_cursor.settings"};
+    const ScopedSettingsFile settings_file{"corrupt_project_value.settings"};
     const std::filesystem::path project_file =
-        std::filesystem::path{TEST_SETTINGS_DIR} / "malformed_cursor.rhp";
-    writeRawSetting(settings_file.path(), g_project_cursor_positions_key, juce::String{"not-xml"});
+        std::filesystem::path{TEST_SETTINGS_DIR} / "corrupt_cursor.rhp";
+
+    {
+        EditorSettings settings{settings_file.path()};
+        REQUIRE(settings.saveProjectCursorPosition(project_file, common::core::TimePosition{2.0})
+                    .has_value());
+    }
+
+    const juce::String key =
+        projectSettingKeyWithPrefix(settings_file.path(), juce::String{"projectCursor:"});
+    REQUIRE(key.isNotEmpty());
+    writeRawSetting(settings_file.path(), key.toRawUTF8(), juce::String{"not-a-number"});
+
+    const EditorSettings reloaded_settings{settings_file.path()};
+    CHECK_FALSE(reloaded_settings.projectCursorPositionFor(project_file).has_value());
+}
+
+// Chooser, restore, and test spellings of the same project file normalize to one stored record.
+TEST_CASE("EditorSettings normalizes project paths to one record", "[core][settings]")
+{
+    const ScopedSettingsFile settings_file{"normalizes_project_path.settings"};
+    const std::filesystem::path canonical_path =
+        std::filesystem::path{TEST_SETTINGS_DIR} / "Normalized Project.rhp";
+    const std::filesystem::path spelled_path =
+        std::filesystem::path{TEST_SETTINGS_DIR} / "." / "Normalized Project.rhp";
 
     EditorSettings settings{settings_file.path()};
-    const auto loaded = settings.projectCursorPositionFor(project_file);
-    CHECK_FALSE(loaded.has_value());
-    CHECK(loaded.error().code == EditorSettingsErrorCode::InvalidProjectCursorHistory);
+    REQUIRE(settings.saveProjectSelectedArrangement(canonical_path, "lead-uuid").has_value());
 
-    const auto saved =
-        settings.saveProjectCursorPosition(project_file, common::core::TimePosition{2.0});
-    CHECK_FALSE(saved.has_value());
-    CHECK(saved.error().code == EditorSettingsErrorCode::InvalidProjectCursorHistory);
-    CHECK(rawSettingExists(settings_file.path(), g_project_cursor_positions_key));
+    CHECK(
+        settings.projectSelectedArrangementFor(spelled_path) ==
+        std::optional<std::string>{"lead-uuid"});
+}
+
+// Paths with spaces and non-ASCII characters survive the flat-key round-trip: JUCE escapes them in
+// the settings XML, so unicode project locations restore correctly.
+TEST_CASE("EditorSettings round-trips a unicode project path", "[core][settings]")
+{
+    const ScopedSettingsFile settings_file{"unicode_project_path.settings"};
+    const std::filesystem::path project_file =
+        std::filesystem::path{TEST_SETTINGS_DIR} /
+        std::filesystem::path{std::u8string{u8"Prôjéct — spaces.rhp"}};
+
+    {
+        EditorSettings settings{settings_file.path()};
+        REQUIRE(settings.saveProjectSelectedArrangement(project_file, "arr-unicode").has_value());
+    }
+
+    const EditorSettings reloaded_settings{settings_file.path()};
+    CHECK(
+        reloaded_settings.projectSelectedArrangementFor(project_file) ==
+        std::optional<std::string>{"arr-unicode"});
 }
 
 // Calibration history persists one physical input route and ignores unrelated routes.

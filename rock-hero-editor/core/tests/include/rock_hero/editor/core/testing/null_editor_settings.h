@@ -123,8 +123,8 @@ public:
     \brief Reports that no app-local project cursor is stored.
     \return Always empty optional success.
     */
-    [[nodiscard]] std::expected<std::optional<common::core::TimePosition>, EditorSettingsError>
-    projectCursorPositionFor(const std::filesystem::path&) const override
+    [[nodiscard]] std::optional<common::core::TimePosition> projectCursorPositionFor(
+        const std::filesystem::path&) const override
     {
         return std::nullopt;
     }
@@ -143,8 +143,8 @@ public:
     \brief Reports that no app-local project grid note value is stored.
     \return Always empty optional success.
     */
-    [[nodiscard]] std::expected<std::optional<common::core::Fraction>, EditorSettingsError>
-    projectGridNoteValueFor(const std::filesystem::path&) const override
+    [[nodiscard]] std::optional<common::core::Fraction> projectGridNoteValueFor(
+        const std::filesystem::path&) const override
     {
         return std::nullopt;
     }
@@ -163,7 +163,7 @@ public:
     \brief Reports that no app-local project timeline zoom is stored.
     \return Always empty optional success.
     */
-    [[nodiscard]] std::expected<std::optional<double>, EditorSettingsError> projectTimelineZoomFor(
+    [[nodiscard]] std::optional<double> projectTimelineZoomFor(
         const std::filesystem::path&) const override
     {
         return std::nullopt;
@@ -175,6 +175,26 @@ public:
     */
     [[nodiscard]] std::expected<void, EditorSettingsError> saveProjectTimelineZoom(
         const std::filesystem::path&, double) override
+    {
+        return {};
+    }
+
+    /*!
+    \brief Reports that no app-local selected arrangement is stored.
+    \return Always empty optional success.
+    */
+    [[nodiscard]] std::optional<std::string> projectSelectedArrangementFor(
+        const std::filesystem::path&) const override
+    {
+        return std::nullopt;
+    }
+
+    /*!
+    \brief Ignores app-local selected arrangement writes.
+    \return Always empty success.
+    */
+    [[nodiscard]] std::expected<void, EditorSettingsError> saveProjectSelectedArrangement(
+        const std::filesystem::path&, std::string) override
     {
         return {};
     }

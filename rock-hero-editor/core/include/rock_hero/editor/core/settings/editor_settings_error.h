@@ -20,15 +20,6 @@ enum class EditorSettingsErrorCode : std::uint8_t
     /*! \brief Persisted input calibration history could not be parsed. */
     InvalidInputCalibrationHistory,
 
-    /*! \brief Persisted project cursor history could not be parsed. */
-    InvalidProjectCursorHistory,
-
-    /*! \brief Persisted project grid note-value history could not be parsed. */
-    InvalidProjectGridNoteValueHistory,
-
-    /*! \brief Saved per-project timeline zoom records could not be parsed. */
-    InvalidProjectTimelineZoomHistory,
-
     /*! \brief The settings file could not be saved. */
     CouldNotSave,
 };
