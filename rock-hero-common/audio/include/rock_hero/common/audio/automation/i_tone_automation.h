@@ -38,6 +38,15 @@ struct [[nodiscard]] AutomatableParamInfo
     /*! \brief Whether the parameter is stepped rather than continuous. */
     bool is_discrete{false};
 
+    /*!
+    \brief Number of discrete states for a stepped parameter; 0 when continuous.
+
+    Reflects the plugin's real step count for both VST2 and VST3 (VST3 toggles are detected here
+    even though Tracktion's own metadata misses them), so the editor can snap automation edits to
+    real states.
+    */
+    int discrete_value_count{0};
+
     /*! \brief Ordered step labels for a discrete parameter; empty for a continuous one. */
     std::vector<std::string> labels;
 

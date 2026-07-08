@@ -244,6 +244,21 @@ float ToneAutomationLanesView::valueForY(int y, const LaneExtent& extent) const
     return std::clamp(1.0f - relative, 0.0f, 1.0f);
 }
 
+float ToneAutomationLanesView::snappedValueForLane(
+    float raw_value, const core::ToneAutomationLaneViewState& lane)
+{
+    if (!lane.is_discrete || lane.discrete_value_count < 2)
+    {
+        return raw_value;
+    }
+    // States sit at k/(count-1) for k in [0, count-1]; snap to the nearest so the point can only
+    // land on a real state (a two-state toggle moves strictly between 0 and 1).
+    const int steps = lane.discrete_value_count - 1;
+    const int nearest =
+        std::clamp(static_cast<int>(std::lround(raw_value * static_cast<float>(steps))), 0, steps);
+    return static_cast<float>(nearest) / static_cast<float>(steps);
+}
+
 std::optional<common::core::GridPosition> ToneAutomationLanesView::musicalPositionForX(
     float content_x, const juce::ModifierKeys& mods) const
 {
@@ -742,7 +757,8 @@ void ToneAutomationLanesView::mouseDown(const juce::MouseEvent& event)
         .lane_index = area.lane_index,
         .point_index = insert_index,
         .preview_position = *position,
-        .preview_value = valueForY(event.getPosition().y, extents[area.lane_index]),
+        .preview_value =
+            snappedValueForLane(valueForY(event.getPosition().y, extents[area.lane_index]), lane),
         .moved = true,
         .is_new_point = true,
     };
@@ -812,7 +828,8 @@ void ToneAutomationLanesView::mouseDrag(const juce::MouseEvent& event)
             move.preview_position = *position;
         }
     }
-    move.preview_value = valueForY(event.getPosition().y, extents[move.lane_index]);
+    move.preview_value =
+        snappedValueForLane(valueForY(event.getPosition().y, extents[move.lane_index]), lane);
     move.moved = true;
 
     const double preview_seconds = secondsAtPosition(m_tempo_map, move.preview_position);

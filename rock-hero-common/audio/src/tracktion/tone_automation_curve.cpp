@@ -16,6 +16,97 @@ namespace
     return param_id == "dry level" || param_id == "wet level";
 }
 
+// Number of discrete values a stepped parameter exposes (0 when continuous), so the editor can
+// snap automation drags to real states like a DAW. Tracktion's own AutomatableParameter::
+// isDiscrete()/getNumberOfStates() read VST2-only VSTXML metadata, so a VST3 toggle (e.g. a "wah
+// mode") reports as continuous.
+//
+// Hosted VST2/VST3 parameters are HostedAudioProcessorParameters, not AudioProcessorParameterWithID,
+// so Tracktion's own paramID-lookup fails and it stores each parameter's plain JUCE array index as
+// the (numeric) paramID (tracktion_ExternalPlugin.cpp:798-804). Reach the JUCE parameter by that
+// index and read its isDiscrete()/getNumSteps(), which carry the real VST3 stepCount
+// (juce_VST3PluginFormatImpl.h:2085-2095) despite the WithID gap. Runs on the message thread per the
+// Tracktion automation contract.
+[[nodiscard]] int discreteValueCount(const tracktion::AutomatableParameter& parameter)
+{
+    if (parameter.isDiscrete())
+    {
+        return parameter.getNumberOfStates();
+    }
+
+    auto* const external_plugin = dynamic_cast<tracktion::ExternalPlugin*>(parameter.getPlugin());
+    if (external_plugin == nullptr)
+    {
+        return 0;
+    }
+    const juce::AudioPluginInstance* const instance = external_plugin->getAudioPluginInstance();
+    if (instance == nullptr)
+    {
+        // Still async-loading; treat as continuous until the instance exists.
+        return 0;
+    }
+
+    // The numeric paramID is the parameter's index into the plugin instance's parameter array.
+    if (const juce::String& param_id = parameter.paramID;
+        param_id.isNotEmpty() && param_id.containsOnly("0123456789"))
+    {
+        const int index = param_id.getIntValue();
+        if (index >= 0 && index < instance->getParameters().size())
+        {
+            if (const juce::AudioProcessorParameter* const juce_parameter =
+                    instance->getParameters()[index];
+                juce_parameter != nullptr)
+            {
+                if (juce_parameter->isDiscrete() && juce_parameter->getNumSteps() >= 2)
+                {
+                    return juce_parameter->getNumSteps();
+                }
+            }
+        }
+    }
+
+    return 0;
+}
+
+// Reads every automatable fact the editor needs about one plugin parameter into its view-facing
+// descriptor. The discrete flag, step labels, and step count all derive from one value count so
+// they cannot disagree.
+[[nodiscard]] AutomatableParamInfo readAutomatableParamInfo(
+    const tracktion::AutomatableParameter& parameter, const std::string& instance_id,
+    const juce::String& group_name, const std::string& plugin_name)
+{
+    const int value_count = discreteValueCount(parameter);
+
+    // Step labels come only from Tracktion's VSTXML metadata, and its getAllLabels() dereferences
+    // that (VST2-only) param pointer without a null guard — unlike its sibling getLabelForValue().
+    // isDiscrete() returns `param != nullptr && ...`, so it is the exact guard that makes the call
+    // safe. A VST3 discrete param reports its step count through discreteValueCount()'s index path
+    // but carries no VSTXML, so it stays unlabelled; snapping needs only the count.
+    std::vector<std::string> labels;
+    if (parameter.isDiscrete())
+    {
+        for (const juce::String& label : parameter.getAllLabels())
+        {
+            labels.push_back(label.toStdString());
+        }
+    }
+
+    const std::optional<float> default_value = parameter.getDefaultValue();
+    return AutomatableParamInfo{
+        .instance_id = instance_id,
+        .param_id = parameter.paramID.toStdString(),
+        .name = parameter.getParameterName().toStdString(),
+        .group = group_name.toStdString(),
+        .is_discrete = value_count >= 2,
+        .discrete_value_count = value_count,
+        .labels = std::move(labels),
+        .default_norm_value =
+            default_value.has_value() ? parameter.valueRange.convertTo0to1(*default_value) : 0.0F,
+        .current_norm_value = parameter.valueRange.convertTo0to1(parameter.getCurrentValue()),
+        .plugin_name = plugin_name,
+    };
+}
+
 // Walks one plugin's grouped parameter tree, appending each real automatable parameter (with its
 // group name) to the output. Groups nest, so this recurses; the synthetic dry/wet mix params are
 // skipped.
@@ -47,31 +138,7 @@ void collectAutomatableParameters(
             continue;
         }
 
-        std::vector<std::string> labels;
-        if (parameter.isDiscrete())
-        {
-            for (const juce::String& label : parameter.getAllLabels())
-            {
-                labels.push_back(label.toStdString());
-            }
-        }
-
-        const std::optional<float> default_value = parameter.getDefaultValue();
-        out.push_back(
-            AutomatableParamInfo{
-                .instance_id = instance_id,
-                .param_id = parameter.paramID.toStdString(),
-                .name = parameter.getParameterName().toStdString(),
-                .group = group_name.toStdString(),
-                .is_discrete = parameter.isDiscrete(),
-                .labels = std::move(labels),
-                .default_norm_value = default_value.has_value()
-                                          ? parameter.valueRange.convertTo0to1(*default_value)
-                                          : 0.0F,
-                .current_norm_value =
-                    parameter.valueRange.convertTo0to1(parameter.getCurrentValue()),
-                .plugin_name = plugin_name,
-            });
+        out.push_back(readAutomatableParamInfo(parameter, instance_id, group_name, plugin_name));
     }
 }
 

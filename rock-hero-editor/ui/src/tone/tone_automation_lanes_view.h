@@ -270,6 +270,11 @@ private:
     // Converts a lane-local y to a normalised value, clamped to the value band.
     [[nodiscard]] float valueForY(int y, const LaneExtent& extent) const;
 
+    // Snaps a raw normalised value to the nearest discrete step for a stepped parameter (so a
+    // toggle moves only between its states); returns the value unchanged for a continuous lane.
+    [[nodiscard]] static float snappedValueForLane(
+        float raw_value, const core::ToneAutomationLaneViewState& lane);
+
     // Builds the committed point list for the active move-point drag.
     [[nodiscard]] std::vector<common::core::ToneAutomationPoint> pointsForCommit(
         const MovePointDrag& drag) const;
