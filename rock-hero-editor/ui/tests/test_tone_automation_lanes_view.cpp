@@ -299,6 +299,58 @@ TEST_CASE(
     CHECK(harness.listener.last_edit_points.back().norm_value == 0.5F);
 }
 
+TEST_CASE(
+    "Lanes view snaps discrete point drags to the nearest step", "[ui][tone-automation-lanes]")
+{
+    LanesHarness harness;
+    ToneAutomationLanesView view{harness.listener, harness.tempo_map, harness.tone_automation};
+    view.setSize(800, 200);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{0.0}, .end = common::core::TimePosition{8.0}
+        });
+    view.setEditableWindow(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{0.0}, .end = common::core::TimePosition{4.0}
+        });
+
+    core::ToneAutomationViewState state;
+    state.tone_document_ref = "tones/x/tone.json";
+    core::ToneAutomationLaneViewState lane;
+    lane.instance_id = "instance-a";
+    lane.param_id = "wah";
+    lane.name = "Wah Mode";
+    lane.resolved = true;
+    lane.is_discrete = true;
+    lane.discrete_value_count = 2; // a two-state toggle: only 0 and 1 are valid.
+    lane.points = {
+        core::ToneAutomationPointViewState{
+            .position = {.measure = 2, .beat = 1, .offset = {}},
+            .seconds = 2.0,
+            .norm_value = 0.0F,
+            .curve_shape = 0.0F,
+        },
+    };
+    state.lanes = {std::move(lane)};
+    view.setState(state);
+
+    // The point at value 0 renders at y 45 (x 200 for seconds 2.0). Dragging up past the midpoint
+    // snaps to the "on" state; a small drag that stays below the midpoint snaps back to "off".
+    view.mouseDown(testing::makeMouseDownEvent(view, 200.0f, 45.0f));
+    view.mouseDrag(testing::makeMouseDownEvent(view, 200.0f, 15.0f));
+    view.mouseUp(testing::makeMouseDownEvent(view, 200.0f, 15.0f));
+    REQUIRE(harness.listener.edit_count == 1);
+    REQUIRE(harness.listener.last_edit_points.size() == 1);
+    CHECK(harness.listener.last_edit_points.front().norm_value == 1.0F);
+
+    view.mouseDown(testing::makeMouseDownEvent(view, 200.0f, 45.0f));
+    view.mouseDrag(testing::makeMouseDownEvent(view, 200.0f, 33.0f));
+    view.mouseUp(testing::makeMouseDownEvent(view, 200.0f, 33.0f));
+    REQUIRE(harness.listener.edit_count == 2);
+    REQUIRE(harness.listener.last_edit_points.size() == 1);
+    CHECK(harness.listener.last_edit_points.front().norm_value == 0.0F);
+}
+
 TEST_CASE("Lanes view paints headlessly", "[ui][tone-automation-lanes]")
 {
     LanesHarness harness;

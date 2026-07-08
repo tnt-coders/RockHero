@@ -80,6 +80,7 @@ ToneAutomationViewState toneAutomationViewStateFor(
             lane.name = parameter->name;
             lane.plugin_name = parameter->plugin_name;
             lane.is_discrete = parameter->is_discrete;
+            lane.discrete_value_count = parameter->discrete_value_count;
             lane.live_norm_value = parameter->current_norm_value;
             lane.default_norm_value = parameter->default_norm_value;
             lane.resolved = true;
@@ -133,6 +134,7 @@ ToneAutomationViewState toneAutomationViewStateFor(
             lane.name = parameter->name;
             lane.plugin_name = parameter->plugin_name;
             lane.is_discrete = parameter->is_discrete;
+            lane.discrete_value_count = parameter->discrete_value_count;
             lane.live_norm_value = parameter->current_norm_value;
             lane.default_norm_value = parameter->default_norm_value;
             lane.resolved = true;
