@@ -598,17 +598,16 @@ void logEditorUndoTransitionResult(
 
 // Production save path used when tests do not provide a custom seam.
 [[nodiscard]] std::expected<void, ProjectError> defaultSave(
-    Project& project, const common::core::Song& song, ProjectEditorState editor_state)
+    Project& project, const common::core::Song& song)
 {
-    return project.save(song, std::move(editor_state));
+    return project.save(song);
 }
 
 // Production save-as path used when tests do not provide a custom seam.
 [[nodiscard]] std::expected<void, ProjectError> defaultSaveAs(
-    Project& project, const std::filesystem::path& file, const common::core::Song& song,
-    ProjectEditorState editor_state)
+    Project& project, const std::filesystem::path& file, const common::core::Song& song)
 {
-    return project.saveAs(file, song, std::move(editor_state));
+    return project.saveAs(file, song);
 }
 
 // Production publish path used when tests do not provide a custom seam.

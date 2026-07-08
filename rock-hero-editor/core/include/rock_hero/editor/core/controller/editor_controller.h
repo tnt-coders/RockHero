@@ -80,12 +80,11 @@ public:
 
     /*! \brief Saves the current song through the project context. */
     using SaveFunction = std::function<std::expected<void, ProjectError>(
-        Project& project, const common::core::Song& song, ProjectEditorState editor_state)>;
+        Project& project, const common::core::Song& song)>;
 
     /*! \brief Saves the current song to a chosen path through the project context. */
     using SaveAsFunction = std::function<std::expected<void, ProjectError>(
-        Project& project, const std::filesystem::path& path, const common::core::Song& song,
-        ProjectEditorState editor_state)>;
+        Project& project, const std::filesystem::path& path, const common::core::Song& song)>;
 
     /*! \brief Publishes the current song to a chosen native song package path. */
     using PublishFunction = std::function<std::expected<void, ProjectError>(

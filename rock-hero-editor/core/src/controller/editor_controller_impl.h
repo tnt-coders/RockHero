@@ -332,7 +332,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void clearDeferredProjectAction() noexcept;
     void clearInterruptedRestoreMarker();
     void clearLastOpenProjectIfMatches(const std::filesystem::path& project_file);
-    [[nodiscard]] ProjectEditorState projectEditorStateForSave() const;
     [[nodiscard]] common::core::TimePosition cursorPositionForOpenedProject(
         const std::filesystem::path& project_file) const;
     [[nodiscard]] common::core::Fraction gridNoteValueForOpenedProject(
@@ -669,7 +668,6 @@ struct EditorController::Impl::ProjectWriteTaskState
     EditorAction::ProjectWriteAction action;
     Project project{};
     common::core::Song song{};
-    ProjectEditorState editor_state{};
     std::expected<void, ProjectError> result{};
 };
 

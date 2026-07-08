@@ -264,7 +264,6 @@ Project::~Project() noexcept
         {
             m_path.clear();
             m_workspace_directory.clear();
-            m_editor_state = ProjectEditorState{};
             m_audio_normalization_updated_on_load = false;
         }
     }
@@ -272,7 +271,6 @@ Project::~Project() noexcept
     {
         m_path.clear();
         m_workspace_directory.clear();
-        m_editor_state = ProjectEditorState{};
         m_audio_normalization_updated_on_load = false;
     }
 }
@@ -281,7 +279,6 @@ Project::~Project() noexcept
 Project::Project(Project&& other) noexcept
     : m_path(std::exchange(other.m_path, {}))
     , m_workspace_directory(std::exchange(other.m_workspace_directory, {}))
-    , m_editor_state(std::exchange(other.m_editor_state, {}))
     , m_audio_normalization_updated_on_load(
           std::exchange(other.m_audio_normalization_updated_on_load, false))
 {}
@@ -297,7 +294,6 @@ Project& Project::operator=(Project&& other) noexcept
             {
                 m_path.clear();
                 m_workspace_directory.clear();
-                m_editor_state = ProjectEditorState{};
                 m_audio_normalization_updated_on_load = false;
             }
         }
@@ -305,13 +301,11 @@ Project& Project::operator=(Project&& other) noexcept
         {
             m_path.clear();
             m_workspace_directory.clear();
-            m_editor_state = ProjectEditorState{};
             m_audio_normalization_updated_on_load = false;
         }
 
         m_path = std::exchange(other.m_path, {});
         m_workspace_directory = std::exchange(other.m_workspace_directory, {});
-        m_editor_state = std::exchange(other.m_editor_state, {});
         m_audio_normalization_updated_on_load =
             std::exchange(other.m_audio_normalization_updated_on_load, false);
     }
@@ -329,12 +323,6 @@ const std::filesystem::path& Project::path() const noexcept
 const std::filesystem::path& Project::workspaceDirectory() const noexcept
 {
     return m_workspace_directory;
-}
-
-// Returns editor-only state read from project.json or default state before loading.
-const ProjectEditorState& Project::editorState() const noexcept
-{
-    return m_editor_state;
 }
 
 // Reports whether load repaired normalization metadata that has not yet been saved.
@@ -377,10 +365,10 @@ std::expected<Song, ProjectError> Project::load(
         }};
     }
 
-    auto editor_state = project_io::readProjectDocument(loaded_project.m_workspace_directory);
-    if (!editor_state.has_value())
+    if (auto document_valid = project_io::readProjectDocument(loaded_project.m_workspace_directory);
+        !document_valid.has_value())
     {
-        return std::unexpected{std::move(editor_state.error())};
+        return std::unexpected{std::move(document_valid.error())};
     }
 
     auto loaded_song = common::core::readRockSongPackageDirectory(
@@ -401,10 +389,7 @@ std::expected<Song, ProjectError> Project::load(
         return std::unexpected{std::move(normalization_result.error())};
     }
 
-    loaded_project.m_editor_state = std::move(*editor_state);
     loaded_project.m_audio_normalization_updated_on_load = *normalization_result;
-    // TODO: Surface a non-fatal load warning if selectedArrangement no longer matches any
-    // arrangement ID; EditorController currently falls back to the first arrangement silently.
     if (auto close_result = close(); !close_result.has_value())
     {
         return std::unexpected{std::move(close_result.error())};
@@ -480,12 +465,6 @@ std::expected<Song, ProjectError> Project::import(
 // Writes the current session song to the open project workspace and package.
 std::expected<void, ProjectError> Project::save(const Song& song)
 {
-    return save(song, m_editor_state);
-}
-
-// Writes the current session song and editor state to the open project workspace and package.
-std::expected<void, ProjectError> Project::save(const Song& song, ProjectEditorState editor_state)
-{
     if (m_path.empty() || m_workspace_directory.empty())
     {
         return std::unexpected{ProjectError{
@@ -503,7 +482,7 @@ std::expected<void, ProjectError> Project::save(const Song& song, ProjectEditorS
         }};
     }
 
-    if (auto write_error = project_io::writeProjectFiles(m_workspace_directory, song, editor_state);
+    if (auto write_error = project_io::writeProjectFiles(m_workspace_directory, song);
         !write_error.has_value())
     {
         return std::unexpected{std::move(write_error.error())};
@@ -519,7 +498,6 @@ std::expected<void, ProjectError> Project::save(const Song& song, ProjectEditorS
         }};
     }
 
-    m_editor_state = std::move(editor_state);
     m_audio_normalization_updated_on_load = false;
     return std::expected<void, ProjectError>{};
 }
@@ -527,13 +505,6 @@ std::expected<void, ProjectError> Project::save(const Song& song, ProjectEditorS
 // Saves to a chosen project package path, creating a workspace first when unopened.
 std::expected<void, ProjectError> Project::saveAs(
     const std::filesystem::path& path, const Song& song)
-{
-    return saveAs(path, song, m_editor_state);
-}
-
-// Saves song data and editor state to a chosen project package path.
-std::expected<void, ProjectError> Project::saveAs(
-    const std::filesystem::path& path, const Song& song, ProjectEditorState editor_state)
 {
     if (path.empty())
     {
@@ -555,8 +526,8 @@ std::expected<void, ProjectError> Project::saveAs(
         saved_project.m_path = path;
         saved_project.m_workspace_directory = std::move(*workspace_directory);
 
-        if (auto write_error = project_io::writeProjectFiles(
-                saved_project.m_workspace_directory, song, editor_state);
+        if (auto write_error =
+                project_io::writeProjectFiles(saved_project.m_workspace_directory, song);
             !write_error.has_value())
         {
             return std::unexpected{std::move(write_error.error())};
@@ -572,13 +543,12 @@ std::expected<void, ProjectError> Project::saveAs(
             }};
         }
 
-        saved_project.m_editor_state = std::move(editor_state);
         saved_project.m_audio_normalization_updated_on_load = false;
         *this = std::move(saved_project);
         return std::expected<void, ProjectError>{};
     }
 
-    if (auto write_error = project_io::writeProjectFiles(m_workspace_directory, song, editor_state);
+    if (auto write_error = project_io::writeProjectFiles(m_workspace_directory, song);
         !write_error.has_value())
     {
         return std::unexpected{std::move(write_error.error())};
@@ -595,7 +565,6 @@ std::expected<void, ProjectError> Project::saveAs(
     }
 
     m_path = path;
-    m_editor_state = std::move(editor_state);
     m_audio_normalization_updated_on_load = false;
     return std::expected<void, ProjectError>{};
 }
@@ -649,7 +618,6 @@ std::expected<void, ProjectError> Project::close()
     if (m_workspace_directory.empty())
     {
         m_path.clear();
-        m_editor_state = ProjectEditorState{};
         m_audio_normalization_updated_on_load = false;
         return std::expected<void, ProjectError>{};
     }
@@ -686,7 +654,6 @@ std::expected<void, ProjectError> Project::close()
 
     m_path.clear();
     m_workspace_directory.clear();
-    m_editor_state = ProjectEditorState{};
     m_audio_normalization_updated_on_load = false;
     return std::expected<void, ProjectError>{};
 }
