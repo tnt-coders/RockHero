@@ -60,6 +60,14 @@ struct ToneAutomationLaneViewState
     /*! \brief True when the parameter is stepped rather than continuous. */
     bool is_discrete{false};
 
+    /*!
+    \brief Number of discrete steps for a stepped parameter; 0 for a continuous one.
+
+    Point drags on a discrete lane snap to the nearest of these evenly-spaced steps, so a toggle
+    moves only between its two states instead of any value in between.
+    */
+    int discrete_value_count{0};
+
     /*! \brief False when the parameter no longer resolves; the lane renders disabled. */
     bool resolved{true};
 
