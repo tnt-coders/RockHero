@@ -4,6 +4,14 @@ Persist plugin window state across editor sessions so charters return to the lay
 left behind when reopening a project. Editor-only concern; must never leak into native song
 packages or `.rock`.
 
+> **Staleness note (app-local-project-view-state change):** `ProjectEditorState` and the
+> project.json `editorState` object no longer exist — per-project view/resume state moved to
+> app-local `IEditorSettings` flat keys (`"<family>:" + normalizedPath`). Any earlier text below
+> proposing to extend `ProjectEditorState` is obsolete. Per-arrangement plugin-window bounds are
+> machine-local view state and would target an app-settings home with a **structured** shape
+> (a per-plugin map, unlike the current single-scalar-per-key families), to be designed when this
+> plan is picked up. Re-read the current settings code before executing.
+
 ## Background
 
 In-session restore is already in place. `PluginWindow` (`rock-hero-common/audio/src/engine.cpp`)
