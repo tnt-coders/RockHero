@@ -71,6 +71,9 @@ struct ToneAutomationLaneViewState
     */
     float live_norm_value{0.0F};
 
+    /*! \brief Parameter's default value, normalised to `[0, 1]`; a double-click resets a point here. */
+    float default_norm_value{0.0F};
+
     /*! \brief Curve points in ascending time (the whole curve, absolute seconds). */
     std::vector<ToneAutomationPointViewState> points;
 
