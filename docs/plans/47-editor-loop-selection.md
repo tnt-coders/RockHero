@@ -89,12 +89,14 @@ Repo state (paths repo-relative):
   documented as tone-region-scoped, "not a note/chart position model" (tone/tone_track.h:16-38).
   `TempoMap::secondsAtNote(measure, beat, offset)` converts musical → seconds
   (timeline/tempo_map.h:192).
-- Editor state persistence homes (load-bearing for Q3): project.json `editorState` carries ONLY
-  `selectedArrangement` (rock-hero-editor/core/src/project/project_io.cpp:110-156;
-  `ProjectEditorState`, project/project.h:40-52). The resume cursor, grid density, and zoom are
-  app-local per-project-path records in `IEditorSettings`
-  (`projectCursorPositionFor`/`saveProjectCursorPosition`, i_editor_settings.h:109-120; list key
-  "projectCursorPositions", editor_settings.cpp:252) — the cursor does NOT live in project.json.
+- Editor state persistence homes (load-bearing for Q3): per-project view/resume state — the resume
+  cursor, grid density, timeline zoom, AND the displayed arrangement — all live as app-local
+  per-project-path records in `IEditorSettings`, keyed by normalized path under **flat settings
+  keys** (`projectCursor:<path>`, `projectGridNoteValue:<path>`, `projectTimelineZoom:<path>`,
+  `projectSelectedArrangement:<path>`; editor_settings.cpp). `project.json` is now only a
+  `{ "formatVersion": 1 }` manifest — the `editorState` object and `ProjectEditorState` were
+  removed (see docs/in-progress/app-local-project-view-state.md), so nothing per-project-view lives
+  in the .rhp package.
 - Interaction surfaces: `TimelineRuler` (pinned band above the canvas, height 53px) handles
   `mouseDown` only, converting clicks to snapped cursor placement
   (rock-hero-editor/ui/src/timeline/timeline_ruler.h:27,104-109, timeline_ruler.cpp:235).
@@ -262,15 +264,16 @@ Mirror all of these into docs/plans/00-roadmap.md (Decisions needed).
    looped play); arrangement switch keeps the selection (the tempo map is song-level) and
    re-engages after activation; tempo-map edits (future, plan 41) keep musical positions and
    re-convert. If (A) is chosen instead, Ctrl+L lands scattered now and migrates under plan 46.
-3. **Q3 — Persistence home.** Options: (A) app-local per-project-path records in
-   `IEditorSettings`, exactly like the resume cursor/grid/zoom (list-key pattern,
-   editor_settings.cpp:252,323,393), storing the two grid-position tokens via
-   `formatGridPositionToken`; (B) project.json `editorState` beside `selectedArrangement`
-   (project_io.cpp:141-156) so the selection travels inside the .rhp package.
-   **Recommendation: A** — the prior assumption that the cursor lives in project.json is wrong
-   (inventory: cursor/zoom/grid are all app-local per-path); the loop selection is the same kind
-   of resume state, and (B) would leave the stored selection stale until the next explicit save
-   or start dirtying saves for transient UI state.
+3. **Q3 — Persistence home. SETTLED: app-local per-project-path records in `IEditorSettings`**,
+   exactly like the resume cursor / grid / zoom / selected-arrangement. Those families are now
+   stored as **flat settings keys** (`"<family>:" + normalizedPath`, one string value each —
+   editor_settings.cpp), not the old list-of-records codecs.
+   **Multi-scalar rule (binding on this family):** a family with several scalars encodes ONE
+   composite token value under ONE key (following the grid's `"num/den"` precedent), never two keys
+   whose writes could tear — so loop selection stores its two grid-position tokens as a single
+   composite value via `formatGridPositionToken`. Storing the selection in project.json (former
+   option B) is rejected: `editorState`/`ProjectEditorState` no longer exist, and per-project view
+   state does not belong in the shared .rhp package.
 
 ## 9. Phased implementation
 
