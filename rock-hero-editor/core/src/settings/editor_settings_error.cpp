@@ -21,18 +21,6 @@ namespace
         {
             return "Saved input calibration settings are invalid.";
         }
-        case EditorSettingsErrorCode::InvalidProjectCursorHistory:
-        {
-            return "Saved project cursor settings are invalid.";
-        }
-        case EditorSettingsErrorCode::InvalidProjectGridNoteValueHistory:
-        {
-            return "Saved project grid note-value settings are invalid.";
-        }
-        case EditorSettingsErrorCode::InvalidProjectTimelineZoomHistory:
-        {
-            return "Saved project timeline zoom settings are invalid.";
-        }
         case EditorSettingsErrorCode::CouldNotSave:
         {
             return "Could not save editor settings.";
