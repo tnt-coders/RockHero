@@ -23,7 +23,9 @@ follow-ups should not trigger the full documentation bootstrap.
 
 ## Coding-Agent Efficiency Baseline
 
-For routine coding tasks, minimize context-heavy output and batch verification:
+For routine coding tasks, minimize context-heavy output and batch verification. This baseline
+binds Mythos-class models at full strength; other Claude models adjust it per
+[Model Calibration](#model-calibration):
 
 - Use `rg -n` first, then read only focused line ranges around relevant matches.
 - Avoid full-file reads of large files and full-repository diffs unless explicitly reviewing or
@@ -34,6 +36,72 @@ For routine coding tasks, minimize context-heavy output and batch verification:
 - Do not reconfigure CMake unless CMake files, target source lists, generated build graph inputs, or
   stale-build errors require it.
 - Keep progress updates brief for routine edits, reporting only meaningful findings or blockers.
+
+## Model Calibration
+
+The [Coding-Agent Efficiency Baseline](#coding-agent-efficiency-baseline) above is written for
+Mythos-class Claude models (Fable / Mythos), which apply it at full strength, exactly as written,
+with none of the extra scaffolding below. A session driven by any other Claude model (Opus,
+Sonnet, Haiku, or any future non-Mythos model) keeps every environment, build, and safety rule in
+this file but works under the adjusted profile in this section. Task-scoped subagents follow
+their task brief regardless of model. Non-Claude agents follow their own harness file
+(`AGENTS.md`) and ignore this section. The runtime environment names the active model.
+
+### Depth over Agent Speed
+
+Optimize for cleanliness, correctness, and runtime performance of the delivered code — never for
+finishing the response sooner. Agent wall-clock time and token spend are cheap; a rushed or
+shallow solution is expensive. Keep digging until the root cause or the full design context is
+understood before implementing, and do not settle for the first workable patch when a cleaner
+design is within reach.
+
+### Loosened Context Economy
+
+Loosen the baseline's context-economy rules wherever they risk a wrong or shallow edit:
+
+- Read whole files, full path-scoped diffs, and complete design documents whenever a partial read
+  leaves uncertainty about invariants, callers, or conventions.
+- Re-read the relevant `docs/design/*.md` document before any architecture, layering, or
+  convention decision, even if it was consulted earlier in the session.
+- Verify in smaller batches when a change is subtle or spans layers; building or testing mid-task
+  to confirm a hypothesis is acceptable.
+- Before reporting a task complete, diff every touched file and check the result against each
+  requirement in the request.
+
+The environment rules are not loosened: build only through `.agents/rockhero-build.ps1`, never
+reconfigure CMake without a determinate reason, and keep quiet output as the first resort.
+
+### Existing Libraries over Hand-Rolled Algorithms
+
+Before implementing any nontrivial or well-known algorithm from scratch, check what the project
+already ships: the C++23 standard library, JUCE and Tracktion Engine
+(`external/tracktion_engine/`), and the Conan dependencies in `conanfile.txt`. Prefer an
+existing, tested implementation. When nothing available fits, propose adding a suitable library
+to the user rather than silently rewriting complex known algorithms (DSP, parsing, containers,
+concurrency primitives); hand-roll only trivial logic, or with user approval.
+
+### Full-Coverage Rule
+
+Never drop a user request, especially one sent while work is already in progress:
+
+1. When a message contains multiple requests — and again whenever a new message arrives mid-task
+   — enumerate every distinct request into a tracked checklist (the session task list when
+   available, otherwise an explicit checklist restated in the response).
+2. Treat mid-task messages as additional obligations, never as background commentary; fold their
+   points into the checklist before resuming the interrupted work.
+3. After a context compaction, rebuild the checklist from the summary plus the latest user
+   messages before continuing.
+4. Before ending a turn, re-read every user message received since the last completed response
+   and confirm each request is done, answered, or explicitly deferred with a stated reason.
+   Silently skipping a point is a defect, exactly like a failing test.
+
+### Parallel Instances for Hard Requests
+
+For complex, multi-part, or design-sensitive requests, spawning a few parallel general-purpose
+subagent instances — same brief for independent drafts, or split draft/critique briefs — and
+reconciling their outputs into a single answer is pre-authorized; the user accepts the extra
+usage and latency. Reserve this for genuinely hard problems (architecture decisions, difficult
+debugging, multi-constraint designs), not routine edits.
 
 ## Project Overview
 
