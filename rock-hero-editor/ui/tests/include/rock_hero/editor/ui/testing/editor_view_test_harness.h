@@ -228,6 +228,13 @@ struct FakeToneAutomation final : public common::audio::IToneAutomation
     {
         return 0.0F;
     }
+
+    [[nodiscard]] std::expected<std::string, common::audio::ToneAutomationError>
+    formatParameterValue(
+        const std::string&, const std::string&, const std::string&, float norm_value) const override
+    {
+        return ("[" + juce::String(norm_value, 2) + "]").toStdString();
+    }
 };
 
 /*!

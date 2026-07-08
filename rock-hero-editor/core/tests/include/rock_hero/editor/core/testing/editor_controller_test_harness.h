@@ -859,6 +859,23 @@ struct FakeToneAutomation final : public common::audio::IToneAutomation
         }};
     }
 
+    [[nodiscard]] std::expected<std::string, common::audio::ToneAutomationError>
+    formatParameterValue(
+        const std::string& /*tone_document_ref*/, const std::string& instance_id,
+        const std::string& param_id, float norm_value) const override
+    {
+        for (const common::audio::AutomatableParamInfo& parameter : parameters)
+        {
+            if (parameter.instance_id == instance_id && parameter.param_id == param_id)
+            {
+                return std::to_string(norm_value);
+            }
+        }
+        return std::unexpected{common::audio::ToneAutomationError{
+            common::audio::ToneAutomationErrorCode::ParameterNotFound, "not found"
+        }};
+    }
+
     // Joins a lane's identity into a single map key.
     [[nodiscard]] static std::string curveKey(
         const std::string& tone_document_ref, const std::string& instance_id,

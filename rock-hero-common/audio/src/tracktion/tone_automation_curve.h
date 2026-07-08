@@ -66,4 +66,19 @@ A single-parameter read cheap enough for per-frame polling by live-tracking auto
 [[nodiscard]] std::optional<float> readPluginParameterNormValue(
     tracktion::Plugin& plugin, const std::string& param_id);
 
+/*!
+\brief Formats a normalised value as one plugin parameter's native display text.
+
+Converts \p norm_value out of `[0, 1]` into the parameter's own range and renders it the way the
+plugin presents it, appending the parameter's unit label when it exposes one (matching Tracktion's
+own value-with-label formatting).
+
+\param plugin Plugin owning the parameter.
+\param param_id Parameter id within the plugin.
+\param norm_value Value to format, normalised to `[0, 1]`.
+\return The display text, or `nullopt` when \p param_id does not resolve on the plugin.
+*/
+[[nodiscard]] std::optional<std::string> formatPluginParameterValue(
+    tracktion::Plugin& plugin, const std::string& param_id, float norm_value);
+
 } // namespace rock_hero::common::audio

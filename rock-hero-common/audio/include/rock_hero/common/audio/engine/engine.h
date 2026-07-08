@@ -473,6 +473,18 @@ public:
         const std::string& param_id) const override;
 
     /*!
+    \brief Formats a normalised value as one tone-chain parameter's native display text.
+    \param tone_document_ref One of the tone references currently loaded into the live rig.
+    \param instance_id Plugin instance whose parameter is formatted.
+    \param param_id Parameter id within that plugin.
+    \param norm_value Value to format, normalised to `[0, 1]`.
+    \return The parameter's display text, or a typed failure.
+    */
+    [[nodiscard]] std::expected<std::string, ToneAutomationError> formatParameterValue(
+        const std::string& tone_document_ref, const std::string& instance_id,
+        const std::string& param_id, float norm_value) const override;
+
+    /*!
     \brief Returns the JUCE audio device manager backing the engine.
     \return Reference to the active device manager owned by the audio backend.
     */

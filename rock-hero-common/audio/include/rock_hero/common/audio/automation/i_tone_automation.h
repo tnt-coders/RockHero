@@ -151,6 +151,26 @@ public:
         const std::string& tone_document_ref, const std::string& instance_id,
         const std::string& param_id) const = 0;
 
+    /*!
+    \brief Formats a normalised value as the parameter's native display text.
+
+    Turns a `[0, 1]` value into the parameter's own units the way the plugin presents it (for
+    example "-3.5 dB", "440 Hz", or a discrete step label), including the unit suffix when the
+    parameter exposes one. Used by the automation lanes to show the value under the cursor while a
+    point is hovered or dragged, so the arbitrary value the gesture is producing can be formatted
+    without moving the live parameter.
+
+    \param tone_document_ref One of the tone references currently loaded into the live rig.
+    \param instance_id Plugin instance whose parameter is formatted.
+    \param param_id Parameter id within that plugin.
+    \param norm_value Value to format, normalised to `[0, 1]`.
+    \return The display text, or a typed failure when the tone, plugin, or parameter cannot be
+            resolved.
+    */
+    [[nodiscard]] virtual std::expected<std::string, ToneAutomationError> formatParameterValue(
+        const std::string& tone_document_ref, const std::string& instance_id,
+        const std::string& param_id, float norm_value) const = 0;
+
 protected:
     /*! \brief Creates the tone automation interface. */
     IToneAutomation() = default;
