@@ -184,6 +184,15 @@ public:
     /*! \brief Commits the active gesture as one intent when it changed anything. */
     void mouseUp(const juce::MouseEvent& event) override;
 
+    /*! \brief Clears the hovered-point value readout when the pointer leaves without dragging. */
+    void mouseExit(const juce::MouseEvent& event) override;
+
+    /*!
+    \brief Reports the value-readout text currently shown next to the cursor, for tests.
+    \return Readout text while a point is hovered or dragged, or empty when none is shown.
+    */
+    [[nodiscard]] std::optional<juce::String> valueReadoutTextForTest() const;
+
 private:
     // One lane's vertical extent in component coordinates.
     struct LaneExtent
@@ -209,6 +218,15 @@ private:
         int start_y{};
     };
     using DragState = std::variant<MovePointDrag, ResizeLaneDrag>;
+
+    // Transient "position · value" chip drawn next to the cursor while a point is hovered or
+    // dragged, so the value the gesture is producing is legible without a separate panel.
+    struct ValueReadout
+    {
+        juce::Point<int> anchor{};
+        juce::String text;
+        friend bool operator==(const ValueReadout& lhs, const ValueReadout& rhs) = default;
+    };
 
     // Hit zones resolved by hitAt(); the pass-through predicate and mouseDown share this result.
     struct PointHit
@@ -271,6 +289,21 @@ private:
     // Publishes the snap guide (or clears it when empty).
     void publishSnapGuide(std::optional<TimelineSnapGuide> guide);
 
+    // Builds the "position · value" readout text for a point at a musical position and value,
+    // formatting the value in the parameter's native units through the automation port.
+    [[nodiscard]] juce::String readoutTextFor(
+        const common::core::GridPosition& position, const core::ToneAutomationLaneViewState& lane,
+        float norm_value) const;
+
+    // Positions the readout chip next to the cursor anchor, flipped to stay inside the component.
+    [[nodiscard]] juce::Rectangle<int> readoutBounds(const ValueReadout& readout) const;
+
+    // Sets or clears the value readout, repainting only the vacated and freshly covered chip areas.
+    void setValueReadout(std::optional<ValueReadout> readout);
+
+    // Paints the value-readout chip when one is active.
+    void paintValueReadout(juce::Graphics& graphics) const;
+
     // Intent sink for lane add and point edits.
     Listener& m_listener;
 
@@ -297,6 +330,9 @@ private:
 
     // Active gesture, if any; state pushes drop it instead of resizing against stale indices.
     std::optional<DragState> m_drag{};
+
+    // Transient value readout shown next to the cursor while a point is hovered or dragged.
+    std::optional<ValueReadout> m_value_readout{};
 
     // Automation port polled read-only by unauthored tracking lanes; owned by the composition.
     const common::audio::IToneAutomation& m_tone_automation;

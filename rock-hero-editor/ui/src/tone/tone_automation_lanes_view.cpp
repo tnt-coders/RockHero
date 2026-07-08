@@ -43,6 +43,13 @@ constexpr float g_chip_font_height = 12.0f;
 // stored position an exact rational at far finer than audible resolution.
 constexpr int g_fine_grid_denominator = 960;
 
+// The value-readout chip drawn next to the cursor: padded for legibility and offset off the
+// pointer so it never sits directly under the dragged point.
+constexpr int g_readout_pad_x = 6;
+constexpr int g_readout_height = 18;
+constexpr int g_readout_cursor_gap = 12;
+constexpr float g_readout_font_height = 12.0f;
+
 const juce::Colour g_lane_separator{juce::Colours::black.withAlpha(0.45f)};
 const juce::Colour g_curve_colour{editorTheme().accent};
 const juce::Colour g_point_fill{juce::Colours::white.withAlpha(0.92f)};
@@ -149,6 +156,7 @@ void ToneAutomationLanesView::setState(const core::ToneAutomationViewState& stat
     // Controller pushes replace the model under any in-flight gesture, so drop the gesture
     // instead of editing against stale indices.
     m_drag.reset();
+    m_value_readout.reset();
     publishSnapGuide(std::nullopt);
     if (totalHeight() != previous_total_height && m_heights_changed_callback)
     {
@@ -605,11 +613,38 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
         graphics.setFont(juce::Font{juce::FontOptions{g_chip_font_height + 2.0f}});
         graphics.drawText("+", chip, juce::Justification::centred);
     }
+
+    // The cursor readout draws last so it floats above every lane's curve and chips.
+    paintValueReadout(graphics);
 }
 
 void ToneAutomationLanesView::mouseMove(const juce::MouseEvent& event)
 {
     const std::optional<Hit> hit = hitAt(event.getPosition());
+
+    // Hovering a point shows its position and value next to the cursor; any other zone clears it.
+    if (hit.has_value())
+    {
+        if (const auto* const point_hit = std::get_if<PointHit>(&*hit))
+        {
+            const core::ToneAutomationLaneViewState& lane = m_state.lanes[point_hit->lane_index];
+            const core::ToneAutomationPointViewState& point = lane.points[point_hit->point_index];
+            setValueReadout(
+                ValueReadout{
+                    .anchor = event.getPosition(),
+                    .text = readoutTextFor(point.position, lane, point.norm_value),
+                });
+        }
+        else
+        {
+            setValueReadout(std::nullopt);
+        }
+    }
+    else
+    {
+        setValueReadout(std::nullopt);
+    }
+
     if (!hit.has_value())
     {
         setMouseCursor(juce::MouseCursor::NormalCursor);
@@ -783,12 +818,15 @@ void ToneAutomationLanesView::mouseDrag(const juce::MouseEvent& event)
     const double preview_seconds = secondsAtPosition(m_tempo_map, move.preview_position);
     if (const std::optional<float> guide_x = xForSeconds(preview_seconds); guide_x.has_value())
     {
-        publishSnapGuide(
-            TimelineSnapGuide{
-                .x = *guide_x,
-                .label = juce::String{common::core::formatGridPositionToken(move.preview_position)},
-            });
+        // Keep the full-height alignment line, but carry no label of its own: the position now
+        // rides in the cursor readout below, since the line's top-of-canvas label read as awkward.
+        publishSnapGuide(TimelineSnapGuide{.x = *guide_x, .label = juce::String{}});
     }
+    setValueReadout(
+        ValueReadout{
+            .anchor = event.getPosition(),
+            .text = readoutTextFor(move.preview_position, lane, move.preview_value),
+        });
     repaint(0, extents[move.lane_index].top, getWidth(), extents[move.lane_index].height);
 }
 
@@ -801,6 +839,7 @@ void ToneAutomationLanesView::mouseUp(const juce::MouseEvent& /*event*/)
     const DragState finished = *m_drag;
     m_drag.reset();
     publishSnapGuide(std::nullopt);
+    setValueReadout(std::nullopt);
 
     if (const auto* const move = std::get_if<MovePointDrag>(&finished))
     {
@@ -812,6 +851,16 @@ void ToneAutomationLanesView::mouseUp(const juce::MouseEvent& /*event*/)
         }
     }
     repaint();
+}
+
+void ToneAutomationLanesView::mouseExit(const juce::MouseEvent& /*event*/)
+{
+    // A drag keeps its readout even when the pointer leaves the component (JUCE keeps delivering
+    // drag events); a plain hover that leaves the lanes clears it.
+    if (!m_drag.has_value())
+    {
+        setValueReadout(std::nullopt);
+    }
 }
 
 std::vector<common::core::ToneAutomationPoint> ToneAutomationLanesView::pointsForCommit(
@@ -1007,6 +1056,83 @@ void ToneAutomationLanesView::publishSnapGuide(std::optional<TimelineSnapGuide> 
     {
         m_snap_guide_callback(std::move(guide));
     }
+}
+
+juce::String ToneAutomationLanesView::readoutTextFor(
+    const common::core::GridPosition& position, const core::ToneAutomationLaneViewState& lane,
+    float norm_value) const
+{
+    juce::String text{common::core::formatGridPositionToken(position)};
+    // The value is formatted in the parameter's native units; if the tone cannot be resolved the
+    // readout still shows the position rather than nothing.
+    if (const auto value = m_tone_automation.formatParameterValue(
+            m_state.tone_document_ref, lane.instance_id, lane.param_id, norm_value);
+        value.has_value() && !value->empty())
+    {
+        text << "  " << juce::String{*value};
+    }
+    return text;
+}
+
+juce::Rectangle<int> ToneAutomationLanesView::readoutBounds(const ValueReadout& readout) const
+{
+    const juce::Font font{juce::FontOptions{g_readout_font_height}};
+    const int width = textWidth(font, readout.text) + (2 * g_readout_pad_x);
+    // Default above-right of the cursor; flip toward the inside whenever an edge would clip it, so
+    // the chip stays fully visible within the lanes even at the row's borders.
+    int x = readout.anchor.x + g_readout_cursor_gap;
+    if (x + width > getWidth())
+    {
+        x = readout.anchor.x - g_readout_cursor_gap - width;
+    }
+    x = std::clamp(x, 0, std::max(0, getWidth() - width));
+    int y = readout.anchor.y - g_readout_cursor_gap - g_readout_height;
+    if (y < 0)
+    {
+        y = readout.anchor.y + g_readout_cursor_gap;
+    }
+    y = std::clamp(y, 0, std::max(0, getHeight() - g_readout_height));
+    return juce::Rectangle<int>{x, y, width, g_readout_height};
+}
+
+void ToneAutomationLanesView::setValueReadout(std::optional<ValueReadout> readout)
+{
+    if (m_value_readout == readout)
+    {
+        return;
+    }
+    if (m_value_readout.has_value())
+    {
+        repaint(readoutBounds(*m_value_readout));
+    }
+    m_value_readout = std::move(readout);
+    if (m_value_readout.has_value())
+    {
+        repaint(readoutBounds(*m_value_readout));
+    }
+}
+
+void ToneAutomationLanesView::paintValueReadout(juce::Graphics& graphics) const
+{
+    if (!m_value_readout.has_value())
+    {
+        return;
+    }
+    const juce::Rectangle<int> bounds = readoutBounds(*m_value_readout);
+    graphics.setColour(g_chip_fill);
+    graphics.fillRoundedRectangle(bounds.toFloat(), g_chip_corner_radius);
+    graphics.setColour(g_chip_text);
+    graphics.setFont(juce::Font{juce::FontOptions{g_readout_font_height}});
+    graphics.drawText(m_value_readout->text, bounds, juce::Justification::centred);
+}
+
+std::optional<juce::String> ToneAutomationLanesView::valueReadoutTextForTest() const
+{
+    if (!m_value_readout.has_value())
+    {
+        return std::nullopt;
+    }
+    return m_value_readout->text;
 }
 
 } // namespace rock_hero::editor::ui

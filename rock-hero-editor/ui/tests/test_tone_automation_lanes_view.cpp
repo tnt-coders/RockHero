@@ -6,6 +6,7 @@
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
+#include <rock_hero/editor/ui/testing/component_test_helpers.h>
 #include <span>
 #include <string>
 #include <utility>
@@ -126,6 +127,15 @@ struct StubToneAutomation final : public common::audio::IToneAutomation
     {
         return 0.0F;
     }
+
+    // Formats the value as a stable "[0.NN]" token so readout tests can assert the exact value the
+    // gesture is producing, independent of any real plugin's units.
+    [[nodiscard]] std::expected<std::string, common::audio::ToneAutomationError>
+    formatParameterValue(
+        const std::string&, const std::string&, const std::string&, float norm_value) const override
+    {
+        return ("[" + juce::String(norm_value, 2) + "]").toStdString();
+    }
 };
 
 // Owns the JUCE runtime the component needs for fonts and cursors in headless tests.
@@ -229,6 +239,47 @@ TEST_CASE("Lanes view claims editable zones and rejects inert ones", "[ui][tone-
     CHECK(harness.view.wantsPointerAt({10, (2 * 56) + 12}));
     // The rest of the "+" strip does not.
     CHECK_FALSE(harness.view.wantsPointerAt({400, (2 * 56) + 12}));
+}
+
+TEST_CASE(
+    "Lanes view shows a position and value readout when hovering a point",
+    "[ui][tone-automation-lanes]")
+{
+    LanesHarness harness;
+    // Second authored point: seconds 2.0 -> x 200 of 800; norm 0.75 -> y 15 in the 56 px lane.
+    harness.view.mouseMove(testing::makeMouseDownEvent(harness.view, 200.0f, 15.0f));
+
+    const std::optional<juce::String> readout = harness.view.valueReadoutTextForTest();
+    REQUIRE(readout.has_value());
+    if (readout.has_value())
+    {
+        // The stub formats the hovered point's own value; the position token rides alongside it.
+        CHECK(readout->contains("[0.75]"));
+        CHECK(readout->contains("2"));
+    }
+
+    // Moving off every point clears the readout.
+    harness.view.mouseMove(testing::makeMouseDownEvent(harness.view, 600.0f, 15.0f));
+    CHECK_FALSE(harness.view.valueReadoutTextForTest().has_value());
+}
+
+TEST_CASE("Lanes view tracks the dragged value in the readout", "[ui][tone-automation-lanes]")
+{
+    LanesHarness harness;
+    // Grab the second point (x 200, y 15) and drag it to y 25, which maps to the 0.5 value line.
+    harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 200.0f, 15.0f));
+    harness.view.mouseDrag(testing::makeMouseDownEvent(harness.view, 200.0f, 25.0f));
+
+    const std::optional<juce::String> readout = harness.view.valueReadoutTextForTest();
+    REQUIRE(readout.has_value());
+    if (readout.has_value())
+    {
+        CHECK(readout->contains("[0.50]"));
+    }
+
+    // Releasing ends the gesture and clears the readout.
+    harness.view.mouseUp(testing::makeMouseDownEvent(harness.view, 200.0f, 25.0f));
+    CHECK_FALSE(harness.view.valueReadoutTextForTest().has_value());
 }
 
 TEST_CASE("Lanes view paints headlessly", "[ui][tone-automation-lanes]")

@@ -139,6 +139,13 @@ public:
         return 0.0F;
     }
 
+    [[nodiscard]] std::expected<std::string, common::audio::ToneAutomationError>
+    formatParameterValue(
+        const std::string&, const std::string&, const std::string&, float norm_value) const override
+    {
+        return ("[" + juce::String(norm_value, 2) + "]").toStdString();
+    }
+
     [[nodiscard]] juce::AudioDeviceManager& deviceManager() noexcept override
     {
         return m_device_manager;

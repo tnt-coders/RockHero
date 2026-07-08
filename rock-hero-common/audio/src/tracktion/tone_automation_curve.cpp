@@ -165,4 +165,27 @@ std::optional<float> readPluginParameterNormValue(
     return parameter->getCurrentNormalisedValue();
 }
 
+std::optional<std::string> formatPluginParameterValue(
+    tracktion::Plugin& plugin, const std::string& param_id, float norm_value)
+{
+    const tracktion::AutomatableParameter::Ptr parameter =
+        plugin.getAutomatableParameterByID(juce::String{param_id});
+    if (parameter == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    // Mirror Tracktion's own value-with-label formatting so the readout matches how the plugin
+    // presents the parameter, without moving the live value: convert out of [0, 1], render, and
+    // append the unit label unless the rendered text already carries it.
+    const float value = parameter->valueRange.convertFrom0to1(norm_value);
+    juce::String text = parameter->valueToString(value);
+    if (const juce::String label = parameter->getLabel();
+        label.isNotEmpty() && !text.endsWith(label))
+    {
+        text << ' ' << label;
+    }
+    return text.toStdString();
+}
+
 } // namespace rock_hero::common::audio

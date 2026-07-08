@@ -53,6 +53,13 @@ struct StubToneAutomation final : public common::audio::IToneAutomation
         return 0.0F;
     }
 
+    [[nodiscard]] std::expected<std::string, common::audio::ToneAutomationError>
+    formatParameterValue(
+        const std::string&, const std::string&, const std::string&, float norm_value) const override
+    {
+        return std::to_string(norm_value);
+    }
+
     std::vector<common::audio::AutomatableParamInfo> parameters;
 
     bool fail_listing{false};
