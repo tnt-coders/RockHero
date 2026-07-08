@@ -201,28 +201,14 @@ void writeArchive(const std::filesystem::path& path, const std::vector<ArchiveEn
     };
 }
 
-// Returns the editor project document shared by project package tests.
-[[nodiscard]] ArchiveEntry projectDocumentEntry(
-    const std::string& selected_arrangement = g_lead_arrangement_id)
+// Returns the editor project manifest shared by project package tests.
+[[nodiscard]] ArchiveEntry projectDocumentEntry()
 {
-    std::string selected_arrangement_field;
-    if (!selected_arrangement.empty())
-    {
-        selected_arrangement_field =
-            R"(
-                    "selectedArrangement": ")" +
-            selected_arrangement + R"(")";
-    }
-
     return ArchiveEntry{
         .path = "project.json",
         .contents =
             R"({
-                "formatVersion": 1,
-                "editorState": {)" +
-            selected_arrangement_field +
-            R"(
-                }
+                "formatVersion": 1
             })",
     };
 }
@@ -260,14 +246,13 @@ void writeMinimalRockSongPackage(const std::filesystem::path& path)
 
 // Writes a valid project package with two arrangements so song ordering can be verified.
 void writeTwoArrangementProjectPackage(
-    const std::filesystem::path& path, const std::string& song_document_name = "song/song.json",
-    const std::string& selected_arrangement = g_lead_arrangement_id)
+    const std::filesystem::path& path, const std::string& song_document_name = "song/song.json")
 {
     writeArchive(
         path,
         std::vector{
             ArchiveEntry{.path = "song/audio/backing.flac", .contents = "audio bytes"},
-            projectDocumentEntry(selected_arrangement),
+            projectDocumentEntry(),
             ArchiveEntry{
                 .path = song_document_name,
                 .contents = std::string{
@@ -451,9 +436,6 @@ TEST_CASE("Project loads a minimal RHP package", "[core][project]")
     REQUIRE(result->arrangements.size() == 1);
     CHECK(result->arrangements.front().id == g_lead_arrangement_id);
     CHECK(result->arrangements.front().part == Part::Lead);
-    CHECK(
-        project.editorState().selected_arrangement ==
-        std::optional<std::string>{g_lead_arrangement_id});
     REQUIRE(result->arrangements.front().audio_asset.normalization.has_value());
     if (result->arrangements.front().audio_asset.normalization.has_value())
     {
@@ -672,21 +654,6 @@ TEST_CASE("Project loads arrangements from song.json", "[core][project]")
     CHECK(bass_arrangement.audio_duration == TimeDuration{});
 }
 
-// Verifies stale selected-arrangement IDs do not fail project loading.
-TEST_CASE("Project loads stale selected arrangement state", "[core][project]")
-{
-    const TemporaryArchiveDirectory directory;
-    const std::filesystem::path path = directory.path() / "song.rhp";
-    writeTwoArrangementProjectPackage(path, "song/song.json", "missing");
-
-    Project project;
-    FakeAnalyzeAudio fake_analyze;
-    const auto result = project.load(path, {}, fake_analyze.function());
-
-    REQUIRE(result.has_value());
-    CHECK(project.editorState().selected_arrangement == std::optional<std::string>{"missing"});
-}
-
 // Verifies project loading requires the song document under the strict song directory.
 TEST_CASE("Project rejects root song.json", "[core][project]")
 {
@@ -763,11 +730,7 @@ TEST_CASE("Project saves session song metadata", "[core][project]")
     song->metadata.album = "Updated Album";
     song->metadata.year = 2026;
 
-    const auto saved = project.save(
-        *song,
-        ProjectEditorState{
-            .selected_arrangement = std::string{g_lead_arrangement_id},
-        });
+    const auto saved = project.save(*song);
     REQUIRE(saved.has_value());
 
     Project reloaded_project;
@@ -778,9 +741,6 @@ TEST_CASE("Project saves session song metadata", "[core][project]")
     CHECK(reloaded_song->metadata.artist == "Updated Artist");
     CHECK(reloaded_song->metadata.album == "Updated Album");
     CHECK(reloaded_song->metadata.year == 2026);
-    CHECK(
-        reloaded_project.editorState().selected_arrangement ==
-        std::optional<std::string>{g_lead_arrangement_id});
     CHECK(archiveEntryContents(path, "project.json").find("cursorPosition") == std::string::npos);
 }
 

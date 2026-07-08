@@ -477,9 +477,9 @@ void PluginWindow::setEditor(std::unique_ptr<tracktion::Plugin::EditorComponent>
 }
 
 // Caches the latest user-driven bounds on Tracktion's window state so a closed-and-reopened
-// plugin window restores its last position within the session. Persistence across project
-// saves is handled at the project layer (see ProjectEditorState plumbing), so this path
-// intentionally does not call Edit::pluginChanged().
+// plugin window restores its last position within the session. This path only updates in-memory
+// window state and intentionally does not call Edit::pluginChanged(); durable per-arrangement
+// window bounds are a separate, unimplemented concern (see docs/todo/plugin-window-persistence.md).
 void PluginWindow::storeWindowBounds()
 {
     if (m_update_stored_bounds)

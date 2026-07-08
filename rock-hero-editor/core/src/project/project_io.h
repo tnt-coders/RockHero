@@ -21,33 +21,28 @@ namespace rock_hero::editor::core::project_io
 inline constexpr std::string_view g_song_directory_name{"song"};
 
 /*!
-\brief Reads editor-only project state from an extracted editor project root.
+\brief Validates the editor project manifest at an extracted editor project root.
 \param workspace_directory Extracted editor project workspace containing project.json.
-\return Parsed editor state, or a typed project failure.
+\return Empty success when project.json is a supported manifest, or a typed project failure.
 */
-[[nodiscard]] std::expected<ProjectEditorState, ProjectError> readProjectDocument(
+[[nodiscard]] std::expected<void, ProjectError> readProjectDocument(
     const std::filesystem::path& workspace_directory);
 
 /*!
-\brief Writes editor-only project state to an extracted editor project root.
+\brief Writes the editor project manifest to an extracted editor project root.
 \param workspace_directory Extracted editor project workspace that receives project.json.
-\param editor_state Editor-only state to persist.
-\param arrangement_ids Arrangement IDs available in the paired song document.
 \return Empty success, or a typed project failure.
 */
 [[nodiscard]] std::expected<void, ProjectError> writeProjectDocument(
-    const std::filesystem::path& workspace_directory, const ProjectEditorState& editor_state,
-    const std::vector<std::string>& arrangement_ids);
+    const std::filesystem::path& workspace_directory);
 
 /*!
 \brief Writes editor project files into an extracted project workspace.
 \param workspace_directory Extracted editor project workspace to update.
 \param song Song data to persist under the song directory.
-\param editor_state Editor-only project state to persist at the workspace root.
 \return Empty success, or a typed project failure.
 */
 [[nodiscard]] std::expected<void, ProjectError> writeProjectFiles(
-    const std::filesystem::path& workspace_directory, const common::core::Song& song,
-    const ProjectEditorState& editor_state);
+    const std::filesystem::path& workspace_directory, const common::core::Song& song);
 
 } // namespace rock_hero::editor::core::project_io

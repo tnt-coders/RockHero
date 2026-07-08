@@ -32,26 +32,6 @@ using AudioNormalizationAnalyzer = std::function<
         const std::filesystem::path& input, const common::core::AudioNormalizationTarget& target)>;
 
 /*!
-\brief Editor-only state persisted by an editor project package.
-
-This state is intentionally separate from Song so native song packages can treat song data
-and editor session state as different concerns.
-*/
-struct ProjectEditorState
-{
-    /*! \brief Arrangement ID to display when the project is opened, if one was saved. */
-    std::optional<std::string> selected_arrangement;
-
-    /*!
-    \brief Compares two editor-state values by their stored fields.
-    \param lhs Left-hand editor state.
-    \param rhs Right-hand editor state.
-    \return True when both editor-state values store equal fields.
-    */
-    friend bool operator==(const ProjectEditorState& lhs, const ProjectEditorState& rhs) = default;
-};
-
-/*!
 \brief Editor project package context.
 
 Project owns the extracted workspace directory because loaded Song audio asset paths can point
@@ -129,15 +109,6 @@ public:
     [[nodiscard]] std::expected<void, ProjectError> save(const common::core::Song& song);
 
     /*!
-    \brief Saves the supplied song and editor state to the currently open project package.
-    \param song Song data to persist.
-    \param editor_state Editor-only project state to persist.
-    \return Empty success, or a typed project failure.
-    */
-    [[nodiscard]] std::expected<void, ProjectError> save(
-        const common::core::Song& song, ProjectEditorState editor_state);
-
-    /*!
     \brief Saves the supplied song to a project package path and associates it.
     \param path Destination `.rhp` project package path.
     \param song Song data to persist.
@@ -145,17 +116,6 @@ public:
     */
     [[nodiscard]] std::expected<void, ProjectError> saveAs(
         const std::filesystem::path& path, const common::core::Song& song);
-
-    /*!
-    \brief Saves the supplied song and editor state to a project package path and associates it.
-    \param path Destination `.rhp` project package path.
-    \param song Song data to persist.
-    \param editor_state Editor-only project state to persist.
-    \return Empty success, or a typed project failure.
-    */
-    [[nodiscard]] std::expected<void, ProjectError> saveAs(
-        const std::filesystem::path& path, const common::core::Song& song,
-        ProjectEditorState editor_state);
 
     /*!
     \brief Publishes the supplied song to a native song package without changing this project path.
@@ -185,12 +145,6 @@ public:
     [[nodiscard]] const std::filesystem::path& workspaceDirectory() const noexcept;
 
     /*!
-    \brief Returns editor state read from the current project package.
-    \return Editor-only project state, or defaults before load succeeds.
-    */
-    [[nodiscard]] const ProjectEditorState& editorState() const noexcept;
-
-    /*!
     \brief Reports whether the most recent load repaired backing-audio normalization metadata.
     \return True when load updated normalization metadata that should be persisted on save.
     */
@@ -199,7 +153,6 @@ public:
 private:
     std::filesystem::path m_path;
     std::filesystem::path m_workspace_directory;
-    ProjectEditorState m_editor_state;
     bool m_audio_normalization_updated_on_load{false};
 };
 
