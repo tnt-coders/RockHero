@@ -675,10 +675,10 @@ void Engine::Impl::beginPluginUndoCaptureDeferral()
     m_plugin_undo_capture_deferred = true;
 }
 
-void Engine::Impl::endPluginUndoCaptureDeferral(bool absorb_reannounce)
+void Engine::Impl::endPluginUndoCaptureDeferral()
 {
     clearPluginUndoCaptureDeferral();
-    refreshPluginEditObservers(std::nullopt, absorb_reannounce);
+    refreshPluginEditObservers(std::nullopt);
 }
 
 void Engine::Impl::emitPluginStateEdit(PluginStateEdit edit)
@@ -732,8 +732,7 @@ void Engine::Impl::clearPluginEditObservers()
     notifyPluginEditPendingStateChanged();
 }
 
-void Engine::Impl::refreshPluginEditObservers(
-    std::optional<KnownPluginBaseline> known_baseline, bool absorb_initial_reannounce)
+void Engine::Impl::refreshPluginEditObservers(std::optional<KnownPluginBaseline> known_baseline)
 {
     m_plugin_parameter_dirty_trackers.clear();
     m_plugin_state_trackers.clear();
@@ -794,8 +793,11 @@ void Engine::Impl::refreshPluginEditObservers(
             [this](PluginStateEdit edit) { emitPluginStateEdit(std::move(edit)); },
             [this] { notifyPluginEditPendingStateChanged(); },
             [this] { return shouldDeferPluginUndoCapture(); },
-            std::move(initial_baseline),
-            absorb_initial_reannounce);
+            [external_plugin] {
+                return external_plugin->windowState != nullptr &&
+                       external_plugin->windowState->isWindowShowing();
+            },
+            std::move(initial_baseline));
         // The pointer targets the heap object owned by the unique_ptr, so vector growth does
         // not invalidate the callback target. Parameter trackers are cleared before state
         // trackers, so their callbacks cannot outlive the target.
@@ -803,7 +805,9 @@ void Engine::Impl::refreshPluginEditObservers(
         m_plugin_state_trackers.push_back(std::move(state_tracker));
         m_plugin_parameter_dirty_trackers.push_back(
             std::make_unique<PluginParameterDirtyTracker>(
-                *external_plugin, [state_tracker_ptr] { state_tracker_ptr->markDirty(); }));
+                *external_plugin,
+                [state_tracker_ptr] { state_tracker_ptr->markDirty(); },
+                [state_tracker_ptr] { state_tracker_ptr->markUserIntent(); }));
     }
 
     notifyPluginEditPendingStateChanged();
@@ -838,7 +842,9 @@ void Engine::Impl::refreshRestoredPluginEditObserver(
             m_plugin_parameter_dirty_trackers[index].reset();
             m_plugin_parameter_dirty_trackers[index] =
                 std::make_unique<PluginParameterDirtyTracker>(
-                    *external_plugin, [state_tracker] { state_tracker->markDirty(); });
+                    *external_plugin,
+                    [state_tracker] { state_tracker->markDirty(); },
+                    [state_tracker] { state_tracker->markUserIntent(); });
         }
         notifyPluginEditPendingStateChanged();
         return;
