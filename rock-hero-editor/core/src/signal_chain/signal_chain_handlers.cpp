@@ -235,6 +235,7 @@ void EditorController::Impl::onPluginStateEditCompleted(common::audio::PluginSta
     auto undo_edit = std::make_unique<PluginStateEdit>();
     undo_edit->instance_id = std::move(edit.instance_id);
     undo_edit->tone_name = selectedToneName();
+    undo_edit->chain_index = m_signal_chain.chainIndexForInstance(undo_edit->instance_id);
     undo_edit->before_state = std::move(edit.before);
     undo_edit->after_state = std::move(edit.after);
     undo_edit->label_hint = std::move(edit.label_hint);
