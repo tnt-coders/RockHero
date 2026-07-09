@@ -372,6 +372,9 @@ public:
     /*! \copydoc IEditorController::onToneRegionSelected */
     void onToneRegionSelected(std::string region_id) override;
 
+    /*! \copydoc IEditorController::onToneRegionActivated */
+    void onToneRegionActivated() override;
+
     /*! \copydoc IEditorController::onToneRegionResizeRequested */
     void onToneRegionResizeRequested(
         std::string region_id, common::core::ToneGridPosition start,

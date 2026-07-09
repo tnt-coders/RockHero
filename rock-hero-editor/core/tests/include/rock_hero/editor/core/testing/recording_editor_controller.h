@@ -178,6 +178,12 @@ public:
         last_selected_tone_region_id = std::move(region_id);
     }
 
+    /*! \copydoc IEditorController::onToneRegionActivated */
+    void onToneRegionActivated() override
+    {
+        ++tone_region_activated_count;
+    }
+
     /*! \copydoc IEditorController::onToneRegionResizeRequested */
     void onToneRegionResizeRequested(
         std::string region_id, common::core::ToneGridPosition start,
@@ -509,6 +515,9 @@ public:
 
     /*! \brief Last tone region id reported through onToneRegionSelected(). */
     std::string last_selected_tone_region_id{};
+
+    /*! \brief Number of times onToneRegionActivated() was reported. */
+    int tone_region_activated_count{0};
 
     /*! \brief Last tone region id reported through onToneRegionResizeRequested(). */
     std::string last_resized_tone_region_id{};

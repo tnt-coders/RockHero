@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/shared/logger.h>
@@ -55,12 +56,15 @@ std::string EditorController::Impl::toneRegionIdAt(common::core::TimePosition po
     for (std::size_t index = 0; index < regions.size(); ++index)
     {
         const common::core::ToneRegion& region = regions[index];
-        // The baseline (first) region owns the pre-measure-1 lead-in, so a cursor before the first
-        // tone change resolves to the default tone rather than to nothing; this matches how the tone
-        // track projects the baseline's span back to the timeline origin.
+        // The tone schedule is gapless and spans the whole chart: the baseline (first) region owns
+        // everything before the first tone change (the pre-measure-1 lead-in), and the last region
+        // owns everything after its start (through the end of chart time). So every cursor position
+        // resolves to exactly one region, matching how the tone track projects those spans.
         const double start =
             index == 0 ? 0.0 : tempo_map.secondsAtBeat(region.start.measure, region.start.beat);
-        const double end = tempo_map.secondsAtBeat(region.end.measure, region.end.beat);
+        const bool is_last = index + 1 == regions.size();
+        const double end = is_last ? std::numeric_limits<double>::infinity()
+                                   : tempo_map.secondsAtBeat(region.end.measure, region.end.beat);
         if (position.seconds >= start && position.seconds < end)
         {
             return region.id;
@@ -70,18 +74,35 @@ std::string EditorController::Impl::toneRegionIdAt(common::core::TimePosition po
     return {};
 }
 
-// Names the tone document referenced by the currently selected region, or empty when nothing is
-// selected. Scopes the automation-lane projection to the selected tone.
-std::string EditorController::Impl::selectedToneDocumentRef() const
+// Resolves the active tone region: the formally selected region if one is selected, otherwise the
+// region under the cursor. The active tone is what the rig plays and the signal-chain panel edits;
+// the selection is a separate, deliberate concept (the Delete target).
+std::string EditorController::Impl::activeToneRegionId() const
+{
+    if (!m_selected_tone_region_id.empty())
+    {
+        return m_selected_tone_region_id;
+    }
+    return toneRegionIdAt(m_transport.position());
+}
+
+// Names the tone document referenced by the active region, or empty when nothing resolves. Scopes
+// the signal-chain and automation-lane projections to the active tone.
+std::string EditorController::Impl::activeToneDocumentRef() const
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (arrangement == nullptr || m_selected_tone_region_id.empty())
+    if (arrangement == nullptr)
+    {
+        return {};
+    }
+    const std::string active_region_id = activeToneRegionId();
+    if (active_region_id.empty())
     {
         return {};
     }
     for (const common::core::ToneRegion& region : arrangement->tone_track.regions)
     {
-        if (region.id == m_selected_tone_region_id)
+        if (region.id == active_region_id)
         {
             return region.tone_document_ref;
         }
@@ -89,11 +110,11 @@ std::string EditorController::Impl::selectedToneDocumentRef() const
     return {};
 }
 
-// Resolves the selected tone's display name for undo labels, empty when no tone resolves.
-std::string EditorController::Impl::selectedToneName() const
+// Resolves the active tone's display name for undo labels, empty when no tone resolves.
+std::string EditorController::Impl::activeToneName() const
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
-    const std::string tone_document_ref = selectedToneDocumentRef();
+    const std::string tone_document_ref = activeToneDocumentRef();
     if (arrangement == nullptr || tone_document_ref.empty())
     {
         return {};
@@ -101,20 +122,27 @@ std::string EditorController::Impl::selectedToneName() const
     return common::core::toneNameFor(*arrangement, tone_document_ref);
 }
 
-// Stores the tone selection and switches the audible rig tone to match. Selection and audibility
-// are one concept: the selected tone is the one heard and the one the signal-chain panel edits.
+// Formally selects a region (a deliberate click): the selection is the Delete target and draws a
+// white outline, and it becomes the active tone (a preview) until the cursor moves off it.
 void EditorController::Impl::applyToneSelection(std::string region_id)
 {
     m_selected_tone_region_id = std::move(region_id);
     syncAudibleTone();
 }
 
-// Points the rig's audible tone at the selected region's tone document. An empty or unknown
-// selection leaves the audible tone unchanged, so a cursor in a gap keeps the previous region's
-// tone ringing until scheduled switching lands.
+// Makes the tone under the cursor active without formally selecting it: clears any selection (so
+// Delete can never fire from mere cursor movement) and points the rig at the cursor's tone.
+void EditorController::Impl::activateToneAtCursor()
+{
+    m_selected_tone_region_id.clear();
+    syncAudibleTone();
+}
+
+// Points the rig's audible tone at the active region's tone document. Leaves the audible tone
+// unchanged when nothing resolves (no content loaded, or the region has no tone yet).
 void EditorController::Impl::syncAudibleTone()
 {
-    if (!m_project_audio_ready || m_selected_tone_region_id.empty())
+    if (!m_project_audio_ready)
     {
         return;
     }
@@ -125,9 +153,16 @@ void EditorController::Impl::syncAudibleTone()
         return;
     }
 
+    const std::string active_region_id = activeToneRegionId();
+    if (active_region_id.empty())
+    {
+        return;
+    }
+
     const auto region = std::ranges::find_if(
-        arrangement->tone_track.regions, [this](const common::core::ToneRegion& candidate) {
-            return candidate.id == m_selected_tone_region_id;
+        arrangement->tone_track.regions,
+        [&active_region_id](const common::core::ToneRegion& candidate) {
+            return candidate.id == active_region_id;
         });
     if (region == arrangement->tone_track.regions.end() || region->tone_document_ref.empty())
     {
@@ -155,6 +190,15 @@ void EditorController::Impl::syncAudibleTone()
 void EditorController::Impl::onToneRegionSelected(std::string region_id)
 {
     runAction(EditorAction::SelectToneRegion{std::move(region_id)});
+}
+
+// The tone row reports that the playhead crossed into a new region at render cadence. This makes
+// that tone active (following the cursor) without a formal selection, so playback never leaves a
+// deletable selection behind. Transient view state, so it does not route through an action.
+void EditorController::Impl::onToneRegionActivated()
+{
+    activateToneAtCursor();
+    updateView();
 }
 
 void EditorController::Impl::onToneRegionResizeRequested(
@@ -215,7 +259,7 @@ void EditorController::Impl::onToneAutomationLaneAddRequested(
     // carries an empty tone ref on its identity and durable binding; left stale, the projection
     // filters out both this open lane and any lane authored on it later. Adopt the selected tone's
     // ref for the identity, its binding, and the new lane so all three resolve consistently.
-    const std::string selected_tone_ref = selectedToneDocumentRef();
+    const std::string selected_tone_ref = activeToneDocumentRef();
     if (!selected_tone_ref.empty())
     {
         identity->second.tone_document_ref = selected_tone_ref;
@@ -840,7 +884,7 @@ std::vector<std::string> EditorController::Impl::captureStableIds()
                                plugin.instance_id,
                                ToneAutomationIdentity{
                                    .plugin_id = common::core::generatePackageId(),
-                                   .tone_document_ref = selectedToneDocumentRef(),
+                                   .tone_document_ref = activeToneDocumentRef(),
                                })
                            .first;
         }

@@ -34,7 +34,20 @@ struct ToneRegionViewState
     /*! \brief Region span in song seconds, resolved through the tempo map. */
     common::core::TimeRange time_range;
 
-    /*! \brief True when this region is the current tone selection. */
+    /*!
+    \brief True when this region's tone is the active (audible / edited) tone.
+
+    The active tone follows the cursor and is what the rig plays and the signal-chain panel edits;
+    it is drawn with the normal highlight fill. Exactly one region is active while content is loaded.
+    */
+    bool active{false};
+
+    /*!
+    \brief True when this region is the formally selected region.
+
+    A selection is made only by deliberately clicking a region and is cleared by any cursor move; it
+    is the Delete target and is drawn with a distinct white outline on top of the active highlight.
+    */
     bool selected{false};
 
     /*!
