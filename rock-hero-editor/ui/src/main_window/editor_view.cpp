@@ -5,6 +5,7 @@
 #include "main_window/menu_look_and_feel.h"
 #include "shared/editor_theme.h"
 #include "timeline/cursor_overlay.h"
+#include "timeline/timeline_cursor.h"
 #include "timeline/track_viewport.h"
 
 #include <algorithm>
@@ -1589,16 +1590,18 @@ void EditorView::onToneAutomationPointsEditRequested(
         std::move(instance_id), std::move(param_id), std::move(points));
 }
 
-// Shows the tone-picker menu for inserting a tone-change marker at the playhead: the marker snaps to
-// the nearest beat inside the region it splits, and the menu offers reusing an existing catalog tone
-// (excluding the tone being split, i.e. the immediately-preceding one) or minting a fresh empty one.
+// Shows the tone-picker menu for inserting a tone-change marker at the playhead: the marker lands at
+// the playhead's exact musical position inside the region it splits, and the menu offers reusing an
+// existing catalog tone (excluding the tone being split, i.e. the immediately-preceding one) or
+// minting a fresh empty one.
 void EditorView::createToneMarkerAtPlayhead()
 {
+    // The playhead already sits at an exact position the user placed (a grid line, or a Ctrl-free
+    // fine position), so keep it precisely rather than re-rounding to the nearest whole beat; the
+    // fine-grid quantization preserves any position placed on a practical subdivision.
     const double playhead = m_transport.position().seconds;
-    const auto beat_index =
-        static_cast<std::int64_t>(std::llround(m_state.tempo_map.beatPositionAtSeconds(playhead)));
-    const auto [measure, beat] = m_state.tempo_map.beatAtGlobalIndex(beat_index);
-    const common::core::GridPosition position{.measure = measure, .beat = beat};
+    const common::core::GridPosition position = fineGridPositionForBeat(
+        m_state.tempo_map, m_state.tempo_map.beatPositionAtSeconds(playhead));
 
     // The marker splits the one region whose span strictly contains it; endpoints order by exact
     // musical position, so a marker landing on a boundary belongs to neither side and splits nothing.

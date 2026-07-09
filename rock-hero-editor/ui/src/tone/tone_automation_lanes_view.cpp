@@ -33,10 +33,6 @@ constexpr int g_resize_band_height = 6;
 constexpr float g_point_draw_radius = 4.0f;
 constexpr int g_point_hit_radius = 8;
 
-// The selected point (the keyboard-Delete target) draws slightly larger with an accent fill and a
-// white ring so it is unmistakable against the white unselected handles.
-constexpr float g_point_selected_draw_radius = 5.5f;
-
 // Chips pin to the visible left edge so lane names and "+" stay on screen at any zoom.
 constexpr int g_chip_inset_x = 6;
 constexpr int g_chip_inset_y = 4;
@@ -52,8 +48,10 @@ constexpr float g_readout_font_height = 12.0f;
 
 const juce::Colour g_lane_separator{juce::Colours::black.withAlpha(0.45f)};
 const juce::Colour g_curve_colour{editorTheme().accent};
-const juce::Colour g_point_fill{juce::Colours::white.withAlpha(0.92f)};
-const juce::Colour g_point_selected_fill{editorTheme().accent};
+// Point handles fill in the curve colour so they read as part of the line; the selected point (the
+// keyboard-Delete target) keeps the same size and colour and adds a white ring so it is picked out
+// without jumping in size.
+const juce::Colour g_point_fill{g_curve_colour};
 const juce::Colour g_point_selected_ring{juce::Colours::white};
 const juce::Colour g_chip_fill{juce::Colours::black.withAlpha(0.55f)};
 const juce::Colour g_chip_text{juce::Colours::white.withAlpha(0.92f)};
@@ -543,12 +541,10 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
 
             if (point.authored && point.x >= clip_left && point.x <= clip_right)
             {
-                // The selected point (the Delete target) inverts the normal white dot to an accent
-                // fill with a white ring so it reads as picked without moving or resizing it.
-                const float radius =
-                    point.selected ? g_point_selected_draw_radius : g_point_draw_radius;
-                graphics.setColour((point.selected ? g_point_selected_fill : g_point_fill)
-                                       .withMultipliedAlpha(lane_alpha));
+                // Every point draws in the curve colour at the same size; the selected point (the
+                // Delete target) adds a white ring so it reads as picked without moving or resizing.
+                const float radius = g_point_draw_radius;
+                graphics.setColour(g_point_fill.withMultipliedAlpha(lane_alpha));
                 graphics.fillEllipse(
                     point.x - radius, point.y - radius, 2.0f * radius, 2.0f * radius);
                 if (point.selected)
