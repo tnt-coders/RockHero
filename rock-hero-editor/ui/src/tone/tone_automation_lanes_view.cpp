@@ -148,14 +148,26 @@ void ToneAutomationLanesView::setGridNoteValue(common::core::Fraction note_value
 
 void ToneAutomationLanesView::setState(const core::ToneAutomationViewState& state)
 {
+    // A pointer gesture edits against the model it started with, and the engine pushes fresh state
+    // frequently (plugin-state-change notifications fire in bursts, even mid-drag). Applying a push
+    // now would reset the gesture and, for a just-pressed point, discard it before mouseUp can
+    // commit. JUCE keeps delivering drag/up events to the captured component, so stash the latest
+    // state and adopt it when the gesture ends instead of clobbering the edit in progress.
+    if (m_drag.has_value())
+    {
+        m_pending_state = state;
+        return;
+    }
+    applyState(state);
+}
+
+void ToneAutomationLanesView::applyState(const core::ToneAutomationViewState& state)
+{
     // Total height, not lane count, is what the viewport lays rows out from: selecting a tone
     // with zero lanes still grows the view from nothing to the "+" lane, and switching tones can
     // keep the count while the per-lane stored heights differ.
     const int previous_total_height = totalHeight();
     m_state = state;
-    // Controller pushes replace the model under any in-flight gesture, so drop the gesture
-    // instead of editing against stale indices.
-    m_drag.reset();
     m_value_readout.reset();
     publishSnapGuide(std::nullopt);
     if (totalHeight() != previous_total_height && m_heights_changed_callback)
@@ -858,16 +870,34 @@ void ToneAutomationLanesView::mouseUp(const juce::MouseEvent& /*event*/)
     publishSnapGuide(std::nullopt);
     setValueReadout(std::nullopt);
 
+    bool committed = false;
     if (const auto* const move = std::get_if<MovePointDrag>(&finished))
     {
         if (move->moved || move->is_new_point)
         {
             const core::ToneAutomationLaneViewState& lane = m_state.lanes[move->lane_index];
+            // The commit runs synchronously back through the controller and pushes fresh state; with
+            // m_drag already cleared that push applies immediately rather than deferring.
             m_listener.onToneAutomationPointsEditRequested(
                 lane.instance_id, lane.param_id, pointsForCommit(*move));
+            committed = true;
         }
     }
     repaint();
+
+    // Adopt state deferred during the gesture now that indices are safe to replace. A commit already
+    // published its own fresher state above, so any snapshot that predates it is stale and dropped;
+    // a gesture that committed nothing (a plain click or a lane resize) instead adopts the snapshot.
+    if (committed)
+    {
+        m_pending_state.reset();
+    }
+    else if (m_pending_state.has_value())
+    {
+        const core::ToneAutomationViewState pending = std::move(*m_pending_state);
+        m_pending_state.reset();
+        applyState(pending);
+    }
 }
 
 void ToneAutomationLanesView::mouseDoubleClick(const juce::MouseEvent& event)

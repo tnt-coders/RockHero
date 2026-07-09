@@ -351,6 +351,47 @@ TEST_CASE(
     CHECK(harness.listener.last_edit_points.front().norm_value == 0.0F);
 }
 
+TEST_CASE(
+    "Lanes view keeps an in-flight point drag across a state push", "[ui][tone-automation-lanes]")
+{
+    LanesHarness harness;
+    // Grab the second authored point (x 200, y 15) and begin dragging it toward the 0.5 line.
+    harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 200.0f, 15.0f));
+
+    // The engine pushes fresh state mid-drag (its notifications fire in bursts). This must not
+    // cancel the gesture: the drag keeps editing the model it started with, so the release still
+    // commits. Dropping the gesture here is exactly what made a dragged point snap back.
+    harness.view.setState(makeState());
+
+    harness.view.mouseDrag(testing::makeMouseDownEvent(harness.view, 200.0f, 25.0f));
+    harness.view.mouseUp(testing::makeMouseDownEvent(harness.view, 200.0f, 25.0f));
+
+    REQUIRE(harness.listener.edit_count == 1);
+    REQUIRE(harness.listener.last_edit_points.size() == 2);
+    // The dragged point committed at its new value rather than reverting to the authored 0.75.
+    CHECK(harness.listener.last_edit_points.back().norm_value == 0.5F);
+}
+
+TEST_CASE(
+    "Lanes view commits a new point clicked through a state push", "[ui][tone-automation-lanes]")
+{
+    LanesHarness harness;
+    // Press in the empty editable area of the resolved lane (x 100 = 1 s, inside the 0..4 s window)
+    // to create a new-point preview.
+    harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 100.0f, 30.0f));
+
+    // A state push arrives before the release, as it does when a click spans one of the engine's
+    // notification bursts. Without deferral the preview point would be dropped and never commit --
+    // the "point appears then disappears" symptom.
+    harness.view.setState(makeState());
+
+    harness.view.mouseUp(testing::makeMouseDownEvent(harness.view, 100.0f, 30.0f));
+
+    REQUIRE(harness.listener.edit_count == 1);
+    // The new point joins the lane's two authored points.
+    CHECK(harness.listener.last_edit_points.size() == 3);
+}
+
 TEST_CASE("Lanes view paints headlessly", "[ui][tone-automation-lanes]")
 {
     LanesHarness harness;
