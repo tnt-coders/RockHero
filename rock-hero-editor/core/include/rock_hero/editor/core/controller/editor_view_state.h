@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <memory>
@@ -23,6 +24,7 @@
 #include <rock_hero/editor/core/transport/transport_view_state.h>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace rock_hero::editor::core
 {
@@ -157,6 +159,32 @@ struct InputCalibrationPrompt
 };
 
 /*!
+\brief Full undo/redo stack contents for the editor's history inspector panel.
+
+Populated on every state push so the panel reflects entries in real time. It mirrors the undo stack
+for display only; it carries no policy and the view reads it only while the inspector is shown.
+*/
+struct UndoHistoryState
+{
+    /*! \brief Every entry label, oldest first. */
+    std::vector<std::string> labels;
+
+    /*! \brief Cursor: entries before this index are undoable, the rest are redoable. */
+    std::size_t position{};
+
+    /*! \brief Reachable clean-marker position, when a clean marker is set. */
+    std::optional<std::size_t> clean_position{};
+
+    /*!
+    \brief Compares two undo-history states by their stored values.
+    \param lhs Left-hand state.
+    \param rhs Right-hand state.
+    \return True when both states store equal values.
+    */
+    friend bool operator==(const UndoHistoryState& lhs, const UndoHistoryState& rhs) = default;
+};
+
+/*!
 \brief Full message-thread state rendered by the editor view.
 
 The controller derives this state from transport, audio, and session information, then pushes it to
@@ -190,6 +218,9 @@ struct EditorViewState
 
     /*! \brief Label for the redoable edit, if a command-specific label is available. */
     std::optional<std::string> redo_label{};
+
+    /*! \brief Full undo/redo stack contents for the history inspector panel (toggled with F8). */
+    UndoHistoryState undo_history{};
 
     /*! \brief Suggested .rock destination used to pre-fill the publish chooser. */
     std::filesystem::path suggested_publish_file{};

@@ -40,6 +40,7 @@ constexpr int g_publish_command{7};
 constexpr int g_undo_command{101};
 constexpr int g_redo_command{102};
 constexpr int g_show_waveform_command{201};
+constexpr int g_show_undo_history_command{202};
 // Tablature lane-count menu ids encode the requested minimum as an offset from this base, with
 // the base itself meaning "match the chart" (a zero minimum).
 constexpr int g_tab_strings_command_base{210};
@@ -337,6 +338,9 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     // BusyOverlay is added last so it lands on top of the editor child stack. It also calls
     // toFront() on activation, but adding it here as the final child means the initial Z-order
     // is already correct before the first push.
+    // The history inspector floats above the track stack but below the busy overlay; it starts
+    // hidden and the user reveals it on demand.
+    addChildComponent(m_undo_history_overlay);
     addChildComponent(m_busy_overlay);
     m_track_viewport->setProjectLoaded(m_state.project_loaded);
     // Zoom is app-local resume state like the cursor; the controller persists it per project.
@@ -401,6 +405,10 @@ void EditorView::setState(const core::EditorViewState& state)
     {
         m_after_busy_overlay_paint = {};
     }
+
+    // Feed the history inspector every push so it tracks the stack live (this is also how the
+    // storm of idle plugin-state edits becomes visible as it grows).
+    m_undo_history_overlay.setHistory(m_state.undo_history);
 
     if (previous_state.project_file != m_state.project_file)
     {
@@ -656,6 +664,14 @@ void EditorView::resized()
     m_track_viewport->setBounds(bottom_area);
     m_signal_chain_panel.setBounds(signal_chain_panel_bounds);
     m_busy_overlay.setBounds(getLocalBounds());
+
+    // Pin the history inspector to the top-right, below the transport strip, tall enough to list a
+    // useful window of entries without covering the whole canvas.
+    constexpr int panel_width = 340;
+    const int panel_top = g_menu_bar_height + g_transport_bar_height + 8;
+    const int panel_height = std::clamp(getHeight() - panel_top - 12, 80, 460);
+    m_undo_history_overlay.setBounds(
+        std::max(0, getWidth() - panel_width - 12), panel_top, panel_width, panel_height);
 }
 
 // Retries the startup focus request if this component is explicitly shown later.
@@ -668,6 +684,17 @@ void EditorView::visibilityChanged()
 void EditorView::parentHierarchyChanged()
 {
     requestInitialKeyboardFocusIfReady();
+}
+
+// Shows or hides the undo-history inspector, bringing it to the front when revealed.
+void EditorView::toggleUndoHistoryPanel()
+{
+    const bool show = !m_undo_history_overlay.isVisible();
+    m_undo_history_overlay.setVisible(show);
+    if (show)
+    {
+        m_undo_history_overlay.toFront(false);
+    }
 }
 
 // Routes editor-level keyboard shortcuts through the same controller intents as child widgets.
@@ -722,6 +749,13 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
         return true;
     }
 
+    // F8 toggles the undo-history inspector.
+    if (key == juce::KeyPress{juce::KeyPress::F8Key})
+    {
+        toggleUndoHistoryPanel();
+        return true;
+    }
+
     return false;
 }
 
@@ -767,6 +801,8 @@ juce::PopupMenu EditorView::getMenuForIndex(int top_level_menu_index, const juce
             "Show Waveform",
             m_state.project_loaded,
             m_state.waveform_visible);
+        menu.addItem(
+            g_show_undo_history_command, "Undo History", true, m_undo_history_overlay.isVisible());
 
         // The lane-count submenu offers "match the chart" plus explicit minimums up to the
         // format's string cap; picking fewer lanes than the chart has can never hide notes
@@ -804,6 +840,11 @@ void EditorView::menuItemSelected(int menu_item_id, int /*top_level_menu_index*/
             {
                 m_controller.onUndoRequested();
             }
+            break;
+        }
+        case g_show_undo_history_command:
+        {
+            toggleUndoHistoryPanel();
             break;
         }
         case g_redo_command:

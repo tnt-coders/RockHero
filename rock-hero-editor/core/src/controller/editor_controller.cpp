@@ -1945,6 +1945,12 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.undo_label = m_undo_history.undoLabel();
     state.redo_enabled = isActionAvailable(EditorAction::Id::Redo, action_conditions);
     state.redo_label = m_undo_history.redoLabel();
+    {
+        EditorUndoHistorySnapshot undo_snapshot = m_undo_history.snapshot();
+        state.undo_history.labels = std::move(undo_snapshot.labels);
+        state.undo_history.position = undo_snapshot.position;
+        state.undo_history.clean_position = undo_snapshot.clean_position;
+    }
     if (!m_project_file.empty())
     {
         state.suggested_publish_file = m_project_file;

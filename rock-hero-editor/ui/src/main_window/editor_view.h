@@ -7,6 +7,7 @@
 
 #include "busy/busy_overlay.h"
 #include "main_window/menu_bar_button.h"
+#include "main_window/undo_history_overlay.h"
 #include "shared/audio_level_meter.h"
 #include "signal_chain/plugin_browser_window.h"
 #include "signal_chain/signal_chain_panel.h"
@@ -222,6 +223,9 @@ private:
     // Presents, refreshes, or closes the plugin browser window from controller state.
     void presentPluginBrowserIfNeeded(const core::PluginBrowserViewState& state);
 
+    // Shows or hides the undo-history inspector panel (View > Undo History, or F8).
+    void toggleUndoHistoryPanel();
+
     // Returns the editor content area below the menu and transport strips.
     [[nodiscard]] juce::Rectangle<int> trackViewportBounds() const;
 
@@ -419,6 +423,10 @@ private:
 
     // Real viewport that hosts the zoomable track canvas.
     std::unique_ptr<TrackViewport> m_track_viewport;
+
+    // Overlay listing the full undo/redo stack in real time; hidden until toggled (View > Undo
+    // History, or F8).
+    UndoHistoryOverlay m_undo_history_overlay;
 
     // Owned asynchronous file chooser; must outlive the native dialog callback.
     std::unique_ptr<juce::FileChooser> m_file_chooser;
