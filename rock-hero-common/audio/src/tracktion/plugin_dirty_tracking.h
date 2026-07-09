@@ -96,32 +96,30 @@ public:
     /*! \brief Reports whether state capture is currently deferred (undo/redo in flight). */
     using ShouldDeferCapture = std::function<bool()>;
 
-    /*! \brief Reports whether the plugin's editor window is currently open. */
-    using IsEditorWindowOpen = std::function<bool()>;
-
     /*!
     \brief Subscribes to the plugin's change notifications and establishes the edit baseline.
 
     A hosted plugin re-announces its own state asynchronously after it is instantiated or restored,
     with no bounded "settled" signal the host can wait for (a VST3 may call restartComponent at any
     time). Those self-reports are therefore never distinguished from a real edit by timing. Instead a
-    settled transaction is emitted only when it carries **user intent** — a parameter gesture, or the
-    plugin's editor window being open when a change arrives. Every other settled change (a fresh
-    insert's re-announce, an undo/redo recreate's re-announce) is folded into the baseline and never
-    recorded, so it cannot appear as a phantom edit or truncate the redo stack.
+    settled transaction is emitted only when it carries **user intent**: a parameter gesture, which
+    only the plugin's own editor GUI raises. Every other settled change — a fresh insert's
+    re-announce, an undo/redo recreate's re-announce, or any gesture-less self-mutation — is folded
+    into the baseline and never recorded, so it cannot appear as a phantom edit or truncate the redo
+    stack. The deliberate cost: a gesture-less user action inside the plugin (e.g. an in-plugin
+    preset load) also folds — its state still persists through the baseline, but it does not get its
+    own undo entry.
 
     \param plugin Plugin whose state edits should be tracked.
     \param capture_state Full-state capture callback.
     \param emit_edit Callback receiving completed edits.
     \param pending_changed Callback notified when pending-edit state changes.
     \param should_defer_capture Callback gating capture during host-owned restores.
-    \param is_editor_window_open Callback reporting whether the plugin's editor window is open.
     \param initial_baseline Known post-restore baseline, or nullopt to capture one now.
     */
     PluginDirtyStateTracker(
         tracktion::ExternalPlugin& plugin, CaptureState capture_state, EmitEdit emit_edit,
         PendingChanged pending_changed, ShouldDeferCapture should_defer_capture,
-        IsEditorWindowOpen is_editor_window_open,
         std::optional<PluginInstanceState> initial_baseline = std::nullopt);
 
     /*! \brief Stops the debounce timer and unsubscribes from the plugin. */
@@ -168,9 +166,10 @@ public:
     /*!
     \brief Retargets the baseline to a just-restored (undo/redo) memento.
 
-    Drops any open transaction and its intent flag so the plugin's asynchronous post-restore
-    re-announce (which carries no gesture and arrives with the editor closed) is folded into this
-    baseline instead of recorded as a spurious user edit that would discard the redo stack.
+    Drops any open transaction and its intent flag. The plugin's asynchronous post-restore
+    re-announce carries no gesture (even when the editor window was left open across the undo), so
+    it settles without intent and is folded into this baseline instead of recorded as a spurious
+    user edit that would discard the redo stack.
 
     \param baseline Full plugin state that the restore just applied.
     */
@@ -201,21 +200,14 @@ private:
     EmitEdit m_emit_edit;
     PendingChanged m_pending_changed;
     ShouldDeferCapture m_should_defer_capture;
-    IsEditorWindowOpen m_is_editor_window_open;
     std::optional<PluginInstanceState> m_baseline;
     std::optional<PluginInstanceState> m_before;
 
-    // True when the open transaction has seen user intent (a gesture, or a change while the editor
-    // window was open). Only an intent-carrying transaction is emitted as an edit; reset at settle.
+    // True when the open transaction has seen user intent (a parameter gesture). Only an
+    // intent-carrying transaction is emitted as an edit; reset at settle. This is the structural
+    // discriminator between "the plugin reacting to our operation" and "the user editing", with no
+    // reliance on timing.
     bool m_user_intent{false};
-
-    // True while the next settling transaction is expected to be the plugin's own re-announce that
-    // follows an instantiation or a state restore. Such a re-announce is never a user edit even if
-    // the editor window happens to be open (e.g. left open from prior editing while the user hits
-    // undo), so window-open does not imply intent while this is set; a gesture still does and clears
-    // it. Cleared when the transaction settles. This is the structural discriminator between "the
-    // plugin reacting to our operation" and "the user editing", with no reliance on timing.
-    bool m_expect_self_report{false};
 };
 
 } // namespace rock_hero::common::audio

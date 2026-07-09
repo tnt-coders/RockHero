@@ -793,10 +793,6 @@ void Engine::Impl::refreshPluginEditObservers(std::optional<KnownPluginBaseline>
             [this](PluginStateEdit edit) { emitPluginStateEdit(std::move(edit)); },
             [this] { notifyPluginEditPendingStateChanged(); },
             [this] { return shouldDeferPluginUndoCapture(); },
-            [external_plugin] {
-                return external_plugin->windowState != nullptr &&
-                       external_plugin->windowState->isWindowShowing();
-            },
             std::move(initial_baseline));
         // The pointer targets the heap object owned by the unique_ptr, so vector growth does
         // not invalidate the callback target. Parameter trackers are cleared before state
