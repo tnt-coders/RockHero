@@ -19,6 +19,19 @@ namespace
     return common::core::TempoMap::defaultMap(common::core::TimeDuration{4.0});
 }
 
+// Builds a 4/4 120 BPM map whose measure 1 downbeat sits at 1.0 s, so the chart has a one-second
+// lead-in before the first beat (measure 2 lands at 3.0 s, measure 3 at 5.0 s).
+[[nodiscard]] common::core::TempoMap makeLeadInTempoMap()
+{
+    return common::core::TempoMap{
+        {common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4}},
+        {
+            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 1.0},
+            common::core::BeatAnchor{.measure = 3, .beat = 1, .seconds = 5.0},
+        },
+    };
+}
+
 // Builds a minimal arrangement carrying only the tone fields the projection reads.
 [[nodiscard]] common::core::Arrangement makeArrangement()
 {
@@ -61,6 +74,51 @@ TEST_CASE("Tone track projection resolves authored regions to seconds", "[core][
     CHECK(
         state.regions.front().grid_end == common::core::ToneGridPosition{.measure = 2, .beat = 1});
     CHECK_FALSE(state.regions.front().selected);
+}
+
+TEST_CASE(
+    "Tone track projection extends the baseline region back to the timeline origin", "[core][tone]")
+{
+    common::core::Arrangement arrangement = makeArrangement();
+    arrangement.tones = {
+        common::core::Tone{
+            .tone_document_ref = "tones/9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d/tone.json",
+            .name = "Lead-in Clean",
+        },
+        common::core::Tone{
+            .tone_document_ref = "tones/1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d/tone.json",
+            .name = "Drive",
+        },
+    };
+    arrangement.tone_track.regions = {
+        common::core::ToneRegion{
+            .id = "5a1f0c3d-7e2b-4a9c-8d1e-2f3a4b5c6d7e",
+            .start = common::core::ToneGridPosition{.measure = 1, .beat = 1},
+            .end = common::core::ToneGridPosition{.measure = 2, .beat = 1},
+            .tone_document_ref = "tones/9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d/tone.json",
+        },
+        common::core::ToneRegion{
+            .id = "6b2f1d4e-8f3c-4b0d-9e2f-3a4b5c6d7e8f",
+            .start = common::core::ToneGridPosition{.measure = 2, .beat = 1},
+            .end = common::core::ToneGridPosition{.measure = 3, .beat = 1},
+            .tone_document_ref = "tones/1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d/tone.json",
+        },
+    };
+
+    const ToneTrackViewState state =
+        toneTrackViewStateFor(arrangement, makeLeadInTempoMap(), std::string{});
+
+    REQUIRE(state.regions.size() == 2);
+    // The baseline's grid start is measure 1 beat 1 (1.0 s), but it owns the lead-in, so its
+    // displayed and selectable span reaches the timeline origin rather than starting at 1.0 s.
+    CHECK(state.regions.front().time_range.start.seconds == Catch::Approx(0.0));
+    CHECK(state.regions.front().time_range.end.seconds == Catch::Approx(3.0));
+    CHECK(
+        state.regions.front().grid_start ==
+        common::core::ToneGridPosition{.measure = 1, .beat = 1});
+    // A later region keeps its authored grid start; only the baseline reaches back to the origin.
+    CHECK(state.regions.back().time_range.start.seconds == Catch::Approx(3.0));
+    CHECK(state.regions.back().time_range.end.seconds == Catch::Approx(5.0));
 }
 
 TEST_CASE("Tone track projection marks the selected region", "[core][tone]")
