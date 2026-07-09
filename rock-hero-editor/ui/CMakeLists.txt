@@ -25,6 +25,8 @@ target_sources(
             src/main_window/menu_bar_button.h
             src/main_window/menu_look_and_feel.cpp
             src/main_window/menu_look_and_feel.h
+            src/main_window/undo_history_overlay.cpp
+            src/main_window/undo_history_overlay.h
             src/shared/audio_level_meter.cpp
             src/shared/audio_level_meter.h
             src/shared/editor_theme.cpp
