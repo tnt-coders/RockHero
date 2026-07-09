@@ -13,6 +13,31 @@ namespace rock_hero::editor::core
 namespace
 {
 
+// Undo labels name the plugin so the history reads unambiguously; "Plugin" stands in when the name
+// could not be captured (an unresolved instance).
+[[nodiscard]] std::string pluginNameOr(const std::string& name)
+{
+    return name.empty() ? std::string{"Plugin"} : name;
+}
+
+// Appends " <preposition> <tone>" when the owning tone is known, so a label names the tone it acted
+// on; tones are the unit a plugin chain belongs to. Omitted entirely when the tone is unknown.
+[[nodiscard]] std::string withTone(
+    std::string text, const std::string& preposition, const std::string& tone_name)
+{
+    if (!tone_name.empty())
+    {
+        text += " " + preposition + " " + tone_name;
+    }
+    return text;
+}
+
+// Appends a 1-based chain position so duplicate plugins in one chain stay distinguishable.
+[[nodiscard]] std::string slotSuffix(std::size_t chain_index)
+{
+    return " (slot " + std::to_string(chain_index + 1) + ")";
+}
+
 // Validates that a stored placement snapshot addresses the current plugin set before side effects.
 [[nodiscard]] bool placementTargetsPlugins(
     const std::vector<PluginBlockAssignment>& placement,
@@ -370,7 +395,8 @@ std::expected<void, EditorUndoFailureCode> PluginInsertEdit::redo(EditorEditCont
 
 std::string PluginInsertEdit::label() const
 {
-    return "Insert Plugin";
+    return withTone("Insert " + pluginNameOr(plugin_name), "on", tone_name) +
+           slotSuffix(chain_index);
 }
 
 bool PluginInsertEdit::instantiatesPlugin(EditorUndoDirection direction) const
@@ -391,7 +417,8 @@ std::expected<void, EditorUndoFailureCode> PluginRemoveEdit::redo(EditorEditCont
 
 std::string PluginRemoveEdit::label() const
 {
-    return "Remove Plugin";
+    return withTone("Remove " + pluginNameOr(plugin_name), "from", tone_name) +
+           slotSuffix(chain_index);
 }
 
 bool PluginRemoveEdit::instantiatesPlugin(EditorUndoDirection direction) const
@@ -412,7 +439,8 @@ std::expected<void, EditorUndoFailureCode> PluginMoveEdit::redo(EditorEditContex
 
 std::string PluginMoveEdit::label() const
 {
-    return "Move Plugin";
+    return withTone("Move " + pluginNameOr(plugin_name), "on", tone_name) + " (slot " +
+           std::to_string(before_index + 1) + " to " + std::to_string(after_index + 1) + ")";
 }
 
 std::expected<void, EditorUndoFailureCode> PluginPlacementEdit::undo(
@@ -429,7 +457,7 @@ std::expected<void, EditorUndoFailureCode> PluginPlacementEdit::redo(
 
 std::string PluginPlacementEdit::label() const
 {
-    return "Move Plugin Block";
+    return withTone("Rearrange Plugin Blocks", "on", tone_name);
 }
 
 std::expected<void, EditorUndoFailureCode> PluginDisplayTypeEdit::undo(
@@ -446,7 +474,7 @@ std::expected<void, EditorUndoFailureCode> PluginDisplayTypeEdit::redo(
 
 std::string PluginDisplayTypeEdit::label() const
 {
-    return "Set Plugin Display Type";
+    return withTone("Set " + pluginNameOr(plugin_name) + " Display Type", "on", tone_name);
 }
 
 std::expected<void, EditorUndoFailureCode> PluginStateEdit::undo(EditorEditContext& context) const
@@ -461,12 +489,8 @@ std::expected<void, EditorUndoFailureCode> PluginStateEdit::redo(EditorEditConte
 
 std::string PluginStateEdit::label() const
 {
-    if (label_hint.empty())
-    {
-        return "Edit Plugin State";
-    }
-
-    return "Edit " + label_hint;
+    return withTone(
+        "Edit " + (label_hint.empty() ? std::string{"Plugin State"} : label_hint), "on", tone_name);
 }
 
 std::expected<void, EditorUndoFailureCode> OutputGainEdit::undo(EditorEditContext& context) const
