@@ -477,31 +477,32 @@ void EditorView::setState(const core::EditorViewState& state)
 
     m_tone_automation_lanes_view.setVisibleTimeline(m_state.visible_timeline);
     m_tone_automation_lanes_view.setGridNoteValue(m_state.grid_note_value);
-    // Editing clamps inside the selected tone region's window: the lane is authored per tone but
-    // edited per region instance.
-    common::core::TimeRange selected_region_window{};
+    // Editing clamps inside the active tone region's window: the lane is authored per tone but
+    // edited per region instance. The active region (the cursor-following tone, or the formal
+    // selection when one exists) is the one whose lanes are shown, so it defines the editable span.
+    common::core::TimeRange active_region_window{};
     for (const core::ToneRegionViewState& region : m_state.tone_track.regions)
     {
-        if (region.selected)
+        if (region.active)
         {
-            selected_region_window = region.time_range;
+            active_region_window = region.time_range;
             break;
         }
     }
-    m_tone_automation_lanes_view.setEditableWindow(selected_region_window);
+    m_tone_automation_lanes_view.setEditableWindow(active_region_window);
     m_tone_automation_lanes_view.setState(m_state.tone_automation);
 
-    // The panel edits the selected (== audible) tone, so its header names that tone.
-    std::string selected_tone_name;
+    // The panel edits the active (== audible) tone, so its header names that tone.
+    std::string active_tone_name;
     for (const core::ToneRegionViewState& region : m_state.tone_track.regions)
     {
-        if (region.selected)
+        if (region.active)
         {
-            selected_tone_name = region.name;
+            active_tone_name = region.name;
             break;
         }
     }
-    m_signal_chain_panel.setToneName(std::move(selected_tone_name));
+    m_signal_chain_panel.setToneName(std::move(active_tone_name));
 
     m_cursor_overlay->setVisibleTimelineRange(m_state.visible_timeline);
     m_cursor_overlay->setGridNoteValue(m_state.grid_note_value);
