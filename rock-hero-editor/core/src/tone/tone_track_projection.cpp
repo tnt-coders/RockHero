@@ -5,7 +5,7 @@
 namespace rock_hero::editor::core
 {
 
-ToneTrackViewState toneTrackViewStateFor(
+ToneTrackViewState makeToneTrackViewState(
     const common::core::Arrangement& arrangement, const common::core::TempoMap& tempo_map,
     const std::string& active_region_id, const std::string& selected_region_id)
 {

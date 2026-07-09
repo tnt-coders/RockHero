@@ -29,7 +29,7 @@ fill.
 Empty selects nothing.
 \return Render state for the tone track row.
 */
-[[nodiscard]] ToneTrackViewState toneTrackViewStateFor(
+[[nodiscard]] ToneTrackViewState makeToneTrackViewState(
     const common::core::Arrangement& arrangement, const common::core::TempoMap& tempo_map,
     const std::string& active_region_id, const std::string& selected_region_id);
 

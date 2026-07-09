@@ -39,7 +39,7 @@ already carries everything rendered here — no format changes are required by t
   each other. Anything both products need (shared highway scene model per plan 20 Phase 0c, the
   string-color palette from plan 45) is extracted to rock-hero-common FIRST, as its own phase
   with tests, before game code consumes it. Game code never includes editor headers — the
-  editor's `TabViewState`/`tabViewStateFor` are mirrored or promoted, never included.
+  editor's `TabViewState`/`makeTabViewState` are mirrored or promoted, never included.
 - (b) **Public-header minimalism**: headers move to `include/` only when a consumer outside the
   library exists (docs/design/architectural-principles.md, "Placement Procedure for New Files").
 - (c) **NAMING FIREWALL**: the commercial real-guitar game that inspired this project is never
@@ -71,7 +71,7 @@ already carries everything rendered here — no format changes are required by t
     `TabViewState`: seconds-resolved `TabNoteView` (start/end seconds, string, fret, attack,
     mute, harmonic, vibrato, tremolo, accent, bend points, slide waypoints), `TabShapeView`
     (with projection-derived `arpeggio` flag), `TabFhpView`.
-  - `rock-hero-editor/core/src/tab/tab_projection.{h,cpp}` — `tabViewStateFor(Arrangement,
+  - `rock-hero-editor/core/src/tab/tab_projection.{h,cpp}` — `makeTabViewState(Arrangement,
     TempoMap)`, private to editor/core; tested by
     `rock-hero-editor/core/tests/test_tab_projection.cpp`.
   - `rock-hero-editor/ui/src/tab/tab_view.{h,cpp}` — `tabVisibleNoteRange` (tab_view.cpp:891–905)
@@ -295,7 +295,7 @@ still integrating. Phases 3+ need the render stack in the build.
   editor's `TabViewState` discipline (notes with start/end seconds, string, fret, technique
   fields, bend/slide payloads in seconds; shape spans with derived arpeggio; FHP windows;
   beat/measure list; sections); `highwayViewStateFor(Arrangement, TempoMap, options)` mirroring
-  `tabViewStateFor` (rock-hero-editor/core/src/tab/tab_projection.cpp is the reference
+  `makeTabViewState` (rock-hero-editor/core/src/tab/tab_projection.cpp is the reference
   implementation — mirrored or promoted per the Phase 0 seam, never included across the
   boundary); `HighwayMetrics` with Charter's documented constants; the `mirrored` (lefty) and
   string-order-invert flags in the projection options; the visible-range helper (sorted starts +

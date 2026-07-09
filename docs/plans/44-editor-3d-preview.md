@@ -103,7 +103,7 @@ With the Right Scope"); editor UI composition per docs/design/architecture.md ("
   `std::shared_ptr<const TabViewState> tab` (`editor_view_state.h:268`) — the snapshot pattern
   the highway view state reuses for live-edit updates.
 - The 2D projection reference the shared highway projection mirrors:
-  `rock-hero-editor/core/src/tab/tab_projection.{h,cpp}` (`tabViewStateFor`), tested by
+  `rock-hero-editor/core/src/tab/tab_projection.{h,cpp}` (`makeTabViewState`), tested by
   `rock-hero-editor/core/tests/test_tab_projection.cpp` (docs/plans/25-note-highway-3d.md
   Phase 1 owns the mirroring).
 - Menus: `EditorView` is the menu-bar model (`getMenuBarNames` at
