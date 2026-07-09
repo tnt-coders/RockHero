@@ -54,8 +54,8 @@ TEST_CASE("Tone track projection resolves authored regions to seconds", "[core][
     arrangement.tone_track.regions = {
         common::core::ToneRegion{
             .id = "5a1f0c3d-7e2b-4a9c-8d1e-2f3a4b5c6d7e",
-            .start = common::core::ToneGridPosition{.measure = 1, .beat = 1},
-            .end = common::core::ToneGridPosition{.measure = 2, .beat = 1},
+            .start = common::core::GridPosition{.measure = 1, .beat = 1},
+            .end = common::core::GridPosition{.measure = 2, .beat = 1},
             .tone_document_ref = "tones/9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d/tone.json",
         },
     };
@@ -68,11 +68,8 @@ TEST_CASE("Tone track projection resolves authored regions to seconds", "[core][
     CHECK(state.regions.front().name == "Clean Verse");
     CHECK(state.regions.front().time_range.start.seconds == Catch::Approx(0.0));
     CHECK(state.regions.front().time_range.end.seconds == Catch::Approx(2.0));
-    CHECK(
-        state.regions.front().grid_start ==
-        common::core::ToneGridPosition{.measure = 1, .beat = 1});
-    CHECK(
-        state.regions.front().grid_end == common::core::ToneGridPosition{.measure = 2, .beat = 1});
+    CHECK(state.regions.front().grid_start == common::core::GridPosition{.measure = 1, .beat = 1});
+    CHECK(state.regions.front().grid_end == common::core::GridPosition{.measure = 2, .beat = 1});
     CHECK_FALSE(state.regions.front().active);
     CHECK_FALSE(state.regions.front().selected);
 }
@@ -94,14 +91,14 @@ TEST_CASE(
     arrangement.tone_track.regions = {
         common::core::ToneRegion{
             .id = "5a1f0c3d-7e2b-4a9c-8d1e-2f3a4b5c6d7e",
-            .start = common::core::ToneGridPosition{.measure = 1, .beat = 1},
-            .end = common::core::ToneGridPosition{.measure = 2, .beat = 1},
+            .start = common::core::GridPosition{.measure = 1, .beat = 1},
+            .end = common::core::GridPosition{.measure = 2, .beat = 1},
             .tone_document_ref = "tones/9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d/tone.json",
         },
         common::core::ToneRegion{
             .id = "6b2f1d4e-8f3c-4b0d-9e2f-3a4b5c6d7e8f",
-            .start = common::core::ToneGridPosition{.measure = 2, .beat = 1},
-            .end = common::core::ToneGridPosition{.measure = 3, .beat = 1},
+            .start = common::core::GridPosition{.measure = 2, .beat = 1},
+            .end = common::core::GridPosition{.measure = 3, .beat = 1},
             .tone_document_ref = "tones/1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d/tone.json",
         },
     };
@@ -114,9 +111,7 @@ TEST_CASE(
     // displayed and selectable span reaches the timeline origin rather than starting at 1.0 s.
     CHECK(state.regions.front().time_range.start.seconds == Catch::Approx(0.0));
     CHECK(state.regions.front().time_range.end.seconds == Catch::Approx(3.0));
-    CHECK(
-        state.regions.front().grid_start ==
-        common::core::ToneGridPosition{.measure = 1, .beat = 1});
+    CHECK(state.regions.front().grid_start == common::core::GridPosition{.measure = 1, .beat = 1});
     // A later region keeps its authored grid start; only the baseline reaches back to the origin.
     CHECK(state.regions.back().time_range.start.seconds == Catch::Approx(3.0));
     CHECK(state.regions.back().time_range.end.seconds == Catch::Approx(5.0));
@@ -129,8 +124,8 @@ TEST_CASE(
     arrangement.tone_track.regions = {
         common::core::ToneRegion{
             .id = "5a1f0c3d-7e2b-4a9c-8d1e-2f3a4b5c6d7e",
-            .start = common::core::ToneGridPosition{.measure = 1, .beat = 1},
-            .end = common::core::ToneGridPosition{.measure = 2, .beat = 1},
+            .start = common::core::GridPosition{.measure = 1, .beat = 1},
+            .end = common::core::GridPosition{.measure = 2, .beat = 1},
             .tone_document_ref = "tones/9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d/tone.json",
         },
     };

@@ -31,10 +31,8 @@ struct [[nodiscard]] ToneRegionResizeEdit final : IEdit
     */
     ToneRegionResizeEdit(
         std::string region_id_value, std::string region_name_value,
-        common::core::ToneGridPosition before_start_value,
-        common::core::ToneGridPosition before_end_value,
-        common::core::ToneGridPosition after_start_value,
-        common::core::ToneGridPosition after_end_value)
+        common::core::GridPosition before_start_value, common::core::GridPosition before_end_value,
+        common::core::GridPosition after_start_value, common::core::GridPosition after_end_value)
         : region_id(std::move(region_id_value))
         , region_name(std::move(region_name_value))
         , before_start(before_start_value)
@@ -72,21 +70,21 @@ struct [[nodiscard]] ToneRegionResizeEdit final : IEdit
     std::string region_name;
 
     /*! \brief Musical start before the resize. */
-    common::core::ToneGridPosition before_start;
+    common::core::GridPosition before_start;
 
     /*! \brief Musical end before the resize. */
-    common::core::ToneGridPosition before_end;
+    common::core::GridPosition before_end;
 
     /*! \brief Musical start after the resize. */
-    common::core::ToneGridPosition after_start;
+    common::core::GridPosition after_start;
 
     /*! \brief Musical end after the resize. */
-    common::core::ToneGridPosition after_end;
+    common::core::GridPosition after_end;
 
 private:
     [[nodiscard]] std::expected<void, EditorUndoFailureCode> applyEndpoints(
-        EditorEditContext& context, common::core::ToneGridPosition start,
-        common::core::ToneGridPosition end) const;
+        EditorEditContext& context, common::core::GridPosition start,
+        common::core::GridPosition end) const;
 };
 
 /*! \brief Inverse-command edit that removes a created tone-change region, and re-splits on redo. */
@@ -100,7 +98,7 @@ struct [[nodiscard]] ToneRegionCreateEdit final : IEdit
     \param tone_name_value User-facing tone name used for the undo label.
     */
     ToneRegionCreateEdit(
-        common::core::ToneGridPosition position_value, std::string new_region_id_value,
+        common::core::GridPosition position_value, std::string new_region_id_value,
         std::string tone_document_ref_value, std::string tone_name_value)
         : position(position_value)
         , new_region_id(std::move(new_region_id_value))
@@ -129,7 +127,7 @@ struct [[nodiscard]] ToneRegionCreateEdit final : IEdit
     [[nodiscard]] std::string label() const override;
 
     /*! \brief Grid position at which the region was split. */
-    common::core::ToneGridPosition position;
+    common::core::GridPosition position;
 
     /*! \brief Id minted for the region beginning at the marker. */
     std::string new_region_id;
@@ -262,8 +260,8 @@ struct [[nodiscard]] ToneBoundaryMoveEdit final : IEdit
     \param after_position_value Boundary position after the move.
     */
     ToneBoundaryMoveEdit(
-        std::string right_region_id_value, common::core::ToneGridPosition before_position_value,
-        common::core::ToneGridPosition after_position_value)
+        std::string right_region_id_value, common::core::GridPosition before_position_value,
+        common::core::GridPosition after_position_value)
         : right_region_id(std::move(right_region_id_value))
         , before_position(before_position_value)
         , after_position(after_position_value)
@@ -293,14 +291,14 @@ struct [[nodiscard]] ToneBoundaryMoveEdit final : IEdit
     std::string right_region_id;
 
     /*! \brief Boundary position before the move. */
-    common::core::ToneGridPosition before_position;
+    common::core::GridPosition before_position;
 
     /*! \brief Boundary position after the move. */
-    common::core::ToneGridPosition after_position;
+    common::core::GridPosition after_position;
 
 private:
     [[nodiscard]] std::expected<void, EditorUndoFailureCode> applyBoundary(
-        EditorEditContext& context, common::core::ToneGridPosition position) const;
+        EditorEditContext& context, common::core::GridPosition position) const;
 };
 
 /*!
@@ -321,7 +319,7 @@ struct [[nodiscard]] ToneCreateWithNewToneEdit final : IEdit
     \param name_value User-facing name given to the new tone.
     */
     ToneCreateWithNewToneEdit(
-        common::core::ToneGridPosition position_value, std::string new_region_id_value,
+        common::core::GridPosition position_value, std::string new_region_id_value,
         std::string tone_document_ref_value, std::string name_value)
         : position(position_value)
         , new_region_id(std::move(new_region_id_value))
@@ -350,7 +348,7 @@ struct [[nodiscard]] ToneCreateWithNewToneEdit final : IEdit
     [[nodiscard]] std::string label() const override;
 
     /*! \brief Grid position at which the region was split. */
-    common::core::ToneGridPosition position;
+    common::core::GridPosition position;
 
     /*! \brief Id minted for the region beginning at the marker. */
     std::string new_region_id;

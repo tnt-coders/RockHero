@@ -30,8 +30,8 @@ std::string ToneRegionResizeEdit::label() const
 
 // Writes the supplied endpoints back onto the tracked region without touching audio state.
 std::expected<void, EditorUndoFailureCode> ToneRegionResizeEdit::applyEndpoints(
-    EditorEditContext& context, common::core::ToneGridPosition start,
-    common::core::ToneGridPosition end) const
+    EditorEditContext& context, common::core::GridPosition start,
+    common::core::GridPosition end) const
 {
     common::core::ToneTrack* const tone_track = context.session.currentToneTrack();
     if (tone_track == nullptr)
@@ -240,7 +240,7 @@ std::string ToneBoundaryMoveEdit::label() const
 // Snaps both sides of the shared boundary (the right region's start and its predecessor's end) to
 // the given position, so coverage stays gap-free.
 std::expected<void, EditorUndoFailureCode> ToneBoundaryMoveEdit::applyBoundary(
-    EditorEditContext& context, common::core::ToneGridPosition position) const
+    EditorEditContext& context, common::core::GridPosition position) const
 {
     common::core::ToneTrack* const tone_track = context.session.currentToneTrack();
     if (tone_track == nullptr)

@@ -172,8 +172,8 @@ public:
     \param end New musical end (exclusive).
     */
     virtual void onToneRegionResizeRequested(
-        std::string region_id, common::core::ToneGridPosition start,
-        common::core::ToneGridPosition end) = 0;
+        std::string region_id, common::core::GridPosition start,
+        common::core::GridPosition end) = 0;
 
     /*!
     \brief Handles a request to insert a tone-change region at a grid position.
@@ -187,7 +187,7 @@ public:
     \param tone_document_ref Existing catalog tone the new region references.
     */
     virtual void onToneRegionCreateRequested(
-        common::core::ToneGridPosition position, std::string new_region_id,
+        common::core::GridPosition position, std::string new_region_id,
         std::string tone_document_ref) = 0;
 
     /*!
@@ -216,7 +216,7 @@ public:
     \param position New grid position for the shared boundary.
     */
     virtual void onToneBoundaryMoveRequested(
-        std::string right_region_id, common::core::ToneGridPosition position) = 0;
+        std::string right_region_id, common::core::GridPosition position) = 0;
 
     /*!
     \brief Handles a request to create a new empty tone at a grid position.
@@ -228,7 +228,7 @@ public:
     \param name User-facing name for the new tone.
     */
     virtual void onToneCreateNewRequested(
-        common::core::ToneGridPosition position, std::string name) = 0;
+        common::core::GridPosition position, std::string name) = 0;
 
     /*!
     \brief Handles a request to open an automation lane for a tone-chain plugin parameter.

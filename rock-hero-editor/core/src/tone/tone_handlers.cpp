@@ -202,14 +202,13 @@ void EditorController::Impl::onToneRegionActivated()
 }
 
 void EditorController::Impl::onToneRegionResizeRequested(
-    std::string region_id, common::core::ToneGridPosition start, common::core::ToneGridPosition end)
+    std::string region_id, common::core::GridPosition start, common::core::GridPosition end)
 {
     runAction(EditorAction::ResizeToneRegion{std::move(region_id), start, end});
 }
 
 void EditorController::Impl::onToneRegionCreateRequested(
-    common::core::ToneGridPosition position, std::string new_region_id,
-    std::string tone_document_ref)
+    common::core::GridPosition position, std::string new_region_id, std::string tone_document_ref)
 {
     runAction(
         EditorAction::CreateToneRegion{
@@ -228,13 +227,13 @@ void EditorController::Impl::onToneRenameRequested(std::string tone_document_ref
 }
 
 void EditorController::Impl::onToneBoundaryMoveRequested(
-    std::string right_region_id, common::core::ToneGridPosition position)
+    std::string right_region_id, common::core::GridPosition position)
 {
     runAction(EditorAction::MoveToneBoundary{std::move(right_region_id), position});
 }
 
 void EditorController::Impl::onToneCreateNewRequested(
-    common::core::ToneGridPosition position, std::string name)
+    common::core::GridPosition position, std::string name)
 {
     runAction(EditorAction::CreateNewTone{position, std::move(name)});
 }
@@ -363,8 +362,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::ResizeToneReg
         return;
     }
 
-    const common::core::ToneGridPosition before_start = region->start;
-    const common::core::ToneGridPosition before_end = region->end;
+    const common::core::GridPosition before_start = region->start;
+    const common::core::GridPosition before_end = region->end;
     region->start = action.start;
     region->end = action.end;
 
@@ -616,7 +615,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::MoveToneBound
         return;
     }
 
-    const common::core::ToneGridPosition before = right->start;
+    const common::core::GridPosition before = right->start;
     std::prev(right)->end = action.position;
     right->start = action.position;
     pushUndoEntry(

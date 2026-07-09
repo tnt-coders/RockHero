@@ -33,15 +33,15 @@ constexpr int g_resize_band_height = 6;
 constexpr float g_point_draw_radius = 4.0f;
 constexpr int g_point_hit_radius = 8;
 
+// The selected point (the keyboard-Delete target) draws slightly larger with an accent fill and a
+// white ring so it is unmistakable against the white unselected handles.
+constexpr float g_point_selected_draw_radius = 5.5f;
+
 // Chips pin to the visible left edge so lane names and "+" stay on screen at any zoom.
 constexpr int g_chip_inset_x = 6;
 constexpr int g_chip_inset_y = 4;
 constexpr float g_chip_corner_radius = 3.0f;
 constexpr float g_chip_font_height = 12.0f;
-
-// The fine placement grid used when Ctrl bypasses the visible grid: 1/960 of a beat keeps every
-// stored position an exact rational at far finer than audible resolution.
-constexpr int g_fine_grid_denominator = 960;
 
 // The value-readout chip drawn next to the cursor: padded for legibility and offset off the
 // pointer so it never sits directly under the dragged point.
@@ -53,6 +53,8 @@ constexpr float g_readout_font_height = 12.0f;
 const juce::Colour g_lane_separator{juce::Colours::black.withAlpha(0.45f)};
 const juce::Colour g_curve_colour{editorTheme().accent};
 const juce::Colour g_point_fill{juce::Colours::white.withAlpha(0.92f)};
+const juce::Colour g_point_selected_fill{editorTheme().accent};
+const juce::Colour g_point_selected_ring{juce::Colours::white};
 const juce::Colour g_chip_fill{juce::Colours::black.withAlpha(0.55f)};
 const juce::Colour g_chip_text{juce::Colours::white.withAlpha(0.92f)};
 const juce::Colour g_dim_overlay{juce::Colours::black.withAlpha(0.35f)};
@@ -169,6 +171,12 @@ void ToneAutomationLanesView::applyState(const core::ToneAutomationViewState& st
     const int previous_total_height = totalHeight();
     m_state = state;
     m_value_readout.reset();
+    // Drop a point selection the new model no longer contains (it was deleted, or an undo/redo
+    // rewrote the lane); a still-present point stays selected across the engine's routine pushes.
+    if (m_selected_point.has_value() && !selectedPointPresent())
+    {
+        m_selected_point.reset();
+    }
     publishSnapGuide(std::nullopt);
     if (totalHeight() != previous_total_height && m_heights_changed_callback)
     {
@@ -274,45 +282,8 @@ float ToneAutomationLanesView::snappedValueForLane(
 std::optional<common::core::GridPosition> ToneAutomationLanesView::musicalPositionForX(
     float content_x, const juce::ModifierKeys& mods) const
 {
-    const std::optional<common::core::TimePosition> clicked = core::timelineCursorPlacementTime(
-        m_tempo_map,
-        m_grid_note_value,
-        m_visible_timeline,
-        getWidth(),
-        content_x,
-        core::TimelineCursorPlacementMode::Free);
-    if (!clicked.has_value())
-    {
-        return std::nullopt;
-    }
-
-    // Snapped placements store the grid line's own exact musical address, so any grid value —
-    // including odd fractions like 1/13 that no fixed fine grid divides — round-trips exactly.
-    if (placementModeFor(mods) == core::TimelineCursorPlacementMode::SnapToGrid)
-    {
-        return core::nearestTempoGridPosition(m_tempo_map, m_grid_note_value, *clicked);
-    }
-
-    // Ctrl-free placements quantize the fractional beat to the 1/960 fine grid so stored
-    // positions stay exact rationals instead of raw doubles; 960 covers every practical straight,
-    // triplet, and quintuplet subdivision at sub-millisecond resolution.
-    const double global_beat = m_tempo_map.beatPositionAtSeconds(clicked->seconds);
-    double whole_beats = 0.0;
-    const double beat_fraction = std::modf(std::max(0.0, global_beat), &whole_beats);
-    auto beat_index = static_cast<std::int64_t>(whole_beats);
-    int fine_steps =
-        static_cast<int>(std::lround(beat_fraction * static_cast<double>(g_fine_grid_denominator)));
-    if (fine_steps == g_fine_grid_denominator)
-    {
-        beat_index += 1;
-        fine_steps = 0;
-    }
-    const auto [measure, beat] = m_tempo_map.beatAtGlobalIndex(beat_index);
-    return common::core::GridPosition{
-        .measure = measure,
-        .beat = beat,
-        .offset = common::core::Fraction{fine_steps, g_fine_grid_denominator},
-    };
+    return musicalGridPositionForX(
+        m_tempo_map, m_grid_note_value, m_visible_timeline, getWidth(), content_x, mods);
 }
 
 std::optional<ToneAutomationLanesView::Hit> ToneAutomationLanesView::hitAt(
@@ -439,6 +410,7 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
         {
             double seconds{};
             float norm_value{};
+            bool selected{};
         };
         std::vector<DrawnPoint> drawn;
         drawn.reserve(lane.points.size() + 1);
@@ -462,6 +434,7 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
                 DrawnPoint{
                     .seconds = lane.points[point_index].seconds,
                     .norm_value = lane.points[point_index].norm_value,
+                    .selected = isPointSelected(lane, lane.points[point_index].position),
                 });
         }
         if (active_move != nullptr)
@@ -469,6 +442,7 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
             const DrawnPoint preview{
                 .seconds = secondsAtPosition(m_tempo_map, active_move->preview_position),
                 .norm_value = active_move->preview_value,
+                .selected = false,
             };
             const auto insert_at =
                 std::ranges::find_if(drawn, [&preview](const DrawnPoint& candidate) {
@@ -485,6 +459,7 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
             float x{};
             float y{};
             bool authored{};
+            bool selected{};
         };
         std::vector<CurvePoint> curve_points;
         curve_points.reserve(drawn.size() + 2);
@@ -496,7 +471,12 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
                 continue;
             }
             curve_points.push_back(
-                CurvePoint{.x = *x, .y = value_to_y(point.norm_value), .authored = true});
+                CurvePoint{
+                    .x = *x,
+                    .y = value_to_y(point.norm_value),
+                    .authored = true,
+                    .selected = point.selected,
+                });
         }
         if (!curve_points.empty())
         {
@@ -563,12 +543,20 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
 
             if (point.authored && point.x >= clip_left && point.x <= clip_right)
             {
-                graphics.setColour(g_point_fill.withMultipliedAlpha(lane_alpha));
+                // The selected point (the Delete target) inverts the normal white dot to an accent
+                // fill with a white ring so it reads as picked without moving or resizing it.
+                const float radius =
+                    point.selected ? g_point_selected_draw_radius : g_point_draw_radius;
+                graphics.setColour((point.selected ? g_point_selected_fill : g_point_fill)
+                                       .withMultipliedAlpha(lane_alpha));
                 graphics.fillEllipse(
-                    point.x - g_point_draw_radius,
-                    point.y - g_point_draw_radius,
-                    2.0f * g_point_draw_radius,
-                    2.0f * g_point_draw_radius);
+                    point.x - radius, point.y - radius, 2.0f * radius, 2.0f * radius);
+                if (point.selected)
+                {
+                    graphics.setColour(g_point_selected_ring.withMultipliedAlpha(lane_alpha));
+                    graphics.drawEllipse(
+                        point.x - radius, point.y - radius, 2.0f * radius, 2.0f * radius, 1.5f);
+                }
             }
         }
         graphics.setColour(g_curve_colour.withMultipliedAlpha(lane_alpha));
@@ -694,26 +682,28 @@ void ToneAutomationLanesView::mouseMove(const juce::MouseEvent& event)
 void ToneAutomationLanesView::mouseDown(const juce::MouseEvent& event)
 {
     const std::optional<Hit> hit = hitAt(event.getPosition());
-    if (!hit.has_value())
-    {
-        return;
-    }
 
     if (event.mods.isPopupMenu())
     {
-        if (const auto* const point_hit = std::get_if<PointHit>(&*hit))
+        // A right-click on a point offers its own menu; a right-click anywhere else on a real lane
+        // row offers lane removal — for authored lanes with points too, and regardless of the
+        // editable window — so a lane can always be removed without emptying it point by point.
+        if (const auto* const point_hit = hit.has_value() ? std::get_if<PointHit>(&*hit) : nullptr)
         {
             showPointMenu(*point_hit);
         }
         else if (
-            const auto* const area_hit = std::get_if<LaneAreaHit>(&*hit);
-            area_hit != nullptr && m_state.lanes[area_hit->lane_index].points.empty()
+            const std::optional<std::size_t> lane_index = laneIndexAtY(event.getPosition().y);
+            lane_index.has_value()
         )
         {
-            // Only unauthored tracking lanes offer removal here; authored lanes are removed by
-            // deleting their points.
-            showLaneMenu(area_hit->lane_index);
+            showLaneMenu(*lane_index);
         }
+        return;
+    }
+
+    if (!hit.has_value())
+    {
         return;
     }
 
@@ -871,16 +861,27 @@ void ToneAutomationLanesView::mouseUp(const juce::MouseEvent& /*event*/)
     setValueReadout(std::nullopt);
 
     bool committed = false;
+    // A move-point gesture selects the point it landed on: a committed create/move selects the new
+    // point, and a plain click (no movement) selects the point clicked. Identity is captured before
+    // the commit swaps m_state so the lane reference below stays valid.
+    std::optional<SelectedPoint> new_selection;
     if (const auto* const move = std::get_if<MovePointDrag>(&finished))
     {
+        const core::ToneAutomationLaneViewState& lane = m_state.lanes[move->lane_index];
         if (move->moved || move->is_new_point)
         {
-            const core::ToneAutomationLaneViewState& lane = m_state.lanes[move->lane_index];
+            new_selection = SelectedPoint{lane.instance_id, lane.param_id, move->preview_position};
             // The commit runs synchronously back through the controller and pushes fresh state; with
             // m_drag already cleared that push applies immediately rather than deferring.
             m_listener.onToneAutomationPointsEditRequested(
                 lane.instance_id, lane.param_id, pointsForCommit(*move));
             committed = true;
+        }
+        else
+        {
+            new_selection = SelectedPoint{
+                lane.instance_id, lane.param_id, lane.points[move->point_index].position
+            };
         }
     }
     repaint();
@@ -897,6 +898,23 @@ void ToneAutomationLanesView::mouseUp(const juce::MouseEvent& /*event*/)
         const core::ToneAutomationViewState pending = std::move(*m_pending_state);
         m_pending_state.reset();
         applyState(pending);
+    }
+
+    // Apply the selection last so it outlives the pruning that applyState runs for the commit's own
+    // state push (or an adopted pending snapshot). Keep it only if the point exists in that latest
+    // model (a rare pending snapshot could have dropped it). A lane-resize gesture leaves this empty
+    // and keeps whatever was selected.
+    if (new_selection.has_value())
+    {
+        m_selected_point = std::move(new_selection);
+        if (selectedPointPresent())
+        {
+            repaint();
+        }
+        else
+        {
+            m_selected_point.reset();
+        }
     }
 }
 
@@ -1081,7 +1099,20 @@ void ToneAutomationLanesView::showLaneMenu(std::size_t lane_index)
             {
                 return;
             }
+            // An authored lane's points are cleared first (one undoable edit that drops the
+            // arrangement entry); the open-lane close then removes any session tracking lane so the
+            // row disappears instead of falling back to a live-tracking lane. The close is a no-op
+            // for a package-loaded authored lane that never had an open entry.
+            const auto lane = std::ranges::find_if(
+                m_state.lanes, [&](const core::ToneAutomationLaneViewState& candidate) {
+                    return candidate.instance_id == instance_id && candidate.param_id == param_id;
+                });
+            if (lane != m_state.lanes.end() && !lane->points.empty())
+            {
+                m_listener.onToneAutomationPointsEditRequested(instance_id, param_id, {});
+            }
             m_listener.onToneAutomationLaneRemoveRequested(instance_id, param_id);
+            m_selected_point.reset();
         });
 }
 
@@ -1098,36 +1129,108 @@ void ToneAutomationLanesView::showPointMenu(const PointHit& hit)
          instance_id = lane.instance_id,
          param_id = lane.param_id,
          position = lane.points[hit.point_index].position](int result) {
-            if (result != 1)
+            if (result == 1)
             {
-                return;
-            }
-            for (const core::ToneAutomationLaneViewState& current_lane : m_state.lanes)
-            {
-                if (current_lane.instance_id != instance_id || current_lane.param_id != param_id)
-                {
-                    continue;
-                }
-                std::vector<common::core::ToneAutomationPoint> points;
-                points.reserve(current_lane.points.size());
-                for (const core::ToneAutomationPointViewState& point : current_lane.points)
-                {
-                    if (point.position == position)
-                    {
-                        continue;
-                    }
-                    points.push_back(
-                        common::core::ToneAutomationPoint{
-                            .position = point.position,
-                            .norm_value = point.norm_value,
-                            .curve_shape = point.curve_shape,
-                        });
-                }
-                m_listener.onToneAutomationPointsEditRequested(
-                    instance_id, param_id, std::move(points));
-                return;
+                requestPointDelete(instance_id, param_id, position);
             }
         });
+}
+
+// Emits the points-edit intent that removes the point at the given position from its lane. Shared by
+// the right-click "Delete Point" menu and the keyboard-Delete path; a no-op when the lane or point
+// no longer exists (a state push may have removed it while a menu was open).
+void ToneAutomationLanesView::requestPointDelete(
+    const std::string& instance_id, const std::string& param_id,
+    const common::core::GridPosition& position)
+{
+    for (const core::ToneAutomationLaneViewState& lane : m_state.lanes)
+    {
+        if (lane.instance_id != instance_id || lane.param_id != param_id)
+        {
+            continue;
+        }
+        std::vector<common::core::ToneAutomationPoint> points;
+        points.reserve(lane.points.size());
+        for (const core::ToneAutomationPointViewState& point : lane.points)
+        {
+            if (point.position == position)
+            {
+                continue;
+            }
+            points.push_back(
+                common::core::ToneAutomationPoint{
+                    .position = point.position,
+                    .norm_value = point.norm_value,
+                    .curve_shape = point.curve_shape,
+                });
+        }
+        m_listener.onToneAutomationPointsEditRequested(instance_id, param_id, std::move(points));
+        return;
+    }
+}
+
+bool ToneAutomationLanesView::deleteSelectedPoint()
+{
+    if (!m_selected_point.has_value())
+    {
+        return false;
+    }
+    const SelectedPoint target = *m_selected_point;
+    m_selected_point.reset();
+    // If a state push already removed the point, report nothing deleted so the editor's Delete
+    // handler can fall through to its other targets (the selected tone region).
+    if (!selectedPointMatches(target))
+    {
+        return false;
+    }
+    requestPointDelete(target.instance_id, target.param_id, target.position);
+    return true;
+}
+
+// Reports whether a specific lane point is the current selection.
+bool ToneAutomationLanesView::isPointSelected(
+    const core::ToneAutomationLaneViewState& lane, const common::core::GridPosition& position) const
+{
+    return m_selected_point.has_value() && m_selected_point->instance_id == lane.instance_id &&
+           m_selected_point->param_id == lane.param_id && m_selected_point->position == position;
+}
+
+// Reports whether the current model still contains the point named by a selection.
+bool ToneAutomationLanesView::selectedPointMatches(const SelectedPoint& selection) const
+{
+    for (const core::ToneAutomationLaneViewState& lane : m_state.lanes)
+    {
+        if (lane.instance_id != selection.instance_id || lane.param_id != selection.param_id)
+        {
+            continue;
+        }
+        return std::ranges::any_of(
+            lane.points, [&selection](const core::ToneAutomationPointViewState& point) {
+                return point.position == selection.position;
+            });
+    }
+    return false;
+}
+
+// Reports whether the current selection still resolves to a real point in the model.
+bool ToneAutomationLanesView::selectedPointPresent() const
+{
+    return m_selected_point.has_value() && selectedPointMatches(*m_selected_point);
+}
+
+// Resolves the real lane row (not the trailing "+" lane) containing a local y, or empty.
+std::optional<std::size_t> ToneAutomationLanesView::laneIndexAtY(int y) const
+{
+    const std::vector<LaneExtent> extents = laneExtents();
+    for (std::size_t lane_index = 0; lane_index < m_state.lanes.size(); ++lane_index)
+    {
+        if (y >= extents[lane_index].top &&
+            y < extents[lane_index].top + extents[lane_index].height)
+        {
+            return lane_index;
+        }
+    }
+    return std::nullopt;
 }
 
 void ToneAutomationLanesView::publishSnapGuide(std::optional<TimelineSnapGuide> guide)

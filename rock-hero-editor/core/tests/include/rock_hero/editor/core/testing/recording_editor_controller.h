@@ -186,8 +186,8 @@ public:
 
     /*! \copydoc IEditorController::onToneRegionResizeRequested */
     void onToneRegionResizeRequested(
-        std::string region_id, common::core::ToneGridPosition start,
-        common::core::ToneGridPosition end) override
+        std::string region_id, common::core::GridPosition start,
+        common::core::GridPosition end) override
     {
         last_resized_tone_region_id = std::move(region_id);
         last_tone_region_start = start;
@@ -196,7 +196,7 @@ public:
 
     /*! \copydoc IEditorController::onToneRegionCreateRequested */
     void onToneRegionCreateRequested(
-        common::core::ToneGridPosition position, std::string new_region_id,
+        common::core::GridPosition position, std::string new_region_id,
         std::string tone_document_ref) override
     {
         last_created_tone_region_position = position;
@@ -219,15 +219,14 @@ public:
 
     /*! \copydoc IEditorController::onToneBoundaryMoveRequested */
     void onToneBoundaryMoveRequested(
-        std::string right_region_id, common::core::ToneGridPosition position) override
+        std::string right_region_id, common::core::GridPosition position) override
     {
         last_boundary_right_region_id = std::move(right_region_id);
         last_boundary_position = position;
     }
 
     /*! \copydoc IEditorController::onToneCreateNewRequested */
-    void onToneCreateNewRequested(
-        common::core::ToneGridPosition position, std::string name) override
+    void onToneCreateNewRequested(common::core::GridPosition position, std::string name) override
     {
         last_create_new_tone_position = position;
         last_create_new_tone_name = std::move(name);
@@ -523,13 +522,13 @@ public:
     std::string last_resized_tone_region_id{};
 
     /*! \brief Last resize start reported through onToneRegionResizeRequested(). */
-    common::core::ToneGridPosition last_tone_region_start{};
+    common::core::GridPosition last_tone_region_start{};
 
     /*! \brief Last resize end reported through onToneRegionResizeRequested(). */
-    common::core::ToneGridPosition last_tone_region_end{};
+    common::core::GridPosition last_tone_region_end{};
 
     /*! \brief Last marker position reported through onToneRegionCreateRequested(). */
-    common::core::ToneGridPosition last_created_tone_region_position{};
+    common::core::GridPosition last_created_tone_region_position{};
 
     /*! \brief Last new region id reported through onToneRegionCreateRequested(). */
     std::string last_created_tone_region_id{};
@@ -550,10 +549,10 @@ public:
     std::string last_boundary_right_region_id{};
 
     /*! \brief Last boundary position reported through onToneBoundaryMoveRequested(). */
-    common::core::ToneGridPosition last_boundary_position{};
+    common::core::GridPosition last_boundary_position{};
 
     /*! \brief Last position reported through onToneCreateNewRequested(). */
-    common::core::ToneGridPosition last_create_new_tone_position{};
+    common::core::GridPosition last_create_new_tone_position{};
 
     /*! \brief Last name reported through onToneCreateNewRequested(). */
     std::string last_create_new_tone_name{};

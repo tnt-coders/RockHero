@@ -26,10 +26,10 @@ struct ToneRegionViewState
     std::string tone_document_ref;
 
     /*! \brief Musical start of the region (inclusive). */
-    common::core::ToneGridPosition grid_start;
+    common::core::GridPosition grid_start;
 
     /*! \brief Musical end of the region (exclusive). */
-    common::core::ToneGridPosition grid_end;
+    common::core::GridPosition grid_end;
 
     /*! \brief Region span in song seconds, resolved through the tempo map. */
     common::core::TimeRange time_range;

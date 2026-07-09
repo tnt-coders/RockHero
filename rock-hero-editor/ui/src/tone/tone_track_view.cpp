@@ -1,9 +1,11 @@
 #include "tone_track_view.h"
 
 #include "shared/editor_theme.h"
+#include "timeline/timeline_cursor.h"
 
 #include <algorithm>
 #include <cmath>
+#include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/editor/core/timeline/timeline_geometry.h>
 #include <utility>
 
@@ -31,12 +33,6 @@ const juce::Colour g_tone_region_label{juce::Colours::white.withAlpha(0.92f)};
 [[nodiscard]] juce::String regionLabel(const core::ToneRegionViewState& region)
 {
     return region.name.empty() ? juce::String{"Tone"} : juce::String{region.name};
-}
-
-// Formats the "<measure>:<beat>" readout shown beside the snap guide.
-[[nodiscard]] juce::String beatReadout(int measure, int beat)
-{
-    return juce::String{measure} + ":" + juce::String{beat};
 }
 
 } // namespace
@@ -90,6 +86,11 @@ void ToneTrackView::setVisibleContentLeft(int content_left_x)
     repaint();
 }
 
+void ToneTrackView::setGridNoteValue(common::core::Fraction note_value)
+{
+    m_grid_note_value = note_value;
+}
+
 void ToneTrackView::setSnapGuideCallback(SnapGuideCallback on_snap_guide)
 {
     m_on_snap_guide = std::move(on_snap_guide);
@@ -117,9 +118,9 @@ void ToneTrackView::paint(juce::Graphics& g)
             // Preview the live boundary on BOTH sides so the two regions move in sync under the
             // cursor: the dragged region's edge follows the pointer, and its neighbor across the
             // shared boundary follows the same position.
-            const auto seconds_at = [this](const common::core::ToneGridPosition& grid) {
-                return common::core::TimePosition{m_tempo_map.secondsAtBeat(
-                    grid.measure, grid.beat)};
+            const auto seconds_at = [this](const common::core::GridPosition& grid) {
+                return common::core::TimePosition{m_tempo_map.secondsAtNote(
+                    grid.measure, grid.beat, grid.offset)};
             };
             if (m_drag->region_index == index)
             {
@@ -277,26 +278,26 @@ void ToneTrackView::mouseDrag(const juce::MouseEvent& event)
         return;
     }
 
-    const std::optional<std::int64_t> snapped_beat =
-        snappedBeatForDrag(static_cast<float>(event.getPosition().x));
-    if (!snapped_beat.has_value())
+    const std::optional<common::core::GridPosition> snapped =
+        snappedGridPositionForDrag(static_cast<float>(event.getPosition().x), event.mods);
+    if (!snapped.has_value())
     {
+        // The snapped grid line fell outside the open interval that keeps both neighbors non-empty;
+        // hold the last valid preview so the boundary simply stops at that grid line.
         return;
     }
 
-    const auto [measure, beat] = m_tempo_map.beatAtGlobalIndex(*snapped_beat);
-    const common::core::ToneGridPosition snapped{.measure = measure, .beat = beat};
     if (m_drag->edge == EdgeKind::Start)
     {
-        m_drag->preview_start = snapped;
+        m_drag->preview_start = *snapped;
     }
     else
     {
-        m_drag->preview_end = snapped;
+        m_drag->preview_end = *snapped;
     }
 
     const double guide_seconds =
-        m_tempo_map.secondsAtGlobalBeatPosition(static_cast<double>(*snapped_beat));
+        m_tempo_map.secondsAtNote(snapped->measure, snapped->beat, snapped->offset);
     const std::optional<float> guide_x = core::timelineXForPosition(
         common::core::TimePosition{guide_seconds},
         m_visible_timeline,
@@ -307,7 +308,7 @@ void ToneTrackView::mouseDrag(const juce::MouseEvent& event)
         emitSnapGuide(
             TimelineSnapGuide{
                 .x = static_cast<float>(getX()) + *guide_x,
-                .label = beatReadout(measure, beat),
+                .label = juce::String{common::core::formatGridPositionToken(*snapped)},
             });
     }
 
@@ -431,57 +432,48 @@ std::optional<ToneTrackView::RegionHit> ToneTrackView::hitAt(juce::Point<int> lo
     return std::nullopt;
 }
 
-// Converts a drag x coordinate into the snapped, clamped global beat for the active edge.
-std::optional<std::int64_t> ToneTrackView::snappedBeatForDrag(float x) const
+// Snaps a drag x to the tempo grid (sub-beat, Ctrl bypasses to the fine grid, exactly as the
+// automation lanes below), then accepts it only inside the open interval that keeps both regions
+// sharing the dragged boundary non-empty. Every draggable edge is an interior boundary (the first
+// region's start and the last region's end are pinned, so hit-testing never arms them).
+std::optional<common::core::GridPosition> ToneTrackView::snappedGridPositionForDrag(
+    float x, const juce::ModifierKeys& mods) const
 {
     if (!m_drag.has_value())
     {
         return std::nullopt;
     }
 
-    const std::optional<common::core::TimePosition> position =
-        core::timelinePositionForX(x, m_visible_timeline, getWidth());
-    if (!position.has_value())
+    const std::optional<common::core::GridPosition> snapped = musicalGridPositionForX(
+        m_tempo_map, m_grid_note_value, m_visible_timeline, getWidth(), x, mods);
+    if (!snapped.has_value())
     {
         return std::nullopt;
     }
 
     const core::ToneRegionViewState& region = m_state.regions[m_drag->region_index];
-    const std::int64_t own_start =
-        m_tempo_map.globalBeatIndex(region.grid_start.measure, region.grid_start.beat);
-    const std::int64_t own_end =
-        m_tempo_map.globalBeatIndex(region.grid_end.measure, region.grid_end.beat);
-
-    std::int64_t min_beat = 0;
-    std::int64_t max_beat = m_tempo_map.terminalGlobalBeatIndex();
+    // Start edge: the boundary sits between the previous region's start and this region's end.
+    // End edge: between this region's start and the next region's end. The relevant neighbor always
+    // exists for a draggable edge, so the bounds below are the fixed endpoints of the two spans that
+    // share the boundary.
+    common::core::GridPosition lower;
+    common::core::GridPosition upper;
     if (m_drag->edge == EdgeKind::Start)
     {
-        max_beat = own_end - 1;
-        if (m_drag->region_index > 0)
-        {
-            const core::ToneRegionViewState& previous = m_state.regions[m_drag->region_index - 1];
-            // Boundary semantics: the shared boundary may move left into the previous region, down
-            // to one beat after its start, so neither region ever becomes empty.
-            min_beat =
-                m_tempo_map.globalBeatIndex(previous.grid_start.measure, previous.grid_start.beat) +
-                1;
-        }
+        lower = m_state.regions[m_drag->region_index - 1].grid_start;
+        upper = region.grid_end;
     }
     else
     {
-        min_beat = own_start + 1;
-        if (m_drag->region_index + 1 < m_state.regions.size())
-        {
-            const core::ToneRegionViewState& next = m_state.regions[m_drag->region_index + 1];
-            // Boundary semantics: the shared boundary may move right into the next region, up to one
-            // beat before its end, so neither region ever becomes empty.
-            max_beat = m_tempo_map.globalBeatIndex(next.grid_end.measure, next.grid_end.beat) - 1;
-        }
+        lower = region.grid_start;
+        upper = m_state.regions[m_drag->region_index + 1].grid_end;
     }
 
-    const auto snapped = static_cast<std::int64_t>(
-        std::llround(m_tempo_map.beatPositionAtSeconds(position->seconds)));
-    return std::clamp(snapped, min_beat, max_beat);
+    if (!(lower < *snapped) || !(*snapped < upper))
+    {
+        return std::nullopt;
+    }
+    return snapped;
 }
 
 // Recomputes which region contains the sampled playhead. Runs at render cadence like the

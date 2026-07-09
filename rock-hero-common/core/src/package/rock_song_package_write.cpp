@@ -694,7 +694,7 @@ struct SongDocumentForSave
         {
             tone_changes.push_back(
                 ToneChangeDocumentEntry{
-                    .start = formatBeatPositionToken(region.start.measure, region.start.beat),
+                    .start = formatGridPositionToken(region.start),
                     .tone_id = toneIdFromToneDocumentRef(region.tone_document_ref),
                 });
         }

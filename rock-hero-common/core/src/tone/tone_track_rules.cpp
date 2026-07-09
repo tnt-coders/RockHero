@@ -1,6 +1,6 @@
 #include "tone/tone_track_rules.h"
 
-#include <cstdint>
+#include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/package/package_id.h>
 #include <set>
 #include <string>
@@ -8,23 +8,14 @@
 namespace rock_hero::common::core
 {
 
-namespace
-{
-
-// Formats an endpoint for diagnostics with the same token spelling the package format persists.
-[[nodiscard]] std::string endpointText(const ToneGridPosition& endpoint)
-{
-    return std::to_string(endpoint.measure) + ":" + std::to_string(endpoint.beat);
-}
-
-} // namespace
-
 std::expected<void, ToneTrackError> validateToneTrackRules(
     const ToneTrack& tone_track, const TempoMap& tempo_map)
 {
-    const std::int64_t terminal_beat_index = tempo_map.terminalGlobalBeatIndex();
+    const auto [terminal_measure, terminal_beat] =
+        tempo_map.beatAtGlobalIndex(tempo_map.terminalGlobalBeatIndex());
+    const GridPosition terminal_position{.measure = terminal_measure, .beat = terminal_beat};
     std::set<std::string> region_ids;
-    std::int64_t previous_end_index = 0;
+    GridPosition previous_end;
     bool has_previous_region = false;
 
     for (const ToneRegion& region : tone_track.regions)
@@ -45,24 +36,26 @@ std::expected<void, ToneTrackError> validateToneTrackRules(
             }};
         }
 
-        for (const ToneGridPosition& endpoint : {region.start, region.end})
+        for (const GridPosition& endpoint : {region.start, region.end})
         {
+            // The endpoint must name a real beat in its measure, and any sub-beat offset must be a
+            // proper fraction of that beat (in [0, 1)) so it stays inside the addressed beat span.
             if (endpoint.measure < 1 || endpoint.beat < 1 ||
-                endpoint.beat > tempo_map.beatsPerMeasureAt(endpoint.measure))
+                endpoint.beat > tempo_map.beatsPerMeasureAt(endpoint.measure) ||
+                endpoint.offset < Fraction{0, 1} || !(endpoint.offset < Fraction{1, 1}))
             {
                 return std::unexpected{ToneTrackError{
                     .code = ToneTrackErrorCode::InvalidEndpoint,
                     .message = "tone region endpoint is not a valid beat position: " +
-                               endpointText(endpoint),
+                               formatGridPositionToken(endpoint),
                 }};
             }
         }
 
-        const std::int64_t start_index =
-            tempo_map.globalBeatIndex(region.start.measure, region.start.beat);
-        const std::int64_t end_index =
-            tempo_map.globalBeatIndex(region.end.measure, region.end.beat);
-        if (start_index >= end_index)
+        // Endpoints order by exact musical position (measure, then beat, then sub-beat offset), so
+        // the ordering, terminal, and overlap checks compare GridPositions directly rather than
+        // collapsing sub-beat offsets onto whole-beat indices.
+        if (!(region.start < region.end))
         {
             return std::unexpected{ToneTrackError{
                 .code = ToneTrackErrorCode::EmptyOrReversedRegion,
@@ -70,7 +63,7 @@ std::expected<void, ToneTrackError> validateToneTrackRules(
             }};
         }
 
-        if (end_index > terminal_beat_index)
+        if (region.end > terminal_position)
         {
             return std::unexpected{ToneTrackError{
                 .code = ToneTrackErrorCode::RegionPastTerminalAnchor,
@@ -78,7 +71,7 @@ std::expected<void, ToneTrackError> validateToneTrackRules(
             }};
         }
 
-        if (has_previous_region && start_index < previous_end_index)
+        if (has_previous_region && region.start < previous_end)
         {
             return std::unexpected{ToneTrackError{
                 .code = ToneTrackErrorCode::UnsortedOrOverlappingRegions,
@@ -95,7 +88,7 @@ std::expected<void, ToneTrackError> validateToneTrackRules(
             }};
         }
 
-        previous_end_index = end_index;
+        previous_end = region.end;
         has_previous_region = true;
     }
 

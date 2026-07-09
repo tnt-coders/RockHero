@@ -242,8 +242,8 @@ struct EditorAction
         \param end_value New musical end (exclusive).
         */
         ResizeToneRegion(
-            std::string region_id_value, common::core::ToneGridPosition start_value,
-            common::core::ToneGridPosition end_value)
+            std::string region_id_value, common::core::GridPosition start_value,
+            common::core::GridPosition end_value)
             : region_id(std::move(region_id_value))
             , start(start_value)
             , end(end_value)
@@ -253,10 +253,10 @@ struct EditorAction
         std::string region_id;
 
         /*! \brief New musical start (inclusive). */
-        common::core::ToneGridPosition start;
+        common::core::GridPosition start;
 
         /*! \brief New musical end (exclusive). */
-        common::core::ToneGridPosition end;
+        common::core::GridPosition end;
     };
 
     /*! \brief Split the region under a grid position into a new tone-change region. */
@@ -270,7 +270,7 @@ struct EditorAction
         \param tone_document_ref_value Existing catalog tone the new region references.
         */
         CreateToneRegion(
-            common::core::ToneGridPosition position_value, std::string new_region_id_value,
+            common::core::GridPosition position_value, std::string new_region_id_value,
             std::string tone_document_ref_value)
             : position(position_value)
             , new_region_id(std::move(new_region_id_value))
@@ -278,7 +278,7 @@ struct EditorAction
         {}
 
         /*! \brief Grid position at which the tone changes. */
-        common::core::ToneGridPosition position;
+        common::core::GridPosition position;
 
         /*! \brief Canonical id minted for the new region beginning at the marker. */
         std::string new_region_id;
@@ -331,7 +331,7 @@ struct EditorAction
         \param position_value New grid position for the shared boundary.
         */
         MoveToneBoundary(
-            std::string right_region_id_value, common::core::ToneGridPosition position_value)
+            std::string right_region_id_value, common::core::GridPosition position_value)
             : right_region_id(std::move(right_region_id_value))
             , position(position_value)
         {}
@@ -340,7 +340,7 @@ struct EditorAction
         std::string right_region_id;
 
         /*! \brief New grid position for the shared boundary (both neighbors move to it). */
-        common::core::ToneGridPosition position;
+        common::core::GridPosition position;
     };
 
     /*! \brief Create a new empty tone and split the region under a grid position to reference it. */
@@ -352,13 +352,13 @@ struct EditorAction
         region.
         \param name_value User-facing name for the new tone.
         */
-        CreateNewTone(common::core::ToneGridPosition position_value, std::string name_value)
+        CreateNewTone(common::core::GridPosition position_value, std::string name_value)
             : position(position_value)
             , name(std::move(name_value))
         {}
 
         /*! \brief Grid position at which the new tone begins. */
-        common::core::ToneGridPosition position;
+        common::core::GridPosition position;
 
         /*! \brief User-facing name for the new tone. */
         std::string name;

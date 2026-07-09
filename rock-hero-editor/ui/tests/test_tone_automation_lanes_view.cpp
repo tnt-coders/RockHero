@@ -392,6 +392,34 @@ TEST_CASE(
     CHECK(harness.listener.last_edit_points.size() == 3);
 }
 
+TEST_CASE(
+    "Lanes view selects a clicked point and deletes it on request", "[ui][tone-automation-lanes]")
+{
+    LanesHarness harness;
+
+    // A plain click (no drag) on the second authored point (x 200, y 15) selects it without
+    // emitting any edit -- selection is distinct from a move.
+    harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 200.0f, 15.0f));
+    harness.view.mouseUp(testing::makeMouseDownEvent(harness.view, 200.0f, 15.0f));
+    CHECK(harness.listener.edit_count == 0);
+
+    // Deleting the selection removes exactly that point (the editor routes the Delete key here),
+    // leaving the first authored point behind.
+    REQUIRE(harness.view.deleteSelectedPoint());
+    REQUIRE(harness.listener.edit_count == 1);
+    CHECK(harness.listener.last_edit_instance_id == "instance-a");
+    CHECK(harness.listener.last_edit_param_id == "gain");
+    REQUIRE(harness.listener.last_edit_points.size() == 1);
+    CHECK(
+        harness.listener.last_edit_points.front().position ==
+        common::core::GridPosition{.measure = 1, .beat = 1, .offset = {}});
+
+    // With nothing selected, a further delete request no-ops so the editor can fall through to its
+    // other Delete targets.
+    CHECK_FALSE(harness.view.deleteSelectedPoint());
+    CHECK(harness.listener.edit_count == 1);
+}
+
 TEST_CASE("Lanes view paints headlessly", "[ui][tone-automation-lanes]")
 {
     LanesHarness harness;

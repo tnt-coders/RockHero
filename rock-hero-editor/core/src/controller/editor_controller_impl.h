@@ -154,16 +154,15 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onToneRegionSelected(std::string region_id);
     void onToneRegionActivated();
     void onToneRegionResizeRequested(
-        std::string region_id, common::core::ToneGridPosition start,
-        common::core::ToneGridPosition end);
+        std::string region_id, common::core::GridPosition start, common::core::GridPosition end);
     void onToneRegionCreateRequested(
-        common::core::ToneGridPosition position, std::string new_region_id,
+        common::core::GridPosition position, std::string new_region_id,
         std::string tone_document_ref);
     void onToneRegionDeleteRequested(std::string region_id);
     void onToneRenameRequested(std::string tone_document_ref, std::string name);
     void onToneBoundaryMoveRequested(
-        std::string right_region_id, common::core::ToneGridPosition position);
-    void onToneCreateNewRequested(common::core::ToneGridPosition position, std::string name);
+        std::string right_region_id, common::core::GridPosition position);
+    void onToneCreateNewRequested(common::core::GridPosition position, std::string name);
     void onToneAutomationLaneAddRequested(const std::string& instance_id, std::string param_id);
     void onToneAutomationLaneRemoveRequested(
         const std::string& instance_id, const std::string& param_id);

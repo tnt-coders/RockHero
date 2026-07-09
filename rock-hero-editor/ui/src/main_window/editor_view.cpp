@@ -473,6 +473,7 @@ void EditorView::setState(const core::EditorViewState& state)
         m_state.tab_minimum_displayed_strings));
 
     m_tone_track_view.setVisibleTimeline(m_state.visible_timeline);
+    m_tone_track_view.setGridNoteValue(m_state.grid_note_value);
     m_tone_track_view.setState(m_state.tone_track);
 
     m_tone_automation_lanes_view.setVisibleTimeline(m_state.visible_timeline);
@@ -729,10 +730,15 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
         return true;
     }
 
-    // Delete removes the selected tone region (merging into a neighbor, or resetting the sole
-    // region). Only acts when a region is selected; otherwise the key falls through.
+    // Delete targets the selected automation point first (the more specific target), then falls
+    // back to the selected tone region (merging into a neighbor, or resetting the sole region).
     if (key == juce::KeyPress{juce::KeyPress::deleteKey})
     {
+        if (m_tone_automation_lanes_view.deleteSelectedPoint())
+        {
+            return true;
+        }
+
         const auto selected = std::ranges::find_if(
             m_state.tone_track.regions,
             [](const core::ToneRegionViewState& region) { return region.selected; });
@@ -1553,14 +1559,14 @@ void EditorView::onToneRegionActivated()
 
 // Routes a committed tone-region resize to the controller.
 void EditorView::onToneRegionResizeRequested(
-    std::string region_id, common::core::ToneGridPosition start, common::core::ToneGridPosition end)
+    std::string region_id, common::core::GridPosition start, common::core::GridPosition end)
 {
     m_controller.onToneRegionResizeRequested(std::move(region_id), start, end);
 }
 
 // Routes a committed tone-boundary move to the controller.
 void EditorView::onToneBoundaryMoveRequested(
-    std::string right_region_id, common::core::ToneGridPosition position)
+    std::string right_region_id, common::core::GridPosition position)
 {
     m_controller.onToneBoundaryMoveRequested(std::move(right_region_id), position);
 }
@@ -1592,16 +1598,13 @@ void EditorView::createToneMarkerAtPlayhead()
     const auto beat_index =
         static_cast<std::int64_t>(std::llround(m_state.tempo_map.beatPositionAtSeconds(playhead)));
     const auto [measure, beat] = m_state.tempo_map.beatAtGlobalIndex(beat_index);
-    const common::core::ToneGridPosition position{.measure = measure, .beat = beat};
-    const std::int64_t marker_index = m_state.tempo_map.globalBeatIndex(measure, beat);
+    const common::core::GridPosition position{.measure = measure, .beat = beat};
 
+    // The marker splits the one region whose span strictly contains it; endpoints order by exact
+    // musical position, so a marker landing on a boundary belongs to neither side and splits nothing.
     const auto containing = std::ranges::find_if(
         m_state.tone_track.regions, [&](const core::ToneRegionViewState& region) {
-            const std::int64_t start = m_state.tempo_map.globalBeatIndex(
-                region.grid_start.measure, region.grid_start.beat);
-            const std::int64_t end =
-                m_state.tempo_map.globalBeatIndex(region.grid_end.measure, region.grid_end.beat);
-            return start < marker_index && marker_index < end;
+            return region.grid_start < position && position < region.grid_end;
         });
     if (containing == m_state.tone_track.regions.end())
     {
@@ -1689,7 +1692,7 @@ void EditorView::promptForText(
 
 // Prompts for a new tone name (defaulting to "New Tone") and asks the controller to mint it at the
 // marker; editor-core rejects and reports a duplicate name.
-void EditorView::promptForNewTone(common::core::ToneGridPosition position)
+void EditorView::promptForNewTone(common::core::GridPosition position)
 {
     promptForText(
         "New Tone",

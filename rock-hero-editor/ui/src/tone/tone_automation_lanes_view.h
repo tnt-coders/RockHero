@@ -201,6 +201,17 @@ public:
     */
     [[nodiscard]] std::optional<juce::String> valueReadoutTextForTest() const;
 
+    /*!
+    \brief Removes the currently selected automation point, if any, as one points-edit intent.
+
+    A point is selected by clicking it (see mouseUp); the editor routes the Delete key here before
+    its tone-region delete so a selected point is the more specific target. Reports whether it
+    acted so the editor can fall through when nothing is selected.
+
+    \return True when a selected point existed in the current model and its removal was requested.
+    */
+    [[nodiscard]] bool deleteSelectedPoint();
+
 private:
     // One lane's vertical extent in component coordinates.
     struct LaneExtent
@@ -255,6 +266,16 @@ private:
     };
     using Hit = std::variant<PointHit, LaneAreaHit, ResizeBandHit, PlusChipHit>;
 
+    // A selected automation point (the keyboard-Delete target), identified durably by lane keys plus
+    // exact musical position so it survives the engine's frequent state pushes, which reorder and
+    // rebuild lanes.
+    struct SelectedPoint
+    {
+        std::string instance_id;
+        std::string param_id;
+        common::core::GridPosition position;
+    };
+
     // Applies a pushed state immediately: replaces the model and clears any transient gesture
     // overlay. Called directly when no gesture is active, and drained from mouseUp for a snapshot
     // that arrived (and was deferred) during a gesture. Never called while m_drag is set.
@@ -295,8 +316,28 @@ private:
     // Opens the delete menu for a right-clicked point.
     void showPointMenu(const PointHit& hit);
 
-    // Opens the remove menu for a right-clicked unauthored tracking lane.
+    // Opens the remove menu for a right-clicked lane row (authored or tracking).
     void showLaneMenu(std::size_t lane_index);
+
+    // Emits the points-edit intent that removes the point at a position from its lane; shared by the
+    // right-click "Delete Point" menu and the keyboard-Delete path. A no-op when it no longer exists.
+    void requestPointDelete(
+        const std::string& instance_id, const std::string& param_id,
+        const common::core::GridPosition& position);
+
+    // Reports whether a specific lane point is the current selection.
+    [[nodiscard]] bool isPointSelected(
+        const core::ToneAutomationLaneViewState& lane,
+        const common::core::GridPosition& position) const;
+
+    // Reports whether the current model still contains the point named by a selection.
+    [[nodiscard]] bool selectedPointMatches(const SelectedPoint& selection) const;
+
+    // Reports whether the current selection still resolves to a real point in the model.
+    [[nodiscard]] bool selectedPointPresent() const;
+
+    // Resolves the real lane row (not the trailing "+" lane) containing a local y, or empty.
+    [[nodiscard]] std::optional<std::size_t> laneIndexAtY(int y) const;
 
     // Current tracking-line value for a lane: the live provider when available, else state.
     [[nodiscard]] float trackingValueFor(const core::ToneAutomationLaneViewState& lane) const;
@@ -356,6 +397,10 @@ private:
 
     // Transient value readout shown next to the cursor while a point is hovered or dragged.
     std::optional<ValueReadout> m_value_readout{};
+
+    // The selected point (Delete target), or empty when none is selected. Pruned by applyState when
+    // a state push arrives whose new model no longer contains it.
+    std::optional<SelectedPoint> m_selected_point{};
 
     // Automation port polled read-only by unauthored tracking lanes; owned by the composition.
     const common::audio::IToneAutomation& m_tone_automation;

@@ -788,14 +788,13 @@ void EditorController::onToneRegionActivated()
 }
 
 void EditorController::onToneRegionResizeRequested(
-    std::string region_id, common::core::ToneGridPosition start, common::core::ToneGridPosition end)
+    std::string region_id, common::core::GridPosition start, common::core::GridPosition end)
 {
     m_impl->onToneRegionResizeRequested(std::move(region_id), start, end);
 }
 
 void EditorController::onToneRegionCreateRequested(
-    common::core::ToneGridPosition position, std::string new_region_id,
-    std::string tone_document_ref)
+    common::core::GridPosition position, std::string new_region_id, std::string tone_document_ref)
 {
     m_impl->onToneRegionCreateRequested(
         position, std::move(new_region_id), std::move(tone_document_ref));
@@ -812,13 +811,13 @@ void EditorController::onToneRenameRequested(std::string tone_document_ref, std:
 }
 
 void EditorController::onToneBoundaryMoveRequested(
-    std::string right_region_id, common::core::ToneGridPosition position)
+    std::string right_region_id, common::core::GridPosition position)
 {
     m_impl->onToneBoundaryMoveRequested(std::move(right_region_id), position);
 }
 
 void EditorController::onToneCreateNewRequested(
-    common::core::ToneGridPosition position, std::string name)
+    common::core::GridPosition position, std::string name)
 {
     m_impl->onToneCreateNewRequested(position, std::move(name));
 }
