@@ -169,11 +169,12 @@ void ToneTrackView::paint(juce::Graphics& g)
         g.drawRoundedRectangle(
             region_bounds, static_cast<float>(g_region_corner_radius), region.active ? 2.0f : 1.2f);
 
+        // A formal selection is always also active, so its white outline overpaints the accent
+        // border on the exact same edge (same bounds and stroke) rather than sitting inside it.
         if (region.selected)
         {
             g.setColour(g_tone_region_selection_outline);
-            g.drawRoundedRectangle(
-                region_bounds.reduced(2.0f), static_cast<float>(g_region_corner_radius), 2.0f);
+            g.drawRoundedRectangle(region_bounds, static_cast<float>(g_region_corner_radius), 2.0f);
         }
 
         // Pin the label to the visible left edge while the region still covers it (like the pinned
