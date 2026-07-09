@@ -90,7 +90,7 @@ TEST_CASE("Output gain change calls live rig and marks dirty", "[core][editor-co
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
     CHECK(final_state->signal_chain.output_gain_db == -12.0);
-    CHECK(final_state->undo_label == std::optional<std::string>{"Set Output Gain"});
+    CHECK(final_state->undo_label == std::optional<std::string>{"Set Output Gain to -12 dB"});
 }
 
 // Verifies that output gain undo and redo replay through the live-rig port.
@@ -123,7 +123,7 @@ TEST_CASE("Output gain undo redo restores live rig", "[core][editor-controller]"
     const auto* const undone_state = stateOrNull(view.last_state);
     REQUIRE(undone_state != nullptr);
     CHECK(undone_state->signal_chain.output_gain_db == 0.0);
-    CHECK(undone_state->redo_label == std::optional<std::string>{"Set Output Gain"});
+    CHECK(undone_state->redo_label == std::optional<std::string>{"Set Output Gain to -9 dB"});
 
     controller.onRedoRequested();
 
@@ -169,7 +169,7 @@ TEST_CASE("Output gain preview commits one undo entry", "[core][editor-controlle
 
     const auto* const committed_state = stateOrNull(view.last_state);
     REQUIRE(committed_state != nullptr);
-    CHECK(committed_state->undo_label == std::optional<std::string>{"Set Output Gain"});
+    CHECK(committed_state->undo_label == std::optional<std::string>{"Set Output Gain to -12 dB"});
     CHECK(live_rig.set_output_gain_call_count == 2);
 
     controller.onUndoRequested();

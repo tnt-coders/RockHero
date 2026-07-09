@@ -191,6 +191,9 @@ struct [[nodiscard]] PluginStateEdit final : IEdit
     /*! \brief Name of the tone owning the plugin, for the undo label. */
     std::string tone_name;
 
+    /*! \brief Chain position captured for the undo label; empty when the instance did not resolve. */
+    std::optional<std::size_t> chain_index;
+
     /*! \brief Full plugin state before the edit settled. */
     common::audio::PluginInstanceState before_state;
 

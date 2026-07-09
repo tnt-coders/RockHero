@@ -3,6 +3,7 @@
 #include "signal_chain/signal_chain_workflow.h"
 
 #include <algorithm>
+#include <format>
 #include <rock_hero/common/audio/live_rig/i_live_rig.h>
 #include <rock_hero/common/audio/plugin/i_plugin_host.h>
 #include <rock_hero/editor/core/signal_chain/plugin_view_state.h>
@@ -489,8 +490,13 @@ std::expected<void, EditorUndoFailureCode> PluginStateEdit::redo(EditorEditConte
 
 std::string PluginStateEdit::label() const
 {
-    return withTone(
+    std::string text = withTone(
         "Edit " + (label_hint.empty() ? std::string{"Plugin State"} : label_hint), "on", tone_name);
+    if (chain_index.has_value())
+    {
+        text += slotSuffix(*chain_index);
+    }
+    return text;
 }
 
 std::expected<void, EditorUndoFailureCode> OutputGainEdit::undo(EditorEditContext& context) const
@@ -505,7 +511,8 @@ std::expected<void, EditorUndoFailureCode> OutputGainEdit::redo(EditorEditContex
 
 std::string OutputGainEdit::label() const
 {
-    return "Set Output Gain";
+    // Report the value the gain became, so history reads "Set Output Gain to -6 dB".
+    return "Set Output Gain to " + std::format("{}", after_gain.db) + " dB";
 }
 
 } // namespace rock_hero::editor::core

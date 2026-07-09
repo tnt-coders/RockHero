@@ -2008,7 +2008,7 @@ TEST_CASE("EditorController undoes plugin state edits", "[core][editor-controlle
 
     const EditorViewState* edited_state = stateOrNull(view.last_state);
     REQUIRE(edited_state != nullptr);
-    CHECK(edited_state->undo_label == std::optional<std::string>{"Edit Gateway"});
+    CHECK(edited_state->undo_label == std::optional<std::string>{"Edit Gateway (slot 1)"});
 
     controller.onUndoRequested();
 
@@ -2017,7 +2017,7 @@ TEST_CASE("EditorController undoes plugin state edits", "[core][editor-controlle
     CHECK(plugin_host.last_set_state == std::optional{before_state});
     const EditorViewState* undone_state = stateOrNull(view.last_state);
     REQUIRE(undone_state != nullptr);
-    CHECK(undone_state->redo_label == std::optional<std::string>{"Edit Gateway"});
+    CHECK(undone_state->redo_label == std::optional<std::string>{"Edit Gateway (slot 1)"});
 
     controller.onRedoRequested();
 
@@ -2069,7 +2069,7 @@ TEST_CASE("EditorController flushes plugin edits before undo", "[core][editor-co
     CHECK(plugin_host.last_set_state == std::optional{before_state});
     const EditorViewState* undone_state = stateOrNull(view.last_state);
     REQUIRE(undone_state != nullptr);
-    CHECK(undone_state->redo_label == std::optional<std::string>{"Edit Gateway"});
+    CHECK(undone_state->redo_label == std::optional<std::string>{"Edit Gateway (slot 1)"});
 }
 
 // Plugin editor windows dispatch Undo through the same action gate as the main editor view.
@@ -2149,7 +2149,7 @@ TEST_CASE("EditorController keeps placement undo after output gain", "[core][edi
 
     const EditorViewState* gain_state = stateOrNull(view.last_state);
     REQUIRE(gain_state != nullptr);
-    CHECK(gain_state->undo_label == std::optional<std::string>{"Set Output Gain"});
+    CHECK(gain_state->undo_label == std::optional<std::string>{"Set Output Gain to -6 dB"});
     CHECK_FALSE(gain_state->redo_label.has_value());
 
     controller.onUndoRequested();
