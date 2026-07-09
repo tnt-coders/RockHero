@@ -89,7 +89,7 @@ open lane whose parameter already has a model entry is subsumed by it.
 \param tone_automation Audio automation port used for parameter names and metadata.
 \return The automation lanes for the selected tone.
 */
-[[nodiscard]] ToneAutomationViewState toneAutomationViewStateFor(
+[[nodiscard]] ToneAutomationViewState makeToneAutomationViewState(
     const common::core::Arrangement& arrangement, const common::core::TempoMap& tempo_map,
     const std::string& selected_tone_document_ref,
     const std::unordered_map<std::string, ToneAutomationBinding>& bindings,

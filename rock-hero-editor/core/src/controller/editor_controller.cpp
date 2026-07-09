@@ -2004,9 +2004,9 @@ EditorViewState EditorController::Impl::deriveViewState() const
             .audio_duration = arrangement->audio_duration,
             .choices = arrangementChoicesFor(session().arrangements(), arrangement->id),
         };
-        state.tone_track = toneTrackViewStateFor(
+        state.tone_track = makeToneTrackViewState(
             *arrangement, state.tempo_map, activeToneRegionId(), m_selected_tone_region_id);
-        state.tone_automation = toneAutomationViewStateFor(
+        state.tone_automation = makeToneAutomationViewState(
             *arrangement,
             state.tempo_map,
             activeToneDocumentRef(),
@@ -2020,7 +2020,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
         if (m_tab_arrangement_id != arrangement->id)
         {
             m_tab_view_state = std::make_shared<const TabViewState>(
-                tabViewStateFor(*arrangement, state.tempo_map));
+                makeTabViewState(*arrangement, state.tempo_map));
             m_tab_arrangement_id = arrangement->id;
         }
         state.tab = m_tab_view_state;

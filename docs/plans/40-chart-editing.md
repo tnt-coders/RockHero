@@ -86,7 +86,7 @@ headless MVC, views send intents), "Separate State From Side Effects", "Preferre
   `rock-hero-editor/core/src/controller/editor_controller_impl.h:476-479` is keyed by arrangement
   id explicitly "because charts are immutable while a project is open".
 - **Projection and rendering**: `rock-hero-editor/core/src/tab/tab_projection.cpp`
-  (`tabViewStateFor`) resolves the chart to seconds through the tempo map into
+  (`makeTabViewState`) resolves the chart to seconds through the tempo map into
   `rock-hero-editor/core/include/rock_hero/editor/core/tab/tab_view_state.h`; the JUCE renderer
   `rock-hero-editor/ui/src/tab/tab_view.{h,cpp}` draws notes, sustains, techniques, bends,
   slides (with linked-appearance heads at waypoints), chord pills, and shape spans. `TabView`

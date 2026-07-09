@@ -23,7 +23,7 @@ an empty state (string_count zero), which renders nothing.
 \param tempo_map Tempo map used to resolve musical positions to seconds.
 \return Render state for the tablature lane.
 */
-[[nodiscard]] TabViewState tabViewStateFor(
+[[nodiscard]] TabViewState makeTabViewState(
     const common::core::Arrangement& arrangement, const common::core::TempoMap& tempo_map);
 
 } // namespace rock_hero::editor::core
