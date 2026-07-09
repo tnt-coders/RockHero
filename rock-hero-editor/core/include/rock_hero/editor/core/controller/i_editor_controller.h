@@ -148,10 +148,22 @@ public:
     virtual void onArrangementSelected(std::string arrangement_id) = 0;
 
     /*!
-    \brief Handles selection of a tone region on the tone track.
+    \brief Handles a deliberate selection of a tone region on the tone track (a click).
+
+    The selection is the Delete target and is drawn with a distinct outline; it is cleared by any
+    cursor move. It also becomes the active tone as a preview.
+
     \param region_id Stable region id, or empty to clear the selection.
     */
     virtual void onToneRegionSelected(std::string region_id) = 0;
+
+    /*!
+    \brief Handles the tone row's cursor/playback follow crossing into a new region.
+
+    Makes the region under the cursor the active tone (audible and edited) without formally
+    selecting it, and clears any existing selection so a stray Delete cannot remove a tone.
+    */
+    virtual void onToneRegionActivated() = 0;
 
     /*!
     \brief Handles a snapped tone-region resize committed by an edge drag.

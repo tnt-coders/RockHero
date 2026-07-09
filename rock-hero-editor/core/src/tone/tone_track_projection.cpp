@@ -7,7 +7,7 @@ namespace rock_hero::editor::core
 
 ToneTrackViewState toneTrackViewStateFor(
     const common::core::Arrangement& arrangement, const common::core::TempoMap& tempo_map,
-    const std::string& selected_region_id)
+    const std::string& active_region_id, const std::string& selected_region_id)
 {
     ToneTrackViewState state;
 
@@ -36,6 +36,7 @@ ToneTrackViewState toneTrackViewStateFor(
                         .end = common::core::TimePosition{tempo_map.secondsAtBeat(
                             region.end.measure, region.end.beat)},
                     },
+                .active = !active_region_id.empty() && region.id == active_region_id,
                 .selected = !selected_region_id.empty() && region.id == selected_region_id,
             });
     }

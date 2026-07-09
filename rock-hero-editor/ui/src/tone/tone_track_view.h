@@ -41,10 +41,18 @@ public:
         virtual ~Listener() = default;
 
         /*!
-        \brief Called when the user clicks an authored tone region.
+        \brief Called when the user deliberately clicks an authored tone region.
         \param region_id Stable region id selected by the user.
         */
         virtual void onToneRegionSelected(std::string region_id) = 0;
+
+        /*!
+        \brief Called when the playhead crosses into a new region at render cadence.
+
+        Makes that region's tone active (following the cursor) without a formal selection, so
+        playback never leaves a deletable selection behind.
+        */
+        virtual void onToneRegionActivated() = 0;
 
         /*!
         \brief Called when an edge drag commits new snapped endpoints for a region.

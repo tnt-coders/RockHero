@@ -23,11 +23,14 @@ runtime-only presentation and is never written back to the song document.
 
 \param arrangement Arrangement whose tone schedule should be displayed.
 \param tempo_map Tempo map used to resolve musical endpoints to seconds.
-\param selected_region_id Stable id of the selected region; empty selects nothing.
+\param active_region_id Stable id of the active (audible/edited) region; drawn with the highlight
+fill.
+\param selected_region_id Stable id of the formally selected region; drawn with a white outline.
+Empty selects nothing.
 \return Render state for the tone track row.
 */
 [[nodiscard]] ToneTrackViewState toneTrackViewStateFor(
     const common::core::Arrangement& arrangement, const common::core::TempoMap& tempo_map,
-    const std::string& selected_region_id);
+    const std::string& active_region_id, const std::string& selected_region_id);
 
 } // namespace rock_hero::editor::core

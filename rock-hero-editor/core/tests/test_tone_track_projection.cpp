@@ -61,7 +61,7 @@ TEST_CASE("Tone track projection resolves authored regions to seconds", "[core][
     };
 
     const ToneTrackViewState state =
-        toneTrackViewStateFor(arrangement, makeTempoMap(), std::string{});
+        toneTrackViewStateFor(arrangement, makeTempoMap(), std::string{}, std::string{});
 
     REQUIRE(state.regions.size() == 1);
     CHECK(state.regions.front().id == arrangement.tone_track.regions.front().id);
@@ -73,6 +73,7 @@ TEST_CASE("Tone track projection resolves authored regions to seconds", "[core][
         common::core::ToneGridPosition{.measure = 1, .beat = 1});
     CHECK(
         state.regions.front().grid_end == common::core::ToneGridPosition{.measure = 2, .beat = 1});
+    CHECK_FALSE(state.regions.front().active);
     CHECK_FALSE(state.regions.front().selected);
 }
 
@@ -106,7 +107,7 @@ TEST_CASE(
     };
 
     const ToneTrackViewState state =
-        toneTrackViewStateFor(arrangement, makeLeadInTempoMap(), std::string{});
+        toneTrackViewStateFor(arrangement, makeLeadInTempoMap(), std::string{}, std::string{});
 
     REQUIRE(state.regions.size() == 2);
     // The baseline's grid start is measure 1 beat 1 (1.0 s), but it owns the lead-in, so its
@@ -121,7 +122,8 @@ TEST_CASE(
     CHECK(state.regions.back().time_range.end.seconds == Catch::Approx(5.0));
 }
 
-TEST_CASE("Tone track projection marks the selected region", "[core][tone]")
+TEST_CASE(
+    "Tone track projection marks the active and selected regions independently", "[core][tone]")
 {
     common::core::Arrangement arrangement = makeArrangement();
     arrangement.tone_track.regions = {
@@ -132,12 +134,27 @@ TEST_CASE("Tone track projection marks the selected region", "[core][tone]")
             .tone_document_ref = "tones/9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d/tone.json",
         },
     };
+    const std::string region_id = "5a1f0c3d-7e2b-4a9c-8d1e-2f3a4b5c6d7e";
 
-    const ToneTrackViewState state =
-        toneTrackViewStateFor(arrangement, makeTempoMap(), "5a1f0c3d-7e2b-4a9c-8d1e-2f3a4b5c6d7e");
+    SECTION("active without a formal selection sets only the active flag")
+    {
+        const ToneTrackViewState state =
+            toneTrackViewStateFor(arrangement, makeTempoMap(), region_id, std::string{});
 
-    REQUIRE(state.regions.size() == 1);
-    CHECK(state.regions.front().selected);
+        REQUIRE(state.regions.size() == 1);
+        CHECK(state.regions.front().active);
+        CHECK_FALSE(state.regions.front().selected);
+    }
+
+    SECTION("a formal selection sets both flags when the region is also active")
+    {
+        const ToneTrackViewState state =
+            toneTrackViewStateFor(arrangement, makeTempoMap(), region_id, region_id);
+
+        REQUIRE(state.regions.size() == 1);
+        CHECK(state.regions.front().active);
+        CHECK(state.regions.front().selected);
+    }
 }
 
 TEST_CASE("Tone track projection renders nothing without explicit regions", "[core][tone]")
@@ -153,7 +170,7 @@ TEST_CASE("Tone track projection renders nothing without explicit regions", "[co
     };
 
     const ToneTrackViewState state =
-        toneTrackViewStateFor(arrangement, makeTempoMap(), std::string{});
+        toneTrackViewStateFor(arrangement, makeTempoMap(), std::string{}, std::string{});
 
     CHECK(state.regions.empty());
 }
@@ -161,7 +178,7 @@ TEST_CASE("Tone track projection renders nothing without explicit regions", "[co
 TEST_CASE("Tone track projection is empty without tones", "[core][tone]")
 {
     const ToneTrackViewState state =
-        toneTrackViewStateFor(makeArrangement(), makeTempoMap(), std::string{});
+        toneTrackViewStateFor(makeArrangement(), makeTempoMap(), std::string{}, std::string{});
 
     CHECK(state.regions.empty());
 }

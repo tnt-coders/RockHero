@@ -19,8 +19,12 @@ constexpr int g_region_label_inset{8};
 constexpr int g_edge_grab_width{6};
 const juce::Colour g_tone_region_fill{juce::Colour{0xff2b4a66}};
 const juce::Colour g_tone_region_border{editorTheme().accent.withAlpha(0.65f)};
-const juce::Colour g_tone_region_selected_fill{juce::Colour{0xff35597a}};
-const juce::Colour g_tone_region_selected_border{editorTheme().accent};
+// The active tone (the one the rig plays, following the cursor) uses the brighter accent highlight.
+const juce::Colour g_tone_region_active_fill{juce::Colour{0xff35597a}};
+const juce::Colour g_tone_region_active_border{editorTheme().accent};
+// The formally selected region (a deliberate click, the Delete target) adds a distinct white
+// outline on top of the active highlight so it is unmistakable.
+const juce::Colour g_tone_region_selection_outline{juce::Colours::white};
 const juce::Colour g_tone_region_label{juce::Colours::white.withAlpha(0.92f)};
 
 // Region names may be empty in the data model; the row still labels every region.
@@ -157,13 +161,20 @@ void ToneTrackView::paint(juce::Graphics& g)
             static_cast<float>(std::max(1, bounds.getHeight() - (g_region_vertical_inset * 2))),
         };
 
-        const bool highlighted = region.selected;
-        g.setColour(highlighted ? g_tone_region_selected_fill : g_tone_region_fill);
+        // The active tone gets the brighter highlight; a formal selection adds a white outline.
+        g.setColour(region.active ? g_tone_region_active_fill : g_tone_region_fill);
         g.fillRoundedRectangle(region_bounds, static_cast<float>(g_region_corner_radius));
 
-        g.setColour(highlighted ? g_tone_region_selected_border : g_tone_region_border);
+        g.setColour(region.active ? g_tone_region_active_border : g_tone_region_border);
         g.drawRoundedRectangle(
-            region_bounds, static_cast<float>(g_region_corner_radius), highlighted ? 2.0f : 1.2f);
+            region_bounds, static_cast<float>(g_region_corner_radius), region.active ? 2.0f : 1.2f);
+
+        if (region.selected)
+        {
+            g.setColour(g_tone_region_selection_outline);
+            g.drawRoundedRectangle(
+                region_bounds.reduced(2.0f), static_cast<float>(g_region_corner_radius), 2.0f);
+        }
 
         // Pin the label to the visible left edge while the region still covers it (like the pinned
         // tempo/time-signature ruler), clipped to the region so it slides off only as the region
@@ -496,9 +507,11 @@ void ToneTrackView::advanceActiveRegion()
     }
 
     m_active_region_index = active;
-    if (active.has_value() && !m_state.regions[*active].selected)
+    // Route boundary crossings through the "activate" intent so the tone follows the cursor without
+    // a formal selection. Skip when the crossed region is already active to avoid redundant work.
+    if (active.has_value() && !m_state.regions[*active].active)
     {
-        m_listener.onToneRegionSelected(m_state.regions[*active].id);
+        m_listener.onToneRegionActivated();
     }
 }
 
