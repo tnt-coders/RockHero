@@ -4,9 +4,10 @@
 
 One component paints every lane (dynamic count, per-lane vertical resize, dirty-rect locality) and
 the trailing empty lane whose pinned "+" chip opens the parameter picker. Gestures preview locally
-and commit one full-point-list intent on release; a state push mid-gesture drops the gesture. The
-lanes never resize themselves: heights flow up through a callback and the track viewport lays the
-component out, so the cursor overlay and content height stay authoritative.
+and commit one full-point-list intent on release; a state push mid-gesture is deferred until the
+gesture ends so it cannot reset the edit in progress. The lanes never resize themselves: heights
+flow up through a callback and the track viewport lays the component out, so the cursor overlay and
+content height stay authoritative.
 */
 
 #pragma once
@@ -128,7 +129,11 @@ public:
     void setGridNoteValue(common::core::Fraction note_value);
 
     /*!
-    \brief Replaces the rendered automation state, dropping any in-flight gesture.
+    \brief Replaces the rendered automation state, or defers it while a gesture is in flight.
+
+    A state push that lands between mouseDown and mouseUp is stashed and applied when the gesture
+    ends, so the engine's frequent state pushes cannot reset an edit in progress.
+
     \param state Automation lanes for the selected tone.
     */
     void setState(const core::ToneAutomationViewState& state);
@@ -250,6 +255,11 @@ private:
     };
     using Hit = std::variant<PointHit, LaneAreaHit, ResizeBandHit, PlusChipHit>;
 
+    // Applies a pushed state immediately: replaces the model and clears any transient gesture
+    // overlay. Called directly when no gesture is active, and drained from mouseUp for a snapshot
+    // that arrived (and was deferred) during a gesture. Never called while m_drag is set.
+    void applyState(const core::ToneAutomationViewState& state);
+
     // Resolves the interactive zone at a local point, or nullopt for pass-through space.
     [[nodiscard]] std::optional<Hit> hitAt(juce::Point<int> local_point) const;
 
@@ -336,8 +346,13 @@ private:
     // Per-lane heights keyed by (instance id, param id) so they survive reordering state pushes.
     std::map<std::pair<std::string, std::string>, int> m_lane_heights{};
 
-    // Active gesture, if any; state pushes drop it instead of resizing against stale indices.
+    // Active gesture, if any. While it is set, incoming state pushes are deferred (not applied) so
+    // the gesture keeps editing against the model it started with, free of stale-index hazards.
     std::optional<DragState> m_drag{};
+
+    // Latest state pushed while a gesture was in flight, applied when the gesture ends. A committing
+    // gesture instead discards it, because the commit publishes its own fresher authoritative state.
+    std::optional<core::ToneAutomationViewState> m_pending_state{};
 
     // Transient value readout shown next to the cursor while a point is hovered or dragged.
     std::optional<ValueReadout> m_value_readout{};
