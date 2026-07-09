@@ -621,8 +621,8 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
 
     // Defer plugin-undo capture for the whole save: the teardown and rebuild below make the
     // plugins re-announce their parameter state, which must not be recorded as undo entries. The
-    // guard clears the deferral and reinstalls the plugin edit observers on every exit path,
-    // absorbing the post-rebuild re-announce.
+    // guard clears the deferral and reinstalls the plugin edit observers on every exit path; the
+    // gesture-less post-rebuild re-announce is then folded by the observers' intent gate.
     const Impl::ScopedPluginUndoCaptureDeferral capture_deferral{*m_impl};
 
     m_impl->stopTransportAndReleaseContext();

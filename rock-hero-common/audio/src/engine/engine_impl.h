@@ -360,8 +360,8 @@ private:
 
     // Ends an active capture deferral and reinstalls the plugin edit observers. Call it once a rig
     // operation has finished rebuilding the monitoring graph. The rebuild's asynchronous
-    // post-rebuild re-announce is discarded by the observers' intent gate (no gesture, editor
-    // closed), so no timing window is needed here.
+    // post-rebuild re-announce carries no parameter gesture, so the observers' intent gate folds it
+    // and no timing window is needed here.
     void endPluginUndoCaptureDeferral();
 
     // RAII guard for synchronous rig capture operations that rebuild the monitoring graph.

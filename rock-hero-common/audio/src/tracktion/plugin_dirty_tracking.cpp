@@ -95,14 +95,13 @@ void PluginParameterDirtyTracker::parameterChanged(
 PluginDirtyStateTracker::PluginDirtyStateTracker(
     tracktion::ExternalPlugin& plugin, CaptureState capture_state, EmitEdit emit_edit,
     PendingChanged pending_changed, ShouldDeferCapture should_defer_capture,
-    IsEditorWindowOpen is_editor_window_open, std::optional<PluginInstanceState> initial_baseline)
+    std::optional<PluginInstanceState> initial_baseline)
     : m_plugin(plugin)
     , m_instance_id(plugin.itemID.toString().toStdString())
     , m_capture_state(std::move(capture_state))
     , m_emit_edit(std::move(emit_edit))
     , m_pending_changed(std::move(pending_changed))
     , m_should_defer_capture(std::move(should_defer_capture))
-    , m_is_editor_window_open(std::move(is_editor_window_open))
 {
     if (initial_baseline.has_value())
     {
@@ -113,9 +112,6 @@ PluginDirtyStateTracker::PluginDirtyStateTracker(
         refreshBaseline();
     }
 
-    // A freshly attached tracker is about to hear the plugin's own instantiation/restore re-announce
-    // (which is not a user edit). Expect it, so window-open alone does not misread it as intent.
-    m_expect_self_report = true;
     m_plugin.addSelectableListener(this);
 }
 
@@ -151,15 +147,23 @@ void PluginDirtyStateTracker::markDirty()
 
 void PluginDirtyStateTracker::markUserIntent()
 {
-    // A gesture is genuine user interaction, so it overrides an expected self-report: the plugin is
-    // now being edited, not merely settling after our operation.
-    RH_LOG_INFO(
-        "audio.engine",
-        "Plugin user intent (gesture) instance_id={:?} label_hint={:?}",
-        m_instance_id,
-        m_plugin.getName().toStdString());
+    // Uniform with every other tracker input: while a host-owned restore is in flight, ignore the
+    // signal entirely so no intent flag can leak past the rebuild that follows the deferral.
+    if (isCaptureDeferred())
+    {
+        return;
+    }
+
+    if (!m_user_intent)
+    {
+        RH_LOG_INFO(
+            "audio.engine",
+            "Plugin user intent (gesture) instance_id={:?} label_hint={:?}",
+            m_instance_id,
+            m_plugin.getName().toStdString());
+    }
+
     m_user_intent = true;
-    m_expect_self_report = false;
     beginPendingEdit();
 }
 
@@ -167,10 +171,9 @@ void PluginDirtyStateTracker::resetBaseline(PluginInstanceState baseline)
 {
     stopTimer();
     m_before.reset();
+    // The restore will make the plugin re-announce its own state; the re-announce carries no
+    // gesture, so it settles without intent and is folded into this baseline.
     m_user_intent = false;
-    // The restore will make the plugin re-announce its own state; expect it so the re-announce is
-    // folded even when the editor window is open (as it is when the user undoes mid-edit).
-    m_expect_self_report = true;
     m_baseline = std::move(baseline);
     notifyPendingChanged();
 }
@@ -235,18 +238,6 @@ void PluginDirtyStateTracker::beginPendingEdit()
         return;
     }
 
-    // In this app a plugin's parameters can only be changed through its own editor window (there is
-    // no host-side parameter UI, and automation is a separate undo domain), so an open editor is the
-    // corroborating intent signal for changes that arrive without a gesture, such as an in-plugin
-    // preset load. Sample it on every dirty signal, not only at settle, because the window may close
-    // before the debounce fires. It does not count while we expect the plugin's own re-announce,
-    // because then the open window is incidental (e.g. left open while the user undoes).
-    const bool window_open = m_is_editor_window_open && m_is_editor_window_open();
-    if (window_open && !m_expect_self_report)
-    {
-        m_user_intent = true;
-    }
-
     if (!m_before.has_value())
     {
         if (!m_baseline.has_value())
@@ -263,12 +254,9 @@ void PluginDirtyStateTracker::beginPendingEdit()
         notifyPendingChanged();
         RH_LOG_INFO(
             "audio.engine",
-            "Plugin state edit started instance_id={:?} label_hint={:?} window_open={} "
-            "expect_self_report={}",
+            "Plugin state edit started instance_id={:?} label_hint={:?}",
             m_instance_id,
-            m_plugin.getName().toStdString(),
-            window_open,
-            m_expect_self_report);
+            m_plugin.getName().toStdString());
     }
 
     startTimer(static_cast<int>(g_plugin_dirty_transaction_quiet_debounce.count()));
@@ -296,9 +284,6 @@ void PluginDirtyStateTracker::settlePendingEdit()
     PluginInstanceState before = std::move(*m_before);
     m_before.reset();
     const bool had_user_intent = std::exchange(m_user_intent, false);
-    // The self-report we were expecting has now been absorbed; later transactions are ordinary and
-    // may take intent from the open editor window again.
-    m_expect_self_report = false;
     if (!after.has_value())
     {
         RH_LOG_WARNING(
@@ -315,12 +300,13 @@ void PluginDirtyStateTracker::settlePendingEdit()
 
     if (before != *after && !had_user_intent)
     {
-        // The plugin changed its own state with no user intent behind it (an instantiation or
-        // undo/redo re-announce). Fold it into the baseline; recording it would put a phantom edit
-        // on the undo stack and, mid-redo, truncate the redo branch.
+        // The plugin changed state with no gesture behind it — an instantiation or undo/redo
+        // re-announce, or a gesture-less in-plugin action such as a preset load. Fold it into the
+        // baseline; recording a re-announce would put a phantom edit on the undo stack and,
+        // mid-redo, truncate the redo branch.
         RH_LOG_INFO(
             "audio.engine",
-            "Folded plugin self-report (no user intent) instance_id={:?} label_hint={:?}",
+            "Folded plugin state change (no user intent) instance_id={:?} label_hint={:?}",
             m_instance_id,
             m_plugin.getName().toStdString());
         notifyPendingChanged();
