@@ -37,6 +37,25 @@ binds Mythos-class models at full strength; other Claude models adjust it per
   stale-build errors require it.
 - Keep progress updates brief for routine edits, reporting only meaningful findings or blockers.
 
+## Design Quality Bar (No Shortcuts)
+
+This bar binds every model, including Mythos, and overrides any efficiency rule it conflicts with.
+
+Within the scope of what you are building, always choose the cleanest correct design for the shipped
+code — never a lesser design chosen to save yourself work. "It was faster to write," "to avoid a new
+file," or "to dodge a CMake / build-list edit" are never acceptable reasons to cut a corner. If the
+clean design needs a new source file, a build-list edit, an interface change, or a small refactor of
+the code you are already touching, do that. A clean design that needs a source-list change *is* a
+determinate reason to edit CMake; the "don't reconfigure CMake" rule forbids reflexive reconfigures,
+not the build wiring a correct design requires.
+
+This governs the delivered artifact, not agent process: the context-economy rules still bound how
+much you read and verify, and this is not license to widen scope or bundle unrelated cleanups (keep
+the minimal *scope*, but the cleanest *design* within it). Be economical in process; never economical
+in the design of what you ship. When the cleanest design is materially more work or risk, do it
+anyway for small deltas; for large ones, surface the tradeoff to the user rather than silently taking
+the lesser option.
+
 ## Model Calibration
 
 The [Coding-Agent Efficiency Baseline](#coding-agent-efficiency-baseline) above is written for
