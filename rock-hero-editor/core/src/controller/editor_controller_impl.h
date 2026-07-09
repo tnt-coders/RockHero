@@ -138,8 +138,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onTabMinimumDisplayedStringsChangeRequested(int minimum_strings);
     void onArrangementSelected(std::string arrangement_id);
     [[nodiscard]] std::string toneRegionIdAt(common::core::TimePosition position) const;
-    [[nodiscard]] std::string selectedToneDocumentRef() const;
-    [[nodiscard]] std::string selectedToneName() const;
+    [[nodiscard]] std::string activeToneRegionId() const;
+    [[nodiscard]] std::string activeToneDocumentRef() const;
+    [[nodiscard]] std::string activeToneName() const;
     void mergeToneChainIdentities(
         const std::vector<common::audio::LoadedToneChainIdentities>& tone_chains);
     void rebuildToneAutomationCurves();
@@ -148,8 +149,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const std::string& tone_document_ref, const std::string& instance_id,
         const std::string& param_id) const;
     void applyToneSelection(std::string region_id);
+    void activateToneAtCursor();
     void syncAudibleTone();
     void onToneRegionSelected(std::string region_id);
+    void onToneRegionActivated();
     void onToneRegionResizeRequested(
         std::string region_id, common::core::ToneGridPosition start,
         common::core::ToneGridPosition end);

@@ -782,6 +782,11 @@ void EditorController::onToneRegionSelected(std::string region_id)
     m_impl->onToneRegionSelected(std::move(region_id));
 }
 
+void EditorController::onToneRegionActivated()
+{
+    m_impl->onToneRegionActivated();
+}
+
 void EditorController::onToneRegionResizeRequested(
     std::string region_id, common::core::ToneGridPosition start, common::core::ToneGridPosition end)
 {
@@ -1737,9 +1742,9 @@ void EditorController::Impl::performActionImpl(EditorAction::PlayPause /*action*
     }
     else
     {
-        // Starting playback snaps the tone selection to the region under the cursor; the
-        // tone row then keeps it following boundary crossings at render cadence.
-        applyToneSelection(toneRegionIdAt(m_transport.position()));
+        // Starting playback makes the region under the cursor the active tone (clearing any formal
+        // selection); the tone row then keeps it following boundary crossings at render cadence.
+        activateToneAtCursor();
         m_transport.play();
     }
 }
@@ -1752,7 +1757,7 @@ void EditorController::Impl::performActionImpl(EditorAction::Stop /*action*/)
         return;
     }
     m_transport.stop();
-    applyToneSelection(toneRegionIdAt(common::core::TimePosition{}));
+    activateToneAtCursor();
 
     if (!transport_state.playing)
     {
@@ -1766,9 +1771,9 @@ void EditorController::Impl::performActionImpl(EditorAction::SeekTimeline action
 {
     const common::core::TimePosition position = session().timeline().clamp(action.position);
     m_transport.seek(position);
-    // Selection follows the cursor: the region under the new position becomes the tone
-    // context.
-    applyToneSelection(toneRegionIdAt(position));
+    // The active tone follows the cursor: the region under the new position becomes the tone
+    // context, and any formal selection is cleared so a stray Delete cannot remove a tone.
+    activateToneAtCursor();
     updateView();
 }
 
@@ -1999,12 +2004,12 @@ EditorViewState EditorController::Impl::deriveViewState() const
             .audio_duration = arrangement->audio_duration,
             .choices = arrangementChoicesFor(session().arrangements(), arrangement->id),
         };
-        state.tone_track =
-            toneTrackViewStateFor(*arrangement, state.tempo_map, m_selected_tone_region_id);
+        state.tone_track = toneTrackViewStateFor(
+            *arrangement, state.tempo_map, activeToneRegionId(), m_selected_tone_region_id);
         state.tone_automation = toneAutomationViewStateFor(
             *arrangement,
             state.tempo_map,
-            selectedToneDocumentRef(),
+            activeToneDocumentRef(),
             m_tone_plugin_bindings,
             m_open_automation_lanes,
             m_tone_automation);

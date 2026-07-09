@@ -1544,6 +1544,12 @@ void EditorView::onToneRegionSelected(std::string region_id)
     m_controller.onToneRegionSelected(std::move(region_id));
 }
 
+// Routes a playhead-driven region crossing to the controller as an activation (no formal selection).
+void EditorView::onToneRegionActivated()
+{
+    m_controller.onToneRegionActivated();
+}
+
 // Routes a committed tone-region resize to the controller.
 void EditorView::onToneRegionResizeRequested(
     std::string region_id, common::core::ToneGridPosition start, common::core::ToneGridPosition end)

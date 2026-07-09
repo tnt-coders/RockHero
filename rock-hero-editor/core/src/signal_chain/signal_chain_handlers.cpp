@@ -234,7 +234,7 @@ void EditorController::Impl::onPluginStateEditCompleted(common::audio::PluginSta
         edit.label_hint);
     auto undo_edit = std::make_unique<PluginStateEdit>();
     undo_edit->instance_id = std::move(edit.instance_id);
-    undo_edit->tone_name = selectedToneName();
+    undo_edit->tone_name = activeToneName();
     undo_edit->chain_index = m_signal_chain.chainIndexForInstance(undo_edit->instance_id);
     undo_edit->before_state = std::move(edit.before);
     undo_edit->after_state = std::move(edit.after);
@@ -358,13 +358,13 @@ void EditorController::Impl::completeSelectedPluginInsert(
         inserted_instance_id,
         ToneAutomationIdentity{
             .plugin_id = inserted_plugin_id,
-            .tone_document_ref = selectedToneDocumentRef(),
+            .tone_document_ref = activeToneDocumentRef(),
         });
     m_tone_plugin_bindings.insert_or_assign(
         inserted_plugin_id,
         ToneAutomationBinding{
             .instance_id = inserted_instance_id,
-            .tone_document_ref = selectedToneDocumentRef(),
+            .tone_document_ref = activeToneDocumentRef(),
         });
     applySignalChainMutationSnapshot(insert_result->snapshot);
     auto inserted_state = m_plugin_host.capturePluginState(inserted_instance_id);
@@ -418,7 +418,7 @@ void EditorController::Impl::completeSelectedPluginInsert(
     auto undo_edit = std::make_unique<PluginInsertEdit>();
     undo_edit->instance_id = inserted_instance_id;
     undo_edit->plugin_name = pluginNameFor(m_signal_chain.plugins(), inserted_instance_id);
-    undo_edit->tone_name = selectedToneName();
+    undo_edit->tone_name = activeToneName();
     undo_edit->chain_index = state->chain_index;
     undo_edit->plugin_state = std::move(*inserted_state);
     undo_edit->before_placement = before_placement;
@@ -569,7 +569,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::RemovePlugin&
     auto undo_edit = std::make_unique<PluginRemoveEdit>();
     undo_edit->instance_id = action.instance_id;
     undo_edit->plugin_name = removed_plugin_name;
-    undo_edit->tone_name = selectedToneName();
+    undo_edit->tone_name = activeToneName();
     undo_edit->chain_index = *chain_index;
     undo_edit->plugin_state = std::move(*plugin_state);
     undo_edit->before_placement = before_placement;
@@ -612,7 +612,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::MovePlugin& a
     auto undo_edit = std::make_unique<PluginMoveEdit>();
     undo_edit->instance_id = action.instance_id;
     undo_edit->plugin_name = pluginNameFor(m_signal_chain.plugins(), action.instance_id);
-    undo_edit->tone_name = selectedToneName();
+    undo_edit->tone_name = activeToneName();
     undo_edit->before_index = *current_index;
     undo_edit->after_index = action.destination_index;
     undo_edit->before_placement = before_placement;
@@ -637,7 +637,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetSignalChai
     }
 
     auto undo_edit = std::make_unique<PluginPlacementEdit>();
-    undo_edit->tone_name = selectedToneName();
+    undo_edit->tone_name = activeToneName();
     undo_edit->before_placement = before_placement;
     undo_edit->after_placement = pluginBlockAssignmentsFor(m_signal_chain.plugins());
     pushUndoEntry(std::move(undo_edit));
@@ -662,7 +662,7 @@ void EditorController::Impl::performActionImpl(
     auto undo_edit = std::make_unique<PluginDisplayTypeEdit>();
     undo_edit->instance_id = action.instance_id;
     undo_edit->plugin_name = pluginNameFor(m_signal_chain.plugins(), action.instance_id);
-    undo_edit->tone_name = selectedToneName();
+    undo_edit->tone_name = activeToneName();
     undo_edit->before_type = before_type;
     undo_edit->after_type = action.display_type;
     pushUndoEntry(std::move(undo_edit));

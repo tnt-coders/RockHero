@@ -298,6 +298,9 @@ private:
     /*! \copydoc ToneTrackView::Listener::onToneRegionSelected */
     void onToneRegionSelected(std::string region_id) override;
 
+    /*! \copydoc ToneTrackView::Listener::onToneRegionActivated */
+    void onToneRegionActivated() override;
+
     /*! \brief Shows the tone-picker menu to insert a tone-change marker at the playhead. */
     void createToneMarkerAtPlayhead();
 
