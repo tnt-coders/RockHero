@@ -12,6 +12,7 @@
 #include <optional>
 #include <rock_hero/common/audio/plugin/i_plugin_host.h>
 #include <rock_hero/common/audio/shared/gain.h>
+#include <rock_hero/common/core/tone/tone_automation.h>
 #include <rock_hero/editor/core/signal_chain/plugin_block_assignment.h>
 #include <rock_hero/editor/core/signal_chain/plugin_display_type.h>
 #include <string>
@@ -98,6 +99,20 @@ struct [[nodiscard]] PluginRemoveEdit final : IEdit
 
     /*! \brief Visual state before removal. */
     PluginVisualEditState visual_state;
+
+    /*! \brief Durable automation id of the removed plugin; keys its automation entries. */
+    std::string plugin_id;
+
+    /*! \brief Tone whose chain owned the plugin, used to rebuild derived curves on undo. */
+    std::string tone_document_ref;
+
+    /*!
+    \brief Tone-parameter automation removed with the plugin, restored verbatim on undo.
+
+    Automation is keyed by durable plugin id, so deleting the plugin would otherwise strand these
+    entries as unresolvable lanes. They travel out with the plugin and back in on undo.
+    */
+    std::vector<common::core::ToneParameterAutomation> removed_automation;
 
     [[nodiscard]] std::expected<void, EditorUndoFailureCode> undo(
         EditorEditContext& context) const override;
