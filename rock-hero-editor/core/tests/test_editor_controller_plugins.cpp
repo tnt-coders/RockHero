@@ -671,7 +671,7 @@ TEST_CASE("EditorController rolls back insert when undo prep fails", "[core][edi
     CHECK_FALSE(failed_state->plugin_browser.visible);
     REQUIRE(failed_state->signal_chain.plugins.size() == 1);
     CHECK(failed_state->signal_chain.plugins[0].instance_id == "instance-a");
-    CHECK(failed_state->undo_label == std::optional<std::string>{"Insert Plugin"});
+    CHECK(failed_state->undo_label == std::optional<std::string>{"Insert Catalog Amp (slot 1)"});
     REQUIRE(view.shown_errors.size() == 1);
     CHECK(view.shown_errors.back().find("insert was rolled back") != std::string::npos);
 
@@ -875,7 +875,7 @@ TEST_CASE("EditorController undoes plugin inserts", "[core][editor-controller]")
     REQUIRE(inserted_state->signal_chain.plugins.size() == 3);
     CHECK(inserted_state->signal_chain.plugins[1].instance_id == "instance-c");
     CHECK(inserted_state->signal_chain.plugins[1].block_index == 2);
-    CHECK(inserted_state->undo_label == std::optional<std::string>{"Insert Plugin"});
+    CHECK(inserted_state->undo_label == std::optional<std::string>{"Insert Catalog Amp (slot 2)"});
 
     controller.onUndoRequested();
 
@@ -887,7 +887,7 @@ TEST_CASE("EditorController undoes plugin inserts", "[core][editor-controller]")
     CHECK(undone_state->signal_chain.plugins[0].block_index == 0);
     CHECK(undone_state->signal_chain.plugins[1].instance_id == "instance-b");
     CHECK(undone_state->signal_chain.plugins[1].block_index == 4);
-    CHECK(undone_state->redo_label == std::optional<std::string>{"Insert Plugin"});
+    CHECK(undone_state->redo_label == std::optional<std::string>{"Insert Catalog Amp (slot 2)"});
 
     controller.onRedoRequested();
 
@@ -1029,7 +1029,7 @@ TEST_CASE("EditorController aborts stale plugin recreate before close", "[core][
     const EditorViewState* restored_state = stateOrNull(view.last_state);
     REQUIRE(restored_state != nullptr);
     CHECK_FALSE(restored_state->unsaved_changes_prompt.has_value());
-    CHECK(restored_state->undo_label == std::optional<std::string>{"Remove Plugin"});
+    CHECK(restored_state->undo_label == std::optional<std::string>{"Remove Catalog Amp (slot 1)"});
 
     controller.onUndoRequested();
 
@@ -1711,7 +1711,7 @@ TEST_CASE("EditorController undoes signal-chain placement", "[core][editor-contr
     REQUIRE(edited_state->signal_chain.plugins.size() == 1);
     CHECK(edited_state->signal_chain.plugins[0].block_index == 3);
     CHECK(edited_state->undo_enabled);
-    CHECK(edited_state->undo_label == std::optional<std::string>{"Move Plugin Block"});
+    CHECK(edited_state->undo_label == std::optional<std::string>{"Rearrange Plugin Blocks"});
 
     controller.onUndoRequested();
 
@@ -1720,7 +1720,7 @@ TEST_CASE("EditorController undoes signal-chain placement", "[core][editor-contr
     REQUIRE(undone_state->signal_chain.plugins.size() == 1);
     CHECK(undone_state->signal_chain.plugins[0].block_index == 1);
     CHECK(undone_state->redo_enabled);
-    CHECK(undone_state->redo_label == std::optional<std::string>{"Move Plugin Block"});
+    CHECK(undone_state->redo_label == std::optional<std::string>{"Rearrange Plugin Blocks"});
 
     controller.onRedoRequested();
 
@@ -1906,7 +1906,7 @@ TEST_CASE("EditorController undoes display type override", "[core][editor-contro
         edited_state->signal_chain.plugins[0].display_type_override ==
         std::optional{PluginDisplayType::Cab});
     CHECK(edited_state->undo_enabled);
-    CHECK(edited_state->undo_label == std::optional<std::string>{"Set Plugin Display Type"});
+    CHECK(edited_state->undo_label == std::optional<std::string>{"Set Loaded Amp Display Type"});
 
     controller.onUndoRequested();
 
@@ -2143,7 +2143,7 @@ TEST_CASE("EditorController keeps placement undo after output gain", "[core][edi
 
     const EditorViewState* edited_state = stateOrNull(view.last_state);
     REQUIRE(edited_state != nullptr);
-    CHECK(edited_state->undo_label == std::optional<std::string>{"Move Plugin Block"});
+    CHECK(edited_state->undo_label == std::optional<std::string>{"Rearrange Plugin Blocks"});
 
     controller.onOutputGainChanged(-6.0);
 
@@ -2235,7 +2235,7 @@ TEST_CASE("EditorController undoes plugin removals", "[core][editor-controller]"
     REQUIRE(removed_state->signal_chain.plugins.size() == 1);
     CHECK(removed_state->signal_chain.plugins[0].instance_id == "instance-b");
     CHECK(removed_state->signal_chain.plugins[0].block_index == 4);
-    CHECK(removed_state->undo_label == std::optional<std::string>{"Remove Plugin"});
+    CHECK(removed_state->undo_label == std::optional<std::string>{"Remove Catalog Amp (slot 1)"});
 
     controller.onUndoRequested();
 
@@ -2251,7 +2251,7 @@ TEST_CASE("EditorController undoes plugin removals", "[core][editor-controller]"
         std::optional{PluginDisplayType::Cab});
     CHECK(undone_state->signal_chain.plugins[1].instance_id == "instance-b");
     CHECK(undone_state->signal_chain.plugins[1].block_index == 4);
-    CHECK(undone_state->redo_label == std::optional<std::string>{"Remove Plugin"});
+    CHECK(undone_state->redo_label == std::optional<std::string>{"Remove Catalog Amp (slot 1)"});
 
     controller.onRedoRequested();
 
@@ -2427,7 +2427,9 @@ TEST_CASE("EditorController undoes plugin moves", "[core][editor-controller]")
     CHECK(moved_state->signal_chain.plugins[2].instance_id == "instance-a");
     CHECK(moved_state->signal_chain.plugins[2].block_index == 5);
     CHECK(moved_state->undo_enabled);
-    CHECK(moved_state->undo_label == std::optional<std::string>{"Move Plugin"});
+    CHECK(
+        moved_state->undo_label ==
+        std::optional<std::string>{"Move instance-a-plugin (slot 1 to 3)"});
 
     controller.onUndoRequested();
 
@@ -2442,7 +2444,9 @@ TEST_CASE("EditorController undoes plugin moves", "[core][editor-controller]")
     CHECK(undone_state->signal_chain.plugins[2].instance_id == "instance-c");
     CHECK(undone_state->signal_chain.plugins[2].block_index == 4);
     CHECK(undone_state->redo_enabled);
-    CHECK(undone_state->redo_label == std::optional<std::string>{"Move Plugin"});
+    CHECK(
+        undone_state->redo_label ==
+        std::optional<std::string>{"Move instance-a-plugin (slot 1 to 3)"});
 
     controller.onRedoRequested();
 

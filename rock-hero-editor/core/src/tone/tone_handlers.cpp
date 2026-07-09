@@ -83,6 +83,18 @@ std::string EditorController::Impl::selectedToneDocumentRef() const
     return {};
 }
 
+// Resolves the selected tone's display name for undo labels, empty when no tone resolves.
+std::string EditorController::Impl::selectedToneName() const
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    const std::string tone_document_ref = selectedToneDocumentRef();
+    if (arrangement == nullptr || tone_document_ref.empty())
+    {
+        return {};
+    }
+    return common::core::toneNameFor(*arrangement, tone_document_ref);
+}
+
 // Stores the tone selection and switches the audible rig tone to match. Selection and audibility
 // are one concept: the selected tone is the one heard and the one the signal-chain panel edits.
 void EditorController::Impl::applyToneSelection(std::string region_id)

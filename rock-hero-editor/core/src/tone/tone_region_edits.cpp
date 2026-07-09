@@ -193,7 +193,9 @@ std::expected<void, EditorUndoFailureCode> ToneRenameEdit::redo(EditorEditContex
 
 std::string ToneRenameEdit::label() const
 {
-    return "Rename " + (after_name.empty() ? std::string{"Tone"} : after_name);
+    const std::string from = before_name.empty() ? std::string{"<unknown>"} : before_name;
+    const std::string to = after_name.empty() ? std::string{"<unknown>"} : after_name;
+    return "Rename Tone " + from + " to " + to;
 }
 
 // Writes the supplied name onto the catalog tone identified by tone_document_ref.

@@ -43,6 +43,12 @@ struct [[nodiscard]] PluginInsertEdit final : IEdit
     /*! \brief Inserted plugin instance ID. */
     std::string instance_id;
 
+    /*! \brief Plugin display name captured at construction, for the undo label. */
+    std::string plugin_name;
+
+    /*! \brief Name of the tone whose chain received the plugin, for the undo label. */
+    std::string tone_name;
+
     /*! \brief Chain index where the plugin was inserted. */
     std::size_t chain_index{};
 
@@ -71,6 +77,12 @@ struct [[nodiscard]] PluginRemoveEdit final : IEdit
 {
     /*! \brief Removed plugin instance ID. */
     std::string instance_id;
+
+    /*! \brief Plugin display name captured at construction, for the undo label. */
+    std::string plugin_name;
+
+    /*! \brief Name of the tone whose chain the plugin was removed from, for the undo label. */
+    std::string tone_name;
 
     /*! \brief Chain index occupied before removal. */
     std::size_t chain_index{};
@@ -101,6 +113,12 @@ struct [[nodiscard]] PluginMoveEdit final : IEdit
     /*! \brief Moved plugin instance ID. */
     std::string instance_id;
 
+    /*! \brief Plugin display name captured at construction, for the undo label. */
+    std::string plugin_name;
+
+    /*! \brief Name of the tone whose chain the plugin moved within, for the undo label. */
+    std::string tone_name;
+
     /*! \brief Chain index before the move. */
     std::size_t before_index{};
 
@@ -123,6 +141,9 @@ struct [[nodiscard]] PluginMoveEdit final : IEdit
 /*! \brief Edit that restores signal-chain block placement without touching audio. */
 struct [[nodiscard]] PluginPlacementEdit final : IEdit
 {
+    /*! \brief Name of the tone whose block layout changed, for the undo label. */
+    std::string tone_name;
+
     /*! \brief Placement before the edit. */
     std::vector<PluginBlockAssignment> before_placement;
 
@@ -142,6 +163,12 @@ struct [[nodiscard]] PluginDisplayTypeEdit final : IEdit
     /*! \brief Edited plugin instance ID. */
     std::string instance_id;
 
+    /*! \brief Plugin display name captured at construction, for the undo label. */
+    std::string plugin_name;
+
+    /*! \brief Name of the tone owning the plugin, for the undo label. */
+    std::string tone_name;
+
     /*! \brief Display type override before the edit. */
     std::optional<PluginDisplayType> before_type;
 
@@ -160,6 +187,9 @@ struct [[nodiscard]] PluginStateEdit final : IEdit
 {
     /*! \brief Edited plugin instance ID. */
     std::string instance_id;
+
+    /*! \brief Name of the tone owning the plugin, for the undo label. */
+    std::string tone_name;
 
     /*! \brief Full plugin state before the edit settled. */
     common::audio::PluginInstanceState before_state;

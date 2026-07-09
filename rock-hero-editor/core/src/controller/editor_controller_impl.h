@@ -139,6 +139,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onArrangementSelected(std::string arrangement_id);
     [[nodiscard]] std::string toneRegionIdAt(common::core::TimePosition position) const;
     [[nodiscard]] std::string selectedToneDocumentRef() const;
+    [[nodiscard]] std::string selectedToneName() const;
     void mergeToneChainIdentities(
         const std::vector<common::audio::LoadedToneChainIdentities>& tone_chains);
     void rebuildToneAutomationCurves();
