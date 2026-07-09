@@ -274,6 +274,24 @@ struct [[nodiscard]] EditorUndoBeginResult
 };
 
 /*!
+\brief Read-only snapshot of the whole undo stack, for diagnostics and the history inspector.
+
+Unlike undoLabel()/redoLabel(), which expose only the two entries adjacent to the cursor, this
+returns every entry so a UI can render the full stack and watch it change in real time.
+*/
+struct [[nodiscard]] EditorUndoHistorySnapshot
+{
+    /*! \brief Every entry label, oldest first. */
+    std::vector<std::string> labels;
+
+    /*! \brief Cursor: entries in [0, position) are undoable, the rest are redoable. */
+    std::size_t position{};
+
+    /*! \brief Reachable clean-marker position, set only when a clean marker is reachable. */
+    std::optional<std::size_t> clean_position{};
+};
+
+/*!
 \brief Owns the pure project-level undo/redo stack.
 
 The history never applies editor or audio side effects. Undo and redo are explicit two-phase
@@ -332,6 +350,10 @@ public:
     /*! \brief Returns the label of the entry that would be redone next.
     \return Entry label, or empty when nothing can be redone. */
     [[nodiscard]] std::optional<std::string> redoLabel() const;
+
+    /*! \brief Returns a read-only snapshot of the entire stack for diagnostics/visualization.
+    \return All entry labels (oldest first), the cursor position, and any reachable clean marker. */
+    [[nodiscard]] EditorUndoHistorySnapshot snapshot() const;
 
     /*!
     \brief Commits a new user edit and clears any redo branch.

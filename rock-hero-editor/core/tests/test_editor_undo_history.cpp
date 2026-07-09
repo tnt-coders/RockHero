@@ -109,6 +109,41 @@ TEST_CASE("EditorUndoHistory push enables undo", "[core][editor-undo-history]")
     CHECK_FALSE(history.redoLabel().has_value());
 }
 
+// The snapshot exposes the whole stack, its cursor, and any clean marker for the history inspector.
+TEST_CASE("EditorUndoHistory snapshot reflects the whole stack", "[core][editor-undo-history]")
+{
+    EditorUndoHistory history;
+    pushEntry(history, "A");
+    pushEntry(history, "B");
+    pushEntry(history, "C");
+
+    {
+        const EditorUndoHistorySnapshot snapshot = history.snapshot();
+        CHECK(snapshot.labels == std::vector<std::string>{"A", "B", "C"});
+        CHECK(snapshot.position == 3);
+        CHECK_FALSE(snapshot.clean_position.has_value());
+    }
+
+    // Undoing moves the cursor back but keeps the redoable entry visible in the snapshot.
+    commitUndo(history);
+    {
+        const EditorUndoHistorySnapshot snapshot = history.snapshot();
+        CHECK(snapshot.labels == std::vector<std::string>{"A", "B", "C"});
+        CHECK(snapshot.position == 2);
+    }
+
+    // Marking clean records the current cursor position as the saved revision.
+    markClean(history);
+    {
+        const EditorUndoHistorySnapshot snapshot = history.snapshot();
+        REQUIRE(snapshot.clean_position.has_value());
+        if (snapshot.clean_position.has_value())
+        {
+            CHECK(*snapshot.clean_position == 2);
+        }
+    }
+}
+
 // Null edit pushes are rejected without mutating history.
 TEST_CASE("EditorUndoHistory rejects null edits", "[core][editor-undo-history]")
 {

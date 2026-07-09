@@ -99,6 +99,22 @@ std::optional<std::string> EditorUndoHistory::redoLabel() const
     return m_entries[m_position]->label();
 }
 
+EditorUndoHistorySnapshot EditorUndoHistory::snapshot() const
+{
+    EditorUndoHistorySnapshot out;
+    out.labels.reserve(m_entries.size());
+    for (const std::unique_ptr<IEdit>& entry : m_entries)
+    {
+        out.labels.push_back(entry->label());
+    }
+    out.position = m_position;
+    if (m_clean_marker_state == CleanMarkerState::Reachable)
+    {
+        out.clean_position = m_clean_position;
+    }
+    return out;
+}
+
 // Appends a successfully-applied user edit and discards any no-longer-linear redo branch.
 EditorUndoTransitionResult EditorUndoHistory::push(std::unique_ptr<IEdit> edit)
 {
