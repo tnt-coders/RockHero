@@ -51,9 +51,15 @@ std::string EditorController::Impl::toneRegionIdAt(common::core::TimePosition po
     }
 
     const common::core::TempoMap& tempo_map = session().song().tempo_map;
-    for (const common::core::ToneRegion& region : arrangement->tone_track.regions)
+    const std::vector<common::core::ToneRegion>& regions = arrangement->tone_track.regions;
+    for (std::size_t index = 0; index < regions.size(); ++index)
     {
-        const double start = tempo_map.secondsAtBeat(region.start.measure, region.start.beat);
+        const common::core::ToneRegion& region = regions[index];
+        // The baseline (first) region owns the pre-measure-1 lead-in, so a cursor before the first
+        // tone change resolves to the default tone rather than to nothing; this matches how the tone
+        // track projects the baseline's span back to the timeline origin.
+        const double start =
+            index == 0 ? 0.0 : tempo_map.secondsAtBeat(region.start.measure, region.start.beat);
         const double end = tempo_map.secondsAtBeat(region.end.measure, region.end.beat);
         if (position.seconds >= start && position.seconds < end)
         {
