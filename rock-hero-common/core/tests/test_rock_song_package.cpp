@@ -846,19 +846,20 @@ TEST_CASE("Rock song package round-trips authored tone regions", "[core][rock-so
     writeTextFile(package_directory / toneDocumentPath(g_tone_id), "{}");
 
     // Regions tile the song gap-free, matching the marker format: only starts persist, and each
-    // end derives as the next region's start (the tempo-map terminal, 3:1, for the last).
+    // end derives as the next region's start (the tempo-map terminal, 3:1, for the last). The shared
+    // boundary sits on a sub-beat (2:3+1/2) so the round-trip exercises the fractional token grammar.
     Song song = makeSongWithToneDocument(source_audio);
     song.arrangements.front().tone_track.regions = {
         ToneRegion{
             .id = std::string{g_verse_region_id},
-            .start = ToneGridPosition{.measure = 1, .beat = 1},
-            .end = ToneGridPosition{.measure = 2, .beat = 3},
+            .start = GridPosition{.measure = 1, .beat = 1},
+            .end = GridPosition{.measure = 2, .beat = 3, .offset = Fraction{1, 2}},
             .tone_document_ref = toneDocumentRef(),
         },
         ToneRegion{
             .id = std::string{g_chorus_region_id},
-            .start = ToneGridPosition{.measure = 2, .beat = 3},
-            .end = ToneGridPosition{.measure = 3, .beat = 1},
+            .start = GridPosition{.measure = 2, .beat = 3, .offset = Fraction{1, 2}},
+            .end = GridPosition{.measure = 3, .beat = 1},
             .tone_document_ref = toneDocumentRef(),
         },
     };
@@ -1087,14 +1088,14 @@ TEST_CASE("Rock song package write rejects overlapping tone regions", "[core][ro
     song.arrangements.front().tone_track.regions = {
         ToneRegion{
             .id = std::string{g_verse_region_id},
-            .start = ToneGridPosition{.measure = 1, .beat = 1},
-            .end = ToneGridPosition{.measure = 2, .beat = 3},
+            .start = GridPosition{.measure = 1, .beat = 1},
+            .end = GridPosition{.measure = 2, .beat = 3},
             .tone_document_ref = toneDocumentRef(),
         },
         ToneRegion{
             .id = std::string{g_chorus_region_id},
-            .start = ToneGridPosition{.measure = 2, .beat = 1},
-            .end = ToneGridPosition{.measure = 3, .beat = 1},
+            .start = GridPosition{.measure = 2, .beat = 1},
+            .end = GridPosition{.measure = 3, .beat = 1},
             .tone_document_ref = toneDocumentRef(),
         },
     };
@@ -1118,8 +1119,8 @@ TEST_CASE(
     song.arrangements.front().tone_track.regions = {
         ToneRegion{
             .id = std::string{g_verse_region_id},
-            .start = ToneGridPosition{.measure = 1, .beat = 1},
-            .end = ToneGridPosition{.measure = 9, .beat = 1},
+            .start = GridPosition{.measure = 1, .beat = 1},
+            .end = GridPosition{.measure = 9, .beat = 1},
             .tone_document_ref = toneDocumentRef(),
         },
     };
@@ -1136,6 +1137,8 @@ TEST_CASE(
     const std::filesystem::path package_directory = temp.path() / "package";
     writeReadablePackageDirectory(package_directory);
     writeTextFile(package_directory / toneDocumentPath(g_tone_id), "{}");
+    // "1:1+3/2" is malformed: the sub-beat extension must be a proper fraction of the beat (in
+    // (0, 1)); a 3/2 remainder belongs in the beat number, so the token is rejected.
     writeTextFile(
         package_directory / "song.json",
         R"({
@@ -1152,7 +1155,7 @@ TEST_CASE(
             R"(",
                     "part": "Lead",
                     "audio": "backing",
-                    "toneChanges": [ { "start": "1:1+1/2", "tone": ")" +
+                    "toneChanges": [ { "start": "1:1+3/2", "tone": ")" +
             std::string{g_tone_id} +
             R"(" } ]
                 }
@@ -1268,8 +1271,8 @@ TEST_CASE(
     song.arrangements.front().tone_track.regions = {
         ToneRegion{
             .id = std::string{g_verse_region_id},
-            .start = ToneGridPosition{.measure = 1, .beat = 1},
-            .end = ToneGridPosition{.measure = 2, .beat = 1},
+            .start = GridPosition{.measure = 1, .beat = 1},
+            .end = GridPosition{.measure = 2, .beat = 1},
             .tone_document_ref = toneDocumentRef(),
         },
     };

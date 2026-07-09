@@ -61,8 +61,8 @@ public:
         \param end New musical end (exclusive).
         */
         virtual void onToneRegionResizeRequested(
-            std::string region_id, common::core::ToneGridPosition start,
-            common::core::ToneGridPosition end) = 0;
+            std::string region_id, common::core::GridPosition start,
+            common::core::GridPosition end) = 0;
 
         /*!
         \brief Called when an edge drag commits a new position for the shared boundary between two
@@ -71,7 +71,7 @@ public:
         \param position New musical position for the shared boundary.
         */
         virtual void onToneBoundaryMoveRequested(
-            std::string right_region_id, common::core::ToneGridPosition position) = 0;
+            std::string right_region_id, common::core::GridPosition position) = 0;
 
         /*!
         \brief Called when the user double-clicks a region to rename its tone.
@@ -141,6 +141,12 @@ public:
     \param state State derived by the editor controller.
     */
     void setState(const core::ToneTrackViewState& state);
+
+    /*!
+    \brief Sets the grid step edge drags snap to, shared with the ruler and grid rendering.
+    \param note_value Grid step as a fraction of a whole note.
+    */
+    void setGridNoteValue(common::core::Fraction note_value);
 
     /*!
     \brief Installs the callback that receives the transient edge-drag snap guide.
@@ -215,8 +221,8 @@ private:
     {
         std::size_t region_index{};
         EdgeKind edge{EdgeKind::Start};
-        common::core::ToneGridPosition preview_start;
-        common::core::ToneGridPosition preview_end;
+        common::core::GridPosition preview_start;
+        common::core::GridPosition preview_end;
     };
 
     // Maps one region's span to component x coordinates, or empty when unmappable.
@@ -229,8 +235,10 @@ private:
     // Resolves the authored region (and optionally its edge) under a local position.
     [[nodiscard]] std::optional<RegionHit> hitAt(juce::Point<int> local_point) const;
 
-    // Converts a drag x coordinate into the snapped, clamped global beat for the active edge.
-    [[nodiscard]] std::optional<std::int64_t> snappedBeatForDrag(float x) const;
+    // Snaps a drag x to the tempo grid for the active edge, accepted only inside the open interval
+    // that keeps both regions sharing the dragged boundary non-empty; empty when out of range.
+    [[nodiscard]] std::optional<common::core::GridPosition> snappedGridPositionForDrag(
+        float x, const juce::ModifierKeys& mods) const;
 
     // Reports the current snap guide, or clears it with an empty value.
     void emitSnapGuide(std::optional<TimelineSnapGuide> guide);
@@ -243,6 +251,9 @@ private:
 
     // Visible timeline range represented by the component width.
     common::core::TimeRange m_visible_timeline{};
+
+    // Grid step edge drags snap to, shared with the ruler and grid rendering.
+    common::core::Fraction m_grid_note_value{1, 4};
 
     // Content x of the visible viewport's left edge; region labels pin here as the row scrolls.
     int m_visible_content_left{0};

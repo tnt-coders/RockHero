@@ -28,8 +28,8 @@ void ensureExplicitToneRegions(Song& song)
         arrangement.tone_track.regions.push_back(
             ToneRegion{
                 .id = generatePackageId(),
-                .start = ToneGridPosition{.measure = 1, .beat = 1},
-                .end = ToneGridPosition{.measure = terminal_measure, .beat = terminal_beat},
+                .start = GridPosition{.measure = 1, .beat = 1},
+                .end = GridPosition{.measure = terminal_measure, .beat = terminal_beat},
                 .tone_document_ref = arrangement.tones.front().tone_document_ref,
             });
     }

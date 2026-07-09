@@ -22,7 +22,9 @@ ToneTrackViewState makeToneTrackViewState(
         // timeline origin; no one-based grid position can address time before measure 1. Later
         // regions use their authored grid start.
         const double start_seconds =
-            index == 0 ? 0.0 : tempo_map.secondsAtBeat(region.start.measure, region.start.beat);
+            index == 0 ? 0.0
+                       : tempo_map.secondsAtNote(
+                             region.start.measure, region.start.beat, region.start.offset);
         state.regions.push_back(
             ToneRegionViewState{
                 .id = region.id,
@@ -33,8 +35,8 @@ ToneTrackViewState makeToneTrackViewState(
                 .time_range =
                     common::core::TimeRange{
                         .start = common::core::TimePosition{start_seconds},
-                        .end = common::core::TimePosition{tempo_map.secondsAtBeat(
-                            region.end.measure, region.end.beat)},
+                        .end = common::core::TimePosition{tempo_map.secondsAtNote(
+                            region.end.measure, region.end.beat, region.end.offset)},
                     },
                 .active = !active_region_id.empty() && region.id == active_region_id,
                 .selected = !selected_region_id.empty() && region.id == selected_region_id,

@@ -23,9 +23,9 @@ constexpr const char* g_instance = "plugin-instance-1";
 constexpr const char* g_plugin_id = "3f8a2b1c-4d5e-4f60-8a9b-0c1d2e3f4a5b";
 constexpr const char* g_param = "gain";
 
-[[nodiscard]] common::core::ToneGridPosition gridAt(int measure, int beat)
+[[nodiscard]] common::core::GridPosition gridAt(int measure, int beat)
 {
-    return common::core::ToneGridPosition{.measure = measure, .beat = beat};
+    return common::core::GridPosition{.measure = measure, .beat = beat};
 }
 
 [[nodiscard]] common::core::GridPosition pointAt(int measure, int beat, int numerator = 0)
@@ -394,7 +394,7 @@ TEST_CASE(
         },
     };
     editor.controller.onToneCreateNewRequested(
-        common::core::ToneGridPosition{.measure = 2, .beat = 1}, "Solo");
+        common::core::GridPosition{.measure = 2, .beat = 1}, "Solo");
 
     // Back on the original tone, the open lane must resolve through the durable plugin id to the
     // reloaded instance instead of dangling on the dead one.
