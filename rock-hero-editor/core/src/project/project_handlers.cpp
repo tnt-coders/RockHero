@@ -300,6 +300,9 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
     markUndoHistoryClean("undo.mark_clean.open_project");
 
     m_transport.seek(next_cursor_position);
+    // Select the tone under the restored cursor so a reopened project shows its active tone from the
+    // start; the baseline extends back to time 0, so a lead-in chart resolves to its default tone.
+    applyToneSelection(toneRegionIdAt(next_cursor_position));
     if (state->clear_last_open_project_on_failure)
     {
         clearInterruptedRestoreMarker();
@@ -432,6 +435,9 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
     // Imports have no persisted editor cursor, so establish an explicit start position before the
     // view observes the new project load id and recenters the timeline.
     m_transport.seek(session().timeline().start);
+    // Select the tone under the start cursor so the imported arrangement opens with its default tone
+    // active; the baseline owns the pre-measure-1 lead-in, so a lead-in chart still resolves to it.
+    applyToneSelection(toneRegionIdAt(session().timeline().start));
 
     // Marks a completed load so the view can recenter on the established import cursor.
     ++m_project_load_id;
