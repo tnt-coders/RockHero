@@ -108,10 +108,16 @@ std::optional<common::core::GridPosition> musicalGridPositionForX(
         return core::nearestTempoGridPosition(tempo_map, grid_note_value, *clicked);
     }
 
-    // Ctrl-free placements quantize the fractional beat to the 1/960 fine grid so stored positions
-    // stay exact rationals instead of raw doubles; 960 covers every practical straight, triplet,
-    // and quintuplet subdivision at sub-millisecond resolution.
-    const double global_beat = tempo_map.beatPositionAtSeconds(clicked->seconds);
+    // Ctrl-free placements quantize the fractional beat to the shared 1/960 fine grid.
+    return fineGridPositionForBeat(tempo_map, tempo_map.beatPositionAtSeconds(clicked->seconds));
+}
+
+common::core::GridPosition fineGridPositionForBeat(
+    const common::core::TempoMap& tempo_map, double global_beat)
+{
+    // Quantize the fractional beat to the 1/960 fine grid so the stored position stays an exact
+    // rational instead of a raw double; 960 covers every practical straight, triplet, and
+    // quintuplet subdivision at sub-millisecond resolution.
     double whole_beats = 0.0;
     const double beat_fraction = std::modf(std::max(0.0, global_beat), &whole_beats);
     auto beat_index = static_cast<std::int64_t>(whole_beats);
