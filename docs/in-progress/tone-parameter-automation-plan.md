@@ -149,7 +149,7 @@ Built on branch `work-in-progress` (off `refactor`), each slice green + tested:
 - **Port wiring — DONE.** Threaded through `Editor`/`EditorController`/`Impl`/`EditorEditContext`;
   `FakeToneAutomation` in the controller harness.
 - **View state + projection — DONE.** `ToneAutomationViewState` on `EditorViewState`;
-  `toneAutomationViewStateFor` reads the selected tone's curves; unit-tested.
+  `makeToneAutomationViewState` reads the selected tone's curves; unit-tested.
 - **Editing + undo — DONE.** **Design simplification adopted:** a single
   `SetToneAutomationPoints` action + `ToneAutomationPointsEdit` point-list memento subsumes
   add/remove/edit lane (picking a param seeds a point → lane appears; clearing to empty → lane

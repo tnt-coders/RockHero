@@ -95,7 +95,7 @@ using common::core::GridPosition;
 TEST_CASE("Tab projection resolves chart positions to seconds", "[editor-core][tab]")
 {
     const common::core::TempoMap tempo_map = makeTempoMap();
-    const TabViewState state = tabViewStateFor(makeArrangementWithChart(), tempo_map);
+    const TabViewState state = makeTabViewState(makeArrangementWithChart(), tempo_map);
 
     CHECK(state.string_count == 6);
     REQUIRE(state.notes.size() == 3);
@@ -131,7 +131,7 @@ TEST_CASE("Tab projection is empty without a chart", "[editor-core][tab]")
     common::core::Arrangement arrangement = makeArrangementWithChart();
     arrangement.chart.reset();
 
-    const TabViewState state = tabViewStateFor(arrangement, makeTempoMap());
+    const TabViewState state = makeTabViewState(arrangement, makeTempoMap());
     CHECK(state.string_count == 0);
     CHECK(state.notes.empty());
     CHECK(state.shapes.empty());

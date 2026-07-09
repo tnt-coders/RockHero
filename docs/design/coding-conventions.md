@@ -46,6 +46,29 @@ data object.
 The underlying `readability-identifier-naming` checker uses the value name `camelBack` for
 function and method identifiers. In project documentation, refer to that style as `camelCase`.
 
+## Free-Function Verbs: Build vs Look Up
+
+Free functions that produce or retrieve a value follow a small, deliberate grammar. Pick the form
+by what the function *does*, not by the type it returns — several of these return a value, so the
+return category alone does not decide the name.
+
+- **`make…` / `create…`** — build a composite value or object from its inputs. This includes
+  view-state and other projection builders that assemble a render model from a domain model, such
+  as `makePluginViewState(PluginChainEntry)`, `makeToneTrackViewState(...)`, and
+  `makeMeasureGrid(GpScore)`. Prefer `make…` for pure value assembly; reserve `create…` for
+  builders that allocate, own, or have side effects (`createToneRackInstance`, `createFileSink`).
+- **`…For(key)`** — retrieve the value that corresponds to a logical *identity* or key, such as
+  `toneNameFor(arrangement, ref)` or `projectGridNoteValueFor(project_id)`. Use it for lookups,
+  not for composite construction: a scalar name lookup is `toneNameFor`, but building a whole
+  view-state is `makeToneTrackViewState`, not `toneTrackViewStateFor`.
+- **`…At(position)`** — retrieve the value located at a position in a coordinate space (time,
+  measure/beat, pixel, index): `secondsAt(beat)`, `timeSignatureAt(measure)`,
+  `toneRegionIdAt(time)`, `hitAt(point)`.
+- **`…Of(x)`** — retrieve a value defined by a relationship to `x`: `indexOf`, `placementOf`.
+
+Do not prefix a pure derivation with `get`. Reserve `get…` for a stored-field accessor or a
+side-effecting retrieval such as a get-or-create (`getOrCreatePluginFor`).
+
 ## Listener Naming
 
 Prefer the scoped name `Listener` for a type that exposes one clear notification surface. Existing

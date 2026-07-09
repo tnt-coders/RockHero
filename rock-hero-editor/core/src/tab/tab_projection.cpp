@@ -20,7 +20,7 @@ namespace
 
 } // namespace
 
-TabViewState tabViewStateFor(
+TabViewState makeTabViewState(
     const common::core::Arrangement& arrangement, const common::core::TempoMap& tempo_map)
 {
     TabViewState state;

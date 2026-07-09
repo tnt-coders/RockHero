@@ -17,7 +17,7 @@ double secondsAtGridPosition(
     return tempo_map.secondsAtGlobalBeatPosition(global_beat);
 }
 
-ToneAutomationViewState toneAutomationViewStateFor(
+ToneAutomationViewState makeToneAutomationViewState(
     const common::core::Arrangement& arrangement, const common::core::TempoMap& tempo_map,
     const std::string& selected_tone_document_ref,
     const std::unordered_map<std::string, ToneAutomationBinding>& bindings,

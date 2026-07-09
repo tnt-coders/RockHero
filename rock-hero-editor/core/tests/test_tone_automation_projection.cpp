@@ -133,7 +133,7 @@ TEST_CASE("secondsAtGridPosition converts exact fractions", "[core][tone-automat
 }
 
 TEST_CASE(
-    "toneAutomationViewStateFor shows only the selected tone's bound lanes",
+    "makeToneAutomationViewState shows only the selected tone's bound lanes",
     "[core][tone-automation]")
 {
     const common::core::TempoMap tempo_map =
@@ -153,8 +153,8 @@ TEST_CASE(
          }},
     };
 
-    const ToneAutomationViewState state =
-        toneAutomationViewStateFor(arrangement, tempo_map, "tones/x/tone.json", bindings, {}, port);
+    const ToneAutomationViewState state = makeToneAutomationViewState(
+        arrangement, tempo_map, "tones/x/tone.json", bindings, {}, port);
 
     CHECK(state.tone_document_ref == "tones/x/tone.json");
     REQUIRE(state.lanes.size() == 1);
@@ -167,7 +167,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "toneAutomationViewStateFor renders unknown parameters as unresolved lanes",
+    "makeToneAutomationViewState renders unknown parameters as unresolved lanes",
     "[core][tone-automation]")
 {
     const common::core::TempoMap tempo_map =
@@ -182,15 +182,15 @@ TEST_CASE(
          }},
     };
 
-    const ToneAutomationViewState state =
-        toneAutomationViewStateFor(arrangement, tempo_map, "tones/x/tone.json", bindings, {}, port);
+    const ToneAutomationViewState state = makeToneAutomationViewState(
+        arrangement, tempo_map, "tones/x/tone.json", bindings, {}, port);
 
     REQUIRE(state.lanes.size() == 1);
     CHECK_FALSE(state.lanes.front().resolved);
     CHECK(state.lanes.front().name == "gain");
 }
 
-TEST_CASE("toneAutomationViewStateFor flags failed parameter listings", "[core][tone-automation]")
+TEST_CASE("makeToneAutomationViewState flags failed parameter listings", "[core][tone-automation]")
 {
     const common::core::TempoMap tempo_map =
         common::core::TempoMap::defaultMap(common::core::TimeDuration{4.0});
@@ -199,15 +199,15 @@ TEST_CASE("toneAutomationViewStateFor flags failed parameter listings", "[core][
     port.fail_listing = true;
 
     const ToneAutomationViewState state =
-        toneAutomationViewStateFor(arrangement, tempo_map, "tones/x/tone.json", {}, {}, port);
+        makeToneAutomationViewState(arrangement, tempo_map, "tones/x/tone.json", {}, {}, port);
 
     // A failed listing is not the same as an empty tone: the picker reports it distinctly.
     CHECK(state.parameters_unavailable);
     CHECK(state.available_parameters.empty());
 
     const StubToneAutomation empty_port;
-    const ToneAutomationViewState empty_state =
-        toneAutomationViewStateFor(arrangement, tempo_map, "tones/x/tone.json", {}, {}, empty_port);
+    const ToneAutomationViewState empty_state = makeToneAutomationViewState(
+        arrangement, tempo_map, "tones/x/tone.json", {}, {}, empty_port);
     CHECK_FALSE(empty_state.parameters_unavailable);
 }
 
