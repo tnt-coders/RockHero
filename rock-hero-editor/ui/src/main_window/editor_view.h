@@ -305,7 +305,7 @@ private:
     void createToneMarkerAtPlayhead();
 
     /*! \brief Prompts for a name and asks the controller to create a new tone at the marker. */
-    void promptForNewTone(common::core::ToneGridPosition position);
+    void promptForNewTone(common::core::GridPosition position);
 
     /*! \brief Shows a modal single-field text prompt, invoking on_accept with the entered text. */
     void promptForText(
@@ -314,7 +314,7 @@ private:
 
     /*! \copydoc ToneTrackView::Listener::onToneBoundaryMoveRequested */
     void onToneBoundaryMoveRequested(
-        std::string right_region_id, common::core::ToneGridPosition position) override;
+        std::string right_region_id, common::core::GridPosition position) override;
 
     /*! \copydoc ToneTrackView::Listener::onToneRenamePromptRequested */
     void onToneRenamePromptRequested(
@@ -322,8 +322,8 @@ private:
 
     /*! \copydoc ToneTrackView::Listener::onToneRegionResizeRequested */
     void onToneRegionResizeRequested(
-        std::string region_id, common::core::ToneGridPosition start,
-        common::core::ToneGridPosition end) override;
+        std::string region_id, common::core::GridPosition start,
+        common::core::GridPosition end) override;
 
     /*! \copydoc ToneAutomationLanesView::Listener::onToneAutomationLaneAddRequested */
     void onToneAutomationLaneAddRequested(std::string instance_id, std::string param_id) override;

@@ -18,9 +18,9 @@ constexpr const char* g_region_b = "6b2e1d4f-8a3c-4b1d-9e2f-3a4b5c6d7e8f";
 constexpr const char* g_region_new = "7c3f2e5a-9b4d-4c2e-af3a-4b5c6d7e8f90";
 constexpr const char* g_minted_ref = "tones/3a4b5c6d-7e8f-4a1b-8c2d-9e0f1a2b3c4d/tone.json";
 
-[[nodiscard]] common::core::ToneGridPosition gridAt(int measure, int beat)
+[[nodiscard]] common::core::GridPosition gridAt(int measure, int beat)
 {
-    return common::core::ToneGridPosition{.measure = measure, .beat = beat};
+    return common::core::GridPosition{.measure = measure, .beat = beat};
 }
 
 // Pins a 4/4 map at 120 BPM whose terminal downbeat is measure 3 beat 1, so authored regions across
@@ -216,6 +216,28 @@ TEST_CASE(
     editor.controller.onRedoRequested();
     CHECK(editor.regions()[0].end == gridAt(2, 3));
     CHECK(editor.regions()[1].start == gridAt(2, 3));
+}
+
+TEST_CASE(
+    "EditorController moves a shared tone boundary to a sub-beat position",
+    "[core][editor-controller]")
+{
+    LoadedToneEditor editor{makeTwoRegionSong()};
+    REQUIRE(editor.regions().size() == 2);
+
+    // Tone regions address the same measure/beat/sub-beat grid as chart notes, so a boundary can
+    // land on a grid line finer than a whole beat; the sub-beat offset must survive on both sides.
+    const common::core::GridPosition sub_beat{
+        .measure = 2, .beat = 1, .offset = common::core::Fraction{1, 2}
+    };
+    editor.controller.onToneBoundaryMoveRequested(g_region_b, sub_beat);
+    REQUIRE(editor.regions().size() == 2);
+    CHECK(editor.regions()[0].end == sub_beat);
+    CHECK(editor.regions()[1].start == sub_beat);
+
+    editor.controller.onUndoRequested();
+    CHECK(editor.regions()[0].end == gridAt(2, 1));
+    CHECK(editor.regions()[1].start == gridAt(2, 1));
 }
 
 TEST_CASE(

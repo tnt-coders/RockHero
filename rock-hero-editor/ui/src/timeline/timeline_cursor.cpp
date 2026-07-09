@@ -4,10 +4,20 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <rock_hero/editor/core/timeline/timeline_geometry.h>
 
 namespace rock_hero::editor::ui
 {
+
+namespace
+{
+
+// The fine placement grid used when Ctrl bypasses the visible grid: 1/960 of a beat keeps every
+// stored position an exact rational at far finer than audible resolution.
+constexpr int g_fine_grid_denominator = 960;
+
+} // namespace
 
 // Converts a timeline position to a bounded subpixel coordinate for the cursor overlay.
 std::optional<float> cursorXForTimelinePosition(
@@ -72,6 +82,52 @@ core::TimelineCursorPlacementMode placementModeFor(const juce::ModifierKeys& mod
 {
     return mods.isCtrlDown() ? core::TimelineCursorPlacementMode::Free
                              : core::TimelineCursorPlacementMode::SnapToGrid;
+}
+
+std::optional<common::core::GridPosition> musicalGridPositionForX(
+    const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value,
+    common::core::TimeRange visible_timeline, int width, float content_x,
+    const juce::ModifierKeys& mods)
+{
+    const std::optional<common::core::TimePosition> clicked = core::timelineCursorPlacementTime(
+        tempo_map,
+        grid_note_value,
+        visible_timeline,
+        width,
+        content_x,
+        core::TimelineCursorPlacementMode::Free);
+    if (!clicked.has_value())
+    {
+        return std::nullopt;
+    }
+
+    // Snapped placements store the grid line's own exact musical address, so any grid value —
+    // including odd fractions like 1/13 that no fixed fine grid divides — round-trips exactly.
+    if (placementModeFor(mods) == core::TimelineCursorPlacementMode::SnapToGrid)
+    {
+        return core::nearestTempoGridPosition(tempo_map, grid_note_value, *clicked);
+    }
+
+    // Ctrl-free placements quantize the fractional beat to the 1/960 fine grid so stored positions
+    // stay exact rationals instead of raw doubles; 960 covers every practical straight, triplet,
+    // and quintuplet subdivision at sub-millisecond resolution.
+    const double global_beat = tempo_map.beatPositionAtSeconds(clicked->seconds);
+    double whole_beats = 0.0;
+    const double beat_fraction = std::modf(std::max(0.0, global_beat), &whole_beats);
+    auto beat_index = static_cast<std::int64_t>(whole_beats);
+    int fine_steps =
+        static_cast<int>(std::lround(beat_fraction * static_cast<double>(g_fine_grid_denominator)));
+    if (fine_steps == g_fine_grid_denominator)
+    {
+        beat_index += 1;
+        fine_steps = 0;
+    }
+    const auto [measure, beat] = tempo_map.beatAtGlobalIndex(beat_index);
+    return common::core::GridPosition{
+        .measure = measure,
+        .beat = beat,
+        .offset = common::core::Fraction{fine_steps, g_fine_grid_denominator},
+    };
 }
 
 } // namespace rock_hero::editor::ui

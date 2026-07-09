@@ -11,13 +11,6 @@ namespace rock_hero::common::core
 namespace
 {
 
-// Lexicographic grid order (measure, then beat). Region endpoints are validated against the tempo
-// map elsewhere, so a plain field comparison is enough to order well-formed positions here.
-[[nodiscard]] bool gridPositionLess(ToneGridPosition lhs, ToneGridPosition rhs) noexcept
-{
-    return lhs.measure != rhs.measure ? lhs.measure < rhs.measure : lhs.beat < rhs.beat;
-}
-
 // Returns the index of the region with the given id, or nothing when it is not present.
 [[nodiscard]] std::optional<std::size_t> indexOfRegion(
     const ToneTrack& tone_track, const std::string& region_id)
@@ -33,13 +26,14 @@ namespace
 } // namespace
 
 std::expected<void, ToneTrackError> createToneRegion(
-    ToneTrack& tone_track, ToneGridPosition position, std::string new_region_id,
+    ToneTrack& tone_track, GridPosition position, std::string new_region_id,
     std::string new_tone_document_ref)
 {
     const auto container =
         std::ranges::find_if(tone_track.regions, [position](const ToneRegion& region) {
-            return gridPositionLess(region.start, position) &&
-                   gridPositionLess(position, region.end);
+            // Endpoints order by exact musical position, so a split lands in the one region whose
+            // span strictly contains the marker (matching a boundary belongs to neither side).
+            return region.start < position && position < region.end;
         });
     if (container == tone_track.regions.end())
     {

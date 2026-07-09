@@ -5,37 +5,17 @@
 
 #pragma once
 
+#include <rock_hero/common/core/chart/chart.h>
 #include <string>
 #include <vector>
 
 namespace rock_hero::common::core
 {
 
-/*!
-\brief Musical grid position used to place tone regions on the tempo map.
-
-This is intentionally not a note/chart position model. It exists only to address tone-region
-endpoints, and it serializes through the same `"<measure>:<beat>"` token grammar as tempo-map
-anchors. Extend it if sub-beat snapping becomes necessary rather than introducing broad
-chart-position machinery early.
-*/
-struct ToneGridPosition
-{
-    /*! \brief One-based measure on the song grid. */
-    int measure{1};
-
-    /*! \brief One-based beat within the measure. */
-    int beat{1};
-
-    /*!
-    \brief Compares two grid positions by their stored fields.
-    \param lhs Left-hand grid position.
-    \param rhs Right-hand grid position.
-    \return True when both positions store equal values.
-    */
-    friend constexpr bool operator==(
-        const ToneGridPosition& lhs, const ToneGridPosition& rhs) noexcept = default;
-};
+// Tone-region endpoints address the same measure/beat/sub-beat grid as chart notes and parameter
+// automation points, so they reuse the shared GridPosition type (chart/chart.h) and its
+// `"<measure>:<beat>"` / `"<measure>:<beat>+<n>/<d>"` token grammar. This keeps tone-region
+// snapping consistent with the automation lanes rendered directly beneath the tone row.
 
 /*!
 \brief A named, reusable tone: a signal chain that the arrangement's tone catalog owns.
@@ -69,10 +49,10 @@ struct ToneRegion
     std::string id;
 
     /*! \brief Musical start of the region (inclusive). */
-    ToneGridPosition start;
+    GridPosition start;
 
     /*! \brief Musical end of the region (exclusive). */
-    ToneGridPosition end;
+    GridPosition end;
 
     /*!
     \brief Package-relative tone document interpreted by common/audio.

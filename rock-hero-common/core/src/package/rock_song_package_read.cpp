@@ -506,20 +506,21 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
             }};
         }
 
-        const auto start = parseBeatPositionToken(*start_text);
+        const auto start = parseGridPositionToken(*start_text);
         if (!start.has_value())
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidArrangement,
-                "tone change start must be a \"<measure>:<beat>\" token",
+                "tone change start must be a \"<measure>:<beat>\" or \"<measure>:<beat>+<n>/<d>\" "
+                "token",
             }};
         }
 
         tone_track.regions.push_back(
             ToneRegion{
                 .id = generatePackageId(),
-                .start = ToneGridPosition{.measure = start->measure, .beat = start->beat},
-                .end = ToneGridPosition{},
+                .start = *start,
+                .end = GridPosition{},
                 .tone_document_ref = toneDocumentRefForToneId(*tone_id),
             });
     }
@@ -536,7 +537,7 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
         const auto [terminal_measure, terminal_beat] =
             tempo_map.beatAtGlobalIndex(tempo_map.terminalGlobalBeatIndex());
         tone_track.regions.back().end =
-            ToneGridPosition{.measure = terminal_measure, .beat = terminal_beat};
+            GridPosition{.measure = terminal_measure, .beat = terminal_beat};
     }
 
     if (const auto structural = validateToneTrack(tone_track, tempo_map); !structural.has_value())

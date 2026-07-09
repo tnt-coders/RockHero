@@ -21,8 +21,7 @@ constexpr std::string_view g_tone_ref{"tones/9b26d8e8-3ec5-4f97-9a81-d18ef6bce30
 }
 
 // Builds one valid region between the supplied whole-beat endpoints.
-[[nodiscard]] ToneRegion makeRegion(
-    std::string_view id, ToneGridPosition start, ToneGridPosition end)
+[[nodiscard]] ToneRegion makeRegion(std::string_view id, GridPosition start, GridPosition end)
 {
     return ToneRegion{
         .id = std::string{id},
@@ -97,7 +96,7 @@ TEST_CASE("Tone track rules reject invalid beats and ids and refs", "[core][tone
     REQUIRE_FALSE(result.has_value());
     CHECK(result.error().code == ToneTrackErrorCode::InvalidEndpoint);
 
-    tone_track.regions.front().start = ToneGridPosition{.measure = 1, .beat = 1};
+    tone_track.regions.front().start = GridPosition{.measure = 1, .beat = 1};
     tone_track.regions.front().id = "not-a-uuid";
     result = validateToneTrackRules(tone_track, makeTempoMap());
     REQUIRE_FALSE(result.has_value());

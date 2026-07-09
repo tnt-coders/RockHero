@@ -37,8 +37,8 @@ TEST_CASE("ensureExplicitToneRegions materializes the whole-song region", "[core
     REQUIRE(normalized.tone_track.regions.size() == 1);
     const ToneRegion& region = normalized.tone_track.regions.front();
     CHECK_FALSE(region.id.empty());
-    CHECK(region.start == ToneGridPosition{.measure = 1, .beat = 1});
-    CHECK(region.end == ToneGridPosition{.measure = 3, .beat = 1});
+    CHECK(region.start == GridPosition{.measure = 1, .beat = 1});
+    CHECK(region.end == GridPosition{.measure = 3, .beat = 1});
     CHECK(region.tone_document_ref == g_default_ref);
     // The catalog itself is untouched: the region references the first tone, keeping its name.
     REQUIRE(normalized.tones.size() == 1);
@@ -53,8 +53,8 @@ TEST_CASE("ensureExplicitToneRegions leaves authored regions untouched", "[core]
     arrangement.tone_track.regions = {
         ToneRegion{
             .id = "existing",
-            .start = ToneGridPosition{.measure = 1, .beat = 1},
-            .end = ToneGridPosition{.measure = 2, .beat = 1},
+            .start = GridPosition{.measure = 1, .beat = 1},
+            .end = GridPosition{.measure = 2, .beat = 1},
             .tone_document_ref = g_default_ref,
         },
     };

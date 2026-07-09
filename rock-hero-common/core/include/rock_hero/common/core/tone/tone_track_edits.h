@@ -30,7 +30,7 @@ endpoints separately.
 \return Empty success, or the reason the create was rejected.
 */
 [[nodiscard]] std::expected<void, ToneTrackError> createToneRegion(
-    ToneTrack& tone_track, ToneGridPosition position, std::string new_region_id,
+    ToneTrack& tone_track, GridPosition position, std::string new_region_id,
     std::string new_tone_document_ref);
 
 /*!
