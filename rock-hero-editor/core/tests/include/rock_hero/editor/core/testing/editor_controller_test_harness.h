@@ -1069,6 +1069,37 @@ keeping construction explicit.
     };
 }
 
+/*!
+\brief Replaces every default controller audio port, including tone automation.
+
+The only bundle carrying both the audio-device port (so input calibration can make plugin actions
+available) and the tone-automation port, for tests that exercise plugin edits and tone automation
+together.
+
+\param transport Transport and live-input fake used by the controller under test.
+\param song_audio Song-audio fake used by the controller under test.
+\param audio_devices Audio-device fake used by the controller under test.
+\param plugin_host Plugin-host fake used by the controller under test.
+\param live_rig Live-rig fake used by the controller under test.
+\param tone_automation Tone-automation fake used by the controller under test.
+\return Controller audio-port bundle.
+*/
+[[nodiscard]] inline EditorController::AudioPorts audioPorts(
+    FakeTransport& transport, ConfigurableSongAudio& song_audio,
+    ConfigurableAudioDeviceConfiguration& audio_devices, RecordingPluginHost& plugin_host,
+    FakeLiveRig& live_rig, FakeToneAutomation& tone_automation)
+{
+    return EditorController::AudioPorts{
+        .transport = transport,
+        .song_audio = song_audio,
+        .audio_devices = audio_devices,
+        .plugin_host = plugin_host,
+        .live_rig = live_rig,
+        .tone_automation = tone_automation,
+        .live_input = transport,
+    };
+}
+
 // Provides controller-facing project service callbacks without touching the filesystem.
 class FakeProjectServices final
 {
