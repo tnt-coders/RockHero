@@ -1,6 +1,7 @@
 #include "signal_chain_edits.h"
 
 #include "signal_chain/signal_chain_workflow.h"
+#include "tone/tone_automation_edits.h"
 
 #include <algorithm>
 #include <format>
@@ -243,22 +244,59 @@ void applyPluginVisualState(
         context);
 }
 
-// Applies a remove edit in one direction.
+// Restores the plugin's automation to the model and rebuilds each derived playback curve on the
+// just-recreated instance. Best-effort per entry: the model is the truth, and the curve rewrite
+// reconciles on the next load even if it cannot resolve the parameter now.
+void restoreRemovedAutomation(const PluginRemoveEdit& edit, EditorEditContext& context)
+{
+    for (const common::core::ToneParameterAutomation& entry : edit.removed_automation)
+    {
+        (void)applyToneAutomationModel(
+            context.session, entry.plugin_id, entry.param_id, entry.points);
+        rewriteDerivedToneCurve(
+            context, edit.tone_document_ref, edit.instance_id, entry.param_id, entry.points);
+    }
+}
+
+// Drops the plugin's automation from the model as it leaves the chain. The derived curve needs no
+// clearing: it is destroyed with the plugin instance.
+void eraseRemovedAutomation(const PluginRemoveEdit& edit, EditorEditContext& context)
+{
+    for (const common::core::ToneParameterAutomation& entry : edit.removed_automation)
+    {
+        (void)applyToneAutomationModel(context.session, entry.plugin_id, entry.param_id, {});
+    }
+}
+
+// Applies a remove edit in one direction. Automation follows the plugin: undo restores it after the
+// instance is recreated, redo drops it after the instance is removed.
 [[nodiscard]] std::expected<void, EditorUndoFailureCode> applyPluginRemoveEdit(
     const PluginRemoveEdit& edit, EditorUndoDirection direction, EditorEditContext& context)
 {
     if (direction == EditorUndoDirection::Undo)
     {
-        return applyPluginRecreate(
+        auto recreated = applyPluginRecreate(
             edit.instance_id,
             edit.chain_index,
             edit.plugin_state,
             edit.before_placement,
             edit.visual_state,
             context);
+        if (!recreated.has_value())
+        {
+            return recreated;
+        }
+        restoreRemovedAutomation(edit, context);
+        return {};
     }
 
-    return applyPluginRemoval(edit.instance_id, edit.after_placement, context);
+    auto removed = applyPluginRemoval(edit.instance_id, edit.after_placement, context);
+    if (!removed.has_value())
+    {
+        return removed;
+    }
+    eraseRemovedAutomation(edit, context);
+    return {};
 }
 
 // Applies a move edit in one direction and restores the matching editor-owned placement snapshot.

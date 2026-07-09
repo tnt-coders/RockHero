@@ -243,6 +243,102 @@ TEST_CASE("EditorController undoes and redoes a tone automation edit", "[core][t
 }
 
 TEST_CASE(
+    "EditorController removes a plugin's automation with it and restores it on undo",
+    "[core][tone-automation]")
+{
+    // Seed the load so g_instance is a removable plugin in both the editor chain (its automation
+    // resolves through the tone-chain identity) and the fake backend (capture/remove/recreate act on
+    // it). This mirrors a loaded song whose tone already hosts a plugin, without the async insert.
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeToneAutomation tone_automation;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig, tone_automation),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        },
+    };
+    FakeEditorView view;
+
+    const common::audio::PluginChainEntry entry{
+        .instance_id = g_instance,
+        .plugin_id = g_plugin_id,
+        .name = "Amp",
+        .manufacturer = {},
+        .format_name = "VST3",
+        .category = {},
+        .chain_index = 0,
+        .block_index = 0,
+        .display_type_override = {},
+    };
+    plugin_host.chain = {entry};
+    tone_automation.parameters.push_back(makeParam());
+    live_rig.next_load_result.plugins = {entry};
+    live_rig.next_load_result.tone_chains = {
+        common::audio::LoadedToneChainIdentities{
+            .tone_document_ref = std::string{g_tone_document_ref},
+            .plugins = {common::audio::LoadedTonePluginIdentity{
+                .instance_id = g_instance,
+                .stable_id = g_plugin_id,
+            }},
+        },
+    };
+    project_services.next_song = makeAutomationSong();
+
+    // Calibrate the input so plugin edits (which require live-input audition) are available.
+    audio_devices.current_input_identity = makeInputDeviceIdentity();
+    audio.next_prepared_audio_duration = loadedTimelineRange(4.0).duration();
+    audio.next_set_active_arrangement_result = true;
+    controller.attachView(view);
+    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+    controller.onInputCalibrationRequested();
+    REQUIRE(controller.onInputCalibrationManuallySet(0.0).has_value());
+    controller.onInputCalibrationDismissed();
+    controller.onToneRegionSelected(g_region);
+
+    REQUIRE(view.last_state.has_value());
+    if (!view.last_state.has_value())
+    {
+        throw std::logic_error("editor pushed no view state");
+    }
+    REQUIRE(view.last_state->signal_chain.plugins.size() == 1);
+
+    const auto& model = controller.session().currentArrangement()->tone_automation;
+    const std::vector<common::core::ToneAutomationPoint> points{
+        common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.3F},
+        common::core::ToneAutomationPoint{.position = pointAt(2, 1), .norm_value = 0.7F},
+    };
+    controller.onSetToneAutomationPoints(g_instance, g_param, points);
+    REQUIRE(model.size() == 1);
+    REQUIRE(model.front().points == points);
+
+    // Removing the plugin takes its automation out of the model with it, instead of stranding the
+    // entry as an unresolvable lane.
+    controller.onRemovePluginRequested(g_instance);
+    REQUIRE(view.last_state->signal_chain.plugins.empty());
+    CHECK(model.empty());
+
+    // Undo recreates the plugin (behind the loading fence) and restores its automation verbatim.
+    controller.onUndoRequested();
+    while (view.hasBusyOverlayPaintCallback())
+    {
+        view.runNextBusyOverlayPaintCallback();
+    }
+    REQUIRE(model.size() == 1);
+    CHECK(model.front().points == points);
+
+    // Redo removes the plugin and its automation again.
+    controller.onRedoRequested();
+    CHECK(model.empty());
+}
+
+TEST_CASE(
     "EditorController rebuilds derived curves from persisted automation at load",
     "[core][tone-automation]")
 {

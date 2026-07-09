@@ -1,9 +1,12 @@
 #include "controller/editor_controller_impl.h"
 #include "signal_chain/signal_chain_edits.h"
 
+#include <algorithm>
 #include <cassert>
 #include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/shared/logger.h>
+#include <rock_hero/common/core/tone/tone_automation.h>
+#include <vector>
 
 namespace rock_hero::editor::core
 {
@@ -566,6 +569,44 @@ void EditorController::Impl::performActionImpl(const EditorAction::RemovePlugin&
     }
 
     applySignalChainMutationSnapshot(*snapshot);
+
+    // The removed plugin's automation is keyed by its durable id, so extract it from the model now:
+    // it travels out with the plugin (restored verbatim on undo) instead of stranding as
+    // unresolvable lanes. A picked-but-unauthored open lane has no model entry, so close it too.
+    std::string removed_plugin_id;
+    std::string automation_tone_ref;
+    if (const auto identity = m_tone_plugin_identities.find(action.instance_id);
+        identity != m_tone_plugin_identities.end())
+    {
+        removed_plugin_id = identity->second.plugin_id;
+        automation_tone_ref = identity->second.tone_document_ref;
+    }
+    std::vector<common::core::ToneParameterAutomation> removed_automation;
+    if (!removed_plugin_id.empty())
+    {
+        if (std::vector<common::core::ToneParameterAutomation>* const automation =
+                m_session.currentToneAutomation();
+            automation != nullptr)
+        {
+            for (const common::core::ToneParameterAutomation& entry : *automation)
+            {
+                if (entry.plugin_id == removed_plugin_id)
+                {
+                    removed_automation.push_back(entry);
+                }
+            }
+            std::erase_if(
+                *automation,
+                [&removed_plugin_id](const common::core::ToneParameterAutomation& entry) {
+                    return entry.plugin_id == removed_plugin_id;
+                });
+        }
+        std::erase_if(
+            m_open_automation_lanes, [&removed_plugin_id](const OpenAutomationLane& lane) {
+                return lane.plugin_id == removed_plugin_id;
+            });
+    }
+
     auto undo_edit = std::make_unique<PluginRemoveEdit>();
     undo_edit->instance_id = action.instance_id;
     undo_edit->plugin_name = removed_plugin_name;
@@ -575,6 +616,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::RemovePlugin&
     undo_edit->before_placement = before_placement;
     undo_edit->after_placement = pluginBlockAssignmentsFor(m_signal_chain.plugins());
     undo_edit->visual_state = *visual_state;
+    undo_edit->plugin_id = std::move(removed_plugin_id);
+    undo_edit->tone_document_ref = std::move(automation_tone_ref);
+    undo_edit->removed_automation = std::move(removed_automation);
     pushUndoEntry(std::move(undo_edit));
     updateView();
 }
