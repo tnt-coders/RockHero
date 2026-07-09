@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <chrono>
 #include <cstddef>
-#include <optional>
 #include <rock_hero/common/core/shared/logger.h>
 #include <utility>
 
@@ -15,18 +14,12 @@ namespace
 
 constexpr auto g_plugin_dirty_transaction_quiet_debounce = std::chrono::milliseconds{750};
 
-// After a programmatic state restore (undo/redo), the plugin asynchronously re-announces its
-// parameters; immediate re-announces should not become user edits because that discards the redo
-// stack. The window self-extends on each absorbed settle, but an already-open absorbed transaction
-// that receives more dirty signals after the deadline is recorded so real user edits are not lost
-// inside the longer quiet debounce.
-constexpr auto g_plugin_post_restore_absorb_window = std::chrono::milliseconds{100};
-
 } // namespace
 
 PluginParameterDirtyTracker::PluginParameterDirtyTracker(
-    tracktion::ExternalPlugin& plugin, MarkDirty mark_dirty)
+    tracktion::ExternalPlugin& plugin, MarkDirty mark_dirty, MarkUserIntent mark_user_intent)
     : m_mark_dirty(std::move(mark_dirty))
+    , m_mark_user_intent(std::move(mark_user_intent))
 {
     const int parameter_count = plugin.getNumAutomatableParameters();
     m_parameters.reserve(static_cast<std::size_t>(std::max(parameter_count, 0)));
@@ -62,16 +55,26 @@ void PluginParameterDirtyTracker::markDirty()
     }
 }
 
+void PluginParameterDirtyTracker::markUserIntent()
+{
+    if (m_mark_user_intent)
+    {
+        m_mark_user_intent();
+    }
+}
+
 void PluginParameterDirtyTracker::parameterChangeGestureBegin(
     tracktion::AutomatableParameter& /*parameter*/)
 {
-    markDirty();
+    // A gesture is only ever raised by the plugin's editor in response to a user grabbing a control,
+    // so it is the authoritative "a human is editing this" signal.
+    markUserIntent();
 }
 
 void PluginParameterDirtyTracker::parameterChangeGestureEnd(
     tracktion::AutomatableParameter& /*parameter*/)
 {
-    markDirty();
+    markUserIntent();
 }
 
 void PluginParameterDirtyTracker::curveHasChanged(tracktion::AutomatableParameter& /*parameter*/)
@@ -84,52 +87,23 @@ void PluginParameterDirtyTracker::currentValueChanged(
 void PluginParameterDirtyTracker::parameterChanged(
     tracktion::AutomatableParameter& /*parameter*/, float /*new_value*/)
 {
+    // A bare value change carries no intent: the plugin fires it identically for a user move and for
+    // its own post-load re-announcement. The state tracker decides intent from gestures / window.
     markDirty();
-}
-
-void PostRestoreAbsorbWindow::arm() noexcept
-{
-    m_deadline = Clock::now() + g_plugin_post_restore_absorb_window;
-}
-
-bool PostRestoreAbsorbWindow::beginTransaction() noexcept
-{
-    m_transaction_absorbing = Clock::now() < m_deadline;
-    return m_transaction_absorbing;
-}
-
-bool PostRestoreAbsorbWindow::isAbsorbingTransaction() const noexcept
-{
-    return m_transaction_absorbing;
-}
-
-bool PostRestoreAbsorbWindow::hasElapsed() const noexcept
-{
-    return m_deadline != Clock::time_point{} && Clock::now() >= m_deadline;
-}
-
-bool PostRestoreAbsorbWindow::finishTransaction() noexcept
-{
-    return std::exchange(m_transaction_absorbing, false);
-}
-
-void PostRestoreAbsorbWindow::clearTransaction() noexcept
-{
-    m_transaction_absorbing = false;
 }
 
 PluginDirtyStateTracker::PluginDirtyStateTracker(
     tracktion::ExternalPlugin& plugin, CaptureState capture_state, EmitEdit emit_edit,
     PendingChanged pending_changed, ShouldDeferCapture should_defer_capture,
-    std::optional<PluginInstanceState> initial_baseline, bool absorb_initial_reannounce)
+    IsEditorWindowOpen is_editor_window_open, std::optional<PluginInstanceState> initial_baseline)
     : m_plugin(plugin)
     , m_instance_id(plugin.itemID.toString().toStdString())
     , m_capture_state(std::move(capture_state))
     , m_emit_edit(std::move(emit_edit))
     , m_pending_changed(std::move(pending_changed))
     , m_should_defer_capture(std::move(should_defer_capture))
+    , m_is_editor_window_open(std::move(is_editor_window_open))
 {
-    const bool has_initial_baseline = initial_baseline.has_value();
     if (initial_baseline.has_value())
     {
         m_baseline = std::move(initial_baseline);
@@ -139,12 +113,9 @@ PluginDirtyStateTracker::PluginDirtyStateTracker(
         refreshBaseline();
     }
 
-    // Undo/redo rebuilds pass a known baseline; save capture rebuilds from the live plugin.
-    // Both host-owned sync points can make plugins immediately re-announce state.
-    if ((has_initial_baseline || absorb_initial_reannounce) && m_baseline.has_value())
-    {
-        m_post_restore_absorb.arm();
-    }
+    // A freshly attached tracker is about to hear the plugin's own instantiation/restore re-announce
+    // (which is not a user edit). Expect it, so window-open alone does not misread it as intent.
+    m_expect_self_report = true;
     m_plugin.addSelectableListener(this);
 }
 
@@ -178,13 +149,29 @@ void PluginDirtyStateTracker::markDirty()
     beginPendingEdit();
 }
 
+void PluginDirtyStateTracker::markUserIntent()
+{
+    // A gesture is genuine user interaction, so it overrides an expected self-report: the plugin is
+    // now being edited, not merely settling after our operation.
+    RH_LOG_INFO(
+        "audio.engine",
+        "Plugin user intent (gesture) instance_id={:?} label_hint={:?}",
+        m_instance_id,
+        m_plugin.getName().toStdString());
+    m_user_intent = true;
+    m_expect_self_report = false;
+    beginPendingEdit();
+}
+
 void PluginDirtyStateTracker::resetBaseline(PluginInstanceState baseline)
 {
     stopTimer();
     m_before.reset();
-    m_post_restore_absorb.clearTransaction();
+    m_user_intent = false;
+    // The restore will make the plugin re-announce its own state; expect it so the re-announce is
+    // folded even when the editor window is open (as it is when the user undoes mid-edit).
+    m_expect_self_report = true;
     m_baseline = std::move(baseline);
-    m_post_restore_absorb.arm();
     notifyPendingChanged();
 }
 
@@ -248,20 +235,16 @@ void PluginDirtyStateTracker::beginPendingEdit()
         return;
     }
 
-    // A transaction can begin as a post-restore re-announce, then receive a real user edit
-    // after the short absorb window but before the longer debounce settles. Once the window has
-    // elapsed, keep the transaction open but stop treating it as restore noise so the final
-    // state change is emitted as a normal edit.
-    if (m_before.has_value() && m_post_restore_absorb.isAbsorbingTransaction() &&
-        m_post_restore_absorb.hasElapsed())
+    // In this app a plugin's parameters can only be changed through its own editor window (there is
+    // no host-side parameter UI, and automation is a separate undo domain), so an open editor is the
+    // corroborating intent signal for changes that arrive without a gesture, such as an in-plugin
+    // preset load. Sample it on every dirty signal, not only at settle, because the window may close
+    // before the debounce fires. It does not count while we expect the plugin's own re-announce,
+    // because then the open window is incidental (e.g. left open while the user undoes).
+    const bool window_open = m_is_editor_window_open && m_is_editor_window_open();
+    if (window_open && !m_expect_self_report)
     {
-        m_post_restore_absorb.clearTransaction();
-        RH_LOG_INFO(
-            "audio.engine",
-            "Plugin state edit left post-restore absorb window instance_id={:?} "
-            "label_hint={:?}",
-            m_instance_id,
-            m_plugin.getName().toStdString());
+        m_user_intent = true;
     }
 
     if (!m_before.has_value())
@@ -277,14 +260,15 @@ void PluginDirtyStateTracker::beginPendingEdit()
         }
 
         m_before = *m_baseline;
-        const bool absorbing = m_post_restore_absorb.beginTransaction();
         notifyPendingChanged();
         RH_LOG_INFO(
             "audio.engine",
-            "Plugin state edit started instance_id={:?} label_hint={:?} absorbing={}",
+            "Plugin state edit started instance_id={:?} label_hint={:?} window_open={} "
+            "expect_self_report={}",
             m_instance_id,
             m_plugin.getName().toStdString(),
-            absorbing);
+            window_open,
+            m_expect_self_report);
     }
 
     startTimer(static_cast<int>(g_plugin_dirty_transaction_quiet_debounce.count()));
@@ -297,6 +281,7 @@ void PluginDirtyStateTracker::selectableObjectAboutToBeDeleted(tracktion::Select
         stopTimer();
         m_before.reset();
         m_baseline.reset();
+        m_user_intent = false;
     }
 }
 
@@ -310,7 +295,10 @@ void PluginDirtyStateTracker::settlePendingEdit()
     auto after = captureState();
     PluginInstanceState before = std::move(*m_before);
     m_before.reset();
-    const bool absorbing = m_post_restore_absorb.finishTransaction();
+    const bool had_user_intent = std::exchange(m_user_intent, false);
+    // The self-report we were expecting has now been absorbed; later transactions are ordinary and
+    // may take intent from the open editor window again.
+    m_expect_self_report = false;
     if (!after.has_value())
     {
         RH_LOG_WARNING(
@@ -324,15 +312,15 @@ void PluginDirtyStateTracker::settlePendingEdit()
     }
 
     m_baseline = *after;
-    if (absorbing)
+
+    if (before != *after && !had_user_intent)
     {
-        // Post-restore re-announce: fold it into the baseline and extend the window so the next
-        // burst of the same re-announce (often triggered by this settle's own state flush) is
-        // absorbed too. Never emitted as an edit.
-        m_post_restore_absorb.arm();
+        // The plugin changed its own state with no user intent behind it (an instantiation or
+        // undo/redo re-announce). Fold it into the baseline; recording it would put a phantom edit
+        // on the undo stack and, mid-redo, truncate the redo branch.
         RH_LOG_INFO(
             "audio.engine",
-            "Absorbed post-restore plugin re-announce instance_id={:?} label_hint={:?}",
+            "Folded plugin self-report (no user intent) instance_id={:?} label_hint={:?}",
             m_instance_id,
             m_plugin.getName().toStdString());
         notifyPendingChanged();

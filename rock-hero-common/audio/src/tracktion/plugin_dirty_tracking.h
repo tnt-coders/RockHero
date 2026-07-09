@@ -5,7 +5,6 @@
 
 #pragma once
 
-#include <chrono>
 #include <expected>
 #include <functional>
 #include <optional>
@@ -18,8 +17,14 @@ namespace rock_hero::common::audio
 {
 
 /*!
-\brief Observes one external plugin's parameter notifications and marks the whole plugin state
-dirty.
+\brief Observes one external plugin's parameter notifications.
+
+A plugin's own value re-announcements (fired asynchronously after instantiation or a state restore)
+and a genuine user parameter move are indistinguishable by value alone, so this tracker forwards
+them on two channels: every change marks the plugin state dirty, while a parameter gesture
+(begin/end edit) additionally signals user intent. Only the plugin's editor GUI raises gestures, so
+they are the reliable "a human did this" signal the state tracker uses to decide whether a settled
+change is a real edit.
 */
 class PluginParameterDirtyTracker final : private tracktion::AutomatableParameter::Listener
 {
@@ -27,12 +32,17 @@ public:
     /*! \brief Callback invoked whenever any observed parameter reports a change. */
     using MarkDirty = std::function<void()>;
 
+    /*! \brief Callback invoked when a change carries user intent (a parameter gesture). */
+    using MarkUserIntent = std::function<void()>;
+
     /*!
     \brief Subscribes to every automatable parameter of the plugin.
     \param plugin Plugin whose parameters should be observed.
     \param mark_dirty Callback invoked on each parameter change notification.
+    \param mark_user_intent Callback invoked on each parameter gesture (user GUI interaction).
     */
-    PluginParameterDirtyTracker(tracktion::ExternalPlugin& plugin, MarkDirty mark_dirty);
+    PluginParameterDirtyTracker(
+        tracktion::ExternalPlugin& plugin, MarkDirty mark_dirty, MarkUserIntent mark_user_intent);
 
     /*! \brief Unsubscribes from all observed parameters. */
     ~PluginParameterDirtyTracker() override;
@@ -52,6 +62,8 @@ public:
 private:
     void markDirty();
 
+    void markUserIntent();
+
     void parameterChangeGestureBegin(tracktion::AutomatableParameter& parameter) override;
 
     void parameterChangeGestureEnd(tracktion::AutomatableParameter& parameter) override;
@@ -63,57 +75,8 @@ private:
     void parameterChanged(tracktion::AutomatableParameter& parameter, float new_value) override;
 
     MarkDirty m_mark_dirty;
+    MarkUserIntent m_mark_user_intent;
     std::vector<tracktion::AutomatableParameter::Ptr> m_parameters;
-};
-
-/*!
-\brief Tracks the brief window after a plugin-state restore during which the plugin re-announces
-its own state.
-
-Two facts that always change together live here: the window deadline (armed and extended around
-restores) and whether the dirty transaction currently in flight began inside that window and
-should therefore be absorbed rather than emitted as an edit. Message-thread only; no
-synchronization.
-*/
-class PostRestoreAbsorbWindow final
-{
-public:
-    /*! \brief Opens or extends the absorb window, measured from now. */
-    void arm() noexcept;
-
-    /*!
-    \brief Begins a dirty transaction.
-    \return True when the transaction started inside the absorb window.
-    */
-    [[nodiscard]] bool beginTransaction() noexcept;
-
-    /*!
-    \brief Reports whether the in-flight transaction is being absorbed.
-    \return True when the current transaction began inside the absorb window.
-    */
-    [[nodiscard]] bool isAbsorbingTransaction() const noexcept;
-
-    /*!
-    \brief Reports whether an armed window has closed.
-    \return True when a previously armed window has elapsed; false on a never-armed window so
-    callers cannot read a default-constructed deadline as already elapsed.
-    */
-    [[nodiscard]] bool hasElapsed() const noexcept;
-
-    /*!
-    \brief Closes the in-flight transaction.
-    \return True when the transaction was still being absorbed.
-    */
-    [[nodiscard]] bool finishTransaction() noexcept;
-
-    /*! \brief Abandons the in-flight transaction's absorb flag without touching the window. */
-    void clearTransaction() noexcept;
-
-private:
-    using Clock = std::chrono::steady_clock;
-
-    Clock::time_point m_deadline{};
-    bool m_transaction_absorbing{false};
 };
 
 /*! \brief Owns one plugin's debounced dirty-state transaction and emits full-state edits. */
@@ -133,27 +96,33 @@ public:
     /*! \brief Reports whether state capture is currently deferred (undo/redo in flight). */
     using ShouldDeferCapture = std::function<bool()>;
 
+    /*! \brief Reports whether the plugin's editor window is currently open. */
+    using IsEditorWindowOpen = std::function<bool()>;
+
     /*!
     \brief Subscribes to the plugin's change notifications and establishes the edit baseline.
 
-    Undo/redo rebuilds pass a known baseline; save capture rebuilds from the live plugin. Both
-    host-owned sync points can make plugins immediately re-announce state, so either arms the
-    post-restore absorb window.
+    A hosted plugin re-announces its own state asynchronously after it is instantiated or restored,
+    with no bounded "settled" signal the host can wait for (a VST3 may call restartComponent at any
+    time). Those self-reports are therefore never distinguished from a real edit by timing. Instead a
+    settled transaction is emitted only when it carries **user intent** — a parameter gesture, or the
+    plugin's editor window being open when a change arrives. Every other settled change (a fresh
+    insert's re-announce, an undo/redo recreate's re-announce) is folded into the baseline and never
+    recorded, so it cannot appear as a phantom edit or truncate the redo stack.
 
     \param plugin Plugin whose state edits should be tracked.
     \param capture_state Full-state capture callback.
     \param emit_edit Callback receiving completed edits.
     \param pending_changed Callback notified when pending-edit state changes.
     \param should_defer_capture Callback gating capture during host-owned restores.
+    \param is_editor_window_open Callback reporting whether the plugin's editor window is open.
     \param initial_baseline Known post-restore baseline, or nullopt to capture one now.
-    \param absorb_initial_reannounce True when the immediate re-announce burst that follows
-    construction should be folded into the baseline instead of recorded as a user edit.
     */
     PluginDirtyStateTracker(
         tracktion::ExternalPlugin& plugin, CaptureState capture_state, EmitEdit emit_edit,
         PendingChanged pending_changed, ShouldDeferCapture should_defer_capture,
-        std::optional<PluginInstanceState> initial_baseline = std::nullopt,
-        bool absorb_initial_reannounce = false);
+        IsEditorWindowOpen is_editor_window_open,
+        std::optional<PluginInstanceState> initial_baseline = std::nullopt);
 
     /*! \brief Stops the debounce timer and unsubscribes from the plugin. */
     ~PluginDirtyStateTracker() override;
@@ -189,11 +158,19 @@ public:
     void markDirty();
 
     /*!
+    \brief Opens or extends the dirty transaction and flags it as carrying user intent.
+
+    Called for a parameter gesture: the transaction it belongs to is a real user edit and will be
+    emitted on settle (when its state actually changed).
+    */
+    void markUserIntent();
+
+    /*!
     \brief Retargets the baseline to a just-restored (undo/redo) memento.
 
-    Arms the absorb window so the plugin's asynchronous post-restore re-announce is folded into
-    the baseline instead of recorded as a spurious user edit (which would discard the redo
-    stack).
+    Drops any open transaction and its intent flag so the plugin's asynchronous post-restore
+    re-announce (which carries no gesture and arrives with the editor closed) is folded into this
+    baseline instead of recorded as a spurious user edit that would discard the redo stack.
 
     \param baseline Full plugin state that the restore just applied.
     */
@@ -224,9 +201,21 @@ private:
     EmitEdit m_emit_edit;
     PendingChanged m_pending_changed;
     ShouldDeferCapture m_should_defer_capture;
+    IsEditorWindowOpen m_is_editor_window_open;
     std::optional<PluginInstanceState> m_baseline;
     std::optional<PluginInstanceState> m_before;
-    PostRestoreAbsorbWindow m_post_restore_absorb;
+
+    // True when the open transaction has seen user intent (a gesture, or a change while the editor
+    // window was open). Only an intent-carrying transaction is emitted as an edit; reset at settle.
+    bool m_user_intent{false};
+
+    // True while the next settling transaction is expected to be the plugin's own re-announce that
+    // follows an instantiation or a state restore. Such a re-announce is never a user edit even if
+    // the editor window happens to be open (e.g. left open from prior editing while the user hits
+    // undo), so window-open does not imply intent while this is set; a gesture still does and clears
+    // it. Cleared when the transaction settles. This is the structural discriminator between "the
+    // plugin reacting to our operation" and "the user editing", with no reliance on timing.
+    bool m_expect_self_report{false};
 };
 
 } // namespace rock_hero::common::audio

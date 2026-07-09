@@ -359,22 +359,20 @@ private:
     void beginPluginUndoCaptureDeferral();
 
     // Ends an active capture deferral and reinstalls the plugin edit observers. Call it once a rig
-    // operation has finished rebuilding the monitoring graph. Pass absorb_reannounce so the rebuilt
-    // observers swallow the delayed post-rebuild re-announce (see PluginDirtyStateTracker's
-    // post-restore absorb window).
-    void endPluginUndoCaptureDeferral(bool absorb_reannounce = false);
+    // operation has finished rebuilding the monitoring graph. The rebuild's asynchronous
+    // post-rebuild re-announce is discarded by the observers' intent gate (no gesture, editor
+    // closed), so no timing window is needed here.
+    void endPluginUndoCaptureDeferral();
 
     // RAII guard for synchronous rig capture operations that rebuild the monitoring graph.
     // While alive it defers plugin-undo capture so the rebuild's parameter re-announce is not
     // recorded as undo entries; on scope exit it clears the deferral and reinstalls the plugin
-    // edit observers. Pass absorb_reannounce so the rebuilt observers also swallow the delayed
-    // post-rebuild re-announce (see PluginDirtyStateTracker's post-restore absorb window).
+    // edit observers.
     class [[nodiscard]] ScopedPluginUndoCaptureDeferral
     {
     public:
-        ScopedPluginUndoCaptureDeferral(Impl& impl, bool absorb_reannounce)
+        explicit ScopedPluginUndoCaptureDeferral(Impl& impl)
             : m_impl(impl)
-            , m_absorb_reannounce(absorb_reannounce)
         {
             m_impl.beginPluginUndoCaptureDeferral();
         }
@@ -385,7 +383,7 @@ private:
             // saturated; a destructor must not let that escape and nothing can safely log here.
             try
             {
-                m_impl.endPluginUndoCaptureDeferral(m_absorb_reannounce);
+                m_impl.endPluginUndoCaptureDeferral();
             }
             catch (...)
             {
@@ -400,7 +398,6 @@ private:
 
     private:
         Impl& m_impl;
-        bool m_absorb_reannounce;
     };
 
     // Emits a completed plugin-wide state edit to editor-core unless the engine is restoring state.
@@ -420,8 +417,7 @@ private:
 
     // Rebuilds plugin edit listeners for user-visible external plugins only.
     void refreshPluginEditObservers(
-        std::optional<KnownPluginBaseline> known_baseline = std::nullopt,
-        bool absorb_initial_reannounce = false);
+        std::optional<KnownPluginBaseline> known_baseline = std::nullopt);
 
     // Retargets dirty tracking after an in-place state restore without re-reading live plugin
     // state. The restored memento is already the correct baseline, and forcing a capture here can
