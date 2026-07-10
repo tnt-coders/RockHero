@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <compare>
 #include <cstddef>
 #include <iterator>
 #include <limits>
@@ -960,10 +961,13 @@ void TabView::paint(juce::Graphics& g)
     for (std::size_t index = first; index < last; ++index)
     {
         const core::TabNoteView& note = m_tab->notes[index];
+        // Exact equality via is_eq/is_neq keeps -Wfloat-equal builds clean: same-onset notes
+        // carry bit-identical seconds because the projection resolves one grid position once.
         const bool starts_group =
             index + 1 < m_tab->notes.size() &&
-            m_tab->notes[index + 1].start_seconds == note.start_seconds &&
-            (index == 0 || m_tab->notes[index - 1].start_seconds != note.start_seconds);
+            std::is_eq(m_tab->notes[index + 1].start_seconds <=> note.start_seconds) &&
+            (index == 0 ||
+             std::is_neq(m_tab->notes[index - 1].start_seconds <=> note.start_seconds));
         if (starts_group)
         {
             drawChordBoxPill(g, metrics, metrics.x(note.start_seconds));

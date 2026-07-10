@@ -6,6 +6,7 @@
 #pragma once
 
 #include <algorithm>
+#include <compare>
 
 namespace rock_hero::common::audio
 {
@@ -31,7 +32,13 @@ struct Gain
     \param rhs Right-hand gain value.
     \return True when both gain values store equal decibel values.
     */
-    friend constexpr bool operator==(Gain lhs, Gain rhs) noexcept = default;
+    friend constexpr bool operator==(Gain lhs, Gain rhs) noexcept
+    {
+        // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
+        // floating member. Exact equality is intended; the ordering query expresses it warning-
+        // free with identical semantics (NaN compares unequal either way).
+        return std::is_eq(lhs.db <=> rhs.db);
+    }
 };
 
 /*!

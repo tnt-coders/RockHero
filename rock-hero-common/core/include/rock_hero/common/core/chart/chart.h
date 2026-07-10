@@ -42,11 +42,15 @@ struct GridPosition
     friend constexpr std::strong_ordering operator<=>(
         const GridPosition& lhs, const GridPosition& rhs) noexcept
     {
-        if (const auto measure_order = lhs.measure <=> rhs.measure; measure_order != 0)
+        // std::is_neq instead of `!= 0`: GCC's -Wzero-as-null-pointer-constant misfires on
+        // ordering-vs-literal-zero comparisons (the standard comparison operator takes an
+        // unspecified pointer-constructible parameter), so the named query keeps -Werror builds
+        // clean without changing meaning.
+        if (const auto measure_order = lhs.measure <=> rhs.measure; std::is_neq(measure_order))
         {
             return measure_order;
         }
-        if (const auto beat_order = lhs.beat <=> rhs.beat; beat_order != 0)
+        if (const auto beat_order = lhs.beat <=> rhs.beat; std::is_neq(beat_order))
         {
             return beat_order;
         }
@@ -117,7 +121,13 @@ struct BendPoint
     \param rhs Right-hand bend point.
     \return True when both points store equal values.
     */
-    friend constexpr bool operator==(const BendPoint& lhs, const BendPoint& rhs) noexcept = default;
+    friend constexpr bool operator==(const BendPoint& lhs, const BendPoint& rhs) noexcept
+    {
+        // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
+        // floating member. Exact equality is intended; the ordering query expresses it warning-
+        // free with identical semantics (NaN compares unequal either way).
+        return lhs.offset == rhs.offset && std::is_eq(lhs.semitones <=> rhs.semitones);
+    }
 };
 
 /*! \brief One slide waypoint: by this offset the fret hand has glided to the target fret. */
@@ -320,7 +330,14 @@ struct ChartTuning
     \param rhs Right-hand tuning.
     \return True when both tunings store equal values.
     */
-    friend bool operator==(const ChartTuning& lhs, const ChartTuning& rhs) = default;
+    friend bool operator==(const ChartTuning& lhs, const ChartTuning& rhs)
+    {
+        // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
+        // floating member. Exact equality is intended; the ordering query expresses it warning-
+        // free with identical semantics (NaN compares unequal either way).
+        return lhs.strings == rhs.strings && lhs.capo == rhs.capo &&
+               std::is_eq(lhs.cent_offset <=> rhs.cent_offset);
+    }
 };
 
 /*!

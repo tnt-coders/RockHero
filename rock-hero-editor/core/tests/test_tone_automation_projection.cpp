@@ -2,6 +2,7 @@
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <compare>
 #include <cstdlib>
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <rock_hero/common/core/song/arrangement.h>
@@ -171,7 +172,7 @@ TEST_CASE(
     CHECK(state.lanes.front().resolved);
     REQUIRE(state.lanes.front().points.size() == 2);
     CHECK(state.lanes.front().points.back().seconds == Catch::Approx(2.25));
-    CHECK(state.lanes.front().points.back().norm_value == 0.8F);
+    CHECK(std::is_eq(state.lanes.front().points.back().norm_value <=> 0.8F));
 }
 
 TEST_CASE(

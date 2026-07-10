@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <compare>
 #include <string>
 
 namespace rock_hero::common::core
@@ -27,8 +28,13 @@ struct AudioNormalizationTarget
     \param rhs Right-hand target.
     \return True when both targets store equal fields.
     */
-    friend bool operator==(
-        const AudioNormalizationTarget& lhs, const AudioNormalizationTarget& rhs) = default;
+    friend bool operator==(const AudioNormalizationTarget& lhs, const AudioNormalizationTarget& rhs)
+    {
+        // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
+        // floating member. Exact equality is intended; the ordering query expresses it warning-
+        // free with identical semantics (NaN compares unequal either way).
+        return std::is_eq(lhs.integrated_loudness_lufs <=> rhs.integrated_loudness_lufs);
+    }
 };
 
 /*!
@@ -60,7 +66,14 @@ struct AudioNormalization
     \param rhs Right-hand normalization record.
     \return True when both normalization records store equal fields.
     */
-    friend bool operator==(const AudioNormalization& lhs, const AudioNormalization& rhs) = default;
+    friend bool operator==(const AudioNormalization& lhs, const AudioNormalization& rhs)
+    {
+        // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
+        // floating member. Exact equality is intended; the ordering query expresses it warning-
+        // free with identical semantics (NaN compares unequal either way).
+        return std::is_eq(lhs.gain_db <=> rhs.gain_db) &&
+               lhs.validation_sha256 == rhs.validation_sha256;
+    }
 };
 
 } // namespace rock_hero::common::core

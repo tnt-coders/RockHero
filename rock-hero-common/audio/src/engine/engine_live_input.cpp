@@ -20,24 +20,21 @@ void logInstrumentMonitoringFailure(const juce::String& message)
 namespace
 {
 
-// Maps structural live-rig failures into the narrower live-input setup surface.
+// Maps structural live-rig failures into the narrower live-input setup surface. An if/return
+// chain, not a switch: the translation deliberately maps two specific codes and funnels every
+// other (and future) code into the coarse fallback, which -Wswitch-enum would otherwise force
+// us to re-enumerate on each source-enum addition.
 [[nodiscard]] LiveInputError liveInputErrorFromLiveRigError(const LiveRigError& error)
 {
-    switch (error.code)
+    if (error.code == LiveRigErrorCode::MessageThreadRequired)
     {
-        case LiveRigErrorCode::MessageThreadRequired:
-        {
-            return LiveInputError{LiveInputErrorCode::MessageThreadRequired, error.message};
-        }
-        case LiveRigErrorCode::TrackMissing:
-        {
-            return LiveInputError{LiveInputErrorCode::TrackMissing, error.message};
-        }
-        default:
-        {
-            return LiveInputError{LiveInputErrorCode::CouldNotSetInputGain, error.message};
-        }
+        return LiveInputError{LiveInputErrorCode::MessageThreadRequired, error.message};
     }
+    if (error.code == LiveRigErrorCode::TrackMissing)
+    {
+        return LiveInputError{LiveInputErrorCode::TrackMissing, error.message};
+    }
+    return LiveInputError{LiveInputErrorCode::CouldNotSetInputGain, error.message};
 }
 
 // Converts a route-bind failure into the live-input error surface used by calibration setup.

@@ -1,5 +1,6 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <compare>
 #include <filesystem>
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <rock_hero/common/audio/live_rig/i_live_rig.h>
@@ -157,7 +158,7 @@ TEST_CASE(
     CHECK(editor.automation().lanes.front().plugin_name.empty());
     CHECK(editor.automation().lanes.front().resolved);
     CHECK(editor.automation().lanes.front().points.empty());
-    CHECK(editor.automation().lanes.front().live_norm_value == 0.4F);
+    CHECK(std::is_eq(editor.automation().lanes.front().live_norm_value <=> 0.4F));
 
     // Closing the unauthored lane removes it from the view again.
     editor.controller.onToneAutomationLaneRemoveRequested(g_instance, g_param);
@@ -187,7 +188,7 @@ TEST_CASE(
         {common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.3F}});
     REQUIRE(editor.automation().lanes.size() == 1);
     REQUIRE(editor.automation().lanes.front().points.size() == 1);
-    CHECK(editor.automation().lanes.front().points.front().norm_value == 0.3F);
+    CHECK(std::is_eq(editor.automation().lanes.front().points.front().norm_value <=> 0.3F));
 }
 
 TEST_CASE(
@@ -214,7 +215,7 @@ TEST_CASE(
     REQUIRE(written != editor.tone_automation.curves.end());
     REQUIRE(written->second.size() == 2);
     CHECK(written->second.back().seconds == Catch::Approx(2.25));
-    CHECK(written->second.back().norm_value == 0.8F);
+    CHECK(std::is_eq(written->second.back().norm_value <=> 0.8F));
 
     REQUIRE(editor.automation().lanes.size() == 1);
     REQUIRE(editor.automation().lanes.front().points.size() == 2);
@@ -239,7 +240,7 @@ TEST_CASE("EditorController undoes and redoes a tone automation edit", "[core][t
     editor.controller.onRedoRequested();
     REQUIRE(editor.model().size() == 1);
     REQUIRE(editor.automation().lanes.size() == 1);
-    CHECK(editor.automation().lanes.front().points.front().norm_value == 0.6F);
+    CHECK(std::is_eq(editor.automation().lanes.front().points.front().norm_value <=> 0.6F));
 }
 
 TEST_CASE(
