@@ -1,0 +1,73 @@
+include_guard()
+
+# RockHeroRenderStack.cmake
+#
+# Render-stack dependency wiring for the SDL3 + bgfx game view and the editor 3D preview, per the
+# G20-RENDER gate decision (docs/roadmap/20-game-architecture-and-render-stack.md § Gate record).
+#
+# Like the JUCE/Tracktion wrappers in RockHeroExternalModules.cmake, consumers link project-owned
+# rock_hero:: aliases instead of raw third-party targets. SDL3 and bgfx arrive precompiled through
+# Conan, so there is no module-source recompilation concern here; these wrappers are thin INTERFACE
+# consumption seams that keep raw target names and any future render-stack compile settings in one
+# place shared by rock-hero-game/ui and the future editor preview.
+
+find_package(SDL3 REQUIRED CONFIG)
+find_package(bgfx REQUIRED CONFIG)
+
+add_library(rock_hero_sdl3 INTERFACE)
+add_library(rock_hero::sdl3 ALIAS rock_hero_sdl3)
+target_link_libraries(rock_hero_sdl3 INTERFACE SDL3::SDL3)
+
+add_library(rock_hero_bgfx INTERFACE)
+add_library(rock_hero::bgfx ALIAS rock_hero_bgfx)
+target_link_libraries(rock_hero_bgfx INTERFACE bgfx::bgfx)
+
+# The classic CMakeDeps generator declares no executable targets for the tools the bgfx package
+# ships (the recipe documents a CMakeConfigDeps requirement, but that generator is still marked
+# experimental by Conan and our provider fork injects CMakeDeps unconditionally). Locate the
+# packaged shaderc off the recipe-exported BGFX_SHADER_INCLUDE_PATH — the pattern proven by gate
+# criterion S4 — and shim it as an IMPORTED executable. The if(NOT TARGET) guard makes this a
+# no-op if a future CMakeConfigDeps migration starts generating the real target.
+cmake_path(GET BGFX_SHADER_INCLUDE_PATH PARENT_PATH _rock_hero_bgfx_include_root)
+cmake_path(GET _rock_hero_bgfx_include_root PARENT_PATH _rock_hero_bgfx_package_root)
+find_program(ROCK_HERO_BGFX_SHADERC shaderc HINTS "${_rock_hero_bgfx_package_root}/bin" REQUIRED)
+if(NOT TARGET bgfx::shaderc)
+    add_executable(bgfx::shaderc IMPORTED GLOBAL)
+    set_target_properties(bgfx::shaderc PROPERTIES IMPORTED_LOCATION "${ROCK_HERO_BGFX_SHADERC}")
+endif()
+
+# Compiles one bgfx .sc shader for one backend profile at build time (gate criterion S4,
+# productionized). Callers own output layout and the profile list, so adding a backend later is a
+# call-site list edit, not a redesign (plan 20 gate record, 0a memo requirement).
+#
+# rock_hero_add_compiled_shader(
+#     OUTPUT <path to compiled .bin>
+#     TYPE <vertex|fragment|compute>
+#     SOURCE <path to the .sc source>
+#     VARYING <path to the varying.def.sc definition>
+#     PROFILE <shaderc profile, e.g. s_5_0>
+#     PLATFORM <shaderc platform, e.g. windows>)
+function(rock_hero_add_compiled_shader)
+    set(one_value_args OUTPUT TYPE SOURCE VARYING PROFILE PLATFORM)
+    cmake_parse_arguments(PARSE_ARGV 0 ARG "" "${one_value_args}" "")
+
+    foreach(required IN LISTS one_value_args)
+        if(NOT ARG_${required})
+            message(FATAL_ERROR "rock_hero_add_compiled_shader: missing required argument "
+                                "${required}")
+        endif()
+    endforeach()
+
+    # CMake resolves the IMPORTED bgfx::shaderc target in COMMAND to the packaged tool path. The
+    # varying definition is a real input even though shaderc takes it as a flag, so declare it as
+    # a dependency to get correct rebuilds when only the varyings change.
+    add_custom_command(
+        OUTPUT "${ARG_OUTPUT}"
+        COMMAND
+            bgfx::shaderc -f "${ARG_SOURCE}" -o "${ARG_OUTPUT}" --type ${ARG_TYPE} --platform
+            ${ARG_PLATFORM} -p ${ARG_PROFILE} -O 3 --varyingdef "${ARG_VARYING}" -i
+            "${BGFX_SHADER_INCLUDE_PATH}"
+        MAIN_DEPENDENCY "${ARG_SOURCE}"
+        DEPENDS "${ARG_VARYING}"
+        COMMENT "Compiling ${ARG_TYPE} shader ${ARG_SOURCE} for ${ARG_PROFILE}")
+endfunction()

@@ -8,8 +8,6 @@ real rendering code requires them.
 Do not place scoring rules, audio timing policy, editor UI, shared JUCE windows, or app startup
 here.
 
-The include namespace currently contains only `.gitkeep` so Git preserves the empty public include
-root. Remove `.gitkeep` in the same change that adds the first real public header.
-
-First real code should be bgfx surface integration, note highway rendering, HUD, visual feedback,
-or gameplay-surface input handling.
+Real code starts with the `surface/` feature: the SDL3 game window, the bgfx render device, and
+the `GameShell` frame-loop composition point (plan 20 loop model L2). Note highway rendering,
+HUD, visual feedback, and gameplay-surface input handling build on top of it.
