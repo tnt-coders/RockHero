@@ -1520,7 +1520,8 @@ mints one.
 [[nodiscard]] inline EditorController::OpenFunction makeAnalyzingOpenFunction(
     std::filesystem::path audio_path, int& analysis_progress_call_count)
 {
-    return [audio_path = std::move(audio_path), &analysis_progress_call_count](
+    // Distinct capture name: clang's -Wshadow-uncaptured-local flags `x = std::move(x)`.
+    return [owned_audio_path = std::move(audio_path), &analysis_progress_call_count](
                Project&,
                const std::filesystem::path&,
                const EditorController::ProjectOperationProgress& report_progress)
@@ -1530,7 +1531,7 @@ mints one.
             report_progress(EditorController::ProjectOperationPhase::AnalyzingBackingAudio);
         }
         ++analysis_progress_call_count;
-        common::core::Song song = makeSong(audio_path);
+        common::core::Song song = makeSong(owned_audio_path);
         song.arrangements.front().audio_asset.normalization = makeCurrentNormalization();
         return song;
     };
@@ -1545,7 +1546,8 @@ mints one.
 [[nodiscard]] inline EditorController::ImportFunction makeAnalyzingImportFunction(
     std::filesystem::path audio_path, int& analysis_progress_call_count)
 {
-    return [audio_path = std::move(audio_path), &analysis_progress_call_count](
+    // Distinct capture name: clang's -Wshadow-uncaptured-local flags `x = std::move(x)`.
+    return [owned_audio_path = std::move(audio_path), &analysis_progress_call_count](
                Project&,
                const std::filesystem::path&,
                const EditorController::ProjectOperationProgress& report_progress)
@@ -1555,7 +1557,7 @@ mints one.
             report_progress(EditorController::ProjectOperationPhase::AnalyzingBackingAudio);
         }
         ++analysis_progress_call_count;
-        common::core::Song song = makeSong(audio_path);
+        common::core::Song song = makeSong(owned_audio_path);
         song.arrangements.front().audio_asset.normalization = makeCurrentNormalization();
         return song;
     };

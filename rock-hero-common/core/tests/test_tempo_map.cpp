@@ -1,5 +1,6 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <compare>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <utility>
@@ -99,7 +100,9 @@ TEST_CASE("TempoMap forward cursor matches the global-beat query", "[core][tempo
     TempoMap::ForwardBeatTimeCursor cursor{tempo_map};
     for (const double position : {-1.0, 0.0, 2.5, 4.0, 8.0, 10.0, 12.0, 99.0})
     {
-        CHECK(cursor.secondsAt(position) == tempo_map.secondsAtGlobalBeatPosition(position));
+        CHECK(
+            std::is_eq(
+                cursor.secondsAt(position) <=> tempo_map.secondsAtGlobalBeatPosition(position)));
     }
 }
 

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>
+#include <compare>
 #include <cstdint>
 #include <expected>
 #include <filesystem>
@@ -439,7 +440,7 @@ TEST_CASE("Project loads a minimal RHP package", "[core][project]")
     REQUIRE(result->arrangements.front().audio_asset.normalization.has_value());
     if (result->arrangements.front().audio_asset.normalization.has_value())
     {
-        CHECK(result->arrangements.front().audio_asset.normalization->gain_db == -4.0);
+        CHECK(std::is_eq(result->arrangements.front().audio_asset.normalization->gain_db <=> -4.0));
     }
     CHECK(project.audioNormalizationUpdatedOnLoad());
     CHECK(project.path() == path);
@@ -495,7 +496,7 @@ TEST_CASE("Project imports a native song package", "[core][project]")
     REQUIRE(arrangement.audio_asset.normalization.has_value());
     if (arrangement.audio_asset.normalization.has_value())
     {
-        CHECK(arrangement.audio_asset.normalization->gain_db == -4.0);
+        CHECK(std::is_eq(arrangement.audio_asset.normalization->gain_db <=> -4.0));
     }
     CHECK(project.path().empty());
     CHECK(std::filesystem::is_directory(project.workspaceDirectory()));

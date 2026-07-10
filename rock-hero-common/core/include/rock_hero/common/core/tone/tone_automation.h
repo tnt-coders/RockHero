@@ -38,7 +38,14 @@ struct ToneAutomationPoint
     \return True when both points store equal values.
     */
     friend constexpr bool operator==(
-        const ToneAutomationPoint& lhs, const ToneAutomationPoint& rhs) noexcept = default;
+        const ToneAutomationPoint& lhs, const ToneAutomationPoint& rhs) noexcept
+    {
+        // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
+        // floating members. Exact equality is intended; the ordering query expresses it warning-
+        // free with identical semantics (NaN compares unequal either way).
+        return lhs.position == rhs.position && std::is_eq(lhs.norm_value <=> rhs.norm_value) &&
+               std::is_eq(lhs.curve_shape <=> rhs.curve_shape);
+    }
 };
 
 /*!

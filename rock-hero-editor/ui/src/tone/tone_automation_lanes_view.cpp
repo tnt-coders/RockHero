@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <compare>
 #include <cstddef>
 #include <iterator>
 #include <rock_hero/common/core/chart/chart_tokens.h>
@@ -1184,7 +1185,9 @@ bool ToneAutomationLanesView::nudgeSelectedPoint(NudgeDirection direction, bool 
                                    : (fine ? 0.001F : 0.01F);
             const float raw = point->norm_value + (direction == NudgeDirection::Up ? step : -step);
             const float new_value = snappedValueForLane(std::clamp(raw, 0.0F, 1.0F), lane);
-            if (new_value != point->norm_value)
+            // Exact inequality via is_neq keeps -Wfloat-equal builds clean; snapped-value
+            // no-change detection is deliberately exact.
+            if (std::is_neq(new_value <=> point->norm_value))
             {
                 requestPointReplace(
                     target.instance_id,
@@ -1342,10 +1345,12 @@ void ToneAutomationLanesView::showParameterPicker()
     juce::String open_plugin_label;
     int plugin_number = 0;
     int item_id = 1;
-    const auto close_group = [&menu = plugin_menu, &grouped, &open_group] {
+    // Distinct capture name (not `menu`): clang's -Wshadow-uncaptured-local flags init-captures
+    // that shadow the enclosing function's `menu` local.
+    const auto close_group = [&target_menu = plugin_menu, &grouped, &open_group] {
         if (grouped.getNumItems() > 0)
         {
-            menu.addSubMenu(open_group, grouped);
+            target_menu.addSubMenu(open_group, grouped);
             grouped = juce::PopupMenu{};
         }
         open_group.clear();

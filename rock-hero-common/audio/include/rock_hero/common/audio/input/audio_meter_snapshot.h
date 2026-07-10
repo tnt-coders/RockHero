@@ -6,6 +6,7 @@
 #pragma once
 
 #include <algorithm>
+#include <compare>
 #include <type_traits>
 
 namespace rock_hero::common::audio
@@ -44,7 +45,13 @@ struct AudioMeterLevel
     \param rhs Right-hand audio meter level.
     \return True when both levels store equal peak and clipping values.
     */
-    friend constexpr bool operator==(AudioMeterLevel lhs, AudioMeterLevel rhs) noexcept = default;
+    friend constexpr bool operator==(AudioMeterLevel lhs, AudioMeterLevel rhs) noexcept
+    {
+        // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
+        // floating member. Exact equality is intended; the ordering query expresses it warning-
+        // free with identical semantics (NaN compares unequal either way).
+        return std::is_eq(lhs.peak_db <=> rhs.peak_db) && lhs.clipping == rhs.clipping;
+    }
 };
 
 static_assert(sizeof(AudioMeterLevel) <= 16);

@@ -338,6 +338,9 @@ TEST_CASE("Guitar Pro import keeps the bend plateau between middle offsets", "[c
     std::filesystem::remove_all(scratch, cleanup_error);
 }
 
+namespace
+{
+
 // Builds a minimal all-4/4 score with one six-string track and the given start-aligned sync
 // points, so tempo-map coverage can be tested without a full gpif fixture.
 [[nodiscard]] GpScore makeLinearScore(int bar_count, const std::vector<GpSyncPoint>& syncs)
@@ -363,6 +366,8 @@ TEST_CASE("Guitar Pro import keeps the bend plateau between middle offsets", "[c
     return std::ranges::any_of(
         notes, [&](const std::string& note) { return note.find(fragment) != std::string::npos; });
 }
+
+} // namespace
 
 // A song whose audio sync points stop early leaves most bars to constant-tempo extrapolation, so
 // the build records a drift warning naming the covered range.
@@ -444,7 +449,9 @@ TEST_CASE("Guitar Pro import snaps tempo anchors to the millisecond grid", "[cor
     for (const common::core::BeatAnchor& anchor : anchors)
     {
         const double milliseconds = anchor.seconds * 1000.0;
-        CHECK(std::abs(milliseconds - std::llround(milliseconds)) < 1.0e-6);
+        // Explicit cast: -Wimplicit-int-float-conversion flags the long long result widening
+        // back to double in the subtraction.
+        CHECK(std::abs(milliseconds - static_cast<double>(std::llround(milliseconds))) < 1.0e-6);
     }
     // The off-grid sync rounds to the nearest millisecond rather than staying at 2.00201814.
     CHECK(song->tempo_map.secondsAtBeat(2, 1) == Catch::Approx(2.002));

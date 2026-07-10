@@ -179,8 +179,11 @@ void EditorController::Impl::openProject(
         makeBusyProjectOperationProgress(token);
 
     m_task_runner.submit(
-        [state, open_function = m_open_function, report_progress = std::move(report_progress)] {
-            state->result = open_function(state->project, state->file, report_progress);
+        // Distinct capture name: clang's -Wshadow-uncaptured-local flags `x = std::move(x)`.
+        [state,
+         open_function = m_open_function,
+         owned_report_progress = std::move(report_progress)] {
+            state->result = open_function(state->project, state->file, owned_report_progress);
         },
         safeCallback([this, state, token]() mutable {
             if (!m_busy.isCurrentToken(token))
@@ -337,8 +340,11 @@ void EditorController::Impl::importSongSource(const std::filesystem::path& file)
         makeBusyProjectOperationProgress(token);
 
     m_task_runner.submit(
-        [state, import_function = m_import_function, report_progress = std::move(report_progress)] {
-            state->result = import_function(state->project, state->file, report_progress);
+        // Distinct capture name: clang's -Wshadow-uncaptured-local flags `x = std::move(x)`.
+        [state,
+         import_function = m_import_function,
+         owned_report_progress = std::move(report_progress)] {
+            state->result = import_function(state->project, state->file, owned_report_progress);
         },
         safeCallback([this, state, token]() mutable {
             if (!m_busy.isCurrentToken(token))

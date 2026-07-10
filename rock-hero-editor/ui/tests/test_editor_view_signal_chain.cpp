@@ -1,3 +1,4 @@
+#include <compare>
 #include <cstddef>
 #include <optional>
 #include <rock_hero/common/audio/plugin/plugin_chain_limits.h>
@@ -172,9 +173,9 @@ TEST_CASE("Signal-chain controls present and disabled by default", "[ui][editor-
     CHECK(output_slider.isTextBoxEditable());
     CHECK(output_slider.getTextBoxWidth() == 72);
     CHECK(output_slider.getTextBoxHeight() == 20);
-    CHECK(output_slider.getMinimum() == common::audio::minimumGainDb());
-    CHECK(output_slider.getMaximum() == common::audio::maximumGainDb());
-    CHECK(output_slider.getDoubleClickReturnValue() == common::audio::defaultGainDb());
+    CHECK(std::is_eq(output_slider.getMinimum() <=> common::audio::minimumGainDb()));
+    CHECK(std::is_eq(output_slider.getMaximum() <=> common::audio::maximumGainDb()));
+    CHECK(std::is_eq(output_slider.getDoubleClickReturnValue() <=> common::audio::defaultGainDb()));
 }
 
 // Verifies the global and live-rig meter widgets are present in the composed editor view.
@@ -272,7 +273,7 @@ TEST_CASE("Signal-chain controls follow view-state gates", "[ui][editor-view]")
 
     CHECK(calibrate_button.isEnabled());
     CHECK(output_slider.isEnabled());
-    CHECK(output_slider.getValue() == -24.0);
+    CHECK(std::is_eq(output_slider.getValue() <=> -24.0));
 }
 
 // Verifies signal-chain buttons cannot steal focus from editor-level keyboard shortcuts.

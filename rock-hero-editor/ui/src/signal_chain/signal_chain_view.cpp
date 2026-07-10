@@ -195,6 +195,9 @@ private:
     std::size_t m_block_count{};
 };
 
+namespace
+{
+
 // Configures a vertical gain slider with the shared gain range and dB suffix.
 void configureGainSlider(juce::Slider& slider, const juce::String& component_id)
 {
@@ -207,6 +210,8 @@ void configureGainSlider(juce::Slider& slider, const juce::String& component_id)
         juce::Slider::TextBoxBelow, false, g_output_gain_width, g_gain_value_height);
     slider.setTextValueSuffix(" dB");
 }
+
+} // namespace
 
 // Creates the signal-chain controls and routes user intents through the owner.
 SignalChainView::SignalChainView(Listener& listener)

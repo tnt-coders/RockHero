@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <compare>
 #include <limits>
 
 namespace rock_hero::editor::ui
@@ -551,7 +552,9 @@ void TrackViewport::handleMouseWheelZoom(const juce::MouseWheelDetails& wheel)
         std::clamp(next_pixels_per_second, minPixelsPerSecond(), g_max_pixels_per_second);
     layoutScaledCanvas();
     centerViewportOnTime(cursor_position.seconds);
-    if (m_on_zoom_changed && m_pixels_per_second != previous_pixels_per_second)
+    // Exact inequality via is_neq keeps -Wfloat-equal builds clean; clamp-unchanged detection
+    // is deliberately exact.
+    if (m_on_zoom_changed && std::is_neq(m_pixels_per_second <=> previous_pixels_per_second))
     {
         m_on_zoom_changed(m_pixels_per_second);
     }

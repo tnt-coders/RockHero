@@ -1,3 +1,4 @@
+#include <compare>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 
 namespace rock_hero::editor::core
@@ -32,7 +33,7 @@ TEST_CASE("EditorController forwards normalization to audio backend", "[core][ed
         REQUIRE(audio.last_active_audio_asset->normalization.has_value());
         if (audio.last_active_audio_asset->normalization.has_value())
         {
-            CHECK(audio.last_active_audio_asset->normalization->gain_db == -4.0);
+            CHECK(std::is_eq(audio.last_active_audio_asset->normalization->gain_db <=> -4.0));
         }
     }
 }

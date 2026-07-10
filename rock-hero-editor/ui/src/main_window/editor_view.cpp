@@ -1735,11 +1735,12 @@ void EditorView::promptForText(
     juce::AlertWindow* const window_ptr = window.release();
     window_ptr->enterModalState(
         true,
+        // Distinct capture name: clang's -Wshadow-uncaptured-local flags `x = std::move(x)`.
         juce::ModalCallbackFunction::create(
-            [window_ptr, on_accept = std::move(on_accept)](int result) {
-                if (result == 1 && on_accept)
+            [window_ptr, owned_on_accept = std::move(on_accept)](int result) {
+                if (result == 1 && owned_on_accept)
                 {
-                    on_accept(window_ptr->getTextEditorContents("value"));
+                    owned_on_accept(window_ptr->getTextEditorContents("value"));
                 }
             }),
         true);

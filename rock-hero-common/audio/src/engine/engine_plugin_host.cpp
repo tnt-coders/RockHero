@@ -16,24 +16,21 @@ namespace rock_hero::common::audio
 {
 
 // Named so the Impl declaration in engine_impl.h can reference it.
-// Maps monitoring rebuild failures into plugin-host mutation errors.
+// Maps monitoring rebuild failures into plugin-host mutation errors. An if/return chain, not a
+// switch: the translation deliberately maps two specific codes and funnels every other (and
+// future) code into the coarse fallback, which -Wswitch-enum would otherwise force us to
+// re-enumerate on each source-enum addition.
 [[nodiscard]] PluginHostError pluginHostErrorFromLiveInputError(const LiveInputError& error)
 {
-    switch (error.code)
+    if (error.code == LiveInputErrorCode::MessageThreadRequired)
     {
-        case LiveInputErrorCode::MessageThreadRequired:
-        {
-            return PluginHostError{PluginHostErrorCode::MessageThreadRequired, error.message};
-        }
-        case LiveInputErrorCode::TrackMissing:
-        {
-            return PluginHostError{PluginHostErrorCode::TrackMissing, error.message};
-        }
-        default:
-        {
-            return PluginHostError{PluginHostErrorCode::MonitoringRouteFailed, error.message};
-        }
+        return PluginHostError{PluginHostErrorCode::MessageThreadRequired, error.message};
     }
+    if (error.code == LiveInputErrorCode::TrackMissing)
+    {
+        return PluginHostError{PluginHostErrorCode::TrackMissing, error.message};
+    }
+    return PluginHostError{PluginHostErrorCode::MonitoringRouteFailed, error.message};
 }
 
 namespace

@@ -246,26 +246,30 @@ void BusyOperationWorkflow::runMessageThreadBusyOperation(
     BusyOperation operation, std::function<void()> work, std::function<void()> after_cleared)
 {
     const auto token = begin(operation);
-    runAfterBusyPresentationReady(
-        [this, token, work = std::move(work), after_cleared = std::move(after_cleared)]() mutable {
-            if (!isCurrentToken(token))
-            {
-                return;
-            }
+    // The captures carry distinct names (not the `x = std::move(x)` idiom) because clang's
+    // -Wshadow-uncaptured-local flags init-captures that shadow enclosing locals.
+    runAfterBusyPresentationReady([this,
+                                   token,
+                                   owned_work = std::move(work),
+                                   owned_after_cleared = std::move(after_cleared)]() mutable {
+        if (!isCurrentToken(token))
+        {
+            return;
+        }
 
-            if (work)
-            {
-                work();
-            }
+        if (owned_work)
+        {
+            owned_work();
+        }
 
-            if (!isCurrentToken(token))
-            {
-                return;
-            }
+        if (!isCurrentToken(token))
+        {
+            return;
+        }
 
-            finish();
-            runAfterBusyPresentationCleared(std::move(after_cleared));
-        });
+        finish();
+        runAfterBusyPresentationCleared(std::move(owned_after_cleared));
+    });
 }
 
 bool BusyOperationWorkflow::postToMessageThread(std::function<void()> callback)
@@ -333,13 +337,14 @@ void BusyOperationWorkflow::runAfterBusyPresentationCleared(std::function<void()
 
 std::function<void()> BusyOperationWorkflow::guard(std::function<void()> callback) const
 {
-    return [alive = std::weak_ptr<bool>{m_alive}, callback = std::move(callback)]() mutable {
-        if (alive.expired() || !callback)
+    // Distinct capture name: clang's -Wshadow-uncaptured-local flags `x = std::move(x)` captures.
+    return [alive = std::weak_ptr<bool>{m_alive}, owned_callback = std::move(callback)]() mutable {
+        if (alive.expired() || !owned_callback)
         {
             return;
         }
 
-        callback();
+        owned_callback();
     };
 }
 } // namespace rock_hero::editor::core
