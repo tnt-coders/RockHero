@@ -1,0 +1,25 @@
+# Docs get their own workflow (and badge) because a documentation failure is a different
+# signal than a platform build failure. Pages publishing happens inside the reusable:
+# actions/deploy-pages can only deploy an artifact uploaded by its own run.
+name: Docs
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docs:
+    uses: tnt-coders/ci-workflows/.github/workflows/cpp-cmake-conan-docs.yml@master
+    with:
+      install-juce-dependencies: true
+    permissions:
+      contents: read
+      pages: write
+      id-token: write

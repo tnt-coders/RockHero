@@ -1,0 +1,27 @@
+# One workflow per platform so each README badge reports that platform's full health.
+# The pipeline (pre-commit gate, build+test and lint in parallel, shared single release)
+# lives in ci-workflows' cpp-cmake-conan-build.yml.
+name: Build - macOS
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    uses: tnt-coders/ci-workflows/.github/workflows/cpp-cmake-conan-build.yml@master
+    with:
+      os: macos-latest
+      install-juce-dependencies: true
+      lint: true
+      package: true
+      release: true
+    permissions:
+      contents: write
