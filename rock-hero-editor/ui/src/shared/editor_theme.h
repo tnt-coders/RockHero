@@ -5,7 +5,8 @@
 Components read colors through editorTheme() at paint time instead of spelling their own
 constants, so a future user-selectable theme only has to swap the returned object and repaint.
 Colors that are part of a settled rendering style rather than app chrome — the Charter-derived
-tablature note palette — deliberately stay with their renderer.
+string-color palette — live as shared data in rock-hero-common/ui (string_color_palette.h),
+consumed by the tab renderer; the theme itself stays editor-private.
 */
 
 #pragma once
