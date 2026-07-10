@@ -5,9 +5,9 @@
 #include "surface/render_device.h"
 
 #include <cstdint>
-#include <cstdio>
 #include <expected>
 #include <juce_events/juce_events.h>
+#include <print>
 
 namespace rock_hero::game::ui
 {
@@ -43,7 +43,7 @@ int GameShell::run(const GameShellOptions& options)
     {
         // The logging backend is not composed until the instrumentation phase, so startup
         // failures report on stderr (visible when launched from a terminal) plus the exit code.
-        std::fprintf(stderr, "rock-hero: %s\n", window.error().message.c_str());
+        std::println(stderr, "rock-hero: {}", window.error().message);
         return 1;
     }
 
@@ -58,7 +58,7 @@ int GameShell::run(const GameShellOptions& options)
         });
     if (!device.has_value())
     {
-        std::fprintf(stderr, "rock-hero: %s\n", device.error().message.c_str());
+        std::println(stderr, "rock-hero: {}", device.error().message);
         return 1;
     }
 

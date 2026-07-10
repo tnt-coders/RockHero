@@ -51,7 +51,7 @@ bool applyToneAutomationModel(
 }
 
 void rewriteDerivedToneCurve(
-    EditorEditContext& context, const std::string& tone_document_ref,
+    const EditorEditContext& context, const std::string& tone_document_ref,
     const std::string& instance_id, const std::string& param_id,
     const std::vector<common::core::ToneAutomationPoint>& points)
 {

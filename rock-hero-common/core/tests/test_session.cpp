@@ -135,7 +135,10 @@ TEST_CASE("Session timeline extends past offset audio from zero", "[core][sessio
     Song song = makeSongWithAudio(std::filesystem::path{"full_mix.wav"}, TimeDuration{7.5});
     song.arrangements.front().audio_asset.start_offset = TimeDuration{2.0};
 
-    REQUIRE(session.loadSong(std::move(song), 0));
+    // Move outside the assertion macro: REQUIRE re-mentions its expression textually, which
+    // bugprone-use-after-move reads as a use of the moved-from song.
+    const bool loaded = session.loadSong(std::move(song), 0);
+    REQUIRE(loaded);
 
     CHECK(
         session.timeline() == TimeRange{

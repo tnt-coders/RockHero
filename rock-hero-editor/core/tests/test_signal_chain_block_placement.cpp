@@ -18,7 +18,12 @@ namespace
     std::optional<SignalChainBlockPlacement> built =
         SignalChainBlockPlacement::fromIndices(std::move(blocks), block_count);
     REQUIRE(built.has_value());
-    return *built;
+    if (built.has_value())
+    {
+        return std::move(*built);
+    }
+    // Unreachable fallback: the REQUIRE above aborts the test when the indices are invalid.
+    return SignalChainBlockPlacement::compact(0, block_count);
 }
 
 } // namespace

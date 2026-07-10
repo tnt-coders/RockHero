@@ -91,9 +91,12 @@ PluginWindow::PluginWindow(
     // empty bounds (signaling "host, pick a size"), the default ResizableWindow
     // constrainer's setResizeLimits floor of 100x50 takes over.
     const bool editor_allows_resizing = m_editor != nullptr && m_editor->allowWindowResizing();
-    if (editor_allows_resizing && m_window_state.lastWindowBounds.has_value())
+    // Local copy so the guard and the dereference read the same value (also keeps clang-tidy's
+    // optional tracking satisfied across the member access).
+    const auto saved_bounds = m_window_state.lastWindowBounds;
+    if (editor_allows_resizing && saved_bounds.has_value())
     {
-        setBoundsConstrained(*m_window_state.lastWindowBounds);
+        setBoundsConstrained(*saved_bounds);
     }
     else
     {

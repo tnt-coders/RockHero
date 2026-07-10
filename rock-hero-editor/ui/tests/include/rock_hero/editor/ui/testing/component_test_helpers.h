@@ -26,22 +26,20 @@ namespace rock_hero::editor::ui::testing
         return &parent;
     }
 
-    for (int index = 0; index < parent.getNumChildComponents(); ++index)
+    // Accumulator shape rather than an if-init local: clang-tidy 21's misc-const-correctness
+    // misses the non-const return propagation and demands a pointee-const that would not
+    // compile; a genuinely reassigned local sidesteps the false positive on every version.
+    juce::Component* matched_child = nullptr;
+    for (int index = 0; index < parent.getNumChildComponents() && matched_child == nullptr; ++index)
     {
         juce::Component* const child = parent.getChildComponent(index);
-        if (child == nullptr)
+        if (child != nullptr)
         {
-            continue;
-        }
-
-        if (juce::Component* const matched_child = findDescendant(*child, id);
-            matched_child != nullptr)
-        {
-            return matched_child;
+            matched_child = findDescendant(*child, id);
         }
     }
 
-    return nullptr;
+    return matched_child;
 }
 
 /*!

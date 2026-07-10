@@ -280,9 +280,10 @@ std::unique_ptr<juce::DocumentWindow> AudioDeviceSettingsWindow::show(
     common::audio::IAudioDeviceConfiguration& audio_devices, juce::Component& anchor,
     Dispatcher dispatcher, ClosedCallback closed_callback)
 {
-    juce::Component* const centering_component = anchor.getTopLevelComponent();
+    // getTopLevelComponent() walks the parent chain and returns the anchor itself when it has no
+    // parent, so the centering target is never null.
     auto window = std::make_unique<AudioDeviceSettingsDialogWindow>(
-        centering_component != nullptr ? centering_component : &anchor, std::move(closed_callback));
+        anchor.getTopLevelComponent(), std::move(closed_callback));
     const juce::Component::SafePointer<AudioDeviceSettingsDialogWindow> safe_window{window.get()};
     auto content = std::make_unique<AudioDeviceSettingsWindowContent>(
         audio_devices,

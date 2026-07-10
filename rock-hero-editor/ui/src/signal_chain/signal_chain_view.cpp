@@ -163,7 +163,7 @@ public:
         // The line runs in segments between the fixed cell centres, breaking at each one so the
         // slot affordances (the "+" insert button and the marker dot) sit on the dark surface
         // rather than under the bright line.
-        float segment_start = static_cast<float>(bounds.getX());
+        auto segment_start = static_cast<float>(bounds.getX());
         const auto draw_segment = [&g, path_y](float from_x, float to_x) {
             if (to_x > from_x)
             {

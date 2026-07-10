@@ -142,13 +142,19 @@ TEST_CASE("Chart grid position tokens round-trip", "[core][chart]")
 {
     const auto whole = parseGridPositionToken("12:3");
     REQUIRE(whole.has_value());
-    CHECK(*whole == GridPosition{.measure = 12, .beat = 3});
-    CHECK(formatGridPositionToken(*whole) == "12:3");
+    if (whole.has_value())
+    {
+        CHECK(*whole == GridPosition{.measure = 12, .beat = 3});
+        CHECK(formatGridPositionToken(*whole) == "12:3");
+    }
 
     const auto fractional = parseGridPositionToken("12:3+1/2");
     REQUIRE(fractional.has_value());
-    CHECK(*fractional == GridPosition{.measure = 12, .beat = 3, .offset = Fraction{1, 2}});
-    CHECK(formatGridPositionToken(*fractional) == "12:3+1/2");
+    if (fractional.has_value())
+    {
+        CHECK(*fractional == GridPosition{.measure = 12, .beat = 3, .offset = Fraction{1, 2}});
+        CHECK(formatGridPositionToken(*fractional) == "12:3+1/2");
+    }
 
     // Non-canonical spellings parse to the reduced value and reformat canonically.
     const auto reducible = parseGridPositionToken("4:1+2/4");

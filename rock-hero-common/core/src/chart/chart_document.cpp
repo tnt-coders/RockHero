@@ -145,10 +145,7 @@ namespace
         return std::unexpected{malformed("chart note harmonic is unknown: " + harmonic)};
     }
 
-    if (const auto touch = Json::tryReadDouble(note_json, "touch"); touch.has_value())
-    {
-        note.touch = *touch;
-    }
+    note.touch = Json::tryReadDouble(note_json, "touch");
 
     note.vibrato = Json::readOptionalBool(note_json, "vibrato", false);
     note.tremolo = Json::readOptionalBool(note_json, "tremolo", false);
@@ -221,7 +218,10 @@ void appendOptionalIntArray(std::string& out, const std::vector<std::optional<in
         {
             out += ", ";
         }
-        out += values[index].has_value() ? std::to_string(*values[index]) : std::string{"null"};
+        // One binding for guard and dereference: repeating values[index] re-invokes operator[],
+        // which clang-tidy's optional tracking (correctly) treats as a fresh, unchecked value.
+        const std::optional<int>& value = values[index];
+        out += value.has_value() ? std::to_string(*value) : std::string{"null"};
     }
     out += ']';
 }

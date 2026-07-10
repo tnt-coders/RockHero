@@ -559,7 +559,7 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
             if (source.harmonic_fret.has_value() &&
                 std::abs(*source.harmonic_fret - source.fret) > 1e-6)
             {
-                note.touch = *source.harmonic_fret;
+                note.touch = source.harmonic_fret;
             }
         }
 

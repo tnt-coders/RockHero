@@ -1959,10 +1959,11 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.redo_enabled = isActionAvailable(EditorAction::Id::Redo, action_conditions);
     state.redo_label = m_undo_history.redoLabel();
     {
-        EditorUndoHistorySnapshot undo_snapshot = m_undo_history.snapshot();
-        state.undo_history.labels = std::move(undo_snapshot.labels);
-        state.undo_history.position = undo_snapshot.position;
-        state.undo_history.clean_position = undo_snapshot.clean_position;
+        // Destructured so the label list can move out of the snapshot instead of copying.
+        auto [labels, position, clean_position] = m_undo_history.snapshot();
+        state.undo_history.labels = std::move(labels);
+        state.undo_history.position = position;
+        state.undo_history.clean_position = clean_position;
     }
     if (!m_project_file.empty())
     {
