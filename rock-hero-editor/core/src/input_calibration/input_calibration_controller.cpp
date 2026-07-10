@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <compare>
 #include <string>
 #include <utility>
 
@@ -15,7 +16,7 @@ namespace
 [[nodiscard]] double canonicalInputGainDb(double gain_db)
 {
     const double rounded_tenths = std::round(gain_db * 10.0);
-    return rounded_tenths == 0.0 ? 0.0 : gain_db;
+    return std::is_eq(rounded_tenths <=> 0.0) ? 0.0 : gain_db;
 }
 
 // Applies the preview gain to raw meter samples so the popup reflects the candidate calibration.

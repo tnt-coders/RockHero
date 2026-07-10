@@ -22,8 +22,12 @@
 # codebase's non-owning reference-member ports (controller Impl, edit contexts, view AudioPorts),
 # and non-private-member-variables-in-classes conflicts with the documented public-field value
 # structs (error types, view state, edits); see docs/design/coding-conventions.md.
+# clang-diagnostic-c2y-extensions is excluded because clang 22's pedantic pass flags the
+# __COUNTER__ macro that Catch2's TEST_CASE machinery expands in every test file; none of the
+# product compilers warn on it.
 Checks: >
   -*,
+  -clang-diagnostic-c2y-extensions,
   bugprone-*,
   -bugprone-easily-swappable-parameters,
   modernize-*,

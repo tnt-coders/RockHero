@@ -4,6 +4,7 @@
 #include <array>
 #include <cctype>
 #include <cmath>
+#include <compare>
 #include <cstddef>
 #include <map>
 #include <optional>
@@ -322,8 +323,8 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
     }
 
     // A flat zero curve carries no information.
-    const bool all_zero =
-        std::ranges::all_of(points, [](const BendPoint& point) { return point.semitones == 0.0; });
+    const bool all_zero = std::ranges::all_of(
+        points, [](const BendPoint& point) { return std::is_eq(point.semitones <=> 0.0); });
     return all_zero ? std::vector<BendPoint>{} : points;
 }
 
