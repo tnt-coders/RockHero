@@ -3,9 +3,10 @@
 **Status: G20-RENDER CLOSED — user signed off 2026-07-10 (stack SDL3+bgfx, loop L2, seam
 Option 1; alternatives analysis, stage/band and engine questions all answered in the Gate
 record). Closure actions applied: architecture.md amended (Game View / Threading Model),
-.claude/agents/game-render-expert.md created. Phases 1–4 unblocked; downstream plans 21/25/44
-unblocked.** | Date: 2026-07-10 | Baseline: `work-in-progress @ 050f884e` (spike evidence on
-`spike/render-stack @ 049c898c`)
+.claude/agents/game-render-expert.md created. Phase 1 complete 2026-07-10 (checkpoint answers +
+wiring decisions in the Gate record's Phase 1 record); Phases 2–4 ready; downstream plans
+21/25/44 unblocked.** | Date: 2026-07-10 | Baseline: `work-in-progress @ 050f884e` (spike
+evidence on `spike/render-stack @ 049c898c`)
 
 This plan is the structural gate for all game-side work. Phases 0a–0c form the decision gate; no
 phase after the gate — and no dependent plan (docs/roadmap/25-note-highway-3d.md,
@@ -686,3 +687,70 @@ decisions 20-Q2: B (executed), 20-Q3: 1, 20-Q4: A (evidence: S3 clean), 20-Q5: A
 sign-off of this record. Gate-closure actions still pending: amend docs/design/architecture.md
 (Technology Stack / Game View / Threading Model) to the proven outcome (user confirmation
 required), and create .claude/agents/game-render-expert.md seeded with these findings.**
+
+### Phase 1 record (2026-07-10) — checkpoint answers and wiring decisions
+
+Both Phase 1 checkpoint consultations ran before implementation; decisions adopted:
+
+**Build wiring (cmake-conan-expert):**
+
+- **Packaged bgfx tools: IMPORTED-executable shim, not CMakeConfigDeps.** The provider fork
+  injects `-g;CMakeDeps` unconditionally for conanfile.txt projects
+  (`conan_provider.cmake:1131–1143`), so declaring `CMakeConfigDeps` would run both generators
+  into one folder; a real migration touches the provider fork + its pytest suite + the
+  classic-CMakeDeps `<prefix>_PACKAGE_FOLDER_<CONFIG>` recovery in
+  `cmake/RockHeroExternalModules.cmake`, all to adopt a generator Conan still marks
+  *experimental* (no Find-module support planned) while CI floats its Conan version. The shim —
+  `find_program` off the recipe-exported `BGFX_SHADER_INCLUDE_PATH`, an `if(NOT TARGET)`-guarded
+  `bgfx::shaderc` IMPORTED executable, and the project-owned `rock_hero_add_compiled_shader`
+  helper — lives in `cmake/RockHeroRenderStack.cmake` and becomes a no-op if a future
+  CMakeConfigDeps migration generates the real target. Revisit when the generator leaves
+  experimental status and upstream cmake-conan adapts its own `-g` handling.
+- **Pins confirmed current (2026-07-10):** `sdl/3.4.8` (newest on Conan Center) and
+  `bgfx/1.129.8930-495` (only version on the modern cmake recipe), with
+  `[options] bgfx/*:tools=True` — the option only adds tool components (library components are
+  unchanged) but changes the package_id, so no prebuilt binaries exist and the one-time source
+  build recurs per cache. SDL stays on recipe defaults (static).
+- **CI Conan cache (S6 follow-up):** CI *already* caches `build/release/.conan2/p` in the shared
+  `cpp-cmake-conan-setup` action, keyed `conan-<os>-hashFiles('**/conanfile.*')`. Gaps found:
+  the key omits the runner image/toolset version and the floating Conan version (a toolset bump
+  would pin a stale exact-match cache forever), sweeps the provider fork's test conanfiles into
+  the hash, and never prunes build trees before saving (bgfx tools=True will bloat the archive).
+  Recommended re-key (OS + image version + pinned Conan + root conanfile + `conan-recipes/**`),
+  `conan cache clean` pre-save, a stated no-unconditional-save invariant (protects against the
+  `s.dirty` corruption trap), and an integrity-check-or-wipe on restore. **These changes belong
+  to the external tnt-coders/ci-workflows repo — flagged to the user, not applied here.** Also
+  expect the Linux CI leg to need extra system packages once bgfx mainlines (`xorg/system`,
+  `opengl/system`, `wayland` transitive requires).
+
+**Runtime wiring (game-render-expert):**
+
+- **bgfx init:** renderer pinned `Direct3D11` through a one-entry platform table (never
+  `Count`/auto-select — only D3D11 has soak evidence); `BGFX_RESET_VSYNC` held in a single
+  stored flag set because reset flags are absolute, not deltas; resolution in *pixels*;
+  `format`/`numBackBuffers`/`maxFrameLatency` left at defaults (latency tuning deferred to the
+  Phase 3 checkpoint); `init.debug/profile` explicit-false, to be wired to the Phase 4 dev flag
+  (bgfx degrades gracefully without D3D11 SDK layers); `bgfx::renderFrame()` once before
+  `bgfx::init` pins single-threaded mode; teardown mirror is plain same-thread
+  `bgfx::shutdown()`.
+- **Resize:** listen to `SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED` and re-query
+  `SDL_GetWindowSizeInPixels` — the spike's `WINDOW_RESIZED` + window coordinates only worked
+  because scale was 1.0 (S2's DPI blind spot); `SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED` is
+  logged as evidence when it first fires.
+- **Startup/teardown:** `SDL_MAIN_HANDLED` + plain `main` + `SDL_SetMainReady()`;
+  `SDL_INIT_VIDEO` only (gamepad is plan 26's additive subsystem); window flags
+  `RESIZABLE | HIGH_PIXEL_DENSITY`; JUCE initialised via `ScopedJuceInitialiser_GUI` on the main
+  thread; per frame SDL poll → bounded JUCE drain (soak-measured max 3; bound 256 as safety
+  valve) → submit → `bgfx::frame()`; quit signal is `SDL_EVENT_QUIT` only (the JUCE pump
+  swallows WM_QUIT under L2 by design); teardown made structural: future engine stops/clears its
+  rig and is destroyed **before** bgfx/SDL teardown, JUCE shutdown last (the spike's
+  `~Engine`-after-`SDL_Quit` ordering survived only by accident).
+
+Implementation landed: `conanfile.txt` pins; `cmake/RockHeroRenderStack.cmake` (wrapper aliases
+`rock_hero::sdl3`/`rock_hero::bgfx`, shaderc shim, shader-compile helper — first `.sc` consumer
+arrives with Phase 2's resource tree); `rock-hero-game/ui` `surface/` feature (`GameShell` public
+composition point, private `GameWindow`/`RenderDevice`/JUCE pump units); `rock-hero-game/app`
+swapped from the JUCE `DocumentWindow` shell to a plain `main()` composing `GameShell`
+(PackageBuilder now embeds the icon; the JUCE version resource is gone with `juce_add_gui_app`);
+first `rock-hero-game/ui/tests` target with the headless Noop suite. A `--smoke-frames <n>`
+diagnostic argument gives automated verification a bounded clean-exit run.

@@ -1,80 +1,46 @@
-#include <JuceHeader.h>
-#include <juce_gui_basics/juce_gui_basics.h>
+#include <charconv>
+#include <cstdint>
+#include <optional>
+#include <rock_hero/game/ui/surface/game_shell.h>
+#include <string_view>
 
 namespace rock_hero::game::app
 {
-
-// Temporary game shell window used until the SDL/bgfx gameplay content owns the view.
-class MainWindow : public juce::DocumentWindow
+namespace
 {
-public:
-    // Inherits DocumentWindow constructors until the game shell needs custom setup.
-    using juce::DocumentWindow::DocumentWindow;
 
-    // Routes the native close button through JUCE so normal application shutdown runs.
-    void closeButtonPressed() override
-    {
-        juce::JUCEApplication::getInstance()->systemRequestedQuit();
-    }
-};
-
-// JUCE application object that owns the temporary game window lifecycle.
-class RockHeroApplication : public juce::JUCEApplication
+// Parses the optional "--smoke-frames <count>" diagnostic argument: a bounded run that exits
+// cleanly after the given frame count, used by automated verification and smoke checks.
+[[nodiscard]] std::optional<std::uint64_t> smokeFrameLimit(const int argc, char** argv)
 {
-public:
-    // Provides JUCE with the generated project name used for app metadata and windows.
-    const juce::String getApplicationName() override
+    for (int index = 1; index + 1 < argc; ++index)
     {
-        return ProjectInfo::projectName;
+        if (std::string_view{argv[index]} != "--smoke-frames")
+        {
+            continue;
+        }
+
+        const std::string_view count_text{argv[index + 1]};
+        std::uint64_t parsed = 0;
+        const std::from_chars_result result =
+            std::from_chars(count_text.data(), count_text.data() + count_text.size(), parsed);
+        if (result.ec == std::errc{} && parsed > 0)
+        {
+            return parsed;
+        }
     }
+    return std::nullopt;
+}
 
-    // Provides JUCE with the generated project version for app metadata.
-    const juce::String getApplicationVersion() override
-    {
-        return ProjectInfo::versionString;
-    }
-
-    // Keeps startup single-instance while the app has no multi-window/session model.
-    bool moreThanOneInstanceAllowed() override
-    {
-        return false;
-    }
-
-    // Creates the temporary shell window during JUCE startup before gameplay rendering exists.
-    void initialise(const juce::String& /*command_line*/) override
-    {
-        // The game app is still a shell window, so construct the DocumentWindow
-        // directly here until there is a dedicated content component to own.
-        m_main_window = std::make_unique<MainWindow>(
-            getApplicationName(),
-            juce::Desktop::getInstance().getDefaultLookAndFeel().findColour(
-                juce::ResizableWindow::backgroundColourId),
-            juce::DocumentWindow::allButtons);
-
-        m_main_window->setUsingNativeTitleBar(true);
-        m_main_window->setResizable(true, false);
-        m_main_window->centreWithSize(800, 600);
-        m_main_window->setVisible(true);
-    }
-
-    // Releases the shell window before JUCE tears down the application object.
-    void shutdown() override
-    {
-        m_main_window.reset();
-    }
-
-    // Handles platform quit requests through JUCE's normal quit path.
-    void systemRequestedQuit() override
-    {
-        quit();
-    }
-
-private:
-    // Owns the temporary shell window after JUCE startup and releases it during shutdown.
-    std::unique_ptr<MainWindow> m_main_window;
-};
-
+} // namespace
 } // namespace rock_hero::game::app
 
-// NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-START_JUCE_APPLICATION(rock_hero::game::app::RockHeroApplication)
+// SDL owns the process entry point under loop model L2: a plain portable main() (the game window
+// marks SDL's entry-point handling as app-provided) that composes and runs the game shell. JUCE
+// runs as a library inside the shell — there is no JUCEApplication in this process.
+int main(int argc, char** argv)
+{
+    rock_hero::game::ui::GameShellOptions options{};
+    options.frame_limit = rock_hero::game::app::smokeFrameLimit(argc, argv);
+    return rock_hero::game::ui::GameShell{}.run(options);
+}

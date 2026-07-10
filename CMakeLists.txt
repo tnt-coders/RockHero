@@ -62,6 +62,7 @@ endforeach()
 include(RockHeroBuildPolicy)
 include(RockHeroJuceHelpers)
 include(RockHeroExternalModules)
+include(RockHeroRenderStack)
 
 # --------------------------------------------------------------------------
 # Tests
