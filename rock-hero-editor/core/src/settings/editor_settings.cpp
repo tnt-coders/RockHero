@@ -71,6 +71,29 @@ constexpr const char* g_format_version_property{"formatVersion"};
     return value;
 }
 
+// Parses text as a finite double, rejecting empty, malformed, or non-finite input so a corrupt
+// entry reads as absent rather than a bogus number. juce::CharacterFunctions rather than
+// std::from_chars: Apple's libc++ ships no floating-point from_chars overloads, and the JUCE
+// parser is equally locale-independent; the advanced cursor gives the same whole-string
+// strictness check.
+[[nodiscard]] std::optional<double> parseFiniteDouble(const juce::String& text)
+{
+    const juce::String trimmed = text.trim();
+    if (trimmed.isEmpty())
+    {
+        return std::nullopt;
+    }
+
+    juce::String::CharPointerType cursor = trimmed.getCharPointer();
+    const double value = juce::CharacterFunctions::readDoubleValue(cursor);
+    if (!cursor.isEmpty() || !std::isfinite(value))
+    {
+        return std::nullopt;
+    }
+
+    return value;
+}
+
 // Reads an XML attribute as a finite double without accepting malformed numeric text.
 [[nodiscard]] std::optional<double> parseDoubleAttribute(
     const juce::XmlElement& element, const char* attribute_name)
@@ -80,22 +103,7 @@ constexpr const char* g_format_version_property{"formatVersion"};
         return std::nullopt;
     }
 
-    const std::string text = element.getStringAttribute(attribute_name).toStdString();
-    if (text.empty())
-    {
-        return std::nullopt;
-    }
-
-    double value{};
-    const char* const begin = text.data();
-    const char* const end = begin + text.size();
-    const auto [parsed_to, error] = std::from_chars(begin, end, value);
-    if (error != std::errc{} || parsed_to != end || !std::isfinite(value))
-    {
-        return std::nullopt;
-    }
-
-    return value;
+    return parseFiniteDouble(element.getStringAttribute(attribute_name));
 }
 
 // Reads a required XML string attribute while allowing the caller to validate emptiness.
@@ -248,28 +256,6 @@ constexpr std::string_view g_project_selected_arrangement_family{"projectSelecte
 
     return juce::String::fromUTF8(family.data(), static_cast<int>(family.size())) + ":" +
            common::core::juceStringFromPath(key);
-}
-
-// Parses a stored value as a finite double, rejecting empty, malformed, or non-finite text so a
-// corrupt entry reads as absent rather than a bogus number.
-[[nodiscard]] std::optional<double> parseFiniteDouble(const juce::String& text)
-{
-    const std::string value_text = text.toStdString();
-    if (value_text.empty())
-    {
-        return std::nullopt;
-    }
-
-    double value{};
-    const char* const begin = value_text.data();
-    const char* const end = begin + value_text.size();
-    const auto [parsed_to, error] = std::from_chars(begin, end, value);
-    if (error != std::errc{} || parsed_to != end || !std::isfinite(value))
-    {
-        return std::nullopt;
-    }
-
-    return value;
 }
 
 // Parses a stored "numerator/denominator" token as a grid note value, rejecting malformed text or

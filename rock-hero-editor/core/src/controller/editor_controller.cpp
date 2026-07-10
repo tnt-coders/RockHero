@@ -30,8 +30,8 @@
 #include <functional>
 #include <juce_core/juce_core.h>
 #include <memory>
-#include <numeric>
 #include <optional>
+#include <ranges>
 #include <rock_hero/common/audio/device/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/input/i_live_input.h>
 #include <rock_hero/common/audio/live_rig/i_live_rig.h>
@@ -1900,10 +1900,10 @@ namespace
 [[nodiscard]] std::vector<ArrangementChoiceViewState> arrangementChoicesFor(
     const std::vector<common::core::Arrangement>& arrangements, const std::string& current_id)
 {
-    std::vector<std::size_t> display_order(arrangements.size());
-    // std::iota, not std::ranges::iota: Apple's libc++ has not implemented the C++23 ranges
-    // version, and macOS CI builds against it.
-    std::iota(display_order.begin(), display_order.end(), std::size_t{0});
+    // views::iota rather than an iota algorithm: Apple's libc++ has not implemented the C++23
+    // std::ranges::iota that clang-tidy's modernize-use-ranges would demand of std::iota.
+    std::vector<std::size_t> display_order =
+        std::views::iota(std::size_t{0}, arrangements.size()) | std::ranges::to<std::vector>();
     std::ranges::stable_sort(display_order, {}, [&arrangements](std::size_t index) {
         return static_cast<int>(arrangements[index].part);
     });
