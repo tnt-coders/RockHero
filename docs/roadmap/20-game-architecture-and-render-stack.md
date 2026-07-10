@@ -1,8 +1,11 @@
 # Plan 20 — Game Architecture and Render Stack
 
-**Status: Decision-gated at STOP — Phases 0a–0c executed and recorded in the Gate record;
-G20-RENDER awaits explicit user sign-off** | Date: 2026-07-10 | Baseline:
-`work-in-progress @ 050f884e` (spike evidence on `spike/render-stack @ 049c898c`)
+**Status: G20-RENDER CLOSED — user signed off 2026-07-10 (stack SDL3+bgfx, loop L2, seam
+Option 1; alternatives analysis, stage/band and engine questions all answered in the Gate
+record). Closure actions applied: architecture.md amended (Game View / Threading Model),
+.claude/agents/game-render-expert.md created. Phases 1–4 unblocked; downstream plans 21/25/44
+unblocked.** | Date: 2026-07-10 | Baseline: `work-in-progress @ 050f884e` (spike evidence on
+`spike/render-stack @ 049c898c`)
 
 This plan is the structural gate for all game-side work. Phases 0a–0c form the decision gate; no
 phase after the gate — and no dependent plan (docs/roadmap/25-note-highway-3d.md,
