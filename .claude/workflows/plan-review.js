@@ -1,7 +1,7 @@
 export const meta = {
     name : "plan-review",
     description :
-        "Adversarially review a drafted docs/plans document (mode 'draft') or a just-completed " +
+        "Adversarially review a drafted docs/roadmap document (mode 'draft') or a just-completed " +
             "plan phase (mode 'phase') with three parallel read-only reviewers: template " +
             "conformance, layering/constraints, and staleness verification against the current tree.",
     phases : [ "fan-out-reviewers", "merge-findings" ],
@@ -43,7 +43,7 @@ function reviewerPrompts(planPath, mode, phase)
                   "Confirm the work stayed inside the phase's declared scope (files/modules touched) " +
                   "and flag anything the phase promised but did not deliver."
             : `Read ${
-                  planPath} and verify it follows the 11-section docs/plans template exactly, ` +
+                  planPath} and verify it follows the 11-section docs/roadmap template exactly, ` +
                   'in order: (1) Status line with date and baseline "refactor @ <hash>"; (2) Goal; ' +
                   "(3) Non-goals; (4) Constraints; (5) Current state inventory ending with the stamp " +
                   '"Verified against code on <date>, refactor @ <hash>"; (6) Dependencies; (7) Decisions ' +

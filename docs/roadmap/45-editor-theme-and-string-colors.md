@@ -9,20 +9,20 @@ The editor gains real theme support on the existing EditorTheme seam: the user p
 theme preset and a string-color preset from the View menu, both persist across sessions, and at
 least one colorblind-safe string-color preset ships. The string-color palette definition (data
 only) moves into `rock-hero-common` so the editor tab lane, the future editor 3D preview
-(`docs/plans/44-editor-3d-preview.md`), and the game note highway
-(`docs/plans/25-note-highway-3d.md`) draw from one source of truth. The plan also owns the
+(`docs/roadmap/44-editor-3d-preview.md`), and the game note highway
+(`docs/roadmap/25-note-highway-3d.md`) draw from one source of truth. The plan also owns the
 coordinated, decision-gated raise of `g_max_chart_strings` from 8 to the format's 10-string
 target, because that raise is blocked on lane-color decisions that live here.
 
 ## Non-goals
 
 - Game-side settings UI for preset selection — the registry this plan builds is product-neutral;
-  the game persists its choice through `docs/plans/27-in-song-flow-results-profiles.md`'s
-  IGameSettings and surfaces the picker via `docs/plans/26-game-startup-menus-library.md`.
-- Any 3D rendering — consumers are `docs/plans/25-note-highway-3d.md` and
-  `docs/plans/44-editor-3d-preview.md`.
+  the game persists its choice through `docs/roadmap/27-in-song-flow-results-profiles.md`'s
+  IGameSettings and surfaces the picker via `docs/roadmap/26-game-startup-menus-library.md`.
+- Any 3D rendering — consumers are `docs/roadmap/25-note-highway-3d.md` and
+  `docs/roadmap/44-editor-3d-preview.md`.
 - Note-detection support for 9–10 string instruments — raising the display/authoring cap does not
-  promise detectability; see `docs/plans/22-note-detection.md` (its latency budget flags sub-B0
+  promise detectability; see `docs/roadmap/22-note-detection.md` (its latency budget flags sub-B0
   fundamentals; coordinate before the Phase 5 gate closes).
 - A light theme, unless the user asks for one; the phased mechanism makes adding presets pure
   data work later.
@@ -32,7 +32,7 @@ target, because that raise is blocked on lane-color decisions that live here.
 
 ## Constraints
 
-Applicable subset of the roadmap's non-negotiable block (see `docs/plans/00-roadmap.md`):
+Applicable subset of the roadmap's non-negotiable block (see `docs/roadmap/00-roadmap.md`):
 
 - (a) **Layering**: common never depends on editor or game code; editor and game never depend on
   each other. Anything both products need is extracted to rock-hero-common FIRST — as its own
@@ -54,7 +54,7 @@ Plan-specific hard rules:
   guarantee under MSVC incremental linking (recorded in `editor_theme.h` lines 76–83).
 - The shared palette header in common must not include any JUCE header. It is plain data plus
   integer math, so the future game render stack (bgfx per
-  `docs/plans/20-game-architecture-and-render-stack.md`) can consume it without dragging
+  `docs/roadmap/20-game-architecture-and-render-stack.md`) can consume it without dragging
   `juce_graphics` into its dependency surface.
 - Identifiers use US "color"; the JUCE API keeps "colour" at its boundary (established code
   precedent throughout `editor_theme.h` and `tab_view.cpp`; no aliases).
@@ -129,19 +129,19 @@ Verified against code on 2026-07-06, refactor @ 13e82fb0.
 
 - Upstream (blocking): none for Phases 1–4; this plan sits on the current baseline.
 - Phase 5 coordination (not code dependencies, but gate inputs):
-  - `docs/plans/22-note-detection.md` — its detection contract notes that 9–10 string low
+  - `docs/roadmap/22-note-detection.md` — its detection contract notes that 9–10 string low
     fundamentals stress the confirmation-latency budget; its Consumed-by list already points here.
     Raising the cap is display/authoring scope only; record that in the gate summary.
-  - `docs/plans/10-format-versioning-and-chart-identity.md` — confirm against its bump rules that
+  - `docs/roadmap/10-format-versioning-and-chart-identity.md` — confirm against its bump rules that
     loosening a validation maximum (accept-more, no serialized-field change) needs no
     formatVersion bump before flipping the constant.
 - Downstream consumers (they depend on this plan):
-  - `docs/plans/25-note-highway-3d.md` — consumes Phase 1 (shared palette + derivation); it
+  - `docs/roadmap/25-note-highway-3d.md` — consumes Phase 1 (shared palette + derivation); it
     defers all note/string color definitions here.
-  - `docs/plans/44-editor-3d-preview.md` — consumes Phase 1 and the Phase 3 preset registry.
-  - `docs/plans/40-chart-editing.md` — defers the `g_max_chart_strings` raise to Phase 5 here.
-  - `docs/plans/26-game-startup-menus-library.md` /
-    `docs/plans/27-in-song-flow-results-profiles.md` — game-side preset picker and persistence of
+  - `docs/roadmap/44-editor-3d-preview.md` — consumes Phase 1 and the Phase 3 preset registry.
+  - `docs/roadmap/40-chart-editing.md` — defers the `g_max_chart_strings` raise to Phase 5 here.
+  - `docs/roadmap/26-game-startup-menus-library.md` /
+    `docs/roadmap/27-in-song-flow-results-profiles.md` — game-side preset picker and persistence of
     the game's string-color preset id (registry from Phases 1/3/4).
 
 ## Decisions already made
@@ -151,7 +151,7 @@ Restated with sources; do not re-litigate:
 1. **EditorTheme stays editor/ui-private**; it is the single seam for app-chrome colors, read at
    paint time so a swap plus repaint retargets the whole editor (`editor_theme.h:1–9` and the
    swap-hook comment in `editor_theme.cpp:6–7`). What moves to common is the string-color
-   palette *data*, not the theme (`docs/plans/25-note-highway-3d.md`, Current-state notes: "the
+   palette *data*, not the theme (`docs/roadmap/25-note-highway-3d.md`, Current-state notes: "the
    string-color palette *data* is extracted to common (plan 45), not the theme").
 2. **Hex-literal-only color construction** for anything initialized at static or namespace scope
    (`editor_theme.h:76–83`, MSVC cross-TU init-order hazard).
@@ -164,17 +164,17 @@ Restated with sources; do not re-litigate:
    (`docs/in-progress/note-format-and-tablature-plan.md`, "String count, micro-bends, and forward
    extensions", 2026-07-06). The RYB tertiary-tier colors recorded there are input to open
    question 2.
-6. **The cap raise is coordinated by this plan** (`docs/plans/40-chart-editing.md` Non-goals;
-   `docs/plans/22-note-detection.md` Consumed-by). It is a format/domain gate, not a theme toggle.
+6. **The cap raise is coordinated by this plan** (`docs/roadmap/40-chart-editing.md` Non-goals;
+   `docs/roadmap/22-note-detection.md` Consumed-by). It is a format/domain gate, not a theme toggle.
 7. **Settings stay per-product**: EditorSettings is editor-specific by design and the game gets
-   its own IGameSettings port (`docs/plans/27-in-song-flow-results-profiles.md`). Both products
+   its own IGameSettings port (`docs/roadmap/27-in-song-flow-results-profiles.md`). Both products
    persist a preset id string from the same common registry; the ids match, the stores do not.
 8. **Derived-over-authored does not apply**: presets are product data, not charter-authored
    package content; nothing here writes into `.rock` packages.
 
 ## Open questions for the user
 
-Mirror all four into `docs/plans/00-roadmap.md` Decisions-needed.
+Mirror all four into `docs/roadmap/00-roadmap.md` Decisions-needed.
 
 1. **Colorblind-safe preset colors (gates Phase 4).** String color is the primary information
    channel and the Charter-derived base palette has red/green (protan/deutan) hazards: red
@@ -201,7 +201,7 @@ Mirror all four into `docs/plans/00-roadmap.md` Decisions-needed.
    (colors exist; the raise is accept-more and unblocks the format's 10-string target for GP
    import and future authoring); (B) defer until a concrete extended-range need appears.
    **Recommendation: A**, with the explicit note that display/authoring support does not promise
-   detection support (`docs/plans/22-note-detection.md`).
+   detection support (`docs/roadmap/22-note-detection.md`).
 
 ## Phased implementation
 
@@ -235,7 +235,7 @@ renderer at it with bit-identical output.
     `extended` downward; keep the defensive modulo);
   - Charter-exact `darkerColor`/`brighterColor`/`multiplyColor` (ported integer math from
     tab_view.cpp:62–109) and `StringLaneStyle` (the seven derived surfaces, ported from
-    `StringStyle`), so `docs/plans/25-note-highway-3d.md` derives identical surfaces;
+    `StringStyle`), so `docs/roadmap/25-note-highway-3d.md` derives identical surfaces;
   - the "Charter Classic" preset as `constexpr` data: the six standard colors plus teal/gray
     (or teal/magenta per open question 2), and a `stringColorPalettes()` registry returning all
     built-ins.
@@ -379,7 +379,7 @@ toggle.
   constant), `editor_controller.cpp:989,1253` (clamps auto-extend), `editor_view.cpp:707,817`
   (menu loop and command range auto-extend), `test_editor_controller_state.cpp:766–785`,
   `test_tab_view.cpp:85` comment, TrackViewport proportional row sizing at 10 lanes. Confirm
-  against `docs/plans/10-format-versioning-and-chart-identity.md` that an accept-more validation
+  against `docs/roadmap/10-format-versioning-and-chart-identity.md` that an accept-more validation
   change needs no formatVersion bump. Local-only corpus checks (never CI): all 39 `.rock`
   packages still load (they are ≤8 strings; the change is accept-more), and count how many of the
   101 GP corpus files carry 9–10 string tracks that become importable (today they fail
@@ -391,11 +391,11 @@ toggle.
   `chart_rules.h` comment (color precondition now satisfied) and the `test_tab_view.cpp:85`
   comment; extend palette tests to 10 lanes; verify menu, clamps, and lane geometry at 10 lanes.
   Record in the commit message that detection support is explicitly out of scope
-  (`docs/plans/22-note-detection.md`).
+  (`docs/roadmap/22-note-detection.md`).
 
 **Public-header impact.** `chart_rules.h` constant change — a common/core public header consumed
 by both products; coordinate with any in-flight plan phases that pin the value in tests
-(`docs/plans/23-detection-verification-harness.md` fixture generators respect the constant
+(`docs/roadmap/23-detection-verification-harness.md` fixture generators respect the constant
 symbolically, not numerically — verify, don't assume).
 
 **Testing plan.** Existing suites prove no regression at ≤8; new palette tests at 9/10; a

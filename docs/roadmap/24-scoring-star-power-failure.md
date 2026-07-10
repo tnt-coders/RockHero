@@ -10,26 +10,26 @@ A player plugging in a real guitar gets honest, responsive scoring: every chart 
 verdict (hit/miss, timing delta, detected pitch, confidence), a GH-style 4x multiplier ladder and
 streak, star power deployed hands-free via a MIDI foot controller, and a failure meter tuned
 toward GH-expert feel with **no-fail ON by default**. Every completed run emits a versioned score
-record that docs/plans/27-in-song-flow-results-profiles.md stores and
-docs/plans/29-online-leaderboards.md uploads unchanged.
+record that docs/roadmap/27-in-song-flow-results-profiles.md stores and
+docs/roadmap/29-online-leaderboards.md uploads unchanged.
 
 ## 2. Non-goals
 
-- Pitch/onset detection itself — docs/plans/22-note-detection.md owns DSP and the detectability
+- Pitch/onset detection itself — docs/roadmap/22-note-detection.md owns DSP and the detectability
   truth; this plan owns what detection results *mean* for score.
-- Rendering the meter, star-power gauge, or hit feedback — docs/plans/25-note-highway-3d.md
+- Rendering the meter, star-power gauge, or hit feedback — docs/roadmap/25-note-highway-3d.md
   renders from events this plan publishes; here we only sketch visual directions (section 8, Q4).
-- Results screen, local score persistence, profiles — docs/plans/27-in-song-flow-results-profiles.md.
-- Leaderboard upload/integrity — docs/plans/29-online-leaderboards.md.
-- Practice-mode accuracy feedback — docs/plans/28-practice-mode.md.
-- Pause-pedal behavior — docs/plans/26-game-startup-menus-library.md (it reuses the IMidiTrigger
+- Results screen, local score persistence, profiles — docs/roadmap/27-in-song-flow-results-profiles.md.
+- Leaderboard upload/integrity — docs/roadmap/29-online-leaderboards.md.
+- Practice-mode accuracy feedback — docs/roadmap/28-practice-mode.md.
+- Pause-pedal behavior — docs/roadmap/26-game-startup-menus-library.md (it reuses the IMidiTrigger
   infrastructure built here).
 - Authored difficulty or any charter-authored gameplay metadata (constraint (d) territory; the
   only candidate here, star-power phrases, is resolved in Q1).
 
 ## 3. Constraints
 
-Restated subset of the roadmap's non-negotiable constraints (docs/plans/00-roadmap.md):
+Restated subset of the roadmap's non-negotiable constraints (docs/roadmap/00-roadmap.md):
 
 - (a) **Layering**: common never depends on editor or game code; editor and game never depend on
   each other. Anything both products need is extracted to rock-hero-common FIRST, as its own
@@ -92,11 +92,11 @@ Verified with `rg`/reads against the tree:
   (`chart_rules.h::validateChartRules`, `g_max_chart_strings = 8`).
 - **Chart identity**: `package_id.h` provides UUID helpers and canonical chart refs
   (`charts/<uuid>.chart.json`); there is **no content hash anywhere** — the score record's chart
-  hash is strictly a docs/plans/10-format-versioning-and-chart-identity.md deliverable.
+  hash is strictly a docs/roadmap/10-format-versioning-and-chart-identity.md deliverable.
 - **Audio ports available to the game** (`rock-hero-common/audio/include/rock_hero/common/audio/`):
   transport, song audio, plugin host, live rig, device config/settings, live input with
   `input_calibration.h`/`input_device_identity.h`. No playback-clock port yet
-  (docs/plans/12-playback-clock.md) and no scoring/detection ports.
+  (docs/roadmap/12-playback-clock.md) and no scoring/detection ports.
 - **Vendored JUCE is 8.0.12**
   (`external/tracktion_engine/modules/juce/modules/juce_core/system/juce_StandardHeader.h:42-44`)
   with the UMP-reworked MIDI layer; the expert findings in Phase 5 were source-verified against
@@ -108,36 +108,36 @@ Verified against code on 2026-07-06, refactor @ 13e82fb0.
 
 Upstream (this plan consumes):
 
-- docs/plans/22-note-detection.md Phase 1 (detection contract): `DetectionEvent` value types
+- docs/roadmap/22-note-detection.md Phase 1 (detection contract): `DetectionEvent` value types
   (onset, pitch(es)+confidence, sustained-pitch tracking, percussive-mute classification), the
   per-tuning worst-case confirmation times and latency budget, and the detectability column of
   the technique matrix (section 9, Phase 2 here is co-authored with it). Value types land in
   rock-hero-game/core so scoring stays pure; the producing port lives in rock-hero-game/audio.
-- docs/plans/23-detection-verification-harness.md: serializable DetectionEvent streams; scoring
+- docs/roadmap/23-detection-verification-harness.md: serializable DetectionEvent streams; scoring
   is tested by deterministic replay of event logs, never audio; the autoplay bot emits perfect
   event streams for soak.
-- docs/plans/12-playback-clock.md: IPlaybackClock supplies the song-time base for scoring
+- docs/roadmap/12-playback-clock.md: IPlaybackClock supplies the song-time base for scoring
   timestamps.
-- docs/plans/13-audio-device-settings-and-calibration.md: the measured-offset contract
+- docs/roadmap/13-audio-device-settings-and-calibration.md: the measured-offset contract
   (input + output + video latency per device identity) that shifts hit windows; offsets are
   copied into every score record.
-- docs/plans/10-format-versioning-and-chart-identity.md: the semantic chart-identity hash + hash
+- docs/roadmap/10-format-versioning-and-chart-identity.md: the semantic chart-identity hash + hash
   algorithm id stored in every score record.
-- docs/plans/20-game-architecture-and-render-stack.md Phase 0: gates game architecture broadly;
+- docs/roadmap/20-game-architecture-and-render-stack.md Phase 0: gates game architecture broadly;
   Phases 1–4 here are pure rock-hero-game/core code against the existing skeleton libs and do
-  not depend on the render-stack outcome, but execution order is set by docs/plans/00-roadmap.md.
-- docs/plans/21-game-audio-engine-and-session.md: the GameplaySession spine wires
+  not depend on the render-stack outcome, but execution order is set by docs/roadmap/00-roadmap.md.
+- docs/roadmap/21-game-audio-engine-and-session.md: the GameplaySession spine wires
   detection → scoring → record emission at runtime.
 
 Downstream (consume this plan):
 
-- docs/plans/25-note-highway-3d.md: hit/miss/early/late feedback events; the chosen meter/SP
+- docs/roadmap/25-note-highway-3d.md: hit/miss/early/late feedback events; the chosen meter/SP
   visual direction (Q4).
-- docs/plans/26-game-startup-menus-library.md: the pause pedal reuses IMidiTrigger (Phase 5);
+- docs/roadmap/26-game-startup-menus-library.md: the pause pedal reuses IMidiTrigger (Phase 5);
   menu-bindable actions may alias trigger actions.
-- docs/plans/27-in-song-flow-results-profiles.md: results screen and local score store consume
+- docs/roadmap/27-in-song-flow-results-profiles.md: results screen and local score store consume
   the score record (Phase 3) including per-note verdict detail for early/late tendency.
-- docs/plans/29-online-leaderboards.md: uploads the Phase 3 record unchanged; no-fail labeling
+- docs/roadmap/29-online-leaderboards.md: uploads the Phase 3 record unchanged; no-fail labeling
   feeds its eligibility rules.
 
 ## 6. Decisions already made
@@ -154,18 +154,18 @@ Downstream (consume this plan):
   listed examples) are faked, frameworks are not mocked
   (docs/design/architectural-principles.md, "Preferred Kinds of Tests", "Ports and Adapters").
 - Difficulty and other chart descriptors are derived by versioned calculators, never authored
-  (docs/design/architecture.md, "Song Data Model"; docs/plans/11-derived-difficulty-calculator.md)
+  (docs/design/architecture.md, "Song Data Model"; docs/roadmap/11-derived-difficulty-calculator.md)
   — this shapes the Q1 recommendation for star-power phrases.
 
 Decisions **established as normative by this plan** (restate when citing this plan):
 
 - **No-fail is ON by default**; failing out is opt-in. No-fail runs are labeled in the score
   record (`modifiers.noFail`); leaderboard eligibility is decided later by
-  docs/plans/29-online-leaderboards.md, not here.
+  docs/roadmap/29-online-leaderboards.md, not here.
 - **The provisional-hit state machine (section 9, Phase 2) is mandatory, not optional.**
   Rationale, stated explicitly: "GH scoring exactly" assumes deterministic, instantaneous
   plastic-button events. Our observations are probabilistic and latency-delayed — low-string
-  pitch confirmation costs 50–80 ms (per docs/plans/22-note-detection.md Phase 1's budget),
+  pitch confirmation costs 50–80 ms (per docs/roadmap/22-note-detection.md Phase 1's budget),
   which consumes most of a GH-style hit window. We therefore adopt the GH 4x multiplier ladder
   and scoring constants *honestly adapted*: onsets register provisional hits immediately for
   responsiveness, late pitch evidence confirms or revokes them, and all authoritative accounting
@@ -180,15 +180,15 @@ Decisions **established as normative by this plan** (restate when citing this pl
 
 ## 7. Open questions for the user
 
-Mirrored into docs/plans/00-roadmap.md "Decisions needed".
+Mirrored into docs/roadmap/00-roadmap.md "Decisions needed".
 
 - **Q1 — How is star power earned?** The chart format has no star-power phrase markers.
   - (a) *Derived phrases*: a versioned calculator generates SP phrases from chart structure
     (sections, note-run density), cached like difficulty (constraint (d) pattern); no format
     change. **Recommended** — consistent with derived-over-authored, ships without touching
-    docs/plans/10-format-versioning-and-chart-identity.md; can be upgraded later.
+    docs/roadmap/10-format-versioning-and-chart-identity.md; can be upgraded later.
   - (b) *Authored phrase markers*: format addition via plan 10 plus editor authoring in
-    docs/plans/40-chart-editing.md; musically curated like GH, but hand-authored gameplay
+    docs/roadmap/40-chart-editing.md; musically curated like GH, but hand-authored gameplay
     metadata contradicts the project's derived-over-authored stance and delays this plan.
   - (c) *Continuous accrual*: SP meter fills from confirmed-hit streaks, no phrases at all;
     simplest, but loses GH's "nail this passage" moments.
@@ -200,7 +200,7 @@ Mirrored into docs/plans/00-roadmap.md "Decisions needed".
   game needs pedals today, constraint (a) extracts to common only when both products need it,
   and moving a small port later is mechanical; (b) `rock-hero-common/audio` now, if editor pedal
   use (hands-free transport while charting) is considered near-certain.
-- **Q4 — Meter/star-power visual direction** (feeds docs/plans/25-note-highway-3d.md): see the
+- **Q4 — Meter/star-power visual direction** (feeds docs/roadmap/25-note-highway-3d.md): see the
   sketches in section 8. Recommendation: direction C with B's charge accent.
 - **Q5 — Vendored JUCE MIDI bug handling** (details in Phase 5): (a) design-around now —
   single-`MidiInput`-per-identifier discipline plus an engine-exclusion checkpoint —
@@ -212,7 +212,7 @@ Mirrored into docs/plans/00-roadmap.md "Decisions needed".
 
 The 3D highway needs its own design language, not GH's 2D bar bolted onto a corner. Three
 directions, sketched for the user to react to; the chosen one becomes a
-docs/plans/25-note-highway-3d.md HUD requirement:
+docs/roadmap/25-note-highway-3d.md HUD requirement:
 
 - **A — Stage atmosphere**: the failure meter *is* the venue. Healthy = warm stage wash, crowd
   audio bed; failing = lights dim toward a cold spot, crowd thins. Star power ready = spotlight
@@ -234,7 +234,7 @@ docs/plans/25-note-highway-3d.md HUD requirement:
 onset-only-hit, revoked-wrong-pitch, with timing delta ms, detected pitch cents, confidence,
 sustain-held fraction), `ScoringRuleset` (versioned constants), timing-window math (expected
 note time from tempo map + calibration offsets per
-docs/plans/13-audio-device-settings-and-calibration.md's contract), the GH ladder (1x/2x/3x/4x
+docs/roadmap/13-audio-device-settings-and-calibration.md's contract), the GH ladder (1x/2x/3x/4x
 at streaks 0/10/20/30; star power doubles to 8x), base scoring (50/note; chords = sum of member
 notes; sustains 25 per beat pro-rated by held fraction), star thresholds on
 score/max-base-score ratio (v1 defaults 5★ ≥ 2.8, 4★ ≥ 2.0, 3★ ≥ 1.2, 2★ ≥ 0.6 — tunable by
@@ -271,7 +271,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
   against other `Armed` notes whose expected pitch fits (an early next note claims it);
   otherwise the note commits as a miss (reason wrong-pitch).
 - `Provisional` deadline lapse (onset + per-tuning confirmation budget from
-  docs/plans/22-note-detection.md Phase 1, no decisive pitch) → **confirm by default** (favor
+  docs/roadmap/22-note-detection.md Phase 1, no decisive pitch) → **confirm by default** (favor
   the player; false positives beat false negatives for fun; ruleset-versioned policy). Full
   mutes are onset-only by design and always resolve this way.
 - `Armed` window close without onset `→ Missed`.
@@ -282,7 +282,7 @@ state is committed + provisional overlay and may visibly correct on revocation. 
 is evaluated only on committed state, so no one fails from a note that later confirms.
 
 **Technique scoring matrix — normative spec** (detectability column owned by
-docs/plans/22-note-detection.md Phase 1 and co-authored there; chart fields from
+docs/roadmap/22-note-detection.md Phase 1 and co-authored there; chart fields from
 `rock-hero-common/core/include/rock_hero/common/core/chart/chart.h`):
 
 | Chart field | v1 class | Scoring rule |
@@ -303,12 +303,12 @@ docs/plans/22-note-detection.md Phase 1 and co-authored there; chart fields from
 
 **Files**: rock-hero-game/core scoring feature folder + tests.
 **Public-header impact**: game-scope only. Consumes `DetectionEvent` value types from
-docs/plans/22-note-detection.md Phase 1; if this phase executes first, it defines those types in
+docs/roadmap/22-note-detection.md Phase 1; if this phase executes first, it defines those types in
 rock-hero-game/core as the draft contract and 22 Phase 1 ratifies them (record whichever
 happened in both plans' status lines).
 **Testing**: pure unit tests for every transition (including revoke-and-rematch, deadline-lapse,
 ledger correction cascades); deterministic replay tests over serialized DetectionEvent streams
-per docs/plans/23-detection-verification-harness.md (hand-authored fixture streams checked in;
+per docs/roadmap/23-detection-verification-harness.md (hand-authored fixture streams checked in;
 never the commercial-content corpora). This is the replayable simulation layer of
 docs/design/architectural-principles.md made real.
 **Exit criteria**: replaying a fixture stream twice yields byte-identical verdict sequences; all
@@ -335,7 +335,7 @@ rock-hero-game/core:
   "chart": { "hash": "<plan-10 semantic hash>", "hashAlgorithm": "<plan-10 id>",
              "arrangementId": "<uuid>", "part": "Lead" },
   "rulesetVersion": "rh-score-1",
-  "detectionVersion": "<from docs/plans/22-note-detection.md>",
+  "detectionVersion": "<from docs/roadmap/22-note-detection.md>",
   "calibration": { "deviceIdentity": "<from plan 13>", "inputLatencyMs": 0.0,
                    "outputLatencyMs": 0.0, "videoLatencyMs": 0.0 },
   "modifiers": { "noFail": true, "speed": 1.0, "leftyMirror": false },
@@ -351,7 +351,7 @@ confidence, sustainHeldFraction]`; verdict codes: `hit`, `hitOnsetOnly`, `missNo
 `missWrongPitch` (revoked). Per-section aggregates are derived by 27 from verdicts + chart
 sections, not stored. Size: compact arrays keep dense charts in the low tens of KB — fine for
 local storage and upload. Chart hash/algorithm fields are written as `null` until
-docs/plans/10-format-versioning-and-chart-identity.md lands, and the record format version does
+docs/roadmap/10-format-versioning-and-chart-identity.md lands, and the record format version does
 NOT change when they start being populated (nullable-by-design).
 **Files**: rock-hero-game/core `scoring/score_record.h/.cpp` + tests.
 **Public-header impact**: game-scope only.
@@ -384,11 +384,11 @@ enumerate/open/close/device-change listening with typed errors
 side: trigger events `{timestampSeconds, action}` drained from an SPSC queue by the game loop.
 Mappable trigger: mapping = `{deviceIdentity, matcher, action}`; default matcher = **any note-on
 or any CC with value ≥ 64** from the selected device; actions enum starts with `StarPower` and
-`Pause` (docs/plans/26-game-startup-menus-library.md wires Pause). A capture mode ("press the
+`Pause` (docs/roadmap/26-game-startup-menus-library.md wires Pause). A capture mode ("press the
 pedal now") records the first incoming message as the matcher. Keyboard fallback binding exists
 for dev/autoplay use, but the pedal is the primary input per constraint (i). Device
 identity + mapping persist through the game settings store
-(docs/plans/27-in-song-flow-results-profiles.md's IGameSettings); this phase defines the keys.
+(docs/roadmap/27-in-song-flow-results-profiles.md's IGameSettings); this phase defines the keys.
 
 The JUCE adapter (`rock-hero-game/audio/src/midi/`) bakes in the source-verified facts from the
 vendored JUCE 8.0.12 (all paths under `external/tracktion_engine/modules/juce/modules/`):
@@ -416,7 +416,7 @@ vendored JUCE 8.0.12 (all paths under `external/tracktion_engine/modules/juce/mo
 - Timestamps are seconds on the `juce::Time::getMillisecondCounter()` base, arrival-stamped,
   ~1 ms resolution on WinMM (`juce_MidiDevices.h:280-282`; `juce_Midi_windows.cpp:2701-2715`).
   Correlate to song time by sampling `Time::getMillisecondCounterHiRes()` at
-  docs/plans/12-playback-clock.md sync points; pedal actions need only human-scale precision.
+  docs/roadmap/12-playback-clock.md sync points; pedal actions need only human-scale precision.
 - **Vendored use-after-free bug (Q5)**: `Win32::InputDevice::removeConsumer` calls
   `consumers.add(c)` instead of `remove` (`juce_Midi_windows.cpp:2586-2589`; fixed upstream).
   WinMM devices are shared via a weak-ptr cache (`:2543-2553`), so destroying one of two
@@ -452,7 +452,7 @@ SP meter; deploy allowed at ≥ 50% via the Phase 5 `StarPower` trigger action; 
 the current multiplier (to 8x max); drain over 32 beats of song time per full bar
 (ruleset-tunable). If Q2 = yes, wire the Phase 4 extension point (+0.15 immediate, 2x meter gain
 while active). Deployments counted into the score record (`result.starPowerDeployments`); SP
-state changes published as events for docs/plans/25-note-highway-3d.md. Vibrato-on-sustain as an
+state changes published as events for docs/roadmap/25-note-highway-3d.md. Vibrato-on-sustain as an
 SP filler (whammy analog) is explicitly deferred to a later ruleset version.
 **Files/testing**: rock-hero-game/core + unit tests (phrase completion under
 provisional/revoked edges — a revoked note retroactively voids its phrase; deploy gating; drain
@@ -473,7 +473,7 @@ pre-commit run --all-files
 ```
 
 Acceptance: all green; a full-song replay of an autoplay-bot event stream
-(docs/plans/23-detection-verification-harness.md) produces a valid score record with 100%
+(docs/roadmap/23-detection-verification-harness.md) produces a valid score record with 100%
 accuracy, max streak, and deterministic SP deployments; a degraded stream exercises provisional
 revocation and (fail opt-in) failure.
 
@@ -481,7 +481,7 @@ revocation and (fail opt-in) failure.
 
 - Phases 1–4 and 6 are additive pure game/core code with no common/editor impact: rollback =
   revert the game/core scoring folder and tests; nothing else in the product can have grown a
-  dependency on them before docs/plans/21-game-audio-engine-and-session.md wires the session.
+  dependency on them before docs/roadmap/21-game-audio-engine-and-session.md wires the session.
 - Phase 5 carries the real risk (vendored UAF on the driver callback thread). If instability
   appears with real hardware, fall back in order: (1) keep the port, disable hot-plug reopen
   (manual re-select only — narrows the close/reopen risk window), (2) keyboard-only star power
@@ -489,8 +489,8 @@ revocation and (fail opt-in) failure.
   bumping the submodule with user sign-off. The port boundary means none of these touch scoring.
 - If the ruleset constants prove mistuned after real play, bump `rulesetVersion` — records are
   self-describing, so old records stay honest and comparable per version
-  (docs/plans/29-online-leaderboards.md relies on this).
+  (docs/roadmap/29-online-leaderboards.md relies on this).
 - If Q1 lands on authored phrases (option b), Phase 6 blocks on
-  docs/plans/10-format-versioning-and-chart-identity.md and docs/plans/40-chart-editing.md;
+  docs/roadmap/10-format-versioning-and-chart-identity.md and docs/roadmap/40-chart-editing.md;
   everything through Phase 5 still ships, with SP earning stubbed to continuous accrual (Q1c)
   behind the same interfaces if an interim is wanted — record that choice in the roadmap first.

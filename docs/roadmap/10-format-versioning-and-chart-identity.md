@@ -13,8 +13,8 @@ Give the package formats a real versioning policy and give every chart a stable 
   format changes are ordinary migration steps rather than ad-hoc shape sniffing.
 - A canonical **chart-identity hash** — computed from a semantic serialization of chart content +
   tempo map + tuning, never from file bytes — becomes the key that
-  `docs/plans/29-online-leaderboards.md` scores against, `docs/plans/26-game-startup-menus-library.md`
-  caches on, and `docs/plans/24-scoring-star-power-failure.md` stamps into score records.
+  `docs/roadmap/29-online-leaderboards.md` scores against, `docs/roadmap/26-game-startup-menus-library.md`
+  caches on, and `docs/roadmap/24-scoring-star-power-failure.md` stamps into score records.
 
 User-visible outcome: packages saved by future editor versions stop being a compatibility gamble,
 older packages upgrade transparently on open, and a chart's scores/records can be keyed to exactly
@@ -23,8 +23,8 @@ the content that was played.
 ## 2. Non-goals
 
 - No new `song.json` metadata fields (album art, sort fields, preview start/length) — those are
-  `docs/plans/43-song-information-and-art.md`, which routes its format changes through this plan.
-- No serialized difficulty — `docs/plans/11-derived-difficulty-calculator.md` owns derivation and
+  `docs/roadmap/43-song-information-and-art.md`, which routes its format changes through this plan.
+- No serialized difficulty — `docs/roadmap/11-derived-difficulty-calculator.md` owns derivation and
   cache placement; this plan only guarantees its cache keys (hash + versions) are well-defined.
 - No library index cache, no leaderboard protocol, no score record format — plans 26, 29, 24.
 - No changes to chart *content* semantics; the format spec stays as recorded in
@@ -38,7 +38,7 @@ the content that was played.
 
 ## 3. Constraints
 
-Applicable subset of the roadmap constraint block (see `docs/plans/00-roadmap.md`):
+Applicable subset of the roadmap constraint block (see `docs/roadmap/00-roadmap.md`):
 
 - (a) **Layering**: everything here lives in `rock-hero-common/core` (both products read
   packages). Common never depends on editor or game code. Tracktion headers stay isolated to
@@ -50,7 +50,7 @@ Applicable subset of the roadmap constraint block (see `docs/plans/00-roadmap.md
   named in any file; use "RS" or neutral phrasing. Charter (MIT) may be named.
 - (d) **Derived over authored**: the chart hash is derived from content; no authored "chart
   version" field is introduced (see Open question Q6 in
-  `docs/plans/43-song-information-and-art.md`, which recommends resolving chart "version" via this
+  `docs/roadmap/43-song-information-and-art.md`, which recommends resolving chart "version" via this
   plan's identity hash).
 - (e) **FLAC**: package reader changes must not weaken the FLAC-only audio enforcement.
 - (h) **Builds**: all verification through `.agents/rockhero-build.ps1` (usage in
@@ -147,18 +147,18 @@ Verified against code on 2026-07-06, refactor @ 3c7febe0.
 
 Upstream: none — this is a foundation plan. Downstream plans gated on phases here:
 
-- `docs/plans/43-song-information-and-art.md` — its metadata fields are the first real bump; it
+- `docs/roadmap/43-song-information-and-art.md` — its metadata fields are the first real bump; it
   must not start format changes before Phase 2 lands the ladder.
-- `docs/plans/29-online-leaderboards.md` — keys submissions on the Phase 3 hash + algorithm id.
-- `docs/plans/26-game-startup-menus-library.md` — library cache keys include the Phase 3 hash;
+- `docs/roadmap/29-online-leaderboards.md` — keys submissions on the Phase 3 hash + algorithm id.
+- `docs/roadmap/26-game-startup-menus-library.md` — library cache keys include the Phase 3 hash;
   its malformed-package listing consumes Phase 2's typed newer-format error.
-- `docs/plans/24-scoring-star-power-failure.md` — score record format embeds the Phase 3 hash and
+- `docs/roadmap/24-scoring-star-power-failure.md` — score record format embeds the Phase 3 hash and
   algorithm id.
-- `docs/plans/11-derived-difficulty-calculator.md` — cache entries key on (chart hash, calculator
+- `docs/roadmap/11-derived-difficulty-calculator.md` — cache entries key on (chart hash, calculator
   version); needs Phase 3's identity definition.
 
 External decisions: the Phase 0 sign-offs (Q1–Q5 below), aggregated in
-`docs/plans/00-roadmap.md` Decisions-needed.
+`docs/roadmap/00-roadmap.md` Decisions-needed.
 
 ## 6. Decisions already made
 
@@ -166,7 +166,7 @@ Restated with sources; a fresh session must not re-litigate these.
 
 - **Difficulty and other descriptors are derived, never authored** —
   `docs/design/architecture.md` "Song Data Model" ("a value *derived* from playable chart data,
-  not authored data") and `docs/plans/11-derived-difficulty-calculator.md`. Nothing in this
+  not authored data") and `docs/roadmap/11-derived-difficulty-calculator.md`. Nothing in this
   plan introduces an authored chart version or descriptor.
 - **Anchor seconds keep a fixed three-decimal grid** — `docs/design/architecture.md` "Song Data
   Model"; enforced by `g_timing_decimals = 3`. The hash serialization reuses this exact stored
@@ -187,7 +187,7 @@ Restated with sources; a fresh session must not re-litigate these.
 
 ## 7. Open questions for the user
 
-Mirrored into `docs/plans/00-roadmap.md` Decisions-needed. Phase 0 presents these and STOPS.
+Mirrored into `docs/roadmap/00-roadmap.md` Decisions-needed. Phase 0 presents these and STOPS.
 
 - **Q1 — formatVersion bump rule.**
   (A) *Bump on every persisted-schema change, additive or breaking* (recommended). Because both
@@ -455,7 +455,7 @@ explicit user confirmation or their absence recorded as an open follow-up.
 - **Phase 2** keeps v1 parsing byte-identical (empty ladder); the risky surface is the public
   return-type change, which is compile-time-visible at every call site — revert is a clean
   `git revert`, no persisted state involved. Do not ship any *actual* migration step in this plan;
-  the first real step ships with `docs/plans/43-song-information-and-art.md` where its content
+  the first real step ships with `docs/roadmap/43-song-information-and-art.md` where its content
   change lives.
 - **Phase 3** is additive API; revert deletes the header/TU and the CMake link. The golden vector
   makes silent drift impossible after landing. If `RHCI-1` must change post-consumption (a spec

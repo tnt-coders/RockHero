@@ -7,7 +7,7 @@ argument-hint: "[preset]"
 # verify-rockhero
 
 Run the one sanctioned verification bundle (CLAUDE.md "Agent-Run Builds"; constraint (h) in every
-docs/plans/*.md Constraints section). This bundle is for **end-of-plan acceptance** or a coherent
+docs/roadmap/*.md Constraints section). This bundle is for **end-of-plan acceptance** or a coherent
 finished batch of edits — intermediate phases run only the single check their change determinately
 warrants, never this whole bundle reflexively.
 

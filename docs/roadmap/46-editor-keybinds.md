@@ -21,9 +21,9 @@ hardcoded copy. Plans 40/41/44 register their new shortcuts through this system 
   `juce::KeyPress` (evidence below); revisit only if a product requirement appears, which would
   need a custom capture layer in front of the JUCE system.
 - Game input handling. The game's menu/gameplay input layer (keyboard + gamepad + MIDI pedal) is
-  owned by docs/plans/26-game-startup-menus-library.md Phase 5; see Q2 for the relationship.
+  owned by docs/roadmap/26-game-startup-menus-library.md Phase 5; see Q2 for the relationship.
 - Defining the final shortcut set for chart editing and tempo authoring — those commands are
-  registered by docs/plans/40-chart-editing.md and docs/plans/41-tempo-map-authoring.md when their
+  registered by docs/roadmap/40-chart-editing.md and docs/roadmap/41-tempo-map-authoring.md when their
   phases land; this plan provides the mechanism plus reserved conventions (Appendix tier B).
 - Localizing shortcut display names (JUCE's `getTextDescription()` is English-only; accepted).
 - Touching the in-flight editor-core tone work (docs/in-progress/tone-track-tempo-map-plan.md);
@@ -133,14 +133,14 @@ Verified against code on 2026-07-06, refactor @ 13e82fb0.
 
 ## Dependencies
 
-- docs/plans/26-game-startup-menus-library.md — mirrors open question Q2 (its open question 4);
+- docs/roadmap/26-game-startup-menus-library.md — mirrors open question Q2 (its open question 4);
   its Phase 5 menu input mirrors this plan's overwrite-and-clear conflict semantics without
   sharing code if Q2 resolves to parallel systems.
-- Consumers (they depend on this plan, not vice versa): docs/plans/40-chart-editing.md (interim
+- Consumers (they depend on this plan, not vice versa): docs/roadmap/40-chart-editing.md (interim
   keybind table hands its shortcuts to this registry — its line "new shortcuts start in the
-  interim keybind table handed to docs/plans/46-editor-keybinds.md"),
-  docs/plans/41-tempo-map-authoring.md (tap key and anchor-nudge keys register here when this
-  lands), docs/plans/44-editor-3d-preview.md (the preview window is one more consumer of the
+  interim keybind table handed to docs/roadmap/46-editor-keybinds.md"),
+  docs/roadmap/41-tempo-map-authoring.md (tap key and anchor-nudge keys register here when this
+  lands), docs/roadmap/44-editor-3d-preview.md (the preview window is one more consumer of the
   centralized map).
 - docs/in-progress/tone-track-tempo-map-plan.md — active work; any shortcut it ships (Ctrl+T tone
   marker) is migrated into the registry during Phase 1, referenced never absorbed.
@@ -165,13 +165,21 @@ Verified against code on 2026-07-06, refactor @ 13e82fb0.
   (injected bindings), it does not restructure the outbound one.
 - **Interim policy until this plan lands**: new shortcuts from plans 40/41 live in
   `EditorView::keyPressed` and are recorded in plan 40's interim keybind table —
-  docs/plans/40-chart-editing.md (Dependencies) and docs/plans/41-tempo-map-authoring.md
+  docs/roadmap/40-chart-editing.md (Dependencies) and docs/roadmap/41-tempo-map-authoring.md
   (Dependencies).
 - **"L links notes / auto-creates slides"** is settled —
   docs/in-progress/note-format-and-tablature-plan.md; Appendix tier B reserves plain `L`
   accordingly and this plan must not reassign it.
 - **Charter's shortcut list is input, not a template** — the user disagrees with many of its
   choices; the Appendix is a from-scratch proposal and an explicit review gate (Q1).
+- **The pointer-modifier vocabulary is fixed** by `docs/in-progress/editing-interaction-model.md`
+  (settled 2026-07-09): Ctrl = precision (snap bypass), Alt = create/author quasimode,
+  Shift = extend/constrain. Keybind defaults must not repurpose these modifiers' *pointer*
+  meanings; keyboard chords using them (Ctrl+Z, Alt+F4) are unaffected. The model additionally
+  reserves keyboard verbs that register here when their surfaces land: Delete = delete
+  selection, Esc = cancel in-flight gesture, arrows = nudge selection (Ctrl+arrows fine step),
+  Shift+Left/Right = grow/shrink extent, Ctrl+D = duplicate, and `B` is held in reserve for a
+  possible latched pencil mode.
 
 ## Open questions for the user
 
@@ -182,7 +190,7 @@ Verified against code on 2026-07-06, refactor @ 13e82fb0.
    plus uncontroversial file-menu standards); diff-mode persistence means later default changes
    merge under user overrides, so nothing here is locked in except the command *ids*.
 2. **Q2 — Editor/game bindable-action sharing** (mirrored in
-   docs/plans/26-game-startup-menus-library.md, its open question 4). Options: (a) parallel
+   docs/roadmap/26-game-startup-menus-library.md, its open question 4). Options: (a) parallel
    systems — editor uses JUCE command dispatch on the message thread; the game uses a headless
    binding resolver over plain input events (keyboard + gamepad + MIDI pedal) in game/core; only
    the *semantics* (stable action ids, overwrite-and-clear conflict flow, diff persistence) are
@@ -449,7 +457,7 @@ Tier A — commands existing at baseline (or in-flight, marked):
 | Tone      | Insert Tone Change    | Ctrl+T               | in-flight tone work; re-verify at exec   |
 
 Tier B — reservations for future registration (non-binding; settled when
-docs/plans/40-chart-editing.md and docs/plans/41-tempo-map-authoring.md register the commands):
+docs/roadmap/40-chart-editing.md and docs/roadmap/41-tempo-map-authoring.md register the commands):
 plain `L` is reserved for link/slide per the settled decision in
 docs/in-progress/note-format-and-tablature-plan.md; plain letters and digits generally reserve
 for chart-editing tools and fret entry; the tap-tempo key and anchor-nudge keys from plan 41

@@ -13,7 +13,7 @@ Charters can author complete song presentation data and every published `.rock` 
 - Optional, toggleable sort fields (sortTitle/sortArtist/sortAlbum) override how the game library
   sorts ("The Beatles" under B), auto-filled with a suggestion when enabled.
 - An optional preview start/length pair marks the snippet the game plays while browsing
-  (`docs/plans/26-game-startup-menus-library.md` Phase 9 consumes it).
+  (`docs/roadmap/26-game-startup-menus-library.md` Phase 9 consumes it).
 - All metadata edits are ordinary undoable edits in the editor's memento history.
 
 This plan also explicitly resolves the tension between required-on-export validation and the
@@ -22,15 +22,15 @@ established save==publish / normalize-don't-reject invariant (Open question Q1).
 ## 2. Non-goals
 
 - No chart content validation (impossible spans, coverage gaps) — that is
-  `docs/plans/42-chart-validation.md`; this plan validates metadata *presence* only, leaving a
+  `docs/roadmap/42-chart-validation.md`; this plan validates metadata *presence* only, leaving a
   seam so plan 42's content gate joins the same publish check later.
-- No formatVersion machinery — `docs/plans/10-format-versioning-and-chart-identity.md` owns the
+- No formatVersion machinery — `docs/roadmap/10-format-versioning-and-chart-identity.md` owns the
   bump rules and migration ladder; this plan ships the first *consumer* of that ladder.
 - No game-side rendering of art, sort columns, or preview playback —
-  `docs/plans/26-game-startup-menus-library.md` (its Phase 3 thumbnail adapter consumes the JUCE
+  `docs/roadmap/26-game-startup-menus-library.md` (its Phase 3 thumbnail adapter consumes the JUCE
   facts verified here).
 - No arrangement `part` editing UI and no authored or serialized difficulty — difficulty stays
-  derived (`docs/plans/11-derived-difficulty-calculator.md`); its editor display can join this
+  derived (`docs/roadmap/11-derived-difficulty-calculator.md`); its editor display can join this
   dialog later per that plan's non-goals. No authored chart "version" field (Q6).
 - No preview *audition* (play the snippet inside the editor dialog) — future nicety; the fields
   ship first.
@@ -41,7 +41,7 @@ established save==publish / normalize-don't-reject invariant (Open question Q1).
 
 ## 3. Constraints
 
-Applicable subset of the roadmap constraint block (see `docs/plans/00-roadmap.md`):
+Applicable subset of the roadmap constraint block (see `docs/roadmap/00-roadmap.md`):
 
 - (a) **Layering**: format/persistence rules live in `rock-hero-common/core`; anything both
   products need (the art image codec helpers) is extracted to `rock-hero-common` FIRST, as its own
@@ -78,7 +78,7 @@ Verified with `rg`/reads against the tree; all paths repo-relative.
   the metadata object is missing; every field is optional. No required-field enforcement exists
   anywhere in the read or write path.
 - Reader hard-rejects `formatVersion != 1` (`rock_song_package_read.cpp:976-983`); the migration
-  ladder that changes this is `docs/plans/10-format-versioning-and-chart-identity.md` Phase 2.
+  ladder that changes this is `docs/roadmap/10-format-versioning-and-chart-identity.md` Phase 2.
 - There is NO art field, NO sort fields, NO preview fields, NO serialized difficulty in
   `song.json`. `DifficultyRating` exists in-memory only (`song/difficulty.h`, carried on
   `Arrangement` at `song/arrangement.h:48`), never computed or serialized —
@@ -169,35 +169,35 @@ Verified against code on 2026-07-06, refactor @ 13e82fb0.
 
 Upstream (blocking):
 
-- `docs/plans/10-format-versioning-and-chart-identity.md` Phase 0 (Q1 bump rule, Q4 per-document
+- `docs/roadmap/10-format-versioning-and-chart-identity.md` Phase 0 (Q1 bump rule, Q4 per-document
   ladders) and Phase 2 (migration ladder + `SongReadResult.migrated`) — Phase 1 here is the first
   real `song.json` schema change and must ride that ladder, not precede it.
 
 Downstream (consumers; recorded in their Dependencies sections too):
 
-- `docs/plans/26-game-startup-menus-library.md` — Phase 3 (art thumbnails; shares this plan's
+- `docs/roadmap/26-game-startup-menus-library.md` — Phase 3 (art thumbnails; shares this plan's
   JUCE image findings and Phase 3 codec), Phase 7 (sort columns), Phase 9 (preview snippet).
-- `docs/plans/11-derived-difficulty-calculator.md` — editor display of the derived rating rides
+- `docs/roadmap/11-derived-difficulty-calculator.md` — editor display of the derived rating rides
   with this dialog later (that plan's non-goals).
-- `docs/plans/42-chart-validation.md` — its editor pre-export content gate plugs into the Phase 5
+- `docs/roadmap/42-chart-validation.md` — its editor pre-export content gate plugs into the Phase 5
   publish-blocker seam defined here.
-- `docs/plans/40-chart-editing.md` — cites this plan (its decision 9) for the save==publish
+- `docs/roadmap/40-chart-editing.md` — cites this plan (its decision 9) for the save==publish
   export-gate resolution.
 
-External decisions: Q1–Q6 below, aggregated in `docs/plans/00-roadmap.md` Decisions-needed.
+External decisions: Q1–Q6 below, aggregated in `docs/roadmap/00-roadmap.md` Decisions-needed.
 
 ## 6. Decisions already made
 
 Restated with sources; a fresh session must not re-litigate these.
 
 - **Save == publish; validation normalizes, never rejects, on the save path** — established
-  invariant restated in `docs/plans/40-chart-editing.md` (decision 9), mechanically visible in
+  invariant restated in `docs/roadmap/40-chart-editing.md` (decision 9), mechanically visible in
   code: save and publish share one writer (`project_io.cpp:183`, `project.cpp:634`); repairs
   happen as load normalization surfaced as unsaved changes (`project_handlers.cpp:268`). This
   plan may add a *publish-only* gate (Q1) but must not make the shared writer reject.
 - **Descriptors are derived, never authored** — `docs/design/architecture.md` "Song Data Model"
   ("a value *derived* from playable chart data, not authored data") and
-  `docs/plans/11-derived-difficulty-calculator.md`. This plan authors only relational and
+  `docs/roadmap/11-derived-difficulty-calculator.md`. This plan authors only relational and
   presentation facts.
 - **Undo is RockHero-owned full-state mementos** —
   `docs/completed/editor-undo/editor-undo-plan.md`; the editor-core `IEdit`/`EditorUndoHistory`
@@ -205,17 +205,17 @@ Restated with sources; a fresh session must not re-litigate these.
 - **FLAC is the enforced package audio format** — `docs/design/architecture.md` "Technology
   Stack"; untouched here.
 - **Format changes route through plan 10** —
-  `docs/plans/10-format-versioning-and-chart-identity.md` Non-goals and Dependencies name this
+  `docs/roadmap/10-format-versioning-and-chart-identity.md` Non-goals and Dependencies name this
   plan as the first real bump; its rollback notes state the first real migration step ships here.
 - **Package timing precision is a fixed 3-decimal grid** — `docs/design/architecture.md` "Song
   Data Model"; the preview fields reuse it (seconds, `{:.3f}`), matching the `startOffset`
   precedent rather than inventing a new time spelling.
-- **The game never rewrites user packages** — `docs/plans/26-game-startup-menus-library.md`
+- **The game never rewrites user packages** — `docs/roadmap/26-game-startup-menus-library.md`
   constraints; all authoring here is editor-side, the game only reads.
 
 ## 7. Open questions for the user
 
-Mirrored into `docs/plans/00-roadmap.md` Decisions-needed. Phase 0 presents these and STOPS.
+Mirrored into `docs/roadmap/00-roadmap.md` Decisions-needed. Phase 0 presents these and STOPS.
 
 - **Q1 — required metadata vs save==publish.** How does "required for export" coexist with
   normalize-don't-reject saves?
@@ -233,7 +233,7 @@ Mirrored into `docs/plans/00-roadmap.md` Decisions-needed. Phase 0 presents thes
 - **Q2 — which fields hard-block publish.**
   (A) *All five: title, artist, album, year, album art* (recommended — matches the product goal;
   the game keeps a fallback tile for pre-existing v1 packages anyway, per
-  `docs/plans/26-game-startup-menus-library.md` Phase 3).
+  `docs/roadmap/26-game-startup-menus-library.md` Phase 3).
   (B) Title/artist/year hard; album and art soft (warning, publish proceeds). Choose this only
   if requiring art is judged too hostile for quick personal exports.
 - **Q3 — canonical art policy.**
@@ -266,7 +266,7 @@ Mirrored into `docs/plans/00-roadmap.md` Decisions-needed. Phase 0 presents thes
   (e.g. "v2 of my chart of Song X")?
   (A) *No authored version; resolve identity via plan 10's chart-identity hash* (recommended).
   Any content edit changes the hash, which is what leaderboards
-  (`docs/plans/29-online-leaderboards.md`) and score records key on; an authored counter is
+  (`docs/roadmap/29-online-leaderboards.md`) and score records key on; an authored counter is
   authored metadata that drifts, double-counts, or forgets — exactly what constraint (d) exists
   to prevent. `formatVersion` (schema) already exists and is unrelated to content revisions.
   (B) An authored integer the charter bumps manually. Human-maintained, unverifiable, and
@@ -446,7 +446,7 @@ Phase 2 have landed.
   path (`project_handlers.cpp`, the `PublishProject` flow) runs it before starting the busy
   publish; a non-empty list cancels the operation and surfaces a view-state prompt listing every
   blocker with an "Open Song Information" affordance. Save and Save As remain untouched — the
-  Q1-A split. The blocker list is deliberately generic so `docs/plans/42-chart-validation.md`
+  Q1-A split. The blocker list is deliberately generic so `docs/roadmap/42-chart-validation.md`
   can append content blockers to the same vector without changing the gate seam.
 - **Files**: `rock-hero-editor/core/{include,src}/.../project/publish_readiness.{h,cpp}` (header
   public — the view renders blockers), `project_handlers.cpp`, `editor_view_state.h`,
@@ -478,7 +478,7 @@ pre-commit run --all-files
 
 Acceptance additionally requires: the Phase 1 local corpus table (39/39) recorded; one end-to-end
 pass (import GP → fill Song Information incl. art → publish → reopen the published `.rock`,
-metadata and art intact); and the Q1/Q2 outcomes recorded in `docs/plans/00-roadmap.md`.
+metadata and art intact); and the Q1/Q2 outcomes recorded in `docs/roadmap/00-roadmap.md`.
 
 ## 10. Rollback/abort notes
 

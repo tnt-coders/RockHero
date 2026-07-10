@@ -3,9 +3,9 @@
 ## 1. Status
 
 Ready — 2026-07-07 — baseline `refactor @ 0ffb6efe`. Open questions Q1–Q3 below carry
-recommendations and are mirrored into docs/plans/00-roadmap.md (Decisions needed); Phase 1 is
-executable now and is coordinated with docs/plans/21-game-audio-engine-and-session.md Phase 1 and
-docs/plans/28-practice-mode.md Phase 2 by the whichever-executes-first rule in Decisions below.
+recommendations and are mirrored into docs/roadmap/00-roadmap.md (Decisions needed); Phase 1 is
+executable now and is coordinated with docs/roadmap/21-game-audio-engine-and-session.md Phase 1 and
+docs/roadmap/28-practice-mode.md Phase 2 by the whichever-executes-first rule in Decisions below.
 
 ## 2. Goal
 
@@ -13,31 +13,31 @@ Looping works in both products. This plan owns (1) the shared loop-range backend
 transport port and (2) the editor experience: in the editor, looping is available all the time —
 the charter click-drags over a time span, the selection snaps to the current grid density by
 default, playback loops the selection, and the selection survives pause/seek/arrangement switches
-until cleared. Game-facing looping UX (practice mode) is docs/plans/28-practice-mode.md, not this
+until cleared. Game-facing looping UX (practice mode) is docs/roadmap/28-practice-mode.md, not this
 plan; both products drive the one backend this plan lands.
 
 ## 3. Non-goals
 
-- No playback speed factor. `setPlaybackSpeed` is docs/plans/21-game-audio-engine-and-session.md
-  Phase 1 (typed-NotSupported) and docs/plans/28-practice-mode.md Phase 1 (functional).
+- No playback speed factor. `setPlaybackSpeed` is docs/roadmap/21-game-audio-engine-and-session.md
+  Phase 1 (typed-NotSupported) and docs/roadmap/28-practice-mode.md Phase 1 (functional).
 - No practice-mode features: section-based loop pick, pre-roll, count-in, per-loop accuracy —
-  all docs/plans/28-practice-mode.md.
-- No note/marquee selection in the tab lane — docs/plans/40-chart-editing.md Phase 3 owns chart
+  all docs/roadmap/28-practice-mode.md.
+- No note/marquee selection in the tab lane — docs/roadmap/40-chart-editing.md Phase 3 owns chart
   selection; this plan's time selection is a transport concept, deliberately on a different
   surface (Q1).
 - No playback-follow changes. The shifted-window follow stays as shipped; the fixed-cursor
   smooth-scroll evaluation (docs/todo/smooth-scroll-follow-evaluation.md) is an owned, pending
-  user decision — referenced here exactly as docs/plans/44-editor-3d-preview.md does, never
+  user decision — referenced here exactly as docs/roadmap/44-editor-3d-preview.md does, never
   decided or duplicated.
 - No keybind centralization. Any key this plan ships lands in the existing scattered handling and
-  migrates under docs/plans/46-editor-keybinds.md (stated explicitly in Phase 3).
+  migrates under docs/roadmap/46-editor-keybinds.md (stated explicitly in Phase 3).
 - No IPlaybackClock work. The editor reads transport on the message thread today and does not
-  depend on docs/plans/12-playback-clock.md; that plan's extrapolator loop-wrap snap rules apply
+  depend on docs/roadmap/12-playback-clock.md; that plan's extrapolator loop-wrap snap rules apply
   to its future consumers, not to this plan.
 
 ## 4. Constraints
 
-Applicable subset of the roadmap constraint block (docs/plans/00-roadmap.md):
+Applicable subset of the roadmap constraint block (docs/roadmap/00-roadmap.md):
 
 - (a) **Layering**: common never depends on editor or game code. The loop-range API both products
   need lands in rock-hero-common/audio FIRST, as its own phase with tests, before any editor UI
@@ -113,7 +113,7 @@ Repo state (paths repo-relative):
   (editor_view.cpp:626-678), `MainWindow::keyPressed` forwards
   (main_window.cpp:101-114), and duplicated predicates sit in
   rock-hero-common/audio/src/tracktion/plugin_window.cpp:17-47 — centralization is
-  docs/plans/46-editor-keybinds.md.
+  docs/roadmap/46-editor-keybinds.md.
 - Playback follow: `TrackViewport::followCursorWithWindowShifts` — "a cursor off-screen left
   snaps straight to the pin so playback is never running invisibly behind the view"
   (rock-hero-editor/ui/src/timeline/track_viewport.cpp:599-613).
@@ -168,24 +168,24 @@ Verified against code on 2026-07-07, refactor @ 0ffb6efe.
 
 ## 6. Dependencies
 
-- docs/plans/21-game-audio-engine-and-session.md — Phase 1 declares the same shared-port loop
+- docs/roadmap/21-game-audio-engine-and-session.md — Phase 1 declares the same shared-port loop
   surface (possibly typed-NotSupported per its rollback note); Phase 3c(2) tests tone correctness
   across loop wraps. Coordinated by the whichever-executes-first rule (Decisions below).
-- docs/plans/28-practice-mode.md — Deferred; its Phase 2 hardens game-side wrap behavior and its
+- docs/roadmap/28-practice-mode.md — Deferred; its Phase 2 hardens game-side wrap behavior and its
   Phase 0 checkpoint e verifies `TransportControl` loop semantics. This plan executing first
   satisfies both implementation halves; 28 then extends tests only.
-- docs/plans/12-playback-clock.md — no dependency either way. Its extrapolator already defines
+- docs/roadmap/12-playback-clock.md — no dependency either way. Its extrapolator already defines
   loop-wrap backward jumps as snap events (its Phase 4); the editor cursor path stays
   message-thread `ITransport::position()` (its open question 2, recommendation B).
-- docs/plans/40-chart-editing.md — Phase 3 will add glyph-select/marquee pointer input in the tab
+- docs/roadmap/40-chart-editing.md — Phase 3 will add glyph-select/marquee pointer input in the tab
   lane; Q1 keeps this plan's drag surface off that lane. Phase 1 of plan 40 (grid-position
   arithmetic in common/core) overlaps the snap-to-musical helper here; coordination note in
   Phase 2.
-- docs/plans/46-editor-keybinds.md — any key this plan ships (Escape clear, optional Ctrl+L)
+- docs/roadmap/46-editor-keybinds.md — any key this plan ships (Escape clear, optional Ctrl+L)
   lands scattered in `EditorView::keyPressed` now, is recorded for plan 46's registry, and
   migrates when that plan executes. Ctrl+L does not collide with plan 46's tier A/B map (plain
   `L` stays reserved for link/slide).
-- docs/plans/44-editor-3d-preview.md — shares only the follow-decision stance: the smooth-scroll
+- docs/roadmap/44-editor-3d-preview.md — shares only the follow-decision stance: the smooth-scroll
   evaluation (docs/todo/smooth-scroll-follow-evaluation.md) is the user's pending call;
   referenced, never decided (its non-goal 3 phrasing is the template for this plan's non-goal).
 - docs/in-progress/tone-track-tempo-map-plan.md — active tone work; this plan touches none of its
@@ -197,7 +197,7 @@ Restated inline so a fresh session needs no other context:
 
 1. **Whichever-executes-first coordination rule (stated here, binding on plans 21/28/47).** The
    shared loop surface is one implementation, landed once: whichever of
-   docs/plans/21-game-audio-engine-and-session.md Phase 1 or THIS plan's Phase 1 executes first
+   docs/roadmap/21-game-audio-engine-and-session.md Phase 1 or THIS plan's Phase 1 executes first
    lands the port methods on
    rock-hero-common/audio/include/rock_hero/common/audio/transport/i_transport.h, the
    `transport/transport_error.h` error enum, the Tracktion-backed implementation in
@@ -215,7 +215,7 @@ Restated inline so a fresh session needs no other context:
 3. **The editor loop selection is stored as musical positions** (a `common::core::GridPosition`
    pair) and converted to seconds at the engine edge via `TempoMap::secondsAtNote`
    (tempo_map.h:192). Property this buys: musical positions survive tempo edits — when
-   docs/plans/41-tempo-map-authoring.md lands tempo editing, a loop pinned to measures 17–21
+   docs/roadmap/41-tempo-map-authoring.md lands tempo editing, a loop pinned to measures 17–21
    stays pinned to those measures; the controller re-converts and re-pushes on tempo-map change.
 4. **The loop selection is NOT undo history** (constraint (f) justification): undo mementos
    capture document state; the selection never mutates Song/Chart/tone data, never dirties the
@@ -241,17 +241,19 @@ Restated inline so a fresh session needs no other context:
 
 ## 8. Open questions for the user
 
-Mirror all of these into docs/plans/00-roadmap.md (Decisions needed).
+Mirror all of these into docs/roadmap/00-roadmap.md (Decisions needed).
 
 1. **Q1 — Drag surface for the time selection.** Options: (A) the timeline ruler band —
    click-drag across the ruler creates the selection; the track area keeps today's
-   click-to-seek and stays free for docs/plans/40-chart-editing.md Phase 3's future
+   click-to-seek and stays free for docs/roadmap/40-chart-editing.md Phase 3's future
    glyph-select/marquee gestures; (B) the track area — closest to DAW muscle memory but collides
    head-on with plan 40's marquee (empty-lane drag cannot mean both) and with the tone row's
-   shipped edge-drags; (C) A now, plus a modifier-drag (e.g. Alt-drag) in the track area later,
-   added under plan 40 Phase 3 once its gesture map exists. **Recommendation: A, with C recorded
-   as a compatible follow-up** — the ruler is gesture-free today (mouseDown seek only), reads
-   naturally as "time", and never conflicts with note editing.
+   shipped edge-drags; (C) A now, plus a track-area modifier-drag later — but note Alt-drag is
+   no longer available: `docs/in-progress/editing-interaction-model.md` (settled 2026-07-09)
+   assigns Alt to the insert quasimode and empty-lane drag to marquee, so any later track-area
+   loop gesture must be negotiated within that model. **Recommendation: A, with C recorded as a
+   possible follow-up** — the ruler is gesture-free today (mouseDown seek only), reads naturally
+   as "time", and never conflicts with note editing.
 2. **Q2 — Loop engagement semantics.** Options: (A) explicit toggle — a selection is passive
    until a loop toggle (Ctrl+L) arms it; (B) auto-on — a selection existing means playback loops
    it; clearing the selection (Escape, click-away) restores normal playback.
@@ -333,7 +335,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
     (same measure-anchored note-value grid, returns `GridPosition`), so the UI emits musical
     intents directly. Ctrl-bypassed (free) drags quantize to a fine fixed sub-beat fraction
     (1/960 of a beat, ~1 ms at 60 BPM) so state stays exact-rational without pretending
-    pixel-perfect freedom. Coordination: if docs/plans/40-chart-editing.md Phase 1 has landed
+    pixel-perfect freedom. Coordination: if docs/roadmap/40-chart-editing.md Phase 1 has landed
     its common/core snap arithmetic by execution time, build this helper on it; otherwise land
     here and let plan 40 extend — never two snap implementations.
   - Persistence per Q3's answer (recommended: `IEditorSettings` per-project-path record storing
@@ -375,7 +377,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
     Q2 (a lane seek outside the selection clears). **Keybind placement stated explicitly**:
     Escape (and Ctrl+L if Q2 = A) lands in the scattered `EditorView::keyPressed` handling
     today, is appended to the interim keybind record, and migrates to the central registry when
-    docs/plans/46-editor-keybinds.md Phase 1 executes — this plan must not build any registry.
+    docs/roadmap/46-editor-keybinds.md Phase 1 executes — this plan must not build any registry.
   - Rendering: ruler-band highlight over the selected span drawn by `TimelineRuler`; full-height
     translucent shading over the track canvas drawn by `CursorOverlay::paint` (paint-only; hit
     handling unchanged, so tone-row pass-through gestures are untouched). New `EditorTheme`
@@ -409,7 +411,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
     rock_hero_common_audio_tests) proving branch-gain parameter streams re-position after a
     simulated backward seek, and a manual listening check: two-tone arrangement, loop spanning a
     region boundary, tone correct immediately after each wrap. Coordinate with
-    docs/plans/21-game-audio-engine-and-session.md Phase 3c(2) — extend its wrap matrix if it
+    docs/roadmap/21-game-audio-engine-and-session.md Phase 3c(2) — extend its wrap matrix if it
     has landed; otherwise this checkpoint is the first entry that matrix later absorbs. If the
     check fails, STOP and escalate per that plan's Phase 3 rollback (joint decision with the
     tone work), not a local fix.
@@ -446,7 +448,7 @@ pre-commit run --all-files
 Plus: the Phase 4 manual soak checklist signed off on a real device; a local-only corpus
 spot-check (never CI, never committed) looping a tone-boundary-spanning span in three packages of
 different tunings; new public headers documented per docs/design/documentation-conventions.md;
-docs/plans/00-roadmap.md status line updated, and plans 21/28 annotated that the shared loop
+docs/roadmap/00-roadmap.md status line updated, and plans 21/28 annotated that the shared loop
 surface has landed (decision 1's rule consumed).
 
 ## 11. Rollback/abort notes

@@ -3,8 +3,8 @@
 ## 1. Status
 
 Deferred — planned now, executed later; 2026-07-06; baseline `refactor @ 13e82fb0`.
-This plan's single NOW requirement is delegated: docs/plans/21-game-audio-engine-and-session.md
-Phase 1 and docs/plans/12-playback-clock.md Phases 1–4 must carry a playback speed factor and
+This plan's single NOW requirement is delegated: docs/roadmap/21-game-audio-engine-and-session.md
+Phase 1 and docs/roadmap/12-playback-clock.md Phases 1–4 must carry a playback speed factor and
 survive loop-region seeks from day one. Everything else in this file waits until its dependencies
 land.
 
@@ -20,16 +20,16 @@ the same tone rig used in normal gameplay. Practice never fails a player out of 
 
 - No new chart data. Sections already exist in the format; repeat numbering stays derived
   (`chart.h:290`), never authored. No practice-specific authoring in the editor.
-- No scoring-rule changes. docs/plans/24-scoring-star-power-failure.md owns verdicts, multipliers,
+- No scoring-rule changes. docs/roadmap/24-scoring-star-power-failure.md owns verdicts, multipliers,
   and the score-record format; this plan only slices and aggregates its output per section.
-- No leaderboard eligibility for practice runs (docs/plans/29-online-leaderboards.md).
+- No leaderboard eligibility for practice runs (docs/roadmap/29-online-leaderboards.md).
 - No varispeed (pitch-shifted) playback mode. Tracktion's speed compensation is resampling, not
   stretching (`tracktion_EditPlaybackContext.cpp:266-274, 380-402`), and a pitch-shifted backing
   track would fight the player's real-pitch instrument.
 - No automatic step-up trainer ("pass at 70%, bump to 80%") in v1 — listed as a stretch item in
   Phase 6, not committed.
 - No editor-side practice features (the editor already has free seek and will get its own
-  preview via docs/plans/44-editor-3d-preview.md).
+  preview via docs/roadmap/44-editor-3d-preview.md).
 
 ## 4. Constraints
 
@@ -40,7 +40,7 @@ the same tone rig used in normal gameplay. Practice never fails a player out of 
   build detail and must not leak stretch types into public headers.
 - (b) Public-header minimalism; ports-and-adapters per docs/design/architectural-principles.md
   ("Ports and Adapters", "Keep Threading at the Boundary"). Speed and loop control ride the
-  existing transport port surface from docs/plans/21-game-audio-engine-and-session.md Phase 1.
+  existing transport port surface from docs/roadmap/21-game-audio-engine-and-session.md Phase 1.
 - (c) NAMING FIREWALL: the commercial real-guitar game that inspired this project is never named
   in any file; use "RS"/neutral phrasing. Charter (MIT) may be named.
 - (g) Tone fidelity: practice uses the same rock-hero-common/audio Engine path as gameplay; the
@@ -52,7 +52,7 @@ the same tone rig used in normal gameplay. Practice never fails a player out of 
   separate invocations.
 - (i) Real guitar input: both hands are on the guitar mid-loop. Loop restart, speed nudge, and
   section navigation must be reachable via the MIDI foot controller
-  (docs/plans/24-scoring-star-power-failure.md IMidiTrigger) — keyboard is a fallback, never the
+  (docs/roadmap/24-scoring-star-power-failure.md IMidiTrigger) — keyboard is a fallback, never the
   only path.
 
 ## 5. Current state inventory
@@ -84,7 +84,7 @@ Repo state (all paths repo-relative):
 - Test targets that later phases extend: `rock_hero_common_audio_tests`
   (`rock-hero-common/audio/tests/CMakeLists.txt:22`), `rock_hero_common_core_tests`
   (`rock-hero-common/core/tests/CMakeLists.txt:6`); `rock_hero_game_core_tests` is introduced by
-  docs/plans/21-game-audio-engine-and-session.md Phase 2 / docs/plans/27 Phase 1.
+  docs/roadmap/21-game-audio-engine-and-session.md Phase 2 / docs/roadmap/27 Phase 1.
 
 Vendored Tracktion time-stretch facts (source-verified by the juce-tracktion-expert agent; paths
 under `external/tracktion_engine/modules/tracktion_engine/`):
@@ -135,44 +135,44 @@ Verified against code on 2026-07-06, refactor @ 13e82fb0.
 
 ## 6. Dependencies
 
-- docs/plans/21-game-audio-engine-and-session.md — Phase 0 (Tracktion-in-game GO), Phase 1 (the
+- docs/roadmap/21-game-audio-engine-and-session.md — Phase 0 (Tracktion-in-game GO), Phase 1 (the
   NOW requirement: `setPlaybackSpeed`/`playbackSpeed` and loop-region seek on the shared
   transport port, with non-1.0 speed returning a typed error until this plan lands), Phase 2
   (GameplaySession spine with speed/loop pass-throughs), Phase 3 (tone switching correct across
   loop wraps and instant restarts).
-- docs/plans/47-editor-loop-selection.md — the expected first implementer of the Tracktion-backed
+- docs/roadmap/47-editor-loop-selection.md — the expected first implementer of the Tracktion-backed
   loop range on the shared transport port (whichever-executes-first rule in that plan's
-  Decisions, shared with docs/plans/21-game-audio-engine-and-session.md Phase 1). Once its
+  Decisions, shared with docs/roadmap/21-game-audio-engine-and-session.md Phase 1). Once its
   Phase 1 lands, Phase 0 checkpoint e reduces to re-verifying the landed surface and Phase 2
   hardens and extends wrap tests instead of first-implementing the loop.
-- docs/plans/12-playback-clock.md — Phases 1–3 (snapshot carries `playback_rate`), Phase 4
+- docs/roadmap/12-playback-clock.md — Phases 1–3 (snapshot carries `playback_rate`), Phase 4
   (extrapolator snaps on loop-wrap backward jumps). Practice at 50% must not produce a smoothed
   clock gliding through the wrap.
-- docs/plans/24-scoring-star-power-failure.md — per-note verdict log and score-record format with
+- docs/roadmap/24-scoring-star-power-failure.md — per-note verdict log and score-record format with
   a speed modifier field; IMidiTrigger port for foot-controller actions; hit-window policy
   co-owned with this plan's open question 4.
-- docs/plans/27-in-song-flow-results-profiles.md — Phase 1 (IGameSettings, profile id), Phase 4
+- docs/roadmap/27-in-song-flow-results-profiles.md — Phase 1 (IGameSettings, profile id), Phase 4
   (pure per-section results computation over verdict logs — reused per loop iteration here),
   Phase 3 (pause/resume machine practice sessions run inside).
-- docs/plans/23-detection-verification-harness.md — Phase 1 (serialized DetectionEvent replay)
+- docs/roadmap/23-detection-verification-harness.md — Phase 1 (serialized DetectionEvent replay)
   and Phase 2 (autoplay bot) for deterministic practice-loop tests without audio.
-- docs/plans/26-game-startup-menus-library.md — Phase 5 (menu input layer and bindable actions)
+- docs/roadmap/26-game-startup-menus-library.md — Phase 5 (menu input layer and bindable actions)
   for the practice UI entry points and controls.
-- docs/plans/20-game-architecture-and-render-stack.md — Phase 0 (render stack sign-off) and
+- docs/roadmap/20-game-architecture-and-render-stack.md — Phase 0 (render stack sign-off) and
   Phase 2 (resource-pack convention; count-in click asset) for Phase 6 UI; Phase 4's
   dev-diagnostics seek-to-section is the debug precursor of section navigation.
-- docs/plans/25-note-highway-3d.md — highway renders correctly at non-1.0 `playback_rate` from
+- docs/roadmap/25-note-highway-3d.md — highway renders correctly at non-1.0 `playback_rate` from
   the clock (no highway change should be needed if it consumes the clock; verified in Phase 5).
-- docs/plans/22-note-detection.md — no direct dependency for stretching (detection taps the live
+- docs/roadmap/22-note-detection.md — no direct dependency for stretching (detection taps the live
   dry input, which is never stretched), but the latency-budget interplay feeds open question 4.
 - External decision: time-stretch backend choice and licensing sign-off (open question 1;
-  coordinate with the roadmap's licensing audit — docs/plans/00-roadmap.md Decisions needed).
+  coordinate with the roadmap's licensing audit — docs/roadmap/00-roadmap.md Decisions needed).
 
 ## 7. Decisions already made
 
 - Speed factor and loop-region seek are plumbed through the shared transport port and the clock
   snapshot from day one, before practice mode exists — source:
-  docs/plans/21-game-audio-engine-and-session.md Phase 1 and docs/plans/12-playback-clock.md
+  docs/roadmap/21-game-audio-engine-and-session.md Phase 1 and docs/roadmap/12-playback-clock.md
   (snapshot `playback_rate`, loop-wrap snap rule).
 - The backing clip plays proxy-off through Tracktion's real-time route (Route B) precisely so
   speed changes apply live without proxy re-renders — source: code comment at
@@ -182,7 +182,7 @@ Verified against code on 2026-07-06, refactor @ 13e82fb0.
 - Practice/editor contexts get full plugin freedom (no gameplay safe-mode restrictions) — source:
   docs/design/architecture.md "VST Plugin Safety".
 - Per-section results computation is a pure function over (verdict log, `Chart::sections`, tempo
-  map) — source: docs/plans/27-in-song-flow-results-profiles.md Phase 4. Practice reuses it per
+  map) — source: docs/roadmap/27-in-song-flow-results-profiles.md Phase 4. Practice reuses it per
   loop iteration instead of reinventing section math.
 - The live guitar path is never stretched. Only the backing clip is time-stretched; the player
   performs in real time. This is forced by physics (the instrument is live) and by constraint
@@ -209,17 +209,17 @@ Verified against code on 2026-07-06, refactor @ 13e82fb0.
    write normal score records flagged with the speed modifier. **Recommendation: B** — keeps the
    main score store clean while enabling loop-over-loop trend feedback and long-term "this
    section at 70%" progress. Speed modifier field already exists in
-   docs/plans/24-scoring-star-power-failure.md's record format either way.
+   docs/roadmap/24-scoring-star-power-failure.md's record format either way.
 4. **Hit-window domain at reduced speed.** At 50% speed a window defined in song time doubles in
    wall-clock terms. Options: (A) wall-clock-constant windows — timing precision stays the skill
    being trained, notes just arrive slower; (B) song-time windows — very forgiving at low speed,
    risks training sloppy timing; (C) song-time windows but capped at 1.5x their full-speed
-   wall-clock width. **Recommendation: A**, co-owned with docs/plans/24's hit-window spec; note
-   that detection confirmation latency (50–80 ms worst case per docs/plans/22-note-detection.md)
+   wall-clock width. **Recommendation: A**, co-owned with docs/roadmap/24's hit-window spec; note
+   that detection confirmation latency (50–80 ms worst case per docs/roadmap/22-note-detection.md)
    becomes proportionally less punishing at low speed under A, which is a desirable side effect.
 5. **Loop pre-roll.** The player must re-place the fretting hand at each wrap. Options: (A) fixed
    2 s; (B) one full measure (min 1.5 s), configurable; (C) none, loop butt-joins. Also whether
-   the pre-roll plays a count-in click (asset from docs/plans/20 Phase 2's resource pack).
+   the pre-roll plays a count-in click (asset from docs/roadmap/20 Phase 2's resource pack).
    **Recommendation: B with the count-in click on by default; pre-roll notes are shown dimmed and
    not scored.**
 
@@ -241,17 +241,17 @@ Assumes open question 1 answered (default assumption: SoundTouch).
   b. Whole-clip slow-down route: clip `setSpeedRatio` + `setAutoTempo(false)` vs `autoTempo` with
      a scaled tempo sequence. Verify which keeps the Edit timeline in song seconds so
      `ITransport::position()` and the plan-12 clock keep reporting song time while wall-clock
-     advance scales by the factor — this is the semantics docs/plans/12 assumes
+     advance scales by the factor — this is the semantics docs/roadmap/12 assumes
      (`playback_rate` in the snapshot, song-time positions).
   c. Speed change while playing: no proxy re-render (already proxy-off), no dropout beyond one
      buffer, latency of the backing path measured at 1.0 vs 0.5 (loopback capture) — any added
      backing latency shifts backing-vs-live alignment and must be reported to the calibration
-     model in docs/plans/13-audio-device-settings-and-calibration.md.
+     model in docs/roadmap/13-audio-device-settings-and-calibration.md.
   d. Confirm 1.0 speed pays no stretch cost (engine comment claims "stays cheap at 1x",
      `engine_song_audio.cpp:152-153` — written for elastique; re-verify for SoundTouch).
   e. Loop range semantics on `tracktion::engine::TransportControl` (shared checkpoint with
-     docs/plans/47-editor-loop-selection.md Phase 1 — the expected first implementer of the
-     Tracktion-backed loop — and docs/plans/21 Phase 1; if either has landed the functional
+     docs/roadmap/47-editor-loop-selection.md Phase 1 — the expected first implementer of the
+     Tracktion-backed loop — and docs/roadmap/21 Phase 1; if either has landed the functional
      loop, this reduces to re-verifying the landed surface).
 - Deliverable: a findings note (quality listening result at 50%/75%, CPU per buffer, measured
   latency delta, PDC answer) appended to this plan.
@@ -267,7 +267,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
 
 ### Phase 1 — Functional playback speed through the shared port (assumes Phase 0 outcome)
 
-Scope: upgrade docs/plans/21 Phase 1's `setPlaybackSpeed` from typed-error-on-non-1.0 to
+Scope: upgrade docs/roadmap/21 Phase 1's `setPlaybackSpeed` from typed-error-on-non-1.0 to
 functional over the verified route. Files: `rock-hero-common/audio/src/engine/engine_transport.*`
 / `engine_song_audio.cpp` (apply speed to the backing clip), no new public headers — the port
 surface from plan 21 Phase 1 is unchanged (public-header impact: none; doc comments updated to
@@ -288,12 +288,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
 ### Phase 2 — Loop-region hardening (assumes Phase 0 outcome)
 
 Scope: make loop-region playback wrap cleanly: wrap fires a plan-12 boundary publish (backward
-jump → extrapolator snap), tone regions re-apply at the wrap target (docs/plans/21 Phase 3 test
+jump → extrapolator snap), tone regions re-apply at the wrap target (docs/roadmap/21 Phase 3 test
 matrix already covers wrap — extend it, don't duplicate), and wrap-to-pre-roll positioning is a
-plain `seek` so no new engine concept is needed. docs/plans/47-editor-loop-selection.md Phase 1
+plain `seek` so no new engine concept is needed. docs/roadmap/47-editor-loop-selection.md Phase 1
 is the expected first implementer of the Tracktion-backed loop range (whichever-executes-first
 rule); when it has landed, this phase hardens and extends wrap tests over that implementation.
-Only if neither that plan nor docs/plans/21 Phase 1 landed a functional loop (21's rollback note
+Only if neither that plan nor docs/roadmap/21 Phase 1 landed a functional loop (21's rollback note
 allows typed NotSupported) implement the Tracktion-backed loop here using Phase 0 checkpoint e.
 Files: engine transport/song-audio TUs; public-header impact: none.
 
@@ -306,8 +306,8 @@ Exit criteria: audible wrap on the dev machine has no glitch longer than one dev
 
 Scope: pure helpers over the chart domain, placed in `rock-hero-common/core` (chart feature
 folder) because three consumers need identical math: practice (this plan), results per-section
-rows (docs/plans/27 Phase 4), and section-sanity validation (docs/plans/42-chart-validation.md).
-Coordinate: if docs/plans/27 Phase 4 lands first with game-local span math, this phase EXTRACTS
+rows (docs/roadmap/27 Phase 4), and section-sanity validation (docs/roadmap/42-chart-validation.md).
+Coordinate: if docs/roadmap/27 Phase 4 lands first with game-local span math, this phase EXTRACTS
 it to common per constraint (a) rather than writing a second copy.
 
 - `sectionSpans(chart)` → ordered `[start, end)` grid spans (last span ends at chart end) with
@@ -320,7 +320,7 @@ Public-header impact: one new header in
 follows docs/design/documentation-conventions.md). Testing (`rock_hero_common_core_tests`):
 empty-sections chart → single implicit span; duplicate type names → correct repeat numbers;
 last-section span end; pre-roll clamp at song start; conversion against a two-anchor tempo map.
-Exit criteria: tests green; docs/plans/27's results computation compiles against the shared
+Exit criteria: tests green; docs/roadmap/27's results computation compiles against the shared
 helper (or a follow-up task is filed in that plan if it has not started).
 
 Verification:
@@ -331,16 +331,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
 
 ### Phase 4 — PracticeSession state machine in game/core (headless)
 
-Scope: `rock-hero-game/core` headless orchestration over GameplaySession (docs/plans/21 Phase 2):
+Scope: `rock-hero-game/core` headless orchestration over GameplaySession (docs/roadmap/21 Phase 2):
 selected span (one or more contiguous sections), speed factor, loop on/off; state machine
 PreRoll → Playing → Wrap (→ PreRoll), driven by clock snapshots, never wall-clock sleeps (time
 is a dependency per docs/design/architectural-principles.md "Time Must Be a Dependency").
 Pre-roll
-notes flagged unscored. Each loop iteration closes a verdict-log slice (docs/plans/24 format).
+notes flagged unscored. Each loop iteration closes a verdict-log slice (docs/roadmap/24 format).
 No-fail is unconditional in practice.
 
 Public-header impact: new `rock-hero-game/core` headers only (game-internal). Testing
-(`rock_hero_game_core_tests`): deterministic replay per docs/plans/23 Phase 1 — scripted
+(`rock_hero_game_core_tests`): deterministic replay per docs/roadmap/23 Phase 1 — scripted
 DetectionEvent/verdict streams and a fake clock; prove iteration boundaries land on wrap
 publishes, pre-roll notes excluded, speed changes mid-loop take effect next iteration (policy:
 speed changes apply at the next wrap, avoiding mid-phrase tempo lurch). Exit criteria: replay
@@ -354,11 +354,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
 
 ### Phase 5 — Per-section accuracy feedback and practice stats
 
-Scope: per-iteration accuracy via docs/plans/27 Phase 4's pure computation applied to each
+Scope: per-iteration accuracy via docs/roadmap/27 Phase 4's pure computation applied to each
 iteration's verdict slice; iteration trend (last N accuracies per section span); persistence per
 open question 3's answer (recommended: separate practice-stats store keyed chart hash from
-docs/plans/10-format-versioning-and-chart-identity.md, arrangement id, section span, speed,
-profile id from docs/plans/27 Phase 1). Confirm the highway (docs/plans/25) needs no change at
+docs/roadmap/10-format-versioning-and-chart-identity.md, arrangement id, section span, speed,
+profile id from docs/roadmap/27 Phase 1). Confirm the highway (docs/roadmap/25) needs no change at
 non-1.0 rate beyond consuming `playback_rate` from the clock — file an issue against that plan if
 its extrapolator use proves otherwise.
 
@@ -366,14 +366,14 @@ Testing (`rock_hero_game_core_tests`): accuracy aggregation across iterations; s
 key stability across reloads. Exit criteria: a replayed three-iteration loop produces three
 accuracy rows and one persisted best. Verification: same invocation as Phase 4.
 
-### Phase 6 — Practice UI and foot-controller input (gated: docs/plans/20 Phase 0; 26 Phase 5)
+### Phase 6 — Practice UI and foot-controller input (gated: docs/roadmap/20 Phase 0; 26 Phase 5)
 
-Scope: entry points (Quick Play song entry → "Practice" per docs/plans/26 Phase 7 list; in-song
-pause menu → "Practice this section" per docs/plans/27 Phase 6); section picker listing Phase 3
+Scope: entry points (Quick Play song entry → "Practice" per docs/roadmap/26 Phase 7 list; in-song
+pause menu → "Practice this section" per docs/roadmap/27 Phase 6); section picker listing Phase 3
 labels; speed control (range per open question 2); loop toggle; count-in click from the resource
-pack (docs/plans/20 Phase 2); on-highway section boundary markers and a per-iteration accuracy
-readout. Bindable actions through docs/plans/26 Phase 5's input layer with MIDI pedal bindings
-via docs/plans/24's IMidiTrigger: restart loop, speed down/up one step, toggle loop, exit
+pack (docs/roadmap/20 Phase 2); on-highway section boundary markers and a per-iteration accuracy
+readout. Bindable actions through docs/roadmap/26 Phase 5's input layer with MIDI pedal bindings
+via docs/roadmap/24's IMidiTrigger: restart loop, speed down/up one step, toggle loop, exit
 practice (constraint (i)). Stretch (not committed): auto step-up trainer raising speed after a
 threshold accuracy.
 
@@ -418,5 +418,5 @@ at 50% in three packages of different tunings, confirming tone-region correctnes
   pre-roll → play at each wrap; the mandatory pre-roll makes this fallback nearly invisible.
 - Phases 1–2 are additive behavior behind an existing port; rollback is reverting the engine TU
   changes — no format, package, or public-header rollback exists anywhere in this plan.
-- Phase 3 extraction is a pure-code move; if the shared helper churns docs/plans/27's landed
+- Phase 3 extraction is a pure-code move; if the shared helper churns docs/roadmap/27's landed
   code, revert to game-local math and file the extraction as its own small task.

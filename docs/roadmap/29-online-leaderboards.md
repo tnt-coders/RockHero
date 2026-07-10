@@ -2,7 +2,7 @@
 
 **Status: Deferred + Decision-gated** — 2026-07-06 — baseline `refactor @ 3c7febe0`.
 Gated on gate **G29-STABILITY** (named numeric detection/scoring stability criteria measured by
-docs/plans/23-detection-verification-harness.md, defined in Phase 0a below) and on the
+docs/roadmap/23-detection-verification-harness.md, defined in Phase 0a below) and on the
 hosting/identity/licensing sign-off in Phase 0b. No phase after Phase 0 may start before both
 gates close. This plan is written now so that upstream plans (10, 24, 27) bake in the interfaces
 leaderboards need; execution is deliberately late in the roadmap.
@@ -88,11 +88,11 @@ Verified with `rg` and file reads against the working tree:
 - **No gameplay scoring code exists anywhere.** `rg -i score` over first-party sources matches
   only the GP importer's musical-score types in `rock-hero-editor/core/tests/`. The score record
   format, ruleset versioning, and no-fail labeling are owned by
-  docs/plans/24-scoring-star-power-failure.md and do not exist yet.
+  docs/roadmap/24-scoring-star-power-failure.md and do not exist yet.
 - **No chart-identity hash exists.** The package reader hard-rejects `formatVersion != 1` at
   `rock-hero-common/core/src/package/rock_song_package_read.cpp:976-983` with no migration
   machinery; the semantic identity hash boards key on is owned by
-  docs/plans/10-format-versioning-and-chart-identity.md.
+  docs/roadmap/10-format-versioning-and-chart-identity.md.
 - **No profile or identity concept exists** in code or settings; plan 27 introduces the profile
   id every persisted record carries.
 - No doc under `docs/todo/` covers leaderboards or networking (verified by listing and grepping
@@ -102,24 +102,24 @@ Verified against code on 2026-07-06, refactor @ 3c7febe0.
 
 ## 6. Dependencies
 
-- docs/plans/10-format-versioning-and-chart-identity.md — the semantic chart-identity hash phase:
+- docs/roadmap/10-format-versioning-and-chart-identity.md — the semantic chart-identity hash phase:
   boards key on (hash, hash-algorithm id). A byte-level hash is unusable because load
   normalization legitimately rewrites package bytes; this plan requires the semantic hash.
-- docs/plans/22-note-detection.md — the accuracy-metric definition phase: G29-STABILITY is
+- docs/roadmap/22-note-detection.md — the accuracy-metric definition phase: G29-STABILITY is
   expressed in the metrics that plan defines (per-technique precision/recall, latency
   distribution).
-- docs/plans/23-detection-verification-harness.md — the harness measures G29-STABILITY; its
+- docs/roadmap/23-detection-verification-harness.md — the harness measures G29-STABILITY; its
   serialized DetectionEvent replay and autoplay bot generate deterministic test submissions for
   Phase 2's backend harness.
-- docs/plans/24-scoring-star-power-failure.md — the score-record-format phase (per-note verdict
+- docs/roadmap/24-scoring-star-power-failure.md — the score-record-format phase (per-note verdict
   log, ruleset version, detection-engine version, chart hash, calibration offsets, modifiers);
   this plan consumes the record unchanged and inherits the no-fail labeling policy.
-- docs/plans/27-in-song-flow-results-profiles.md — the local score store keyed
+- docs/roadmap/27-in-song-flow-results-profiles.md — the local score store keyed
   (chart hash, arrangement, profile, ruleset version) is designed for unchanged upload; the
   profile id and IGameSettings storage this plan's client settings live in.
-- docs/plans/26-game-startup-menus-library.md — the menu input layer and the results/library UI
+- docs/roadmap/26-game-startup-menus-library.md — the menu input layer and the results/library UI
   surfaces where board views render.
-- docs/plans/00-roadmap.md — carries gate G29-STABILITY and the AGPL/licensing decision; this
+- docs/roadmap/00-roadmap.md — carries gate G29-STABILITY and the AGPL/licensing decision; this
   plan is blocked until the roadmap marks the gate closed.
 - External decisions: hosting choice, identity/auth choice, backend licensing stance, backend
   implementation stack (open questions Q1–Q4).
@@ -130,22 +130,22 @@ Verified against code on 2026-07-06, refactor @ 3c7febe0.
   docs/design/architecture.md § Licensing). Any hosted component must be planned around the
   network-source obligation, not surprised by it.
 - Boards key on the semantic chart-identity hash with a versioned hash-algorithm id — never a
-  byte-level package hash (docs/plans/10-format-versioning-and-chart-identity.md).
-- The score record format is defined by docs/plans/24-scoring-star-power-failure.md and the local
-  score store in docs/plans/27-in-song-flow-results-profiles.md is keyed so records upload
+  byte-level package hash (docs/roadmap/10-format-versioning-and-chart-identity.md).
+- The score record format is defined by docs/roadmap/24-scoring-star-power-failure.md and the local
+  score store in docs/roadmap/27-in-song-flow-results-profiles.md is keyed so records upload
   unchanged; leaderboards add transport framing only.
-- No-fail is ON by default and runs are labeled (docs/plans/24-scoring-star-power-failure.md);
+- No-fail is ON by default and runs are labeled (docs/roadmap/24-scoring-star-power-failure.md);
   boards therefore segregate or flag modifier classes rather than pretending all runs are equal.
 - Corpus strategy: the 39-package .rock corpus and 101-file GP corpus are converted commercial
   content, local-only, never committed or shipped
-  (docs/plans/23-detection-verification-harness.md); this plan extends the same rule to the
+  (docs/roadmap/23-detection-verification-harness.md); this plan extends the same rule to the
   network — chart content and audio never leave the client.
 - Friends-scale integrity scope (heuristics, not hard anti-cheat) is recorded here as the
-  normative scope and mirrored in docs/plans/00-roadmap.md.
+  normative scope and mirrored in docs/roadmap/00-roadmap.md.
 
 ## 8. Open questions for the user
 
-Each is mirrored into docs/plans/00-roadmap.md § Decisions needed. None block writing this plan;
+Each is mirrored into docs/roadmap/00-roadmap.md § Decisions needed. None block writing this plan;
 all block Phase 1.
 
 - **Q1 — Hosting.** Options: (A) budget VPS (~$4–7/mo, datacenter availability, full control,
@@ -186,9 +186,9 @@ all block Phase 1.
 Scope: no code. Two sub-gates, then STOP.
 
 **0a — G29-STABILITY (numeric criteria).** Verified from
-docs/plans/23-detection-verification-harness.md CI reports. The numbers below are this plan's
+docs/roadmap/23-detection-verification-harness.md CI reports. The numbers below are this plan's
 proposed defaults; reconcile them against the metric definitions plan 22 actually ships and
-record the reconciled values in docs/plans/00-roadmap.md as the gate:
+record the reconciled values in docs/roadmap/00-roadmap.md as the gate:
 
 - **Replay determinism (exact):** replaying identical serialized DetectionEvent logs through the
   current scoring ruleset produces byte-identical score records. Non-negotiable — without this,
@@ -265,7 +265,7 @@ Scope: the smallest service that is honest about what it can verify.
   runbook written (repo `docs/`, host-agnostic where possible).
 - Verification: if Q4=A the service builds via the standard helper
   (`.\.agents\rockhero-build.ps1 -Targets all` then `-RunTouchedTests`); if Q4=B its CI lives
-  with the backend and is registered in docs/plans/00-roadmap.md — either way the game tree
+  with the backend and is registered in docs/roadmap/00-roadmap.md — either way the game tree
   still passes the Phase 1 commands above.
 
 ### Phase 3 — Game client integration (assumes Phase 2 deployed)
@@ -279,10 +279,10 @@ Scope: wiring the port to the real world and to the player.
   and threading rules on Windows; all requests on a background thread, never the message thread.
 - Offline-first submission queue: persisted per profile, retries with backoff, survives restarts;
   drains from plan 27's local score store (records upload unchanged). Submission is an explicit
-  opt-in on the results screen (docs/plans/27-in-song-flow-results-profiles.md flow), with a
+  opt-in on the results screen (docs/roadmap/27-in-song-flow-results-profiles.md flow), with a
   remembered "always submit" preference.
 - Board views on the results screen and library song list
-  (docs/plans/26-game-startup-menus-library.md surfaces), navigable via the menu input layer.
+  (docs/roadmap/26-game-startup-menus-library.md surfaces), navigable via the menu input layer.
 - Settings via plan 27's IGameSettings: enabled flag (default OFF), server URL, identity key
   storage, display name.
 - Testing: port-level tests against the fake adapter (queue semantics, retry, opt-in gating);
@@ -334,12 +334,12 @@ pre-commit run --all-files
 Plus, unique to this plan: the backend harness (Phase 2) green against the deployed service, and
 a manual end-to-end check that a fresh install with leaderboards disabled performs zero network
 requests. If Q4=B, the backend's own CI must also be green; its location is registered in
-docs/plans/00-roadmap.md.
+docs/roadmap/00-roadmap.md.
 
 ## 11. Rollback/abort notes
 
 - **Phase 0 may conclude "do not build."** That is a valid outcome (cost, licensing burden, or
-  stability never converging); record it in docs/plans/00-roadmap.md and stop. Nothing upstream
+  stability never converging); record it in docs/roadmap/00-roadmap.md and stop. Nothing upstream
   depends on this plan.
 - **Client ships safely without a backend**: the feature is behind a default-OFF setting, and
   Phases 1–3 keep the port/fake split, so aborting after Phase 1 leaves inert, tested code with

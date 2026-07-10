@@ -14,11 +14,11 @@ pre-song tuning gate, so detection is never blamed for a detuned guitar.
 
 ## Non-goals
 
-- Scoring rules, hit windows, multipliers, star power, failure — docs/plans/24-scoring-star-power-failure.md
+- Scoring rules, hit windows, multipliers, star power, failure — docs/roadmap/24-scoring-star-power-failure.md
   owns those; this plan only supplies the events, the detectability matrix draft, and the latency
   budget that 24's provisional-hit design must honor.
 - The annotated fixture corpus, metric measurement harness, and replay tooling —
-  docs/plans/23-detection-verification-harness.md. This plan *defines* the accuracy metrics; 23
+  docs/roadmap/23-detection-verification-harness.md. This plan *defines* the accuracy metrics; 23
   *measures* them.
 - String/fret disambiguation. Pitch detection yields sounding pitch, not string identity; the same
   pitch on two strings differs only in timbre. No phase here attempts it.
@@ -29,7 +29,7 @@ pre-song tuning gate, so detection is never blamed for a detuned guitar.
 
 ## Constraints
 
-Applicable subset of the roadmap constraint block (docs/plans/00-roadmap.md):
+Applicable subset of the roadmap constraint block (docs/roadmap/00-roadmap.md):
 
 - (a) **Layering**: common never depends on editor or game code; game never includes editor
   headers. The dry-signal tap must live in rock-hero-common/audio (the audio callback lives
@@ -100,27 +100,27 @@ lock-free queues; graph-rebuilding mutations are message-thread only.
   risk table rates "Pitch detection unreliable" High with mitigation "prototype early".
 - **Agent**: `.claude/agents/dsp-guitar-detection-expert.md` is a roadmap-session deliverable
   created alongside this plan. If absent at execution time, create it first per
-  docs/plans/00-roadmap.md Deliverable 3 before running Phase 3.
+  docs/roadmap/00-roadmap.md Deliverable 3 before running Phase 3.
 
 Verified against code on 2026-07-06, refactor @ 3c7febe0.
 
 ## Dependencies
 
-- docs/plans/13-audio-device-settings-and-calibration.md — device identity, input-channel
+- docs/roadmap/13-audio-device-settings-and-calibration.md — device identity, input-channel
   selection, and the measured latency-offset contract. Soft for the Phase 7 debug tuner (engine
   device-config port suffices); hard before the tuner/gate ships in onboarding.
-- docs/plans/12-playback-clock.md — correlating input-stream sample time to song time is the
+- docs/roadmap/12-playback-clock.md — correlating input-stream sample time to song time is the
   scoring consumer's job (plan 24) via IPlaybackClock; this plan only guarantees monotonic
   input-sample timestamps. No phase here blocks on 12.
-- docs/plans/21-game-audio-engine-and-session.md — the game embeds the common Engine, which is the
+- docs/roadmap/21-game-audio-engine-and-session.md — the game embeds the common Engine, which is the
   live route the tap rides on. Phase 2 lands the tap in common/audio independently; 21 consumes it.
-- docs/plans/20-game-architecture-and-render-stack.md Phase 0 — final tuner presentation only. The
+- docs/roadmap/20-game-architecture-and-render-stack.md Phase 0 — final tuner presentation only. The
   Phase 7 tuner ships as a JUCE component in the current game shell and does not wait for the gate.
-- Consumed by: docs/plans/23-detection-verification-harness.md (all phases measure the metrics
-  defined here); docs/plans/24-scoring-star-power-failure.md (Phase 1 matrix + latency budget +
-  event types); docs/plans/26-game-startup-menus-library.md (onboarding tuner step);
-  docs/plans/29-online-leaderboards.md (its gate cites the stability criteria below);
-  docs/plans/45-editor-theme-and-string-colors.md (raising `g_max_chart_strings` past 8 adds
+- Consumed by: docs/roadmap/23-detection-verification-harness.md (all phases measure the metrics
+  defined here); docs/roadmap/24-scoring-star-power-failure.md (Phase 1 matrix + latency budget +
+  event types); docs/roadmap/26-game-startup-menus-library.md (onboarding tuner step);
+  docs/roadmap/29-online-leaderboards.md (its gate cites the stability criteria below);
+  docs/roadmap/45-editor-theme-and-string-colors.md (raising `g_max_chart_strings` past 8 adds
   sub-B0 fundamentals that stress this latency budget — coordinate before raising).
 
 ## Decisions already made
@@ -147,7 +147,7 @@ Restated from the cited sources; do not re-litigate:
 
 ## Open questions for the user
 
-Mirrored into docs/plans/00-roadmap.md Decisions-needed:
+Mirrored into docs/roadmap/00-roadmap.md Decisions-needed:
 
 1. **v1 detectability tiers** (Phase 1 / Gate A): accept or adjust the draft matrix below —
    notably Pop/Slap = Cosmetic, pinch-harmonic timbre = Cosmetic, palm-mute quality = Cosmetic
@@ -330,7 +330,7 @@ online research, and document the survey verbosely with source citations. Cover 
   others found in research) versus in-repo implementation cost per algorithm.
 
 **Deliverable**: a selection memo appended to this plan (this plan is being executed, so keeping
-it aligned is required by CLAUDE.md's docs/plans maintenance rule once the roadmap lands it), with
+it aligned is required by CLAUDE.md's docs/roadmap maintenance rule once the roadmap lands it), with
 per-algorithm citations and a recommendation resolving open question 2.
 
 **Exit criteria**: **STOP — Gate B: present the selection memo and dependency recommendation for
@@ -338,7 +338,7 @@ user sign-off.** No verification commands (documentation-only phase).
 
 ### Phase 4 — Tuning pitch math in common/core (pure)
 
-**Scope**: The math both the tuner and future chart validation (docs/plans/42-chart-validation.md)
+**Scope**: The math both the tuner and future chart validation (docs/roadmap/42-chart-validation.md)
 need, placed in common/core because game and editor both need it eventually (constraint (a):
 extract to common first).
 
@@ -406,7 +406,7 @@ Tuner-grade steady-state pitch quality is the first bar; onset latency the secon
 **Testing**: in-repo synthetic fixtures only (sine, sawtooth, Karplus-Strong-style plucks with
 decay across 30.9–330 Hz fundamentals; these are generated, license-free, CI-safe). Assert the
 Phase 1 metrics on synthetic material: cents accuracy, octave-error absence, onset latency bounds.
-The real measured numbers come from docs/plans/23-detection-verification-harness.md — its corpus
+The real measured numbers come from docs/roadmap/23-detection-verification-harness.md — its corpus
 phases are the acceptance authority for the v1 targets; converted-content corpora stay local-only
 and never enter CI.
 
@@ -428,9 +428,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
   per-string in-tune verdicts.
 - game/ui: a JUCE tuner component hosted in the existing game shell
   (rock-hero-game/app/main.cpp's DocumentWindow) — deliberately does NOT wait for
-  docs/plans/20-game-architecture-and-render-stack.md Phase 0; presentation is revisited after
+  docs/roadmap/20-game-architecture-and-render-stack.md Phase 0; presentation is revisited after
   that gate closes. Device/input selection uses the engine's existing device-config port until
-  docs/plans/13-audio-device-settings-and-calibration.md lands the shared store.
+  docs/roadmap/13-audio-device-settings-and-calibration.md lands the shared store.
 - Capo handling per open question 3's resolution (recommended: target capo-on sounding pitches
   with a placement prompt).
 
@@ -458,8 +458,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
 tuner readings, produce `Pass | PromptTuner(strings out of tolerance) | PlayerSkipped`. Threshold
 per open question 4's resolution; always skippable (constraint: real guitars drift — blocking play
 outright punishes the player). Screen wiring into the song-start flow belongs to
-docs/plans/26-game-startup-menus-library.md (onboarding) and
-docs/plans/27-in-song-flow-results-profiles.md (pre-song flow); they consume this policy object.
+docs/roadmap/26-game-startup-menus-library.md (onboarding) and
+docs/roadmap/27-in-song-flow-results-profiles.md (pre-song flow); they consume this policy object.
 
 **Testing**: pure tests in `rock_hero_game_core_tests` — in-tune pass, single-string fail listing
 the string, skip recording, threshold boundary cases.

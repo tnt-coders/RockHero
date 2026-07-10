@@ -11,20 +11,20 @@ waveform: place and drag beat anchors, rough in tempo by tapping along to playba
 to detected audio onsets, and edit time signatures — all with full undo, live BPM feedback, and
 no change to the persisted song format. Today a usable tempo map exists only if the project came
 from a GP import; this plan removes that dependency and thereby unblocks the from-scratch
-charting promise of docs/plans/40-chart-editing.md.
+charting promise of docs/roadmap/40-chart-editing.md.
 
 ## Non-goals
 
 - No song.json or chart format changes. Anchors stay on-beat `"<measure>:<beat>"` tokens with
   millisecond-grid seconds. Sub-beat anchors are explicitly out of scope; if a real song ever
   needs one, that is a format change routed through
-  docs/plans/10-format-versioning-and-chart-identity.md.
-- No create-project-from-raw-audio project flow. docs/plans/40-chart-editing.md owns that flow;
+  docs/roadmap/10-format-versioning-and-chart-identity.md.
+- No create-project-from-raw-audio project flow. docs/roadmap/40-chart-editing.md owns that flow;
   `TempoMap::defaultMap` already provides the seed map this plan makes editable.
 - No grid declutter or display-density work (docs/todo/tempo-grid-declutter-plan.md is a separate
-  deferred item; its disposition is owned by docs/plans/00-roadmap.md).
+  deferred item; its disposition is owned by docs/roadmap/00-roadmap.md).
 - No timeline-origin change; docs/todo/timeline-origin-rethink.md stays deferred as recorded.
-- No real-time onset or pitch detection — that is docs/plans/22-note-detection.md. Onset analysis
+- No real-time onset or pitch detection — that is docs/roadmap/22-note-detection.md. Onset analysis
   here is offline, editor-assist only, and never persisted.
 - No audio time-stretching: the tempo map warps the beat grid over fixed backing audio
   (docs/completed/tempo-map-implementation-plan.md, "Playback Interactions").
@@ -110,27 +110,27 @@ Plan-specific hard invariants (all already enforced by the reader and preserved 
   docs/in-progress/note-format-and-tablature-plan.md for the active note-format work). Time
   signature edits therefore have re-addressing implications — Phase 6.
 - Keybind handling is scattered (`rock-hero-editor/ui/src/main_window/editor_view.cpp:618` et
-  al.); docs/plans/46-editor-keybinds.md centralizes it later.
+  al.); docs/roadmap/46-editor-keybinds.md centralizes it later.
 
 Verified against code on 2026-07-06, refactor @ 3c7febe0.
 
 ## Dependencies
 
-- **Gates** docs/plans/40-chart-editing.md: its create-chart-from-raw-audio promise requires this
+- **Gates** docs/roadmap/40-chart-editing.md: its create-chart-from-raw-audio promise requires this
   plan's Phases 1–4 (anchor authoring + tap tempo) at minimum; Phase 5 (onset snapping) strongly
   recommended before serious from-scratch charting. Sequence 41 before the from-scratch phases
   of 40.
-- docs/plans/10-format-versioning-and-chart-identity.md: no format change is proposed here. The
+- docs/roadmap/10-format-versioning-and-chart-identity.md: no format change is proposed here. The
   tempo map is inside 10's identity-hash scope, so any tempo edit changes chart identity by
   design — that is correct behavior, not a conflict. A future sub-beat-anchor need routes
   through 10.
-- docs/plans/12-playback-clock.md (soft): Phase 4 tap capture works against
+- docs/roadmap/12-playback-clock.md (soft): Phase 4 tap capture works against
   `ITransport::position()` today; if 12's clock lands first, use it for lower-jitter tap
   timestamps. Not blocking either direction.
-- docs/plans/42-chart-validation.md: content-validity rules after time-signature edits
+- docs/roadmap/42-chart-validation.md: content-validity rules after time-signature edits
   (out-of-range addresses, coverage gaps) belong to 42's reusable rule set; Phase 6 coordinates
   with it rather than inventing a parallel validator.
-- docs/plans/46-editor-keybinds.md: the tap key and anchor nudge keys register through the
+- docs/roadmap/46-editor-keybinds.md: the tap key and anchor nudge keys register through the
   centralized keybind system when it lands; until then they live in `EditorView::keyPressed`
   like every other shortcut.
 - docs/in-progress/tone-track-tempo-map-plan.md: active tone work touches the same Session,
@@ -167,10 +167,15 @@ Restated inline with sources; a fresh session must not re-litigate these.
    only feeds it new maps, never reworks it.
 8. **Timeline coordinate math is pure editor-core**, not Tracktion's tempo sequence
    (docs/design/architecture.md, "Editor UI"); Tracktion stays a playback backend.
+9. **Pointer gestures follow the editor-wide interaction model** (settled 2026-07-09,
+   `docs/in-progress/editing-interaction-model.md`): Alt+click inserts an anchor at a beat;
+   anchor drags are always free-time (never grid-snapped — dragging an anchor *is* the
+   audio-sync gesture); a toolbar grid lock, default locked, gates anchor insert/move/delete;
+   Esc cancels an in-flight drag; edits commit once per gesture.
 
 ## Open questions for the user
 
-Mirror each into docs/plans/00-roadmap.md "Decisions needed".
+Mirror each into docs/roadmap/00-roadmap.md "Decisions needed".
 
 - **Q1 — Time-signature edit content policy (gates Phase 6).** Changing beats-per-measure
   re-buckets global beats into measures, so every downstream `measure:beat` token (anchors, chart
@@ -191,7 +196,7 @@ Mirror each into docs/plans/00-roadmap.md "Decisions needed".
   - **A. Self-written spectral-flux kernel (recommended).** Pure math (windowed flux + adaptive
     peak picking) in `rock-hero-common/core`, decode adapter in `rock-hero-common/audio`
     following the `analyzeAudioForGainNormalization` precedent. No new dependency; the kernel is
-    reusable by docs/plans/22-note-detection.md and docs/plans/23-detection-verification-harness.md
+    reusable by docs/roadmap/22-note-detection.md and docs/roadmap/23-detection-verification-harness.md
     for offline work, and 22's real-time detectors can later supersede it.
   - **B. Third-party DSP dependency (e.g. aubio).** More mature pickers, but adds a Conan
     dependency (availability unverified), a license to audit against AGPLv3, and an integration
@@ -294,14 +299,23 @@ is a coherent commit (or small series) with imperative subjects.
   - `rock-hero-editor/ui/src/timeline/timeline_ruler.{h,cpp}`: draw anchor handles in the tempo
     band (the band already derives one marking per anchor span); hit-testing; horizontal drag
     previews `MoveTempoAnchor` and commits **one** edit on mouse-up (no per-pixel undo spam);
-    Escape during drag abandons the preview. Modifier-click (or double-click) on a beat tick
-    inserts an anchor at that beat; Delete/context menu removes the hovered anchor. While
-    dragging, show the two adjacent span BPMs from `spanBpmPreview`.
+    Escape during drag abandons the preview. Gestures follow
+    `docs/in-progress/editing-interaction-model.md`: Alt+click on a beat tick inserts an anchor
+    at that beat (ghost handle + `CopyingCursor` while Alt is held); anchor drags are **always
+    free-time** — no grid snap, the anchor defines the grid — rounded to the millisecond grid;
+    Delete/context menu removes the hovered anchor. While dragging, show the two adjacent span
+    BPMs from `spanBpmPreview`.
+  - **Grid lock** (the interaction model's anchor interlock): a toolbar toggle, default
+    **locked**, that disables anchor insert, move, and delete — cursor feedback shows the lock
+    and menu items disable with the reason. Anchors are the one object class whose drags are
+    free-time by design, so Ctrl-friction cannot protect them; the lock is the deliberate
+    unlock-sync-relock gate. Lives in editor view state + the toolbar/transport strip; not
+    persisted per-project.
   - `rock-hero-editor/ui/src/timeline/track_viewport.cpp` / `arrangement_view.cpp`: optional
     vertical anchor guide lines over the waveform row so drags are judged against transients by
     eye (the whole point of "against the waveform").
   - Keyboard nudge (left/right = +/- 1 ms, with a coarse modifier) for the selected anchor, wired
-    through `EditorView::keyPressed` until docs/plans/46-editor-keybinds.md centralizes it.
+    through `EditorView::keyPressed` until docs/roadmap/46-editor-keybinds.md centralizes it.
 - **Public-header impact:** none; all files are ui `src/` privates.
 - **Testing:** editor/ui tests through
   `rock-hero-editor/ui/tests/include/rock_hero/editor/ui/testing/editor_view_test_harness.h`
@@ -322,7 +336,7 @@ is a coherent commit (or small series) with imperative subjects.
     configurable silence gap (default 2 s). Timestamps come from
     `ITransport::position()` read on the message thread at key-event time — jitter of a few
     milliseconds is acceptable because taps are a rough-in refined by Phases 3 and 5;
-    docs/plans/12-playback-clock.md can later supply lower-jitter reads.
+    docs/roadmap/12-playback-clock.md can later supply lower-jitter reads.
   - Actions: `TapTempo` (accumulate during playback) and `ApplyTapTempo` (single undoable edit):
     on a still-default map, set the `1:1` anchor to the first-tap downbeat and re-seat the
     terminal anchor from the fitted BPM (`reseatTerminalAnchor`); on an authored map, refit only
@@ -392,7 +406,7 @@ the corresponding policy and re-derive the tests; the UI step survives all outco
   - UI: click/context on the signature band opens a small numerator/denominator popover at that
     measure; measure renumbering downstream is automatic because ruler labels derive from the
     map; flash-highlight the renumbered range once so the shift is visible rather than silent.
-  - Coordinate with docs/plans/42-chart-validation.md: post-edit content validation (if any
+  - Coordinate with docs/roadmap/42-chart-validation.md: post-edit content validation (if any
     residual issues are possible under the chosen outcome) reports through 42's rule set, not a
     plan-local validator.
 - **Public-header impact:** none intended (transform and edits stay `src/`-private).

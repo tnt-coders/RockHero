@@ -16,18 +16,18 @@ later" — this plan is that day-one architecture.
 ## Non-goals
 
 - The game-side calibration wizard UI and device-setup screens — those ship with
-  docs/plans/26-game-startup-menus-library.md; this plan lands the headless architecture only.
+  docs/roadmap/26-game-startup-menus-library.md; this plan lands the headless architecture only.
 - Note detection or onset algorithms beyond the minimal self-contained cue detector needed for
-  calibration capture (docs/plans/22-note-detection.md owns detection).
+  calibration capture (docs/roadmap/22-note-detection.md owns detection).
 - Scoring hit-window widths and the provisional-hit machine
-  (docs/plans/24-scoring-star-power-failure.md consumes the offset contract defined here).
+  (docs/roadmap/24-scoring-star-power-failure.md consumes the offset contract defined here).
 - Instrument profiles, cloud sync, cross-user settings, or per-product settings beyond audio.
 - Moving editor workflow state (last-open project, cursors, grid, zoom) out of `EditorSettings`;
   it stays editor-only by design. Output gain and tone-document state stay Tracktion-managed.
 
 ## Constraints
 
-Applicable subset of the roadmap's non-negotiable constraints (see docs/plans/00-roadmap.md):
+Applicable subset of the roadmap's non-negotiable constraints (see docs/roadmap/00-roadmap.md):
 
 - (a) **Layering**: common never depends on editor or game code; anything both products need is
   extracted to rock-hero-common FIRST, as its own phase with tests, before game code consumes it.
@@ -107,24 +107,24 @@ Verified against code on 2026-07-06, refactor @ 3c7febe0.
 
 Upstream: none — this is a foundation plan and can start immediately.
 
-Downstream consumers (recorded in both directions in docs/plans/00-roadmap.md):
+Downstream consumers (recorded in both directions in docs/roadmap/00-roadmap.md):
 
-- docs/plans/24-scoring-star-power-failure.md — consumes the effective-offset contract from
+- docs/roadmap/24-scoring-star-power-failure.md — consumes the effective-offset contract from
   Phase 3 (measured offsets shift hit-window comparisons; calibration offsets are recorded in the
   score record format).
-- docs/plans/26-game-startup-menus-library.md — ships the calibration wizard UI and device-setup
+- docs/roadmap/26-game-startup-menus-library.md — ships the calibration wizard UI and device-setup
   screens over Phase 4's headless capture flow; first-run onboarding starts at device setup;
   consumes Phase 5's device-loss re-setup prompt contract.
-- docs/plans/21-game-audio-engine-and-session.md — the game session restores the shared device
+- docs/roadmap/21-game-audio-engine-and-session.md — the game session restores the shared device
   state from Phase 1's store at startup; live-monitoring latency stance here informs its per-tone
   latency policy.
-- docs/plans/12-playback-clock.md — offsets are applied by consumers (scoring, render lead) in the
+- docs/roadmap/12-playback-clock.md — offsets are applied by consumers (scoring, render lead) in the
   clock's audio-sample time domain; they are never baked into the clock itself.
-- docs/plans/27-in-song-flow-results-profiles.md — device-loss auto-pause interacts with its
+- docs/roadmap/27-in-song-flow-results-profiles.md — device-loss auto-pause interacts with its
   pause/resume pre-roll flow and non-destructive score state.
-- docs/plans/22-note-detection.md — the capture flow's cue-response detector is deliberately
+- docs/roadmap/22-note-detection.md — the capture flow's cue-response detector is deliberately
   self-contained at v1; it may later delegate to 22's onset detector without contract changes.
-- docs/plans/20-game-architecture-and-render-stack.md — vsync/frame-pacing policy (recorded there)
+- docs/roadmap/20-game-architecture-and-render-stack.md — vsync/frame-pacing policy (recorded there)
   bounds how stable the video offset is.
 
 ## Decisions already made
@@ -155,7 +155,7 @@ Downstream consumers (recorded in both directions in docs/plans/00-roadmap.md):
 
 ## Open questions for the user
 
-Mirrored into docs/plans/00-roadmap.md "Decisions needed".
+Mirrored into docs/roadmap/00-roadmap.md "Decisions needed".
 
 1. **Legacy editor-key cleanup after migration.** Options: (A) keep the old `EditorSettings` keys
    for one release after copying them into the shared store; (B) clear them immediately once the
@@ -290,17 +290,17 @@ value types and functions; no DSP.
     buffer size differs from the snapshot, the measurement is **stale**: consumers fall back to
     reported latencies and the product prompts recalibration. Buffer-size changes change real
     latency; silently reusing a stale measurement would corrupt scoring.
-- **Effective-offset contract** (the normative rule docs/plans/24-scoring-star-power-failure.md
+- **Effective-offset contract** (the normative rule docs/roadmap/24-scoring-star-power-failure.md
   consumes; restated there, defined here):
   - `audio_offset_ms` = `measured_audio_round_trip_ms` when fresh, else
     `reported_input_ms + reported_output_ms`;
   - a detection event timestamped `t_in` in input-stream sample time corresponds to player
     intent `t_play = t_in − audio_offset_ms` when compared against chart time in the playback
-    clock domain (docs/plans/12-playback-clock.md); hit windows are centered on chart time and
+    clock domain (docs/roadmap/12-playback-clock.md); hit windows are centered on chart time and
     the *event* is shifted — windows themselves never move per-device;
   - the highway render leads the clock by `video_offset_ms` (consumed via
-    docs/plans/20-game-architecture-and-render-stack.md's render loop and
-    docs/plans/25-note-highway-3d.md);
+    docs/roadmap/20-game-architecture-and-render-stack.md's render loop and
+    docs/roadmap/25-note-highway-3d.md);
   - offsets are applied at consumption, never baked into the playback clock.
 - Persistence: `IUserAudioSettings` gains `latencyOffsetsFor(route)` / `saveLatencyOffsets` /
   `removeLatencyOffsets`, stored as a second XML-valued property with its own `formatVersion`
@@ -331,7 +331,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
 ### Phase 4 — Calibration capture flow (headless architecture)
 
 Scope: the play-on-cue measurement machinery, headless in common per constraint (a) so the game
-wizard (docs/plans/26-game-startup-menus-library.md) and any editor/dev harness drive the same
+wizard (docs/roadmap/26-game-startup-menus-library.md) and any editor/dev harness drive the same
 code.
 
 - **Audio round trip**: schedule N cue clicks at known output times through the engine's
@@ -395,8 +395,8 @@ Scope: the defined behavior when hardware disappears, plus the recorded ASIO/WAS
   - never clear the persisted device state or calibration on loss (the store keeps the user's
     choice for when the device returns);
   - editor: pause + non-blocking notice; existing settings window path is the recovery UI;
-  - game contract (implemented by docs/plans/26-game-startup-menus-library.md and
-    docs/plans/27-in-song-flow-results-profiles.md): freeze score/session state
+  - game contract (implemented by docs/roadmap/26-game-startup-menus-library.md and
+    docs/roadmap/27-in-song-flow-results-profiles.md): freeze score/session state
     non-destructively, prompt re-setup, resume through 27's pre-roll; a changed route marks
     latency measurements stale by Phase 3's snapshot rule automatically.
 - **Backend stance** (recorded here as the product position; setup UI text ships with 26):
@@ -413,7 +413,7 @@ Scope: the defined behavior when hardware disappears, plus the recorded ASIO/WAS
   This stance matches (and cites) the shipped ranking in
   rock-hero-common/audio/src/device/audio_device_settings.cpp:59–118; live-monitoring latency
   interacts with per-tone plugin latency, whose policy belongs to
-  docs/plans/21-game-audio-engine-and-session.md.
+  docs/roadmap/21-game-audio-engine-and-session.md.
 
 Files/modules: i_audio_device_configuration.h (listener addition), engine device-config TU,
 editor controller device handling.
