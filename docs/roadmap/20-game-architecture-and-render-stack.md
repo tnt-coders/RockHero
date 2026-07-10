@@ -312,6 +312,11 @@ the phase shapes survive, the dependency and loop details do not.**
 
 ### Phase 1 — Dependency wiring and window/loop swap (assumes outcome: SDL3+bgfx via the loop option chosen at the gate)
 
+- **Checkpoint (before implementing)**: consult `.claude/agents/game-render-expert.md` on the
+  production wiring choices — CMakeConfigDeps vs an IMPORTED-executable shim for the packaged
+  bgfx tools, bgfx init/reset flag set for the shipped window, SDL subsystem initialization
+  order, and the CI Conan-cache follow-up flagged under S6. Record the answers in this phase's
+  commit or the gate record.
 - **Scope**: add the chosen dependencies (Conan pins in `conanfile.txt` or submodules under
   `external/`, per gate answer to open question 4) behind project-owned wrapper targets in the
   same style as the JUCE/Tracktion wrappers (`docs/design/architecture.md`, "JUCE and Tracktion
@@ -374,6 +379,10 @@ One convention so plans 25/26/27 never invent their own loading paths.
 
 ### Phase 3 — Threading model and frame clock (assumes outcome: gate loop option; depends on docs/roadmap/12-playback-clock.md)
 
+- **Checkpoint (before implementing)**: consult game-render-expert on bgfx frame-timing
+  semantics under the chosen loop — what `bgfx::frame()` blocks on with vsync ON, how present
+  timing relates to the submitted frame, and which bgfx stats feed the instrumentation — so the
+  frame-clock helpers measure what they claim to measure.
 - **Scope**: document (in this plan's Gate record + the design-doc update) and implement the
   game-process thread map: JUCE message thread (mandatory for Tracktion — `engine.h:46-47`),
   audio thread (Tracktion/ASIO), the frame loop per the gate, quill's logging backend thread,
