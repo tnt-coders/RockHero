@@ -485,6 +485,18 @@ public:
         const std::string& param_id, float norm_value) const override;
 
     /*!
+    \brief Parses one tone-chain parameter's display text into a normalised value.
+    \param tone_document_ref One of the tone references currently loaded into the live rig.
+    \param instance_id Plugin instance whose parameter parses the text.
+    \param param_id Parameter id within that plugin.
+    \param text Display text to parse, in the parameter's native units.
+    \return The parsed value normalised to `[0, 1]`, or a typed failure.
+    */
+    [[nodiscard]] std::expected<float, ToneAutomationError> parseParameterValue(
+        const std::string& tone_document_ref, const std::string& instance_id,
+        const std::string& param_id, const std::string& text) const override;
+
+    /*!
     \brief Returns the JUCE audio device manager backing the engine.
     \return Reference to the active device manager owned by the audio backend.
     */

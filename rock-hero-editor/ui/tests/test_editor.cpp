@@ -146,6 +146,13 @@ public:
         return ("[" + juce::String(norm_value, 2) + "]").toStdString();
     }
 
+    [[nodiscard]] std::expected<float, common::audio::ToneAutomationError> parseParameterValue(
+        const std::string&, const std::string&, const std::string&,
+        const std::string& text) const override
+    {
+        return juce::String{text}.retainCharacters("0123456789.-").getFloatValue();
+    }
+
     [[nodiscard]] juce::AudioDeviceManager& deviceManager() noexcept override
     {
         return m_device_manager;
