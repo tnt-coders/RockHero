@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -869,6 +870,23 @@ struct FakeToneAutomation final : public common::audio::IToneAutomation
             if (parameter.instance_id == instance_id && parameter.param_id == param_id)
             {
                 return std::to_string(norm_value);
+            }
+        }
+        return std::unexpected{common::audio::ToneAutomationError{
+            common::audio::ToneAutomationErrorCode::ParameterNotFound, "not found"
+        }};
+    }
+
+    // Parses the plain numeric text formatParameterValue produces, for known parameters only.
+    [[nodiscard]] std::expected<float, common::audio::ToneAutomationError> parseParameterValue(
+        const std::string& /*tone_document_ref*/, const std::string& instance_id,
+        const std::string& param_id, const std::string& text) const override
+    {
+        for (const common::audio::AutomatableParamInfo& parameter : parameters)
+        {
+            if (parameter.instance_id == instance_id && parameter.param_id == param_id)
+            {
+                return std::strtof(text.c_str(), nullptr);
             }
         }
         return std::unexpected{common::audio::ToneAutomationError{

@@ -32,6 +32,7 @@ add_executable(
     test_plugin_browser_window.cpp
     test_signal_chain_block_layout.cpp
     test_tab_view.cpp
+    test_tone_track_view.cpp
     test_transport_controls.cpp)
 
 # Let focused smoke tests construct private editor view types without making them public API.

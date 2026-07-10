@@ -304,6 +304,9 @@ private:
     /*! \brief Shows the tone-picker menu to insert a tone-change marker at the playhead. */
     void createToneMarkerAtPlayhead();
 
+    /*! \brief Shows the tone-picker menu to insert a tone-change marker at a musical position. */
+    void createToneMarkerAt(common::core::GridPosition position);
+
     /*! \brief Prompts for a name and asks the controller to create a new tone at the marker. */
     void promptForNewTone(common::core::GridPosition position);
 
@@ -324,6 +327,12 @@ private:
     void onToneRegionResizeRequested(
         std::string region_id, common::core::GridPosition start,
         common::core::GridPosition end) override;
+
+    /*! \copydoc ToneTrackView::Listener::onToneChangeInsertRequested */
+    void onToneChangeInsertRequested(common::core::GridPosition position) override;
+
+    /*! \copydoc ToneTrackView::Listener::onToneRegionDeleteRequested */
+    void onToneRegionDeleteRequested(std::string region_id) override;
 
     /*! \copydoc ToneAutomationLanesView::Listener::onToneAutomationLaneAddRequested */
     void onToneAutomationLaneAddRequested(std::string instance_id, std::string param_id) override;

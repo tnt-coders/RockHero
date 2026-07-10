@@ -68,6 +68,8 @@ void ToneTrackView::setState(const core::ToneTrackViewState& state)
     // Controller pushes replace the model under any in-flight gesture, so drop the gesture
     // instead of resizing against stale indices.
     m_drag.reset();
+    m_insert_drag.reset();
+    m_insert_ghost_x.reset();
     m_pending_select.reset();
     emitSnapGuide(std::nullopt);
     repaint();
@@ -198,12 +200,44 @@ void ToneTrackView::paint(juce::Graphics& g)
             g.drawText(regionLabel(region), label_bounds, juce::Justification::centredLeft, true);
         }
     }
+
+    // The Alt-held insert ghost: the boundary line a click (or the in-flight placement's release)
+    // would create, visible before anything mutates.
+    if (m_insert_ghost_x.has_value())
+    {
+        g.setColour(editorTheme().accent.withAlpha(0.7f));
+        g.drawLine(
+            *m_insert_ghost_x,
+            static_cast<float>(g_region_vertical_inset),
+            *m_insert_ghost_x,
+            static_cast<float>(bounds.getHeight() - g_region_vertical_inset),
+            1.5f);
+    }
 }
 
 void ToneTrackView::mouseMove(const juce::MouseEvent& event)
 {
     const std::optional<RegionHit> hit = hitAt(event.getPosition());
-    if (hit.has_value() && hit->edge.has_value())
+
+    // Alt over a region body previews the tone change a click would insert: a ghost boundary
+    // line at the snapped position, under the arrow-with-plus copy cursor.
+    std::optional<float> ghost_x;
+    if (hit.has_value() && !hit->edge.has_value() && event.mods.isAltDown())
+    {
+        if (const std::optional<common::core::GridPosition> position = insertPositionForX(
+                static_cast<float>(event.getPosition().x), hit->region_index, event.mods);
+            position.has_value())
+        {
+            ghost_x = xForGridPosition(*position);
+        }
+    }
+    setInsertGhostX(ghost_x);
+
+    if (ghost_x.has_value())
+    {
+        setMouseCursor(juce::MouseCursor::CopyingCursor);
+    }
+    else if (hit.has_value() && hit->edge.has_value())
     {
         setMouseCursor(juce::MouseCursor::LeftRightResizeCursor);
     }
@@ -217,9 +251,20 @@ void ToneTrackView::mouseMove(const juce::MouseEvent& event)
     }
 }
 
+void ToneTrackView::mouseExit(const juce::MouseEvent& /*event*/)
+{
+    // A drag keeps its preview (JUCE keeps delivering drag events); a plain hover that leaves
+    // the row clears the ghost.
+    if (!m_insert_drag.has_value())
+    {
+        setInsertGhostX(std::nullopt);
+    }
+}
+
 void ToneTrackView::mouseDown(const juce::MouseEvent& event)
 {
     m_drag.reset();
+    m_insert_drag.reset();
     m_pending_select.reset();
 
     const std::optional<RegionHit> hit = hitAt(event.getPosition());
@@ -230,10 +275,32 @@ void ToneTrackView::mouseDown(const juce::MouseEvent& event)
 
     const core::ToneRegionViewState& region = m_state.regions[hit->region_index];
 
-    // A right-click (or track-pad equivalent) on a region body opens its context menu.
+    // A right-click (or track-pad equivalent) on a region opens its context menu; the menu's
+    // insert entry uses the click's own snapped position so it mirrors the Alt-click gesture.
     if (event.mods.isPopupMenu())
     {
-        showRegionContextMenu(region);
+        const std::optional<common::core::GridPosition> insert_position =
+            hit->edge.has_value() ? std::nullopt
+                                  : insertPositionForX(
+                                        static_cast<float>(event.getPosition().x),
+                                        hit->region_index,
+                                        juce::ModifierKeys{});
+        showRegionContextMenu(region, insert_position);
+        return;
+    }
+
+    // Alt on a region body starts the insert placement: press-drag-release places the ghost
+    // boundary and commits the tone-change intent on release (a plain click commits in place).
+    if (!hit->edge.has_value() && event.mods.isAltDown())
+    {
+        if (const std::optional<common::core::GridPosition> position = insertPositionForX(
+                static_cast<float>(event.getPosition().x), hit->region_index, event.mods);
+            position.has_value())
+        {
+            m_insert_drag =
+                InsertDragState{.region_index = hit->region_index, .preview = *position};
+            setInsertGhostX(xForGridPosition(*position));
+        }
         return;
     }
 
@@ -251,28 +318,76 @@ void ToneTrackView::mouseDown(const juce::MouseEvent& event)
     m_pending_select = hit->region_index;
 }
 
-// Opens the region's right-click context menu. Rename mirrors the double-click quick shortcut.
-void ToneTrackView::showRegionContextMenu(const core::ToneRegionViewState& region)
+// Opens the region's right-click context menu, mirroring every pointer gesture: insert-here (the
+// Alt-click equivalent, when the click position can split the region), rename (the double-click
+// shortcut), and delete (the Delete-key equivalent).
+void ToneTrackView::showRegionContextMenu(
+    const core::ToneRegionViewState& region,
+    std::optional<common::core::GridPosition> insert_position)
 {
-    if (region.tone_document_ref.empty())
-    {
-        return; // The synthesized default region has no catalog tone to act on.
-    }
-
     juce::PopupMenu menu;
-    menu.addItem(1, "Rename");
+    if (insert_position.has_value())
+    {
+        menu.addItem(3, "Insert Tone Change Here");
+    }
+    // The synthesized default region has no catalog tone to rename or delete.
+    if (!region.tone_document_ref.empty())
+    {
+        menu.addItem(1, "Rename");
+        if (!region.id.empty())
+        {
+            menu.addItem(2, "Delete");
+        }
+    }
+    if (menu.getNumItems() == 0)
+    {
+        return;
+    }
     menu.showMenuAsync(
         juce::PopupMenu::Options{}.withMousePosition(),
-        [this, ref = region.tone_document_ref, name = region.name](int result) {
+        [this, ref = region.tone_document_ref, name = region.name, id = region.id, insert_position](
+            int result) {
             if (result == 1)
             {
                 m_listener.onToneRenamePromptRequested(ref, name);
+            }
+            else if (result == 2)
+            {
+                m_listener.onToneRegionDeleteRequested(id);
+            }
+            else if (result == 3 && insert_position.has_value())
+            {
+                m_listener.onToneChangeInsertRequested(*insert_position);
             }
         });
 }
 
 void ToneTrackView::mouseDrag(const juce::MouseEvent& event)
 {
+    // An insert placement drags its ghost boundary; holding it inside the pressed region keeps
+    // the release's split target unambiguous.
+    if (m_insert_drag.has_value())
+    {
+        if (const std::optional<common::core::GridPosition> position = insertPositionForX(
+                static_cast<float>(event.getPosition().x), m_insert_drag->region_index, event.mods);
+            position.has_value())
+        {
+            m_insert_drag->preview = *position;
+            const std::optional<float> ghost_x = xForGridPosition(*position);
+            setInsertGhostX(ghost_x);
+            if (ghost_x.has_value())
+            {
+                emitSnapGuide(
+                    TimelineSnapGuide{
+                        .x = static_cast<float>(getX()) + *ghost_x,
+                        .label = juce::String{common::core::formatGridPositionToken(
+                            m_insert_drag->preview)},
+                    });
+            }
+        }
+        return;
+    }
+
     if (!m_drag.has_value())
     {
         return;
@@ -317,6 +432,16 @@ void ToneTrackView::mouseDrag(const juce::MouseEvent& event)
 
 void ToneTrackView::mouseUp(const juce::MouseEvent& event)
 {
+    if (m_insert_drag.has_value())
+    {
+        const InsertDragState insert = *m_insert_drag;
+        m_insert_drag.reset();
+        setInsertGhostX(std::nullopt);
+        emitSnapGuide(std::nullopt);
+        m_listener.onToneChangeInsertRequested(insert.preview);
+        return;
+    }
+
     if (m_drag.has_value())
     {
         const DragState drag = *m_drag;
@@ -430,6 +555,71 @@ std::optional<ToneTrackView::RegionHit> ToneTrackView::hitAt(juce::Point<int> lo
     }
 
     return std::nullopt;
+}
+
+// Resolves an x to the snapped position a tone change would be inserted at (sub-beat, Ctrl
+// bypasses to the fine grid), accepted only strictly inside the given region: a change landing on
+// an existing boundary would split nothing, so it resolves to empty.
+std::optional<common::core::GridPosition> ToneTrackView::insertPositionForX(
+    float x, std::size_t region_index, const juce::ModifierKeys& mods) const
+{
+    const std::optional<common::core::GridPosition> snapped = musicalGridPositionForX(
+        m_tempo_map, m_grid_note_value, m_visible_timeline, getWidth(), x, mods);
+    if (!snapped.has_value() || region_index >= m_state.regions.size())
+    {
+        return std::nullopt;
+    }
+    const core::ToneRegionViewState& region = m_state.regions[region_index];
+    if (!(region.grid_start < *snapped) || !(*snapped < region.grid_end))
+    {
+        return std::nullopt;
+    }
+    return snapped;
+}
+
+// Maps a musical position to this row's x coordinate through the shared timeline geometry.
+std::optional<float> ToneTrackView::xForGridPosition(
+    const common::core::GridPosition& position) const
+{
+    const double seconds =
+        m_tempo_map.secondsAtNote(position.measure, position.beat, position.offset);
+    return core::timelineXForPosition(
+        common::core::TimePosition{seconds},
+        m_visible_timeline,
+        getWidth(),
+        core::TimelinePositionClamping::ClampToVisibleRange);
+}
+
+// Sets or clears the ghost boundary line, repainting only the narrow strips it moves between.
+void ToneTrackView::setInsertGhostX(std::optional<float> ghost_x)
+{
+    if (m_insert_ghost_x == ghost_x)
+    {
+        return;
+    }
+    const auto repaint_strip = [this](const std::optional<float>& strip_x) {
+        if (strip_x.has_value())
+        {
+            repaint(static_cast<int>(*strip_x) - 2, 0, 5, getHeight());
+        }
+    };
+    repaint_strip(m_insert_ghost_x);
+    m_insert_ghost_x = ghost_x;
+    repaint_strip(m_insert_ghost_x);
+}
+
+bool ToneTrackView::cancelActiveGesture()
+{
+    if (!m_drag.has_value() && !m_insert_drag.has_value())
+    {
+        return false;
+    }
+    m_drag.reset();
+    m_insert_drag.reset();
+    setInsertGhostX(std::nullopt);
+    emitSnapGuide(std::nullopt);
+    repaint();
+    return true;
 }
 
 // Snaps a drag x to the tempo grid (sub-beat, Ctrl bypasses to the fine grid, exactly as the

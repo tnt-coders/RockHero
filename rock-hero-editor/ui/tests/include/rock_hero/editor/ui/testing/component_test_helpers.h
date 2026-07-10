@@ -130,6 +130,46 @@ template <class ComponentType>
 }
 
 /*!
+\brief Creates a mouse-drag event with a distinct press origin.
+
+Unlike makeMouseDownEvent, the event reports a real drag distance from \p down_x / \p down_y and
+answers true to mouseWasDraggedSinceMouseDown(), so gestures guarded by the click/drag threshold
+(which ignores the micro-jiggle inside a click) treat it as a genuine drag.
+
+\param component Component that should receive the event.
+\param x Horizontal local position of the drag.
+\param y Vertical local position of the drag.
+\param down_x Horizontal local position of the original press.
+\param down_y Vertical local position of the original press.
+\param modifiers Mouse button and keyboard modifiers active for the event.
+\return Mouse event suitable for direct mouseDrag() dispatch in tests.
+*/
+[[nodiscard]] inline juce::MouseEvent makeMouseDragEvent(
+    juce::Component& component, float x, float y, float down_x, float down_y,
+    juce::ModifierKeys modifiers = juce::ModifierKeys::leftButtonModifier)
+{
+    const juce::Time event_time = juce::Time::getCurrentTime();
+
+    return {
+        juce::Desktop::getInstance().getMainMouseSource(),
+        juce::Point<float>{x, y},
+        modifiers,
+        1.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        &component,
+        &component,
+        event_time,
+        juce::Point<float>{down_x, down_y},
+        event_time,
+        1,
+        true
+    };
+}
+
+/*!
 \brief Presses and releases a JUCE button through its normal mouse path.
 \param button Button to click.
 */

@@ -81,4 +81,20 @@ own value-with-label formatting).
 [[nodiscard]] std::optional<std::string> formatPluginParameterValue(
     tracktion::Plugin& plugin, const std::string& param_id, float norm_value);
 
+/*!
+\brief Parses one plugin parameter's display text into a normalised value.
+
+The exact inverse of \ref formatPluginParameterValue: the parameter parses the text the way the
+plugin itself interprets typed values (hosted plugins route through their text-to-value handler,
+with a plain numeric fallback), then the parameter's range normalises the result into `[0, 1]`.
+
+\param plugin Plugin owning the parameter.
+\param param_id Parameter id within the plugin.
+\param text Display text to parse, in the parameter's native units.
+\return The parsed value normalised and clamped to `[0, 1]`, or `nullopt` when \p param_id does
+        not resolve on the plugin.
+*/
+[[nodiscard]] std::optional<float> parsePluginParameterValue(
+    tracktion::Plugin& plugin, const std::string& param_id, const std::string& text);
+
 } // namespace rock_hero::common::audio

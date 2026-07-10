@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <iterator>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <utility>
@@ -72,17 +73,99 @@ constexpr float g_unresolved_alpha = 0.35f;
     return tempo_map.secondsAtGlobalBeatPosition(global_beat);
 }
 
+// One-field text editor hosted in a callout for typed exact-value entry on a point. Return
+// commits through the supplied callback and dismisses; Escape dismisses without committing. The
+// callout owns and deletes this content, so the commit callback must not touch it afterwards.
+class PointValueEditorContent final : public juce::Component
+{
+public:
+    // Creates the editor prefilled with the point's current display text, selected for overtyping.
+    PointValueEditorContent(
+        const juce::String& initial_text, std::function<void(const juce::String&)> on_commit)
+        : m_on_commit(std::move(on_commit))
+    {
+        m_editor.setText(initial_text, juce::dontSendNotification);
+        m_editor.selectAll();
+        m_editor.onReturnKey = [this] {
+            if (m_on_commit)
+            {
+                m_on_commit(m_editor.getText());
+            }
+            dismiss();
+        };
+        m_editor.onEscapeKey = [this] { dismiss(); };
+        addAndMakeVisible(m_editor);
+        setSize(140, 26);
+    }
+
+    // Fills the callout content with the single text field.
+    void resized() override
+    {
+        m_editor.setBounds(getLocalBounds());
+    }
+
+    // Focuses the field as soon as the callout shows it, so typing can start immediately.
+    void parentHierarchyChanged() override
+    {
+        if (isShowing())
+        {
+            m_editor.grabKeyboardFocus();
+        }
+    }
+
+private:
+    // Closes the owning callout; `this` is deleted by the callout during this call's unwind.
+    void dismiss()
+    {
+        if (auto* const box = findParentComponentOfClass<juce::CallOutBox>())
+        {
+            box->dismiss();
+        }
+    }
+
+    // Single-line value field; commit and cancel ride its return/escape callbacks.
+    juce::TextEditor m_editor;
+
+    // Receives the entered text on Return.
+    std::function<void(const juce::String&)> m_on_commit;
+};
+
 } // namespace
 
 ToneAutomationLanesView::ToneAutomationLanesView(
     Listener& listener, const common::core::TempoMap& tempo_map,
-    const common::audio::IToneAutomation& tone_automation)
+    const common::audio::IToneAutomation& tone_automation,
+    const common::audio::ITransport& transport)
     : m_listener(listener)
     , m_tempo_map(tempo_map)
     , m_tone_automation(tone_automation)
-    , m_vblank_attachment(this, [this] { repaintMovedTrackingLanes(); })
+    , m_transport(transport)
+    , m_vblank_attachment(this, [this] {
+        repaintMovedTrackingLanes();
+        clearSelectionOnTransportMove();
+    })
 {
     setOpaque(false);
+}
+
+// Clears the point selection when the transport position moves, mirroring the tone-region rule:
+// a selection is a deliberate paused-editing target, and any seek or playback advance dissolves it
+// so the Delete key can never fire against a stale target.
+void ToneAutomationLanesView::clearSelectionOnTransportMove()
+{
+    const double seconds = m_transport.position().seconds;
+    if (m_last_transport_seconds == std::optional{seconds})
+    {
+        return;
+    }
+    const bool had_previous = m_last_transport_seconds.has_value();
+    m_last_transport_seconds = seconds;
+    // The first sampled tick only records the baseline; it must not clear a fresh selection.
+    if (had_previous && m_selected_point.has_value())
+    {
+        m_selected_point.reset();
+        repaint();
+    }
 }
 
 // Repaints only the unauthored lanes whose live value moved since the last frame, so tracking
@@ -169,6 +252,7 @@ void ToneAutomationLanesView::applyState(const core::ToneAutomationViewState& st
     const int previous_total_height = totalHeight();
     m_state = state;
     m_value_readout.reset();
+    m_insert_ghost.reset();
     // Drop a point selection the new model no longer contains (it was deleted, or an undo/redo
     // rewrote the lane); a still-present point stays selected across the engine's routine pushes.
     if (m_selected_point.has_value() && !selectedPointPresent())
@@ -215,7 +299,9 @@ int ToneAutomationLanesView::totalHeight() const
 
 bool ToneAutomationLanesView::wantsPointerAt(juce::Point<int> local_point) const
 {
-    return hitAt(local_point).has_value();
+    // The predicate has no event, so it reads the live modifier state; JUCE re-sends a synthetic
+    // mouse move on every modifier change, so pressing Alt re-runs this hit test immediately.
+    return hitAt(local_point, juce::ModifierKeys::currentModifiers).has_value();
 }
 
 std::vector<ToneAutomationLanesView::LaneExtent> ToneAutomationLanesView::laneExtents() const
@@ -238,6 +324,28 @@ int ToneAutomationLanesView::laneHeight(
 {
     const auto height = m_lane_heights.find({instance_id, param_id});
     return height != m_lane_heights.end() ? height->second : g_default_lane_height;
+}
+
+// The pinned name chip names the owning plugin too, so multi-plugin chains stay unambiguous;
+// unresolved lanes announce the missing plugin inline.
+juce::String ToneAutomationLanesView::laneChipText(const core::ToneAutomationLaneViewState& lane)
+{
+    const juce::String label =
+        lane.plugin_name.empty() ? juce::String{lane.name}
+                                 : juce::String{lane.plugin_name} + " · " + juce::String{lane.name};
+    return lane.resolved ? label : label + " (plugin missing)";
+}
+
+// One geometry for painting and hit-testing the chip: pinned to the visible left edge, sized to
+// the text plus insets.
+juce::Rectangle<int> ToneAutomationLanesView::laneChipBounds(
+    const core::ToneAutomationLaneViewState& lane, const LaneExtent& extent) const
+{
+    const juce::Font chip_font{juce::FontOptions{g_chip_font_height}};
+    const int chip_width = textWidth(chip_font, laneChipText(lane)) + (2 * g_chip_inset_x);
+    return juce::Rectangle<int>{
+        m_visible_content_left + g_chip_inset_x, extent.top + g_chip_inset_y, chip_width, 17
+    };
 }
 
 // Raw linear map, deliberately unclamped: curve segments must span points outside the visible
@@ -285,7 +393,7 @@ std::optional<common::core::GridPosition> ToneAutomationLanesView::musicalPositi
 }
 
 std::optional<ToneAutomationLanesView::Hit> ToneAutomationLanesView::hitAt(
-    juce::Point<int> local_point) const
+    juce::Point<int> local_point, const juce::ModifierKeys& mods) const
 {
     if (m_state.tone_document_ref.empty())
     {
@@ -301,9 +409,18 @@ std::optional<ToneAutomationLanesView::Hit> ToneAutomationLanesView::hitAt(
             continue;
         }
         const core::ToneAutomationLaneViewState& lane = m_state.lanes[lane_index];
+
+        // The pinned name chip is the lane's handle: it claims the pointer on every lane —
+        // including unresolved ones — so the lane menu (Remove Lane) stays reachable now that
+        // plain clicks on empty lane area pass through to the seek overlay.
+        if (laneChipBounds(lane, extent).contains(local_point))
+        {
+            return Hit{LaneChipHit{.lane_index = lane_index}};
+        }
+
         if (!lane.resolved)
         {
-            // Disabled lanes are inert; the overlay keeps click-to-seek over them.
+            // Disabled lanes are otherwise inert; the overlay keeps click-to-seek over them.
             return std::nullopt;
         }
 
@@ -334,7 +451,12 @@ std::optional<ToneAutomationLanesView::Hit> ToneAutomationLanesView::hitAt(
             return Hit{ResizeBandHit{.lane_index = lane_index}};
         }
 
-        // Empty lane area adds points, but only inside the selected region's editable window.
+        // Empty lane area belongs to the seek overlay unless Alt (the insert quasimode) is held;
+        // with Alt down it becomes the insert target, only inside the region's editable window.
+        if (!mods.isAltDown())
+        {
+            return std::nullopt;
+        }
         const std::optional<float> window_start = xForSeconds(m_editable_window.start.seconds);
         const std::optional<float> window_end = xForSeconds(m_editable_window.end.seconds);
         if (window_start.has_value() && window_end.has_value() &&
@@ -558,6 +680,24 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
         graphics.setColour(g_curve_colour.withMultipliedAlpha(lane_alpha));
         graphics.strokePath(curve, juce::PathStrokeType{1.6f});
 
+        // The Alt-held insert ghost: a hollow ring where a click would place a point, so the
+        // insertion is visible before anything mutates.
+        if (m_insert_ghost.has_value() && m_insert_ghost->lane_index == lane_index)
+        {
+            if (const std::optional<float> ghost_x = xForSeconds(m_insert_ghost->seconds);
+                ghost_x.has_value())
+            {
+                const float ghost_y = value_to_y(m_insert_ghost->norm_value);
+                graphics.setColour(g_curve_colour.withAlpha(0.7f));
+                graphics.drawEllipse(
+                    *ghost_x - g_point_draw_radius,
+                    ghost_y - g_point_draw_radius,
+                    2.0f * g_point_draw_radius,
+                    2.0f * g_point_draw_radius,
+                    1.5f);
+            }
+        }
+
         // Dim everything outside the selected region's window: the lane is authored per tone but
         // edited per region instance.
         graphics.setColour(g_dim_overlay);
@@ -585,22 +725,14 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
         graphics.setColour(g_lane_separator);
         graphics.fillRect(0, extent.top + extent.height - 1, getWidth(), 1);
 
-        // Pinned name chip names the owning plugin too, so multi-plugin chains stay unambiguous;
-        // unresolved lanes announce the missing plugin inline.
-        const juce::String label = lane.plugin_name.empty() ? juce::String{lane.name}
-                                                            : juce::String{lane.plugin_name} +
-                                                                  " · " + juce::String{lane.name};
-        const juce::String chip_text = lane.resolved ? label : label + " (plugin missing)";
-        const juce::Font chip_font{juce::FontOptions{g_chip_font_height}};
-        graphics.setFont(chip_font);
-        const int chip_width = textWidth(chip_font, chip_text) + (2 * g_chip_inset_x);
-        const juce::Rectangle<int> chip{
-            m_visible_content_left + g_chip_inset_x, extent.top + g_chip_inset_y, chip_width, 17
-        };
+        // The pinned name chip doubles as the lane handle (clicking it opens the lane menu), so
+        // its bounds come from the shared helper the hit test uses.
+        graphics.setFont(juce::Font{juce::FontOptions{g_chip_font_height}});
+        const juce::Rectangle<int> chip = laneChipBounds(lane, extent);
         graphics.setColour(g_chip_fill);
         graphics.fillRoundedRectangle(chip.toFloat(), g_chip_corner_radius);
         graphics.setColour(g_chip_text.withMultipliedAlpha(lane.resolved ? 1.0f : 0.75f));
-        graphics.drawText(chip_text, chip, juce::Justification::centred);
+        graphics.drawText(laneChipText(lane), chip, juce::Justification::centred);
     }
 
     // The trailing empty lane carries only the pinned "+" chip; no fill, so the shared band and
@@ -631,9 +763,11 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
 
 void ToneAutomationLanesView::mouseMove(const juce::MouseEvent& event)
 {
-    const std::optional<Hit> hit = hitAt(event.getPosition());
+    const std::optional<Hit> hit = hitAt(event.getPosition(), event.mods);
 
-    // Hovering a point shows its position and value next to the cursor; any other zone clears it.
+    // Hovering a point shows its position and value next to the cursor; the Alt-held insert zone
+    // shows the prospective point the same way; any other zone clears the readout and ghost.
+    std::optional<GhostPoint> ghost;
     if (hit.has_value())
     {
         if (const auto* const point_hit = std::get_if<PointHit>(&*hit))
@@ -646,6 +780,35 @@ void ToneAutomationLanesView::mouseMove(const juce::MouseEvent& event)
                     .text = readoutTextFor(point.position, lane, point.norm_value),
                 });
         }
+        else if (const auto* const area = std::get_if<LaneAreaHit>(&*hit))
+        {
+            // LaneAreaHit only exists while Alt is held: preview exactly what a click would
+            // insert, snapped like the click itself (Ctrl composes for fine placement).
+            const core::ToneAutomationLaneViewState& lane = m_state.lanes[area->lane_index];
+            const std::vector<LaneExtent> extents = laneExtents();
+            if (const std::optional<common::core::GridPosition> position =
+                    musicalPositionForX(static_cast<float>(event.getPosition().x), event.mods);
+                position.has_value())
+            {
+                const float value = snappedValueForLane(
+                    valueForY(event.getPosition().y, extents[area->lane_index]), lane);
+                ghost = GhostPoint{
+                    .lane_index = area->lane_index,
+                    .position = *position,
+                    .seconds = secondsAtPosition(m_tempo_map, *position),
+                    .norm_value = value,
+                };
+                setValueReadout(
+                    ValueReadout{
+                        .anchor = event.getPosition(),
+                        .text = readoutTextFor(*position, lane, value),
+                    });
+            }
+            else
+            {
+                setValueReadout(std::nullopt);
+            }
+        }
         else
         {
             setValueReadout(std::nullopt);
@@ -655,13 +818,15 @@ void ToneAutomationLanesView::mouseMove(const juce::MouseEvent& event)
     {
         setValueReadout(std::nullopt);
     }
+    setInsertGhost(std::move(ghost));
 
     if (!hit.has_value())
     {
         setMouseCursor(juce::MouseCursor::NormalCursor);
         return;
     }
-    if (std::holds_alternative<PointHit>(*hit) || std::holds_alternative<PlusChipHit>(*hit))
+    if (std::holds_alternative<PointHit>(*hit) || std::holds_alternative<PlusChipHit>(*hit) ||
+        std::holds_alternative<LaneChipHit>(*hit))
     {
         setMouseCursor(juce::MouseCursor::PointingHandCursor);
     }
@@ -671,29 +836,35 @@ void ToneAutomationLanesView::mouseMove(const juce::MouseEvent& event)
     }
     else
     {
-        setMouseCursor(juce::MouseCursor::CrosshairCursor);
+        // The insert quasimode shows the arrow-with-plus copy cursor: "a click adds here".
+        setMouseCursor(juce::MouseCursor::CopyingCursor);
     }
 }
 
 void ToneAutomationLanesView::mouseDown(const juce::MouseEvent& event)
 {
-    const std::optional<Hit> hit = hitAt(event.getPosition());
+    const std::optional<Hit> hit = hitAt(event.getPosition(), event.mods);
 
     if (event.mods.isPopupMenu())
     {
-        // A right-click on a point offers its own menu; a right-click anywhere else on a real lane
-        // row offers lane removal — for authored lanes with points too, and regardless of the
-        // editable window — so a lane can always be removed without emptying it point by point.
+        // A right-click on a point offers its own menu; a right-click on a claimed lane zone (the
+        // name chip or the resize band) offers lane removal. Empty lane area belongs to the seek
+        // overlay now, so the chip is the lane's always-reachable handle.
         if (const auto* const point_hit = hit.has_value() ? std::get_if<PointHit>(&*hit) : nullptr)
         {
             showPointMenu(*point_hit);
         }
         else if (
-            const std::optional<std::size_t> lane_index = laneIndexAtY(event.getPosition().y);
-            lane_index.has_value()
+            hit.has_value() && (std::holds_alternative<LaneChipHit>(*hit) ||
+                                std::holds_alternative<ResizeBandHit>(*hit) ||
+                                std::holds_alternative<LaneAreaHit>(*hit))
         )
         {
-            showLaneMenu(*lane_index);
+            if (const std::optional<std::size_t> lane_index = laneIndexAtY(event.getPosition().y);
+                lane_index.has_value())
+            {
+                showLaneMenu(*lane_index);
+            }
         }
         return;
     }
@@ -706,6 +877,13 @@ void ToneAutomationLanesView::mouseDown(const juce::MouseEvent& event)
     if (std::holds_alternative<PlusChipHit>(*hit))
     {
         showParameterPicker();
+        return;
+    }
+
+    // The name chip is the lane handle: a plain click opens the lane menu.
+    if (const auto* const chip = std::get_if<LaneChipHit>(&*hit))
+    {
+        showLaneMenu(chip->lane_index);
         return;
     }
 
@@ -730,13 +908,15 @@ void ToneAutomationLanesView::mouseDown(const juce::MouseEvent& event)
             .point_index = point_hit->point_index,
             .preview_position = point.position,
             .preview_value = point.norm_value,
+            .start_position = point.position,
+            .start_value = point.norm_value,
             .moved = false,
             .is_new_point = false,
         };
         return;
     }
 
-    // Empty editable area: create a preview point and enter the move drag immediately, so
+    // Alt-held empty editable area: create a preview point and enter the move drag immediately, so
     // press-drag-release adds and places in one gesture; the commit happens on mouseUp.
     const auto& area = std::get<LaneAreaHit>(*hit);
     const std::optional<common::core::GridPosition> position =
@@ -751,15 +931,20 @@ void ToneAutomationLanesView::mouseDown(const juce::MouseEvent& event)
     {
         ++insert_index;
     }
+    const float creation_value =
+        snappedValueForLane(valueForY(event.getPosition().y, extents[area.lane_index]), lane);
     m_drag = MovePointDrag{
         .lane_index = area.lane_index,
         .point_index = insert_index,
         .preview_position = *position,
-        .preview_value =
-            snappedValueForLane(valueForY(event.getPosition().y, extents[area.lane_index]), lane),
+        .preview_value = creation_value,
+        .start_position = *position,
+        .start_value = creation_value,
         .moved = true,
         .is_new_point = true,
     };
+    // The drag preview replaces the hover ghost from here on.
+    setInsertGhost(std::nullopt);
     repaint();
 }
 
@@ -790,6 +975,20 @@ void ToneAutomationLanesView::mouseDrag(const juce::MouseEvent& event)
     const core::ToneAutomationLaneViewState& lane = m_state.lanes[move.lane_index];
     const std::vector<LaneExtent> extents = laneExtents();
 
+    // A grabbed existing point stays a click until the pointer travels past JUCE's drag
+    // threshold, so the micro-jiggle inside a click can never commit an accidental move.
+    if (!move.moved && !move.is_new_point && !event.mouseWasDraggedSinceMouseDown())
+    {
+        return;
+    }
+
+    // Shift constrains the drag to its dominant axis, anchored at the gesture start: a horizontal
+    // move keeps the starting value and a vertical move keeps the starting position.
+    const bool horizontal_dominant =
+        std::abs(event.getDistanceFromDragStartX()) >= std::abs(event.getDistanceFromDragStartY());
+    const bool lock_value = event.mods.isShiftDown() && horizontal_dominant;
+    const bool lock_position = event.mods.isShiftDown() && !horizontal_dominant;
+
     // Clamp X inside the editable window before converting, then clamp musically between the
     // temporal neighbors so the committed list stays strictly ascending by construction.
     const std::optional<float> window_start = xForSeconds(m_editable_window.start.seconds);
@@ -800,9 +999,15 @@ void ToneAutomationLanesView::mouseDrag(const juce::MouseEvent& event)
         clamped_x = std::clamp(clamped_x, *window_start, std::max(*window_start, *window_end - 1));
     }
 
-    if (const std::optional<common::core::GridPosition> position =
+    if (lock_position)
+    {
+        move.preview_position = move.start_position;
+    }
+    else if (
+        const std::optional<common::core::GridPosition> position =
             musicalPositionForX(clamped_x, event.mods);
-        position.has_value())
+        position.has_value()
+    )
     {
         bool blocked = false;
         // Neighbor indices skip the dragged point itself for existing points; for a new point the
@@ -827,7 +1032,9 @@ void ToneAutomationLanesView::mouseDrag(const juce::MouseEvent& event)
         }
     }
     move.preview_value =
-        snappedValueForLane(valueForY(event.getPosition().y, extents[move.lane_index]), lane);
+        lock_value
+            ? move.start_value
+            : snappedValueForLane(valueForY(event.getPosition().y, extents[move.lane_index]), lane);
     move.moved = true;
 
     const double preview_seconds = secondsAtPosition(m_tempo_map, move.preview_position);
@@ -914,9 +1121,139 @@ void ToneAutomationLanesView::mouseUp(const juce::MouseEvent& /*event*/)
     }
 }
 
+bool ToneAutomationLanesView::cancelActiveGesture()
+{
+    if (!m_drag.has_value())
+    {
+        return false;
+    }
+
+    // A cancelled lane resize restores its starting height; point gestures simply never commit.
+    if (const auto* const resize = std::get_if<ResizeLaneDrag>(&*m_drag))
+    {
+        const core::ToneAutomationLaneViewState& lane = m_state.lanes[resize->lane_index];
+        m_lane_heights[{lane.instance_id, lane.param_id}] = resize->start_height;
+        if (m_heights_changed_callback)
+        {
+            m_heights_changed_callback();
+        }
+    }
+    m_drag.reset();
+    publishSnapGuide(std::nullopt);
+    setValueReadout(std::nullopt);
+
+    // Adopt a state deferred during the gesture, exactly as an uncommitted release would.
+    if (m_pending_state.has_value())
+    {
+        const core::ToneAutomationViewState pending = std::move(*m_pending_state);
+        m_pending_state.reset();
+        applyState(pending);
+    }
+    repaint();
+    return true;
+}
+
+bool ToneAutomationLanesView::nudgeSelectedPoint(NudgeDirection direction, bool fine)
+{
+    if (!m_selected_point.has_value() || !selectedPointPresent())
+    {
+        return false;
+    }
+    const SelectedPoint target = *m_selected_point;
+
+    for (const core::ToneAutomationLaneViewState& lane : m_state.lanes)
+    {
+        if (lane.instance_id != target.instance_id || lane.param_id != target.param_id)
+        {
+            continue;
+        }
+        const auto point =
+            std::ranges::find_if(lane.points, [&](const core::ToneAutomationPointViewState& p) {
+                return p.position == target.position;
+            });
+        if (point == lane.points.end())
+        {
+            return false;
+        }
+
+        if (direction == NudgeDirection::Up || direction == NudgeDirection::Down)
+        {
+            // A discrete lane steps one real state; a continuous one steps 0.01 (0.001 fine).
+            const float step = lane.is_discrete && lane.discrete_value_count >= 2
+                                   ? 1.0F / static_cast<float>(lane.discrete_value_count - 1)
+                                   : (fine ? 0.001F : 0.01F);
+            const float raw = point->norm_value + (direction == NudgeDirection::Up ? step : -step);
+            const float new_value = snappedValueForLane(std::clamp(raw, 0.0F, 1.0F), lane);
+            if (new_value != point->norm_value)
+            {
+                requestPointReplace(
+                    target.instance_id,
+                    target.param_id,
+                    target.position,
+                    target.position,
+                    new_value);
+            }
+            return true;
+        }
+
+        // Time nudge: to the adjacent tempo-grid line, or by one 1/960-beat fine step. Both go
+        // through the beat axis so the result stays an exact rational.
+        const bool later = direction == NudgeDirection::Later;
+        const double global_beat = static_cast<double>(m_tempo_map.globalBeatIndex(
+                                       target.position.measure, target.position.beat)) +
+                                   target.position.offset.toDouble();
+        common::core::GridPosition new_position;
+        if (fine)
+        {
+            new_position =
+                fineGridPositionForBeat(m_tempo_map, global_beat + (later ? 1.0 : -1.0) / 960.0);
+        }
+        else
+        {
+            // One grid step is the grid note value scaled by the local meter's beat unit; landing
+            // via nearest-grid-line keeps odd grids exact and respects the measure-anchored walk.
+            const common::core::TimeSignatureChange signature =
+                m_tempo_map.timeSignatureAt(target.position.measure);
+            const double step_beats =
+                m_grid_note_value.toDouble() * static_cast<double>(signature.denominator);
+            const double target_seconds = m_tempo_map.secondsAtGlobalBeatPosition(
+                global_beat + (later ? step_beats : -step_beats));
+            new_position = core::nearestTempoGridPosition(
+                m_tempo_map, m_grid_note_value, common::core::TimePosition{target_seconds});
+        }
+
+        // Refuse nudges that collapse (map edge) or reverse direction (nearest-line bounce-back),
+        // and clamp strictly between the neighbors and inside the editable window; a refused
+        // nudge still reports handled so the arrow key never leaks to another target.
+        if (new_position == target.position || (later && new_position < target.position) ||
+            (!later && target.position < new_position))
+        {
+            return true;
+        }
+        if (point != lane.points.begin() && !(std::prev(point)->position < new_position))
+        {
+            return true;
+        }
+        if (std::next(point) != lane.points.end() && !(new_position < std::next(point)->position))
+        {
+            return true;
+        }
+        const double new_seconds = secondsAtPosition(m_tempo_map, new_position);
+        if (new_seconds < m_editable_window.start.seconds ||
+            new_seconds >= m_editable_window.end.seconds)
+        {
+            return true;
+        }
+        requestPointReplace(
+            target.instance_id, target.param_id, target.position, new_position, point->norm_value);
+        return true;
+    }
+    return false;
+}
+
 void ToneAutomationLanesView::mouseDoubleClick(const juce::MouseEvent& event)
 {
-    const std::optional<Hit> hit = hitAt(event.getPosition());
+    const std::optional<Hit> hit = hitAt(event.getPosition(), event.mods);
     if (!hit.has_value())
     {
         return;
@@ -927,33 +1264,21 @@ void ToneAutomationLanesView::mouseDoubleClick(const juce::MouseEvent& event)
         return;
     }
 
-    // Reset only the double-clicked point to the parameter's default value; every other point
-    // echoes its stored position and value, so this commits as one full-point-list edit.
-    const core::ToneAutomationLaneViewState& lane = m_state.lanes[point_hit->lane_index];
-    std::vector<common::core::ToneAutomationPoint> points;
-    points.reserve(lane.points.size());
-    for (std::size_t index = 0; index < lane.points.size(); ++index)
-    {
-        const core::ToneAutomationPointViewState& point = lane.points[index];
-        points.push_back(
-            common::core::ToneAutomationPoint{
-                .position = point.position,
-                .norm_value =
-                    index == point_hit->point_index ? lane.default_norm_value : point.norm_value,
-                .curve_shape = point.curve_shape,
-            });
-    }
-    m_listener.onToneAutomationPointsEditRequested(
-        lane.instance_id, lane.param_id, std::move(points));
+    // The double-click's second press armed a move drag; drop it so the value editor opens over a
+    // quiescent gesture state (the following mouseUp then early-returns without committing).
+    m_drag.reset();
+    publishSnapGuide(std::nullopt);
+    showPointValueEditor(*point_hit);
 }
 
 void ToneAutomationLanesView::mouseExit(const juce::MouseEvent& /*event*/)
 {
     // A drag keeps its readout even when the pointer leaves the component (JUCE keeps delivering
-    // drag events); a plain hover that leaves the lanes clears it.
+    // drag events); a plain hover that leaves the lanes clears the readout and the insert ghost.
     if (!m_drag.has_value())
     {
         setValueReadout(std::nullopt);
+        setInsertGhost(std::nullopt);
     }
 }
 
@@ -1117,19 +1442,110 @@ void ToneAutomationLanesView::showPointMenu(const PointHit& hit)
     const core::ToneAutomationLaneViewState& lane = m_state.lanes[hit.lane_index];
     juce::PopupMenu menu;
     menu.addItem(1, "Delete Point");
+    menu.addItem(2, "Set Value...");
+    menu.addItem(3, "Reset to Default");
     // Identify the point by its musical position captured now, not by index: a state push while
-    // the menu is open must not delete a different point.
+    // the menu is open must not act on a different point.
     menu.showMenuAsync(
         juce::PopupMenu::Options{}.withMousePosition().withDeletionCheck(*this),
         [this,
          instance_id = lane.instance_id,
          param_id = lane.param_id,
+         default_value = lane.default_norm_value,
          position = lane.points[hit.point_index].position](int result) {
             if (result == 1)
             {
                 requestPointDelete(instance_id, param_id, position);
             }
+            else if (result == 2)
+            {
+                // Re-resolve indices at click time; the position identifies the point durably.
+                for (std::size_t lane_index = 0; lane_index < m_state.lanes.size(); ++lane_index)
+                {
+                    const core::ToneAutomationLaneViewState& candidate = m_state.lanes[lane_index];
+                    if (candidate.instance_id != instance_id || candidate.param_id != param_id)
+                    {
+                        continue;
+                    }
+                    for (std::size_t point_index = 0; point_index < candidate.points.size();
+                         ++point_index)
+                    {
+                        if (candidate.points[point_index].position == position)
+                        {
+                            showPointValueEditor(
+                                PointHit{.lane_index = lane_index, .point_index = point_index});
+                            return;
+                        }
+                    }
+                }
+            }
+            else if (result == 3)
+            {
+                requestPointReplace(instance_id, param_id, position, position, default_value);
+            }
         });
+}
+
+// Opens the typed exact-value callout for a point, prefilled with the value formatted in the
+// parameter's native units; Return parses the text through the automation port and commits one
+// points-edit intent. Skipped when the view is not on screen (headless tests have no desktop).
+void ToneAutomationLanesView::showPointValueEditor(const PointHit& hit)
+{
+    if (!isShowing())
+    {
+        return;
+    }
+    const core::ToneAutomationLaneViewState& lane = m_state.lanes[hit.lane_index];
+    const core::ToneAutomationPointViewState& point = lane.points[hit.point_index];
+
+    const auto formatted = m_tone_automation.formatParameterValue(
+        m_state.tone_document_ref, lane.instance_id, lane.param_id, point.norm_value);
+    const juce::String initial_text = formatted.has_value() && !formatted->empty()
+                                          ? juce::String{*formatted}
+                                          : juce::String{point.norm_value, 3};
+
+    auto content = std::make_unique<PointValueEditorContent>(
+        initial_text,
+        [safe_this = juce::Component::SafePointer<ToneAutomationLanesView>{this},
+         tone_ref = m_state.tone_document_ref,
+         instance_id = lane.instance_id,
+         param_id = lane.param_id,
+         position = point.position](const juce::String& text) {
+            if (safe_this == nullptr)
+            {
+                return;
+            }
+            const auto parsed = safe_this->m_tone_automation.parseParameterValue(
+                tone_ref, instance_id, param_id, text.toStdString());
+            if (!parsed.has_value())
+            {
+                return;
+            }
+            // Re-snap discrete lanes so typed text can only land on a real state.
+            const auto lane_now = std::ranges::find_if(
+                safe_this->m_state.lanes, [&](const core::ToneAutomationLaneViewState& candidate) {
+                    return candidate.instance_id == instance_id && candidate.param_id == param_id;
+                });
+            if (lane_now == safe_this->m_state.lanes.end())
+            {
+                return;
+            }
+            safe_this->requestPointReplace(
+                instance_id, param_id, position, position, snappedValueForLane(*parsed, *lane_now));
+        });
+
+    // Anchor the callout to the point's on-screen location.
+    const std::vector<LaneExtent> extents = laneExtents();
+    const LaneExtent& extent = extents[hit.lane_index];
+    const float point_y =
+        static_cast<float>(extent.top + g_value_band_inset) +
+        (1.0f - point.norm_value) *
+            static_cast<float>(extent.height - (2 * g_value_band_inset) - g_resize_band_height);
+    const int point_x =
+        static_cast<int>(xForSeconds(point.seconds).value_or(static_cast<float>(getWidth()) / 2));
+    const juce::Rectangle<int> anchor =
+        localAreaToGlobal(juce::Rectangle<int>{point_x - 4, static_cast<int>(point_y) - 4, 8, 8});
+    juce::CallOutBox::launchAsynchronously(std::move(content), anchor, nullptr);
 }
 
 // Emits the points-edit intent that removes the point at the given position from its lane. Shared by
@@ -1160,6 +1576,59 @@ void ToneAutomationLanesView::requestPointDelete(
                     .curve_shape = point.curve_shape,
                 });
         }
+        m_listener.onToneAutomationPointsEditRequested(instance_id, param_id, std::move(points));
+        return;
+    }
+}
+
+// Emits the points-edit intent that replaces one point's position and value, echoing every other
+// point bit-identically and keeping the edited point's curve shape. Selects the edited point at
+// its new position before committing, so the synchronous state push keeps it selected.
+void ToneAutomationLanesView::requestPointReplace(
+    const std::string& instance_id, const std::string& param_id,
+    const common::core::GridPosition& position, const common::core::GridPosition& new_position,
+    float new_value)
+{
+    for (const core::ToneAutomationLaneViewState& lane : m_state.lanes)
+    {
+        if (lane.instance_id != instance_id || lane.param_id != param_id)
+        {
+            continue;
+        }
+        const auto target =
+            std::ranges::find_if(lane.points, [&](const core::ToneAutomationPointViewState& p) {
+                return p.position == position;
+            });
+        if (target == lane.points.end())
+        {
+            return;
+        }
+        std::vector<common::core::ToneAutomationPoint> points;
+        points.reserve(lane.points.size());
+        for (const core::ToneAutomationPointViewState& point : lane.points)
+        {
+            if (point.position == position)
+            {
+                continue;
+            }
+            points.push_back(
+                common::core::ToneAutomationPoint{
+                    .position = point.position,
+                    .norm_value = point.norm_value,
+                    .curve_shape = point.curve_shape,
+                });
+        }
+        const common::core::ToneAutomationPoint edited{
+            .position = new_position,
+            .norm_value = new_value,
+            .curve_shape = target->curve_shape,
+        };
+        const auto insert_at = std::ranges::find_if(
+            points, [&edited](const common::core::ToneAutomationPoint& candidate) {
+                return edited.position < candidate.position;
+            });
+        points.insert(insert_at, edited);
+        m_selected_point = SelectedPoint{instance_id, param_id, new_position};
         m_listener.onToneAutomationPointsEditRequested(instance_id, param_id, std::move(points));
         return;
     }
@@ -1272,6 +1741,26 @@ juce::Rectangle<int> ToneAutomationLanesView::readoutBounds(const ValueReadout& 
     }
     y = std::clamp(y, 0, std::max(0, getHeight() - g_readout_height));
     return juce::Rectangle<int>{x, y, width, g_readout_height};
+}
+
+// Sets or clears the Alt-held insert ghost, repainting only the lane rows it vacates and covers.
+void ToneAutomationLanesView::setInsertGhost(std::optional<GhostPoint> ghost)
+{
+    if (m_insert_ghost == ghost)
+    {
+        return;
+    }
+    const std::vector<LaneExtent> extents = laneExtents();
+    const auto repaint_ghost_lane = [this, &extents](const std::optional<GhostPoint>& target) {
+        if (target.has_value() && target->lane_index < m_state.lanes.size())
+        {
+            const LaneExtent& extent = extents[target->lane_index];
+            repaint(0, extent.top, getWidth(), extent.height);
+        }
+    };
+    repaint_ghost_lane(m_insert_ghost);
+    m_insert_ghost = std::move(ghost);
+    repaint_ghost_lane(m_insert_ghost);
 }
 
 void ToneAutomationLanesView::setValueReadout(std::optional<ValueReadout> readout)
