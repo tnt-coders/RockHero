@@ -160,6 +160,18 @@ Known tensions from the planning mandate, and where each is resolved (none paper
 Ordered to reach milestone 0 fast and de-risk note detection early — **not** numeric order.
 Stages may overlap where dependencies allow; each bullet names the plan phases in scope.
 
+**AMENDMENT (2026-07-10, user directive): twin-track priority after G20-RENDER closes.** The
+editor 3D preview (docs/roadmap/44-editor-3d-preview.md) is promoted from Stage 6 to run at
+equal priority with the game render/menu track — it starts immediately after
+docs/roadmap/25-note-highway-3d.md Phases 1–2 land (its other prerequisites, plan 12 and plan 45
+Phase 1, completed 2026-07-10). The preview ships as its own fullscreen-capable window (plan
+44's existing shape, confirmed; the S2 spike proved the JUCE-window + bgfx-child-HWND embedding)
+and synchronizes through plan 12's IPlaybackClock + extrapolator — no editor-viewport coupling.
+"Game menus" sequencing note: docs/roadmap/26-game-startup-menus-library.md Phases 5–9 (the
+visible menu UI) sit behind G20-RENDER, and Phases 1–4 (peek reader, library index, scan,
+settings) sit behind plans 10 and 13 — so the menu track's actual next actions are plan 13
+Phases 1–2 and plan 10 Phase 0 (G10-DECISIONS answers), both Stage 1 items already.
+
 **Stage 1 — Foundations (start immediately, parallel-friendly)**
 1. docs/roadmap/13-audio-device-settings-and-calibration.md Phases 1–2 (shared settings store, editor migration) — earliest shared-infrastructure win; Phases 3–6 may trail.
 2. docs/roadmap/12-playback-clock.md Phases 1–4 (clock port, engine publishes, audio-derived publishing, extrapolator) — milestone 0's render loop needs this; Phase 5 closeout with first consumers.
@@ -477,7 +489,7 @@ One line per plan; update the right-hand cell as phases complete.
 | docs/roadmap/41-tempo-map-authoring.md | Ready (Phase 6 behind G41-TS) | Anchor place/drag, tap tempo, onset-assisted snapping, TS editing within the warp-anchor model | Not started |
 | docs/roadmap/42-chart-validation.md | Ready | Advisory lint engine + rule set v1 in common/core, corpus-calibrated severities, editor report | Not started |
 | docs/roadmap/43-song-information-and-art.md | Decision-gated (G43-METADATA) | song.json metadata/art/sort/preview fields, Song Information dialog, shared art codec, publish gate | Not started |
-| docs/roadmap/44-editor-3d-preview.md | Decision-gated (via G20-RENDER) | Fullscreen-capable editor preview window sharing the highway scene model; playback follow + live edits | Not started |
+| docs/roadmap/44-editor-3d-preview.md | Decision-gated (via G20-RENDER) — **promoted to equal priority with the game track (2026-07-10 amendment, §3)** | Fullscreen-capable editor preview window sharing the highway scene model; playback follow + live edits | Prereqs 12 and 45 Phase 1 done; starts after gate sign-off + 25 Phases 1–2 |
 | docs/roadmap/45-editor-theme-and-string-colors.md | Phase 1 complete; rest Ready (Phase 5 behind G45-STRINGS) | Shared string palette in common/ui, theme presets, colorblind-safe preset, string-cap raise gate | Phase 1 done 2026-07-10 @ 050f884e (palette in common/ui, editor byte-identical; 45-Q2 working: A) |
 | docs/roadmap/46-editor-keybinds.md | Decision-gated (G46-KEYMAP) | JUCE command-manager keybinds, config UI, diff persistence, plugin-window shortcut injection seam | Not started |
 | docs/roadmap/47-editor-loop-selection.md | Ready (47-Q1..Q3 carry recommendations; Phase 1 coordinated with 21 Phase 1 by whichever-executes-first) | Shared loop-region port + Tracktion adapter; editor ruler-drag loop selection, auto-engagement, app-local persistence | Not started |
