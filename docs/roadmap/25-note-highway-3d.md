@@ -2,10 +2,18 @@
 
 ## 1. Status
 
-**Decision-gated** — blocked on docs/roadmap/20-game-architecture-and-render-stack.md Phase 0a–0c
-sign-off (render-stack spike and renderer-sharing seam). No spike of its own; every phase after
-Phase 0 below assumes plan 20's gate closed with SDL3 + bgfx confirmed and the seam decided.
-Date: 2026-07-06. Baseline: `refactor @ 3c7febe0`.
+**Phases 0–2 complete** (2026-07-10, `work-in-progress @ 92b95ba4`). Phase 0 gate intake:
+G20-RENDER signed off 2026-07-10 (SDL3+bgfx, loop L2); `<core-lib>` = **rock-hero-common/core**
+(seam Option 1); plan 45 Phase 1 (shared palette) landed 2026-07-10; plan 12 (playback clock)
+landed 2026-07-10. Phases 1–2 implemented in `rock-hero-common/core` `highway/`: scene model +
+projection (`makeHighwayViewState` — renamed from the sketch's `highwayViewStateFor` per the
+coding conventions' make-prefix rule for view-state builders), metrics with Charter's constants,
+camera with the exact-verticality invariant and the NDC board pin both under regression tests,
+lefty mirror + string-order invert as pure math, beat/measure list, harmonic `touch`
+pass-through. One constant the reference analysis never pinned: the vertical field of view
+(default 90°, the value at which the pinned framing works for the default camera; tuned live at
+Phase 3). Phase 3+ next (render stack lands via plan 20 Phases 1–4).
+Original date: 2026-07-06. Baseline: `refactor @ 3c7febe0`.
 
 ## 2. Goal
 
