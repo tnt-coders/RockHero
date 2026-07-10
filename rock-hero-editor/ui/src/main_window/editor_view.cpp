@@ -249,7 +249,8 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     , m_master_output_meter(AudioLevelMeterOrientation::Horizontal, "Master")
     , m_signal_chain_panel(*this)
     , m_tone_track_view(*this, m_state.tempo_map, audio_ports.transport)
-    , m_tone_automation_lanes_view(*this, m_state.tempo_map, audio_ports.tone_automation)
+    , m_tone_automation_lanes_view(
+          *this, m_state.tempo_map, audio_ports.tone_automation, audio_ports.transport)
     , m_cursor_overlay(
           std::make_unique<CursorOverlay>(controller, audio_ports.transport, m_state.tempo_map))
     , m_track_viewport(
@@ -755,6 +756,40 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
     {
         createToneMarkerAtPlayhead();
         return true;
+    }
+
+    // Esc cancels the pointer gesture in flight (a point drag, edge drag, or insert placement);
+    // it falls through when nothing is active so modal owners keep their own Esc behavior.
+    if (key.isKeyCode(juce::KeyPress::escapeKey))
+    {
+        if (m_tone_automation_lanes_view.cancelActiveGesture())
+        {
+            return true;
+        }
+        return m_tone_track_view.cancelActiveGesture();
+    }
+
+    // Arrow keys nudge the selected automation point: Left/Right by one grid step (Ctrl = the
+    // fine step), Up/Down by one value step. They fall through when nothing is selected.
+    {
+        const bool fine = key.getModifiers().isCtrlDown();
+        using NudgeDirection = ToneAutomationLanesView::NudgeDirection;
+        if (key.isKeyCode(juce::KeyPress::leftKey))
+        {
+            return m_tone_automation_lanes_view.nudgeSelectedPoint(NudgeDirection::Earlier, fine);
+        }
+        if (key.isKeyCode(juce::KeyPress::rightKey))
+        {
+            return m_tone_automation_lanes_view.nudgeSelectedPoint(NudgeDirection::Later, fine);
+        }
+        if (key.isKeyCode(juce::KeyPress::upKey))
+        {
+            return m_tone_automation_lanes_view.nudgeSelectedPoint(NudgeDirection::Up, fine);
+        }
+        if (key.isKeyCode(juce::KeyPress::downKey))
+        {
+            return m_tone_automation_lanes_view.nudgeSelectedPoint(NudgeDirection::Down, fine);
+        }
     }
 
     // F8 toggles the undo-history inspector.
@@ -1572,6 +1607,18 @@ void EditorView::onToneBoundaryMoveRequested(
     m_controller.onToneBoundaryMoveRequested(std::move(right_region_id), position);
 }
 
+// Opens the tone picker for an Alt-click (or region-menu) tone-change insert at a position.
+void EditorView::onToneChangeInsertRequested(common::core::GridPosition position)
+{
+    createToneMarkerAt(position);
+}
+
+// Routes a region-menu delete to the controller, exactly like the Delete key on a selection.
+void EditorView::onToneRegionDeleteRequested(std::string region_id)
+{
+    m_controller.onToneRegionDeleteRequested(std::move(region_id));
+}
+
 void EditorView::onToneAutomationLaneAddRequested(std::string instance_id, std::string param_id)
 {
     m_controller.onToneAutomationLaneAddRequested(std::move(instance_id), std::move(param_id));
@@ -1591,18 +1638,23 @@ void EditorView::onToneAutomationPointsEditRequested(
 }
 
 // Shows the tone-picker menu for inserting a tone-change marker at the playhead: the marker lands at
-// the playhead's exact musical position inside the region it splits, and the menu offers reusing an
-// existing catalog tone (excluding the tone being split, i.e. the immediately-preceding one) or
-// minting a fresh empty one.
+// the playhead's exact musical position inside the region it splits.
 void EditorView::createToneMarkerAtPlayhead()
 {
     // The playhead already sits at an exact position the user placed (a grid line, or a Ctrl-free
     // fine position), so keep it precisely rather than re-rounding to the nearest whole beat; the
     // fine-grid quantization preserves any position placed on a practical subdivision.
     const double playhead = m_transport.position().seconds;
-    const common::core::GridPosition position = fineGridPositionForBeat(
-        m_state.tempo_map, m_state.tempo_map.beatPositionAtSeconds(playhead));
+    createToneMarkerAt(fineGridPositionForBeat(
+        m_state.tempo_map, m_state.tempo_map.beatPositionAtSeconds(playhead)));
+}
 
+// Shows the tone-picker menu for inserting a tone-change marker at an exact musical position — the
+// shared tail of the playhead accelerator (Ctrl+T) and the tone row's Alt-click/menu insert. The
+// menu offers reusing an existing catalog tone (excluding the tones on either side of the new
+// boundary, which would make it a no-op change) or minting a fresh empty one.
+void EditorView::createToneMarkerAt(common::core::GridPosition position)
+{
     // The marker splits the one region whose span strictly contains it; endpoints order by exact
     // musical position, so a marker landing on a boundary belongs to neither side and splits nothing.
     const auto containing = std::ranges::find_if(

@@ -175,6 +175,42 @@ std::expected<std::string, ToneAutomationError> Engine::formatParameterValue(
     return std::move(*text);
 }
 
+std::expected<float, ToneAutomationError> Engine::parseParameterValue(
+    const std::string& tone_document_ref, const std::string& instance_id,
+    const std::string& param_id, const std::string& text) const
+{
+    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        return std::unexpected{ToneAutomationError{ToneAutomationErrorCode::MessageThreadRequired}};
+    }
+
+    const ToneRackBranch* const branch = findToneBranch(m_impl->m_tone_rack, tone_document_ref);
+    if (branch == nullptr)
+    {
+        return std::unexpected{ToneAutomationError{
+            ToneAutomationErrorCode::ToneNotLoaded, "Tone is not loaded: " + tone_document_ref
+        }};
+    }
+
+    tracktion::Plugin* const plugin = findChainPlugin(*branch, instance_id);
+    if (plugin == nullptr)
+    {
+        return std::unexpected{ToneAutomationError{
+            ToneAutomationErrorCode::PluginInstanceNotFound,
+            "Plugin instance was not found: " + instance_id
+        }};
+    }
+
+    const std::optional<float> value = parsePluginParameterValue(*plugin, param_id, text);
+    if (!value.has_value())
+    {
+        return std::unexpected{ToneAutomationError{
+            ToneAutomationErrorCode::ParameterNotFound, "Parameter was not found: " + param_id
+        }};
+    }
+    return *value;
+}
+
 std::expected<void, ToneAutomationError> Engine::writeParameterCurve(
     const std::string& tone_document_ref, const std::string& instance_id,
     const std::string& param_id, std::span<const AutomationCurvePoint> points)

@@ -23,12 +23,15 @@ namespace rock_hero::editor::ui
 {
 
 /*!
-\brief Renders tone regions from framework-free state and emits selection and resize intents.
+\brief Renders tone regions from framework-free state and emits selection, resize, insert, and
+delete intents.
 
-Authored regions can be selected by clicking their body and resized by dragging their edges; edge
-drags snap to whole tempo-map beats, clamp against neighboring regions and the terminal anchor,
-and report a transient snap guide so the shared overlay can draw a full-height alignment line.
-The synthesized legacy-default region is read-only and ignores the pointer entirely.
+Gestures follow the editor-wide interaction model (docs/in-progress/editing-interaction-model.md):
+a plain click selects, dragging an edge moves the shared boundary (snapped to the grid, Ctrl
+bypassing to the fine grid, with a snap guide on the shared overlay), Alt is the insert quasimode
+— click or press-drag-release inside a region requests a tone change at the snapped position,
+with a ghost boundary line and copy cursor while Alt is held — and Esc cancels the gesture in
+flight. The right-click menu mirrors every gesture (insert here, rename, delete).
 */
 class ToneTrackView final : public juce::Component
 {
@@ -80,6 +83,26 @@ public:
         */
         virtual void onToneRenamePromptRequested(
             std::string tone_document_ref, std::string current_name) = 0;
+
+        /*!
+        \brief Called when an Alt-click (or the region menu) requests a tone change at a position.
+
+        The listener owns the payload policy: it opens the tone picker for the split, because a
+        change to the same tone on both sides would be a no-op boundary the editor refuses.
+
+        \param position Exact musical position for the new tone change, strictly inside a region.
+        */
+        virtual void onToneChangeInsertRequested(common::core::GridPosition position) = 0;
+
+        /*!
+        \brief Called when the region context menu requests deleting a region.
+
+        Mirrors the Delete key on the selected region: the region's span merges into its
+        neighbor (or the sole region resets).
+
+        \param region_id Stable region id to delete.
+        */
+        virtual void onToneRegionDeleteRequested(std::string region_id) = 0;
 
     protected:
         /*! \brief Creates the listener interface. */
@@ -166,34 +189,50 @@ public:
     [[nodiscard]] bool wantsPointerAt(juce::Point<int> local_point) const;
 
     /*!
+    \brief Cancels the gesture in flight, restoring the pre-gesture state.
+
+    The editor routes Esc here so an unwanted edge drag or Alt-insert placement can be abandoned
+    without committing anything.
+
+    \return True when a gesture was active and has been cancelled.
+    */
+    [[nodiscard]] bool cancelActiveGesture();
+
+    /*!
     \brief Paints the row divider and the tone regions.
     \param g Graphics context used for drawing.
     */
     void paint(juce::Graphics& g) override;
 
     /*!
-    \brief Updates the pointer cursor for region bodies and resizable edges.
+    \brief Updates the pointer cursor and the Alt-held insert ghost under the pointer.
     \param event Pointer event delivered by JUCE.
     */
     void mouseMove(const juce::MouseEvent& event) override;
 
     /*!
-    \brief Begins an edge drag or arms a body click for selection.
+    \brief Begins an edge drag or Alt-insert placement, or arms a body click for selection.
     \param event Pointer event delivered by JUCE.
     */
     void mouseDown(const juce::MouseEvent& event) override;
 
     /*!
-    \brief Previews snapped endpoints and reports the snap guide during an edge drag.
+    \brief Previews snapped positions and reports the snap guide during a drag.
     \param event Pointer event delivered by JUCE.
     */
     void mouseDrag(const juce::MouseEvent& event) override;
 
     /*!
-    \brief Commits an edge drag as a resize intent or a body click as a selection intent.
+    \brief Commits the active gesture: a resize/insert intent, or a body click as a selection.
     \param event Pointer event delivered by JUCE.
     */
     void mouseUp(const juce::MouseEvent& event) override;
+
+    /*!
+    \brief Clears the Alt-held insert ghost when the pointer leaves the row.
+    \param event Pointer event delivered by JUCE.
+    */
+    void mouseExit(const juce::MouseEvent& event) override;
 
     /*!
     \brief Opens the rename prompt for the tone of the region under the pointer.
@@ -225,12 +264,23 @@ private:
         common::core::GridPosition preview_end;
     };
 
+    // Live Alt-insert placement state: the boundary a release would create, previewed as a ghost
+    // line and committed as one insert intent on mouse-up.
+    struct InsertDragState
+    {
+        std::size_t region_index{};
+        common::core::GridPosition preview;
+    };
+
     // Maps one region's span to component x coordinates, or empty when unmappable.
     [[nodiscard]] std::optional<std::pair<float, float>> regionXSpan(
         const core::ToneRegionViewState& region) const;
 
-    // Opens the right-click context menu for a region (Rename mirrors the double-click shortcut).
-    void showRegionContextMenu(const core::ToneRegionViewState& region);
+    // Opens the right-click context menu for a region: insert-here (when the click position can
+    // split the region), rename, and delete.
+    void showRegionContextMenu(
+        const core::ToneRegionViewState& region,
+        std::optional<common::core::GridPosition> insert_position);
 
     // Resolves the authored region (and optionally its edge) under a local position.
     [[nodiscard]] std::optional<RegionHit> hitAt(juce::Point<int> local_point) const;
@@ -239,6 +289,18 @@ private:
     // that keeps both regions sharing the dragged boundary non-empty; empty when out of range.
     [[nodiscard]] std::optional<common::core::GridPosition> snappedGridPositionForDrag(
         float x, const juce::ModifierKeys& mods) const;
+
+    // Resolves an x to the snapped position a tone change would be inserted at, accepted only
+    // strictly inside the given region (a change on an existing boundary splits nothing).
+    [[nodiscard]] std::optional<common::core::GridPosition> insertPositionForX(
+        float x, std::size_t region_index, const juce::ModifierKeys& mods) const;
+
+    // Sets or clears the Alt-held ghost boundary line, repainting the strips it moves between.
+    void setInsertGhostX(std::optional<float> ghost_x);
+
+    // Maps a musical position to this row's x coordinate, when the geometry allows it.
+    [[nodiscard]] std::optional<float> xForGridPosition(
+        const common::core::GridPosition& position) const;
 
     // Reports the current snap guide, or clears it with an empty value.
     void emitSnapGuide(std::optional<TimelineSnapGuide> guide);
@@ -278,6 +340,12 @@ private:
 
     // Live edge-drag state; empty while no drag is active.
     std::optional<DragState> m_drag{};
+
+    // Live Alt-insert placement state; empty while no insert gesture is active.
+    std::optional<InsertDragState> m_insert_drag{};
+
+    // The Alt-held hover ghost boundary x, or empty when no insert is possible under the pointer.
+    std::optional<float> m_insert_ghost_x{};
 
     // Region index armed by a body press, committed as a selection on click release.
     std::optional<std::size_t> m_pending_select{};

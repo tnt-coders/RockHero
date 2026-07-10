@@ -1,5 +1,6 @@
 #include "tracktion/tone_automation_curve.h"
 
+#include <algorithm>
 #include <string>
 #include <utility>
 #include <vector>
@@ -253,6 +254,24 @@ std::optional<std::string> formatPluginParameterValue(
         text << ' ' << label;
     }
     return text.toStdString();
+}
+
+std::optional<float> parsePluginParameterValue(
+    tracktion::Plugin& plugin, const std::string& param_id, const std::string& text)
+{
+    const tracktion::AutomatableParameter::Ptr parameter =
+        plugin.getAutomatableParameterByID(juce::String{param_id});
+    if (parameter == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    // Exact inverse of formatPluginParameterValue: the parameter interprets the text the way the
+    // plugin parses typed values (hosted parameters route through the plugin's own text-to-value
+    // handler; Tracktion's default falls back to a plain numeric read), then the range normalises
+    // the result. Clamp because plugin parsers may return values outside the automatable range.
+    const float value = parameter->stringToValue(juce::String{text});
+    return std::clamp(parameter->valueRange.convertTo0to1(value), 0.0F, 1.0F);
 }
 
 } // namespace rock_hero::common::audio

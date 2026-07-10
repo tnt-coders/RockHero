@@ -2,6 +2,7 @@
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <cstdlib>
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -58,6 +59,13 @@ struct StubToneAutomation final : public common::audio::IToneAutomation
         const std::string&, const std::string&, const std::string&, float norm_value) const override
     {
         return std::to_string(norm_value);
+    }
+
+    [[nodiscard]] std::expected<float, common::audio::ToneAutomationError> parseParameterValue(
+        const std::string&, const std::string&, const std::string&,
+        const std::string& text) const override
+    {
+        return std::strtof(text.c_str(), nullptr);
     }
 
     std::vector<common::audio::AutomatableParamInfo> parameters;

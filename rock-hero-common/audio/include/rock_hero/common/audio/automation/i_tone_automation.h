@@ -180,6 +180,26 @@ public:
         const std::string& tone_document_ref, const std::string& instance_id,
         const std::string& param_id, float norm_value) const = 0;
 
+    /*!
+    \brief Parses display text into a normalised parameter value.
+
+    The exact inverse of \ref formatParameterValue: the text is interpreted the way the plugin
+    itself parses typed values (hosted plugins route through their own text-to-value handler, with
+    a plain numeric fallback), then normalised and clamped to `[0, 1]`. Used by the automation
+    lanes' typed exact-value entry so a user can enter "-3.5 dB" or "440" in the parameter's own
+    units.
+
+    \param tone_document_ref One of the tone references currently loaded into the live rig.
+    \param instance_id Plugin instance whose parameter parses the text.
+    \param param_id Parameter id within that plugin.
+    \param text Display text to parse, in the parameter's native units.
+    \return The parsed value normalised to `[0, 1]`, or a typed failure when the tone, plugin, or
+            parameter cannot be resolved.
+    */
+    [[nodiscard]] virtual std::expected<float, ToneAutomationError> parseParameterValue(
+        const std::string& tone_document_ref, const std::string& instance_id,
+        const std::string& param_id, const std::string& text) const = 0;
+
 protected:
     /*! \brief Creates the tone automation interface. */
     IToneAutomation() = default;

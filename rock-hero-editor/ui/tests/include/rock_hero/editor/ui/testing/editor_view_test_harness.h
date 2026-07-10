@@ -235,6 +235,14 @@ struct FakeToneAutomation final : public common::audio::IToneAutomation
     {
         return ("[" + juce::String(norm_value, 2) + "]").toStdString();
     }
+
+    // Parses a plain numeric normalised value, the inverse of the "[0.NN]" formatting above.
+    [[nodiscard]] std::expected<float, common::audio::ToneAutomationError> parseParameterValue(
+        const std::string&, const std::string&, const std::string&,
+        const std::string& text) const override
+    {
+        return juce::String{text}.retainCharacters("0123456789.-").getFloatValue();
+    }
 };
 
 /*!
