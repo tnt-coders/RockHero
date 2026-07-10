@@ -1,3 +1,4 @@
+#include <compare>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 
 namespace rock_hero::editor::core
@@ -85,11 +86,11 @@ TEST_CASE("Output gain change calls live rig and marks dirty", "[core][editor-co
     controller.onOutputGainChanged(-12.0);
 
     CHECK(live_rig.set_output_gain_call_count == 1);
-    CHECK(live_rig.current_output_gain.db == -12.0);
+    CHECK(std::is_eq(live_rig.current_output_gain.db <=> -12.0));
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
-    CHECK(final_state->signal_chain.output_gain_db == -12.0);
+    CHECK(std::is_eq(final_state->signal_chain.output_gain_db <=> -12.0));
     CHECK(final_state->undo_label == std::optional<std::string>{"Set Output Gain to -12 dB"});
 }
 
@@ -131,7 +132,7 @@ TEST_CASE("Output gain undo redo restores live rig", "[core][editor-controller]"
     CHECK(live_rig.current_output_gain == common::audio::Gain{-9.0});
     const auto* const redone_state = stateOrNull(view.last_state);
     REQUIRE(redone_state != nullptr);
-    CHECK(redone_state->signal_chain.output_gain_db == -9.0);
+    CHECK(std::is_eq(redone_state->signal_chain.output_gain_db <=> -9.0));
 }
 
 // Verifies that live output gain previews coalesce into one committed undo entry.
@@ -161,7 +162,7 @@ TEST_CASE("Output gain preview commits one undo entry", "[core][editor-controlle
 
     const auto* const preview_state = stateOrNull(view.last_state);
     REQUIRE(preview_state != nullptr);
-    CHECK(preview_state->signal_chain.output_gain_db == -12.0);
+    CHECK(std::is_eq(preview_state->signal_chain.output_gain_db <=> -12.0));
     CHECK_FALSE(preview_state->undo_label.has_value());
     CHECK(live_rig.set_output_gain_call_count == 2);
 
@@ -206,7 +207,7 @@ TEST_CASE("Output gain changes clamp to valid range", "[core][editor-controller]
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
-    CHECK(final_state->signal_chain.output_gain_db == common::audio::minimumGainDb());
+    CHECK(std::is_eq(final_state->signal_chain.output_gain_db <=> common::audio::minimumGainDb()));
 }
 
 // Verifies that output gain is restored from the live rig load result.
@@ -234,7 +235,7 @@ TEST_CASE("Output gain restored from load result", "[core][editor-controller]")
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
-    CHECK(final_state->signal_chain.output_gain_db == -6.0);
+    CHECK(std::is_eq(final_state->signal_chain.output_gain_db <=> -6.0));
 }
 
 // Verifies that output gain resets to default on project close.

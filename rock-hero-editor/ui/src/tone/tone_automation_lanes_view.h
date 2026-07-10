@@ -18,6 +18,7 @@ viewport lays the component out, so the cursor overlay and content height stay a
 
 #include "timeline/cursor_overlay.h"
 
+#include <compare>
 #include <cstdint>
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -347,7 +348,15 @@ private:
         common::core::GridPosition position{};
         double seconds{};
         float norm_value{};
-        friend bool operator==(const GhostPoint& lhs, const GhostPoint& rhs) = default;
+
+        // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
+        // floating members; exact equality is intended.
+        friend bool operator==(const GhostPoint& lhs, const GhostPoint& rhs)
+        {
+            return lhs.lane_index == rhs.lane_index && lhs.position == rhs.position &&
+                   std::is_eq(lhs.seconds <=> rhs.seconds) &&
+                   std::is_eq(lhs.norm_value <=> rhs.norm_value);
+        }
     };
 
     // Applies a pushed state immediately: replaces the model and clears any transient gesture

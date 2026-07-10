@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <compare>
 #include <filesystem>
 #include <fstream>
 #include <juce_audio_formats/juce_audio_formats.h>
@@ -57,7 +58,7 @@ TEST_CASE(
     const std::unique_ptr<juce::AudioFormatReader> reader{formats.createReaderFor(
         common::core::juceFileFromPath(flac))};
     REQUIRE(reader != nullptr);
-    CHECK(reader->sampleRate == sample_rate);
+    CHECK(std::is_eq(reader->sampleRate <=> sample_rate));
     CHECK(static_cast<int>(reader->numChannels) == channels);
     CHECK(reader->lengthInSamples == total_samples);
     // The 16-bit source stays 16-bit rather than being padded out to 24-bit FLAC.

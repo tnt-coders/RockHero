@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <numbers>
 #include <rock_hero/common/core/highway/highway_camera.h>
 
@@ -67,12 +68,12 @@ HighwayMat4 HighwayMat4::identity()
 HighwayMat4 operator*(const HighwayMat4& lhs, const HighwayMat4& rhs)
 {
     HighwayMat4 result{};
-    for (int row = 0; row < 4; ++row)
+    for (std::size_t row = 0; row < 4; ++row)
     {
-        for (int column = 0; column < 4; ++column)
+        for (std::size_t column = 0; column < 4; ++column)
         {
             double sum = 0.0;
-            for (int inner = 0; inner < 4; ++inner)
+            for (std::size_t inner = 0; inner < 4; ++inner)
             {
                 sum += lhs.m[(row * 4) + inner] * rhs.m[(inner * 4) + column];
             }

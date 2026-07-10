@@ -20,24 +20,21 @@ namespace
 // tones receives; never persisted, because capture writes the caller-supplied reference.
 constexpr const char* g_placeholder_tone_ref = "placeholder";
 
-// Maps monitoring rebuild failures into live-rig mutation errors.
+// Maps monitoring rebuild failures into live-rig mutation errors. An if/return chain, not a
+// switch: the translation deliberately maps two specific codes and funnels every other (and
+// future) code into the coarse fallback, which -Wswitch-enum would otherwise force us to
+// re-enumerate on each source-enum addition.
 [[nodiscard]] LiveRigError liveRigErrorFromLiveInputError(const LiveInputError& error)
 {
-    switch (error.code)
+    if (error.code == LiveInputErrorCode::MessageThreadRequired)
     {
-        case LiveInputErrorCode::MessageThreadRequired:
-        {
-            return LiveRigError{LiveRigErrorCode::MessageThreadRequired, error.message};
-        }
-        case LiveInputErrorCode::TrackMissing:
-        {
-            return LiveRigError{LiveRigErrorCode::TrackMissing, error.message};
-        }
-        default:
-        {
-            return LiveRigError{LiveRigErrorCode::MonitoringRouteFailed, error.message};
-        }
+        return LiveRigError{LiveRigErrorCode::MessageThreadRequired, error.message};
     }
+    if (error.code == LiveInputErrorCode::TrackMissing)
+    {
+        return LiveRigError{LiveRigErrorCode::TrackMissing, error.message};
+    }
+    return LiveRigError{LiveRigErrorCode::MonitoringRouteFailed, error.message};
 }
 
 // Sends progress only when the caller provided a progress callback.

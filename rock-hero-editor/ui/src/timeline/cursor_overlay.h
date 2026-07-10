@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <compare>
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <optional>
@@ -32,7 +33,13 @@ struct TimelineSnapGuide
     \param rhs Right-hand snap guide.
     \return True when both guides store equal values.
     */
-    friend bool operator==(const TimelineSnapGuide& lhs, const TimelineSnapGuide& rhs) = default;
+    friend bool operator==(const TimelineSnapGuide& lhs, const TimelineSnapGuide& rhs)
+    {
+        // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
+        // floating member. Exact equality is intended; the ordering query expresses it warning-
+        // free with identical semantics (NaN compares unequal either way).
+        return std::is_eq(lhs.x <=> rhs.x) && lhs.label == rhs.label;
+    }
 };
 
 /*!

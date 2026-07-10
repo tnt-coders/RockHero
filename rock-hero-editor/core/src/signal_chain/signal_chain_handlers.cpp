@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <compare>
 #include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/tone/tone_automation.h>
@@ -155,7 +156,9 @@ void EditorController::Impl::applyOutputGainChange(double gain_db, OutputGainCha
     const common::audio::Gain before_gain =
         m_output_gain_preview_before.value_or(common::audio::Gain{m_output_gain_db});
     const auto gain = common::audio::clampGain(common::audio::Gain{gain_db});
-    const bool needs_live_update = gain.db != m_output_gain_db;
+    // Exact inequality via is_neq keeps -Wfloat-equal builds clean; change detection on the
+    // stored fader value is deliberately exact, not tolerance-based.
+    const bool needs_live_update = std::is_neq(gain.db <=> m_output_gain_db);
 
     if (!needs_live_update)
     {
@@ -293,10 +296,13 @@ void EditorController::Impl::performActionImpl(EditorAction::ScanPluginCatalog /
     m_plugin_scan_cancel = cancel;
     auto report_progress = makePluginCatalogScanProgress(token);
     m_task_runner.submit(
+        // Distinct capture name: clang's -Wshadow-uncaptured-local flags `x = std::move(x)`.
         [state,
          plugin_host = &m_plugin_host,
-         report_progress = std::move(report_progress),
-         cancel] { state->scan_result = plugin_host->scanPluginCatalog(report_progress, cancel); },
+         owned_report_progress = std::move(report_progress),
+         cancel] {
+            state->scan_result = plugin_host->scanPluginCatalog(owned_report_progress, cancel);
+        },
         safeCallback([this, state, token] {
             if (!m_busy.isCurrentToken(token))
             {

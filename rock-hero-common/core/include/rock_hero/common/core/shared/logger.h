@@ -229,6 +229,9 @@ struct Logger
 } // namespace rock_hero::common::core
 
 /*! \brief Internal helper used by normal project logging macros. */
+/* `##__VA_ARGS__` rather than C++20 __VA_OPT__: MSVC's traditional preprocessor (the project
+default; /Zc:preprocessor is not enabled) rejects __VA_OPT__, while every compiler in use
+accepts the ## form for zero-argument expansions. */
 #define RH_DETAIL_LOG(log_macro, category_literal, fmt, ...)                                       \
     do                                                                                             \
     {                                                                                              \

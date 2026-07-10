@@ -24,6 +24,7 @@
 #include <cctype>
 #include <chrono>
 #include <cmath>
+#include <compare>
 #include <cstdint>
 #include <expected>
 #include <functional>
@@ -1166,13 +1167,14 @@ common::audio::PluginCatalogScanProgressCallback EditorController::Impl::
         }
 
         common::audio::PluginCatalogScanProgress progress_snapshot = progress;
+        // Distinct capture name: clang's -Wshadow-uncaptured-local flags `x = std::move(x)`.
         if (!controller->m_busy.postToMessageThread(controller->safeCallback(
-                [controller, token, progress_snapshot = std::move(progress_snapshot)] {
+                [controller, token, owned_progress = std::move(progress_snapshot)] {
                     if (!controller->m_busy.isCurrentToken(token))
                     {
                         return;
                     }
-                    controller->m_busy.updatePluginCatalogScanProgress(progress_snapshot);
+                    controller->m_busy.updatePluginCatalogScanProgress(owned_progress);
                 })))
         {
             return;
@@ -1273,8 +1275,10 @@ void EditorController::Impl::onGridNoteValueChangeRequested(common::core::Fracti
 // dirties project content and bypasses the action gate for the same reason cursor saves do.
 void EditorController::Impl::onTimelineZoomChanged(double pixels_per_second)
 {
+    // Exact-equality skip: is_eq keeps -Wfloat-equal builds clean; unchanged-zoom detection is
+    // deliberately exact, not tolerance-based.
     if (!std::isfinite(pixels_per_second) || pixels_per_second <= 0.0 ||
-        pixels_per_second == m_timeline_zoom_pixels_per_second)
+        std::is_eq(pixels_per_second <=> m_timeline_zoom_pixels_per_second))
     {
         return;
     }
@@ -1863,6 +1867,9 @@ std::optional<std::filesystem::path> EditorController::Impl::currentProjectFile(
 // Builds the message-thread view state from the session and transport state. Current cursor
 // position is only sampled to derive stop enabledness; the view receives discrete mapping state
 // rather than a continuously pushed playhead position.
+namespace
+{
+
 // Labels one arrangement by its part, numbering duplicates ("Rhythm 1", "Rhythm 2") so every
 // switcher entry stays distinguishable.
 [[nodiscard]] std::string arrangementPartLabel(common::core::Part part)
@@ -1928,6 +1935,8 @@ std::optional<std::filesystem::path> EditorController::Impl::currentProjectFile(
 
     return choices;
 }
+
+} // namespace
 
 EditorViewState EditorController::Impl::deriveViewState() const
 {
