@@ -12,6 +12,8 @@ add_executable(
     test_application_identity.cpp
     test_difficulty.cpp
     test_fraction.cpp
+    test_highway_camera.cpp
+    test_highway_projection.cpp
     test_tempo_map.cpp
     test_tone_track_rules.cpp
     test_tone_track_edits.cpp
@@ -20,6 +22,10 @@ add_executable(
     test_juce_path.cpp
     test_logger.cpp
     test_rock_song_package.cpp)
+
+# Let focused projection tests include private implementation headers without making them public
+# API (the audio tests' established pattern).
+target_include_directories(rock_hero_common_core_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../src")
 
 # These tests stay focused on shared domain behavior and native song package rules.
 target_link_libraries(

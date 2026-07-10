@@ -7,6 +7,9 @@ target_sources(
     PRIVATE src/chart/chart_document.cpp
             src/chart/chart_rules.cpp
             src/chart/chart_tokens.cpp
+            src/highway/highway_camera.cpp
+            src/highway/highway_projection.cpp
+            src/highway/highway_projection.h
             src/package/archive_error.cpp
             src/package/package_id.cpp
             src/package/rock_song_package_format.cpp
