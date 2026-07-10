@@ -649,6 +649,14 @@ the one close call (SDL_GPU) trades proven in-repo evidence, D3D11 reach, and an
 pipeline for one fewer dependency, and would need its own spike to tie the confidence bgfx
 already has.
 
+**Future-proofing note (2026-07-10, user question at sign-off):** a classic-GH-style 3D stage
+with an animated band was assessed against this stack and requires no structural change: bgfx's
+altitude (GPU abstraction, not scene system) supports skinned characters/venues/effects; the
+addition would be an animation/asset layer in game-land (e.g. ozz-animation + glTF loading +
+resource-pack `models/`/`animations/`), venue passes behind plan 25's highway views (its
+"background" slot), and — if ever needed — bgfx's native render-thread mode (the L3 escalation
+already recorded). The deferred cost is content authoring, not architecture.
+
 **Gate status: 0a answered (20-Q1: A, by the user). 0b and 0c above are complete with working
 decisions 20-Q2: B (executed), 20-Q3: 1, 20-Q4: A (evidence: S3 clean), 20-Q5: A and 20-Q6: A
 (written recommendations adopted for Phases 1+). STOP — the gate closes only on explicit user
