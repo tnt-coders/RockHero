@@ -657,6 +657,16 @@ resource-pack `models/`/`animations/`), venue passes behind plan 25's highway vi
 "background" slot), and — if ever needed — bgfx's native render-thread mode (the L3 escalation
 already recorded). The deferred cost is content authoring, not architecture.
 
+The full-engine question (Unreal et al.) was asked and answered at the same time: engines are
+disqualified by this project's constitution, not by rendering ability. (1) The live audio core
+(Tracktion/JUCE hosting VST3 on ASIO input at sub-10 ms) cannot ride an engine's audio system
+and would have to be embedded as a hostile guest; (2) Unreal's EULA is incompatible with the
+AGPLv3 that JUCE/Tracktion's zero-cost tier requires, so an engine converts a free stack into
+commercial JUCE + Tracktion licenses; (3) the shared highway-scene seam with the JUCE editor
+preview (the 2026-07-10 twin-track directive) is impossible across an engine boundary. An
+engine becomes right only if the product pivots to presentation-first (story modes, consoles)
+with live audio secondary — a different product, noted here so the shape is on record.
+
 **Gate status: 0a answered (20-Q1: A, by the user). 0b and 0c above are complete with working
 decisions 20-Q2: B (executed), 20-Q3: 1, 20-Q4: A (evidence: S3 clean), 20-Q5: A and 20-Q6: A
 (written recommendations adopted for Phases 1+). STOP — the gate closes only on explicit user
