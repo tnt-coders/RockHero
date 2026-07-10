@@ -45,6 +45,12 @@ const juce::Colour g_path_background{juce::Colour{0xff101318}};
 const juce::Colour g_signal_path_line{juce::Colours::white.withAlpha(0.82f)};
 const juce::Colour g_signal_path_slot_marker{juce::Colours::white.withAlpha(0.12f)};
 
+// Width of the break the signal line leaves at each fixed cell centre, sized to clear the 28 px
+// "+" insert affordance (insert_slot_view.cpp) with a little air so the glyph reads against the
+// dark path surface instead of the bright line. Plugin tiles are far wider than the break, so
+// occupied cells cover their gap entirely.
+constexpr int g_signal_path_node_gap{34};
+
 // Computes the scrollable content width for the signal path. The block count comes from
 // SignalChainBlockLayout, the single owner of the minimum-block-count rule.
 [[nodiscard]] int chainContentWidth(std::size_t block_count, int viewport_width) noexcept
@@ -154,12 +160,26 @@ public:
 
         const int path_y = path_area.getCentreY();
         g.setColour(g_signal_path_line);
-        g.drawLine(
-            static_cast<float>(bounds.getX()),
-            static_cast<float>(path_y),
-            static_cast<float>(bounds.getRight()),
-            static_cast<float>(path_y),
-            3.0f);
+        // The line runs in segments between the fixed cell centres, breaking at each one so the
+        // slot affordances (the "+" insert button and the marker dot) sit on the dark surface
+        // rather than under the bright line.
+        float segment_start = static_cast<float>(bounds.getX());
+        const auto draw_segment = [&g, path_y](float from_x, float to_x) {
+            if (to_x > from_x)
+            {
+                g.drawLine(
+                    from_x, static_cast<float>(path_y), to_x, static_cast<float>(path_y), 3.0f);
+            }
+        };
+        for (std::size_t index = 0; index < block_count; ++index)
+        {
+            const float centre_x =
+                static_cast<float>(blockCellBounds(path_area, index, block_count).getCentreX());
+            const float half_gap = static_cast<float>(g_signal_path_node_gap) / 2.0f;
+            draw_segment(segment_start, centre_x - half_gap);
+            segment_start = std::max(segment_start, centre_x + half_gap);
+        }
+        draw_segment(segment_start, static_cast<float>(bounds.getRight()));
 
         g.setColour(g_signal_path_slot_marker);
         for (std::size_t index = 0; index < block_count; ++index)
