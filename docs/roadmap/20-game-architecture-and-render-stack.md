@@ -590,6 +590,65 @@ Coordination note: docs/roadmap/00-roadmap.md lists plan 25 Phases 1–2 as pre-
 plan 25's own status line waits for full gate sign-off; this seam record fixes the scene-model
 home those phases need, and plan 25's rollback note prices a later home flip as mechanical.
 
+### Stack alternatives analysis (2026-07-10, user-requested before sign-off)
+
+Question: is SDL3+bgfx truly the best choice, considering all alternatives? Method: compare
+against the discriminating requirements — (R1) two render surfaces from one renderer instance
+(standalone game window AND a child HWND inside a JUCE editor preview window, per plan 44);
+(R2) Windows-first with cross-platform-preserving choices (0a memo); (R3) AGPLv3-compatible
+license; (R4) deliverable via Conan under the CLion-CMake/VsDevCmd environment; (R5) build-time
+shader compilation inside the preset build; (R6) modest rendering needs (textured quads,
+perspective, glow, particles — integration cost and stability discriminate, not raw power);
+(R7) gamepad input for plan 26's menus; (R8) message-loop coexistence with JUCE/Tracktion.
+
+**Windowing/input axis:**
+
+- **SDL3** — keep. S1-proven coexistence; the class-leading gamepad subsystem is the reason
+  26-Q3 recommends it; zlib license; Conan-proven.
+- **GLFW** (Conan: glfw/3.4) — lighter, but mapping-table-only gamepad support and no benefit
+  over SDL3 anywhere else. Rejected.
+- **JUCE-window-only** — S2-proven; remains the recorded fallback; lacks gamepad entirely
+  (26-Q3's fallback (c) would apply). Fallback, not primary.
+
+**GPU axis:**
+
+- **bgfx** — keep. S1–S5 proven in this repository; widest backend set (D3D11/D3D12/Vulkan/
+  Metal/GL — broadest Windows hardware reach plus the 0a portability story); Conan recipe with
+  packaged shaderc proven inside the preset build (S4); BSD-2; a decade of shipped-game miles.
+  Known costs, all planned around: its `.sc` shader dialect, bring-your-own text (plan 25's
+  glyph atlas is designed in), one process-wide instance (fine — multi-window uses per-window
+  frame buffers over native handles, the documented bgfx pattern; S2 proved the child-HWND
+  surface half of R1).
+- **SDL_GPU** (ships inside SDL3) — the one credible challenger: would collapse the stack to a
+  single dependency, modern command-buffer API, shipped in production via FNA console titles.
+  Decisive negatives for this project: backends are D3D12/Vulkan/Metal only (no D3D11 — narrower
+  Windows hardware reach than bgfx); the shader toolchain is the separate SDL_shadercross
+  satellite (HLSL/SPIR-V → DXIL/MSL/SPIR-V), which is NOT on Conan Center (verified 2026-07-10)
+  — re-opening exactly the build-graph risk S4 just retired; and rendering into a foreign JUCE
+  child HWND requires wrapping it as an SDL window via creation properties — plausible but
+  unproven here, so reaching bgfx-equivalent confidence costs a second spike (S2/S4 redo) for a
+  dependency-count win and no capability our modest needs use. Rejected for v1; recorded as the
+  natural re-evaluation candidate if bgfx ever stalls.
+- **Diligent Engine** (Conan: diligent-core/2.5.x — verified) — well-documented, native
+  multi-swapchain, Apache-2.0. A heavier C++ framework surface with fewer shipped-game miles
+  than bgfx and zero in-repo evidence; nothing our requirements reward over bgfx. Rejected.
+- **sokol_gfx** (Conan: sokol/cci.20251113) — elegant single-header, but single-context by
+  design: the two-surface requirement (R1) is exactly its weak spot; windowing still needed;
+  sokol-shdc is another external tool binary. Rejected.
+- **wgpu-native / Dawn (WebGPU)** — not on Conan Center (verified 2026-07-10); Dawn is a giant
+  vendored build; the native-layer C API and WGSL toolchain are still churning. Rejected for
+  now; the most likely "in five years" candidate.
+- **The Forge / full engines (Godot et al.) / raw D3D11 / JUCE OpenGL** — rejected respectively
+  for framework weight, loop-and-audio ownership conflicts with Tracktion, the Windows-only
+  commitment 0a option A already rejected, and the GL deprecation trajectory (JUCE GL stays the
+  recorded milestone-0 emergency floor only).
+
+**Conclusion: SDL3 + bgfx stands — now by comparative analysis, not just spike momentum.** The
+decision rule mirrors 22-Q2: adopt an alternative only on a decisive, cited win. None was found;
+the one close call (SDL_GPU) trades proven in-repo evidence, D3D11 reach, and an in-build shader
+pipeline for one fewer dependency, and would need its own spike to tie the confidence bgfx
+already has.
+
 **Gate status: 0a answered (20-Q1: A, by the user). 0b and 0c above are complete with working
 decisions 20-Q2: B (executed), 20-Q3: 1, 20-Q4: A (evidence: S3 clean), 20-Q5: A and 20-Q6: A
 (written recommendations adopted for Phases 1+). STOP — the gate closes only on explicit user
