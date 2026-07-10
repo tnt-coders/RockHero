@@ -93,8 +93,13 @@ bool isCanonicalToneDocumentRef(std::string_view tone_document_ref) noexcept
         return false;
     }
 
-    return isCanonicalPackageId(
-        tone_document_ref.substr(g_tone_document_prefix.size(), g_uuid_length));
+    // remove_prefix/remove_suffix rather than substr: substr's out-of-range check makes it
+    // potentially throwing, which clang-tidy 22 flags inside this noexcept function even though
+    // the size check above rules the throw out.
+    std::string_view uuid = tone_document_ref;
+    uuid.remove_prefix(g_tone_document_prefix.size());
+    uuid.remove_suffix(g_tone_document_suffix.size());
+    return isCanonicalPackageId(uuid);
 }
 
 bool isCanonicalChartDocumentRef(std::string_view chart_document_ref) noexcept
@@ -107,8 +112,13 @@ bool isCanonicalChartDocumentRef(std::string_view chart_document_ref) noexcept
         return false;
     }
 
-    return isCanonicalPackageId(
-        chart_document_ref.substr(g_chart_document_prefix.size(), g_uuid_length));
+    // remove_prefix/remove_suffix rather than substr: substr's out-of-range check makes it
+    // potentially throwing, which clang-tidy 22 flags inside this noexcept function even though
+    // the size check above rules the throw out.
+    std::string_view uuid = chart_document_ref;
+    uuid.remove_prefix(g_chart_document_prefix.size());
+    uuid.remove_suffix(g_chart_document_suffix.size());
+    return isCanonicalPackageId(uuid);
 }
 
 } // namespace rock_hero::common::core
