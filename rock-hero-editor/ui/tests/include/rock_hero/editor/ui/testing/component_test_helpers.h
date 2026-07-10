@@ -26,9 +26,9 @@ namespace rock_hero::editor::ui::testing
         return &parent;
     }
 
-    // Accumulator shape rather than an if-init local: clang-tidy 21's misc-const-correctness
-    // misses the non-const return propagation and demands a pointee-const that would not
-    // compile; a genuinely reassigned local sidesteps the false positive on every version.
+    // clang-tidy 21's misc-const-correctness pointee analysis cannot see that this pointer
+    // escapes through the non-const return and demands a pointee-const that would not compile;
+    // the false positive is fixed in clang-tidy 22, which CI and local tooling pin.
     juce::Component* matched_child = nullptr;
     for (int index = 0; index < parent.getNumChildComponents() && matched_child == nullptr; ++index)
     {

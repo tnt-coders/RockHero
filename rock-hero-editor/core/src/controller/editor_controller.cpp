@@ -1901,7 +1901,9 @@ namespace
     const std::vector<common::core::Arrangement>& arrangements, const std::string& current_id)
 {
     std::vector<std::size_t> display_order(arrangements.size());
-    std::ranges::iota(display_order, std::size_t{0});
+    // std::iota, not std::ranges::iota: Apple's libc++ has not implemented the C++23 ranges
+    // version, and macOS CI builds against it.
+    std::iota(display_order.begin(), display_order.end(), std::size_t{0});
     std::ranges::stable_sort(display_order, {}, [&arrangements](std::size_t index) {
         return static_cast<int>(arrangements[index].part);
     });

@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <compare>
 
 namespace rock_hero::common::core
 {
@@ -154,7 +155,10 @@ the fret axis through the nut, as pure math the renderer never sees.
 {
     const double multiplier = metrics.fret_length_multiplier;
     double x = 0.0;
-    if (multiplier == 1.0)
+    // Exact comparison on purpose: the geometric-series branch divides by (1 - multiplier), so
+    // only the exact value 1.0 must take the linear branch. is_eq keeps GCC's -Wfloat-equal
+    // satisfied that the exactness is intended.
+    if (std::is_eq(multiplier <=> 1.0))
     {
         x = static_cast<double>(fret) * metrics.first_fret_distance;
     }

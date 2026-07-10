@@ -137,7 +137,10 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
     const HighwayNoteView& harmonic = state.notes[3];
     CHECK(harmonic.harmonic == NoteHarmonic::Natural);
     REQUIRE(harmonic.touch.has_value());
-    CHECK(*harmonic.touch == Catch::Approx(3.2));
+    if (harmonic.touch.has_value())
+    {
+        CHECK(*harmonic.touch == Catch::Approx(3.2));
+    }
 
     REQUIRE(state.shapes.size() == 2);
     CHECK(state.shapes[0].name == "F5");

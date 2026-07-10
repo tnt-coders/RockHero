@@ -2,6 +2,7 @@
 #include "shared/editor_controller_logging.h"
 
 #include <cassert>
+#include <cmath>
 #include <initializer_list>
 #include <rock_hero/common/core/tone/tone_track_normalize.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
