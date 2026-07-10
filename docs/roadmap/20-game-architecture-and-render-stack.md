@@ -1,7 +1,8 @@
 # Plan 20 — Game Architecture and Render Stack
 
-**Status: Decision-gated — Phase 0a recorded (20-Q1: A, 2026-07-09); Phase 0b spike in
-progress** | Date: 2026-07-09 | Baseline: `work-in-progress @ 39aa1168`
+**Status: Decision-gated at STOP — Phases 0a–0c executed and recorded in the Gate record;
+G20-RENDER awaits explicit user sign-off** | Date: 2026-07-10 | Baseline:
+`work-in-progress @ 050f884e` (spike evidence on `spike/render-stack @ 049c898c`)
 
 This plan is the structural gate for all game-side work. Phases 0a–0c form the decision gate; no
 phase after the gate — and no dependent plan (docs/roadmap/25-note-highway-3d.md,
@@ -502,13 +503,96 @@ abstraction *choices*, not by CI legs.
 Working decision taken to run the spike (final sign-off at the gate STOP with 0b/0c): 20-Q2 = B —
 spike SDL3+bgfx as primary plus the JUCE-window+bgfx fallback branch.
 
-### 0b — Render-stack spike findings: PENDING
+### 0b — Render-stack spike findings (2026-07-10, spike/render-stack @ 049c898c)
 
-(S1–S6 findings table, chosen stack + loop option, juce-tracktion-expert citations — filled by
-Phase 0b.)
+Stack under test: Conan `sdl/3.4.8` + `bgfx/1.129.8930-495` (tools=True), Direct3D 11, vsync ON,
+single-threaded bgfx (renderFrame-before-init), against the real `common::audio::Engine` playing
+generated audio through the machine's ASIO interface (NeuralDSP USB, 48kHz/128). Spike code
+stays on the throwaway branch; only this write-up merges.
 
-### 0c — Renderer-sharing seam: PENDING
+**Loop-option enumeration (source-verified via juce-tracktion-expert):**
 
-(Working assumption while pre-gate work proceeds: Option 1 — headless scene model in
-rock-hero-common/core, thin per-product render backends. Confirmed against S2 evidence at gate
-closure; design-doc update confirmation and game-render-expert agent creation recorded here.)
+- **L1 — JUCE owns the loop.** Frame ticks are queue-delivered: Timer floor 1 ms, batch-fired,
+  one in-flight timer message (juce_Timer.cpp:83-180); VBlankAttachment exists but requires an
+  on-screen JUCE-component peer (juce_VBlankAttachment.h:44-98, juce_VBlank_windows.cpp:116-152)
+  so it cannot tick an SDL-window scene. A continuous self-post chain starves WM_PAINT (JUCE's
+  pump is an uncompensated GetMessage loop, juce_Messaging_windows.cpp:114-156 — matches the
+  project's prior callAsync finding). MEASURED (11-min soak, Timer@1ms tick): 94,853 frames,
+  avg 6.96 ms (144 Hz vsync), max 502 ms (one-off, during live plugin instantiation), 4 frames
+  >20 ms; heartbeat max gap 309 ms (same event); 0 transport regressions; drift 37.6 ms/11 min;
+  VST editor opened mid-soak and took focus (foreground="Gateway").
+- **L2 — SDL owns main().** `initialiseJuce_GUI()` is just `MessageManager::getInstance()` and
+  binds the calling thread (juce_MessageManager.cpp:38-45, 457-463). The canonical non-blocking
+  pump primitive `juce::detail::dispatchNextMessageOnSystemQueue(true)` has no public header but
+  is forward-declared by JUCE's own cross-module consumers (juce_FileChooser_windows.cpp:41,94);
+  a bounded per-frame drain is mechanically JUCE's own modal-pump pattern.
+  `runDispatchLoopUntil` is compiled out (`JUCE_MODAL_LOOPS_PERMITTED=0` default,
+  juce_PlatformDefs.h:321-329). JUCE message delivery does not require JUCE's pump (hidden-window
+  wndproc drains the internal queue, juce_Messaging_windows.cpp:160-171). Degradation at 60 Hz
+  pumping is latency-only: queued messages wait ≤ one frame; `callBlocking` rendezvous stalls ≤
+  one frame (tracktion_AsyncFunctionUtils.h:159-232). MEASURED (11-min soak): 94,852 frames,
+  avg 6.96 ms, max 538 ms (plugin instantiation), 8 frames >20 ms; heartbeat max gap 346 ms
+  (same event); 0 transport regressions; drift 38.8 ms/11 min; max per-frame queue drain 3
+  messages; VST editor opened mid-soak (focus evidence from the L1 run and shakedowns:
+  foreground="Gateway").
+- **L3 — dedicated render thread.** Not prototyped: message-thread submission already sustains
+  144 Hz with audio playing and a live plugin window, so L3's added thread-affinity risk buys
+  nothing for milestone 0. Reopen only if profiling shows submission starving the message thread.
+
+**Audio-safety fundamental (why loop choice cannot glitch audio):** playback is audio-thread
+self-contained — the device callback fills the graph under a shared_lock and advances the
+playhead with atomic stores (tracktion_DeviceManager.cpp:1491-1598,
+tracktion_EditPlaybackContext.cpp:935-937, tracktion_PlayHead.h:166-373); Tracktion's
+message-thread work is ≤50 Hz state reconciliation (tracktion_TransportControl.cpp:704,
+1049-1109). Confirmed empirically: both soaks played through live plugin insertion with zero
+transport regressions.
+
+**Criteria results:**
+
+| # | Criterion | Result | Evidence |
+|---|---|---|---|
+| S1 | Coexistence soak | **PASS** (both loop options) | Two 11-minute soaks (numbers above): audio + 400-cube scene at 144 Hz + heartbeat + live VST editor window with focus transfer; zero transport regressions; drift ≈0.006% (steady-vs-audio clock skew, absorbed by plan 12's extrapolator). ASIO device does not report xrun counts (getXRunCount() = -1) — dropout evidence is transport monotonicity + drift + heartbeat continuity. |
+| S2 | bgfx in a JUCE child HWND | **PASS** (DPI not exercised) | 3-minute run, 25,852 frames into a raw Win32 child of a JUCE DocumentWindow, VBlankAttachment-driven; survived two programmatic resizes (2 bgfx resets), minimize/restore, and 1,021 JUCE panel paints alongside (paints not starved); no device loss, no crash. Single monitor at scale 1.0 — DPI-change behavior not exercised; re-check when plan 44 lands its preview window. |
+| S3 | Conan delivery under repo presets | **PASS** | Both recipes resolve from Conan Center into the per-preset caches. No prebuilt binaries for msvc/195/Debug → one-time source build ≈ 6.5 min local (13-package graph incl. miniz/tinyexr/libsquish); `tools=True` builds and packages shaderc.exe. Caveats: (1) classic CMakeDeps declares no executable targets for packaged tools (recipe documents a CMakeConfigDeps requirement), so bgfxToolUtils.cmake's helpers self-disable — production wiring adopts CMakeConfigDeps or an IMPORTED-executable shim; (2) `conan download --only-recipe` into a live per-preset cache corrupts later source fetches (s.dirty) — avoid, or `conan remove` first. |
+| S4 | shaderc in the CMake graph | **PASS** | Spike .sc pair + varying.def compiled at build time via add_custom_command (s_5_0 / D3D11 profile) using the packaged shaderc located via find_program off the exported BGFX_SHADER_INCLUDE_PATH; outputs deployed exe-relative; the soak scene renders from them through the build helper. Adding profiles later is a list edit (0a memo requirement met). |
+| S5 | Headless CI path | **PASS** | `spike_render_tests` (Catch2): bgfx init(Noop) with no GPU/window/platform data + 4 frames + clean shutdown; discovered and run by `-RunTouchedTests`. Re-implemented properly as the first real game/ui test in Phase 1. |
+| S6 | Measured CI cost | **PARTIAL** (local numbers; CI follow-up flagged) | Local: baseline configure 15 s (warm); one-time dependency source build ≈ 390 s wall; post-cache configures return to baseline. CI runs external reusable workflows (tnt-coders/ci-workflows) — their Conan-cache behavior must be confirmed at Phase 1: without a `.conan2` cache step every CI run pays the full source build (est. 20–40 min hosted-runner class). |
+
+**Integration findings (recorded so later phases never re-learn them):**
+
+1. Transport verbs issued before the message loop has run after engine setup do not take; a
+   play() issued from the running loop works immediately. Game shells start playback after the
+   loop is live — non-issue in production, footgun in tests/tools.
+2. The plugin chain lives inside the multi-tone live rig: `insertPlugin` without a loaded rig
+   fails (no audible branch). Minimal path: `mintEmptyTone` → `loadLiveRig` (async, completes
+   via the pump) → insert works.
+3. Tear the rig down through `clearLiveRig()` while the pump still runs; letting an open plugin
+   editor window die inside `~Engine()` after SDL/bgfx teardown crashed (0xC0000005).
+4. With no `JUCEApplication` instance, JUCE's pump consumes WM_QUIT silently — quit handling is
+   the shell's job under L2. JUCE modality swallows input aimed at non-JUCE HWNDs while a JUCE
+   modal is up (juce_Windowing_windows.cpp:2182-2241).
+5. bgfx stays single-threaded via renderFrame-before-init even though the Conan package compiles
+   BGFX_CONFIG_MULTITHREADED=1.
+
+**Recommended stack + loop option: SDL3 + bgfx with loop option L2 (SDL owns main; bounded JUCE
+queue drain per frame).** Both loop options measured equivalently here, so the choice rests on
+the structural facts: L2 owns frame pacing directly, does not funnel ticks through the timer
+queue, and makes quit/input ownership explicit; L1 remains a proven fallback, and the S2
+child-HWND path is proven for plan 44's editor preview.
+
+### 0c — Renderer-sharing seam (2026-07-10): **Option 1** (working decision, pending sign-off)
+
+Headless highway scene model in `rock-hero-common/core` (`highway/` feature), thin per-product
+render backends; bgfx never enters common. S2's pass keeps Option 2 technically alive, but
+Option 1 stands on the layering argument (constraint (a), architectural-principles "Core
+Position") independent of spike evidence, and it is what makes plan 44's preview cheap.
+Coordination note: docs/roadmap/00-roadmap.md lists plan 25 Phases 1–2 as pre-gate work while
+plan 25's own status line waits for full gate sign-off; this seam record fixes the scene-model
+home those phases need, and plan 25's rollback note prices a later home flip as mechanical.
+
+**Gate status: 0a answered (20-Q1: A, by the user). 0b and 0c above are complete with working
+decisions 20-Q2: B (executed), 20-Q3: 1, 20-Q4: A (evidence: S3 clean), 20-Q5: A and 20-Q6: A
+(written recommendations adopted for Phases 1+). STOP — the gate closes only on explicit user
+sign-off of this record. Gate-closure actions still pending: amend docs/design/architecture.md
+(Technology Stack / Game View / Threading Model) to the proven outcome (user confirmation
+required), and create .claude/agents/game-render-expert.md seeded with these findings.**
