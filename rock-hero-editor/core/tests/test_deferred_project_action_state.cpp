@@ -144,7 +144,10 @@ TEST_CASE(
 
     const std::optional<EditorAction::ProjectAction> replay = state.takeReplay();
     REQUIRE(replay.has_value());
-    CHECK(idOf(*replay) == EditorActionId::OpenProject);
+    if (replay.has_value())
+    {
+        CHECK(idOf(*replay) == EditorActionId::OpenProject);
+    }
 }
 
 // Choosing Discard releases the deferred action for controller-side replay and clears prompts.
@@ -193,7 +196,10 @@ TEST_CASE(
     std::optional<EditorAction::ProjectAction> replay = state.takeReplay();
 
     REQUIRE(replay.has_value());
-    CHECK(idOf(*replay) == EditorActionId::CloseProject);
+    if (replay.has_value())
+    {
+        CHECK(idOf(*replay) == EditorActionId::CloseProject);
+    }
     CHECK_FALSE(state.hasDeferredAction());
     CHECK_FALSE(state.takeReplay().has_value());
 }

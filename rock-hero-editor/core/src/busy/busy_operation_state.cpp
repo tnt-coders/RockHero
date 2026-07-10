@@ -96,7 +96,9 @@ bool BusyOperationState::beginLiveRigLoadProgress()
 
 bool BusyOperationState::setLiveRigLoadProgress(std::string message, double fraction)
 {
-    if (!isBusy() || *m_operation != BusyOperation::LoadingLiveRig)
+    // Spelled as has_value() rather than isBusy() (which is the same check) so the guarded
+    // dereference is visible to clang-tidy's optional tracking.
+    if (!m_operation.has_value() || *m_operation != BusyOperation::LoadingLiveRig)
     {
         return false;
     }
@@ -110,7 +112,9 @@ bool BusyOperationState::setLiveRigLoadProgress(std::string message, double frac
 
 bool BusyOperationState::setPluginCatalogScanProgress(std::string message, double fraction)
 {
-    if (!isBusy() || *m_operation != BusyOperation::ScanningPlugins)
+    // Spelled as has_value() rather than isBusy() (which is the same check) so the guarded
+    // dereference is visible to clang-tidy's optional tracking.
+    if (!m_operation.has_value() || *m_operation != BusyOperation::ScanningPlugins)
     {
         return false;
     }

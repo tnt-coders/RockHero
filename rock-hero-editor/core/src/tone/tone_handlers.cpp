@@ -744,7 +744,7 @@ void EditorController::Impl::reloadLiveRigForToneSet(std::string select_region_i
     if (!m_project.has_value() || !m_project_audio_ready)
     {
         // No live rig to reload yet; the model already holds the tone. Select it and refresh.
-        applyToneSelection(std::move(select_region_id));
+        applyToneSelection(select_region_id);
         updateView();
         return;
     }
@@ -758,7 +758,7 @@ void EditorController::Impl::reloadLiveRigForToneSet(std::string select_region_i
         reportError(
             std::string{"Could not capture the current tones before reloading: "} +
             captured.error().message);
-        applyToneSelection(std::move(select_region_id));
+        applyToneSelection(select_region_id);
         updateView();
         return;
     }
@@ -769,7 +769,9 @@ void EditorController::Impl::reloadLiveRigForToneSet(std::string select_region_i
         ProjectLoadLiveRigStage{
             .token = token,
             .song_directory = currentSongDirectory(),
-            .finish = [this, select_region_id](
+            // The by-value parameter is consumed here: moving it into the capture keeps the
+            // capture construction non-throwing and gives the completion its own copy for free.
+            .finish = [this, owned_region_id = std::move(select_region_id)](
                           std::expected<void, common::audio::LiveRigError> rig_result) {
                 if (!rig_result.has_value())
                 {
@@ -779,7 +781,7 @@ void EditorController::Impl::reloadLiveRigForToneSet(std::string select_region_i
                     updateView();
                     return;
                 }
-                applyToneSelection(select_region_id);
+                applyToneSelection(owned_region_id);
                 finishBusyOperation();
                 updateView();
             },
@@ -935,7 +937,7 @@ void EditorController::Impl::rebuildToneAutomationCurves()
         return;
     }
 
-    EditorEditContext context = editContext();
+    const EditorEditContext context = editContext();
     for (const common::core::ToneParameterAutomation& entry : arrangement->tone_automation)
     {
         const auto binding = m_tone_plugin_bindings.find(entry.plugin_id);
@@ -1010,7 +1012,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetToneAutoma
         return;
     }
 
-    EditorEditContext context = editContext();
+    const EditorEditContext context = editContext();
     if (!applyToneAutomationModel(
             m_session, identity->second.plugin_id, action.param_id, action.points))
     {

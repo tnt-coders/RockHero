@@ -68,8 +68,11 @@ void commitUndo(EditorUndoHistory& history)
 {
     EditorUndoBeginResult begin = history.beginUndo();
     REQUIRE(begin.pending.has_value());
-    const EditorUndoTransitionResult commit = history.commit(*begin.pending);
-    REQUIRE(commit.status == EditorUndoTransitionStatus::Applied);
+    if (begin.pending.has_value())
+    {
+        const EditorUndoTransitionResult commit = history.commit(*begin.pending);
+        REQUIRE(commit.status == EditorUndoTransitionStatus::Applied);
+    }
 }
 
 // Commits the next redo transition for tests focused on post-redo state.
@@ -77,8 +80,11 @@ void commitRedo(EditorUndoHistory& history)
 {
     EditorUndoBeginResult begin = history.beginRedo();
     REQUIRE(begin.pending.has_value());
-    const EditorUndoTransitionResult commit = history.commit(*begin.pending);
-    REQUIRE(commit.status == EditorUndoTransitionStatus::Applied);
+    if (begin.pending.has_value())
+    {
+        const EditorUndoTransitionResult commit = history.commit(*begin.pending);
+        REQUIRE(commit.status == EditorUndoTransitionStatus::Applied);
+    }
 }
 
 // Returns true when a transition result contains the requested event type.
@@ -170,15 +176,15 @@ TEST_CASE("EditorUndoHistory commits undo and redo in two phases", "[core][edito
     {
         REQUIRE(undo.pending->edit != nullptr);
         CHECK(undo.pending->edit->label() == "Second");
+        CHECK(undo.result.status == EditorUndoTransitionStatus::Pending);
+        CHECK(history.undoDepth() == 2);
+        CHECK(history.redoDepth() == 0);
+
+        const EditorUndoTransitionResult undo_commit = history.commit(*undo.pending);
+
+        CHECK(undo_commit.status == EditorUndoTransitionStatus::Applied);
+        CHECK(hasEvent(undo_commit, EditorUndoEventType::UndoCommitted));
     }
-    CHECK(undo.result.status == EditorUndoTransitionStatus::Pending);
-    CHECK(history.undoDepth() == 2);
-    CHECK(history.redoDepth() == 0);
-
-    const EditorUndoTransitionResult undo_commit = history.commit(*undo.pending);
-
-    CHECK(undo_commit.status == EditorUndoTransitionStatus::Applied);
-    CHECK(hasEvent(undo_commit, EditorUndoEventType::UndoCommitted));
     CHECK(history.undoDepth() == 1);
     CHECK(history.redoDepth() == 1);
     CHECK(history.redoLabel() == std::optional<std::string>{"Second"});
@@ -189,14 +195,14 @@ TEST_CASE("EditorUndoHistory commits undo and redo in two phases", "[core][edito
     {
         REQUIRE(redo.pending->edit != nullptr);
         CHECK(redo.pending->edit->label() == "Second");
+        CHECK(history.undoDepth() == 1);
+        CHECK(history.redoDepth() == 1);
+
+        const EditorUndoTransitionResult redo_commit = history.commit(*redo.pending);
+
+        CHECK(redo_commit.status == EditorUndoTransitionStatus::Applied);
+        CHECK(hasEvent(redo_commit, EditorUndoEventType::RedoCommitted));
     }
-    CHECK(history.undoDepth() == 1);
-    CHECK(history.redoDepth() == 1);
-
-    const EditorUndoTransitionResult redo_commit = history.commit(*redo.pending);
-
-    CHECK(redo_commit.status == EditorUndoTransitionStatus::Applied);
-    CHECK(hasEvent(redo_commit, EditorUndoEventType::RedoCommitted));
     CHECK(history.undoDepth() == 2);
     CHECK(history.redoDepth() == 0);
 }
@@ -216,12 +222,14 @@ TEST_CASE("EditorUndoHistory aborts recoverable failures", "[core][editor-undo-h
         pushEntry(history, "Edit");
         EditorUndoBeginResult undo = history.beginUndo();
         REQUIRE(undo.pending.has_value());
+        if (undo.pending.has_value())
+        {
+            const EditorUndoTransitionResult result = history.abort(*undo.pending, failure_code);
 
-        const EditorUndoTransitionResult result = history.abort(*undo.pending, failure_code);
-
-        CHECK(result.status == EditorUndoTransitionStatus::NonCommitFailure);
-        CHECK(result.failure_code == failure_code);
-        CHECK_FALSE(result.requires_fault);
+            CHECK(result.status == EditorUndoTransitionStatus::NonCommitFailure);
+            CHECK(result.failure_code == failure_code);
+            CHECK_FALSE(result.requires_fault);
+        }
         CHECK_FALSE(history.hasPendingTransition());
         CHECK(history.undoDepth() == 1);
         CHECK(history.redoDepth() == 0);
@@ -237,14 +245,16 @@ TEST_CASE("EditorUndoHistory reports rollback contract faults", "[core][editor-u
     pushEntry(history, "Edit");
     EditorUndoBeginResult undo = history.beginUndo();
     REQUIRE(undo.pending.has_value());
+    if (undo.pending.has_value())
+    {
+        const EditorUndoTransitionResult result =
+            history.abort(*undo.pending, EditorUndoFailureCode::RollbackContractViolation);
 
-    const EditorUndoTransitionResult result =
-        history.abort(*undo.pending, EditorUndoFailureCode::RollbackContractViolation);
-
-    CHECK(result.status == EditorUndoTransitionStatus::NonCommitFailure);
-    CHECK(result.failure_code == EditorUndoFailureCode::RollbackContractViolation);
-    CHECK(result.requires_fault);
-    CHECK(hasEvent(result, EditorUndoEventType::TransitionAborted));
+        CHECK(result.status == EditorUndoTransitionStatus::NonCommitFailure);
+        CHECK(result.failure_code == EditorUndoFailureCode::RollbackContractViolation);
+        CHECK(result.requires_fault);
+        CHECK(hasEvent(result, EditorUndoEventType::TransitionAborted));
+    }
     CHECK_FALSE(history.hasPendingTransition());
     CHECK(history.undoDepth() == 1);
     CHECK(history.redoDepth() == 0);

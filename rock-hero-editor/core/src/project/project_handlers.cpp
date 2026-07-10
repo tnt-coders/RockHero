@@ -904,10 +904,15 @@ void EditorController::Impl::performActionImpl(const EditorAction::SelectArrange
         return;
     }
 
+    // Bound once behind the has_value guard above: nothing in this function touches the project
+    // optional, and the named reference keeps that guarantee visible to clang-tidy's optional
+    // tracking across the calls below.
+    const Project& project = *m_project;
+
     // Capture the outgoing arrangement's rig into its tone files so switching back restores any
     // unsaved tone edits; the capture also flushes pending plugin state.
     common::core::Song song = session().song();
-    if (const auto captured = captureLiveRigToDisk(*m_project); !captured.has_value())
+    if (const auto captured = captureLiveRigToDisk(project); !captured.has_value())
     {
         reportError(
             std::string{"Could not capture the current arrangement's tones: "} +
@@ -923,7 +928,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::SelectArrange
     m_project_audio_ready = false;
 
     if (const auto loaded = loadSessionSong(
-            std::move(song), songDirectoryForProject(*m_project), action.arrangement_id);
+            std::move(song), songDirectoryForProject(project), action.arrangement_id);
         !loaded.has_value())
     {
         // The session commit only happens after the backend accepts the arrangement, so a
@@ -946,7 +951,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::SelectArrange
     runLiveRigLoadStage(
         ProjectLoadLiveRigStage{
             .token = token,
-            .song_directory = songDirectoryForProject(*m_project),
+            .song_directory = songDirectoryForProject(project),
             .finish = [this](std::expected<void, common::audio::LiveRigError> rig_result) {
                 if (!rig_result.has_value())
                 {

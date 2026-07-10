@@ -48,7 +48,12 @@ namespace
     std::optional<SignalChainBlockPlacement> built =
         SignalChainBlockPlacement::fromIndices(std::move(blocks), block_count);
     REQUIRE(built.has_value());
-    return *built;
+    if (built.has_value())
+    {
+        return std::move(*built);
+    }
+    // Unreachable fallback: the REQUIRE above aborts the test when the indices are invalid.
+    return SignalChainBlockPlacement::compact(0, block_count);
 }
 
 // Starts a test from a gapped layout through the public drop path: a drop whose destination equals
@@ -75,7 +80,10 @@ void previewDrop(
     std::optional<SignalChainBlockLayout::DropIntent> intent =
         layout.dropIntent(source_index, target_block_index);
     REQUIRE(intent.has_value());
-    REQUIRE(layout.previewMove(source_index, std::move(*intent)));
+    if (intent.has_value())
+    {
+        REQUIRE(layout.previewMove(source_index, std::move(*intent)));
+    }
     CHECK(layout.activePlacement().blocks() == expected_blocks);
 }
 

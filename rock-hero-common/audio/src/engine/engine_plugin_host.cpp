@@ -6,6 +6,7 @@
 #include "tracktion/plugin_dirty_tracking.h"
 #include "tracktion/plugin_state_hygiene.h"
 
+#include <algorithm>
 #include <chrono>
 #include <exception>
 #include <rock_hero/common/core/shared/juce_path.h>
@@ -264,19 +265,16 @@ std::expected<std::vector<PluginCandidate>, PluginHostError> Engine::Impl::
     }
 }
 
+// Finds the manager-owned VST3 format; null when VST3 support is not registered.
 juce::AudioPluginFormat* Engine::Impl::vst3PluginFormat() const
 {
     constexpr auto* vst3_format_name = "VST3";
-    for (juce::AudioPluginFormat* const format :
-         m_engine->getPluginManager().pluginFormatManager.getFormats())
-    {
-        if (format != nullptr && format->getName() == vst3_format_name)
-        {
-            return format;
-        }
-    }
-
-    return nullptr;
+    const juce::Array<juce::AudioPluginFormat*> formats =
+        m_engine->getPluginManager().pluginFormatManager.getFormats();
+    const auto found = std::ranges::find_if(formats, [&](const juce::AudioPluginFormat* format) {
+        return format != nullptr && format->getName() == vst3_format_name;
+    });
+    return found != formats.end() ? *found : nullptr;
 }
 
 juce::File Engine::Impl::pluginScanDeadMansPedalFile() const
