@@ -1,6 +1,7 @@
 # Plan 20 — Game Architecture and Render Stack
 
-**Status: Decision-gated** | Date: 2026-07-06 | Baseline: `refactor @ 3c7febe0`
+**Status: Decision-gated — Phase 0a recorded (20-Q1: A, 2026-07-09); Phase 0b spike in
+progress** | Date: 2026-07-09 | Baseline: `work-in-progress @ 39aa1168`
 
 This plan is the structural gate for all game-side work. Phases 0a–0c form the decision gate; no
 phase after the gate — and no dependent plan (docs/roadmap/25-note-highway-3d.md,
@@ -81,11 +82,13 @@ Verified by direct inspection of the tree:
   quill/11.1.0, ogg/1.3.5, vorbis/1.3.7. **No SDL3, no bgfx, anywhere in the build.** JUCE +
   Tracktion come from the `external/tracktion_engine/` submodule; per-preset Conan caches live at
   `build/<preset>/.conan2`.
-- `rock-hero-common/audio/include/rock_hero/common/audio/engine/engine.h:57-64` — `Engine`
+- `rock-hero-common/audio/include/rock_hero/common/audio/engine/engine.h:59-67` — `Engine`
   implements `ITransport`, `ISongAudio`, `IAudioDeviceConfiguration`, `IAudioMeterSource`,
-  `IPluginHost`, `ILiveInput`, `ILiveRig`, `IThumbnailFactory`. Header doc (lines 44-47): "Most
-  public methods must be called on the message thread" — the game process must keep a live JUCE
-  message thread for Tracktion regardless of who owns the frame loop.
+  `IPluginHost`, `ILiveInput`, `ILiveRig`, `IToneAutomation`, `IThumbnailFactory` (correction
+  2026-07-09: `IToneAutomation` added by the tone-automation work; line numbers refreshed).
+  Header doc (lines 46-49): "Most public methods must be called on the message thread" — the game
+  process must keep a live JUCE message thread for Tracktion regardless of who owns the frame
+  loop.
 - `docs/design/architecture.md` — "Technology Stack" table lists "Game rendering | SDL3 + bgfx"
   as target; "Game View" section states "SDL is initialized without its own event pump. SDL
   events are polled manually from JUCE's message loop"; "Threading Model" defines audio /
@@ -104,7 +107,10 @@ Verified by direct inspection of the tree:
 - No game test targets exist yet (`rock-hero-game/*/tests/` absent); the architecture docs
   reserve them.
 
-Verified against code on 2026-07-06, refactor @ 3c7febe0.
+Verified against code on 2026-07-06, refactor @ 3c7febe0. Re-verified for Phase 0a on
+2026-07-09, work-in-progress @ 39aa1168 (corrections: engine.h interface list and line
+references above; all other claims confirmed unchanged — `main.cpp` shell, game placeholder
+libs, `conanfile.txt` contents, app CMake resource registration).
 
 ## 5. Dependencies
 
@@ -466,6 +472,43 @@ docs/roadmap/00-roadmap.md's gate row for plans 21/25/44 flipped to unblocked.
 
 ## Gate record
 
-(To be filled at gate closure: 0a platform-scope answer; 0b findings table with S1–S6
-measurements, chosen stack + loop option, juce-tracktion-expert citations; 0c seam choice;
-design-doc update confirmation; game-render-expert agent creation note.)
+### 0a — Platform scope (20-Q1): **A — Windows-first, cross-platform-preserving**
+
+Answered by the user on 2026-07-09: no multi-platform CI now; dependencies come through Conan
+recipes that are cross-platform from the start, so portability is preserved by dependency and
+abstraction *choices*, not by CI legs.
+
+- **Target platforms.** Windows 10/11 x64 is the only shipped and tested platform now. Linux and
+  macOS remain future targets preserved by choice-discipline: candidate stacks must be
+  cross-platform-capable (SDL3, bgfx, and JUCE all are), portable layers take no Win32-direct
+  dependencies (Win32 specifics stay in adapter files, the way ASIO already sits behind
+  common/audio), and render dependencies arrive through multi-platform Conan recipes. The Linux
+  `.desktop`/icon-theme registration already in `rock-hero-game/app/CMakeLists.txt` stays.
+- **Per-OS renderer backends that must work now.** bgfx Direct3D 11 on Windows (bgfx's most
+  mature backend) is the required, proven backend. Backend selection stays an init-time choice
+  (native bgfx capability), so Vulkan can be evaluated later without a build-graph change. The
+  shaderc pipeline (criterion S4) must be structured so adding compiled shader profiles (spirv,
+  metal, glsl) later is a profile-list edit, not a redesign; only the D3D11 (`s_5_0`) profile
+  must compile and ship now.
+- **What CI must prove.** The existing Windows CI leg remains the only leg. It must configure and
+  build with the new render dependencies (S3 records recipe viability, S6 the wall-clock cost)
+  and run all tests GPU-less and window-less via bgfx's Noop renderer (S5). No Linux/macOS CI
+  until there are users there; cross-platform preservation is enforced by review against this
+  memo.
+- **Feed into 0b criteria.** Cross-platform *capability* is a hard criterion for any candidate
+  stack (rules out D3D-only render designs and Win32-only loop designs in portable layers);
+  cross-platform *testing* is explicitly not a criterion.
+
+Working decision taken to run the spike (final sign-off at the gate STOP with 0b/0c): 20-Q2 = B —
+spike SDL3+bgfx as primary plus the JUCE-window+bgfx fallback branch.
+
+### 0b — Render-stack spike findings: PENDING
+
+(S1–S6 findings table, chosen stack + loop option, juce-tracktion-expert citations — filled by
+Phase 0b.)
+
+### 0c — Renderer-sharing seam: PENDING
+
+(Working assumption while pre-gate work proceeds: Option 1 — headless scene model in
+rock-hero-common/core, thin per-product render backends. Confirmed against S2 evidence at gate
+closure; design-doc update confirmation and game-render-expert agent creation recorded here.)

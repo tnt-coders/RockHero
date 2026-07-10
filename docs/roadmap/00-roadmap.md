@@ -272,7 +272,7 @@ unanswered item keeps its plan decision-gated. Recommendations are marked **R:**
 
 ### docs/roadmap/20-game-architecture-and-render-stack.md (gates G20-RENDER)
 
-- **20-Q1** platform scope (Phase 0a): (A) Windows-first with cross-platform-preserving choices; (B) Windows-only commitment; (C) multi-platform CI now. **R: A**.
+- **20-Q1** platform scope (Phase 0a): (A) Windows-first with cross-platform-preserving choices; (B) Windows-only commitment; (C) multi-platform CI now. **R: A**. **ANSWERED 2026-07-09: A** (user; memo in plan 20 Gate record).
 - **20-Q2** spike candidate set (Phase 0b): (A) SDL3+bgfx only; (B) SDL3+bgfx primary + JUCE-window+bgfx fallback branch; (C) also SDL3+SDL_GPU. **R: B**.
 - **20-Q3** renderer-sharing seam (Phase 0c): (1) headless highway scene model in rock-hero-common/core with thin per-product render backends; (2) shared bgfx surface component in common/ui with Tracktion-style isolation; (3) no sharing (rejected). **R: 1**.
 - **20-Q4** dependency delivery: (A) Conan pins; (B) vendored submodules. **R: A** if spike criterion S3 shows clean recipes under the CLion-CMake+VsDevCmd/Ninja environment, else B.
@@ -456,7 +456,7 @@ One line per plan; update the right-hand cell as phases complete.
 | docs/roadmap/11-derived-difficulty-calculator.md | Ready | Versioned pure difficulty calculator, corpus calibration, additive persistence, game-side degraded contract | Not started |
 | docs/roadmap/12-playback-clock.md | Ready | IPlaybackClock atomic mirror of audio-derived time + consumer-side extrapolation policy | Not started |
 | docs/roadmap/13-audio-device-settings-and-calibration.md | Ready | Shared per-device settings store, latency-offset model, calibration capture, device-loss policy | Not started |
-| docs/roadmap/20-game-architecture-and-render-stack.md | Decision-gated (G20-RENDER) | Platform scope, SDL3+bgfx spike, renderer-sharing seam, window/loop, resources, threading, dev diagnostics | Not started |
+| docs/roadmap/20-game-architecture-and-render-stack.md | Decision-gated (G20-RENDER) | Platform scope, SDL3+bgfx spike, renderer-sharing seam, window/loop, resources, threading, dev diagnostics | Phase 0a done 2026-07-09 (20-Q1: A); Phase 0b spike in progress (20-Q2 working decision: B) |
 | docs/roadmap/21-game-audio-engine-and-session.md | Decision-gated (G21-TRACKTION-GO) | Tracktion-in-game GO, GameplaySession spine, tone switching, mix, latency stance, milestone-0 audio soak | Not started |
 | docs/roadmap/22-note-detection.md | Decision-gated (GATE-A, GATE-B) | Detection contract + latency budget, dry tap, algorithm survey, pipeline, v1 detectors, tuner, tuning gate | Not started |
 | docs/roadmap/23-detection-verification-harness.md | Ready | Event-log replay, autoplay bot, fixture generators, synth render sweeps, CC0 DI corpus, regression metrics | Not started |
