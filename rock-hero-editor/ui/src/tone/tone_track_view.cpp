@@ -111,6 +111,19 @@ void ToneTrackView::paint(juce::Graphics& g)
     // alignment cue the beat snapping targets.
     const auto bounds = getLocalBounds();
 
+    // Fills and borders draw clip-clamped: this row spans the whole zoomed content (hundreds of
+    // thousands of pixels at high zoom), and Windows' Direct2D peer renderer — single-precision
+    // on the GPU — drops parts of rounded-rectangle strokes at those coordinate magnitudes,
+    // leaving an active/selected region with only fragments of its border. A clamped synthetic
+    // edge sits at least a corner radius plus stroke-and-antialiasing slack outside the clip, so
+    // its corner arcs and edge stroke never reach rendered pixels: the visible result is
+    // identical to the unclamped path while the coordinates stay small. (The lanes view builds
+    // its curve path clip-locally for the same reason.)
+    const juce::Rectangle<int> clip = g.getClipBounds();
+    const float clip_pad = static_cast<float>(g_region_corner_radius) + 4.0f;
+    const float clip_left = static_cast<float>(clip.getX()) - clip_pad;
+    const float clip_right = static_cast<float>(clip.getRight()) + clip_pad;
+
     for (std::size_t index = 0; index < m_state.regions.size(); ++index)
     {
         const core::ToneRegionViewState& region = m_state.regions[index];
@@ -157,27 +170,43 @@ void ToneTrackView::paint(juce::Graphics& g)
             continue;
         }
 
+        // The true span drives label pinning below so text layout stays clip-independent; only
+        // the fill/border geometry clamps to the clip neighborhood. A region entirely outside
+        // the clip contributes no pixels (its label lives inside its span), so it skips whole.
+        const float draw_left = std::max(*start_x, clip_left);
+        const float draw_right = std::min(*end_x, clip_right);
+        if (draw_right <= draw_left)
+        {
+            continue;
+        }
+
         const juce::Rectangle<float> region_bounds{
             *start_x,
             static_cast<float>(g_region_vertical_inset),
             *end_x - *start_x,
             static_cast<float>(std::max(1, bounds.getHeight() - (g_region_vertical_inset * 2))),
         };
+        const juce::Rectangle<float> draw_bounds{
+            draw_left,
+            region_bounds.getY(),
+            draw_right - draw_left,
+            region_bounds.getHeight(),
+        };
 
         // The active tone gets the brighter highlight; a formal selection adds a white outline.
         g.setColour(region.active ? g_tone_region_active_fill : g_tone_region_fill);
-        g.fillRoundedRectangle(region_bounds, static_cast<float>(g_region_corner_radius));
+        g.fillRoundedRectangle(draw_bounds, static_cast<float>(g_region_corner_radius));
 
         g.setColour(region.active ? g_tone_region_active_border : g_tone_region_border);
         g.drawRoundedRectangle(
-            region_bounds, static_cast<float>(g_region_corner_radius), region.active ? 2.0f : 1.2f);
+            draw_bounds, static_cast<float>(g_region_corner_radius), region.active ? 2.0f : 1.2f);
 
         // A formal selection is always also active, so its white outline overpaints the accent
         // border on the exact same edge (same bounds and stroke) rather than sitting inside it.
         if (region.selected)
         {
             g.setColour(g_tone_region_selection_outline);
-            g.drawRoundedRectangle(region_bounds, static_cast<float>(g_region_corner_radius), 2.0f);
+            g.drawRoundedRectangle(draw_bounds, static_cast<float>(g_region_corner_radius), 2.0f);
         }
 
         // Pin the label to the visible left edge while the region still covers it (like the pinned

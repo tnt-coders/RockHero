@@ -169,6 +169,36 @@ struct ToneTrackHarness
     }
 };
 
+// Renders one viewport-sized window of the (possibly huge) content-wide row, emulating how the
+// real viewport paints it: origin shifted left by the scroll offset, clip = the window bounds.
+[[nodiscard]] juce::Image renderWindow(ToneTrackView& view, int window_x, int window_width)
+{
+    juce::Image image{
+        juce::Image::ARGB, window_width, view.getHeight(), true, juce::SoftwareImageType{}
+    };
+    juce::Graphics graphics{image};
+    graphics.setOrigin({-window_x, 0});
+    view.paint(graphics);
+    return image;
+}
+
+// Reports whether any pixel in the given local-image column band reads as the near-white
+// selection outline (the strongest border, drawn last, so it must be present wherever the
+// border passes through the window).
+[[nodiscard]] bool columnHasSelectionOutline(
+    const juce::Image& image, int x, int y_begin, int y_end)
+{
+    for (int y = y_begin; y < y_end; ++y)
+    {
+        const juce::Colour pixel = image.getPixelAt(x, y);
+        if (pixel.getRed() > 200 && pixel.getGreen() > 200 && pixel.getBlue() > 200)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 } // namespace
 
 // Alt+click inside a region requests a tone change at the grid-snapped click position; a plain
@@ -218,6 +248,64 @@ TEST_CASE("Tone track cancels an in-flight edge drag on request", "[ui][tone-tra
 
     // With no gesture active the cancel reports unhandled so Esc can serve other owners.
     CHECK_FALSE(harness.view.cancelActiveGesture());
+}
+
+// Regression for the Direct2D border dropout: at high zoom the content-wide row used to hand the
+// renderer a rounded-rect border path spanning hundreds of thousands of pixels, and Windows' D2D
+// peer dropped parts of such strokes (only the region's left edge survived). The paint now clamps
+// fill/border geometry to the clip neighborhood; this guards that the clamped drawing still
+// paints complete borders through viewport-sized windows and cursor-strip-sized slivers anywhere
+// along the region.
+TEST_CASE("Tone track paints region borders through a window at high zoom", "[ui][tone-track]")
+{
+    ToneTrackHarness harness;
+
+    // A 4-minute song at the 1264 px/s zoom cap: the row is ~303k px wide. Split at 16 s; the
+    // second region (16..240 s) is active and selected, exactly the reported scenario.
+    const double duration = 240.0;
+    const int width = static_cast<int>(duration * 1264.0);
+    harness.view.setSize(width, 40);
+    harness.view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{0.0},
+            .end = common::core::TimePosition{duration},
+        });
+    core::ToneTrackViewState state = makeState();
+    state.regions[0].time_range = {
+        .start = common::core::TimePosition{0.0}, .end = common::core::TimePosition{16.0}
+    };
+    state.regions[1].time_range = {
+        .start = common::core::TimePosition{16.0}, .end = common::core::TimePosition{duration}
+    };
+    state.regions[1].active = true;
+    state.regions[1].selected = true;
+    harness.view.setState(state);
+
+    // Window deep inside the second region (about 120 s in): only its horizontal border runs
+    // cross this window, so the white selection outline must appear at the top and bottom.
+    const int window_width = 1264;
+    const juce::Image middle = renderWindow(harness.view, width / 2, window_width);
+    CHECK(columnHasSelectionOutline(middle, window_width / 2, 0, 10));
+    CHECK(columnHasSelectionOutline(middle, window_width / 2, 30, 40));
+
+    // Window over the split boundary (16 s = x 20224): the left edge must be present too.
+    const juce::Image boundary = renderWindow(harness.view, 20224 - 100, window_width);
+    bool left_edge_found = false;
+    for (int x = 80; x < 130 && !left_edge_found; ++x)
+    {
+        left_edge_found = columnHasSelectionOutline(boundary, x, 10, 30);
+    }
+    CHECK(left_edge_found);
+
+    // Narrow cursor-strip-sized repaints (the real app's most common partial repaint) swept
+    // across the region must each show the top and bottom border runs.
+    for (int step = 0; step < 12; ++step)
+    {
+        const int strip_x = 20324 + ((width - 20524) * step) / 12;
+        const juce::Image strip = renderWindow(harness.view, strip_x, 8);
+        CHECK(columnHasSelectionOutline(strip, 4, 0, 10));
+        CHECK(columnHasSelectionOutline(strip, 4, 30, 40));
+    }
 }
 
 // Alt+drag places the ghost boundary before committing: the release position, not the press
