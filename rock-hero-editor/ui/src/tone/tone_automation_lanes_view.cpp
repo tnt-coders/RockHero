@@ -819,7 +819,7 @@ void ToneAutomationLanesView::mouseMove(const juce::MouseEvent& event)
     {
         setValueReadout(std::nullopt);
     }
-    setInsertGhost(std::move(ghost));
+    setInsertGhost(ghost);
 
     if (!hit.has_value())
     {
@@ -1074,7 +1074,11 @@ void ToneAutomationLanesView::mouseUp(const juce::MouseEvent& /*event*/)
         const core::ToneAutomationLaneViewState& lane = m_state.lanes[move->lane_index];
         if (move->moved || move->is_new_point)
         {
-            new_selection = SelectedPoint{lane.instance_id, lane.param_id, move->preview_position};
+            new_selection = SelectedPoint{
+                .instance_id = lane.instance_id,
+                .param_id = lane.param_id,
+                .position = move->preview_position,
+            };
             // The commit runs synchronously back through the controller and pushes fresh state; with
             // m_drag already cleared that push applies immediately rather than deferring.
             m_listener.onToneAutomationPointsEditRequested(
@@ -1084,7 +1088,9 @@ void ToneAutomationLanesView::mouseUp(const juce::MouseEvent& /*event*/)
         else
         {
             new_selection = SelectedPoint{
-                lane.instance_id, lane.param_id, lane.points[move->point_index].position
+                .instance_id = lane.instance_id,
+                .param_id = lane.param_id,
+                .position = lane.points[move->point_index].position,
             };
         }
     }
@@ -1633,7 +1639,11 @@ void ToneAutomationLanesView::requestPointReplace(
                 return edited.position < candidate.position;
             });
         points.insert(insert_at, edited);
-        m_selected_point = SelectedPoint{instance_id, param_id, new_position};
+        m_selected_point = SelectedPoint{
+            .instance_id = instance_id,
+            .param_id = param_id,
+            .position = new_position,
+        };
         m_listener.onToneAutomationPointsEditRequested(instance_id, param_id, std::move(points));
         return;
     }
@@ -1764,7 +1774,7 @@ void ToneAutomationLanesView::setInsertGhost(std::optional<GhostPoint> ghost)
         }
     };
     repaint_ghost_lane(m_insert_ghost);
-    m_insert_ghost = std::move(ghost);
+    m_insert_ghost = ghost;
     repaint_ghost_lane(m_insert_ghost);
 }
 

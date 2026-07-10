@@ -28,7 +28,7 @@ struct PixelSize
 };
 
 /*! \brief Stable reasons a game window can fail to come up. */
-enum class GameWindowErrorCode
+enum class GameWindowErrorCode : std::uint8_t
 {
     /*! \brief SDL's video subsystem refused to initialize. */
     VideoInitializationFailed,

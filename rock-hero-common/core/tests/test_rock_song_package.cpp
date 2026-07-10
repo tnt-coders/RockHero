@@ -464,7 +464,10 @@ TEST_CASE("Rock song package round-trips normalization metadata", "[core][rock-s
     REQUIRE(read_song->arrangements.size() == 1);
     const auto& normalization = read_song->arrangements.front().audio_asset.normalization;
     REQUIRE(normalization.has_value());
-    CHECK(*normalization == makeNormalization());
+    if (normalization.has_value())
+    {
+        CHECK(*normalization == makeNormalization());
+    }
 }
 
 // Verifies a backing audio start offset (a recording that begins after the score's first beat)

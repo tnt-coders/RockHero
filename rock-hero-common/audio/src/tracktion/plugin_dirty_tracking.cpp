@@ -280,9 +280,12 @@ void PluginDirtyStateTracker::settlePendingEdit()
         return;
     }
 
-    auto after = captureState();
+    // Take the snapshot before calling captureState(): the optional is guarded above, and moving
+    // it out first keeps that guarantee local (and visible to clang-tidy's optional tracking)
+    // instead of relying on captureState() never touching m_before.
     PluginInstanceState before = std::move(*m_before);
     m_before.reset();
+    auto after = captureState();
     const bool had_user_intent = std::exchange(m_user_intent, false);
     if (!after.has_value())
     {

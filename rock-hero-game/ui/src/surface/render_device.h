@@ -20,7 +20,7 @@ window-less backend the headless test suite runs on (gate criterion S5). Adding 
 extends this enum and the platform table behind \ref defaultRenderBackend — an init-time choice,
 never a build-graph change.
 */
-enum class RenderBackend
+enum class RenderBackend : std::uint8_t
 {
     /*! \brief Direct3D 11 — the spike-proven production backend on Windows. */
     Direct3D11,
@@ -37,7 +37,7 @@ enum class RenderBackend
 [[nodiscard]] RenderBackend defaultRenderBackend() noexcept;
 
 /*! \brief Stable reasons a render device can fail to come up. */
-enum class RenderDeviceErrorCode
+enum class RenderDeviceErrorCode : std::uint8_t
 {
     /*! \brief A windowed backend was requested without a native window handle to render into. */
     MissingNativeWindowHandle,

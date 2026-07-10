@@ -657,7 +657,7 @@ std::optional<double> EditorSettings::projectTimelineZoomFor(
         return std::nullopt;
     }
 
-    return *pixels_per_second;
+    return pixels_per_second;
 }
 
 // Stores one project's app-local timeline zoom under its own flat key.

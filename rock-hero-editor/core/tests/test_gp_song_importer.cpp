@@ -157,6 +157,19 @@ constexpr const char* g_fixture_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
     return archive;
 }
 
+// Returns the arrangement's parsed chart, failing the test loudly when it is missing.
+[[nodiscard]] const common::core::Chart& requiredChart(const common::core::Arrangement& arrangement)
+{
+    REQUIRE(arrangement.chart.has_value());
+    if (arrangement.chart.has_value())
+    {
+        return *arrangement.chart;
+    }
+    // Unreachable fallback: the REQUIRE above aborts the test when the chart is missing.
+    static const common::core::Chart g_missing_chart{};
+    return g_missing_chart;
+}
+
 } // namespace
 
 TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-import]")
@@ -193,8 +206,7 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     // No frame padding in the fixture, so the audio starts at the score's first beat.
     CHECK(arrangement.audio_asset.start_offset.seconds == 0.0);
 
-    REQUIRE(arrangement.chart.has_value());
-    const common::core::Chart& chart = *arrangement.chart;
+    const common::core::Chart& chart = requiredChart(arrangement);
     CHECK(chart.tuning.strings == std::vector<std::string>{"E2", "A2", "D3", "G3", "B3", "E4"});
     CHECK(chart.tuning.capo == 2);
     REQUIRE(chart.sections.size() == 1);
@@ -324,8 +336,7 @@ TEST_CASE("Guitar Pro import keeps the bend plateau between middle offsets", "[c
     const auto song = importer.importSong(archive, workspace);
     REQUIRE(song.has_value());
     REQUIRE(song->arrangements.size() == 1);
-    REQUIRE(song->arrangements.front().chart.has_value());
-    const common::core::Chart& chart = *song->arrangements.front().chart;
+    const common::core::Chart& chart = requiredChart(song->arrangements.front());
     REQUIRE(chart.notes.size() == 5);
     REQUIRE(chart.notes[4].bend.size() == 4);
     CHECK(chart.notes[4].bend[1].offset == Fraction{1, 4});

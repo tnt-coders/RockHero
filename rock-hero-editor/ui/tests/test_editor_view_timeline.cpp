@@ -433,11 +433,14 @@ TEST_CASE("EditorView project load centers restored cursor", "[ui][editor-view]"
     const auto cursor_x = cursorXForTimelinePosition(
         transport.current_position, state.visible_timeline, track_content.getWidth());
     REQUIRE(cursor_x.has_value());
-
-    const double screen_x =
-        static_cast<double>(*cursor_x) - static_cast<double>(viewport.getViewPositionX());
-    CHECK(
-        screen_x == Catch::Approx(static_cast<double>(viewport.getViewWidth()) / 2.0).margin(1.0));
+    if (cursor_x.has_value())
+    {
+        const double screen_x =
+            static_cast<double>(*cursor_x) - static_cast<double>(viewport.getViewPositionX());
+        CHECK(
+            screen_x ==
+            Catch::Approx(static_cast<double>(viewport.getViewWidth()) / 2.0).margin(1.0));
+    }
 }
 
 // Verifies clearing a failed open's busy state does not recenter the still-loaded project.
@@ -497,11 +500,14 @@ TEST_CASE("EditorView project reload centers on new load id", "[ui][editor-view]
     const auto cursor_x = cursorXForTimelinePosition(
         transport.current_position, second_load.visible_timeline, track_content.getWidth());
     REQUIRE(cursor_x.has_value());
-
-    const double screen_x =
-        static_cast<double>(*cursor_x) - static_cast<double>(viewport.getViewPositionX());
-    CHECK(
-        screen_x == Catch::Approx(static_cast<double>(viewport.getViewWidth()) / 2.0).margin(1.0));
+    if (cursor_x.has_value())
+    {
+        const double screen_x =
+            static_cast<double>(*cursor_x) - static_cast<double>(viewport.getViewPositionX());
+        CHECK(
+            screen_x ==
+            Catch::Approx(static_cast<double>(viewport.getViewWidth()) / 2.0).margin(1.0));
+    }
 }
 
 // Verifies mouse wheel zoom scales the timeline content instead of seeking transport.
@@ -625,28 +631,31 @@ TEST_CASE("EditorView tempo grid draws behind the waveform", "[ui][editor-view]"
     const auto x = cursorXForTimelinePosition(
         common::core::TimePosition{1.0}, state.visible_timeline, track_content.getWidth());
     REQUIRE(x.has_value());
+    if (x.has_value())
+    {
+        const int line_x = static_cast<int>(std::round(*x));
+        const int background_x = std::min(track_content.getWidth() - 1, line_x + 12);
+        const int waveform_y = arrangement_view.getHeight() / 2;
+        const int lower_track_y = gridDotYAtOrAfter(arrangement_view.getBottom() + 20);
+        const int lower_track_gap_y = lower_track_y + 1;
+        REQUIRE(lower_track_gap_y < track_content.getHeight());
+        const juce::Image image =
+            track_content.createComponentSnapshot(track_content.getLocalBounds());
 
-    const int line_x = static_cast<int>(std::round(*x));
-    const int background_x = std::min(track_content.getWidth() - 1, line_x + 12);
-    const int waveform_y = arrangement_view.getHeight() / 2;
-    const int lower_track_y = gridDotYAtOrAfter(arrangement_view.getBottom() + 20);
-    const int lower_track_gap_y = lower_track_y + 1;
-    REQUIRE(lower_track_gap_y < track_content.getHeight());
-    const juce::Image image = track_content.createComponentSnapshot(track_content.getLocalBounds());
-
-    CHECK(image.getPixelAt(line_x, waveform_y) == juce::Colours::lightgreen);
-    CHECK(
-        std::abs(
-            image.getPixelAt(line_x, lower_track_y).getBrightness() -
-            image.getPixelAt(background_x, lower_track_y).getBrightness()) > 0.01f);
-    CHECK(
-        std::abs(
-            image.getPixelAt(line_x, lower_track_gap_y).getBrightness() -
-            image.getPixelAt(background_x, lower_track_gap_y).getBrightness()) < 0.01f);
-    CHECK(
-        std::abs(
-            image.getPixelAt(0, lower_track_y).getBrightness() -
-            image.getPixelAt(1, lower_track_y).getBrightness()) > 0.01f);
+        CHECK(image.getPixelAt(line_x, waveform_y) == juce::Colours::lightgreen);
+        CHECK(
+            std::abs(
+                image.getPixelAt(line_x, lower_track_y).getBrightness() -
+                image.getPixelAt(background_x, lower_track_y).getBrightness()) > 0.01f);
+        CHECK(
+            std::abs(
+                image.getPixelAt(line_x, lower_track_gap_y).getBrightness() -
+                image.getPixelAt(background_x, lower_track_gap_y).getBrightness()) < 0.01f);
+        CHECK(
+            std::abs(
+                image.getPixelAt(0, lower_track_y).getBrightness() -
+                image.getPixelAt(1, lower_track_y).getBrightness()) > 0.01f);
+    }
 }
 
 // Verifies zooming all the way out can fit a long timeline into the viewport.
@@ -864,13 +873,15 @@ TEST_CASE("EditorView timeline click snaps to nearest grid line", "[ui][editor-v
     const auto grid_x = cursorXForTimelinePosition(
         common::core::TimePosition{1.0}, state.visible_timeline, cursor_overlay.getWidth());
     REQUIRE(grid_x.has_value());
-
-    const int expected_grid_x = static_cast<int>(std::round(*grid_x));
-    const auto click_x = static_cast<float>(expected_grid_x + 20);
-    const auto click_y = static_cast<float>(cursor_overlay.getHeight() - 20);
-    REQUIRE(click_y > static_cast<float>(arrangement_view.getBottom()));
-    REQUIRE(click_y < static_cast<float>(cursor_overlay.getHeight()));
-    cursor_overlay.mouseDown(makeMouseDownEvent(cursor_overlay, click_x, click_y));
+    if (grid_x.has_value())
+    {
+        const int expected_grid_x = static_cast<int>(std::round(*grid_x));
+        const auto click_x = static_cast<float>(expected_grid_x + 20);
+        const auto click_y = static_cast<float>(cursor_overlay.getHeight() - 20);
+        REQUIRE(click_y > static_cast<float>(arrangement_view.getBottom()));
+        REQUIRE(click_y < static_cast<float>(cursor_overlay.getHeight()));
+        cursor_overlay.mouseDown(makeMouseDownEvent(cursor_overlay, click_x, click_y));
+    }
 
     CHECK(controller.timeline_seek_count == 1);
     const auto last_seek_position = controller.last_seek_position;
@@ -903,10 +914,12 @@ TEST_CASE("EditorView ruler click snaps to nearest grid line", "[ui][editor-view
     const auto grid_x = cursorXForTimelinePosition(
         common::core::TimePosition{1.0}, state.visible_timeline, track_content.getWidth());
     REQUIRE(grid_x.has_value());
-
-    const int expected_grid_x = static_cast<int>(std::round(*grid_x));
-    const auto click_x = static_cast<float>(expected_grid_x + 20);
-    timeline_ruler.mouseDown(makeMouseDownEvent(timeline_ruler, click_x, 10.0f));
+    if (grid_x.has_value())
+    {
+        const int expected_grid_x = static_cast<int>(std::round(*grid_x));
+        const auto click_x = static_cast<float>(expected_grid_x + 20);
+        timeline_ruler.mouseDown(makeMouseDownEvent(timeline_ruler, click_x, 10.0f));
+    }
 
     CHECK(controller.timeline_seek_count == 1);
     const auto last_seek_position = controller.last_seek_position;
@@ -944,35 +957,39 @@ TEST_CASE("EditorView subdivision grid and snapping share spacing", "[ui][editor
     const auto subdivision_x = cursorXForTimelinePosition(
         common::core::TimePosition{0.5}, state.visible_timeline, track_content.getWidth());
     REQUIRE(subdivision_x.has_value());
-    const int line_x = static_cast<int>(std::round(*subdivision_x));
-    const int background_x = std::min(track_content.getWidth() - 1, line_x + 12);
-    const int lower_track_y = gridDotYAtOrAfter(arrangement_view.getBottom() + 20);
-    const juce::Image image = track_content.createComponentSnapshot(track_content.getLocalBounds());
-    CHECK(
-        std::abs(
-            image.getPixelAt(line_x, lower_track_y).getBrightness() -
-            image.getPixelAt(background_x, lower_track_y).getBrightness()) > 0.01f);
-
-    // Overlay clicks near the subdivision snap to its exact time.
-    const auto click_x = static_cast<float>(line_x + 10);
-    const auto click_y = static_cast<float>(cursor_overlay.getHeight() - 20);
-    REQUIRE(click_y > static_cast<float>(arrangement_view.getBottom()));
-    REQUIRE(click_y < static_cast<float>(cursor_overlay.getHeight()));
-    cursor_overlay.mouseDown(makeMouseDownEvent(cursor_overlay, click_x, click_y));
-    CHECK(controller.timeline_seek_count == 1);
-    REQUIRE(controller.last_seek_position.has_value());
-    if (controller.last_seek_position.has_value())
+    if (subdivision_x.has_value())
     {
-        CHECK(controller.last_seek_position->seconds == Catch::Approx(0.5));
-    }
+        const int line_x = static_cast<int>(std::round(*subdivision_x));
+        const int background_x = std::min(track_content.getWidth() - 1, line_x + 12);
+        const int lower_track_y = gridDotYAtOrAfter(arrangement_view.getBottom() + 20);
+        const juce::Image image =
+            track_content.createComponentSnapshot(track_content.getLocalBounds());
+        CHECK(
+            std::abs(
+                image.getPixelAt(line_x, lower_track_y).getBrightness() -
+                image.getPixelAt(background_x, lower_track_y).getBrightness()) > 0.01f);
 
-    // Ruler clicks resolve through the same subdivision grid.
-    timeline_ruler.mouseDown(makeMouseDownEvent(timeline_ruler, click_x, 10.0f));
-    CHECK(controller.timeline_seek_count == 2);
-    REQUIRE(controller.last_seek_position.has_value());
-    if (controller.last_seek_position.has_value())
-    {
-        CHECK(controller.last_seek_position->seconds == Catch::Approx(0.5));
+        // Overlay clicks near the subdivision snap to its exact time.
+        const auto click_x = static_cast<float>(line_x + 10);
+        const auto click_y = static_cast<float>(cursor_overlay.getHeight() - 20);
+        REQUIRE(click_y > static_cast<float>(arrangement_view.getBottom()));
+        REQUIRE(click_y < static_cast<float>(cursor_overlay.getHeight()));
+        cursor_overlay.mouseDown(makeMouseDownEvent(cursor_overlay, click_x, click_y));
+        CHECK(controller.timeline_seek_count == 1);
+        REQUIRE(controller.last_seek_position.has_value());
+        if (controller.last_seek_position.has_value())
+        {
+            CHECK(controller.last_seek_position->seconds == Catch::Approx(0.5));
+        }
+
+        // Ruler clicks resolve through the same subdivision grid.
+        timeline_ruler.mouseDown(makeMouseDownEvent(timeline_ruler, click_x, 10.0f));
+        CHECK(controller.timeline_seek_count == 2);
+        REQUIRE(controller.last_seek_position.has_value());
+        if (controller.last_seek_position.has_value())
+        {
+            CHECK(controller.last_seek_position->seconds == Catch::Approx(0.5));
+        }
     }
 }
 

@@ -184,7 +184,10 @@ std::optional<std::int64_t> Json::tryReadInt64(
         return std::nullopt;
     }
 
-    return static_cast<std::int64_t>(property_value);
+    // juce::var offers both operator int and operator juce::int64 (long long). On LP64 Linux
+    // std::int64_t is `long`, which matches neither exactly, so a direct cast is ambiguous there;
+    // convert through juce::int64 first.
+    return static_cast<std::int64_t>(static_cast<juce::int64>(property_value));
 }
 
 } // namespace rock_hero::common::core

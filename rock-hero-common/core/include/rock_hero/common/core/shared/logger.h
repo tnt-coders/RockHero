@@ -228,11 +228,17 @@ struct Logger
 
 } // namespace rock_hero::common::core
 
+/*! \brief Forces a preprocessor re-scan of a forwarded macro call. */
+/* MSVC's traditional preprocessor (the project default; /Zc:preprocessor is not enabled) passes
+a forwarded __VA_ARGS__ pack into the inner macro as one glued argument; the extra expansion
+re-tokenizes the call so the arguments split correctly on every compiler. */
+#define RH_DETAIL_EXPAND(call) call
+
 /*! \brief Internal helper used by normal project logging macros. */
-/* `##__VA_ARGS__` rather than C++20 __VA_OPT__: MSVC's traditional preprocessor (the project
-default; /Zc:preprocessor is not enabled) rejects __VA_OPT__, while every compiler in use
-accepts the ## form for zero-argument expansions. */
-#define RH_DETAIL_LOG(log_macro, category_literal, fmt, ...)                                       \
+/* The format string travels inside __VA_ARGS__ (callers always pass one), so the pack is never
+empty and no comma-elision extension is needed: `##__VA_ARGS__` is a GNU extension that pedantic
+clang flags, and MSVC's traditional preprocessor rejects the standard __VA_OPT__ alternative. */
+#define RH_DETAIL_LOG(log_macro, category_literal, ...)                                            \
     do                                                                                             \
     {                                                                                              \
         if (::rock_hero::common::core::Logger::isStarted())                                        \
@@ -240,12 +246,12 @@ accepts the ## form for zero-argument expansions. */
             static const auto rock_hero_log_handle_internal__ =                                    \
                 ::rock_hero::common::core::Logger::get(                                            \
                     ::rock_hero::common::core::Logger::Category{category_literal});                \
-            log_macro(rock_hero_log_handle_internal__, fmt, ##__VA_ARGS__);                        \
+            RH_DETAIL_EXPAND(log_macro(rock_hero_log_handle_internal__, __VA_ARGS__));             \
         }                                                                                          \
     } while (false)
 
 /*! \brief Internal helper used by realtime project logging macros. */
-#define RH_DETAIL_RT_LOG(log_macro, realtime_logger, fmt, ...)                                     \
+#define RH_DETAIL_RT_LOG(log_macro, realtime_logger, ...)                                          \
     do                                                                                             \
     {                                                                                              \
         if (::rock_hero::common::core::Logger::isStarted())                                        \
@@ -253,80 +259,74 @@ accepts the ## form for zero-argument expansions. */
             auto* const rock_hero_rt_log_handle_internal__ = (realtime_logger);                    \
             if (rock_hero_rt_log_handle_internal__ != nullptr)                                     \
             {                                                                                      \
-                log_macro(rock_hero_rt_log_handle_internal__, fmt, ##__VA_ARGS__);                 \
+                RH_DETAIL_EXPAND(log_macro(rock_hero_rt_log_handle_internal__, __VA_ARGS__));      \
             }                                                                                      \
         }                                                                                          \
     } while (false)
 
 #if QUILL_COMPILE_ACTIVE_LOG_LEVEL <= QUILL_COMPILE_ACTIVE_LOG_LEVEL_TRACE_L1
 /*! \brief Logs a trace-level record to the named category when trace logging is compiled in. */
-#define RH_LOG_TRACE(category_literal, fmt, ...)                                                   \
-    RH_DETAIL_LOG(QUILL_LOG_TRACE_L1, category_literal, fmt, ##__VA_ARGS__)
+#define RH_LOG_TRACE(category_literal, ...)                                                        \
+    RH_DETAIL_LOG(QUILL_LOG_TRACE_L1, category_literal, __VA_ARGS__)
 #else
 /*! \brief Discards trace-level records when trace logging is compiled out. */
-#define RH_LOG_TRACE(category_literal, fmt, ...) (void)0
+#define RH_LOG_TRACE(category_literal, ...) (void)0
 #endif
 
 #if QUILL_COMPILE_ACTIVE_LOG_LEVEL <= QUILL_COMPILE_ACTIVE_LOG_LEVEL_DEBUG
 /*! \brief Logs a debug-level record to the named category when debug logging is compiled in. */
-#define RH_LOG_DEBUG(category_literal, fmt, ...)                                                   \
-    RH_DETAIL_LOG(QUILL_LOG_DEBUG, category_literal, fmt, ##__VA_ARGS__)
+#define RH_LOG_DEBUG(category_literal, ...)                                                        \
+    RH_DETAIL_LOG(QUILL_LOG_DEBUG, category_literal, __VA_ARGS__)
 #else
 /*! \brief Discards debug-level records when debug logging is compiled out. */
-#define RH_LOG_DEBUG(category_literal, fmt, ...) (void)0
+#define RH_LOG_DEBUG(category_literal, ...) (void)0
 #endif
 
 #if QUILL_COMPILE_ACTIVE_LOG_LEVEL <= QUILL_COMPILE_ACTIVE_LOG_LEVEL_INFO
 /*! \brief Logs an info-level record to the named category when info logging is compiled in. */
-#define RH_LOG_INFO(category_literal, fmt, ...)                                                    \
-    RH_DETAIL_LOG(QUILL_LOG_INFO, category_literal, fmt, ##__VA_ARGS__)
+#define RH_LOG_INFO(category_literal, ...)                                                         \
+    RH_DETAIL_LOG(QUILL_LOG_INFO, category_literal, __VA_ARGS__)
 #else
 /*! \brief Discards info-level records when info logging is compiled out. */
-#define RH_LOG_INFO(category_literal, fmt, ...) (void)0
+#define RH_LOG_INFO(category_literal, ...) (void)0
 #endif
 
 #if QUILL_COMPILE_ACTIVE_LOG_LEVEL <= QUILL_COMPILE_ACTIVE_LOG_LEVEL_WARNING
 /*! \brief Logs a warning-level record to the named category when warning logging is compiled in. */
-#define RH_LOG_WARNING(category_literal, fmt, ...)                                                 \
-    RH_DETAIL_LOG(QUILL_LOG_WARNING, category_literal, fmt, ##__VA_ARGS__)
+#define RH_LOG_WARNING(category_literal, ...)                                                      \
+    RH_DETAIL_LOG(QUILL_LOG_WARNING, category_literal, __VA_ARGS__)
 #else
 /*! \brief Discards warning-level records when warning logging is compiled out. */
-#define RH_LOG_WARNING(category_literal, fmt, ...) (void)0
+#define RH_LOG_WARNING(category_literal, ...) (void)0
 #endif
 
 #if QUILL_COMPILE_ACTIVE_LOG_LEVEL <= QUILL_COMPILE_ACTIVE_LOG_LEVEL_ERROR
 /*! \brief Logs an error-level record to the named category when error logging is compiled in. */
-#define RH_LOG_ERROR(category_literal, fmt, ...)                                                   \
-    RH_DETAIL_LOG(QUILL_LOG_ERROR, category_literal, fmt, ##__VA_ARGS__)
+#define RH_LOG_ERROR(category_literal, ...)                                                        \
+    RH_DETAIL_LOG(QUILL_LOG_ERROR, category_literal, __VA_ARGS__)
 #else
 /*! \brief Discards error-level records when error logging is compiled out. */
-#define RH_LOG_ERROR(category_literal, fmt, ...) (void)0
+#define RH_LOG_ERROR(category_literal, ...) (void)0
 #endif
 
 #if QUILL_COMPILE_ACTIVE_LOG_LEVEL <= QUILL_COMPILE_ACTIVE_LOG_LEVEL_CRITICAL
 /*! \brief Logs a critical-level record when critical logging is compiled in. */
-#define RH_LOG_CRITICAL(category_literal, fmt, ...)                                                \
-    RH_DETAIL_LOG(QUILL_LOG_CRITICAL, category_literal, fmt, ##__VA_ARGS__)
+#define RH_LOG_CRITICAL(category_literal, ...)                                                     \
+    RH_DETAIL_LOG(QUILL_LOG_CRITICAL, category_literal, __VA_ARGS__)
 #else
 /*! \brief Discards critical-level records when critical logging is compiled out. */
-#define RH_LOG_CRITICAL(category_literal, fmt, ...) (void)0
+#define RH_LOG_CRITICAL(category_literal, ...) (void)0
 #endif
 
 /*! \brief Logs a trace-level record through a pre-created realtime logger handle. */
-#define RH_RT_LOG_TRACE(logger, fmt, ...)                                                          \
-    RH_DETAIL_RT_LOG(QUILL_LOG_TRACE_L1, logger, fmt, ##__VA_ARGS__)
+#define RH_RT_LOG_TRACE(logger, ...) RH_DETAIL_RT_LOG(QUILL_LOG_TRACE_L1, logger, __VA_ARGS__)
 /*! \brief Logs a debug-level record through a pre-created realtime logger handle. */
-#define RH_RT_LOG_DEBUG(logger, fmt, ...)                                                          \
-    RH_DETAIL_RT_LOG(QUILL_LOG_DEBUG, logger, fmt, ##__VA_ARGS__)
+#define RH_RT_LOG_DEBUG(logger, ...) RH_DETAIL_RT_LOG(QUILL_LOG_DEBUG, logger, __VA_ARGS__)
 /*! \brief Logs an info-level record through a pre-created realtime logger handle. */
-#define RH_RT_LOG_INFO(logger, fmt, ...)                                                           \
-    RH_DETAIL_RT_LOG(QUILL_LOG_INFO, logger, fmt, ##__VA_ARGS__)
+#define RH_RT_LOG_INFO(logger, ...) RH_DETAIL_RT_LOG(QUILL_LOG_INFO, logger, __VA_ARGS__)
 /*! \brief Logs a warning-level record through a pre-created realtime logger handle. */
-#define RH_RT_LOG_WARNING(logger, fmt, ...)                                                        \
-    RH_DETAIL_RT_LOG(QUILL_LOG_WARNING, logger, fmt, ##__VA_ARGS__)
+#define RH_RT_LOG_WARNING(logger, ...) RH_DETAIL_RT_LOG(QUILL_LOG_WARNING, logger, __VA_ARGS__)
 /*! \brief Logs an error-level record through a pre-created realtime logger handle. */
-#define RH_RT_LOG_ERROR(logger, fmt, ...)                                                          \
-    RH_DETAIL_RT_LOG(QUILL_LOG_ERROR, logger, fmt, ##__VA_ARGS__)
+#define RH_RT_LOG_ERROR(logger, ...) RH_DETAIL_RT_LOG(QUILL_LOG_ERROR, logger, __VA_ARGS__)
 /*! \brief Logs a critical-level record through a pre-created realtime logger handle. */
-#define RH_RT_LOG_CRITICAL(logger, fmt, ...)                                                       \
-    RH_DETAIL_RT_LOG(QUILL_LOG_CRITICAL, logger, fmt, ##__VA_ARGS__)
+#define RH_RT_LOG_CRITICAL(logger, ...) RH_DETAIL_RT_LOG(QUILL_LOG_CRITICAL, logger, __VA_ARGS__)

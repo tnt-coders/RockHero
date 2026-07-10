@@ -114,9 +114,11 @@ struct TabLaneMetrics
     float tail_edge_size{};
     float tremolo_size{};
     bool draw_text{};
-    juce::Font fret_font;
-    juce::Font bend_font;
-    juce::Font label_font;
+    // Initialized via FontOptions because JUCE 8 deprecates the default Font constructor; the
+    // placeholder values are replaced by makeMetrics before any drawing.
+    juce::Font fret_font{juce::FontOptions{}};
+    juce::Font bend_font{juce::FontOptions{}};
+    juce::Font label_font{juce::FontOptions{}};
 
     // Maps a timeline time onto the lane's horizontal axis.
     [[nodiscard]] float x(double seconds) const noexcept

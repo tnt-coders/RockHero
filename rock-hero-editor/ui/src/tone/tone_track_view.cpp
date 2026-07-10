@@ -406,11 +406,12 @@ void ToneTrackView::mouseDrag(const juce::MouseEvent& event)
             setInsertGhostX(ghost_x);
             if (ghost_x.has_value())
             {
+                // Format the local position (just stored as the preview) rather than re-reading
+                // m_insert_drag: the guard at the top of the branch is what proves it engaged.
                 emitSnapGuide(
                     TimelineSnapGuide{
                         .x = static_cast<float>(getX()) + *ghost_x,
-                        .label = juce::String{common::core::formatGridPositionToken(
-                            m_insert_drag->preview)},
+                        .label = juce::String{common::core::formatGridPositionToken(*position)},
                     });
             }
         }

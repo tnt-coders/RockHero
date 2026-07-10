@@ -19,7 +19,10 @@ namespace
 void requireSaveInputCalibration(
     EditorSettings& settings, common::audio::InputCalibrationState calibration)
 {
-    REQUIRE(settings.saveInputCalibration(std::move(calibration)).has_value());
+    // Move outside the assertion macro: REQUIRE re-mentions its expression textually, which
+    // bugprone-use-after-move reads as a use of the moved-from calibration.
+    const auto saved = settings.saveInputCalibration(std::move(calibration));
+    REQUIRE(saved.has_value());
 }
 
 } // namespace
@@ -757,7 +760,11 @@ TEST_CASE("Input route change preserves previous calibration history", "[core][e
     REQUIRE(final_state != nullptr);
     CHECK(inputCalibrationFor(settings, initial_identity).has_value());
     REQUIRE(audio_devices.current_input_identity.has_value());
-    CHECK_FALSE(inputCalibrationFor(settings, *audio_devices.current_input_identity).has_value());
+    if (audio_devices.current_input_identity.has_value())
+    {
+        CHECK_FALSE(
+            inputCalibrationFor(settings, *audio_devices.current_input_identity).has_value());
+    }
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK_FALSE(final_state->input_calibration_prompt.has_value());
     CHECK(
@@ -1061,7 +1068,11 @@ TEST_CASE("Input route change during calibration closes prompt", "[core][editor-
     REQUIRE(final_state != nullptr);
     CHECK_FALSE(final_state->input_calibration_prompt.has_value());
     REQUIRE(audio_devices.current_input_identity.has_value());
-    CHECK_FALSE(inputCalibrationFor(settings, *audio_devices.current_input_identity).has_value());
+    if (audio_devices.current_input_identity.has_value())
+    {
+        CHECK_FALSE(
+            inputCalibrationFor(settings, *audio_devices.current_input_identity).has_value());
+    }
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
     CHECK(

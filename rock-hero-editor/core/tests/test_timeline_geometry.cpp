@@ -41,9 +41,12 @@ TEST_CASE("Timeline geometry maps interior positions proportionally", "[core][ti
     REQUIRE(start_x.has_value());
     REQUIRE(mid_x.has_value());
     REQUIRE(end_x.has_value());
-    CHECK(*start_x == Catch::Approx(0.0F));
-    CHECK(*mid_x == Catch::Approx(50.0F));
-    CHECK(*end_x == Catch::Approx(100.0F));
+    if (start_x.has_value() && mid_x.has_value() && end_x.has_value())
+    {
+        CHECK(*start_x == Catch::Approx(0.0F));
+        CHECK(*mid_x == Catch::Approx(50.0F));
+        CHECK(*end_x == Catch::Approx(100.0F));
+    }
 }
 
 // Verifies the reject policy returns no coordinate for positions before or after the window.
@@ -79,8 +82,11 @@ TEST_CASE("Timeline geometry clamps out-of-range positions when configured", "[c
 
     REQUIRE(before_x.has_value());
     REQUIRE(after_x.has_value());
-    CHECK(*before_x == Catch::Approx(0.0F));
-    CHECK(*after_x == Catch::Approx(100.0F));
+    if (before_x.has_value() && after_x.has_value())
+    {
+        CHECK(*before_x == Catch::Approx(0.0F));
+        CHECK(*after_x == Catch::Approx(100.0F));
+    }
 }
 
 // Verifies a non-positive width or an empty visible range yields no coordinate.

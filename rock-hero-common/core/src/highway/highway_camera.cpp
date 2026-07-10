@@ -67,6 +67,9 @@ HighwayMat4 HighwayMat4::identity()
 // Standard row-major column-vector composition.
 HighwayMat4 operator*(const HighwayMat4& lhs, const HighwayMat4& rhs)
 {
+    // at() rather than operator[]: the indices are loop-derived, which the enabled
+    // pro-bounds-constant-array-index check rejects for subscripting; the bounds check is
+    // negligible here (projections compose once per frame, not per vertex).
     HighwayMat4 result{};
     for (std::size_t row = 0; row < 4; ++row)
     {
@@ -75,9 +78,9 @@ HighwayMat4 operator*(const HighwayMat4& lhs, const HighwayMat4& rhs)
             double sum = 0.0;
             for (std::size_t inner = 0; inner < 4; ++inner)
             {
-                sum += lhs.m[(row * 4) + inner] * rhs.m[(inner * 4) + column];
+                sum += lhs.m.at((row * 4) + inner) * rhs.m.at((inner * 4) + column);
             }
-            result.m[(row * 4) + column] = sum;
+            result.m.at((row * 4) + column) = sum;
         }
     }
     return result;
