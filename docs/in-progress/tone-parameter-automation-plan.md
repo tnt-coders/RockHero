@@ -181,6 +181,11 @@ Built on branch `work-in-progress` (off `refactor`), each slice green + tested:
   (`nearestTempoGridPosition`; odd grids like 1/13 round-trip exactly), and only Ctrl-free
   placement quantizes to the 1/960-beat fine grid. Authored curves extend flat to both canvas
   edges, and the tempo grid shows through the lanes (canvas paints the automation band).
+- **Gesture revision (2026-07-09):** the lane gestures were re-based onto the editor-wide
+  interaction model (`docs/in-progress/editing-interaction-model.md`): point insertion is now
+  Alt+click/Alt+drag (plain empty-lane clicks seek + deselect), Shift axis-locks point drags,
+  Esc cancels an in-flight gesture, double-click reset moved to the point context menu, and a
+  ghost point + `CopyingCursor` preview shows under Alt.
 - **Slice E — host-tempo mirror — DONE (2026-07-07).** `ISongAudio::mirrorTempoMap` +
   `Engine::mirrorTempoMap` (message-thread/edit guards) delegate to
   `src/tracktion/tempo_mirror.{h,cpp}` `mirrorTempoMapIntoSequence`: one flat step per anchor

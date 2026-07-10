@@ -21,8 +21,8 @@ re-rates every song on next load. Until a rating exists for an arrangement, ever
   (`rock-hero-common/core/include/rock_hero/common/core/chart/chart.h:330`).
 - Dynamic in-game difficulty adjustment or note-dropping easy modes.
 - Editor UI for displaying the rating beyond what already exists — display work rides with the
-  Song Information UI (`docs/plans/43-song-information-and-art.md`) and the game library
-  (`docs/plans/26-game-startup-menus-library.md`).
+  Song Information UI (`docs/roadmap/43-song-information-and-art.md`) and the game library
+  (`docs/roadmap/26-game-startup-menus-library.md`).
 - Per-feature sub-scores (density/stamina/technique breakdown) as user-visible output. The v1
   calculator may compute them internally, but exposing them is future work.
 - The full strain-graph model at v1. Ship the crude feature-weighted version first; a peak-aware
@@ -31,7 +31,7 @@ re-rates every song on next load. Until a rating exists for an arrangement, ever
 
 ## Constraints
 
-Restated subset of the roadmap constraint block (`docs/plans/00-roadmap.md`):
+Restated subset of the roadmap constraint block (`docs/roadmap/00-roadmap.md`):
 
 - (a) **Layering**: the calculator lives in `rock-hero-common/core` so both products can call it;
   common never depends on editor or game code; editor and game never depend on each other.
@@ -45,9 +45,9 @@ Restated subset of the roadmap constraint block (`docs/plans/00-roadmap.md`):
 - (h) **Builds**: all build/test/lint commands go through `.agents/rockhero-build.ps1` (usage in
   `.agents/README.md`), never raw cmake/ctest/ninja. Intermediate phases run only the checks
   their changes warrant; the final acceptance phase runs the sanctioned bundle.
-- **The game never rewrites user packages** (roadmap tension 7, `docs/plans/00-roadmap.md`):
+- **The game never rewrites user packages** (roadmap tension 7, `docs/roadmap/00-roadmap.md`):
   recompute happens editor-side (the editor may rewrite packages) or into the game's library
-  index cache (`docs/plans/26-game-startup-menus-library.md`), never into `.rock` files by the
+  index cache (`docs/roadmap/26-game-startup-menus-library.md`), never into `.rock` files by the
   game.
 - Corpus rule: the 39-package `.rock` corpus is converted commercial content — local-only,
   never committed, never in CI. Calibration constants derived from it are plain numbers and may
@@ -102,14 +102,14 @@ Verified against code on 2026-07-06, refactor @ 3c7febe0.
 
 ## Dependencies
 
-- `docs/plans/10-format-versioning-and-chart-identity.md` — Phase 4 (persistence) uses its
+- `docs/roadmap/10-format-versioning-and-chart-identity.md` — Phase 4 (persistence) uses its
   additive-field policy for `song.json` changes and its chart-identity hash as the staleness
   marker for the cached rating. Phases 1-3 (the pure calculator) have no dependency on it.
-- `docs/plans/26-game-startup-menus-library.md` — consumer: its library index cache stores the
+- `docs/roadmap/26-game-startup-menus-library.md` — consumer: its library index cache stores the
   rating tagged with calculator version and implements the game-side recompute; its sort columns
   consume the degraded-behavior contract defined in Phase 5 here. Plan 26 must not land intensity
   sorting without the "Unknown sorts last" rule from this plan.
-- `docs/plans/40-chart-editing.md` — future producer of chart changes; Phase 4's
+- `docs/roadmap/40-chart-editing.md` — future producer of chart changes; Phase 4's
   recompute-on-save hook is designed now so chart editing invalidates ratings for free later.
 - External decision: the calibration sign-off inside Phase 3 (user reviews the corpus ranking
   table before thresholds are baked).
@@ -135,8 +135,8 @@ Verified against code on 2026-07-06, refactor @ 3c7febe0.
   ("shared song, chart, arrangement, validation, timing, and package rules in `common/core`")
   and § Pure Unit Tests.
 - **Recompute split: editor writes packages, game writes only its cache.** Source:
-  `docs/plans/00-roadmap.md` (tension 7) and
-  `docs/plans/26-game-startup-menus-library.md` (library index cache).
+  `docs/roadmap/00-roadmap.md` (tension 7) and
+  `docs/roadmap/26-game-startup-menus-library.md` (library index cache).
 - **Algorithm direction (v2 ceiling).** If v1 mis-ranks, evolve toward the strain model proven
   by osu! Star Rating and Etterna MSD: per-window local difficulty → decaying strain
   accumulation → peak-weighted aggregation (sorted descending, geometric weighting). Peak
@@ -268,7 +268,7 @@ Verified against code on 2026-07-06, refactor @ 3c7febe0.
 ### Phase 4 — Persistence and editor-side recompute (assumes open question 1 = persist now)
 
 - **Scope:** Additive `song.json` arrangement fields, key names finalized against
-  `docs/plans/10-format-versioning-and-chart-identity.md` conventions — proposed shape:
+  `docs/roadmap/10-format-versioning-and-chart-identity.md` conventions — proposed shape:
   `"difficulty": { "rating": 7, "intensity": 6.842, "calculatorVersion": 1, "chartHash":
   "<plan-10 identity hash at compute time>" }`. Writer emits it only when a computed rating
   exists; reader accepts absence (Unknown). Staleness rule, mirroring `AudioNormalization`:
@@ -277,7 +277,7 @@ Verified against code on 2026-07-06, refactor @ 3c7febe0.
   silent in-place load normalization, consistent with the established save==publish
   normalize-don't-reject behavior (the same mechanism that rebuilds legacy tone names and
   missing normalization metadata today). When chart editing lands
-  (`docs/plans/40-chart-editing.md`), its save path recomputes for dirty charts; the hash check
+  (`docs/roadmap/40-chart-editing.md`), its save path recomputes for dirty charts; the hash check
   makes that fail-safe rather than load-order-dependent. Arrangements without a chart stay
   Unknown and never emit the object. Doc updates in the same change: retarget
   `docs/user/difficulty-ratings.md` and the `docs/design/architecture.md` § Song Data Model
@@ -300,7 +300,7 @@ Verified against code on 2026-07-06, refactor @ 3c7febe0.
 ### Phase 5 — Game-side contract (specification consumed by plan 26)
 
 - **Scope:** Normative contract, implemented by
-  `docs/plans/26-game-startup-menus-library.md`, recorded here as the owning spec:
+  `docs/roadmap/26-game-startup-menus-library.md`, recorded here as the owning spec:
   1. The game never writes to `.rock` packages. Ever.
   2. The library index cache stores, per arrangement: `rating`, `intensity`,
      `calculatorVersion`, sourced from `song.json` when fresh; when the package's stored value

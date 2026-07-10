@@ -1,6 +1,6 @@
 # 23 — Detection Verification Harness
 
-**Status**: Ready (execution begins after docs/plans/22-note-detection.md Phase 1 lands the
+**Status**: Ready (execution begins after docs/roadmap/22-note-detection.md Phase 1 lands the
 DetectionEvent contract); 2026-07-06; baseline `refactor @ 3c7febe0`.
 
 ## Goal
@@ -8,17 +8,17 @@ DetectionEvent contract); 2026-07-06; baseline `refactor @ 3c7febe0`.
 A solo developer can change detection DSP and know, without picking up a guitar, whether accuracy
 got better or worse. Every detection tweak is measured against committed fixtures in CI and against
 the local corpus on demand — per-technique precision/recall and latency distributions, never vibes.
-Scoring (docs/plans/24-scoring-star-power-failure.md) is testable by deterministic replay of
+Scoring (docs/roadmap/24-scoring-star-power-failure.md) is testable by deterministic replay of
 serialized DetectionEvent logs, and an autoplay bot produces perfect event streams for end-to-end
 soak runs and demos.
 
 ## Non-goals
 
-- Choosing or implementing detection algorithms — that is docs/plans/22-note-detection.md.
+- Choosing or implementing detection algorithms — that is docs/roadmap/22-note-detection.md.
 - Defining what the metrics *are* (tolerance windows, technique classes) — 22 owns the metric
   definitions; this plan builds the machinery that computes, reports, and regression-gates them.
 - Scoring rules, hit windows, or the provisional-hit state machine —
-  docs/plans/24-scoring-star-power-failure.md.
+  docs/roadmap/24-scoring-star-power-failure.md.
 - Committing or shipping any converted commercial content. The 39-package .rock corpus and the
   101-file GP corpus remain local-only soak assets forever.
 - A general-purpose audio test framework. This harness serves detection verification and scoring
@@ -90,20 +90,20 @@ Verified against code on 2026-07-06, refactor @ 3c7febe0.
 
 ## Dependencies
 
-- docs/plans/22-note-detection.md Phase 1 (DetectionEvent contract, technique detectability
+- docs/roadmap/22-note-detection.md Phase 1 (DetectionEvent contract, technique detectability
   matrix, metric definitions: technique classes, tolerance windows, latency-distribution spec) —
   required before Phases 1, 2, and 6 of this plan.
-- docs/plans/22-note-detection.md detection-pipeline phases — required before Phases 6 and 7 here
+- docs/roadmap/22-note-detection.md detection-pipeline phases — required before Phases 6 and 7 here
   can run real detection. This plan places an explicit contract demand on 22: the pipeline core
   must expose an **offline synchronous entry point** (buffers in, events out, no FIFO, no threads,
   no audio device) so the runner is deterministic.
-- docs/plans/10-format-versioning-and-chart-identity.md (chart-identity hash) — the event-log
+- docs/roadmap/10-format-versioning-and-chart-identity.md (chart-identity hash) — the event-log
   header carries the hash; the field is nullable until 10 lands.
-- Consumers (reverse dependencies, recorded in both plans): docs/plans/24-scoring-star-power-failure.md
-  (replay seam + autoplay bot for scoring tests), docs/plans/29-online-leaderboards.md (its
+- Consumers (reverse dependencies, recorded in both plans): docs/roadmap/24-scoring-star-power-failure.md
+  (replay seam + autoplay bot for scoring tests), docs/roadmap/29-online-leaderboards.md (its
   stability gate is measured by this harness's metric reports),
-  docs/plans/20-game-architecture-and-render-stack.md (dev-diagnostics autoplay toggle consumes
-  the Phase 2 bot), docs/plans/28-practice-mode.md (per-section accuracy reuses the Phase 6
+  docs/roadmap/20-game-architecture-and-render-stack.md (dev-diagnostics autoplay toggle consumes
+  the Phase 2 bot), docs/roadmap/28-practice-mode.md (per-section accuracy reuses the Phase 6
   matcher/metrics vocabulary).
 - External decision: fixture licensing and recording plan (Open questions 1–3).
 
@@ -162,9 +162,9 @@ Phase 6 needs 22's pipeline; Phase 7 needs Phase 6.
 - **Scope**: the versioned wire format for detection event logs, plus writer and reader. Format:
   JSON Lines — one header object, then one object per event. Header fields: `detectionLogVersion`
   (starts at 1), `engineVersion` (detection-engine version id from 22), `sampleRate`,
-  `chartIdentityHash` (nullable until docs/plans/10-format-versioning-and-chart-identity.md
+  `chartIdentityHash` (nullable until docs/roadmap/10-format-versioning-and-chart-identity.md
   lands), `arrangementId`, calibration offsets as applied (contract from
-  docs/plans/13-audio-device-settings-and-calibration.md). Event records mirror 22's
+  docs/roadmap/13-audio-device-settings-and-calibration.md). Event records mirror 22's
   DetectionEvent variants (onset, pitch(es)+confidence, sustained-pitch tracking updates,
   percussive-mute classification) with timestamps as int64 audio-sample indices — never seconds,
   never render-frame time (docs/design/architecture.md, "Timing and Latency"). Reader rule:
@@ -206,7 +206,7 @@ Phase 6 needs 22's pipeline; Phase 7 needs Phase 6.
 - **Files/modules**: `rock-hero-game/core` `detection/autoplay_event_source.h/.cpp`; tests in
   `rock-hero-game/core/tests/test_autoplay_event_source.cpp`.
 - **Public-header impact**: public in game/core — the game app's dev-diagnostics autoplay toggle
-  (docs/plans/20-game-architecture-and-render-stack.md) consumes it at runtime, not only tests.
+  (docs/roadmap/20-game-architecture-and-render-stack.md) consumes it at runtime, not only tests.
 - **Testing plan**: event sample-times match `secondsAtNote` conversions within one sample; chord
   onsets are simultaneous; every technique class in the detectability matrix produces its mapped
   event kind; same seed → identical stream; serialized bot output round-trips through Phase 1.
@@ -221,8 +221,8 @@ Phase 6 needs 22's pipeline; Phase 7 needs Phase 6.
 ### Phase 3 — Shared chart fixture generators (common extraction first)
 
 - **Scope**: programmatic chart generators for controlled sweeps, usable by game tests (this
-  plan), editor validation tests (docs/plans/42-chart-validation.md), and calculator tests
-  (docs/plans/11-derived-difficulty-calculator.md). Generators: chromatic/scale runs (string
+  plan), editor validation tests (docs/roadmap/42-chart-validation.md), and calculator tests
+  (docs/roadmap/11-derived-difficulty-calculator.md). Generators: chromatic/scale runs (string
   range, fret range, note value, tempo), technique-isolation etudes (one technique repeated N
   times: bends with curve shapes, pitched/unpitched slides, palm/full mutes, hammer/pull, tap,
   harmonics natural+pinch with `touch`, vibrato, tremolo, accents), chord-progression builder
@@ -316,7 +316,7 @@ Phase 6 needs 22's pipeline; Phase 7 needs Phase 6.
   any metric below floor − margin; baseline regeneration via env flag
   `ROCKHERO_UPDATE_DETECTION_BASELINES=1` per Open question 4. (5) Reports: every metrics run
   writes `detection-metrics-report.json` and a human-readable `.md` table under the build dir —
-  this artifact is also the measurement instrument for the docs/plans/29-online-leaderboards.md
+  this artifact is also the measurement instrument for the docs/roadmap/29-online-leaderboards.md
   stability gate.
 - **Files/modules**: matcher + metrics as pure code in `rock-hero-game/core`
   `detection/detection_metrics.h/.cpp` (headless, deterministic — game/core per
@@ -324,8 +324,8 @@ Phase 6 needs 22's pipeline; Phase 7 needs Phase 6.
   `rock-hero-game/audio/tests` (it touches the pipeline adapter); baselines under
   `rock-hero-game/audio/tests/fixtures/baselines/`.
 - **Public-header impact**: `detection_metrics.h` public in game/core (practice-mode per-section
-  accuracy in docs/plans/28-practice-mode.md reuses the matcher vocabulary; debug overlays in
-  docs/plans/25-note-highway-3d.md read the same numbers live).
+  accuracy in docs/roadmap/28-practice-mode.md reuses the matcher vocabulary; debug overlays in
+  docs/roadmap/25-note-highway-3d.md read the same numbers live).
 - **Testing plan**: matcher unit tests on synthetic event/ground-truth pairs (double onsets, close
   neighbors, window edges, excluded notes); metric math tests with hand-computed expectations;
   end-to-end: Phase 3 chart → Phase 4 render → pipeline → metrics ≥ baseline, and Phase 5 takes →

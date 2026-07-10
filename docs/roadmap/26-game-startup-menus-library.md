@@ -3,7 +3,7 @@
 ## 1. Status
 
 Ready — Phases 1–4 are executable now (headless core work); Phases 5–9 are blocked on
-docs/plans/20-game-architecture-and-render-stack.md Phase 0 sign-off. Date: 2026-07-06.
+docs/roadmap/20-game-architecture-and-render-stack.md Phase 0 sign-off. Date: 2026-07-06.
 Baseline: `refactor @ 3c7febe0`.
 
 ## 2. Goal
@@ -24,18 +24,18 @@ permanent.
 ## 3. Non-goals
 
 - In-song flow, pause/resume, results screens, or the local score store — those are
-  docs/plans/27-in-song-flow-results-profiles.md.
-- The GameplaySession spine and tone switching — docs/plans/21-game-audio-engine-and-session.md.
+  docs/roadmap/27-in-song-flow-results-profiles.md.
+- The GameplaySession spine and tone switching — docs/roadmap/21-game-audio-engine-and-session.md.
 - The render-stack decision, resource-pack conventions, and the vsync/frame-pacing policy —
-  docs/plans/20-game-architecture-and-render-stack.md records those; this plan consumes them.
-- Computing difficulty/intensity values — docs/plans/11-derived-difficulty-calculator.md; this
+  docs/roadmap/20-game-architecture-and-render-stack.md records those; this plan consumes them.
+- Computing difficulty/intensity values — docs/roadmap/11-derived-difficulty-calculator.md; this
   plan only stores calculator-versioned results and defines the degraded "Unknown" behavior.
 - Adding album-art, sort, or preview fields to song.json —
-  docs/plans/43-song-information-and-art.md owns those format changes (routed through
-  docs/plans/10-format-versioning-and-chart-identity.md).
-- Creating the MIDI infrastructure — docs/plans/24-scoring-star-power-failure.md creates the
+  docs/roadmap/43-song-information-and-art.md owns those format changes (routed through
+  docs/roadmap/10-format-versioning-and-chart-identity.md).
+- Creating the MIDI infrastructure — docs/roadmap/24-scoring-star-power-failure.md creates the
   `IMidiTrigger` port; this plan is a second consumer.
-- Editor keybind centralization — docs/plans/46-editor-keybinds.md.
+- Editor keybind centralization — docs/roadmap/46-editor-keybinds.md.
 
 ## 4. Constraints
 
@@ -111,29 +111,29 @@ Verified against code on 2026-07-06, refactor @ 3c7febe0.
 
 ## 6. Dependencies
 
-- docs/plans/00-roadmap.md — execution order and gate registry.
-- docs/plans/20-game-architecture-and-render-stack.md Phase 0a–0c — HARD GATE for Phases 5–9:
+- docs/roadmap/00-roadmap.md — execution order and gate registry.
+- docs/roadmap/20-game-architecture-and-render-stack.md Phase 0a–0c — HARD GATE for Phases 5–9:
   window/main-loop ownership, resource-pack conventions (fonts, menu SFX), dev-diagnostics layer,
   and the vsync/frame-pacing policy this plan's video settings expose. Do not start Phase 5+
   before its STOP gate closes.
-- docs/plans/10-format-versioning-and-chart-identity.md — unknown-field tolerance policy for the
+- docs/roadmap/10-format-versioning-and-chart-identity.md — unknown-field tolerance policy for the
   game-side reader (Phase 1 isolates today's hard formatVersion check so 10's ladder replaces it);
   package/chart identity hash strengthens index keys and enables move detection (Phase 2 note).
-- docs/plans/11-derived-difficulty-calculator.md — calculator-versioned intensities stored in the
+- docs/roadmap/11-derived-difficulty-calculator.md — calculator-versioned intensities stored in the
   index (Phase 2 fields); until it lands, every intensity is the "Unknown" bucket defined here.
-- docs/plans/13-audio-device-settings-and-calibration.md — shared device settings store and
+- docs/roadmap/13-audio-device-settings-and-calibration.md — shared device settings store and
   calibration capture architecture; the game-side setup/calibration wizard UI ships in this plan's
   Phase 8 per that plan's split.
-- docs/plans/22-note-detection.md — tuner screen consumed by Phase 8 step 3.
-- docs/plans/24-scoring-star-power-failure.md — `IMidiTrigger` port and MIDI device
+- docs/roadmap/22-note-detection.md — tuner screen consumed by Phase 8 step 3.
+- docs/roadmap/24-scoring-star-power-failure.md — `IMidiTrigger` port and MIDI device
   enumeration/persistence; Phase 5's pedal input source shares it.
-- docs/plans/27-in-song-flow-results-profiles.md — `IGameSettings` port phase; this plan's Phase 4
+- docs/roadmap/27-in-song-flow-results-profiles.md — `IGameSettings` port phase; this plan's Phase 4
   consumes it. The roadmap should order that single phase ahead of Phase 4 here.
-- docs/plans/42-chart-validation.md — richer content-validation reasons surfaced in the library
+- docs/roadmap/42-chart-validation.md — richer content-validation reasons surfaced in the library
   warning view (soft dependency; Phase 7 shows package-level errors regardless).
-- docs/plans/43-song-information-and-art.md — sort fields, album art (Phase 3 thumbnails, Phase 7
+- docs/roadmap/43-song-information-and-art.md — sort fields, album art (Phase 3 thumbnails, Phase 7
   columns), preview start/length (Phase 9).
-- docs/plans/21-game-audio-engine-and-session.md — preview snippet playback path (Phase 9).
+- docs/roadmap/21-game-audio-engine-and-session.md — preview snippet playback path (Phase 9).
 
 ## 7. Decisions already made
 
@@ -142,7 +142,7 @@ Verified against code on 2026-07-06, refactor @ 3c7febe0.
   the library index is game-owned per-user app data, never written into `.rock` files.
 - Difficulty/intensity is derived by versioned calculators, never authored
   (docs/design/architecture.md "Song Data Model";
-  docs/plans/11-derived-difficulty-calculator.md, which absorbed the former todo derivation
+  docs/roadmap/11-derived-difficulty-calculator.md, which absorbed the former todo derivation
   plan).
 - FLAC is the enforced package audio format (docs/design/architecture.md "Technology Stack").
 - Latency calibration is built in from day one, not bolted on (docs/design/architecture.md
@@ -158,11 +158,11 @@ Verified against code on 2026-07-06, refactor @ 3c7febe0.
   "Development Approach") — menu phases ship functional placeholder styling first.
 - Art direction (recorded here as the durable statement; no earlier doc exists): classic GH-era
   menu energy, modernized in the spirit of GH: Warriors of Rock. Concrete visual design is
-  deferred until docs/plans/20-game-architecture-and-render-stack.md fixes the stack.
+  deferred until docs/roadmap/20-game-architecture-and-render-stack.md fixes the stack.
 
 ## 8. Open questions for the user
 
-Mirror each into docs/plans/00-roadmap.md "Decisions needed".
+Mirror each into docs/roadmap/00-roadmap.md "Decisions needed".
 
 1. **Library index home**: (a) `rock-hero-game/core` (only the game needs an index today; the
    metadata peek reader it consumes lives in common), or (b) `rock-hero-common/core` (if the
@@ -178,7 +178,7 @@ Mirror each into docs/plans/00-roadmap.md "Decisions needed".
    Win32 XInput adapter behind the same port, (c) defer gamepad; ship keyboard + MIDI pedal
    first. **Recommendation: (a), with (c) as the fallback** if plan 20's gate rejects SDL3 —
    JUCE has no gamepad support, so no third option exists inside current frameworks.
-4. **Bindable-action sharing with the editor** (mirrored in docs/plans/46-editor-keybinds.md,
+4. **Bindable-action sharing with the editor** (mirrored in docs/roadmap/46-editor-keybinds.md,
    which states the final choice): (a) parallel systems by design — game menu actions are a
    polled/event-driven game-input concept spanning keyboard+gamepad+pedal, editor keybinds are
    JUCE KeyPress command dispatch; (b) one shared bindable-action concept in rock-hero-common.
@@ -186,7 +186,7 @@ Mirror each into docs/plans/00-roadmap.md "Decisions needed".
    avoids a premature common abstraction.
 5. **Bundled starter song**: onboarding ends at a "suggested first song", but a fresh install has
    an empty library. (a) Ship one self-authored, freely-licensed starter package as a game
-   resource (dual-use as a docs/plans/23-detection-verification-harness.md CI fixture),
+   resource (dual-use as a docs/roadmap/23-detection-verification-harness.md CI fixture),
    (b) suggest the first library entry and show an empty-library help screen when none exists.
    **Recommendation: (a)** — plan 23 needs self-authored freely-licensed songs anyway; one asset
    serves both, and onboarding always has a playable target.
@@ -206,7 +206,7 @@ consumes it.
   (juce::ZipFile entry streams; `parseChartDocument` over the streamed text) and never extracts
   audio or writes a workspace. Failures are typed `SongPackageError`s. Today's
   `formatVersion == 1` check is applied in exactly one named helper so
-  docs/plans/10-format-versioning-and-chart-identity.md can replace it with the
+  docs/roadmap/10-format-versioning-and-chart-identity.md can replace it with the
   tolerance/migration policy without hunting call sites.
 - **Files**: `rock-hero-common/core/include/rock_hero/common/core/package/package_description.h`
   (new public header — justified under (b): an external consumer, the game, exists from Phase 2),
@@ -233,10 +233,10 @@ Assumes open question 1 = (a) and 2 = (a); relabel per the user's answers.
 
 - **Scope**: the first real game code. `LibraryIndex` value model: entries keyed by absolute
   package path, each storing {path, file size, mtime, optional package hash (populated once
-  docs/plans/10-format-versioning-and-chart-identity.md lands — enables move detection and stable
+  docs/roadmap/10-format-versioning-and-chart-identity.md lands — enables move detection and stable
   thumbnail identity), `SongMetadata`, per-arrangement {part, tuning summary, intensity
   {value, calculatorVersion} — absent means the "Unknown" bucket}, thumbnail file name (empty
-  until docs/plans/43-song-information-and-art.md adds art), scan status (Ok | Warning with typed
+  until docs/roadmap/43-song-information-and-art.md adds art), scan status (Ok | Warning with typed
   reason text)}. Versioned index document (`indexFormatVersion`), serialized to one JSON file in
   per-user app data under `applicationDataFolderName()`
   (`rock-hero-common/core/.../shared/application_identity.h`), written atomically
@@ -298,7 +298,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
 
 ### Phase 4 — Game settings consumption (first-run flag, scan roots, video settings, bindings)
 
-Depends on the `IGameSettings` port phase of docs/plans/27-in-song-flow-results-profiles.md
+Depends on the `IGameSettings` port phase of docs/roadmap/27-in-song-flow-results-profiles.md
 (roadmap orders that phase first; if this plan executes earlier, pull exactly that port phase
 forward and record it in both plans).
 
@@ -306,7 +306,7 @@ forward and record it in both plans).
   directories; default `<user music or app data>/Rock Hero/Songs`, created on demand); video
   settings model {display mode fullscreen/windowed/borderless, monitor identifier, resolution,
   vsync mode} whose semantics follow the frame-pacing policy recorded in
-  docs/plans/20-game-architecture-and-render-stack.md (this plan persists and displays; 20's
+  docs/roadmap/20-game-architecture-and-render-stack.md (this plan persists and displays; 20's
   window layer applies); menu binding map storage (consumed by Phase 5). All persisted through
   `IGameSettings` (per-user app data, editor-settings pattern:
   `rock-hero-editor/core/.../settings/` port + PropertiesFile precedent).
@@ -323,10 +323,10 @@ forward and record it in both plans).
 - **Scope**: bindable menu actions (`MenuAction`: up/down/left/right, accept, back, pause-menu,
   rescan, etc.) with a headless binding resolver in game/core: raw input events (plain structs)
   → actions, rebind flow, conflict handling (overwrite-and-clear, mirroring
-  docs/plans/46-editor-keybinds.md semantics without sharing code — open question 4). Input
+  docs/roadmap/46-editor-keybinds.md semantics without sharing code — open question 4). Input
   sources as adapters: keyboard from 20's window/event layer; gamepad via SDL3's gamepad
   subsystem (labeled "assumes outcome SDL3"; fallback per open question 3); MIDI foot controller
-  via the `IMidiTrigger` port created by docs/plans/24-scoring-star-power-failure.md — the pedal
+  via the `IMidiTrigger` port created by docs/roadmap/24-scoring-star-power-failure.md — the pedal
   must be able to drive pause/confirm because a mid-song player cannot reach a keyboard
   (constraint (i)).
 - **Files**: `rock-hero-game/core/.../input/` (actions, bindings, resolver);
@@ -363,14 +363,14 @@ forward and record it in both plans).
 
 - **Scope**: menu tree — Main (Quick Play, Options, Rescan Library, Quit); Options hosts video
   settings (Phase 4), audio device setup and calibration entry points
-  (docs/plans/13-audio-device-settings-and-calibration.md), bindings (Phase 5), and re-run
+  (docs/roadmap/13-audio-device-settings-and-calibration.md), bindings (Phase 5), and re-run
   onboarding (Phase 8). Quick Play renders exclusively from the index — browsing never performs
   package IO. Sort/filter: title/artist/album using
-  docs/plans/43-song-information-and-art.md sort fields when present (raw metadata fallback
+  docs/roadmap/43-song-information-and-art.md sort fields when present (raw metadata fallback
   until then), year, tuning, and per-part intensity where absent values form the "Unknown"
   bucket and always sort last (restating plan 11's degraded-behavior rule — never authored
   values, constraint (d)). Malformed packages show a non-fatal warning badge with the stored
-  typed reason (richer content reasons arrive with docs/plans/42-chart-validation.md). Manual
+  typed reason (richer content reasons arrive with docs/roadmap/42-chart-validation.md). Manual
   rescan action reuses Phase 3 with visible progress. Song detail pane: arrangements, parts,
   tunings, art thumbnail when available.
 - **Files**: song-list view model (filtering/sorting/selection as pure logic) in
@@ -388,9 +388,9 @@ forward and record it in both plans).
 - **Scope**: a game/core state machine: Device Setup → Calibration → Tuner → Suggested First
   Song. Each step individually skippable; the chain is re-enterable from Options; completion (or
   final skip) sets `first_run_completed` (Phase 4). Device setup and calibration wizard UI ship
-  here consuming docs/plans/13-audio-device-settings-and-calibration.md's architecture (that plan
+  here consuming docs/roadmap/13-audio-device-settings-and-calibration.md's architecture (that plan
   states the game-side wizard UI lands with this plan); the tuner screen comes from
-  docs/plans/22-note-detection.md's first shippable consumer. Suggested song per open question 5.
+  docs/roadmap/22-note-detection.md's first shippable consumer. Suggested song per open question 5.
 - **Files**: `rock-hero-game/core/.../onboarding/` state machine; wizard/tuner hosting in
   game/ui.
 - **Public-header impact**: game-scope only.
@@ -404,7 +404,7 @@ forward and record it in both plans).
 
 - **Scope**: when 43's optional preview start/length fields exist, highlighting a song plays that
   FLAC snippet (honoring normalization gain and startOffset) through the engine path provided by
-  docs/plans/21-game-audio-engine-and-session.md — no second decode stack (constraints (e), (g)
+  docs/roadmap/21-game-audio-engine-and-session.md — no second decode stack (constraints (e), (g)
   rationale). Debounced start, stop on navigation, volume from the mix settings owned by 21/27.
   Songs without preview fields stay silent.
 - **Testing**: preview scheduling logic (debounce/cancel) as pure tests; playback path is 21's

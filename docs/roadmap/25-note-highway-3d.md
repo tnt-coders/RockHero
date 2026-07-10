@@ -2,7 +2,7 @@
 
 ## 1. Status
 
-**Decision-gated** — blocked on docs/plans/20-game-architecture-and-render-stack.md Phase 0a–0c
+**Decision-gated** — blocked on docs/roadmap/20-game-architecture-and-render-stack.md Phase 0a–0c
 sign-off (render-stack spike and renderer-sharing seam). No spike of its own; every phase after
 Phase 0 below assumes plan 20's gate closed with SDL3 + bgfx confirmed and the seam decided.
 Date: 2026-07-06. Baseline: `refactor @ 3c7febe0`.
@@ -22,16 +22,16 @@ already carries everything rendered here — no format changes are required by t
 ## 3. Non-goals
 
 - No note detection, scoring, or gameplay-rule logic — hit/miss/early/late events are *inputs*
-  to the renderer, produced per docs/plans/24-scoring-star-power-failure.md.
+  to the renderer, produced per docs/roadmap/24-scoring-star-power-failure.md.
 - No venue/stage art beyond the parallax background layer.
 - No vocals/lyrics/showlights initially (Charter draws lyrics; ours can follow later).
-- No editor integration — the editor keeps the 2D tab lane; docs/plans/44-editor-3d-preview.md
+- No editor integration — the editor keeps the 2D tab lane; docs/roadmap/44-editor-3d-preview.md
   owns the editor-side preview built on the shared scene model.
 - No star-power/failure-meter visual design — that open question belongs to plan 24; this plan
   reserves the HUD layer that will host whichever direction is chosen.
 - No menu, library, or settings UI — the lefty-mirror and scroll-speed *flags* land here; their
-  user-facing toggles ship with docs/plans/26-game-startup-menus-library.md and the settings
-  store of docs/plans/27-in-song-flow-results-profiles.md.
+  user-facing toggles ship with docs/roadmap/26-game-startup-menus-library.md and the settings
+  store of docs/roadmap/27-in-song-flow-results-profiles.md.
 
 ## 4. Constraints
 
@@ -52,7 +52,7 @@ already carries everything rendered here — no format changes are required by t
   real left-handed guitarists exist.
 - **Time is a dependency** (docs/design/architectural-principles.md, "Time Must Be a
   Dependency"): the render loop samples the audio-derived playback clock
-  (docs/plans/12-playback-clock.md) every frame — never wall clock. All animation time derives
+  (docs/roadmap/12-playback-clock.md) every frame — never wall clock. All animation time derives
   from one frame clock; randomness is seeded per event so replays and pauses behave.
 
 ## 5. Current state inventory
@@ -89,7 +89,7 @@ already carries everything rendered here — no format changes are required by t
 - Chart sidecar naming is canonical: `charts/<uuid>.chart.json`
   (`rock-hero-common/core/src/package/package_id.cpp:17-18`,
   `rock_song_package_read.cpp:717`). Chart files write `formatVersion` 1; the parser ignores it
-  on read — validation is docs/plans/10-format-versioning-and-chart-identity.md scope, not ours.
+  on read — validation is docs/roadmap/10-format-versioning-and-chart-identity.md scope, not ours.
 - `rock-hero-editor/ui/src/shared/editor_theme.h` is editor-private by decision; only the
   string-color palette *data* is extracted to common (plan 45), not the theme.
 
@@ -97,30 +97,30 @@ Verified against code on 2026-07-06, refactor @ 3c7febe0.
 
 ## 6. Dependencies
 
-- docs/plans/20-game-architecture-and-render-stack.md — **hard gate**: Phase 0a (platform
+- docs/roadmap/20-game-architecture-and-render-stack.md — **hard gate**: Phase 0a (platform
   scope), Phase 0b (SDL3 + bgfx spike: message-loop coexistence, Conan-vs-vendored, shaderc in
   the CMake graph, headless/noop-renderer CI path), Phase 0c (renderer-sharing seam: where the
   headless highway scene model lives — game/core vs common). Also supplies the game module
   layout, resource-pack conventions (shader binaries, atlases), threading model, and the
   dev-diagnostics layer this plan's debug overlay plugs into.
-- docs/plans/12-playback-clock.md — `IPlaybackClock` and the game-side extrapolation policy; the
+- docs/roadmap/12-playback-clock.md — `IPlaybackClock` and the game-side extrapolation policy; the
   render loop's authoritative song time. Phases 1–2 here run against fixed/fake clocks; Phase 3
   onward needs it for live playback.
-- docs/plans/21-game-audio-engine-and-session.md — the GameplaySession that actually plays a
+- docs/roadmap/21-game-audio-engine-and-session.md — the GameplaySession that actually plays a
   song while the highway scrolls; required for the milestone-0 vertical slice, not for this
   plan's unit-tested core phases.
-- docs/plans/45-editor-theme-and-string-colors.md — the shared string-color palette definition
+- docs/roadmap/45-editor-theme-and-string-colors.md — the shared string-color palette definition
   in rock-hero-common (its palette-extraction phase; re-verify the phase number against that
   plan at execution). Phase 3 here consumes it and must not start before it lands; the highway
   never defines its own string colors.
-- docs/plans/24-scoring-star-power-failure.md — hit/miss/early/late and provisional-hit events
+- docs/roadmap/24-scoring-star-power-failure.md — hit/miss/early/late and provisional-hit events
   consumed by Phase 5; the technique scoring matrix informs which technique glyphs deserve
   gameplay-feedback treatment vs cosmetic rendering.
-- docs/plans/22-note-detection.md (via 24) — detection confidence values shown in the debug
+- docs/roadmap/22-note-detection.md (via 24) — detection confidence values shown in the debug
   overlay.
-- Reverse dependencies: docs/plans/44-editor-3d-preview.md consumes the headless scene model and
-  camera per plan 20 Phase 0c; docs/plans/26-game-startup-menus-library.md and
-  docs/plans/27-in-song-flow-results-profiles.md surface the lefty and scroll-speed settings
+- Reverse dependencies: docs/roadmap/44-editor-3d-preview.md consumes the headless scene model and
+  camera per plan 20 Phase 0c; docs/roadmap/26-game-startup-menus-library.md and
+  docs/roadmap/27-in-song-flow-results-profiles.md surface the lefty and scroll-speed settings
   whose flags are defined here.
 
 ## 7. Decisions already made
@@ -266,12 +266,12 @@ normative):
 3. **Scroll speed / visibility window as a player setting, and its interaction with
    difficulty**: options: (a) free player setting, no difficulty coupling; (b) tied to derived
    difficulty; (c) fixed at v1. Recommendation: (a) — a plain setting persisted with plan 27's
-   store; no coupling to docs/plans/11-derived-difficulty-calculator.md output at v1.
+   store; no coupling to docs/roadmap/11-derived-difficulty-calculator.md output at v1.
 4. **Camera shake on hits**: Charter ships it disabled as a "secret". Options: (a) implement in
    Phase 5 behind a default-off setting; (b) drop entirely. Recommendation: (a) — cheap once the
    event feed exists, and the deterministic-seed fix (defect 5) makes it replay-safe.
 
-(Mirrored into docs/plans/00-roadmap.md "Decisions needed".)
+(Mirrored into docs/roadmap/00-roadmap.md "Decisions needed".)
 
 ## 9. Phased implementation
 
@@ -284,7 +284,7 @@ still integrating. Phases 3+ need the render stack in the build.
 - Scope: confirm plan 20 Phase 0a–0c sign-off; record the chosen scene-model library (below,
   `<core-lib>` = rock-hero-game/core by default, rock-hero-common/core if the seam is shared);
   confirm plan 45's palette extraction landed or schedule Phase 3 after it; re-verify this
-  plan's Current state inventory against the then-current tree per docs/plans/00-roadmap.md
+  plan's Current state inventory against the then-current tree per docs/roadmap/00-roadmap.md
   rules.
 - Exit criteria: seam recorded in this file's status line; baseline stamp refreshed.
 - Verification: none (documentation step).
@@ -445,7 +445,7 @@ pre-commit run --all-files
 Acceptance additionally requires: the verticality and mirror invariants green; the plan 20
 headless/noop-renderer CI path still green; a local (never CI) corpus soak — load corpus
 packages and scroll each arrangement's highway — reported informally per the corpus rules in
-docs/plans/23-detection-verification-harness.md.
+docs/roadmap/23-detection-verification-harness.md.
 
 ## 11. Rollback/abort notes
 

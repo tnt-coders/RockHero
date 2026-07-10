@@ -10,10 +10,10 @@ per-frame time. Concretely: a project-owned `IPlaybackClock` port backed by an E
 mirror of Tracktion's latency-compensated audible playback time, plus a pure
 `PlaybackClockExtrapolator` that slaves a monotonic clock to the published audio ticks with
 clamped drift correction and defined seek/pause/loop snap rules. This is the single playback time
-source for the game highway (docs/plans/25-note-highway-3d.md), scoring timestamps
-(docs/plans/24-scoring-star-power-failure.md), the editor 3D preview
-(docs/plans/44-editor-3d-preview.md), and calibration sampling
-(docs/plans/13-audio-device-settings-and-calibration.md).
+source for the game highway (docs/roadmap/25-note-highway-3d.md), scoring timestamps
+(docs/roadmap/24-scoring-star-power-failure.md), the editor 3D preview
+(docs/roadmap/44-editor-3d-preview.md), and calibration sampling
+(docs/roadmap/13-audio-device-settings-and-calibration.md).
 
 ## Non-goals
 
@@ -31,7 +31,7 @@ source for the game highway (docs/plans/25-note-highway-3d.md), scoring timestam
 
 ## Constraints
 
-Applicable subset of the roadmap constraint block (see docs/plans/00-roadmap.md):
+Applicable subset of the roadmap constraint block (see docs/roadmap/00-roadmap.md):
 
 - (a) **Layering**: common never depends on editor or game code; editor and game never depend on
   each other. Both products need this clock, so everything in this plan lands in
@@ -113,7 +113,7 @@ No design-doc changes are required: architecture.md already mandates exactly thi
   `tone_track_view.h:229`) — they remain correct on the existing `ITransport::position()` path.
 - `rock-hero-game/` is a build-system skeleton (placeholder libs, 81-line window shell); the first
   out-of-message-thread consumer (the game render loop) arrives with
-  docs/plans/20-game-architecture-and-render-stack.md and docs/plans/25-note-highway-3d.md, which
+  docs/roadmap/20-game-architecture-and-render-stack.md and docs/roadmap/25-note-highway-3d.md, which
   is exactly the absorbed doc's trigger condition for building this now.
 
 Verified against code on 2026-07-06, refactor @ 3c7febe0.
@@ -122,23 +122,23 @@ Verified against code on 2026-07-06, refactor @ 3c7febe0.
 
 Upstream (none block the start of this plan — it is a foundation plan):
 
-- docs/plans/00-roadmap.md — execution ordering; this plan is scheduled early because milestone 0
+- docs/roadmap/00-roadmap.md — execution ordering; this plan is scheduled early because milestone 0
   needs it for highway scrolling.
-- docs/plans/20-game-architecture-and-render-stack.md Phase 0b decides which thread the game
+- docs/roadmap/20-game-architecture-and-render-stack.md Phase 0b decides which thread the game
   render loop runs on. The clock API is deliberately thread-agnostic (any-thread `snapshot()`), so
   this plan does not wait for that gate; only the *consumer wiring* does.
 
 Downstream consumers (recorded in their Dependencies sections as well):
 
-- docs/plans/21-game-audio-engine-and-session.md — GameplaySession exposes `IPlaybackClock` to
+- docs/roadmap/21-game-audio-engine-and-session.md — GameplaySession exposes `IPlaybackClock` to
   gameplay; publishes a non-1.0 `playback_rate` once speed control exists.
-- docs/plans/24-scoring-star-power-failure.md — scoring timestamps and the coherent-snapshot
+- docs/roadmap/24-scoring-star-power-failure.md — scoring timestamps and the coherent-snapshot
   revisit (open question 1 below).
-- docs/plans/25-note-highway-3d.md — highway render consumes the extrapolator each frame.
-- docs/plans/44-editor-3d-preview.md — editor preview consumes the same extrapolator (this is why
+- docs/roadmap/25-note-highway-3d.md — highway render consumes the extrapolator each frame.
+- docs/roadmap/44-editor-3d-preview.md — editor preview consumes the same extrapolator (this is why
   it lives in common, per constraint (a)).
-- docs/plans/13-audio-device-settings-and-calibration.md — calibration capture samples the clock.
-- docs/plans/28-practice-mode.md — requires that plan 12/21 interfaces carry a playback speed
+- docs/roadmap/13-audio-device-settings-and-calibration.md — calibration capture samples the clock.
+- docs/roadmap/28-practice-mode.md — requires that plan 12/21 interfaces carry a playback speed
   factor and survive loop-region seeks from day one; this plan bakes both into the snapshot and
   the extrapolator snap rules (only 1.0 is ever published until 21/28 land).
 - docs/todo/smooth-scroll-follow-evaluation.md — the smooth-scroll follow evaluation is an owned,
@@ -184,10 +184,10 @@ New decisions this plan makes (rationale inline, flagged for reviewer attention)
 
 12. The snapshot gains two fields beyond the absorbed doc's `{position, playing}`:
     `monotonic_capture_time` (steady-clock stamp of the publish) and `playback_rate` (1.0 until
-    docs/plans/21-game-audio-engine-and-session.md publishes otherwise). Capture stamps turn
+    docs/roadmap/21-game-audio-engine-and-session.md publishes otherwise). Capture stamps turn
     extrapolation from a jitter-filtering problem into arithmetic
     (`position + (now - captured_at) x rate`) and make the clock robust to publisher stalls; the
-    rate field is docs/plans/28-practice-mode.md's non-negotiable day-one plumbing.
+    rate field is docs/roadmap/28-practice-mode.md's non-negotiable day-one plumbing.
 13. Phase 3 v1 publishes from an adapter-owned message-thread republisher that reads
     `getAudibleTimelineTime()` (the same read `Engine::position()` already performs safely today)
     and stamps it — rather than starting with a custom audio-graph node. The published *value* is
@@ -202,14 +202,14 @@ New decisions this plan makes (rationale inline, flagged for reviewer attention)
 1. **Snapshot time domain for scoring correlation.** Options: (A) timeline nanoseconds only (v1
    as specified); consumers derive sample positions via the device sample rate when needed;
    revisit a coherent `{timeline time, output sample position}` pair (seqlock upgrade, decision 6)
-   when docs/plans/24-scoring-star-power-failure.md defines its provisional-hit contract. (B) Add
+   when docs/roadmap/24-scoring-star-power-failure.md defines its provisional-hit contract. (B) Add
    an output-stream sample-position field now. **Recommendation: A** — plan 22 timestamps
    detections in sample time at the audio callback independently of this clock, so nothing needs
    the pair yet, and the upgrade path is API-stable.
 2. **Editor cursor migration / `ITransport::position()` retirement.** Options: (A) migrate the
    editor cursor overlay to `IPlaybackClock` + extrapolator as an optional phase here and delete
    `ITransport::position()`. (B) Keep the editor on the message-thread `position()` path (it is
-   correct there) and revisit when docs/plans/44-editor-3d-preview.md and the smooth-scroll
+   correct there) and revisit when docs/roadmap/44-editor-3d-preview.md and the smooth-scroll
    decision (docs/todo/smooth-scroll-follow-evaluation.md, awaiting your call) create real
    pressure. **Recommendation: B** — no editor behavior improves today, and retiring
    `position()` prematurely couples this foundation plan to editor UI churn.
@@ -401,7 +401,7 @@ Policy rules (the game-side extrapolation policy, normative):
   while paused therefore lands exactly.
 - **Snap rules**: snap to target on (1) first call, (2) playing-state transition (start/resume),
   (3) |target - previous output| > snap_threshold — which covers seeks, practice-mode loop wraps
-  (backward jumps are legitimate, from docs/plans/28-practice-mode.md), and pathological stalls.
+  (backward jumps are legitimate, from docs/roadmap/28-practice-mode.md), and pathological stalls.
 - **Drift correction**: otherwise, advance by `frame_delta x rate` and slew the residual toward
   target, clamped to `± max_correction_rate x frame_delta`. Output never moves backwards during
   continuous playback (regression clamps to hold; only snap rules may rewind).
@@ -436,7 +436,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
 
 ### Phase 5 — Consumer handoff notes (documentation-only closeout)
 
-**Scope.** No code. Record in this plan (and mirror in docs/plans/00-roadmap.md status) the
+**Scope.** No code. Record in this plan (and mirror in docs/roadmap/00-roadmap.md status) the
 consumer contract for downstream plans:
 
 - Use `IPlaybackClock` for render-frame highway position (25/44), scoring-time lookup (24),
@@ -447,10 +447,10 @@ consumer contract for downstream plans:
 - One `PlaybackClockExtrapolator` per consumer thread; scoring (24) consumes snapshots/chart-time
   correlation, never extrapolated frame time (decision 11).
 - `ITransport::position()` remains the editor's message-thread path pending open question 2; its
-  retirement is re-evaluated in docs/plans/44-editor-3d-preview.md.
+  retirement is re-evaluated in docs/roadmap/44-editor-3d-preview.md.
 
 **Exit criteria.** Roadmap status updated; open questions 1-3 answered or explicitly carried in
-docs/plans/00-roadmap.md "Decisions needed".
+docs/roadmap/00-roadmap.md "Decisions needed".
 
 ## Final acceptance phase
 
@@ -482,7 +482,7 @@ review; commits on `refactor` with short imperative subjects.
   semantics are unchanged.
 - **Escalation guard**: do not attempt the audio-graph tap node or any submodule patch inside this
   plan. If plan 25's measured render telemetry proves message-thread republish cadence
-  insufficient, open the escalation as its own registered follow-up in docs/plans/00-roadmap.md
+  insufficient, open the escalation as its own registered follow-up in docs/roadmap/00-roadmap.md
   with the expert findings attached — the public API guarantees consumers never notice the swap.
 - **Abort condition**: if headless adapter tests reveal that boundary publishes cannot mirror
   `currentTransportState()` deterministically without a device, keep Phase 2's publishes wired to

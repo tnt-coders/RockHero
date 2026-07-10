@@ -2,11 +2,11 @@
 
 **Status:** Ready — 2026-07-06 — baseline `refactor @ 3c7febe0`.
 Phases 1–4 are executable now (headless game/core). Phase 5 is gated on
-docs/plans/21-game-audio-engine-and-session.md and docs/plans/24-scoring-star-power-failure.md;
-Phase 6 is gated on docs/plans/20-game-architecture-and-render-stack.md Phase 0 and
-docs/plans/26-game-startup-menus-library.md (menu input layer). Open questions 1–3 fix policy
+docs/roadmap/21-game-audio-engine-and-session.md and docs/roadmap/24-scoring-star-power-failure.md;
+Phase 6 is gated on docs/roadmap/20-game-architecture-and-render-stack.md Phase 0 and
+docs/roadmap/26-game-startup-menus-library.md (menu input layer). Open questions 1–3 fix policy
 constants consumed by Phase 3; the phase implements the recorded recommendations only after the
-user answers them in docs/plans/00-roadmap.md Decisions-needed.
+user answers them in docs/roadmap/00-roadmap.md Decisions-needed.
 
 ## 1. Goal
 
@@ -15,27 +15,27 @@ pauses and resumes without taking hands off the guitar (pedal/MIDI), restarts in
 finishes cleanly, and lands on a results screen showing score, accuracy, best streak, stars,
 per-section breakdown, and early/late tendency. Every completed run is persisted to a local score
 store keyed by (chart identity hash, arrangement, profile, scoring-ruleset version) in a format
-that docs/plans/29-online-leaderboards.md can upload unchanged. A game-owned settings port
+that docs/roadmap/29-online-leaderboards.md can upload unchanged. A game-owned settings port
 (IGameSettings) gives all game plans one per-user persistence seam, with a single implicit profile
 at v1 whose id is stamped on every persisted record.
 
 ## 2. Non-goals
 
 - Scoring rules, star power, the fail meter, the per-note verdict format, and the MIDI trigger
-  port — owned by docs/plans/24-scoring-star-power-failure.md; this plan consumes them.
+  port — owned by docs/roadmap/24-scoring-star-power-failure.md; this plan consumes them.
 - Menus, library, song selection, first-run onboarding UI, video settings definitions — owned by
-  docs/plans/26-game-startup-menus-library.md (it persists through this plan's settings port).
-- Practice-mode looping and speed control — docs/plans/28-practice-mode.md (deferred); this plan
+  docs/roadmap/26-game-startup-menus-library.md (it persists through this plan's settings port).
+- Practice-mode looping and speed control — docs/roadmap/28-practice-mode.md (deferred); this plan
   only avoids blocking it.
 - Multi-profile UI (creation, switching, avatars). v1 has one implicit profile; the data model
   carries a profile id so multi-profile later is additive, not a migration.
-- Score upload, accounts, server anything — docs/plans/29-online-leaderboards.md.
+- Score upload, accounts, server anything — docs/roadmap/29-online-leaderboards.md.
 - Replay rendering from verdict logs (a future idea enabled by the record format, not built here).
 - Any write into `.rock` packages. Scores and settings are per-user app data only.
 
 ## 3. Constraints
 
-Applicable subset of the roadmap constraint block (see docs/plans/00-roadmap.md):
+Applicable subset of the roadmap constraint block (see docs/roadmap/00-roadmap.md):
 
 - (a) **Layering**: common never depends on editor or game code; game never depends on editor
   code; game code never includes editor headers. Everything in this plan is game-scope except one
@@ -52,7 +52,7 @@ Applicable subset of the roadmap constraint block (see docs/plans/00-roadmap.md)
   invocations.
 - (i) **Real guitar input**: both hands are on the guitar during play. Pause and in-song actions
   must be reachable via MIDI foot controller (shared infrastructure from
-  docs/plans/24-scoring-star-power-failure.md); keyboard is a fallback, never the only path.
+  docs/roadmap/24-scoring-star-power-failure.md); keyboard is a fallback, never the only path.
 - The game treats the `Song` model as read-only during gameplay and never mutates user packages
   (docs/design/architecture.md, "Application Responsibilities"). The score store and settings
   live in per-user app data.
@@ -86,13 +86,13 @@ editor-core tone changes that this plan does not touch.
 - `rock-hero-common/core/include/rock_hero/common/core/song/arrangement.h` gives arrangements a
   stable string `id` and a `Part` enum (Lead | Rhythm | Bass).
   `song/difficulty.h` holds `DifficultyRating` (in-memory only, never serialized).
-- There is NO MIDI infrastructure anywhere in the repo (docs/plans/24 creates it), NO score
-  storage of any kind, NO game settings, NO chart-identity hash (docs/plans/10 creates it), and
-  NO GameplaySession (docs/plans/21 creates it).
+- There is NO MIDI infrastructure anywhere in the repo (docs/roadmap/24 creates it), NO score
+  storage of any kind, NO game settings, NO chart-identity hash (docs/roadmap/10 creates it), and
+  NO GameplaySession (docs/roadmap/21 creates it).
 - `common::audio::InputCalibrationState` exists at
   `rock-hero-common/audio/include/rock_hero/common/audio/input/input_calibration_state.h` and is
   already persisted per input-device identity by the editor settings; the shared settings/offset
-  architecture is docs/plans/13-audio-device-settings-and-calibration.md.
+  architecture is docs/roadmap/13-audio-device-settings-and-calibration.md.
 - Build helper: `.agents/rockhero-build.ps1` (presets lowercase; `-Targets`, `-RunTouchedTests`,
   `-Configure` only after CMake graph changes; quiet by default).
 
@@ -102,42 +102,42 @@ Verified against code on 2026-07-06, refactor @ 3c7febe0.
 
 Inbound (this plan consumes):
 
-- docs/plans/10-format-versioning-and-chart-identity.md — chart-identity hash phase: the score
+- docs/roadmap/10-format-versioning-and-chart-identity.md — chart-identity hash phase: the score
   store key. Phase 2 cannot finalize keys before the hash spec exists.
-- docs/plans/12-playback-clock.md — seek/pause snap rules consumed by Phase 5's resume pre-roll.
-- docs/plans/13-audio-device-settings-and-calibration.md — device-loss policy (auto-pause,
+- docs/roadmap/12-playback-clock.md — seek/pause snap rules consumed by Phase 5's resume pre-roll.
+- docs/roadmap/13-audio-device-settings-and-calibration.md — device-loss policy (auto-pause,
   non-destructive score state) consumed by Phase 3/5; calibration offsets appear in score records
-  via docs/plans/24's record format.
-- docs/plans/20-game-architecture-and-render-stack.md — Phase 0 gate (render stack), resource-pack
+  via docs/roadmap/24's record format.
+- docs/roadmap/20-game-architecture-and-render-stack.md — Phase 0 gate (render stack), resource-pack
   convention (count-in click, menu SFX) consumed by Phases 5–6.
-- docs/plans/21-game-audio-engine-and-session.md — GameplaySession pause/resume/seek and
+- docs/roadmap/21-game-audio-engine-and-session.md — GameplaySession pause/resume/seek and
   instant-restart guarantees consumed by Phase 5.
-- docs/plans/24-scoring-star-power-failure.md — score-record format phase (per-note verdict log,
+- docs/roadmap/24-scoring-star-power-failure.md — score-record format phase (per-note verdict log,
   ruleset/detection versions, chart hash, calibration offsets, modifiers), IMidiTrigger port,
   fail-meter events, no-fail default. Phases 2, 4, and 5 are gated on the relevant 24 phases; pin
-  exact phase numbers during the roadmap consistency pass in docs/plans/00-roadmap.md.
-- docs/plans/26-game-startup-menus-library.md — menu input layer (keyboard/gamepad/pedal
+  exact phase numbers during the roadmap consistency pass in docs/roadmap/00-roadmap.md.
+- docs/roadmap/26-game-startup-menus-library.md — menu input layer (keyboard/gamepad/pedal
   navigation) consumed by Phase 6.
-- docs/plans/23-detection-verification-harness.md — deterministic verdict-log replay provides
+- docs/roadmap/23-detection-verification-harness.md — deterministic verdict-log replay provides
   fixtures for Phase 4 tests once available (Phase 4 also ships its own synthetic fixtures).
 
 Outbound (other plans consume this plan):
 
-- docs/plans/21 (mix-volume persistence), docs/plans/25 (lefty toggle persistence),
-  docs/plans/26 (first-run flag, video settings persistence) → Phase 1's IGameSettings.
-- docs/plans/29-online-leaderboards.md → Phase 2's score store: the persisted record file is the
+- docs/roadmap/21 (mix-volume persistence), docs/roadmap/25 (lefty toggle persistence),
+  docs/roadmap/26 (first-run flag, video settings persistence) → Phase 1's IGameSettings.
+- docs/roadmap/29-online-leaderboards.md → Phase 2's score store: the persisted record file is the
   upload unit, byte-for-byte.
-- docs/plans/28-practice-mode.md → Phase 3's flow machine leaves explicit seams (see Phase 3).
+- docs/roadmap/28-practice-mode.md → Phase 3's flow machine leaves explicit seams (see Phase 3).
 
 ## 6. Decisions already made
 
 Restated from their source documents (never from conversation):
 
-- **No-fail is ON by default; failing is opt-in** — docs/plans/24-scoring-star-power-failure.md.
+- **No-fail is ON by default; failing is opt-in** — docs/roadmap/24-scoring-star-power-failure.md.
   The fail flow in this plan only activates when the player opted in; results label no-fail runs.
 - **The score-record format is owned by plan 24** (per-note verdict log with hit/miss, timing
   delta, detected pitch, confidence; scoring-ruleset version; detection-engine version; chart
-  hash; calibration offsets; modifiers) — docs/plans/24-scoring-star-power-failure.md. This plan
+  hash; calibration offsets; modifiers) — docs/roadmap/24-scoring-star-power-failure.md. This plan
   owns only persistence, keying, indexing, and querying of those records.
 - **The game treats `Song` as read-only and owns scoring UX** — docs/design/architecture.md,
   "Application Responsibilities". Corollary adopted here: nothing in this plan writes into
@@ -145,10 +145,10 @@ Restated from their source documents (never from conversation):
 - **All scoring comparisons happen in audio-sample time with calibration offsets applied; the
   audio thread is the single source of truth for timing** — docs/design/architecture.md, "Timing
   and Latency". Flow-machine timestamps and verdict timing deltas use the playback clock
-  (docs/plans/12), never render-thread time.
+  (docs/roadmap/12), never render-thread time.
 - **Latency calibration is built in from day one** — docs/design/architecture.md, "Gameplay
   Systems". Results early/late tendency therefore doubles as a calibration health check
-  (docs/plans/13).
+  (docs/roadmap/13).
 - **Product core modules may use narrow JUCE utilities (`juce::File`, `juce::PropertiesFile`,
   JSON) while staying headless and automated-testable** — docs/design/architectural-principles.md,
   "Core Modules". GameSettings and the score store live in `rock-hero-game/core` on this basis.
@@ -156,11 +156,11 @@ Restated from their source documents (never from conversation):
   pattern** — the editor port lives at
   `rock-hero-editor/core/include/rock_hero/editor/core/settings/i_editor_settings.h` and is not
   shared; shared *audio-device* settings are a separate concern owned by
-  docs/plans/13-audio-device-settings-and-calibration.md.
+  docs/roadmap/13-audio-device-settings-and-calibration.md.
 
 ## 7. Open questions for the user
 
-Mirror all three into docs/plans/00-roadmap.md Decisions-needed.
+Mirror all three into docs/roadmap/00-roadmap.md Decisions-needed.
 
 1. **Pause control when only one footswitch is mapped.** Star power (plan 24) defaults to any
    footswitch press; pause also needs a hands-on-guitar trigger.
@@ -199,7 +199,7 @@ Mirror all three into docs/plans/00-roadmap.md Decisions-needed.
   code enum + message, mirroring `editor_settings_error.h`), and a
   `NullGameSettings` test fake. v1 keys: `profileId` (UUID string, generated on first access and
   then stable), `profileDisplayName` (default "Player"), `firstRunCompleted` (bool, consumed by
-  docs/plans/26). Document in the header the convention consumer plans follow to add keys
+  docs/roadmap/26). Document in the header the convention consumer plans follow to add keys
   (typed getter/setter pair per key, `std::optional` reads, `std::expected` writes) — plans 21,
   25, and 26 add their own keys in their own phases; this plan does not pre-declare them.
   Add `gameApplicationName()` ("Rock Hero") beside `editorApplicationName()` in
@@ -229,12 +229,12 @@ Mirror all three into docs/plans/00-roadmap.md Decisions-needed.
 ### Phase 2 — Local score store (gated: 10's identity hash + 24's record format)
 
 - **Scope**: Append-only, crash-safe persistence and querying of finished-run score records.
-  Key tuple: **(chart identity hash — docs/plans/10; arrangement id — `Arrangement::id`; profile
-  id — Phase 1; scoring-ruleset version — docs/plans/24)**. Layout (private to `src/`, documented
+  Key tuple: **(chart identity hash — docs/roadmap/10; arrangement id — `Arrangement::id`; profile
+  id — Phase 1; scoring-ruleset version — docs/roadmap/24)**. Layout (private to `src/`, documented
   in the implementation, rebuildable by scan):
   - `<per-user app data>/Rock Hero/game/scores/<profileId>/records/<utcIso8601>-<uuid>.score.json`
     — the file bytes are exactly plan 24's serialized ScoreRecord, no store wrapper, so
-    docs/plans/29 uploads the file unchanged.
+    docs/roadmap/29 uploads the file unchanged.
   - `.../scores/<profileId>/meta/<chartHash>.json` — display snapshot (title, artist, album,
     part, arrangement id) captured at record time so history renders after a package moves or
     is deleted. Snapshot data comes from the loaded `Song`, read-only.
@@ -265,7 +265,7 @@ Mirror all three into docs/plans/00-roadmap.md Decisions-needed.
   injected clock and policy. States: `Loading → CountIn → Playing → Paused(cause) →
   ResumePreRoll → Playing → Completed → ResultsReady` plus `Playing → Failed` (only when fail
   opted in, per plan 24) and `Restarting` (from Paused/Failed/ResultsReady back to CountIn with
-  score state reset). Pause causes: `PlayerRequested`, `DeviceLost` (docs/plans/13 policy:
+  score state reset). Pause causes: `PlayerRequested`, `DeviceLost` (docs/roadmap/13 policy:
   auto-pause, score state preserved non-destructively), `FocusLost` (auto-pause when the window
   loses foreground focus during Playing). Song-start policy per Q2 (default: visual count-in,
   >= 3.0 s runway; runway shortfall requested from the session as lead-in silence). Resume policy
@@ -275,7 +275,7 @@ Mirror all three into docs/plans/00-roadmap.md Decisions-needed.
   `StartTransport`, `PauseTransport`, `PlayClick`, `PersistRecord`, `ShowResults`) that Phase 5
   binds to real ports — the machine itself stays simulation-testable per
   docs/design/architectural-principles.md ("Core Modules": simulation belongs in game/core).
-  **Practice-mode seam** (docs/plans/28): the machine takes playback-rate and loop-region fields
+  **Practice-mode seam** (docs/roadmap/28): the machine takes playback-rate and loop-region fields
   in its session-config struct from day one (only 1.0 / no-loop ship now).
 - **Files/modules**: `rock-hero-game/core/include/rock_hero/game/core/flow/in_song_flow.h`,
   `rock-hero-game/core/src/flow/in_song_flow.cpp`.
@@ -299,14 +299,14 @@ Mirror all three into docs/plans/00-roadmap.md Decisions-needed.
   repeat number, note count, accuracy) using section time spans derived from the tempo map,
   early/late tendency (mean and median signed timing delta of hits, early/late share), and a
   calibration hint (|mean delta| above a threshold → "consider re-running calibration", per
-  docs/plans/13). No-fail and modifier labels pass through from the record (plan 24 defines
+  docs/roadmap/13). No-fail and modifier labels pass through from the record (plan 24 defines
   them).
 - **Files/modules**: `rock-hero-game/core/include/rock_hero/game/core/results/results_summary.h`,
   `rock-hero-game/core/src/results/results_summary.cpp`.
 - **Public-header impact**: one public header (value type + compute function).
 - **Testing plan**: `test_results_summary.cpp` with synthetic verdict logs: all-hit and all-miss
   extremes, sectionless charts (single implicit section), early-vs-late skew detection,
-  streak across section boundaries, revoked-hit accounting. Adopt docs/plans/23's replayed
+  streak across section boundaries, revoked-hit accounting. Adopt docs/roadmap/23's replayed
   verdict-log fixtures as an additional corpus when that harness lands.
 - **Exit criteria**: summary values match hand-computed fixtures exactly; function is
   deterministic and allocation-light.
@@ -315,10 +315,10 @@ Mirror all three into docs/plans/00-roadmap.md Decisions-needed.
 ### Phase 5 — Session integration (gated: 21 GameplaySession; 24 IMidiTrigger; 12 clock; 13 device-loss)
 
 - **Scope**: Bind Phase 3 intents to real ports: transport pause/resume/seek through
-  GameplaySession (docs/plans/21) with seek/pause snap rules from docs/plans/12; instant restart
+  GameplaySession (docs/roadmap/21) with seek/pause snap rules from docs/roadmap/12; instant restart
   via 21's restart guarantee; count-in and pre-roll click from the resource-pack convention of
-  docs/plans/20; pedal pause via plan 24's IMidiTrigger mapped actions (default per Q1 answer;
-  Esc fallback always); device-loss events from docs/plans/13 feeding `Paused(DeviceLost)`;
+  docs/roadmap/20; pedal pause via plan 24's IMidiTrigger mapped actions (default per Q1 answer;
+  Esc fallback always); device-loss events from docs/roadmap/13 feeding `Paused(DeviceLost)`;
   completed runs serialized by plan 24's recorder and persisted through Phase 2's store BEFORE
   results display. Live guitar monitoring stays active while paused (the player is holding a
   live instrument; muting on pause would be hostile — revisit only if feedback says otherwise).
@@ -337,13 +337,13 @@ Mirror all three into docs/plans/00-roadmap.md Decisions-needed.
 
 ### Phase 6 — Pause, fail, and results UI (gated: 20 Phase 0; 26 menu input layer)
 
-- **Scope**: `rock-hero-game/ui` screens on the render stack chosen by docs/plans/20: pause
+- **Scope**: `rock-hero-game/ui` screens on the render stack chosen by docs/roadmap/20: pause
   overlay (Resume / Restart / Quit to library), fail screen (Retry / Quit; only reachable when
   fail opted in), results screen (score, accuracy, streak, stars, per-section table, early/late
   gauge, calibration hint, personal-best comparison + new-best badge from Phase 2 queries,
-  no-fail/modifier labels). All navigation through docs/plans/26's menu input layer
+  no-fail/modifier labels). All navigation through docs/roadmap/26's menu input layer
   (keyboard/gamepad/pedal — a player mid-song cannot reach a keyboard). Art direction follows
-  the statement recorded in docs/plans/26. Results screen reads a completed `ResultsSummary` and
+  the statement recorded in docs/roadmap/26. Results screen reads a completed `ResultsSummary` and
   store queries only — no scoring logic in UI per docs/design/architectural-principles.md.
 - **Files/modules**: new `rock-hero-game/ui` sources (shape depends on 20's outcome; re-verify).
 - **Public-header impact**: game/ui headers stay product-internal; none public beyond the module.

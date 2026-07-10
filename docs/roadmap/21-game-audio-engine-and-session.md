@@ -1,7 +1,7 @@
 # Plan 21 — Game Audio Engine and GameplaySession
 
 Status: Decision-gated (Phase 0 sign-off; render-loop coexistence input from
-docs/plans/20-game-architecture-and-render-stack.md Phase 0b). Date: 2026-07-06.
+docs/roadmap/20-game-architecture-and-render-stack.md Phase 0b). Date: 2026-07-06.
 Baseline: `refactor @ 3c7febe0`.
 
 ## Goal
@@ -16,15 +16,15 @@ charter authored in the editor.
 ## Non-goals
 
 - Note detection, scoring, or any DSP on the guitar signal
-  (docs/plans/22-note-detection.md, docs/plans/24-scoring-star-power-failure.md).
-- Rendering, menus, or song-library UX (docs/plans/20-game-architecture-and-render-stack.md,
-  docs/plans/25-note-highway-3d.md, docs/plans/26-game-startup-menus-library.md).
+  (docs/roadmap/22-note-detection.md, docs/roadmap/24-scoring-star-power-failure.md).
+- Rendering, menus, or song-library UX (docs/roadmap/20-game-architecture-and-render-stack.md,
+  docs/roadmap/25-note-highway-3d.md, docs/roadmap/26-game-startup-menus-library.md).
 - Shipping playback speeds other than 1.0 or user-facing practice loops — this plan only plumbs
   the speed factor and loop-region seek through the interfaces so
-  docs/plans/28-practice-mode.md is not a rewrite.
-- The playback-clock design itself (docs/plans/12-playback-clock.md owns IPlaybackClock; this
+  docs/roadmap/28-practice-mode.md is not a rewrite.
+- The playback-clock design itself (docs/roadmap/12-playback-clock.md owns IPlaybackClock; this
   plan consumes it).
-- Audio device selection/calibration UX (docs/plans/13-audio-device-settings-and-calibration.md).
+- Audio device selection/calibration UX (docs/roadmap/13-audio-device-settings-and-calibration.md).
 - Editor tone-authoring work; docs/in-progress/tone-track-tempo-map-plan.md slice 5 is active
   editor work that this plan references and must not duplicate or modify.
 
@@ -110,7 +110,7 @@ Additional binding design-doc rules:
   exist (rock-hero-common/core/include/rock_hero/common/core/package/rock_song_package.h).
   The reader hard-rejects `formatVersion != 1` (rock-hero-common/core/src/package/
   rock_song_package_read.cpp, ~line 976) — game-side version tolerance is
-  docs/plans/10-format-versioning-and-chart-identity.md scope.
+  docs/roadmap/10-format-versioning-and-chart-identity.md scope.
 - `rock-hero-game` is a build skeleton: app/main.cpp is an 81-line JUCE `DocumentWindow` shell
   (a full JUCE application with a running message loop), and core/audio/ui are `placeholder.cpp`
   static libraries. No game tests exist. SDL3/bgfx appear nowhere in the build.
@@ -124,25 +124,25 @@ Verified against code on 2026-07-06, refactor @ 3c7febe0.
 
 ## Dependencies
 
-- docs/plans/20-game-architecture-and-render-stack.md — Phase 0b (JUCE MessageManager/Tracktion
+- docs/roadmap/20-game-architecture-and-render-stack.md — Phase 0b (JUCE MessageManager/Tracktion
   coexistence with the chosen game main loop). Gates only this plan's **final integration**
   shape; Phases 1-6 here run inside the existing JUCE game shell, which already owns a message
   loop.
-- docs/plans/12-playback-clock.md — its IPlaybackClock introduction phase. Phase 2 designs the
+- docs/roadmap/12-playback-clock.md — its IPlaybackClock introduction phase. Phase 2 designs the
   GameplaySession to hand IPlaybackClock to gameplay consumers; until plan 12 lands, the session
   exposes message-thread `ITransport::position()` behind the same accessor seam.
-- docs/plans/13-audio-device-settings-and-calibration.md — shared per-device-identity settings
+- docs/roadmap/13-audio-device-settings-and-calibration.md — shared per-device-identity settings
   store; Phase 6 uses fixed devices until it lands.
-- docs/plans/22-note-detection.md — Phase 1 detection contract defines the dry-signal tap point;
+- docs/roadmap/22-note-detection.md — Phase 1 detection contract defines the dry-signal tap point;
   this plan's Phase 5 records where the dry tap must sit (before the tone rack) so the two plans
   agree on one seam.
-- docs/plans/26-game-startup-menus-library.md — supplies real song selection; Phase 6 here
+- docs/roadmap/26-game-startup-menus-library.md — supplies real song selection; Phase 6 here
   hardcodes one package path.
-- docs/plans/27-in-song-flow-results-profiles.md — IGameSettings store persists Phase 4's mix
+- docs/roadmap/27-in-song-flow-results-profiles.md — IGameSettings store persists Phase 4's mix
   values; until then they are session-local.
-- docs/plans/28-practice-mode.md — consumer of the speed factor and loop-region plumbing from
+- docs/roadmap/28-practice-mode.md — consumer of the speed factor and loop-region plumbing from
   Phase 1; its time-stretch quality verification does not block this plan.
-- docs/plans/47-editor-loop-selection.md — declares the same shared-port loop surface under a
+- docs/roadmap/47-editor-loop-selection.md — declares the same shared-port loop surface under a
   whichever-executes-first rule (its Decisions) and is expected to execute first, landing the
   Tracktion-backed loop; Phase 1 here then re-verifies the landed surface and adds only the
   speed methods.
@@ -193,7 +193,7 @@ Restated inline so a fresh session needs no other context:
    fails entirely. **Recommendation: B, with C as the degraded case when an entire tone chain
    fails to load — never block gameplay on tone fidelity, never fail silently.** The warning
    should also mark the run so results can record "tone degraded" (consumed by
-   docs/plans/24-scoring-star-power-failure.md's score record).
+   docs/roadmap/24-scoring-star-power-failure.md's score record).
 2. **Per-tone reported-latency policy for live monitoring.** Tone docs are arbitrary VST chains
    with unbounded reported latency (a lookahead limiter can report 100+ ms). Options: (A) warn
    pre-song when any tone's summed reported latency exceeds a threshold (suggest 10 ms), play
@@ -202,7 +202,7 @@ Restated inline so a fresh session needs no other context:
    is unaffected because detection taps the dry input (plan 22); a hard cap would break
    legitimately authored tones.
 3. **Mix-volume scope.** Should master/backing/monitor volumes be global settings, per-song, or
-   both? **Recommendation: global in v1 (persisted via docs/plans/27-in-song-flow-results-
+   both? **Recommendation: global in v1 (persisted via docs/roadmap/27-in-song-flow-results-
    profiles.md's IGameSettings), with per-song override deferred until requested.**
 
 ## Phased implementation
@@ -235,7 +235,7 @@ Verification commands: none (documentation-only gate).
 
 Scope: extend `ITransport` (rock-hero-common/audio/include/rock_hero/common/audio/transport/
 i_transport.h) and `Engine` with the two gameplay-shaped controls that must exist from day one
-so docs/plans/28-practice-mode.md is additive, not a rewrite:
+so docs/roadmap/28-practice-mode.md is additive, not a rewrite:
 
 - `setPlaybackSpeed(double factor)` / `playbackSpeed()`: v1 accepts exactly 1.0; any other value
   returns a typed `TransportError{SpeedNotSupported}` (new small error enum in transport/).
@@ -248,7 +248,7 @@ so docs/plans/28-practice-mode.md is additive, not a rewrite:
   engine_song_audio.cpp:163; the loop-range API needs a **juce-tracktion-expert verification**
   of `TransportControl` loop-range semantics before coding). Loop wrap is a transport-internal
   jump, so tone-branch automation resyncs by the same mechanism as any seek (verified seek-
-  resync fact in Decisions above). Coordination: docs/plans/47-editor-loop-selection.md Phase 1
+  resync fact in Decisions above). Coordination: docs/roadmap/47-editor-loop-selection.md Phase 1
   shares this exact surface (whichever-executes-first rule) and is expected to land it first —
   if it has, re-verify the landed loop and add only the speed surface, never re-implement.
 
@@ -289,7 +289,7 @@ ports (constraint (b); docs/design/architectural-principles.md "Ports and Adapte
   workspace under per-user app data** (never next to the package; deleted on session close),
   select the arrangement, run `ISongAudio::prepareSong` + `setActiveArrangement`. The package
   file itself is never written (read-only game rule). Absent normalization metadata plays at
-  0 dB in v1; docs/plans/26-game-startup-menus-library.md's cache may add game-side analysis
+  0 dB in v1; docs/roadmap/26-game-startup-menus-library.md's cache may add game-side analysis
   later.
 - `PreparingRig`: preload **every** tone referenced by the arrangement (deduped
   `tone_track.regions[].tone_document_ref` plus the default `tone_document_ref`) through
@@ -299,7 +299,7 @@ ports (constraint (b); docs/design/architectural-principles.md "Ports and Adapte
 - `Ready/Playing`: `play()`, `pause()`, `seek`, instant restart (= `seek(start)` + `play()`,
   no rig teardown), and pass-throughs for speed/loop (Phase 1 surface) so plan 28 later drives
   them. Exposes the playback clock: IPlaybackClock once
-  docs/plans/12-playback-clock.md lands; a thin message-thread `ITransport::position()`
+  docs/roadmap/12-playback-clock.md lands; a thin message-thread `ITransport::position()`
   accessor behind the same session getter until then.
 - All failures surface as typed session errors (docs/design/architectural-principles.md,
   "Typed Boundary Errors").
@@ -383,7 +383,7 @@ constraint (b)):
   Tracktion master-plugin surface is correct before implementing.
 
 Game side: session-local values in v1; persistence lands with
-docs/plans/27-in-song-flow-results-profiles.md's IGameSettings (record the key names there).
+docs/roadmap/27-in-song-flow-results-profiles.md's IGameSettings (record the key names there).
 Files: common/audio port + engine TU + adapter tests; game/core session accessors + fake tests.
 Public-header impact: one small port surface in common/audio.
 Testing plan: adapter tests prove backing gain composes with normalization (set both, read
@@ -403,7 +403,7 @@ Scope: make the latency policy executable, not folklore:
   matters only during the 5-10 ms crossfade (brief phase smear, not a timing error).
 - Surface per-tone summed reported latency (chain `getLatencySeconds()` walk) through the
   rig-load result, and implement the warning policy per open question 2's answer.
-- Record the dry-tap contract: detection (docs/plans/22-note-detection.md) taps the raw input
+- Record the dry-tap contract: detection (docs/roadmap/22-note-detection.md) taps the raw input
   **before** the tone rack (docs/design/architecture.md "Threading Model" already specifies the
   pre-effects ring-buffer copy), so chain latency never contaminates scoring timestamps. This
   phase adds the documentation and the seam assertion, not the tap itself.
@@ -419,7 +419,7 @@ Verification commands: same three invocations as Phase 1.
 
 Scope: wire `GameplaySession` into the existing JUCE game shell (rock-hero-game/app/main.cpp)
 behind a dev path: hardcoded package path (command line or dev config), fixed audio devices,
-keyboard start — the audio half of the roadmap's milestone 0 (docs/plans/00-roadmap.md). No
+keyboard start — the audio half of the roadmap's milestone 0 (docs/roadmap/00-roadmap.md). No
 rendering dependency: this runs before plan 20's gate closes because the shell already owns a
 JUCE message loop. Manual soak checklist: backing plays with normalization gain and
 start-offset alignment; live guitar audible through the authored tone; tones switch at region
@@ -452,7 +452,7 @@ pre-commit run --all-files
 ```
 
 Plus the Phase 6 manual soak checklist signed off, and the roadmap
-(docs/plans/00-roadmap.md) status line for this plan updated.
+(docs/roadmap/00-roadmap.md) status line for this plan updated.
 
 ## Rollback/abort notes
 

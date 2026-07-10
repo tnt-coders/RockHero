@@ -3,9 +3,9 @@
 **Status:** Ready — 2026-07-06 — baseline `refactor @ 3c7febe0`.
 
 Open questions Q1–Q4 below have recommended defaults and are mirrored into
-`docs/plans/00-roadmap.md` (Decisions needed). Phases 1–3 depend on none of them; later phases
+`docs/roadmap/00-roadmap.md` (Decisions needed). Phases 1–3 depend on none of them; later phases
 state which answer they assume. The mid-sustain vibrato-span sub-scope (Phase 7) is gated on
-`docs/plans/10-format-versioning-and-chart-identity.md`.
+`docs/roadmap/10-format-versioning-and-chart-identity.md`.
 
 ## Goal
 
@@ -20,16 +20,16 @@ a complete, valid chart in the editor — today charts are read-only and enter o
 
 ## Non-goals
 
-- Tempo-map authoring (tap tempo, anchor drag, signature editing) — `docs/plans/41-tempo-map-authoring.md`.
-- The validation rule set itself — `docs/plans/42-chart-validation.md` owns the rules; this plan
+- Tempo-map authoring (tap tempo, anchor drag, signature editing) — `docs/roadmap/41-tempo-map-authoring.md`.
+- The validation rule set itself — `docs/roadmap/42-chart-validation.md` owns the rules; this plan
   owns the editor's consumption surface (live feedback, problems display).
-- Song metadata/art editing — `docs/plans/43-song-information-and-art.md`.
-- 3D preview — `docs/plans/44-editor-3d-preview.md`.
+- Song metadata/art editing — `docs/roadmap/43-song-information-and-art.md`.
+- 3D preview — `docs/roadmap/44-editor-3d-preview.md`.
 - Chart importers beyond what exists (GP shipped; RS XML import is future work per
   `docs/in-progress/note-format-and-tablature-plan.md`).
 - New format capabilities beyond the already-decided vibrato spans; whammy and other sketches in
-  the note-format plan stay future, routed through `docs/plans/10-format-versioning-and-chart-identity.md`.
-- Raising `g_max_chart_strings` above 8 — coordinated by `docs/plans/45-editor-theme-and-string-colors.md`.
+  the note-format plan stay future, routed through `docs/roadmap/10-format-versioning-and-chart-identity.md`.
+- Raising `g_max_chart_strings` above 8 — coordinated by `docs/roadmap/45-editor-theme-and-string-colors.md`.
 - Playback-follow changes; the smooth-scroll evaluation stays the user's pending call
   (`docs/todo/smooth-scroll-follow-evaluation.md`).
 
@@ -117,23 +117,26 @@ Verified against code on 2026-07-06, refactor @ 3c7febe0.
 - `docs/in-progress/tone-track-tempo-map-plan.md` — active tone work with uncommitted editor-core
   changes in flight. **Do not start Phase 2 until that work is committed**; both touch
   `editor_controller_impl.h` and the handler-TU layout.
-- `docs/plans/41-tempo-map-authoring.md` — gates the *from-scratch* charting promise only. Every
+- `docs/roadmap/41-tempo-map-authoring.md` — gates the *from-scratch* charting promise only. Every
   phase here is executable against imported packages (GP import already builds tempo maps); the
   roadmap should sequence 41 before "author a chart from bare audio" is claimed as done.
-- `docs/plans/42-chart-validation.md` — Phase 10 consumes its rule set for live feedback; the
+- `docs/roadmap/42-chart-validation.md` — Phase 10 consumes its rule set for live feedback; the
   same-string-overlap rule (Q2) is co-owned: this plan sets the edit-time semantics, 42 flags
   residual violations from imports.
-- `docs/plans/10-format-versioning-and-chart-identity.md` — the vibrato-span format change
+- `docs/roadmap/10-format-versioning-and-chart-identity.md` — the vibrato-span format change
   (decided 2026-07-06 in the note-format plan, "lands with the next format touch") must route
   through 10's versioning policy before Phase 7's vibrato sub-scope executes. Note: every chart
   edit changes the chart-identity hash 10 defines; that is correct behavior (a different chart is
   a different chart) and needs no coordination beyond awareness.
-- `docs/plans/45-editor-theme-and-string-colors.md` — when the shared string-color palette
+- `docs/roadmap/45-editor-theme-and-string-colors.md` — when the shared string-color palette
   definition is extracted, the tab renderer consumes it; no ordering constraint either way.
-- `docs/plans/46-editor-keybinds.md` — chart editing adds many shortcuts. Interim policy: new
+- `docs/roadmap/46-editor-keybinds.md` — chart editing adds many shortcuts. Interim policy: new
   keys follow the existing local `EditorView::keyPressed` pattern and are recorded in one table
   (Phase 3) that 46 ingests; migration to the central registry is 46's work, not this plan's.
-- `docs/plans/11-derived-difficulty-calculator.md` — downstream consumer only: fingerings, FHPs,
+- `docs/in-progress/editing-interaction-model.md` — the settled editor-wide interaction grammar
+  (modifier vocabulary, verb table, snapping, cursor/ghost feedback). Binding for every gesture
+  this plan adds; the tone track and automation lanes already implement it.
+- `docs/roadmap/11-derived-difficulty-calculator.md` — downstream consumer only: fingerings, FHPs,
   and techniques authored here are its inputs. No gate.
 - No sub-plans are registered at this time (see Q4).
 
@@ -175,7 +178,7 @@ format-side decisions) and the design docs — a fresh session needs no other co
 8. **Charter is a capabilities reference only.** Its notation inventory calibrated the format;
    its editing UX informs but never dictates ours (note-format plan, "Reference: Charter (MIT)").
 9. **Save == publish validation; normalize, don't reject** (established invariant, see
-   `docs/plans/43-song-information-and-art.md` for the export-gate tension — not this plan's to
+   `docs/roadmap/43-song-information-and-art.md` for the export-gate tension — not this plan's to
    resolve). Edit primitives therefore keep the chart valid at every commit point rather than
    letting invalid states reach save.
 
@@ -193,17 +196,17 @@ format-side decisions) and the design docs — a fresh session needs no other co
   captured in the same undo entry; (C) allow overlap and only warn. **Recommendation: B** — it
   matches GP's editing feel, keeps every commit point valid (decision 9), and the truncation is
   visible and undoable. 42 additionally flags residual overlaps found in imported charts.
-- **Q3 — Click semantics in the tab lane.** Today any lane click seeks the transport
-  (cursor_overlay.cpp:92-108). Options: (A) glyph hits select, empty-space click still seeks,
-  empty-space drag past a small threshold becomes marquee selection (seek fires only on
-  click-release without drag); (B) an explicit edit-mode toggle that suppresses seeking; (C) lane
-  clicks always select/place the caret, seeking moves exclusively to the ruler.
-  **Recommendation: A** — preserves the shipped seek gesture, needs no mode, and matches
-  glyph-priority hit-testing users expect from DAWs.
+- **Q3 — Click semantics in the tab lane.** **SETTLED 2026-07-09** by the editor-wide
+  interaction model (`docs/in-progress/editing-interaction-model.md`), which extends the
+  recommended outcome A: glyph click selects, empty click seeks + deselects, empty drag marquees,
+  Alt+click/Alt+drag is the insert quasimode (works on occupied strips too), Ctrl bypasses grid
+  snap to the 1/960 fine grid, Shift extends selection / axis-locks drags, Esc cancels an
+  in-flight gesture. Phases 3–8 follow that document's verb grammar; do not re-derive gestures
+  locally.
 - **Q4 — Sub-plan registration.** This plan fits the line cap by keeping phases terse. Options:
   (A) execute as one plan; (B) split the deep-UI phases into registered sub-plans
-  `docs/plans/40a-chord-template-and-shape-editor.md` (Phase 8) and
-  `docs/plans/40b-curve-payload-editors.md` (Phase 7) if execution shows a phase exceeding a
+  `docs/roadmap/40a-chord-template-and-shape-editor.md` (Phase 8) and
+  `docs/roadmap/40b-curve-payload-editors.md` (Phase 7) if execution shows a phase exceeding a
   session. **Recommendation: A now, B on demand** — the roadmap should note 40a/40b as reserved
   names so a later split does not renumber anything.
 
@@ -267,13 +270,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
   hit-testing that maps pixels to (seconds, lane) via the existing `timeline_geometry` /
   `tempo_grid_geometry` seams and forwards intents (`onChartPointerDown(...)`-shaped, mirroring
   the tone intents at `i_editor_controller.h:153-194`); the controller resolves hits against the
-  seconds-resolved `TabViewState` so hit policy is testable without JUCE. Gestures per Q3-A
-  (default unless overruled): glyph hit selects, ctrl toggles, shift extends, empty click seeks,
-  empty drag marquees. Selection and caret render as overlays in `TabView`. New shortcuts start
-  the interim keybind table handed to `docs/plans/46-editor-keybinds.md`.
+  seconds-resolved `TabViewState` so hit policy is testable without JUCE. Gestures per the settled
+  interaction model (Q3): glyph hit selects (Ctrl+click toggles membership, Shift+click extends),
+  empty click seeks and deselects, empty drag marquees; Alt stays reserved for Phase 4's
+  insertion quasimode. Selection and caret render as overlays in `TabView`. New shortcuts start
+  the interim keybind table handed to `docs/roadmap/46-editor-keybinds.md`.
 - **Files**: new editor-core `src/chart/` folder (selection state, hit resolution),
   `i_editor_controller.h`, `editor_view_state.h`, `editor_action_id.h` + availability,
-  `tab_view.{h,cpp}`, `cursor_overlay.cpp` (yield to glyph hits per Q3-A).
+  `tab_view.{h,cpp}`, `cursor_overlay.cpp` (yield to glyph hits per the settled Q3 gestures).
 - **Public-header impact**: new controller intents and view-state fields (editor-core public
   includes); selection/caret types kept in `src/` headers where possible per constraint (b).
 - **Testing**: editor-core unit tests for hit resolution (glyph vs empty, overlapping sustains,
@@ -289,10 +293,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
   modeled on `tone_region_edits.h`): insert preserving the (position, string) sort, delete,
   move (position and/or string), set fret, set sustain — each returning the information its
   `IEdit` needs. Overlap policy per Q2-B: an insert/move/sustain-extend that collides
-  auto-truncates the earlier note inside the same compound undo entry. Input: digit keys type
-  fret numbers at the caret (multi-digit entry window, clamped to `g_max_fret`), click-to-place
-  on a lane at the grid snap, drag-move with snap, sustain drag handle plus keyboard
-  lengthen/shorten by grid step, delete key. All edits push through
+  auto-truncates the earlier note inside the same compound undo entry. Input per the interaction
+  model: digit keys type fret numbers at the caret (multi-digit entry window, clamped to
+  `g_max_fret`), Alt+click pencil placement on a string lane at the grid snap (Ctrl bypasses to
+  the fine grid; ghost preview + `CopyingCursor` while Alt is held), drag-move with snap
+  (Shift axis-locks), sustain editing via tail drag, Alt+wheel, and Shift+Left/Right by grid
+  step, delete key, Esc cancels an in-flight gesture. All edits push through
   `EditorUndoHistory::push`; dirty tracking then works via the existing clean marker.
 - **Files**: editor-core `src/chart/` (edits + handlers TU following the per-domain handler
   pattern), `editor_action_id.h`, availability, `tab_view.cpp` gestures.
@@ -303,7 +309,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
 - **Exit criteria**: with a chart loaded, notes can be created, moved, resized, and deleted;
   every path is undoable; saves persist the result (Phase 2). Arrangements without a chart get a
   minimal "create empty chart" action (tuning seeded from a default) so editing has an entry
-  point ahead of `docs/plans/41-tempo-map-authoring.md`.
+  point ahead of `docs/roadmap/41-tempo-map-authoring.md`.
 - **Verification**: `-Targets all`, then `-RunTouchedTests`.
 
 ### Phase 5 — Technique and note-property editing
@@ -344,10 +350,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
 
 ### Phase 7 — Curve payload editors: bends, slide waypoints, vibrato spans
 
-- **Scope**: direct manipulation on the sustain tail. Bend points: add (double-click on tail),
-  drag (offset horizontally with snap, semitones vertically in free granularity — 0.25 curls are
-  already representable), numeric entry, remove; primitives enforce ascending offsets within the
-  sustain. Slide waypoints: add/move/remove, toggle unpitched; strictly-positive ascending
+- **Scope**: direct manipulation on the sustain tail. Bend points: add (Alt+click on the tail,
+  per the interaction model), drag (offset horizontally with snap, semitones vertically in free
+  granularity — 0.25 curls are already representable), numeric entry, remove; primitives enforce
+  ascending offsets within the sustain. Slide waypoints: add/move/remove, toggle unpitched; strictly-positive ascending
   offsets ≤ sustain enforced. **Gated sub-scope (assumes plan 10's chart-format versioning
   outcome)**: vibrato spans per decision 6 — span handles on the tail with the
   canonical-uniqueness rules from the note-format plan; until 10 closes, vibrato stays the
@@ -403,7 +409,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
 
 - **Scope**: (1) Arrangement tuning dialog: per-string pitch names, capo, centOffset (cap ±1200
   cents as shipped), string count within `g_max_chart_strings` (raising the cap belongs to
-  `docs/plans/45-editor-theme-and-string-colors.md`). Adding strings is safe (templates pad);
+  `docs/roadmap/45-editor-theme-and-string-colors.md`). Adding strings is safe (templates pad);
   removing a string that carries notes requires explicit confirmation and deletes those notes in
   one compound undo entry; templates re-fit. (2) Live validation: after each committed edit,
   debounced `validateChartRules` (plus plan 42's extended rules when they land) runs off the hot
@@ -450,4 +456,4 @@ content and stays local-only.
 - **Vibrato-span sub-scope (Phase 7)** must not start before plan 10 closes; if 10 changes the
   spelling, only the span primitives and handle UI are affected — bends/slides are independent.
 - If any phase reveals the line-cap pressure Q4 anticipates, stop, register 40a/40b in
-  `docs/plans/00-roadmap.md`, and move the remaining scope there rather than compressing phases.
+  `docs/roadmap/00-roadmap.md`, and move the remaining scope there rather than compressing phases.

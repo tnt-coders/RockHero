@@ -9,7 +9,7 @@ structure.
 A reusable chart-content validation (lint) rule set in `rock-hero-common/core` that reports every
 playability and authoring-quality problem in a chart with actionable, position-anchored messages.
 Three consumers: the editor's pre-export validation report, the game's library-scan warnings
-(docs/plans/26-game-startup-menus-library.md), and a local corpus-calibration harness. Structural
+(docs/roadmap/26-game-startup-menus-library.md), and a local corpus-calibration harness. Structural
 validation (`validateChartRules`) already exists and stays the hard read gate; this plan adds the
 advisory content layer above it.
 
@@ -17,15 +17,15 @@ advisory content layer above it.
 
 - No game-side UI. Plan 26 owns how scan warnings render; this plan freezes the headless contract.
 - No metadata validation (title/artist/album/art presence) — that is
-  docs/plans/43-song-information-and-art.md.
-- No difficulty/intensity computation — docs/plans/11-derived-difficulty-calculator.md.
+  docs/roadmap/43-song-information-and-art.md.
+- No difficulty/intensity computation — docs/roadmap/11-derived-difficulty-calculator.md.
 - No auto-fix or repair transforms. Load normalization and migration ladders belong to
-  docs/plans/10-format-versioning-and-chart-identity.md.
+  docs/roadmap/10-format-versioning-and-chart-identity.md.
 - No chart-format changes. Every rule here reads the existing model; promoting any lint rule into
   a structural read-rejection is a format-behavior change that routes through plan 10 with a
   corpus impact analysis.
 - No live-while-editing lint UI beyond exposing a cheap re-runnable entry point; interaction
-  design for in-editor feedback belongs to docs/plans/40-chart-editing.md.
+  design for in-editor feedback belongs to docs/roadmap/40-chart-editing.md.
 
 ## Constraints
 
@@ -42,7 +42,7 @@ advisory content layer above it.
   invocations.
 - **Corpus is local-only**: the 39-package .rock corpus is converted commercial content — used
   for local calibration only, never committed, never wired into CI
-  (docs/plans/23-detection-verification-harness.md corpus strategy; docs/plans/00-roadmap.md).
+  (docs/roadmap/23-detection-verification-harness.md corpus strategy; docs/roadmap/00-roadmap.md).
 - **Headless and automated-testable**: lint code is pure domain logic; narrow `juce_core`
   utilities only where the existing package code already uses them
   (docs/design/architectural-principles.md, "Core Modules").
@@ -110,17 +110,17 @@ Verified against code on 2026-07-06, refactor @ 13e82fb0.
 
 - Depends on: nothing hard. All phases build on current `rock-hero-common/core`.
 - Consumed by:
-  - docs/plans/40-chart-editing.md — live-feedback hooks call the Phase 3/4 entry points; the
+  - docs/roadmap/40-chart-editing.md — live-feedback hooks call the Phase 3/4 entry points; the
     Phase 1 endpoint arithmetic is also 40's link/merge prerequisite.
-  - docs/plans/26-game-startup-menus-library.md — library scan stores/reports findings keyed by
+  - docs/roadmap/26-game-startup-menus-library.md — library scan stores/reports findings keyed by
     the Phase 4 stable rule tokens; load failures already carry `SongPackageError` reasons.
-  - docs/plans/43-song-information-and-art.md — the pre-export gate (Phase 6) composes with 43's
+  - docs/roadmap/43-song-information-and-art.md — the pre-export gate (Phase 6) composes with 43's
     metadata validation; 43 owns the publish-vs-save split decision this plan defers to.
-  - docs/plans/11-derived-difficulty-calculator.md — reuses Phase 1 endpoint/linearization
+  - docs/roadmap/11-derived-difficulty-calculator.md — reuses Phase 1 endpoint/linearization
     arithmetic for density windows.
-  - docs/plans/22-note-detection.md — reuses the Phase 2 note-name → pitch utility for the tuner
+  - docs/roadmap/22-note-detection.md — reuses the Phase 2 note-name → pitch utility for the tuner
     (cents vs arrangement tuning including capo and centOffset).
-  - docs/plans/28-practice-mode.md — motivates the "no sections" sanity finding (section loops).
+  - docs/roadmap/28-practice-mode.md — motivates the "no sections" sanity finding (section loops).
 - External decisions: 43's export-validation model (blocking vs advisory) — see Q3.
 
 ## Decisions already made
@@ -166,7 +166,7 @@ Verified against code on 2026-07-06, refactor @ 13e82fb0.
   action (not save). **Recommendation: (a) now** — the current model is save==publish with
   normalize-don't-reject, and blocking semantics belong to 43's publish-split decision; this
   plan ships the report advisory-only and revisits under
-  docs/plans/43-song-information-and-art.md.
+  docs/roadmap/43-song-information-and-art.md.
 
 ## Phased implementation
 
@@ -271,7 +271,7 @@ the same arithmetic plan 40's link/merge and plan 11's density windows need.
   Add `ruleToken(ChartLintRule) -> std::string_view` — the stable snake_case tokens from the
   Phase 3 table — for machine consumers (plan 26's library cache, CI logs). Document in the
   header: tokens and enum values are append-only; removal or renumbering follows the same
-  versioning discipline docs/plans/10-format-versioning-and-chart-identity.md defines for
+  versioning discipline docs/roadmap/10-format-versioning-and-chart-identity.md defines for
   format changes.
 - Public-header impact: one new public header.
 - Testing: `tests/test_arrangement_lint.cpp` — merge ordering, arrangement tagging, token
@@ -357,7 +357,7 @@ the signed-off severity table.
   behavior changes anywhere, so no corpus or compatibility risk.
 - The one standing risk is scope creep from lint into the read gate: promoting any rule to a
   structural rejection changes which existing packages load and MUST route through
-  docs/plans/10-format-versioning-and-chart-identity.md with a corpus impact analysis — never do
+  docs/roadmap/10-format-versioning-and-chart-identity.md with a corpus impact analysis — never do
   it inside this plan.
 - Phase 5 writes nothing into corpus packages (read + report only); a bad run is discarded.
 - Phase 6 sits behind a single editor action; rollback is removing the action wiring and the

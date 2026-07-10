@@ -3,9 +3,9 @@
 **Status: Decision-gated** | Date: 2026-07-06 | Baseline: `refactor @ 3c7febe0`
 
 This plan is the structural gate for all game-side work. Phases 0a–0c form the decision gate; no
-phase after the gate — and no dependent plan (docs/plans/25-note-highway-3d.md,
-docs/plans/44-editor-3d-preview.md, the render-loop parts of
-docs/plans/21-game-audio-engine-and-session.md) — starts before the gate closes with explicit
+phase after the gate — and no dependent plan (docs/roadmap/25-note-highway-3d.md,
+docs/roadmap/44-editor-3d-preview.md, the render-loop parts of
+docs/roadmap/21-game-audio-engine-and-session.md) — starts before the gate closes with explicit
 user sign-off. Do not create a render-stack expert agent (SDL3/bgfx or otherwise) until the gate
 closes; seed it with the spike findings when it does.
 
@@ -24,18 +24,18 @@ platform every gameplay plan builds on.
 
 ## 2. Non-goals
 
-- No note highway content or Charter-parity visuals — that is docs/plans/25-note-highway-3d.md.
+- No note highway content or Charter-parity visuals — that is docs/roadmap/25-note-highway-3d.md.
 - No gameplay session orchestration, tone switching, or mix controls — that is
-  docs/plans/21-game-audio-engine-and-session.md.
+  docs/roadmap/21-game-audio-engine-and-session.md.
 - No detection, scoring, menus, library, or settings UI (plans 22, 24, 26, 27).
-- No editor preview implementation — docs/plans/44-editor-3d-preview.md consumes this plan's
+- No editor preview implementation — docs/roadmap/44-editor-3d-preview.md consumes this plan's
   phase 0b/0c outcomes; this plan only produces the facts 44 needs.
 - No commitment to SDL3/bgfx before the spike passes. `docs/design/architecture.md` states them
   as the target design; this plan treats that as the leading candidate, not a settled fact.
 
 ## 3. Constraints
 
-Applicable subset of the roadmap constraint block (see docs/plans/00-roadmap.md):
+Applicable subset of the roadmap constraint block (see docs/roadmap/00-roadmap.md):
 
 - (a) **Layering**: common never depends on editor or game code; editor and game never depend on
   each other. Anything both products need (the renderer-sharing seam of phase 0c) is extracted to
@@ -91,7 +91,7 @@ Verified by direct inspection of the tree:
   events are polled manually from JUCE's message loop"; "Threading Model" defines audio /
   analysis / UI / optional render threads; "Development Approach → Build First: Timing
   Instrumentation" mandates permanent timing logs before gameplay.
-- `docs/plans/25-note-highway-3d.md` (which absorbed the retired docs/todo 3D-highway analysis) —
+- `docs/roadmap/25-note-highway-3d.md` (which absorbed the retired docs/todo 3D-highway analysis) —
   deep Charter-preview analysis; proposes `highway/highway_view_state.h` (headless,
   seconds-resolved frame content) in `rock-hero-game/core` with an open question about promotion
   to common. That open question is exactly this plan's phase 0c. The analysis lives in plan 25,
@@ -108,17 +108,17 @@ Verified against code on 2026-07-06, refactor @ 3c7febe0.
 
 ## 5. Dependencies
 
-- docs/plans/00-roadmap.md — execution ordering and the Decisions-needed mirror of this plan's
+- docs/roadmap/00-roadmap.md — execution ordering and the Decisions-needed mirror of this plan's
   open questions and gate.
-- docs/plans/12-playback-clock.md — Phase 3 consumes its `IPlaybackClock` mirror and the
+- docs/roadmap/12-playback-clock.md — Phase 3 consumes its `IPlaybackClock` mirror and the
   game-side extrapolation policy; Phase 3 cannot finish before plan 12's port exists.
 - External decisions: the user's sign-off on phases 0a, 0b, 0c (the gate).
 - Downstream (for the roadmap graph, not blocking this plan):
-  docs/plans/25-note-highway-3d.md (gated on 0c seam + Phase 1),
-  docs/plans/44-editor-3d-preview.md (gated on 0b child-HWND finding + 0c),
-  docs/plans/21-game-audio-engine-and-session.md (consumes 0b coexistence outcome),
-  docs/plans/26-game-startup-menus-library.md (consumes this plan's frame-pacing/vsync policy
-  and the resource-pack convention), docs/plans/23-detection-verification-harness.md (the
+  docs/roadmap/25-note-highway-3d.md (gated on 0c seam + Phase 1),
+  docs/roadmap/44-editor-3d-preview.md (gated on 0b child-HWND finding + 0c),
+  docs/roadmap/21-game-audio-engine-and-session.md (consumes 0b coexistence outcome),
+  docs/roadmap/26-game-startup-menus-library.md (consumes this plan's frame-pacing/vsync policy
+  and the resource-pack convention), docs/roadmap/23-detection-verification-harness.md (the
   autoplay toggle here is the front end of 23's autoplay bot).
 
 ## 6. Decisions already made
@@ -138,7 +138,7 @@ Restated from their source documents; none originate in conversation:
 - Timing instrumentation is built before gameplay — `docs/design/architecture.md` ("Build First:
   Timing Instrumentation"). The dev-diagnostics layer here is that mandate's game-side home.
 - The highway visual target is Charter's 3D preview, matched closely, with seven enumerated
-  defect fixes — `docs/plans/25-note-highway-3d.md` § Decisions already made. Its headless
+  defect fixes — `docs/roadmap/25-note-highway-3d.md` § Decisions already made. Its headless
   `HighwayViewState` concept (seconds-resolved, camera-agnostic frame content; pure-math camera;
   renderer consumes view state only) is the input to phase 0c.
 - Headless behavior lives in core modules; frameworks stay in thin adapters; time/threading at
@@ -149,7 +149,7 @@ Restated from their source documents; none originate in conversation:
 
 ## 7. Open questions for the user
 
-Mirror all of these into docs/plans/00-roadmap.md Decisions-needed.
+Mirror all of these into docs/roadmap/00-roadmap.md Decisions-needed.
 
 1. **Platform scope (phase 0a).**
    Options: (A) Windows-first, cross-platform-preserving choices — keep renderer/windowing
@@ -200,7 +200,7 @@ Mirror all of these into docs/plans/00-roadmap.md Decisions-needed.
 - **Files**: this plan file only. No code.
 - **Testing**: none (decision phase).
 - **Exit criteria**: user answers open question 1; answer recorded in this plan and in
-  docs/plans/00-roadmap.md Decisions-needed.
+  docs/roadmap/00-roadmap.md Decisions-needed.
 - **Verification commands**: none (documentation only).
 
 ### Phase 0b — Render-stack integration spike (gate part 2)
@@ -231,7 +231,7 @@ findings write-up. Spike code may bend conventions; it is deleted after the deci
     editor window opens and takes focus correctly.
   - **S2 bgfx-in-a-JUCE-child-HWND**: bgfx renders into a child HWND hosted inside a JUCE
     window; survives resize, DPI change, and occlusion without flicker or device loss. This
-    finding decides docs/plans/44-editor-3d-preview.md's shape and open question 2's fallback.
+    finding decides docs/roadmap/44-editor-3d-preview.md's shape and open question 2's fallback.
   - **S3 Dependency delivery**: resolve SDL3 and bgfx via Conan under the repo presets
     (per-preset `.conan2` caches) OR document the failure and prove the vendored-submodule
     route; record configure/build time deltas for both where feasible.
@@ -261,14 +261,14 @@ findings write-up. Spike code may bend conventions; it is deleted after the deci
 
 ### Phase 0c — Renderer-sharing seam decision (gate part 3)
 
-Decides where highway rendering code lives before docs/plans/25-note-highway-3d.md bakes
+Decides where highway rendering code lives before docs/roadmap/25-note-highway-3d.md bakes
 geometry into one backend — otherwise the highway gets written twice (once for the game, once
-for docs/plans/44-editor-3d-preview.md).
+for docs/roadmap/44-editor-3d-preview.md).
 
 - **Scope**: choose between:
   - **Option 1 — headless scene model in common (recommended)**: a `highway/` feature in
     `rock-hero-common/core` owning the camera math, lane layout, note transforms, and the
-    seconds-resolved `HighwayViewState` (promoting the concept from docs/plans/25-note-highway-3d.md
+    seconds-resolved `HighwayViewState` (promoting the concept from docs/roadmap/25-note-highway-3d.md
     out of game/core, per constraint (a): both products need it, so it is extracted to common
     FIRST, with tests, before game code consumes it). Each product keeps a thin render backend
     (game/ui owns the full-screen game surface; editor/ui owns the preview window per plan 44).
@@ -362,7 +362,7 @@ One convention so plans 25/26/27 never invent their own loading paths.
   powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -RunTouchedTests
   ```
 
-### Phase 3 — Threading model and frame clock (assumes outcome: gate loop option; depends on docs/plans/12-playback-clock.md)
+### Phase 3 — Threading model and frame clock (assumes outcome: gate loop option; depends on docs/roadmap/12-playback-clock.md)
 
 - **Scope**: document (in this plan's Gate record + the design-doc update) and implement the
   game-process thread map: JUCE message thread (mandatory for Tracktion — `engine.h:46-47`),
@@ -407,7 +407,7 @@ Cheap now, painful to bolt on later; every later game plan hooks into it.
   - Chart hot-reload: a dev-only file watcher on the loaded chart source that re-issues the
     reload intent; consumers (25's projection) rebuild view state.
   - Autoplay toggle: a stub flag here; the perfect-event emitter itself belongs to
-    docs/plans/23-detection-verification-harness.md (its autoplay bot) — this phase only
+    docs/roadmap/23-detection-verification-harness.md (its autoplay bot) — this phase only
     reserves the switch and the HUD indication.
   - Activation per open question 5's answer (recommended: all builds, `--dev` flag + key
     toggle).
@@ -440,7 +440,7 @@ pre-commit run --all-files
 
 Acceptance also requires: the Gate record section filled (0a/0b/0c answers + spike data), the
 `docs/design/architecture.md` update confirmed with the user and applied, and
-docs/plans/00-roadmap.md's gate row for plans 21/25/44 flipped to unblocked.
+docs/roadmap/00-roadmap.md's gate row for plans 21/25/44 flipped to unblocked.
 
 ## 10. Rollback/abort notes
 

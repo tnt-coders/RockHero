@@ -2,10 +2,10 @@
 
 ## 1. Status
 
-**Decision-gated** — blocked on docs/plans/20-game-architecture-and-render-stack.md Phases 0b–0c
+**Decision-gated** — blocked on docs/roadmap/20-game-architecture-and-render-stack.md Phases 0b–0c
 (the bgfx-in-a-JUCE-child-HWND spike finding S2 decides this plan's surface shape; the Phase 0c
 renderer-sharing seam decides where the highway scene model lives) and on
-docs/plans/25-note-highway-3d.md Phases 1–2 (headless scene model and camera). No phase below
+docs/roadmap/25-note-highway-3d.md Phases 1–2 (headless scene model and camera). No phase below
 starts before plan 20's gate closes with user sign-off. Date: 2026-07-06. Baseline:
 `refactor @ 13e82fb0`.
 
@@ -28,24 +28,24 @@ without touching the 2D timeline's follow behavior.
   authoring stays in the 2D tab lane and timeline.
 - No gameplay-feedback content: hit/miss states, provisional-hit visuals, particle bursts, fret
   hit-flash, HUD, star-power or failure-meter layers are game-only
-  (docs/plans/25-note-highway-3d.md Phase 5, docs/plans/24-scoring-star-power-failure.md). The
+  (docs/roadmap/25-note-highway-3d.md Phase 5, docs/roadmap/24-scoring-star-power-failure.md). The
   editor has no gameplay events to feed them.
 - No decision on the 2D timeline's playback-follow mode. The "side-scroll while playing" idea is
   the fixed-cursor smooth-scroll evaluation in docs/todo/smooth-scroll-follow-evaluation.md — an
   already-re-raised decision the user owns. This plan references it and stops; it does not decide
   it, duplicate it, or absorb it. The 3D preview delivers play-along presentation without
   changing the 2D follow mode either way.
-- No render-stack or seam decisions — docs/plans/20-game-architecture-and-render-stack.md owns
+- No render-stack or seam decisions — docs/roadmap/20-game-architecture-and-render-stack.md owns
   both; this plan consumes its gate record.
 - No scene-model, projection, camera, or metrics implementation —
-  docs/plans/25-note-highway-3d.md owns them; this plan consumes the shared library.
-- No string-color definitions — docs/plans/45-editor-theme-and-string-colors.md owns the shared
+  docs/roadmap/25-note-highway-3d.md owns them; this plan consumes the shared library.
+- No string-color definitions — docs/roadmap/45-editor-theme-and-string-colors.md owns the shared
   palette.
-- No preview-specific keybind system — routing follows docs/plans/46-editor-keybinds.md.
+- No preview-specific keybind system — routing follows docs/roadmap/46-editor-keybinds.md.
 
 ## 4. Constraints
 
-Applicable subset of the roadmap constraint block (see docs/plans/00-roadmap.md):
+Applicable subset of the roadmap constraint block (see docs/roadmap/00-roadmap.md):
 
 - (a) **Layering**: common never depends on editor or game code; editor and game never depend on
   each other. The editor preview may NEVER include game headers — everything it shares with the
@@ -65,7 +65,7 @@ Applicable subset of the roadmap constraint block (see docs/plans/00-roadmap.md)
   invocations.
 - **Time is a dependency** (docs/design/architectural-principles.md, "Time Must Be a
   Dependency"; docs/design/architecture.md, "Timing and Latency"): the preview samples song time
-  from the audio-derived clock (docs/plans/12-playback-clock.md) — never wall clock — and camera
+  from the audio-derived clock (docs/roadmap/12-playback-clock.md) — never wall clock — and camera
   smoothing takes an explicit frame delta.
 
 Design-doc bindings: module placement per docs/design/architectural-principles.md ("Library
@@ -104,7 +104,7 @@ With the Right Scope"); editor UI composition per docs/design/architecture.md ("
   the highway view state reuses for live-edit updates.
 - The 2D projection reference the shared highway projection mirrors:
   `rock-hero-editor/core/src/tab/tab_projection.{h,cpp}` (`makeTabViewState`), tested by
-  `rock-hero-editor/core/tests/test_tab_projection.cpp` (docs/plans/25-note-highway-3d.md
+  `rock-hero-editor/core/tests/test_tab_projection.cpp` (docs/roadmap/25-note-highway-3d.md
   Phase 1 owns the mirroring).
 - Menus: `EditorView` is the menu-bar model (`getMenuBarNames` at
   `rock-hero-editor/ui/src/main_window/editor_view.cpp:655` returns File/Edit/View; the View
@@ -114,7 +114,7 @@ With the Right Scope"); editor UI composition per docs/design/architecture.md ("
   (`rock-hero-editor/ui/src/main_window/editor_view.cpp:621`), `MainWindow::keyPressed`
   forwarding (`main_window.cpp:101-113`), and duplicated transport-shortcut predicates in
   `rock-hero-common/audio/src/tracktion/plugin_window.cpp:26-46` — centralization is
-  docs/plans/46-editor-keybinds.md scope; the preview window is one more consumer of whatever
+  docs/roadmap/46-editor-keybinds.md scope; the preview window is one more consumer of whatever
   seam it lands.
 - The adopted 2D playback follow is the shifted window:
   `TrackViewport::followCursorWithWindowShifts`
@@ -132,7 +132,7 @@ Verified against code on 2026-07-06, refactor @ 13e82fb0.
 
 ## 6. Dependencies
 
-- docs/plans/20-game-architecture-and-render-stack.md — **hard gate**:
+- docs/roadmap/20-game-architecture-and-render-stack.md — **hard gate**:
   - Phase 0b spike criterion S2 (bgfx renders into a child HWND hosted inside a JUCE window;
     survives resize, DPI change, occlusion) decides this plan's surface shape. If S2 fails, this
     plan's Phases 2+ do not start (see Rollback).
@@ -142,21 +142,21 @@ Verified against code on 2026-07-06, refactor @ 13e82fb0.
     a promotion-to-common phase must run first (plan 25 §11 records the move as mechanical).
   - Phase 1 (bgfx in the build behind project-owned wrapper targets, shaderc wiring) — the editor
     ui library links the same wrapper targets.
-- docs/plans/25-note-highway-3d.md — Phases 1–2 deliver the shared `HighwayViewState`,
+- docs/roadmap/25-note-highway-3d.md — Phases 1–2 deliver the shared `HighwayViewState`,
   `highwayViewStateFor`, `HighwayMetrics`, and `highway_camera` this plan consumes; its Phase 4
   pure geometry helpers (adaptive tail sampling, taper envelopes) are consumed by Phase 3 here
   for technique parity. This plan never re-implements any of them.
-- docs/plans/12-playback-clock.md — `IPlaybackClock` and the extrapolation policy; that plan
+- docs/roadmap/12-playback-clock.md — `IPlaybackClock` and the extrapolation policy; that plan
   lists the editor preview as a consumer. Block-quantized transport reads are invisible for a
   thin 2D cursor but visible as velocity shimmer on a whole moving content field (the analysis
   recorded in docs/todo/smooth-scroll-follow-evaluation.md item 2) — the 3D highway is exactly
   such a field, so Phase 4 consumes plan 12 rather than raw `ITransport::position()`.
-- docs/plans/45-editor-theme-and-string-colors.md — the shared string-color palette in
+- docs/roadmap/45-editor-theme-and-string-colors.md — the shared string-color palette in
   rock-hero-common (its palette-extraction phase; re-verify the phase number at execution).
   Phase 3 must not start before it lands; the preview never defines string colors.
-- docs/plans/46-editor-keybinds.md — keybind routing for the preview window (open question 4);
+- docs/roadmap/46-editor-keybinds.md — keybind routing for the preview window (open question 4);
   not blocking, but the preview registers into its centralized map when that plan lands.
-- docs/plans/00-roadmap.md — execution ordering; the Decisions-needed mirror of this plan's open
+- docs/roadmap/00-roadmap.md — execution ordering; the Decisions-needed mirror of this plan's open
   questions.
 - Referenced, never absorbed or decided: docs/todo/smooth-scroll-follow-evaluation.md (the
   user-owned fixed-cursor follow decision for the 2D timeline).
@@ -167,22 +167,22 @@ Restated with sources; none originate in conversation:
 
 - **The editor keeps the 2D tab lane; the 3D highway is a separate view** — the absorbed
   highway analysis explicitly excluded editor integration of the game view
-  (docs/plans/25-note-highway-3d.md §3), and this plan adds the highway to the editor only as a
+  (docs/roadmap/25-note-highway-3d.md §3), and this plan adds the highway to the editor only as a
   distinct preview window, not as a timeline replacement.
 - **Charter's 3D preview is the visual target, matched very closely**, with exactly seven
-  catalogued defect fixes as the only departures — docs/plans/25-note-highway-3d.md §7. The
+  catalogued defect fixes as the only departures — docs/roadmap/25-note-highway-3d.md §7. The
   editor preview inherits this wholesale by consuming the same scene model, camera, and drawers'
   reference analysis; it introduces no visual divergences of its own.
 - **The renderer-sharing seam recommendation is option 1** — headless scene model in
   rock-hero-common/core, thin per-product render backends, bgfx never in common
-  (docs/plans/20-game-architecture-and-render-stack.md Phase 0c; gate pending). This plan's
+  (docs/roadmap/20-game-architecture-and-render-stack.md Phase 0c; gate pending). This plan's
   phases are written against that outcome and labeled accordingly.
 - **The 2D timeline's playback follow is the shifted window** (trigger 0.8, 0.3s glide, pin
   0.05), adopted 2026-07-03; the fixed-cursor smooth-scroll alternative is a deferred evaluation
   the user owns, re-raise condition met — docs/todo/smooth-scroll-follow-evaluation.md. This
   plan does not touch that decision.
 - **EditorTheme stays editor/ui-private; only string-color palette data is shared** —
-  docs/plans/25-note-highway-3d.md §5, docs/plans/45-editor-theme-and-string-colors.md.
+  docs/roadmap/25-note-highway-3d.md §5, docs/roadmap/45-editor-theme-and-string-colors.md.
 - **Render loops sample audio-derived time, never wall clock** — docs/design/architecture.md
   ("Timing and Latency"); docs/design/architectural-principles.md ("Time Must Be a Dependency").
 - **Views receive domain state as controller-pushed snapshots** — the editor's MVC shape:
@@ -192,7 +192,7 @@ Restated with sources; none originate in conversation:
 
 ## 8. Open questions for the user
 
-Mirror all of these into docs/plans/00-roadmap.md Decisions-needed.
+Mirror all of these into docs/roadmap/00-roadmap.md Decisions-needed.
 
 1. **Chart-driven cue scope in the preview.** Gameplay-event-driven content (hit particles,
    fret hit-flash, status-keyed note states, HUD) is excluded by non-goal. But two Charter cues
@@ -214,7 +214,7 @@ Mirror all of these into docs/plans/00-roadmap.md Decisions-needed.
 3. **Shared shader/atlas asset home.** Plan 20 Phase 2 puts shader source in
    `rock-hero-game/ui/shaders/` — the editor cannot consume game files (constraint (a)), yet
    both products need the same five shader programs and note/glyph atlases
-   (docs/plans/25-note-highway-3d.md §7 "Shaders"). Options: (a) move shared shader and atlas
+   (docs/roadmap/25-note-highway-3d.md §7 "Shaders"). Options: (a) move shared shader and atlas
    *source assets* to a rock-hero-common location (e.g. `rock-hero-common/ui/shaders/` — assets
    compiled per-product at build time create no library dependency), each product's CMake
    compiling and deploying them; (b) duplicate the sources in editor/ui and hand-sync.
@@ -222,7 +222,7 @@ Mirror all of these into docs/plans/00-roadmap.md Decisions-needed.
    lands its shader tree so nothing moves twice.
 4. **Transport keys while the preview window is focused.** Options: (a) none — the charter must
    refocus the main window; (b) play/pause (and seek keys) forwarded, implemented via
-   docs/plans/46-editor-keybinds.md's centralized map if it has landed, else a minimal
+   docs/roadmap/46-editor-keybinds.md's centralized map if it has landed, else a minimal
    hardcoded forward mirroring `MainWindow::keyPressed` (main_window.cpp:101-113) that plan 46
    later absorbs. **Recommendation: (b)** — a preview you cannot start/stop from is an
    irritation, and the plugin windows already set the precedent that secondary windows honor
@@ -239,9 +239,9 @@ outcome).
 
 - Scope: confirm plan 20 Phases 0b/0c sign-off; record the S2 finding details (device reset
   behavior on resize/DPI/occlusion, single-init-vs-reinit observations) and the seam outcome in
-  this section; confirm docs/plans/25-note-highway-3d.md Phases 1–2 landed in the common highway
+  this section; confirm docs/roadmap/25-note-highway-3d.md Phases 1–2 landed in the common highway
   feature and note which later plan-25 phases (techniques, Phase 4 helpers) exist; confirm
-  docs/plans/45-editor-theme-and-string-colors.md's palette extraction landed or schedule
+  docs/roadmap/45-editor-theme-and-string-colors.md's palette extraction landed or schedule
   Phase 3 after it; re-verify this plan's Current state inventory and refresh the baseline
   stamp. **STOP if S2 failed** — see Rollback.
 - Files: this plan file only.
@@ -351,7 +351,7 @@ outcome).
   powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -Targets clang-tidy
   ```
 
-### Phase 4 — playback follow and live-edit updates (depends on docs/plans/12-playback-clock.md)
+### Phase 4 — playback follow and live-edit updates (depends on docs/roadmap/12-playback-clock.md)
 
 - Scope:
   - Song time from plan 12's `IPlaybackClock` mirror plus its extrapolation policy each vblank
@@ -388,7 +388,7 @@ outcome).
 
 - Scope: preview scroll-speed setting (same `HighwayMetrics` scaling the game exposes, persisted
   via `IEditorSettings`, independent of the game's player setting); lefty-mirror toggle
-  exercising the scene model's `mirrored` flag (docs/plans/25-note-highway-3d.md §7) so charters
+  exercising the scene model's `mirrored` flag (docs/roadmap/25-note-highway-3d.md §7) so charters
   can check lefty readability; window placement/fullscreen-state persistence hardening
   (multi-monitor restore); chord-fingering-panel visibility following plan 25 open question 2's
   answer for consistency.
@@ -420,7 +420,7 @@ pre-commit run --all-files
 Acceptance additionally requires: the editor build and all existing editor tests unaffected when
 the preview is never opened; the Phase 2 headless/noop path green in CI; a local (never CI)
 corpus soak — open each corpus package, open the preview, play a stretch of each arrangement —
-reported informally per the corpus rules in docs/plans/23-detection-verification-harness.md; and
+reported informally per the corpus rules in docs/roadmap/23-detection-verification-harness.md; and
 a side-by-side sanity check that the preview and the game highway render the same fixture chart
 identically (same scene model, same palette — differences indicate a drawer divergence to fix).
 
@@ -433,7 +433,7 @@ identically (same scene model, same palette — differences indicate a drawer di
   way; (c) defer the preview entirely until the game highway exists and revisit. Phase 1's
   JUCE-only shell survives every outcome.
 - **Plan 20's seam lands as game/core-only**: run the promotion-to-common move (mechanical per
-  docs/plans/25-note-highway-3d.md §11) as its own gated commit before Phase 3; if the user
+  docs/roadmap/25-note-highway-3d.md §11) as its own gated commit before Phase 3; if the user
   declines the promotion, this plan is unsatisfiable as scoped and returns to the roadmap.
 - **Phase 2 device instability** (resets on resize/DPI in real use despite S2): keep the window
   shell, disable the surface behind the menu toggle, and escalate to plan 20 — its spike owns
