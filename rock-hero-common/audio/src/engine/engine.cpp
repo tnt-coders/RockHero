@@ -106,11 +106,20 @@ Engine::Engine()
 
     // Seeds the project-owned state from the freshly created empty edit.
     m_impl->updateTransportState();
+
+    // Seed the playback clock: the rate is published once here (1.0 until a product publishes
+    // real speed control) and the zero boundary makes the clock meaningful before the first
+    // audio block.
+    m_impl->m_playback_clock.publishRate(1.0);
+    m_impl->publishClockBoundary(common::core::TimePosition{});
 }
 
 // Stops transport activity before destroying Tracktion objects in dependency order.
 Engine::~Engine()
 {
+    // The clock republisher's tick dereferences m_edit; retire it before any teardown below.
+    m_impl->m_clock_republish_timer.reset();
+
     m_impl->m_alive.reset();
     m_impl->m_load_op.reset();
 

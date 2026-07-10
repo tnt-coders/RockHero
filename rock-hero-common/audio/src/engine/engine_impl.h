@@ -12,6 +12,7 @@ the engine translation units.
 
 #pragma once
 
+#include "clock/atomic_playback_clock.h"
 #include "live_rig/tone_document.h"
 #include "shared/meter_reader.h"
 #include "tracktion/monitoring_mode_transition.h"
@@ -138,6 +139,17 @@ private:
     mutable MeterReader m_master_meter_reader;
     mutable MeterReader m_raw_input_meter_reader;
 
+    // RockHero-owned wait-free storage backing the IPlaybackClock port. Message-thread transport
+    // operations publish boundary values through publishClockBoundary(); consumer threads only
+    // ever read.
+    AtomicPlaybackClock m_playback_clock;
+
+    // Message-thread republisher that refreshes audible playback time into the clock while the
+    // transport plays. Created on first boundary publish; started/stopped by boundary publishes
+    // so every play/pause/stop/load path keeps its lifecycle consistent. Reset explicitly in
+    // ~Engine before the edit dies because its tick dereferences m_edit.
+    std::unique_ptr<juce::Timer> m_clock_republish_timer;
+
     // Duration of the loaded audio, used to clamp seeks and detect end-of-file.
     double m_loaded_length_seconds{0.0};
 
@@ -251,6 +263,16 @@ private:
 
     // Derives the current coarse transport state directly from Tracktion state.
     [[nodiscard]] TransportState currentTransportState() const noexcept;
+
+    // Publishes a message-thread boundary value into the playback clock: the given position, a
+    // fresh steady-clock capture stamp, and the current coarse playing flag. Also manages the
+    // playback republish timer so it runs exactly while the transport plays.
+    void publishClockBoundary(common::core::TimePosition position);
+
+    // Republishes the current audible playback time into the clock with a fresh capture stamp.
+    // Same lifetime-safe read Engine::position() performs; called by the republish timer at
+    // render-adjacent cadence while playing.
+    void publishAudibleTimeNow();
 
     // Creates the edit and gives its two audio tracks explicit product roles.
     void createEdit();

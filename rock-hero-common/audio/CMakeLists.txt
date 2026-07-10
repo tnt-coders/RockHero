@@ -8,9 +8,13 @@ find_package(libebur128 CONFIG REQUIRED)
 target_sources(
     rock_hero_common_audio
     PRIVATE src/automation/tone_automation_error.cpp
+            src/clock/atomic_playback_clock.cpp
+            src/clock/atomic_playback_clock.h
+            src/clock/playback_clock_extrapolator.cpp
             src/device/audio_device_configuration_error.cpp
             src/device/audio_device_settings.cpp
             src/engine/engine.cpp
+            src/engine/engine_clock.cpp
             src/engine/engine_device_config.cpp
             src/engine/engine_impl.h
             src/engine/engine_live_input.cpp

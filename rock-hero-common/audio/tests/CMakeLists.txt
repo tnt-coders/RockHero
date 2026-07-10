@@ -29,6 +29,8 @@ add_executable(
     test_input_calibration.cpp
     test_live_rig_gain_plugin.cpp
     test_multi_tone_rack.cpp
+    test_playback_clock.cpp
+    test_playback_clock_extrapolator.cpp
     test_plugin_state_hygiene.cpp
     test_tempo_mirror.cpp
     test_tone_automation_curve.cpp

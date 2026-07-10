@@ -175,6 +175,7 @@ std::expected<void, SongAudioError> Engine::setActiveArrangement(
         return std::unexpected{songAudioErrorFromLiveInputError(route_result.error())};
     }
     m_impl->updateTransportState();
+    m_impl->publishClockBoundary(common::core::TimePosition{});
     return {};
 }
 
@@ -204,6 +205,7 @@ std::expected<void, SongAudioError> Engine::clearActiveArrangement()
         return std::unexpected{songAudioErrorFromLiveInputError(route_result.error())};
     }
     m_impl->updateTransportState();
+    m_impl->publishClockBoundary(common::core::TimePosition{});
     return {};
 }
 
