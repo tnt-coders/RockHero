@@ -9,6 +9,7 @@
 #include <iterator>
 #include <limits>
 #include <memory>
+#include <rock_hero/common/ui/string_colors/string_color_palette.h>
 #include <utility>
 #include <vector>
 
@@ -18,27 +19,9 @@ namespace rock_hero::editor::ui
 namespace
 {
 
-// Charter's default six string colors (ChartPanelColors STRING_0..5), ordered from the
-// sixth-highest displayed lane upward. Everything drawn for a string derives from its base color
-// through the same multiply/brighten/darken chain Charter uses, so the rendered style matches
-// Charter's modern theme exactly.
-constexpr std::array<juce::uint32, 6> g_standard_string_colors{
-    0xffed0000, // red (lowest string of a standard six)
-    0xfff2d706, // yellow
-    0xff25b2ff, // blue
-    0xffff870a, // orange
-    0xff85e747, // green
-    0xffd22cf8, // purple (highest string)
-};
-
-// Colors for the seventh and eighth string lanes below the standard six-string window. The seventh
-// keeps our RYB teal; the eighth adopts Charter's near-white gray (ChartPanelColors STRING_7). The
-// tab view is capped at eight strings for now (g_max_chart_strings), so no ninth-or-beyond colors
-// are defined yet; they will be chosen when that cap is raised.
-constexpr std::array<juce::uint32, 2> g_tertiary_string_colors{
-    0xff00b5a0, // teal (7th string)
-    0xffb6b6b6, // near-white gray (8th string, Charter STRING_7)
-};
+// The string-color palette and its Charter-exact derivation chain live in rock-hero-common/ui
+// (shared with the game highway and the future editor 3D preview); this renderer consumes the
+// Charter Classic preset and converts to JUCE colors at this module's boundary.
 
 // Charter modern-theme fixed colors.
 const juce::Colour g_note_background_color{0xff101010};     // NOTE_BACKGROUND
@@ -58,57 +41,20 @@ constexpr float g_min_note_height_for_text{9.0f};
 // Height of the hand-shape label bar and its bold name text (Charter chartTextHeight).
 constexpr float g_shape_label_height{10.0f};
 
-// Reproduces java.awt.Color.darker(): each channel scaled by 0.7 and truncated.
+// Thin JUCE-converting wrappers over the shared Charter-exact derivation (rock-hero-common/ui)
+// for the in-file call sites that derive from already-opaque colors.
 [[nodiscard]] juce::Colour charterDarker(juce::Colour color)
 {
-    return juce::Colour{
-        static_cast<juce::uint8>(static_cast<int>(color.getRed() * 0.7)),
-        static_cast<juce::uint8>(static_cast<int>(color.getGreen() * 0.7)),
-        static_cast<juce::uint8>(static_cast<int>(color.getBlue() * 0.7)),
-    };
+    return juce::Colour{common::ui::darkerColor(color.getARGB())};
 }
 
-// Reproduces java.awt.Color.brighter(): channels divided by 0.7 with the small-value bump, so
-// derived note colors match Charter bit-for-bit.
-[[nodiscard]] juce::Colour charterBrighter(juce::Colour color)
-{
-    const int red = color.getRed();
-    const int green = color.getGreen();
-    const int blue = color.getBlue();
-    constexpr int minimum = 3; // (int) (1 / (1 - 0.7))
-    if (red == 0 && green == 0 && blue == 0)
-    {
-        return juce::Colour{
-            static_cast<juce::uint8>(minimum),
-            static_cast<juce::uint8>(minimum),
-            static_cast<juce::uint8>(minimum)
-        };
-    }
-
-    const auto lift = [](int channel) {
-        if (channel > 0 && channel < minimum)
-        {
-            channel = minimum;
-        }
-        return std::min(255, static_cast<int>(channel / 0.7));
-    };
-    return juce::Colour{
-        static_cast<juce::uint8>(lift(red)),
-        static_cast<juce::uint8>(lift(green)),
-        static_cast<juce::uint8>(lift(blue))
-    };
-}
-
-// Reproduces Charter's ColorUtils.multiplyColor with truncation.
 [[nodiscard]] juce::Colour charterMultiply(juce::Colour color, double multiplier)
 {
-    const auto scale = [multiplier](int channel) {
-        return static_cast<juce::uint8>(std::clamp(static_cast<int>(channel * multiplier), 0, 255));
-    };
-    return juce::Colour{scale(color.getRed()), scale(color.getGreen()), scale(color.getBlue())};
+    return juce::Colour{common::ui::multiplyColor(color.getARGB(), multiplier)};
 }
 
-// Charter derives every per-string surface from the base string color with fixed multipliers.
+// Bridges the shared Charter-exact style derivation (rock-hero-common/ui) to JUCE colors at
+// this module's boundary; field meanings match common::ui::StringLaneStyle one for one.
 struct StringStyle
 {
     juce::Colour lane;         // string line: base x0.8
@@ -120,13 +66,17 @@ struct StringStyle
     juce::Colour accent;       // accent glow: ring brightened twice
 
     explicit StringStyle(juce::Colour base)
-        : lane(charterMultiply(base, 0.8))
-        , border_inner(charterBrighter(lane))
-        , inner(charterDarker(charterDarker(border_inner)))
-        , linked_inner(charterDarker(charterDarker(inner)))
-        , tail(charterMultiply(base, 0.66))
-        , tail_edge(charterBrighter(tail))
-        , accent(charterBrighter(charterBrighter(border_inner)))
+        : StringStyle(common::ui::StringLaneStyle{base.getARGB()})
+    {}
+
+    explicit StringStyle(const common::ui::StringLaneStyle& style)
+        : lane(style.lane)
+        , border_inner(style.border_inner)
+        , inner(style.inner)
+        , linked_inner(style.linked_inner)
+        , tail(style.tail)
+        , tail_edge(style.tail_edge)
+        , accent(style.accent)
     {}
 };
 
@@ -858,21 +808,12 @@ int tabDisplayedStringCount(int chart_string_count, int minimum_displayed_string
     return std::max(chart_string_count, minimum_displayed_strings);
 }
 
-// The six highest lanes take the standard set; lower lanes walk the tertiary tier downward.
+// Thin wrapper over the shared palette so the editor/ui surface and its tests stay unchanged;
+// the lane-window logic lives with the palette in rock-hero-common/ui.
 juce::Colour tabStringColor(int displayed_string, int displayed_string_count)
 {
-    const int below_standard_window = std::max(0, displayed_string_count - 6);
-    if (displayed_string > below_standard_window)
-    {
-        const auto standard_index =
-            static_cast<std::size_t>(displayed_string - below_standard_window - 1);
-        return juce::Colour{g_standard_string_colors.at(
-            std::min(standard_index, g_standard_string_colors.size() - 1))};
-    }
-
-    const auto tertiary_index = static_cast<std::size_t>(below_standard_window - displayed_string);
-    return juce::Colour{g_tertiary_string_colors.at(
-        tertiary_index % g_tertiary_string_colors.size())};
+    return juce::Colour{common::ui::stringLaneColor(
+        displayed_string, displayed_string_count, common::ui::charterClassicPalette())};
 }
 
 // Standard tablature orientation: highest string on top, lowest on the bottom. The host sizes

@@ -44,10 +44,11 @@ chart's strings and can never hide notes. A chart-less arrangement draws no lane
 
 The six highest lanes take Charter's default six string colors — red, yellow, blue, orange,
 green, purple from the sixth-highest lane upward — so a four-string bass keeps red through
-orange and a standard guitar keeps the familiar six. Lanes below that window continue with our
-own RYB tertiary tier going down — teal, magenta, chartreuse, indigo — and cycle that tier for
-even lower lanes. Every rendered surface (string line, note ring and fill, sustain tail) derives
-from this base color with Charter's fixed multipliers.
+orange and a standard guitar keeps the familiar six. Lanes below that window continue with the
+shipped extended tier going down — teal for the 7th, Charter's near-white gray for the 8th —
+cycling defensively for even lower lanes; further colors arrive with the string-cap raise. The
+palette data and Charter's fixed derivation multipliers live in rock-hero-common/ui
+(string_color_palette.h), shared with the game highway; this is a thin JUCE-converting wrapper.
 
 \param displayed_string Lane's string position, 1 = lowest displayed lane.
 \param displayed_string_count Total number of displayed lanes.
