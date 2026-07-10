@@ -3,6 +3,9 @@
 #include <algorithm>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <chrono>
+#include <cmath>
+#include <compare>
 #include <concepts>
 #include <cstddef>
 #include <expected>
@@ -1045,6 +1048,127 @@ TEST_CASE("Engine seek does not emit state callbacks", "[audio][engine][integrat
     CHECK(transport.position() == common::core::TimePosition{target_seconds});
 
     transport.removeListener(recorder);
+}
+
+// The clock port must be meaningful immediately after construction, before any load or playback:
+// zero position, stopped, rate 1.0, with a real construction-time capture stamp.
+TEST_CASE("Engine clock snapshot starts stopped at zero with rate one", "[audio][engine][clock]")
+{
+    const EngineTestHarness harness;
+    const PlaybackClockSnapshot snapshot = harness.engine.snapshot();
+
+    CHECK(snapshot.position == common::core::TimePosition{});
+    CHECK_FALSE(snapshot.playing);
+    CHECK(std::is_eq(snapshot.playback_rate <=> 1.0));
+    CHECK(snapshot.monotonic_capture_time > std::chrono::nanoseconds{0});
+}
+
+// Activating an arrangement resets playback, so the clock must publish stopped-at-start.
+TEST_CASE("Engine clock reports stopped at start after arrangement load", "[audio][engine][clock]")
+{
+    EngineTestHarness harness;
+    (void)requireLoadedFixtureAudio(harness.engine);
+
+    const PlaybackClockSnapshot snapshot = harness.engine.snapshot();
+    CHECK(snapshot.position == common::core::TimePosition{});
+    CHECK_FALSE(snapshot.playing);
+}
+
+// Seek publishes the clamped position: in-range values land where they were sent (within the
+// clock's nanosecond quantization), negatives clamp to zero, beyond-length clamps to duration.
+TEST_CASE("Engine clock publishes clamped seek positions", "[audio][engine][clock]")
+{
+    EngineTestHarness harness;
+    const common::core::TimeDuration duration = requireLoadedFixtureAudio(harness.engine);
+    REQUIRE(duration.seconds > 0.0);
+
+    const double mid_seconds = duration.seconds / 2.0;
+    harness.engine.seek(common::core::TimePosition{mid_seconds});
+    CHECK(std::abs(harness.engine.snapshot().position.seconds - mid_seconds) < 1.0e-9);
+
+    harness.engine.seek(common::core::TimePosition{-5.0});
+    CHECK(harness.engine.snapshot().position == common::core::TimePosition{});
+
+    harness.engine.seek(common::core::TimePosition{duration.seconds + 100.0});
+    CHECK(std::abs(harness.engine.snapshot().position.seconds - duration.seconds) < 1.0e-9);
+}
+
+// After each transport verb the clock's playing flag must agree with the listener-facing coarse
+// state — robust to headless transport behavior, where play() may not actually start.
+TEST_CASE("Engine clock playing flag matches coarse transport state", "[audio][engine][clock]")
+{
+    EngineTestHarness harness;
+    (void)requireLoadedFixtureAudio(harness.engine);
+
+    harness.engine.play();
+    CHECK(harness.engine.snapshot().playing == harness.engine.state().playing);
+
+    harness.engine.pause();
+    CHECK(harness.engine.snapshot().playing == harness.engine.state().playing);
+
+    harness.engine.stop();
+    CHECK(harness.engine.snapshot().playing == harness.engine.state().playing);
+    CHECK(harness.engine.snapshot().position == common::core::TimePosition{});
+}
+
+// Every boundary publish restamps the snapshot with a non-zero, non-decreasing capture time so
+// extrapolating consumers can trust stamp arithmetic across transport operations.
+TEST_CASE("Engine clock capture stamps never decrease across publishes", "[audio][engine][clock]")
+{
+    EngineTestHarness harness;
+    const std::chrono::nanoseconds construction_stamp =
+        harness.engine.snapshot().monotonic_capture_time;
+    CHECK(construction_stamp > std::chrono::nanoseconds{0});
+
+    (void)requireLoadedFixtureAudio(harness.engine);
+    const std::chrono::nanoseconds load_stamp = harness.engine.snapshot().monotonic_capture_time;
+    CHECK(load_stamp >= construction_stamp);
+
+    harness.engine.seek(common::core::TimePosition{0.1});
+    const std::chrono::nanoseconds seek_stamp = harness.engine.snapshot().monotonic_capture_time;
+    CHECK(seek_stamp >= load_stamp);
+
+    harness.engine.stop();
+    CHECK(harness.engine.snapshot().monotonic_capture_time >= seek_stamp);
+}
+
+// While the transport plays, a message-thread republisher restamps the clock at render-adjacent
+// cadence; once stopped it is retired. Headless tests drive the real timer through JUCE's public
+// synchronous-timer hook because no message loop is pumped here. The playing branch is guarded:
+// without an audio device the headless transport may refuse to enter play, and the retired-timer
+// half of the contract is what must hold unconditionally.
+TEST_CASE("Engine clock republisher runs only while playing", "[audio][engine][clock]")
+{
+    EngineTestHarness harness;
+    (void)requireLoadedFixtureAudio(harness.engine);
+
+    harness.engine.play();
+    const PlaybackClockSnapshot play_snapshot = harness.engine.snapshot();
+
+    // The republisher arms exactly when the play boundary published playing=true, so that
+    // published flag — not a later transport read — is the correct precondition. Headless
+    // transports may report playing only after asynchronous context work, in which case the
+    // republisher correctly stayed off and there is nothing to observe here.
+    if (play_snapshot.playing)
+    {
+        bool republished = false;
+        for (int attempt = 0; attempt < 10 && !republished; ++attempt)
+        {
+            juce::Thread::sleep(20);
+            juce::Timer::callPendingTimersSynchronously();
+            republished = harness.engine.snapshot().monotonic_capture_time >
+                          play_snapshot.monotonic_capture_time;
+        }
+        CHECK(republished);
+    }
+
+    harness.engine.stop();
+    const std::chrono::nanoseconds stop_stamp = harness.engine.snapshot().monotonic_capture_time;
+    juce::Thread::sleep(40);
+    juce::Timer::callPendingTimersSynchronously();
+
+    CHECK(harness.engine.snapshot().monotonic_capture_time == stop_stamp);
+    CHECK(harness.engine.snapshot().position == common::core::TimePosition{});
 }
 
 } // namespace rock_hero::common::audio
