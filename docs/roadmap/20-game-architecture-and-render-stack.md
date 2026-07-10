@@ -312,11 +312,12 @@ the phase shapes survive, the dependency and loop details do not.**
 
 ### Phase 1 — Dependency wiring and window/loop swap (assumes outcome: SDL3+bgfx via the loop option chosen at the gate)
 
-- **Checkpoint (before implementing)**: consult `.claude/agents/game-render-expert.md` on the
-  production wiring choices — CMakeConfigDeps vs an IMPORTED-executable shim for the packaged
-  bgfx tools, bgfx init/reset flag set for the shipped window, SDL subsystem initialization
-  order, and the CI Conan-cache follow-up flagged under S6. Record the answers in this phase's
-  commit or the gate record.
+- **Checkpoint (before implementing)**: consult `.claude/agents/cmake-conan-expert.md` on the
+  build-wiring choices — CMakeConfigDeps vs an IMPORTED-executable shim for the packaged bgfx
+  tools (a provider-fork question, not a conanfile tweak), the Conan version pins, and the CI
+  Conan-cache follow-up flagged under S6 — and `.claude/agents/game-render-expert.md` on the
+  runtime choices — bgfx init/reset flag set for the shipped window and SDL subsystem
+  initialization order. Record the answers in this phase's commit or the gate record.
 - **Scope**: add the chosen dependencies (Conan pins in `conanfile.txt` or submodules under
   `external/`, per gate answer to open question 4) behind project-owned wrapper targets in the
   same style as the JUCE/Tracktion wrappers (`docs/design/architecture.md`, "JUCE and Tracktion
