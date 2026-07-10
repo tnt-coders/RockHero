@@ -237,7 +237,7 @@ referenced widely).
 
 ### Phase 4 — Docs + final verification
 
-1. `docs/plans/47-editor-loop-selection.md`: update the Q3 inventory (`editorState` is gone;
+1. `docs/roadmap/47-editor-loop-selection.md`: update the Q3 inventory (`editorState` is gone;
    selection is app-local per-path like cursor/grid/zoom) and record the flat-key convention its
    loop family must follow (one key, one composite token value — see the multi-scalar rule).
 2. `docs/todo/plugin-window-persistence.md`: add a staleness note — `ProjectEditorState` no longer

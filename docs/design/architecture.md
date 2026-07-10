@@ -269,7 +269,7 @@ for 3-4, Hard for 5-6, Expert for 7-8, and Master for 9-10. A value of 0 represe
 draft/default arrangements do not imply a fake difficulty; validation for playable songs should
 reject Unknown once playable chart data exists. Difficulty is currently not persisted in song
 packages and defaults to Unknown on load. See
-`docs/plans/11-derived-difficulty-calculator.md`.
+`docs/roadmap/11-derived-difficulty-calculator.md`.
 
 The tempo map is a **warp-anchor grid**: time signatures are stored as changes (carried forward),
 and time is pinned only on a sparse set of addressed **anchors** (a measure/beat with an absolute

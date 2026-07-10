@@ -14,12 +14,12 @@ The corpus is **converted commercial content**. It is a local-only soak asset:
 
 - Never commit corpus files, corpus paths, package names, or corpus-derived data to git.
 - Never wire this check into CI or any committed test baseline. CI fixtures are self-authored,
-  freely-licensed content only (see docs/plans/23-detection-verification-harness.md,
+  freely-licensed content only (see docs/roadmap/23-detection-verification-harness.md,
   "Corpus firewall").
 - Results stay in the conversation or in local scratch files outside the repo.
 
 The corpus location is supplied by the user, conventionally via the `ROCKHERO_CORPUS_DIR`
-environment variable (the convention docs/plans/11 and 23 standardize). If it is not set and the
+environment variable (the convention docs/roadmap/11 and 23 standardize). If it is not set and the
 user has not given a path, ask — never guess or hardcode one.
 
 ## Current state: no headless corpus loader exists yet (the gap)
@@ -37,10 +37,10 @@ interactive editor:
 
 Planned-but-unbuilt mechanisms (do not assume they exist — re-check before using):
 
-- docs/plans/23-detection-verification-harness.md Phase 7: Catch2 hidden-tag `[.local-corpus]`
+- docs/roadmap/23-detection-verification-harness.md Phase 7: Catch2 hidden-tag `[.local-corpus]`
   soak tests reading `ROCKHERO_CORPUS_DIR`, run by invoking the built test executable directly
   with the hidden tag.
-- docs/plans/11-derived-difficulty-calculator.md has an equivalent hidden-tag corpus sweep.
+- docs/roadmap/11-derived-difficulty-calculator.md has an equivalent hidden-tag corpus sweep.
 
 ## Procedure
 

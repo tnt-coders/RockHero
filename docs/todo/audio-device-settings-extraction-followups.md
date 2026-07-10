@@ -3,7 +3,7 @@
 Status: deferred follow-ups. These are intentionally outside the completed extraction and should be
 revisited when the game-side audio settings UI lands or when more settings-view test investment is
 prioritized. The ChangeListener re-derivation smoke test formerly tracked here was absorbed into
-`docs/plans/13-audio-device-settings-and-calibration.md` Phase 6; the editor-UI follow-ups below
+`docs/roadmap/13-audio-device-settings-and-calibration.md` Phase 6; the editor-UI follow-ups below
 remain deferred.
 
 ## Context

@@ -1,13 +1,13 @@
 ---
 name: plan-phase
-description: Execute exactly one phase of a docs/plans/ roadmap plan — re-verify the plan's baseline stamp against the code first, implement only that phase, run that phase's exact verification commands, and update the roadmap status. Use when asked to execute or resume a numbered phase of a named plan file.
+description: Execute exactly one phase of a docs/roadmap/ roadmap plan — re-verify the plan's baseline stamp against the code first, implement only that phase, run that phase's exact verification commands, and update the roadmap status. Use when asked to execute or resume a numbered phase of a named plan file.
 argument-hint: "<plan-path> <phase-number>"
 ---
 
 # plan-phase
 
-Execute one — and only one — phase of a plan under `docs/plans/`. Arguments: the repo-relative
-plan path (e.g. `docs/plans/12-playback-clock.md`) and the phase number.
+Execute one — and only one — phase of a plan under `docs/roadmap/`. Arguments: the repo-relative
+plan path (e.g. `docs/roadmap/12-playback-clock.md`) and the phase number.
 
 ## 1. Read the required context
 
@@ -49,7 +49,7 @@ full acceptance bundle unless this IS the plan's final acceptance phase (then us
 
 ## 5. Update the roadmap status
 
-Update the plan's status entry in `docs/plans/00-roadmap.md` (and the plan's own Status line if
+Update the plan's status entry in `docs/roadmap/00-roadmap.md` (and the plan's own Status line if
 the plan tracks per-phase progress): which phase completed, date, and any correction made in
 step 2. Keep the edit minimal — status, not prose.
 
