@@ -88,6 +88,10 @@ void Engine::Impl::stopTransport()
     auto& transport = m_edit->getTransport();
     stopTracktionPlayback();
     transport.setPosition(tracktion::TimePosition{});
+
+    // Publishing here covers both Engine::stop() and the automatic end-of-file stop, which share
+    // this path (decision: boundary publishes fire wherever the operation already lives).
+    publishClockBoundary(common::core::TimePosition{});
 }
 
 // Registers a project-owned transport listener that observes the message-thread snapshot.
@@ -114,6 +118,9 @@ void Engine::play()
 
     transport.play(false);
     m_impl->updateTransportState();
+    m_impl->publishClockBoundary(
+        common::core::TimePosition{m_impl->clampToLoadedRange(
+            transport.getPosition().inSeconds())});
 }
 
 // Stops playback and resets Tracktion's transport position to the start.
@@ -128,6 +135,9 @@ void Engine::pause()
 {
     m_impl->pauseTransport();
     m_impl->updateTransportState();
+    m_impl->publishClockBoundary(
+        common::core::TimePosition{m_impl->clampToLoadedRange(
+            m_impl->m_edit->getTransport().getPosition().inSeconds())});
 }
 
 // Moves Tracktion transport to the requested timeline position. Position-only motion is observed
@@ -137,6 +147,7 @@ void Engine::seek(common::core::TimePosition position)
     const double clamped_seconds = m_impl->clampToLoadedRange(position.seconds);
     m_impl->m_edit->getTransport().setPosition(
         tracktion::TimePosition::fromSeconds(clamped_seconds));
+    m_impl->publishClockBoundary(common::core::TimePosition{clamped_seconds});
 }
 
 // Returns the current project-owned state directly from the Tracktion adapter state.

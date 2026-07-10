@@ -8,6 +8,7 @@
 #include <memory>
 #include <optional>
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
+#include <rock_hero/common/audio/clock/i_playback_clock.h>
 #include <rock_hero/common/audio/device/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/input/i_audio_meter_source.h>
 #include <rock_hero/common/audio/input/i_live_input.h>
@@ -49,6 +50,7 @@ Most public methods must be called on the message thread; plugin catalog scans a
 non-realtime worker-thread exceptions because discovery can run slow third-party code.
 
 \see ITransport
+\see IPlaybackClock
 \see ISongAudio
 \see IAudioMeterSource
 \see IPluginHost
@@ -57,6 +59,7 @@ non-realtime worker-thread exceptions because discovery can run slow third-party
 \see IThumbnailFactory
 */
 class Engine : public ITransport,
+               public IPlaybackClock,
                public ISongAudio,
                public IAudioDeviceConfiguration,
                public IAudioMeterSource,
@@ -139,6 +142,16 @@ public:
     \return Current playback position.
     */
     [[nodiscard]] common::core::TimePosition position() const noexcept override;
+
+    /*!
+    \brief Reads the most recently published playback-time snapshot.
+
+    Unlike position(), this read is wait-free and callable from any thread: it copies
+    RockHero-owned atomic storage and never traverses Tracktion state.
+
+    \return Copy of the latest published playback-clock snapshot.
+    */
+    [[nodiscard]] PlaybackClockSnapshot snapshot() const noexcept override;
 
     /*!
     \brief Registers a project-owned transport listener.
