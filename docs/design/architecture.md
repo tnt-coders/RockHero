@@ -442,10 +442,11 @@ detections/second at 44.1kHz). Writes results (pitch, confidence, onset timing) 
 output structure. Runs on the clean input signal before the VST plugin chain — distortion and
 modulation make pitch detection dramatically harder.
 
-**UI thread** (JUCE message loop): Handles editor/game window repaints, mouse interaction,
-transport controls. Also ticks SDL event polling and triggers bgfx frame submissions for the game
-window. Reads pitch detection results for scoring and visual feedback. JUCE owns this loop; SDL is
-polled manually from within it.
+**UI thread** (main thread): Handles window repaints, mouse interaction, transport controls, and
+reads pitch detection results for scoring and visual feedback. In the editor, JUCE owns this
+loop. In the game (gate outcome "L2"), SDL owns the frame loop on the main thread, which is also
+JUCE's message thread; each frame polls SDL events, drains JUCE's pending message queue with a
+bounded dispatch loop, and submits the bgfx frame.
 
 **Render thread** (optional): bgfx can submit GPU work separately if needed. For the note highway's
 geometric simplicity, single-threaded rendering from the UI thread is likely sufficient.
@@ -527,12 +528,27 @@ UI theming is planned as a distinct later phase — functionality first, polish 
 
 # Game View
 
-Target design: built with SDL3 (window management, input) and bgfx (rendering abstraction over
-Vulkan, Metal, D3D11/D3D12, OpenGL). Lives in `rock-hero-game`.
+Built with SDL3 (window management, input) and bgfx (rendering abstraction over Vulkan, Metal,
+D3D11/D3D12, OpenGL; Direct3D 11 is the proven default backend on Windows). Lives in
+`rock-hero-game`. This stack was spike-proven and compared against alternatives at the
+G20-RENDER gate (2026-07-10); the evidence and decision record live in
+`docs/roadmap/20-game-architecture-and-render-stack.md` § Gate record.
 
 The note highway is geometrically simple — textured quads on lanes with perspective projection. bgfx handles this easily with room for glow effects, particles on note hits, and other visual feedback.
 
-SDL is initialized without its own event pump. SDL events are polled manually from JUCE's message loop. The game window gets its own native window handle that bgfx renders into.
+Loop ownership (gate outcome "L2"): SDL owns `main()` and the frame loop. JUCE is initialized
+without `START_JUCE_APPLICATION`; the first `MessageManager::getInstance()` call binds the main
+thread as the message thread, and the frame loop drains JUCE's pending message queue once per
+frame with a bounded dispatch loop. Audio playback is unaffected by pump cadence — the audio
+thread is self-contained and Tracktion's message-thread work is coarse state sync — so queued
+JUCE callbacks simply wait at most one frame. The game window gets its own native window handle
+that bgfx renders into; bgfx runs single-threaded on the main thread (renderFrame-before-init),
+with its native render-thread split available as a recorded escalation. With no
+JUCEApplication instance, WM_QUIT handling belongs to the game shell.
+
+The editor's 3D preview renders through bgfx into a native child window hosted inside a JUCE
+window (spike-proven), consuming the same headless highway scene model from
+`rock-hero-common/core`; bgfx never enters common's dependency surface.
 
 ---
 
