@@ -7,6 +7,7 @@
 #include <cctype>
 #include <charconv>
 #include <cmath>
+#include <compare>
 #include <cstdint>
 #include <expected>
 #include <filesystem>
@@ -278,7 +279,7 @@ struct ArrangementDocumentEntry
         line += jsonString(formatGridPositionToken(point.position));
         line += ", \"value\": ";
         line += formatJsonDouble(point.norm_value);
-        if (point.curve_shape != 0.0F)
+        if (std::is_neq(point.curve_shape <=> 0.0F))
         {
             line += ", \"shape\": ";
             line += formatJsonDouble(point.curve_shape);
@@ -307,7 +308,7 @@ struct ArrangementDocumentEntry
     }
     // Omit the offset when the audio starts at the score's first beat, so assets without an
     // alignment offset round-trip byte-for-byte with pre-offset packages.
-    if (entry.start_offset.seconds != 0.0)
+    if (std::is_neq(entry.start_offset.seconds <=> 0.0))
     {
         line += ", \"startOffset\": ";
         line += formatJsonDouble(entry.start_offset.seconds);
