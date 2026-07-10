@@ -356,6 +356,12 @@ still integrating. Phases 3+ need the render stack in the build.
 
 ### Phase 3 — board and notes rendering (playable skeleton; assumes plan 20 gate outcome)
 
+- Checkpoint (before implementing): consult game-render-expert on the bgfx specifics this phase
+  commits to — view/pass ordering and view IDs for background/board/overlay, transient
+  vertex-buffer budgets for the streamed dynamic content, texture-atlas creation and sampler
+  flags, and the depth convention handoff from the headless camera matrices (HighwayMat4's
+  documented row-major column-vector layout vs bgfx's expected layout — transpose at the drawer
+  boundary if needed). Record the answers with the phase.
 - Scope, in rock-hero-game/ui on the SDL3 + bgfx stack plan 20 integrated: bgfx views for
   background / board scene / screen-space overlay; the five shader programs (color, color_fade,
   texture_tint with the R=tint/G=highlight/B=alpha channel scheme, glyph text) compiled through
