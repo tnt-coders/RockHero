@@ -5,6 +5,13 @@ libebur128/1.2.6
 quill/11.1.0
 ogg/1.3.5
 vorbis/1.3.7
+sdl/3.4.8
+bgfx/1.129.8930-495
+
+[options]
+# tools=True also packages bgfx's offline tools (shaderc et al.) for build-time shader
+# compilation; it only adds tool components and leaves the library components unchanged.
+bgfx/*:tools=True
 
 [generators]
 CMakeDeps
