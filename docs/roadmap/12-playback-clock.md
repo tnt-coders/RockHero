@@ -1,6 +1,12 @@
 # Plan 12 — Playback Clock (thread-safe audio-derived time readback)
 
-Status: Ready — 2026-07-06 — baseline `refactor @ 3c7febe0`.
+Status: **Phases 1–5 complete** — 2026-07-10 — implemented at `work-in-progress @ c5950abf`
+(clock port + snapshot + atomic storage; Engine boundary publishes; 60 Hz message-thread
+republisher; extrapolator; consumer handoff notes are this plan's Phase 5 section). Open
+questions answered as the written recommendations (12-Q1: A, 12-Q2: B, 12-Q3: A) during the
+2026-07-10 send-off — flag any veto and the affected surface adjusts (all are additive).
+Final acceptance bundle (incl. clang-tidy) deliberately not run: clang-tidy is user-triggered
+per CLAUDE.md. Original plan text below is unchanged.
 
 ## Goal
 
@@ -116,7 +122,21 @@ No design-doc changes are required: architecture.md already mandates exactly thi
   docs/roadmap/20-game-architecture-and-render-stack.md and docs/roadmap/25-note-highway-3d.md, which
   is exactly the absorbed doc's trigger condition for building this now.
 
-Verified against code on 2026-07-06, refactor @ 3c7febe0.
+Verified against code on 2026-07-06, refactor @ 3c7febe0. Phase 3 checkpoint executed
+2026-07-10 (juce-tracktion-expert, source-cited): (1) the message-thread read of
+`getCurrentPlaybackContext()->getAudibleTimelineTime()` is lifetime-safe — the playback-context
+pointer is mutated only on the message thread (tracktion_TransportControl.cpp:840,853; dtor
+asserts message thread, tracktion_EditPlaybackContext.cpp:514-519), and unique_ptr's
+store-before-delete ordering means a same-thread re-entrant reader never sees the dying object;
+`getAudibleTimelineTime()` is one null check plus one atomic load
+(tracktion_EditPlaybackContext.cpp:1091-1095). (2) The escalation ladder beyond polling is fully
+public: `EditPlaybackContext::getSyncPoint()` (crill seqlock, per-block, pairs edit time with
+reference sample position — tracktion_EditPlaybackContext.h:127, tracktion_TracktionEngineNode.h:57-90)
+then `EditNodeBuilder::insertOptionalLastStageNode` (public static hook,
+tracktion_EditNodeBuilder.h:38-45; process-global, per-output-device, upstream of latency
+compensation). Freshness caveat: `audiblePlaybackTime` is re-seeded at graph rebuild and freezes
+if the device stops (tracktion_EditPlaybackContext.cpp:651-652) — identical to the existing
+position() read; boundary publishes cover stop paths.
 
 ## Dependencies
 

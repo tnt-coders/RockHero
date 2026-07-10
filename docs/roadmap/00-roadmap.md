@@ -258,6 +258,9 @@ unanswered item keeps its plan decision-gated. Recommendations are marked **R:**
 
 ### docs/roadmap/12-playback-clock.md
 
+**2026-07-10: answered as the recommendations during execution — 12-Q1: A, 12-Q2: B, 12-Q3: A.
+All additive; veto any of them and the surface adjusts cheaply.**
+
 - **12-Q1** snapshot time domain: (A) timeline nanoseconds only at v1, seqlock upgrade revisited at 24's provisional-hit contract; (B) add an output-stream sample-position field now. **R: A**.
 - **12-Q2** editor cursor migration: (A) migrate the cursor overlay to IPlaybackClock now and delete ITransport::position(); (B) keep the current correct message-thread path, revisit at plan 44 / the smooth-scroll decision. **R: B**.
 - **12-Q3** extrapolation feel defaults (120 ms snap, 5% drift slew, pause hold, snap on resume/seek/loop): (A) accept as starting defaults, tune live during plan 25; (B) review the numbers now. **R: A**.
@@ -271,6 +274,10 @@ unanswered item keeps its plan decision-gated. Recommendations are marked **R:**
 - **13-Q5** device-loss recovery: (A) auto-pause + non-destructive state + explicit re-setup prompt, never silently switching hardware; (B) silent re-open of default device. **R: A**.
 
 ### docs/roadmap/20-game-architecture-and-render-stack.md (gates G20-RENDER)
+
+**2026-07-10: the spike executed with working answers 20-Q2: B, 20-Q3: 1, 20-Q4: A (S3 evidence),
+20-Q5: A, 20-Q6: A; 20-Q1 answered A by the user. All final at G20-RENDER sign-off — see the
+plan's Gate record.**
 
 - **20-Q1** platform scope (Phase 0a): (A) Windows-first with cross-platform-preserving choices; (B) Windows-only commitment; (C) multi-platform CI now. **R: A**. **ANSWERED 2026-07-09: A** (user; memo in plan 20 Gate record).
 - **20-Q2** spike candidate set (Phase 0b): (A) SDL3+bgfx only; (B) SDL3+bgfx primary + JUCE-window+bgfx fallback branch; (C) also SDL3+SDL_GPU. **R: B**.
@@ -454,9 +461,9 @@ One line per plan; update the right-hand cell as phases complete.
 |---|---|---|---|
 | docs/roadmap/10-format-versioning-and-chart-identity.md | Decision-gated (G10-DECISIONS) | formatVersion policy, migration ladder, semantic chart-identity hash (RHCI-1), atomic package replace | Not started |
 | docs/roadmap/11-derived-difficulty-calculator.md | Ready | Versioned pure difficulty calculator, corpus calibration, additive persistence, game-side degraded contract | Not started |
-| docs/roadmap/12-playback-clock.md | Ready | IPlaybackClock atomic mirror of audio-derived time + consumer-side extrapolation policy | Not started |
+| docs/roadmap/12-playback-clock.md | **Phases 1–5 complete** | IPlaybackClock atomic mirror of audio-derived time + consumer-side extrapolation policy | Done 2026-07-10 @ c5950abf (12-Q1: A, 12-Q2: B, 12-Q3: A adopted); final acceptance bundle pending user-triggered clang-tidy |
 | docs/roadmap/13-audio-device-settings-and-calibration.md | Ready | Shared per-device settings store, latency-offset model, calibration capture, device-loss policy | Not started |
-| docs/roadmap/20-game-architecture-and-render-stack.md | Decision-gated (G20-RENDER) | Platform scope, SDL3+bgfx spike, renderer-sharing seam, window/loop, resources, threading, dev diagnostics | Phase 0a done 2026-07-09 (20-Q1: A); Phase 0b spike in progress (20-Q2 working decision: B) |
+| docs/roadmap/20-game-architecture-and-render-stack.md | **STOP: awaiting G20-RENDER sign-off** | Platform scope, SDL3+bgfx spike, renderer-sharing seam, window/loop, resources, threading, dev diagnostics | Phases 0a–0c executed 2026-07-10; S1–S5 PASS, S6 partial (local); recommendation SDL3+bgfx, loop L2, seam Option 1 — full record in the plan's Gate record |
 | docs/roadmap/21-game-audio-engine-and-session.md | Decision-gated (G21-TRACKTION-GO) | Tracktion-in-game GO, GameplaySession spine, tone switching, mix, latency stance, milestone-0 audio soak | Not started |
 | docs/roadmap/22-note-detection.md | Decision-gated (GATE-A, GATE-B) | Detection contract + latency budget, dry tap, algorithm survey, pipeline, v1 detectors, tuner, tuning gate | Not started |
 | docs/roadmap/23-detection-verification-harness.md | Ready | Event-log replay, autoplay bot, fixture generators, synth render sweeps, CC0 DI corpus, regression metrics | Not started |
@@ -471,7 +478,7 @@ One line per plan; update the right-hand cell as phases complete.
 | docs/roadmap/42-chart-validation.md | Ready | Advisory lint engine + rule set v1 in common/core, corpus-calibrated severities, editor report | Not started |
 | docs/roadmap/43-song-information-and-art.md | Decision-gated (G43-METADATA) | song.json metadata/art/sort/preview fields, Song Information dialog, shared art codec, publish gate | Not started |
 | docs/roadmap/44-editor-3d-preview.md | Decision-gated (via G20-RENDER) | Fullscreen-capable editor preview window sharing the highway scene model; playback follow + live edits | Not started |
-| docs/roadmap/45-editor-theme-and-string-colors.md | Ready (Phase 5 behind G45-STRINGS) | Shared string palette in common/ui, theme presets, colorblind-safe preset, string-cap raise gate | Not started |
+| docs/roadmap/45-editor-theme-and-string-colors.md | Phase 1 complete; rest Ready (Phase 5 behind G45-STRINGS) | Shared string palette in common/ui, theme presets, colorblind-safe preset, string-cap raise gate | Phase 1 done 2026-07-10 @ 050f884e (palette in common/ui, editor byte-identical; 45-Q2 working: A) |
 | docs/roadmap/46-editor-keybinds.md | Decision-gated (G46-KEYMAP) | JUCE command-manager keybinds, config UI, diff persistence, plugin-window shortcut injection seam | Not started |
 | docs/roadmap/47-editor-loop-selection.md | Ready (47-Q1..Q3 carry recommendations; Phase 1 coordinated with 21 Phase 1 by whichever-executes-first) | Shared loop-region port + Tracktion adapter; editor ruler-drag loop selection, auto-engagement, app-local persistence | Not started |
 

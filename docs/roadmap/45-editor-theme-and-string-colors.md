@@ -1,7 +1,11 @@
 # Plan 45 — Editor Theme and String Colors
 
-**Status**: Ready (Phases 1–3 executable now; Phase 4 ships only after palette sign-off; Phase 5
-is decision-gated); 2026-07-06; baseline `refactor @ 13e82fb0`.
+**Status**: Phase 1 complete (2026-07-10, `work-in-progress @ 050f884e`): shared palette +
+Charter-exact derivation extracted to rock-hero-common/ui with tests; editor re-pointed with
+byte-identical output (untouched editor test pins green); stale tab_view.h/editor_theme.h docs
+fixed. 45-Q2 taken as A for the shipped tier (gray 8th preserved; chartreuse/indigo enter with
+the Phase 5 cap raise). Phases 2–3 executable now; Phase 4 after open question 1; Phase 5
+decision-gated. Original date 2026-07-06; baseline `refactor @ 13e82fb0`.
 
 ## Goal
 
