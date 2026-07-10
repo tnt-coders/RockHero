@@ -76,11 +76,12 @@ target_include_directories(
     PUBLIC include
     PRIVATE include/rock_hero/editor/ui src)
 
+# common::ui supplies the shared string-color palette the tab renderer converts to JUCE colors.
 target_link_libraries(
     rock_hero_editor_ui
     PUBLIC rock_hero::editor::core rock_hero::juce_gui_basics
-    PRIVATE rock_hero::build_policy rock_hero::common::audio rock_hero::editor_ui_resources
-            rock_hero::juce_audio_devices rock_hero::juce_graphics)
+    PRIVATE rock_hero::build_policy rock_hero::common::audio rock_hero::common::ui
+            rock_hero::editor_ui_resources rock_hero::juce_audio_devices rock_hero::juce_graphics)
 
 target_compile_definitions(
     rock_hero_editor_ui
