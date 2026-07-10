@@ -2,7 +2,10 @@
 > Rock Hero is in early development and is not yet ready for use. Follow along (or contribute) as we build it!
 
 # Rock Hero
-[![Build](https://github.com/tnt-coders/RockHero/actions/workflows/build.yml/badge.svg)](https://github.com/tnt-coders/RockHero/actions/workflows/build.yml)
+[![Build - Windows](https://github.com/tnt-coders/RockHero/actions/workflows/build-windows.yml/badge.svg)](https://github.com/tnt-coders/RockHero/actions/workflows/build-windows.yml)
+[![Build - Linux](https://github.com/tnt-coders/RockHero/actions/workflows/build-linux.yml/badge.svg)](https://github.com/tnt-coders/RockHero/actions/workflows/build-linux.yml)
+[![Build - macOS](https://github.com/tnt-coders/RockHero/actions/workflows/build-macos.yml/badge.svg)](https://github.com/tnt-coders/RockHero/actions/workflows/build-macos.yml)
+[![Docs](https://github.com/tnt-coders/RockHero/actions/workflows/docs.yml/badge.svg)](https://github.com/tnt-coders/RockHero/actions/workflows/docs.yml)
 
 Your guitar, your tone, your game. Plug in, rock out, and level up your playing!
 
