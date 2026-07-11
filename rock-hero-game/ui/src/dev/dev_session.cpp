@@ -191,17 +191,28 @@ std::optional<common::core::HighwayViewState> DevSession::loadViewState() const
         return std::nullopt;
     }
 
+    // Prefer a charted guitar part: bass arrangements exercise few of the chord and technique
+    // visuals this dev fixture exists to inspect (packages often list bass first).
+    const common::core::Arrangement* chosen = nullptr;
     for (const common::core::Arrangement& arrangement : song->arrangements)
     {
         if (!arrangement.chart.has_value())
         {
             continue;
         }
+        if (chosen == nullptr || (chosen->part == common::core::Part::Bass &&
+                                  arrangement.part != common::core::Part::Bass))
+        {
+            chosen = &arrangement;
+        }
+    }
+    if (chosen != nullptr)
+    {
         // Lowest-pitched string on top is the 3D notation's default (user decision 2026-07-11,
         // recorded in plan 25); the shared projection's invert flag realizes it, and plans 26/27
         // surface the per-player setting later.
         common::core::HighwayViewState state = common::core::makeHighwayViewState(
-            arrangement,
+            *chosen,
             song->tempo_map,
             common::core::HighwayDisplayOptions{.mirrored = m_lefty, .invert_string_order = true});
         RH_LOG_INFO(

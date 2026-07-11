@@ -135,6 +135,28 @@ struct HighwayNoteView
     friend bool operator==(const HighwayNoteView& lhs, const HighwayNoteView& rhs) = default;
 };
 
+/*! \brief What the hand holds on one string under a shape span (fingering-panel data). */
+struct HighwayShapeStringView
+{
+    /*! \brief One-based string, counted from the lowest-pitched string. */
+    int string{1};
+
+    /*! \brief Fret held on the string; zero is the open string. */
+    int fret{0};
+
+    /*! \brief Finger holding the fret (0 thumb, 1-4 index through pinky); empty when unknown. */
+    std::optional<int> finger{};
+
+    /*!
+    \brief Compares two posture entries by their stored fields.
+    \param lhs Left-hand entry.
+    \param rhs Right-hand entry.
+    \return True when both entries store equal values.
+    */
+    friend constexpr bool operator==(
+        const HighwayShapeStringView& lhs, const HighwayShapeStringView& rhs) noexcept = default;
+};
+
 /*! \brief One hand-posture span resolved to timeline seconds for highway rendering. */
 struct HighwayShapeView
 {
@@ -152,6 +174,12 @@ struct HighwayShapeView
     together (chord box). Derived at projection time from the notes under the span start.
     */
     bool arpeggio{false};
+
+    /*!
+    \brief Posture entries from the shape's chord template, lowest string first; empty when the
+    template is unknown. Drives the fingering panel and the arpeggio brackets.
+    */
+    std::vector<HighwayShapeStringView> strings;
 
     /*!
     \brief Compares two shape views by their stored fields.

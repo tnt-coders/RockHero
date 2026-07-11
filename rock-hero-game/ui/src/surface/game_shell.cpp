@@ -220,6 +220,15 @@ int GameShell::run(const GameShellOptions& options)
     {
         RH_LOG_WARNING("game.highway", "{}", inlay_atlas.error().message);
     }
+    auto fingering = resources->textureBytes(core::GameTexture::HighwayFingering);
+    if (fingering.has_value())
+    {
+        highway_textures.fingering_png = std::move(*fingering);
+    }
+    else
+    {
+        RH_LOG_WARNING("game.highway", "{}", fingering.error().message);
+    }
     std::expected<common::ui::HighwayRenderer, common::ui::HighwayRendererError> renderer =
         common::ui::HighwayRenderer::create(*highway_shaders, highway_textures);
     if (!renderer.has_value())

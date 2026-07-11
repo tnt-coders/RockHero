@@ -87,6 +87,7 @@ common::ui::HighwayTextureSet loadPreviewHighwayTextures()
     common::ui::HighwayTextureSet set;
     set.note_atlas_png = readFileBytes(textures.getChildFile("notes.png"));
     set.inlay_atlas_png = readFileBytes(textures.getChildFile("inlays.png"));
+    set.fingering_png = readFileBytes(textures.getChildFile("fingering.png"));
     return set;
 }
 

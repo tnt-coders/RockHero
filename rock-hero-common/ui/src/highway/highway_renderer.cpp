@@ -10,9 +10,11 @@
 #include <numbers>
 #include <rock_hero/common/core/highway/highway_camera.h>
 #include <rock_hero/common/core/highway/highway_metrics.h>
+#include <rock_hero/common/core/highway/highway_tail.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/ui/highway/highway_renderer.h>
 #include <rock_hero/common/ui/string_colors/string_color_palette.h>
+#include <span>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -89,6 +91,29 @@ constexpr int g_open_note_segments = 6;
 // the hand window inset by a margin, with edge bands of the same width.
 constexpr double g_tail_inner_alpha = 192.0 / 255.0;
 constexpr double g_open_tail_margin = 0.2;
+
+// Adaptive tail sampling for technique-modulated rails: one centerline sample per this many
+// projected screen pixels, hard-capped (the reference's per-millisecond-tessellation fix).
+constexpr double g_tail_pixels_per_sample = 4.0;
+constexpr std::size_t g_tail_sample_cap = 256;
+
+// Unpitched slides release pressure, so their rail dims toward this alpha across the glide.
+constexpr double g_unpitched_slide_end_alpha = 0.25;
+
+// Chord-box palette and geometry (reference values): a translucent teal panel per strummed
+// chord, with corner holders, gradient frame bars, and mute-cross variants.
+constexpr ArgbColor g_chord_box_color = 0xFF00D2D5;
+constexpr ArgbColor g_chord_box_dark_color = 0xFF003C3D;
+constexpr ArgbColor g_chord_full_mute_cross_color = 0xFF80D8FF;
+constexpr ArgbColor g_chord_palm_mute_cross_color = 0xFF00C0FF;
+constexpr ArgbColor g_chord_name_color = 0xFFE0E0E0;
+constexpr double g_chord_box_frame_thickness = 0.075;
+
+// Hand-shape span rails on the floor: arpeggio spans in the reference purple, held shapes in
+// the lane-border teal; a solid core with fade-out wings (fret thickness x3 and x9).
+constexpr ArgbColor g_arpeggio_color = 0xFFC040FF;
+constexpr double g_shape_rail_core_half_width = 0.075;
+constexpr double g_shape_rail_fade_half_width = 0.225;
 
 // Vertex with a world position and a packed ABGR color (color / color_fade programs).
 struct PosColorVertex
@@ -301,12 +326,14 @@ void pushFloorQuadGradient(
 // The reference open-note bar: a hexagonal prism along X across [x0, x1], with the center
 // station slightly thicker than the ends and the ring squashed nearly flat in Z. Flat-colored
 // and unlit, its silhouette reads as the reference's thin rounded bar from every board-view
-// angle; end-cap fans close the side-on silhouette.
+// angle; end-cap fans close the side-on silhouette. The thickness scale draws the reference's
+// accent halo (the same bar at triple cross-section).
 void pushOpenNoteBar(
     std::vector<PosColorVertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
-    const double x1, const double lane_y, const double z, const std::uint32_t abgr)
+    const double x1, const double lane_y, const double z, const std::uint32_t abgr,
+    const double thickness_scale)
 {
-    constexpr std::size_t g_ring_size = static_cast<std::size_t>(g_open_note_segments);
+    constexpr auto g_ring_size = static_cast<std::size_t>(g_open_note_segments);
     std::array<double, g_ring_size> ring_y{};
     std::array<double, g_ring_size> ring_z{};
     for (std::size_t point = 0; point < g_ring_size; ++point)
@@ -320,9 +347,9 @@ void pushOpenNoteBar(
     // Three cross-section stations: end, bulged middle, end.
     const std::array<double, 3> station_x{x0, (x0 + x1) / 2.0, x1};
     const std::array<double, 3> station_half{
-        g_open_note_end_half_thickness,
-        g_open_note_middle_half_thickness,
-        g_open_note_end_half_thickness,
+        g_open_note_end_half_thickness * thickness_scale,
+        g_open_note_middle_half_thickness * thickness_scale,
+        g_open_note_end_half_thickness * thickness_scale,
     };
 
     const auto ring_vertex = [&](const std::size_t station, const std::size_t point) {
@@ -420,6 +447,9 @@ struct HighwayRenderer::Impl
 
     // Fretboard skin (one cell per fret); invalid when the asset is missing (plain board).
     UniqueBgfxHandle<bgfx::TextureHandle> inlay_texture;
+
+    // Fingering panel texture (barre shapes + finger names); invalid skips the panel.
+    UniqueBgfxHandle<bgfx::TextureHandle> fingering_texture;
 
     // Retained board-face geometry; rebuilt on chart load, streamed content uses transients.
     UniqueBgfxHandle<bgfx::VertexBufferHandle> face_vertices;
@@ -537,14 +567,17 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
 
     impl->atlases = makeHighwayAtlases(textures.note_atlas_png);
     impl->inlay_texture = uploadPngTexture(textures.inlay_atlas_png);
-    if (!impl->atlases.reference_cells || !impl->inlay_texture.isValid())
+    impl->fingering_texture = uploadPngTexture(textures.fingering_png);
+    if (!impl->atlases.reference_cells || !impl->inlay_texture.isValid() ||
+        !impl->fingering_texture.isValid())
     {
         RH_LOG_WARNING(
             "common.highway",
-            "reference texture assets unavailable (heads={}, inlays={}); procedural fallbacks in "
-            "use",
+            "reference texture assets unavailable (heads={}, inlays={}, fingering={}); "
+            "procedural fallbacks in use",
             impl->atlases.reference_cells,
-            impl->inlay_texture.isValid());
+            impl->inlay_texture.isValid(),
+            impl->fingering_texture.isValid());
     }
 
     return HighwayRenderer{std::move(impl)};
@@ -639,8 +672,9 @@ void HighwayRenderer::Impl::draw(
     camera.advance(target, dt_seconds, metrics);
     const common::core::HighwayCameraPose pose = camera.pose(metrics);
     const double aspect = static_cast<double>(width) / static_cast<double>(height);
-    const std::array<float, 16> board_matrix = toBgfxMatrix(
-        common::core::makeHighwayWorldToClip(pose, aspect, state.options.mirrored, metrics));
+    const common::core::HighwayMat4 world_to_clip =
+        common::core::makeHighwayWorldToClip(pose, aspect, state.options.mirrored, metrics);
+    const std::array<float, 16> board_matrix = toBgfxMatrix(world_to_clip);
     const std::array<float, 16> background_matrix = toBgfxMatrix(
         common::core::makeHighwayBackgroundWorldToClip(
             pose, aspect, now_seconds, state.options.mirrored, metrics));
@@ -842,6 +876,65 @@ void HighwayRenderer::Impl::draw(
         submitBatch(vertices, indices, posColorLayout(), color_fade_program.get(), nullptr);
     }
 
+    // --- Hand-shape span rails: thick fading edge lines along each shape span at its hand
+    // window's fret lines, riding the hit line while active (purple marks arpeggio spans). ---
+    {
+        bgfx::setUniform(fade_params.get(), fade_uniform.data());
+        std::vector<PosColorVertex> vertices;
+        std::vector<std::uint16_t> indices;
+        for (const common::core::HighwayShapeView& shape : state.shapes)
+        {
+            if (shape.end_seconds < now_seconds || shape.start_seconds > span_end_seconds)
+            {
+                continue;
+            }
+            const double z0 = std::max(0.0, time_to_z(shape.start_seconds));
+            const double z1 = time_to_z(std::min(shape.end_seconds, span_end_seconds));
+            if (z1 <= z0)
+            {
+                continue;
+            }
+            const ArgbColor color =
+                shape.arpeggio ? g_arpeggio_color : (g_lane_border_color | 0xFF000000U);
+            const std::uint32_t solid = packAbgr(color);
+            const std::uint32_t clear = packAbgr(color, 0.0);
+            const auto [low_line, high_line] = activeFhpFretLines(state, shape.start_seconds);
+            for (const int line : {low_line, high_line})
+            {
+                const double x = common::core::highwayFretLineX(line, metrics, mirrored);
+                // Solid core between fade-out wings, per line (the reference's cross-section).
+                const auto push_band = [&](const double xa,
+                                           const double xb,
+                                           const std::uint32_t color_a,
+                                           const std::uint32_t color_b) {
+                    pushQuad(
+                        vertices,
+                        indices,
+                        makeVertex(xa, 0.01, z0, color_a),
+                        makeVertex(xb, 0.01, z0, color_b),
+                        makeVertex(xb, 0.01, z1, color_b),
+                        makeVertex(xa, 0.01, z1, color_a));
+                };
+                push_band(
+                    x - g_shape_rail_fade_half_width,
+                    x - g_shape_rail_core_half_width,
+                    clear,
+                    solid);
+                push_band(
+                    x - g_shape_rail_core_half_width,
+                    x + g_shape_rail_core_half_width,
+                    solid,
+                    solid);
+                push_band(
+                    x + g_shape_rail_core_half_width,
+                    x + g_shape_rail_fade_half_width,
+                    solid,
+                    clear);
+            }
+        }
+        submitBatch(vertices, indices, posColorLayout(), color_fade_program.get(), nullptr);
+    }
+
     // --- Notes: shadows, sustain rails, open bars, then heads sorted far-to-near. ---
     const auto [first_note, last_note] = common::core::highwayVisibleNoteRange(
         state.notes, sustain_prefix_max, span_start_seconds, span_end_seconds);
@@ -870,12 +963,114 @@ void HighwayRenderer::Impl::draw(
         return state.notes[lhs].start_seconds > state.notes[rhs].start_seconds;
     });
 
+    // Chord groups: notes sharing an onset (contiguous in the sorted note stream). Membership
+    // decides the rolling flip and the shadow; groups of two or more get a chord box.
+    struct ChordGroup
+    {
+        double start_seconds;
+        std::size_t first;
+        std::size_t count;
+        bool any_accent;
+        common::core::NoteMute common_mute;
+    };
+    std::vector<ChordGroup> chord_groups;
+    std::vector<std::size_t> note_group(last_note - first_note, 0);
+    for (std::size_t index = first_note; index < last_note;)
+    {
+        std::size_t group_end = index + 1;
+        while (group_end < last_note &&
+               std::abs(state.notes[group_end].start_seconds - state.notes[index].start_seconds) <
+                   1.0e-4)
+        {
+            ++group_end;
+        }
+        ChordGroup group{
+            .start_seconds = state.notes[index].start_seconds,
+            .first = index,
+            .count = group_end - index,
+            .any_accent = false,
+            .common_mute = state.notes[index].mute,
+        };
+        for (std::size_t member = index; member < group_end; ++member)
+        {
+            group.any_accent = group.any_accent || state.notes[member].accent;
+            if (state.notes[member].mute != group.common_mute)
+            {
+                group.common_mute = common::core::NoteMute::None;
+            }
+            note_group[member - first_note] = chord_groups.size();
+        }
+        chord_groups.push_back(group);
+        index = group_end;
+    }
+
     const std::array<float, 4> head_cell = atlases.head_layout.cellRect(g_head_cell_standard);
     const std::array<float, 4> anticipation_cell =
         atlases.head_layout.cellRect(g_head_cell_anticipation);
     // The reference head is a square quad (0.96 x 0.96 world units), not a lane-squashed one.
     const double head_half_w = metrics.note_half_width;
     const double head_half_h = metrics.note_half_width;
+
+    // Projected on-screen length between two world points, for adaptive tail sampling.
+    const auto projected_pixels = [&](const double x0,
+                                      const double y0,
+                                      const double z0,
+                                      const double x1,
+                                      const double y1,
+                                      const double z1) {
+        const std::array<double, 3> a = world_to_clip.projectPoint(x0, y0, z0);
+        const std::array<double, 3> b = world_to_clip.projectPoint(x1, y1, z1);
+        const double dx = (b[0] - a[0]) * 0.5 * static_cast<double>(width);
+        const double dy = (b[1] - a[1]) * 0.5 * static_cast<double>(height);
+        return std::sqrt((dx * dx) + (dy * dy));
+    };
+
+    // Slide state at a time: the eased X offset from the note's base fret plus the alpha dim of
+    // unpitched (pressure-release) glides.
+    struct SlideState
+    {
+        double x_offset;
+        double alpha;
+    };
+    const auto slide_state_at =
+        [&](const common::core::HighwayNoteView& note, const double base_x, const double seconds) {
+            if (note.slides.empty() || note.fret <= 0)
+            {
+                return SlideState{.x_offset = 0.0, .alpha = 1.0};
+            }
+            double segment_start_seconds = note.start_seconds;
+            double segment_start_x = base_x;
+            for (const common::core::HighwaySlideView& waypoint : note.slides)
+            {
+                const double waypoint_x =
+                    common::core::highwayNoteCenterX(waypoint.fret, metrics, mirrored);
+                if (seconds <= waypoint.seconds)
+                {
+                    const double span = waypoint.seconds - segment_start_seconds;
+                    const double progress =
+                        span > 0.0 ? std::clamp((seconds - segment_start_seconds) / span, 0.0, 1.0)
+                                   : 1.0;
+                    const double weight =
+                        common::core::highwaySlideEaseWeight(progress, waypoint.unpitched);
+                    const double alpha =
+                        waypoint.unpitched ? 1.0 + ((g_unpitched_slide_end_alpha - 1.0) * progress)
+                                           : 1.0;
+                    return SlideState{
+                        .x_offset =
+                            segment_start_x + ((waypoint_x - segment_start_x) * weight) - base_x,
+                        .alpha = alpha,
+                    };
+                }
+                segment_start_seconds = waypoint.seconds;
+                segment_start_x = waypoint_x;
+            }
+            // Past the last waypoint the glide holds its target (and any unpitched dimming).
+            const common::core::HighwaySlideView& last = note.slides.back();
+            return SlideState{
+                .x_offset = common::core::highwayNoteCenterX(last.fret, metrics, mirrored) - base_x,
+                .alpha = last.unpitched ? g_unpitched_slide_end_alpha : 1.0,
+            };
+        };
 
     for (const std::size_t index : visible)
     {
@@ -889,63 +1084,147 @@ void HighwayRenderer::Impl::draw(
                 ? 1.0
                 : std::max(0.0, 1.0 - ((now_seconds - note.start_seconds) / g_passed_fade_seconds));
 
+        // Bend geometry: lift per semitone, inverted on the upper displayed half so curves stay
+        // inside the board; the head anchors at the onset's bend value (a prebend shows).
+        const int displayed_lane = invert ? (state.string_count + 1 - note.string) : note.string;
+        const double bend_direction =
+            common::core::highwayBendInverted(displayed_lane, state.string_count) ? -1.0 : 1.0;
+        const auto note_y_at = [&](const double seconds, const double taper) {
+            double semitones =
+                common::core::highwayBendSemitonesAt(note.bend, note.start_seconds, seconds);
+            if (note.vibrato)
+            {
+                semitones +=
+                    taper * common::core::highwayVibratoWobble(seconds - note.start_seconds);
+            }
+            return lane_y + (bend_direction * metrics.bend_lift_per_half_step * semitones);
+        };
+        const double head_y = note_y_at(note.start_seconds, 0.0);
+
         // Sustain tail: from the hit line (while sounding) or the onset to the sustain end, as
-        // the reference's three-band ribbon (solid edges around a translucent core).
+        // the reference's three-band ribbon (solid edges around a translucent core). Technique
+        // notes modulate the centerline, sampled adaptively in screen space.
         if (note.end_seconds > note.start_seconds && note.end_seconds > now_seconds)
         {
-            const double z0 = time_to_z(std::max(note.start_seconds, now_seconds));
-            const double z1 = time_to_z(std::min(note.end_seconds, span_end_seconds));
-            if (z1 > z0)
+            const double tail_from = std::max(note.start_seconds, now_seconds);
+            const double tail_to = std::min(note.end_seconds, span_end_seconds);
+
+            // Band X stations: fretted tails straddle the note center, open tails span the hand
+            // window with the reference's inset (with a degenerate-window guard for tapered
+            // necks).
+            double band_x0 = 0.0;
+            double band_x1 = 0.0;
+            double band_x2 = 0.0;
+            double band_x3 = 0.0;
+            bool band_valid = tail_to > tail_from;
+            double base_x = 0.0;
+            if (note.fret > 0)
             {
-                const std::uint32_t edge_color = packAbgr(style.tail);
-                const std::uint32_t inner_color = packAbgr(style.tail, g_tail_inner_alpha);
-                if (note.fret > 0)
+                base_x = common::core::highwayNoteCenterX(note.fret, metrics, mirrored);
+                const double half = metrics.tail_half_width;
+                band_x0 = base_x - half;
+                band_x1 = base_x - (half / 2.0);
+                band_x2 = base_x + (half / 2.0);
+                band_x3 = base_x + half;
+            }
+            else
+            {
+                const auto [rail_low, rail_high] = activeFhpFretLines(state, note.start_seconds);
+                const double low_x = common::core::highwayFretLineX(rail_low, metrics, mirrored);
+                const double high_x = common::core::highwayFretLineX(rail_high, metrics, mirrored);
+                const auto [window_x0, window_x1] = std::minmax(low_x, high_x);
+                band_x0 = window_x0 + g_open_tail_margin;
+                band_x3 = window_x1 - g_open_tail_margin;
+                band_x1 = band_x0 + g_open_tail_margin;
+                band_x2 = band_x3 - g_open_tail_margin;
+                band_valid = band_valid && (band_x3 - band_x0 > 2.0 * g_open_tail_margin);
+                base_x = (band_x0 + band_x3) / 2.0;
+            }
+
+            const bool modulated =
+                note.vibrato || note.tremolo || !note.bend.empty() || !note.slides.empty();
+            if (band_valid && !modulated)
+            {
+                pushTailRibbon(
+                    rail_vertices,
+                    rail_indices,
+                    band_x0,
+                    band_x1,
+                    band_x2,
+                    band_x3,
+                    lane_y,
+                    time_to_z(tail_from),
+                    time_to_z(tail_to),
+                    packAbgr(style.tail),
+                    packAbgr(style.tail, g_tail_inner_alpha));
+            }
+            else if (band_valid)
+            {
+                const double pixels = projected_pixels(
+                    base_x, lane_y, time_to_z(tail_from), base_x, lane_y, time_to_z(tail_to));
+                const std::size_t uniform_count = common::core::highwayTailSampleCount(
+                    pixels, g_tail_pixels_per_sample, g_tail_sample_cap);
+                const std::vector<double> sample_times = common::core::makeHighwayTailSampleTimes(
+                    note, tail_from, tail_to, uniform_count);
+
+                struct TailSample
                 {
-                    const double x = common::core::highwayNoteCenterX(note.fret, metrics, mirrored);
-                    const double half = metrics.tail_half_width;
-                    pushTailRibbon(
-                        rail_vertices,
-                        rail_indices,
-                        x - half,
-                        x - (half / 2.0),
-                        x + (half / 2.0),
-                        x + half,
-                        lane_y,
-                        z0,
-                        z1,
-                        edge_color,
-                        inner_color);
-                }
-                else
+                    double x_offset;
+                    double y;
+                    double z;
+                    double alpha;
+                };
+                std::vector<TailSample> samples;
+                samples.reserve(sample_times.size());
+                const double duration = note.end_seconds - note.start_seconds;
+                for (const double seconds : sample_times)
                 {
-                    // Open sustain: the ribbon spans the hand window like the bar it trails
-                    // (with the reference's inset), never the skinny fretted cross-section.
-                    const auto [rail_low, rail_high] =
-                        activeFhpFretLines(state, note.start_seconds);
-                    const double low_x =
-                        common::core::highwayFretLineX(rail_low, metrics, mirrored);
-                    const double high_x =
-                        common::core::highwayFretLineX(rail_high, metrics, mirrored);
-                    const auto [window_x0, window_x1] = std::minmax(low_x, high_x);
-                    const double xa = window_x0 + g_open_tail_margin;
-                    const double xd = window_x1 - g_open_tail_margin;
-                    // Degenerate-window guard: a tapered neck could shrink a far window below
-                    // the margins plus edge bands; skip rather than draw crossed bands.
-                    if (xd - xa > 2.0 * g_open_tail_margin)
+                    // Taper progresses over the full note duration, so wobbles anchor on the
+                    // string line at the true tail ends even when the hit line clips the view.
+                    const double taper = common::core::highwayTailTaper(
+                        (seconds - note.start_seconds) / duration,
+                        common::core::g_highway_tail_taper_fraction);
+                    const SlideState slide = slide_state_at(note, base_x, seconds);
+                    double x_offset = slide.x_offset;
+                    if (note.tremolo)
                     {
-                        pushTailRibbon(
+                        x_offset +=
+                            metrics.tail_half_width * taper *
+                            common::core::highwayTremoloWobble(seconds - note.start_seconds);
+                    }
+                    samples.push_back(
+                        TailSample{
+                            .x_offset = x_offset,
+                            .y = note_y_at(seconds, taper),
+                            .z = time_to_z(seconds),
+                            .alpha = slide.alpha,
+                        });
+                }
+                for (std::size_t sample = 1; sample < samples.size(); ++sample)
+                {
+                    const TailSample& a = samples[sample - 1];
+                    const TailSample& b = samples[sample];
+                    const std::uint32_t edge_a = packAbgr(style.tail, a.alpha);
+                    const std::uint32_t edge_b = packAbgr(style.tail, b.alpha);
+                    const std::uint32_t inner_a =
+                        packAbgr(style.tail, g_tail_inner_alpha * a.alpha);
+                    const std::uint32_t inner_b =
+                        packAbgr(style.tail, g_tail_inner_alpha * b.alpha);
+                    const auto push_segment = [&](const double x_from,
+                                                  const double x_to,
+                                                  const std::uint32_t color_a,
+                                                  const std::uint32_t color_b) {
+                        pushQuad(
                             rail_vertices,
                             rail_indices,
-                            xa,
-                            xa + g_open_tail_margin,
-                            xd - g_open_tail_margin,
-                            xd,
-                            lane_y,
-                            z0,
-                            z1,
-                            edge_color,
-                            inner_color);
-                    }
+                            makeVertex(x_from + a.x_offset, a.y, a.z, color_a),
+                            makeVertex(x_to + a.x_offset, a.y, a.z, color_a),
+                            makeVertex(x_to + b.x_offset, b.y, b.z, color_b),
+                            makeVertex(x_from + b.x_offset, b.y, b.z, color_b));
+                    };
+                    push_segment(band_x0, band_x1, edge_a, edge_b);
+                    push_segment(band_x1, band_x2, inner_a, inner_b);
+                    push_segment(band_x2, band_x3, edge_a, edge_b);
                 }
             }
         }
@@ -956,6 +1235,35 @@ void HighwayRenderer::Impl::draw(
         }
         const double z = time_to_z(note.start_seconds);
 
+        // Marker quads composite over the head base exactly like the reference's CPU-composited
+        // per-status textures (alpha "over" is associative), so the atlas cells draw directly.
+        const auto push_marker = [&](const double center_x,
+                                     const double center_y,
+                                     const double marker_z,
+                                     const double cos_r,
+                                     const double sin_r,
+                                     const int cell,
+                                     const std::uint32_t marker_tint) {
+            const std::array<float, 4> rect = atlases.head_layout.cellRect(cell);
+            const auto corner =
+                [&](const double dx, const double dy, const float u, const float v) {
+                    return makeUvVertex(
+                        center_x + (dx * cos_r) - (dy * sin_r),
+                        center_y + (dx * sin_r) + (dy * cos_r),
+                        marker_z,
+                        marker_tint,
+                        u,
+                        v);
+                };
+            pushQuad(
+                head_vertices,
+                head_indices,
+                corner(-head_half_w, -head_half_h, rect[0], rect[3]),
+                corner(head_half_w, -head_half_h, rect[2], rect[3]),
+                corner(head_half_w, head_half_h, rect[2], rect[1]),
+                corner(-head_half_w, head_half_h, rect[0], rect[1]));
+        };
+
         if (note.fret == 0)
         {
             // Open string: the reference's thin rounded bar spanning the active hand window, in
@@ -965,26 +1273,73 @@ void HighwayRenderer::Impl::draw(
             const double high_x = common::core::highwayFretLineX(high_line, metrics, mirrored);
             const auto [x0, x1] = std::minmax(low_x, high_x);
             pushOpenNoteBar(
-                open_vertices, open_indices, x0, x1, lane_y, z, packAbgr(base_color, fade));
+                open_vertices, open_indices, x0, x1, head_y, z, packAbgr(base_color, fade), 1.0);
+            if (note.accent)
+            {
+                // The reference's accent halo: the same bar at triple thickness, faint.
+                pushOpenNoteBar(
+                    open_vertices,
+                    open_indices,
+                    x0,
+                    x1,
+                    head_y,
+                    z,
+                    packAbgr(base_color, fade * (96.0 / 255.0)),
+                    3.0);
+            }
+            // Technique markers at the window center (the reference's open-note overlay set).
+            if (atlases.reference_cells)
+            {
+                const double center_x = (x0 + x1) / 2.0;
+                const std::uint32_t marker_tint = packAbgr(base_color, fade);
+                if (note.attack == common::core::NoteAttack::Pull)
+                {
+                    push_marker(center_x, head_y, z, 1.0, 0.0, g_head_cell_pull_off, marker_tint);
+                }
+                if (note.mute == common::core::NoteMute::Palm)
+                {
+                    push_marker(center_x, head_y, z, 1.0, 0.0, g_head_cell_palm_mute, marker_tint);
+                }
+                else if (note.mute == common::core::NoteMute::Full)
+                {
+                    push_marker(center_x, head_y, z, 1.0, 0.0, g_head_cell_full_mute, marker_tint);
+                }
+                if (note.attack == common::core::NoteAttack::Slap)
+                {
+                    push_marker(center_x, head_y, z, 1.0, 0.0, g_head_cell_slap, marker_tint);
+                }
+                else if (note.attack == common::core::NoteAttack::Pop)
+                {
+                    push_marker(center_x, head_y, z, 1.0, 0.0, g_head_cell_pop, marker_tint);
+                }
+            }
             continue;
         }
 
-        const double x = common::core::highwayNoteCenterX(note.fret, metrics, mirrored);
+        // Fretted head anchor: the fret-slot middle, or the true touch position for a harmonic
+        // sounding between frets (the chart's fractional node point).
+        double x = common::core::highwayNoteCenterX(note.fret, metrics, mirrored);
+        if (note.harmonic != common::core::NoteHarmonic::None && note.touch.has_value())
+        {
+            const double touch = *note.touch;
+            const double touch_floor = std::floor(touch);
+            const auto touch_fret = static_cast<int>(touch_floor);
+            const double left_x = common::core::highwayFretLineX(touch_fret, metrics, mirrored);
+            const double right_x =
+                common::core::highwayFretLineX(touch_fret + 1, metrics, mirrored);
+            x = left_x + ((right_x - left_x) * (touch - touch_floor));
+        }
 
-        // Chord membership decides both the rolling flip and the shadow (the reference skips
-        // shadows for chord notes).
-        const bool in_chord =
-            (index > 0 &&
-             std::abs(state.notes[index - 1].start_seconds - note.start_seconds) < 1.0e-4) ||
-            (index + 1 < state.notes.size() &&
-             std::abs(state.notes[index + 1].start_seconds - note.start_seconds) < 1.0e-4);
+        // Chord membership decides the rolling flip, the shadow, and the chord box (the
+        // reference skips shadows for chord notes).
+        const bool in_chord = chord_groups[note_group[index - first_note]].count >= 2;
 
         // Note shadow: the reference's vertical gradient fan — a string-colored glow rising
         // from the board toward the head, load-bearing for depth perception.
         if (!in_chord)
         {
             const double base_half = head_half_w * 0.5;
-            const double apex_y = std::max(lane_y - 0.3, 0.05);
+            const double apex_y = std::max(head_y - 0.3, 0.05);
             const std::uint32_t center_color = packAbgr(base_color, fade);
             const std::uint32_t edge_color = packAbgr(base_color, 0.0);
             const auto center_index = static_cast<std::uint16_t>(shadow_vertices.size());
@@ -1021,28 +1376,28 @@ void HighwayRenderer::Impl::draw(
                 head_indices,
                 makeUvVertex(
                     x - half,
-                    lane_y - half,
+                    head_y - half,
                     0.0,
                     ring_tint,
                     anticipation_cell[0],
                     anticipation_cell[3]),
                 makeUvVertex(
                     x + half,
-                    lane_y - half,
+                    head_y - half,
                     0.0,
                     ring_tint,
                     anticipation_cell[2],
                     anticipation_cell[3]),
                 makeUvVertex(
                     x + half,
-                    lane_y + half,
+                    head_y + half,
                     0.0,
                     ring_tint,
                     anticipation_cell[2],
                     anticipation_cell[1]),
                 makeUvVertex(
                     x - half,
-                    lane_y + half,
+                    head_y + half,
                     0.0,
                     ring_tint,
                     anticipation_cell[0],
@@ -1061,10 +1416,19 @@ void HighwayRenderer::Impl::draw(
         const double sin_r = std::sin(rotation);
         const std::uint32_t tint = packAbgr(base_color, fade);
 
+        // Head base: the technique variant under left-hand technique markers, else the standard
+        // head (the reference's base-cell selection).
+        const bool tech_head =
+            atlases.reference_cells && (note.mute == common::core::NoteMute::Full ||
+                                        note.harmonic == common::core::NoteHarmonic::Natural ||
+                                        note.attack == common::core::NoteAttack::Hammer ||
+                                        note.attack == common::core::NoteAttack::Pull);
+        const std::array<float, 4> base_cell =
+            tech_head ? atlases.head_layout.cellRect(g_head_cell_tech) : head_cell;
         const auto corner = [&](const double dx, const double dy, const float u, const float v) {
             return makeUvVertex(
                 x + (dx * cos_r) - (dy * sin_r),
-                lane_y + (dx * sin_r) + (dy * cos_r),
+                head_y + (dx * sin_r) + (dy * cos_r),
                 z,
                 tint,
                 u,
@@ -1073,10 +1437,58 @@ void HighwayRenderer::Impl::draw(
         pushQuad(
             head_vertices,
             head_indices,
-            corner(-head_half_w, -head_half_h, head_cell[0], head_cell[3]),
-            corner(head_half_w, -head_half_h, head_cell[2], head_cell[3]),
-            corner(head_half_w, head_half_h, head_cell[2], head_cell[1]),
-            corner(-head_half_w, head_half_h, head_cell[0], head_cell[1]));
+            corner(-head_half_w, -head_half_h, base_cell[0], base_cell[3]),
+            corner(head_half_w, -head_half_h, base_cell[2], base_cell[3]),
+            corner(head_half_w, head_half_h, base_cell[2], base_cell[1]),
+            corner(-head_half_w, head_half_h, base_cell[0], base_cell[1]));
+
+        if (atlases.reference_cells)
+        {
+            // Rotating markers ride the rolling flip (the reference bakes these into the head
+            // texture), in the reference's composite order.
+            if (note.harmonic == common::core::NoteHarmonic::Natural)
+            {
+                push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_harmonic, tint);
+            }
+            else if (note.harmonic == common::core::NoteHarmonic::Pinch)
+            {
+                push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_pinch_harmonic, tint);
+            }
+            if (note.mute == common::core::NoteMute::Palm)
+            {
+                push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_palm_mute, tint);
+            }
+            if (note.attack == common::core::NoteAttack::Tap)
+            {
+                push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_tap, tint);
+            }
+            else if (note.attack == common::core::NoteAttack::Slap)
+            {
+                push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_slap, tint);
+            }
+            else if (note.attack == common::core::NoteAttack::Pop)
+            {
+                push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_pop, tint);
+            }
+            if (note.accent)
+            {
+                push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_accent, tint);
+            }
+            // Upright markers stay flat through the flip (the reference overlays these after
+            // the rotated head).
+            if (note.mute == common::core::NoteMute::Full)
+            {
+                push_marker(x, head_y, z, 1.0, 0.0, g_head_cell_full_mute, tint);
+            }
+            if (note.attack == common::core::NoteAttack::Hammer)
+            {
+                push_marker(x, head_y, z, 1.0, 0.0, g_head_cell_hammer_on, tint);
+            }
+            else if (note.attack == common::core::NoteAttack::Pull)
+            {
+                push_marker(x, head_y, z, 1.0, 0.0, g_head_cell_pull_off, tint);
+            }
+        }
     }
 
     submitBatch(shadow_vertices, shadow_indices, posColorLayout(), color_program.get(), nullptr);
@@ -1089,6 +1501,189 @@ void HighwayRenderer::Impl::draw(
         posColorUvLayout(),
         texture_tint_program.get(),
         &heads_texture);
+
+    // --- Chord boxes: the reference's translucent panels at multi-note onsets, drawn after the
+    // notes (the transparent list) and gone once the onset crosses the hit line. ---
+    {
+        std::vector<PosColorVertex> vertices;
+        std::vector<std::uint16_t> indices;
+
+        // Corner-holder fan outlines (reference ChordBoxHolderModel): a teal L bracket with a
+        // dark inner L, at each bottom corner. Local coordinates; the right corner mirrors in X.
+        constexpr std::array<std::array<double, 2>, 6> g_holder_background{
+            {{-0.01, -0.01}, {1.01, -0.01}, {1.01, 0.11}, {0.11, 0.11}, {0.11, 1.11}, {-0.01, 1.01}}
+        };
+        constexpr std::array<std::array<double, 2>, 6> g_holder_front{
+            {{0.0, 0.0}, {1.0, 0.0}, {1.0, 0.1}, {0.1, 0.1}, {0.1, 1.1}, {0.0, 1.0}}
+        };
+        const auto push_fan = [&](const std::span<const std::array<double, 2>> points,
+                                  const double origin_x,
+                                  const double x_sign,
+                                  const double z,
+                                  const std::uint32_t abgr) {
+            const auto base = static_cast<std::uint16_t>(vertices.size());
+            for (const std::array<double, 2>& point : points)
+            {
+                vertices.push_back(makeVertex(origin_x + (x_sign * point[0]), point[1], z, abgr));
+            }
+            for (std::size_t point = 1; point + 1 < points.size(); ++point)
+            {
+                indices.push_back(base);
+                indices.push_back(static_cast<std::uint16_t>(base + point));
+                indices.push_back(static_cast<std::uint16_t>(base + point + 1));
+            }
+        };
+
+        for (const ChordGroup& group : chord_groups)
+        {
+            if (group.count < 2 || group.start_seconds < now_seconds ||
+                group.start_seconds > span_end_seconds)
+            {
+                continue;
+            }
+            const auto [low_line, high_line] = activeFhpFretLines(state, group.start_seconds);
+            const double low_x = common::core::highwayFretLineX(low_line, metrics, mirrored);
+            const double high_x = common::core::highwayFretLineX(high_line, metrics, mirrored);
+            const auto [x0, x1] = std::minmax(low_x, high_x);
+            const double middle_x = (x0 + x1) / 2.0;
+            const double z = std::max(0.0, time_to_z(group.start_seconds));
+            const double y0 = 0.0;
+            const double y1 = static_cast<double>(state.string_count + 1) * metrics.string_distance;
+            const bool with_top = group.count > 2;
+            const double thickness = g_chord_box_frame_thickness;
+
+            const std::uint32_t box_solid = packAbgr(g_chord_box_color);
+            const std::uint32_t box_half = packAbgr(g_chord_box_color, 128.0 / 255.0);
+            const std::uint32_t dark_half = packAbgr(g_chord_box_dark_color, 128.0 / 255.0);
+            const std::uint32_t box_faint = packAbgr(g_chord_box_color, 32.0 / 255.0);
+            const std::uint32_t dark_faint = packAbgr(g_chord_box_dark_color, 32.0 / 255.0);
+            const std::uint32_t box_clear = packAbgr(g_chord_box_color, 0.0);
+
+            // A vertical face quad with per-corner colors (the frame's gradient pieces).
+            const auto push_face = [&](const double xa,
+                                       const double ya,
+                                       const std::uint32_t ca,
+                                       const double xb,
+                                       const double yb,
+                                       const std::uint32_t cb) {
+                pushQuad(
+                    vertices,
+                    indices,
+                    makeVertex(xa, ya, z, ca),
+                    makeVertex(xb, ya, z, cb),
+                    makeVertex(xb, yb, z, cb),
+                    makeVertex(xa, yb, z, ca));
+            };
+            // A horizontal frame bar fading toward the middle from both ends.
+            const auto push_bar = [&](const double y) {
+                push_face(x0, y, box_half, middle_x, y + thickness, dark_half);
+                push_face(middle_x, y, dark_half, x1, y + thickness, box_half);
+            };
+
+            // Corner holders (background L behind the dark L).
+            for (const auto& [origin_x, x_sign] : {std::pair{x0, 1.0}, std::pair{x1, -1.0}})
+            {
+                push_fan(g_holder_background, origin_x, x_sign, z, box_solid);
+                push_fan(g_holder_front, origin_x, x_sign, z, packAbgr(g_chord_box_dark_color));
+            }
+
+            // Frame: bottom bar always; accent chevrons, full sides with a top bar, or short
+            // fading sides (the reference's three variants).
+            push_bar(y0);
+            if (group.any_accent)
+            {
+                const double dx = (x1 - x0) / 3.0;
+                const double y2 = y1 + (thickness * 2.0);
+                for (const auto& [origin_x, x_sign] : {std::pair{x0, 1.0}, std::pair{x1, -1.0}})
+                {
+                    // The reference's chevron strip, unrolled to triangles.
+                    const std::array<std::array<double, 2>, 6> strip{
+                        {{0.0, y0},
+                         {thickness * 2.0, y0},
+                         {0.0, y2},
+                         {thickness * 2.0, y1},
+                         {dx, y2},
+                         {dx + thickness, y1}}
+                    };
+                    const std::array<std::uint32_t, 6> strip_colors{
+                        box_solid, box_solid, box_solid, box_solid, box_half, box_half
+                    };
+                    const auto base = static_cast<std::uint16_t>(vertices.size());
+                    for (std::size_t point = 0; point < strip.size(); ++point)
+                    {
+                        vertices.push_back(makeVertex(
+                            origin_x + (x_sign * strip.at(point)[0]),
+                            strip.at(point)[1],
+                            z,
+                            strip_colors.at(point)));
+                    }
+                    for (std::size_t point = 0; point + 2 < strip.size(); ++point)
+                    {
+                        indices.push_back(static_cast<std::uint16_t>(base + point));
+                        indices.push_back(static_cast<std::uint16_t>(base + point + 1));
+                        indices.push_back(static_cast<std::uint16_t>(base + point + 2));
+                    }
+                }
+            }
+            else if (with_top)
+            {
+                for (const auto& [origin_x, x_sign] : {std::pair{x0, 1.0}, std::pair{x1, -1.0}})
+                {
+                    push_face(
+                        origin_x, y0, box_half, origin_x + (x_sign * thickness), y1, box_half);
+                }
+                push_bar(y1);
+            }
+            else
+            {
+                const double fade_start_y = (y0 + y1) / 2.0;
+                for (const auto& [origin_x, x_sign] : {std::pair{x0, 1.0}, std::pair{x1, -1.0}})
+                {
+                    const double column_x1 = origin_x + (x_sign * thickness);
+                    push_face(origin_x, y0, box_half, column_x1, fade_start_y, box_half);
+                    pushQuad(
+                        vertices,
+                        indices,
+                        makeVertex(origin_x, fade_start_y, z, box_half),
+                        makeVertex(column_x1, fade_start_y, z, box_half),
+                        makeVertex(column_x1, y1, z, box_clear),
+                        makeVertex(origin_x, y1, z, box_clear));
+                }
+            }
+
+            // Filling: the faint panel, darker toward the middle.
+            push_face(x0, y0, box_faint, middle_x, y1, dark_faint);
+            push_face(middle_x, y0, dark_faint, x1, y1, box_faint);
+
+            // Mute cross: an X across the panel when every chord note shares the mute.
+            if (group.common_mute != common::core::NoteMute::None)
+            {
+                const double center_y = (y0 + y1) / 2.0;
+                const bool full = group.common_mute == common::core::NoteMute::Full;
+                const double d0y = 0.8 * (y1 - center_y);
+                const double d1y = (full ? 0.95 : 0.9) * (y1 - center_y);
+                const double d0x = full ? d0y : 0.8 * (x1 - middle_x);
+                const double d1x = full ? d1y : 0.9 * (x1 - middle_x);
+                const std::uint32_t cross =
+                    packAbgr(full ? g_chord_full_mute_cross_color : g_chord_palm_mute_cross_color);
+                pushQuad(
+                    vertices,
+                    indices,
+                    makeVertex(middle_x - d1x, center_y + d0y, z, cross),
+                    makeVertex(middle_x - d0x, center_y + d1y, z, cross),
+                    makeVertex(middle_x + d1x, center_y - d0y, z, cross),
+                    makeVertex(middle_x + d0x, center_y - d1y, z, cross));
+                pushQuad(
+                    vertices,
+                    indices,
+                    makeVertex(middle_x + d1x, center_y + d0y, z, cross),
+                    makeVertex(middle_x - d0x, center_y - d1y, z, cross),
+                    makeVertex(middle_x - d1x, center_y - d0y, z, cross),
+                    makeVertex(middle_x + d0x, center_y + d1y, z, cross));
+            }
+        }
+        submitBatch(vertices, indices, posColorLayout(), color_program.get(), nullptr);
+    }
 
     // --- Board face: dynamic fret lines with the reference's three states (inactive, active
     // within current and upcoming hand windows, and the sqrt-decay hit-flash that thickens up
@@ -1212,6 +1807,235 @@ void HighwayRenderer::Impl::draw(
             g_premultiplied_state);
     }
 
+    // --- Fingering panel and arpeggio brackets for the active hand shape, on the board face
+    // after the skin (the reference's pass order). Suppressed while the current chord is fully
+    // muted — dead chugs show no fingering. ---
+    {
+        // The active shape: the last one starting within the reference's 20 ms lookahead that
+        // is still running.
+        const common::core::HighwayShapeView* active_shape = nullptr;
+        for (const common::core::HighwayShapeView& shape : state.shapes)
+        {
+            if (shape.start_seconds > now_seconds + 0.02)
+            {
+                break;
+            }
+            active_shape = &shape;
+        }
+        if (active_shape != nullptr && active_shape->end_seconds < now_seconds)
+        {
+            active_shape = nullptr;
+        }
+        if (active_shape != nullptr && !active_shape->arpeggio)
+        {
+            // Fully-muted current chord: find the chord group at or before the lookahead.
+            const ChordGroup* current_group = nullptr;
+            for (const ChordGroup& group : chord_groups)
+            {
+                if (group.start_seconds > now_seconds + 0.02)
+                {
+                    break;
+                }
+                current_group = &group;
+            }
+            if (current_group != nullptr &&
+                current_group->start_seconds >= active_shape->start_seconds &&
+                current_group->count >= 2 &&
+                current_group->common_mute == common::core::NoteMute::Full)
+            {
+                active_shape = nullptr;
+            }
+        }
+
+        if (active_shape != nullptr)
+        {
+            // Arpeggio brackets: one bracket per posture string in the string color (open
+            // strings bracket the hand window's ends instead).
+            if (active_shape->arpeggio && atlases.reference_cells)
+            {
+                std::vector<PosColorUvVertex> vertices;
+                std::vector<std::uint16_t> indices;
+                const auto [low_line, high_line] =
+                    activeFhpFretLines(state, active_shape->start_seconds);
+                const auto push_bracket = [&](const int cell,
+                                              const double center_x,
+                                              const double center_y,
+                                              const std::uint32_t tint,
+                                              const bool mirror_u) {
+                    const std::array<float, 4> rect = atlases.head_layout.cellRect(cell);
+                    const float u0 = mirror_u ? rect[2] : rect[0];
+                    const float u1 = mirror_u ? rect[0] : rect[2];
+                    pushQuad(
+                        vertices,
+                        indices,
+                        makeUvVertex(
+                            center_x - head_half_w, center_y - head_half_h, 0.0, tint, u0, rect[3]),
+                        makeUvVertex(
+                            center_x + head_half_w, center_y - head_half_h, 0.0, tint, u1, rect[3]),
+                        makeUvVertex(
+                            center_x + head_half_w, center_y + head_half_h, 0.0, tint, u1, rect[1]),
+                        makeUvVertex(
+                            center_x - head_half_w,
+                            center_y + head_half_h,
+                            0.0,
+                            tint,
+                            u0,
+                            rect[1]));
+                };
+                for (const common::core::HighwayShapeStringView& entry : active_shape->strings)
+                {
+                    const double y = common::core::highwayStringLaneY(
+                        entry.string, state.string_count, metrics, invert);
+                    const std::uint32_t tint =
+                        packAbgr(stringLaneColor(entry.string, state.string_count, palette));
+                    if (entry.fret > 0)
+                    {
+                        push_bracket(
+                            g_head_cell_arpeggio_fret_bracket,
+                            common::core::highwayNoteCenterX(entry.fret, metrics, mirrored),
+                            y,
+                            tint,
+                            false);
+                    }
+                    else
+                    {
+                        push_bracket(
+                            g_head_cell_arpeggio_open_bracket,
+                            common::core::highwayNoteCenterX(low_line + 1, metrics, mirrored),
+                            y,
+                            tint,
+                            false);
+                        push_bracket(
+                            g_head_cell_arpeggio_open_bracket,
+                            common::core::highwayNoteCenterX(high_line, metrics, mirrored),
+                            y,
+                            tint,
+                            true);
+                    }
+                }
+                submitBatch(
+                    vertices,
+                    indices,
+                    posColorUvLayout(),
+                    texture_tint_program.get(),
+                    &heads_texture);
+            }
+
+            // Fingering spots: barre-aware shape cells plus finger-name cells from the
+            // fingering texture (a real-alpha PNG, so the premultiplied blend applies).
+            if (fingering_texture.isValid())
+            {
+                std::vector<PosColorUvVertex> vertices;
+                std::vector<std::uint16_t> indices;
+                const double spot_half = metrics.string_distance / 2.0;
+                const std::uint32_t white = packAbgr(0xFFFFFFFF);
+                // Quarter-grid UV cells with the reference's inset.
+                const auto cell_uv = [](const int column, const int row) {
+                    return std::array<float, 4>{
+                        static_cast<float>((column * 0.25) + 0.001),
+                        static_cast<float>((row * 0.25) + 0.001),
+                        static_cast<float>((column * 0.25) + 0.249),
+                        static_cast<float>((row * 0.25) + 0.249),
+                    };
+                };
+                const std::array<std::array<float, 4>, 5> finger_name_cells{
+                    cell_uv(3, 0), cell_uv(0, 1), cell_uv(1, 1), cell_uv(2, 1), cell_uv(3, 1)
+                };
+                const auto push_spot = [&](const int fret,
+                                           const double lane_y,
+                                           const std::array<float, 4>& uv,
+                                           const bool flip_v) {
+                    const double x = common::core::highwayNoteCenterX(fret, metrics, mirrored);
+                    const float v0 = flip_v ? uv[3] : uv[1];
+                    const float v1 = flip_v ? uv[1] : uv[3];
+                    pushQuad(
+                        vertices,
+                        indices,
+                        makeUvVertex(x - spot_half, lane_y - spot_half, 0.0, white, uv[0], v1),
+                        makeUvVertex(x + spot_half, lane_y - spot_half, 0.0, white, uv[2], v1),
+                        makeUvVertex(x + spot_half, lane_y + spot_half, 0.0, white, uv[2], v0),
+                        makeUvVertex(x - spot_half, lane_y + spot_half, 0.0, white, uv[0], v0));
+                };
+
+                // Collect each finger's displayed-lane range and fret (a barre when it spans).
+                struct FingerSpan
+                {
+                    int low_lane{0};
+                    int high_lane{0};
+                    int fret{0};
+                    bool used{false};
+                };
+                std::array<FingerSpan, 5> fingers{};
+                for (const common::core::HighwayShapeStringView& entry : active_shape->strings)
+                {
+                    if (!entry.finger.has_value() || *entry.finger < 0 || *entry.finger > 4 ||
+                        entry.fret <= 0)
+                    {
+                        continue;
+                    }
+                    const int lane =
+                        invert ? (state.string_count + 1 - entry.string) : entry.string;
+                    FingerSpan& span = fingers.at(static_cast<std::size_t>(*entry.finger));
+                    if (!span.used)
+                    {
+                        span = FingerSpan{
+                            .low_lane = lane, .high_lane = lane, .fret = entry.fret, .used = true
+                        };
+                    }
+                    else
+                    {
+                        span.low_lane = std::min(span.low_lane, lane);
+                        span.high_lane = std::max(span.high_lane, lane);
+                        span.fret = entry.fret;
+                    }
+                }
+                const auto lane_center_y = [&](const int lane) {
+                    return static_cast<double>(lane) * metrics.string_distance;
+                };
+                for (std::size_t finger = 0; finger < fingers.size(); ++finger)
+                {
+                    const FingerSpan& span = fingers.at(finger);
+                    if (!span.used)
+                    {
+                        continue;
+                    }
+                    if (span.low_lane == span.high_lane)
+                    {
+                        push_spot(span.fret, lane_center_y(span.low_lane), cell_uv(0, 0), false);
+                        push_spot(
+                            span.fret,
+                            lane_center_y(span.low_lane),
+                            finger_name_cells.at(finger),
+                            false);
+                        continue;
+                    }
+                    // Barre: an upright end at the top lane (with the finger name), middles
+                    // between, and a flipped end at the bottom lane.
+                    push_spot(span.fret, lane_center_y(span.high_lane), cell_uv(1, 0), false);
+                    push_spot(
+                        span.fret,
+                        lane_center_y(span.high_lane),
+                        finger_name_cells.at(finger),
+                        false);
+                    for (int lane = span.low_lane + 1; lane < span.high_lane; ++lane)
+                    {
+                        push_spot(span.fret, lane_center_y(lane), cell_uv(2, 0), false);
+                    }
+                    push_spot(span.fret, lane_center_y(span.low_lane), cell_uv(1, 0), true);
+                }
+                const bgfx::TextureHandle fingering = fingering_texture.get();
+                submitBatch(
+                    vertices,
+                    indices,
+                    posColorUvLayout(),
+                    texture_program.get(),
+                    &fingering,
+                    g_board_view,
+                    g_premultiplied_state);
+            }
+        }
+    }
+
     // --- Fret numbers and section labels through the glyph atlas. ---
     {
         std::vector<PosColorUvVertex> glyph_vertices;
@@ -1288,6 +2112,34 @@ void HighwayRenderer::Impl::draw(
                 time_to_z(section.seconds),
                 0.5,
                 packAbgr(0xFFFFFFFF, 0.85));
+        }
+
+        // Chord names ride the hit line while their shape is active (reference placement: left
+        // of the hand window, above the top lane), skipped once the shape is about to end.
+        const double chord_name_y =
+            (static_cast<double>(std::max(state.string_count, 1)) * metrics.string_distance) + 0.5;
+        for (const common::core::HighwayShapeView& shape : state.shapes)
+        {
+            if (shape.name.empty() || shape.end_seconds < now_seconds ||
+                shape.start_seconds > span_end_seconds)
+            {
+                continue;
+            }
+            if (shape.start_seconds <= now_seconds && shape.end_seconds <= now_seconds + 0.15)
+            {
+                continue;
+            }
+            const auto [low_line, high_line] = activeFhpFretLines(state, shape.start_seconds);
+            const double low_x = std::min(
+                common::core::highwayFretLineX(low_line, metrics, mirrored),
+                common::core::highwayFretLineX(high_line, metrics, mirrored));
+            (void)push_text(
+                shape.name,
+                low_x - 1.75,
+                chord_name_y,
+                std::max(0.0, time_to_z(shape.start_seconds)),
+                0.7,
+                packAbgr(g_chord_name_color));
         }
 
         const bgfx::TextureHandle glyph_texture = atlases.glyphs.get();

@@ -14,6 +14,7 @@ add_executable(
     test_fraction.cpp
     test_highway_camera.cpp
     test_highway_projection.cpp
+    test_highway_tail.cpp
     test_tempo_map.cpp
     test_tone_track_rules.cpp
     test_tone_track_edits.cpp
