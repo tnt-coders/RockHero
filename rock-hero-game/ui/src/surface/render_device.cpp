@@ -5,6 +5,7 @@
 #include <chrono>
 #include <cstdint>
 #include <utility>
+#include <vector>
 
 namespace rock_hero::game::ui
 {
@@ -88,9 +89,9 @@ std::expected<RenderDevice, RenderDeviceError> RenderDevice::create(
     init.resolution.width = config.width;
     init.resolution.height = config.height;
     init.resolution.reset = reset_flags;
-    // Explicitly off by default; the dev-diagnostics layer (plan 20 Phase 4) wires these to the
-    // runtime dev flag. bgfx degrades gracefully if the D3D11 debug layers are absent.
-    init.debug = false;
+    // Driven by the dev-diagnostics runtime flag (plan 20 Phase 4); bgfx degrades gracefully if
+    // the D3D11 debug layers are absent. Profiling stays off until something consumes it.
+    init.debug = config.debug;
     init.profile = false;
 
     if (!bgfx::init(init))
@@ -164,10 +165,31 @@ void RenderDevice::clearDebugText()
     bgfx::dbgTextClear();
 }
 
+// Renders through dbgTextImage's char/attribute cell buffer: bgfx's printf-style debug-text
+// entry points are C-vararg functions, which the project lint bans, and the text is already
+// fully formatted by the caller anyway.
 void RenderDevice::printDebugText(
     const std::uint16_t column, const std::uint16_t row, const std::string& text)
 {
-    bgfx::dbgTextPrintf(column, row, 0x0f, "%s", text.c_str());
+    if (text.empty())
+    {
+        return;
+    }
+    constexpr std::uint8_t g_white_on_transparent = 0x0f;
+    std::vector<std::uint8_t> cells;
+    cells.reserve(text.size() * 2);
+    for (const char character : text)
+    {
+        cells.push_back(static_cast<std::uint8_t>(character));
+        cells.push_back(g_white_on_transparent);
+    }
+    bgfx::dbgTextImage(
+        column,
+        row,
+        static_cast<std::uint16_t>(text.size()),
+        1,
+        cells.data(),
+        static_cast<std::uint16_t>(cells.size()));
 }
 
 // Converts bgfx's tick-based frame-period measurement to nanoseconds. getStats() is valid right

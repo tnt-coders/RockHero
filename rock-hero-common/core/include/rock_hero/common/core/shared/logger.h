@@ -142,6 +142,25 @@ struct Logger
         std::string_view m_name;
     };
 
+    /*! \brief Minimum runtime severity the backend records (compile-time gates still apply). */
+    enum class Level : std::uint8_t
+    {
+        /*! \brief Everything, including per-frame trace records (dev diagnostics). */
+        Trace,
+
+        /*! \brief Debug and above. */
+        Debug,
+
+        /*! \brief Info and above — the production default. */
+        Info,
+
+        /*! \brief Warnings and errors only. */
+        Warning,
+
+        /*! \brief Errors only. */
+        Error,
+    };
+
     /*! \brief File-sink and console configuration for the process logging backend. */
     struct Config
     {
@@ -156,6 +175,14 @@ struct Logger
 
         /*! \brief When true, also mirror records to the console. */
         bool log_to_console = false;
+
+        /*!
+        \brief Runtime severity floor applied to every category logger.
+
+        Info by default so per-frame trace instrumentation stays dormant in normal runs; the
+        game's dev-diagnostics flag (plan 20 Phase 4) lowers it to \ref Level::Trace.
+        */
+        Level default_level = Level::Info;
     };
 
     /*!

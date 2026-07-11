@@ -3,9 +3,11 @@ add_library(rock_hero::game::core ALIAS rock_hero_game_core)
 
 # Resources feature: the typed resolver every game plan loads packaged assets through
 # (plan 20 Phase 2's resource-pack convention). Frame-clock feature: pure per-frame playback
-# clock consumption and pacing stats for the game loop (plan 20 Phase 3).
-target_sources(rock_hero_game_core PRIVATE src/frame_clock/frame_clock.cpp
-                                           src/resources/game_resources.cpp)
+# clock consumption and pacing stats for the game loop (plan 20 Phase 3). Diagnostics feature:
+# headless dev-diagnostics state, intents, and the chart-source change detector (plan 20 Phase 4).
+target_sources(
+    rock_hero_game_core PRIVATE src/diagnostics/diagnostics.cpp src/frame_clock/frame_clock.cpp
+                                src/resources/game_resources.cpp)
 
 target_include_directories(
     rock_hero_game_core

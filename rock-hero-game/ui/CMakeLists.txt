@@ -4,11 +4,19 @@ add_library(rock_hero::game::ui ALIAS rock_hero_game_ui)
 # Game surface feature: the SDL window, the bgfx render device, and the L2 frame loop composition
 # point (plan 20 gate outcome: SDL owns main; JUCE's queue is drained per frame). Highway
 # feature: the 3D note-highway renderer over the shared headless scene model (plan 25 Phase 3).
+# Dev feature + overlay: the --dev-package fixture session and the diagnostics overlay
+# (plan 20 Phase 4).
 target_sources(
     rock_hero_game_ui
-    PRIVATE src/highway/highway_atlas.cpp src/highway/highway_renderer.cpp
-            src/surface/game_shell.cpp src/surface/game_window.cpp
-            src/surface/juce_message_pump.cpp src/surface/render_device.cpp)
+    PRIVATE src/dev/dev_session.cpp
+            src/highway/highway_atlas.cpp
+            src/highway/highway_renderer.cpp
+            src/overlay/diagnostics_overlay.cpp
+            src/surface/bgfx_program.cpp
+            src/surface/game_shell.cpp
+            src/surface/game_window.cpp
+            src/surface/juce_message_pump.cpp
+            src/surface/render_device.cpp)
 
 # The src include path lets sibling translation units reach private feature headers with the
 # quoted feature-qualified form ("surface/render_device.h").

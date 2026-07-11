@@ -78,6 +78,10 @@ struct LoggingState
     // Single backend lifecycle source of truth. Atomic so the log macros can read liveness on the
     // caller thread without taking the sink lock.
     std::atomic<BackendPhase> phase = BackendPhase::NotStarted;
+
+    // Runtime severity floor from Logger::Config, applied to every logger handed out. Atomic
+    // because category loggers can first be requested from worker threads.
+    std::atomic<quill::LogLevel> default_level = quill::LogLevel::Info;
 };
 
 [[nodiscard]] LoggingState& loggingState()
@@ -109,6 +113,34 @@ struct LoggingState
 [[nodiscard]] std::string exceptionText(const std::exception& exception)
 {
     return exception.what();
+}
+
+[[nodiscard]] constexpr quill::LogLevel toQuillLevel(const Logger::Level level) noexcept
+{
+    switch (level)
+    {
+        case Logger::Level::Trace:
+        {
+            return quill::LogLevel::TraceL1;
+        }
+        case Logger::Level::Debug:
+        {
+            return quill::LogLevel::Debug;
+        }
+        case Logger::Level::Info:
+        {
+            return quill::LogLevel::Info;
+        }
+        case Logger::Level::Warning:
+        {
+            return quill::LogLevel::Warning;
+        }
+        case Logger::Level::Error:
+        {
+            return quill::LogLevel::Error;
+        }
+    }
+    return quill::LogLevel::Info;
 }
 
 [[nodiscard]] std::vector<std::shared_ptr<quill::Sink>> currentSinks()
@@ -235,6 +267,7 @@ std::expected<void, LoggerError> Logger::init(const Config& config)
     }
 
     installSinks(std::move(sinks));
+    state.default_level.store(toQuillLevel(config.default_level), std::memory_order_release);
     state.phase.store(BackendPhase::Running, std::memory_order_release);
 
     if (has_visible_sink)
@@ -279,18 +312,23 @@ void Logger::prepareRealtimeThread()
 }
 
 // Creates the named normal logger on first request and returns the backend-cached handle
-// thereafter.
+// thereafter. The configured severity floor is (re)applied on every request: call sites cache
+// the handle behind a static, so this runs once per call site and stays cheap.
 Logger::Handle Logger::get(Category category)
 {
-    return quill::Frontend::create_or_get_logger(
-        categoryText(category), currentSinks(), logPattern());
+    Logger::Handle logger =
+        quill::Frontend::create_or_get_logger(categoryText(category), currentSinks(), logPattern());
+    logger->set_log_level(loggingState().default_level.load(std::memory_order_acquire));
+    return logger;
 }
 
 // Creates the named realtime logger with a bounded-dropping frontend queue.
 Logger::RealtimeHandle Logger::getRealtime(Category category)
 {
-    return RealtimeFrontend::create_or_get_logger(
+    Logger::RealtimeHandle logger = RealtimeFrontend::create_or_get_logger(
         realtimeCategoryText(category), currentSinks(), logPattern());
+    logger->set_log_level(loggingState().default_level.load(std::memory_order_acquire));
+    return logger;
 }
 
 } // namespace rock_hero::common::core

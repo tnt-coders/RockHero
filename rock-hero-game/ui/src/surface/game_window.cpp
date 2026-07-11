@@ -22,6 +22,38 @@ namespace
     return step + ": " + SDL_GetError();
 }
 
+// Translates a raw keycode to a game key action; unmapped keys are simply not frame-relevant.
+[[nodiscard]] std::optional<GameKey> toGameKey(const SDL_Keycode keycode)
+{
+    switch (keycode)
+    {
+        case SDLK_F1:
+        {
+            return GameKey::ToggleDiagnosticsOverlay;
+        }
+        case SDLK_F2:
+        {
+            return GameKey::ToggleAutoplay;
+        }
+        case SDLK_F5:
+        {
+            return GameKey::ReloadChart;
+        }
+        case SDLK_PAGEUP:
+        {
+            return GameKey::SeekPreviousSection;
+        }
+        case SDLK_PAGEDOWN:
+        {
+            return GameKey::SeekNextSection;
+        }
+        default:
+        {
+            return std::nullopt;
+        }
+    }
+}
+
 } // namespace
 
 // Fills the default diagnostic for each stable failure reason.
@@ -168,6 +200,19 @@ GameWindowEvents GameWindow::pollEvents()
             case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
             {
                 events.pixel_size_changed = pixelSize();
+                break;
+            }
+            case SDL_EVENT_KEY_DOWN:
+            {
+                if (event.key.repeat)
+                {
+                    break;
+                }
+                const std::optional<GameKey> key = toGameKey(event.key.key);
+                if (key.has_value())
+                {
+                    events.keys_pressed.push_back(*key);
+                }
                 break;
             }
             case SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED:
