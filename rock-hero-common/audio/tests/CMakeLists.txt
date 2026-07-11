@@ -52,7 +52,7 @@ target_include_directories(rock_hero_common_audio_tests
 target_link_libraries(
     rock_hero_common_audio_tests
     PRIVATE rock_hero::common::audio rock_hero::common::audio_testing rock_hero::build_policy
-            rock_hero::tracktion_engine Catch2::Catch2WithMain)
+            rock_hero::tracktion_engine Catch2::Catch2WithMain rock_hero::test_warning_exceptions)
 
 # Point integration tests at the copied fixture instead of the source-tree file.
 target_compile_definitions(rock_hero_common_audio_tests
@@ -60,9 +60,3 @@ target_compile_definitions(rock_hero_common_audio_tests
 
 # Register the discovered Catch2 cases with CTest and forward Catch tags as CTest labels.
 catch_discover_tests(rock_hero_common_audio_tests ADD_TAGS_AS_LABELS)
-
-# GCC's -Wfloat-equal fires through Catch2's assertion decomposition on every exact
-# floating-point check; exact equality in tests is a deliberate round-trip contract, so the
-# warning carries no signal here. Clang and MSVC never warn through the decomposition.
-target_compile_options(rock_hero_common_audio_tests
-                       PRIVATE $<$<CXX_COMPILER_ID:GNU>:-Wno-float-equal>)
