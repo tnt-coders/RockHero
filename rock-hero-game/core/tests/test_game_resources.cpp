@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <cstddef>
+#include <cstdio>
 #include <filesystem>
 #include <fstream>
 #include <ios>
@@ -36,7 +37,10 @@ public:
             std::filesystem::remove_all(m_root, cleanup_error);
         }
         catch (...)
-        {}
+        {
+            // Deliberately swallowed after reporting: the OS temp cleaner collects strays.
+            (void)std::fputs("warning: temp fixture cleanup failed\n", stderr);
+        }
     }
 
     TempResourcesRoot(const TempResourcesRoot&) = delete;
