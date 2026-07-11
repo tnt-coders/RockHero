@@ -50,10 +50,12 @@ namespace
 
 // The reference camera chain: translate -> yaw -> pitch -> wide perspective -> NDC pin.
 //
-// The rotations are Charter's rotX/rotY constants — they are load-bearing for the look (the yaw
-// slopes the strings like a held guitar neck; source analysis 2026-07-11). With both rotations
-// zero this reduces to the original zero-rotation formulation whose exact-verticality property
-// stays regression-tested at that configuration.
+// The yaw is Charter's rotY constant and is load-bearing for the look (it slopes the strings
+// like a held guitar neck; source analysis 2026-07-11). Charter's forward pitch (rotX = 0.06)
+// is deliberately NOT shipped: it tilts the whole picture and leans verticals, which the user
+// rejected — the pitch stays a parameter, zero by default (see HighwayMetrics). With both
+// rotations zero this reduces to the original zero-rotation formulation whose exact-verticality
+// property stays regression-tested at that configuration.
 [[nodiscard]] HighwayMat4 makePinnedProjection(
     const HighwayCameraPose& camera, double aspect_ratio, const bool mirrored,
     const HighwayMetrics& metrics)

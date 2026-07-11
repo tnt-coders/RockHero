@@ -590,3 +590,23 @@ drove this pass. Corrections to this plan's own claims are included below.
 
 Verified visually against the corpus fixture: angled neck, textured heads, hit-flash, runway,
 and anticipation ring all present at a locked 144 fps; all suites green.
+
+### Refinement round (2026-07-11, user feedback on the parity pass)
+
+- **Forward pitch removed (deliberate reference divergence).** The user's "angled neck" meant
+  only the yaw's string slope, not Charter's forward tilt: `camera_pitch_radians` now defaults
+  to 0 (kept as a parameter). A yaw-only chain never mixes world Y into clip W or X, so fret
+  lines project exactly vertical — the near-vertical bounded-tilt regression was replaced by an
+  exact-verticality check at the shipped defaults.
+- **Open notes and sustain tails brought to reference geometry** (both previously wrong): the
+  open-note bar is Charter's `OpenNoteModel` — a thin hexagonal prism across the hand window
+  (half-thickness 0.04 ends / 0.05 middle, Z squashed to a tenth) in the full note color — not
+  a tail-width slab in the 2D fill color; fretted tails are the reference three-band ribbon
+  (solid `tail`-color edges a quarter-width each around a 192/255-alpha core, replacing the
+  uniform 0.75-alpha quad); open-note sustains span the hand window with Charter's 0.2 inset
+  and edge bands instead of a skinny centered rail.
+- **MSAA**: `RenderDeviceConfig` gained a `RenderMsaa` level (default 4x, folded into the bgfx
+  reset flags) — thin fret/string lines aliased visibly without it. Both products inherit it.
+
+Verified visually (game corpus captures with open sustains, editor preview open via F3): vertical
+frets with sloped strings, thin window-spanning open bars, banded tails, smoothed line edges.
