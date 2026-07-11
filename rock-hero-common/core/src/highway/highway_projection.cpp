@@ -106,14 +106,17 @@ HighwayViewState makeHighwayViewState(
             // fingering panel and the arpeggio brackets; array index 0 is the lowest string.
             for (std::size_t index = 0; index < chord_template.frets.size(); ++index)
             {
-                if (!chord_template.frets[index].has_value())
+                // Bound to a local so the optional check and the access are provably the same
+                // object (bugprone-unchecked-optional-access cannot track repeated indexing).
+                const std::optional<int>& fret = chord_template.frets[index];
+                if (!fret.has_value())
                 {
                     continue;
                 }
                 strings.push_back(
                     HighwayShapeStringView{
                         .string = static_cast<int>(index) + 1,
-                        .fret = *chord_template.frets[index],
+                        .fret = *fret,
                         .finger = index < chord_template.fingers.size()
                                       ? chord_template.fingers[index]
                                       : std::nullopt,
