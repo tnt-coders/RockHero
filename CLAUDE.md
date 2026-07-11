@@ -153,7 +153,7 @@ Consult these documents per the [Bootstrap Rules](#bootstrap-rules) above:
 
 ## Documentation Maintenance Rules
 
-Planning documents live in three buckets:
+Planning documents live in three lifecycle buckets — the stages a single plan passes through:
 
 - **`docs/roadmap/`** — The maintained product roadmap. `00-roadmap.md` and any plan currently being
   executed are kept aligned with reality; unstarted plans may lag but must be re-verified against
@@ -169,6 +169,14 @@ Planning documents live in three buckets:
   with the user's current direction for that active work, and update them when the plan itself
   changes. Routine code edits made while executing the plan do not require touching the doc — the
   doc captures intent, not implementation state.
+
+Separately, **`docs/tracking/`** holds standing registries that never complete — they are not
+plans and do not move through the lifecycle above. Two files live there and are kept current:
+`watch-items.md` (accepted-for-now issues, each with a trigger that graduates it to action — you
+*monitor* these) and `backlog.md` (small concrete fixes to *do* when there is time). A small
+fix belongs in `backlog.md`, not a `docs/todo/` plan file; substantial multi-step work belongs in
+a `docs/todo/` plan, not the backlog. Before folding an item from anywhere into either file,
+re-verify its claims against the current code — a stale registry is worse than none.
 
 Keep `docs/design/` documents aligned with implemented architecture and durable project decisions.
 Before making any significant rule or architecture change in `docs/design/`, confirm with the user

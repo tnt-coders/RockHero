@@ -1,0 +1,182 @@
+# Watch items
+
+**Standing registry of accepted-for-now issues, each with a trigger.** A watch item is not work
+to schedule — it is a tripwire: something deliberately left as-is *until* a named condition makes
+it stop being acceptable, at which point the recorded remedy applies. This is the opposite of the
+[backlog](backlog.md), which holds small fixes to *do* when there is time; a watch item you
+*monitor*, a backlog item you *do*.
+
+Maintenance: every entry names its **trigger** (the moment it graduates to action) and its
+**remedy** (what to do then). When a trigger fires and the item is handled, move it to
+*Retired* at the bottom rather than deleting it, so the history stays auditable. When you add an
+item, give it both a trigger and a remedy or it belongs in the backlog instead.
+
+Consolidated 2026-07-11 from `docs/todo/game-render-watch-items.md` and
+`docs/todo/plugin-idle-churn-watch.md`, with every claim re-verified against the code that day
+(paths updated where the highway renderer's promotion to `rock-hero-common/ui` moved them; one
+item retired as resolved — see *Retired*).
+
+---
+
+## Render stack (game loop + bgfx)
+
+### GameShell is a composition point in game/ui — trigger: plan 21 implementation start
+
+`GameShell::run` constructs concrete adapters, chooses the backend, composes the resources root,
+and owns the frame loop — several of architectural-principles.md § "UI Modules" move-to-app
+triggers at once. Plan 20 Phase 1 sanctioned the placement at its original size, but the shell
+has since grown by accretion (plan 20 Phase 4 diagnostics wiring, plan 25 Phase 4 texture-set
+loading). When the audio engine joins (plan 21 Phases 1+), decide deliberately rather than let
+it grow further: either inject composed dependencies from `app/`, or accept the shell as the
+game's hub object and extract the headless frame-step policy (quit/resize/frame-limit
+sequencing, transport reads) into `game/core` so loop decisions become unit-testable.
+
+### NSIS and the empty resource directories — trigger: next installer inspection
+
+`install(DIRECTORY DESTINATION ...)` creates empty `resources/{fonts,sfx,textures}` under
+`cmake --install`, but whether the NSIS-packaged artifact preserves empty directories is
+unverified. `GameResources::create` only checks the root today
+(`rock-hero-game/core/src/resources/game_resources.cpp:136`), so nothing breaks either way —
+verify once when inspecting a packaged installer (dovetails with the Windows CI installer work),
+and re-check the moment a resolver method starts requiring one of those subdirectories.
+
+### shaderc include tracking — trigger: first project-owned shared `.sh` shader include
+
+`rock_hero_add_compiled_shader` tracks the `.sc` source and `varying.def.sc` but not includes;
+today's shaders (`rock-hero-common/ui/shaders/`) carry no project-owned `.sh` include, and the
+only include dir is immutable Conan package content, so rebuilds are correct. When a shared
+project-owned `.sh` include appears under that directory, switch the custom command to shaderc's
+`--depends` output via `DEPFILE` (bgfx's own `bgfxToolUtils.cmake` demonstrates the parse).
+
+### Stale files in the deployed resources tree — trigger: resource renames become common
+
+`copy_directory` (build tree) and `install(DIRECTORY)` (install tree) are additive: a renamed or
+removed staged asset lingers beside the executable across incremental builds. This now applies to
+both products (the editor preview deploys its own shaders + textures beside its exe, like the
+game). A clean build resets it. Acceptable until resource renames become routine; then make the
+deploy prune (copy fresh into a scratch dir + `copy_directory_if_different`, or
+delete-before-copy).
+
+### CMakeConfigDeps generator — trigger: next Conan provider revision
+
+The classic CMakeDeps generator declares no executable targets, which is why shaderc is located
+via `find_program`. Conan's newer CMakeConfigDeps generator honors the recipe's `.exe` component
+metadata and would make `bgfx::shaderc` a real executable target (and bgfx's packaged
+`bgfxToolUtils.cmake` usable). Weigh migrating when next revising the cmake-conan provider — a
+provider decision, not a game-CMake one.
+
+### Interactive drag-resize stalls rendering — trigger: user-visible complaint
+
+Win32 runs a modal loop inside `DefWindowProc` during title-bar drag/resize, freezing the polled
+frame loop for the drag's duration (last frame stretches; the resize lands on release).
+Fundamental to polled loops on Windows; every SDL game without a message-hook workaround behaves
+this way. Escape hatch if it ever matters: `SDL_SetWindowsMessageHook` / an SDL event watcher
+that redraws from inside the modal loop.
+
+### BX_CONFIG_DEBUG re-export — trigger: relying on bgfx asserts from project TUs
+
+bgfx compiles its own debug asserts per config, but whether the Conan CMakeDeps package
+re-exports `BX_CONFIG_DEBUG` to RockHero TUs (affecting header-inline `BX_ASSERT`s compiled into
+project code) is untraced. Irrelevant today — project code calls no asserting inline bx code —
+but verify before designing anything that expects bgfx debug asserts to fire from our TUs.
+
+### Minimized/occluded window may spin the loop — trigger: pacing log shows it
+
+bgfx has zero `DXGI_STATUS_OCCLUDED` handling (success-status codes fall through its error-only
+`isLost()` check), so if Windows stops throttling Present for a minimized/occluded FLIP_DISCARD
+swapchain, the L2 game loop spins uncapped on one core. The Phase 3 pacing log detects this for
+free (frame delta collapsing toward zero while minimized). If observed: shell-side throttle —
+skip `submitFrame()` and sleep ~one refresh period on `SDL_EVENT_WINDOW_MINIMIZED`/`HIDDEN`,
+resume on `RESTORED`. (The editor preview already sidesteps this by suspending its vblank ticks
+on hide.)
+
+### Silent Noop-renderer fallback on device loss — trigger: pacing silently disappears
+
+`Context::flip()` replaces the renderer with Noop on device removal; Noop never blocks, so vsync
+pacing vanishes without an error. The collapsing frame delta in the pacing log is the tell. If it
+ever bites: log/assert `bgfx::getRendererType()` periodically in dev builds, and decide a recovery
+policy (recreate the device vs. exit with a message).
+
+### bgfx cannot re-initialize in-process — trigger: needing multiple init/shutdown cycles
+
+`bgfx::renderFrame`'s single-thread pin (`s_renderFrameCalled`) survives `bgfx::shutdown()`, so a
+second `renderFrame`-before-`init` cycle trips an internal assert (a `__debugbreak` in the debug
+Conan package). The game is unaffected — one init per process — and the editor 3D preview works
+around it with a suspend/resume lifecycle (the device lives from first open to window
+destruction; hiding only stops vblank ticks). If a future need for genuine re-init appears
+(multiple independent bgfx surfaces, teardown/rebuild), the remedy is a recipe-shadow patch
+resetting `s_renderFrameCalled` in `shutdown`, or per-window framebuffers under one device.
+
+## Editor 3D preview
+
+### JUCE peer-recreation paths are unreachable today — trigger: any path recreates the peer
+
+`PreviewSurface` assumes its native child window outlives the render device (the device holds the
+child HWND). The `renderFrame` guard tolerates a lost child once (`m_reported_lost_child`), but
+the surface does not rebuild the device if JUCE ever destroys and recreates the top-level peer
+(style-flag changes, `removeFromDesktop`/`addToDesktop`, some full-screen transitions). None of
+those paths is reachable in the current editor. If one becomes reachable, the surface must detect
+peer replacement and bring the render stack back up against the new peer.
+
+### editor/ui tests would need the common::ui link — trigger: a test includes preview headers
+
+`rock_hero_editor_ui_tests` does not link `rock_hero::common::ui` today because no test includes
+the preview headers (which pull the renderer). The first test that includes
+`preview_surface.h`/`preview_window.h` (or anything transitively pulling the highway renderer)
+must add that link, or it will fail to resolve at link time.
+
+## Cross-platform packaging
+
+### macOS bundle resource layout — trigger: macOS packaging of either product
+
+The exe-relative resource resolution (`currentExecutableFile.getParentDirectory()/resources`)
+matches the Windows/Linux deploy layout. macOS app bundles put resources under
+`Contents/Resources`, not beside the binary in `Contents/MacOS`. Builds compile cross-platform,
+but neither product is *packaged* for macOS yet. When macOS packaging happens, the resource-root
+resolver needs a bundle-aware branch.
+
+## Audio / plugin state
+
+### Plugin-state idle churn — trigger: repeating no-intent settle log lines at idle
+
+Suspected but **never observed**: an amp-sim VST3 (Archetype Cory Wong X) re-serializing a
+drifting state chunk ~1/sec at idle. The real defect was narrower — an asynchronous
+instantiation/restore re-announce settling as a phantom "Edit <plugin>" undo entry — and is fixed
+structurally: a settled plugin-state transaction is emitted only when it carried a parameter
+gesture (`rock-hero-common/audio/src/tracktion/plugin_dirty_tracking.{h,cpp}`); everything else
+folds into the baseline. (Closed out of `docs/in-progress/` on 2026-07-08 with commit `edb485bd`,
+later simplified to a gesture-only gate.)
+
+- **True idle churn** would now surface as repeating `Folded plugin state change (no user intent)`
+  log lines at idle. It can no longer pollute undo, but each folded settle still runs a full state
+  capture (`flushPluginStateToValueTree` → `suspendProcessing` → `getStateInformation`) once per
+  750 ms debounce cycle — a performance concern, not correctness. Remedies (verified against
+  Tracktion/JUCE source 2026-07-08): skip the capture entirely on a no-intent settle (intent is
+  known before capturing, and the stale baseline is harmless — a later real edit's `before`
+  restores pre-drift volatile state); and coalesce the plugin-edit-path `updateView()` calls
+  through the `IMessageThreadScheduler` port (production impl must use `callAfterDelay(1, ...)`
+  semantics, never `callAsync` — PostMessage starves `WM_PAINT` on Windows).
+- **Missing undo for in-plugin preset loads** — the accepted cost of the gesture-only gate. A
+  gesture-less action inside the plugin folds silently (state still persists with the tone). If a
+  user reports "I loaded a preset in the plugin and can't undo it", the retired plan's window-open
+  signal (visibility plus a `juce::AudioProcessorListener` `ChangeDetails` heuristic — JUCE
+  collapses `restartComponent` to `{programChanged, parameterInfoChanged}`) is the starting point.
+- **Automation points that "move by themselves"** (tangential) — Tracktion's `setParameterValue`
+  non-automation branch moves a single-point automation curve to follow a plugin-initiated value
+  change while the transport is idle (`tracktion_AutomatableParameter.cpp:1439-1441`). Unlikely
+  (meter params are not the ones users automate) but adjacent to this subsystem.
+
+---
+
+## Retired
+
+Items whose trigger fired and were handled. Kept for auditability.
+
+- **bgfx handle ownership at scale** (was: trigger plan 25 Phase 3) — **resolved 2026-07-11.**
+  Phase 3/4 multiplied live handles (programs, uniforms, note/inlay/fingering textures, transient
+  and retained buffers) and every one is wrapped in `UniqueBgfxHandle`
+  (`rock-hero-common/ui/src/highway/bgfx_handle.h`). The destructor-ordering trap is structurally
+  avoided: all handles live in `HighwayRenderer::Impl`, a separate object from `RenderDevice`
+  (whose destructor calls `bgfx::shutdown()`); consumers declare the device before the renderer so
+  the renderer — and its handles — destroy first (`preview_surface.h:109-110`). The project rule
+  (never pass `destroyShaders=true`/`destroyTextures=true`) remains in force in `bgfx_program`.
