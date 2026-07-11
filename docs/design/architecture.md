@@ -624,10 +624,12 @@ live alongside each library:
 
 - `rock-hero-common/core/tests/` for shared domain and native song package behavior
 - `rock-hero-common/audio/tests/` for shared audio contracts and adapter behavior
+- `rock-hero-common/ui/tests/` for shared presentation data and the render stack's headless
+  paths (string palette, highway atlas arithmetic, the Noop render-device suite)
 - `rock-hero-editor/core/tests/` for headless editor workflow
 - `rock-hero-editor/ui/tests/` for focused editor UI helpers and wiring
-- `rock-hero-game/core/tests/`, `rock-hero-game/audio/tests/`, and `rock-hero-game/ui/tests/`
-  for game-owned behavior as those modules gain real code
+- `rock-hero-game/core/tests/` for game-owned headless behavior; `rock-hero-game/audio/tests/`
+  and `rock-hero-game/ui/tests/` are reserved homes as those modules gain testable code
 
 Tests are registered with CTest via `catch_discover_tests`. See
 \ref design_architectural_principles for the full testing strategy.

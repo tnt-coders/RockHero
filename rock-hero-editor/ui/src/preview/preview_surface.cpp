@@ -56,16 +56,32 @@ PreviewSurface::~PreviewSurface()
     detach();
 }
 
-// Brings up the native child, the bgfx device, and the shared renderer against the current
-// peer. Attach order matters: the child window must exist before bgfx initializes against it,
-// and the renderer needs a live device for its GPU resources.
+// First open brings up the native child, the bgfx device, and the shared renderer against the
+// current peer; later opens only resume the frame ticks (the stack survives hides, and bgfx
+// must never be re-initialized in-process — see the class doc). Attach order matters on the
+// bring-up path: the child window must exist before bgfx initializes against it, and the
+// renderer needs a live device for its GPU resources.
 void PreviewSurface::attach()
 {
 #if JUCE_WINDOWS
-    if (m_device.has_value() || getPeer() == nullptr)
+    if (getPeer() == nullptr)
     {
         return;
     }
+    if (m_device.has_value())
+    {
+        // Resume: the window may have been resized or moved across monitors while hidden, and
+        // the clock must snap rather than slew across the hidden gap.
+        updateChildBounds();
+        m_extrapolator.reset();
+        m_previous_tick = std::chrono::nanoseconds{0};
+        if (m_vblank == nullptr)
+        {
+            m_vblank = std::make_unique<juce::VBlankAttachment>(this, [this] { renderFrame(); });
+        }
+        return;
+    }
+    getPeer()->addScaleFactorListener(this);
 
     auto* parent = static_cast<HWND>(getPeer()->getNativeHandle());
     m_child_window = CreateWindowExW(
@@ -127,14 +143,25 @@ void PreviewSurface::attach()
 
     m_extrapolator.reset();
     m_previous_tick = std::chrono::nanoseconds{0};
+    m_reported_lost_child = false;
     m_vblank = std::make_unique<juce::VBlankAttachment>(this, [this] { renderFrame(); });
 #endif
 }
 
-// Teardown mirrors attach in reverse: renderer (GPU handles) before the device (bgfx shutdown),
-// device before the child window it presents into.
+// Hiding the window keeps the peer (and our child) alive; only the ticks stop.
+void PreviewSurface::suspend()
+{
+    m_vblank.reset();
+}
+
+// Full teardown for destruction (and peer loss): renderer (GPU handles) before the device
+// (bgfx shutdown), device before the child window it presents into.
 void PreviewSurface::detach()
 {
+    if (getPeer() != nullptr)
+    {
+        getPeer()->removeScaleFactorListener(this);
+    }
     m_vblank.reset();
     m_renderer.reset();
     m_device.reset();
@@ -163,6 +190,18 @@ void PreviewSurface::moved()
     updateChildBounds();
 }
 
+// Visible only when the render stack is down (attach failure) or in the sub-pixel sliver a
+// fractional monitor scale can leave beside the child window.
+void PreviewSurface::paint(juce::Graphics& graphics)
+{
+    graphics.fillAll(juce::Colours::black);
+}
+
+void PreviewSurface::nativeScaleFactorChanged(const double /*new_scale_factor*/)
+{
+    updateChildBounds();
+}
+
 // Positions the child window over this component in the peer's physical-pixel space and keeps
 // the backbuffer in step.
 PreviewSurface::PixelSize PreviewSurface::updateChildBounds()
@@ -173,19 +212,21 @@ PreviewSurface::PixelSize PreviewSurface::updateChildBounds()
         return {};
     }
 
-    // Component bounds are logical; the peer's child coordinate space is physical pixels.
+    // getAreaCoveredBy is JUCE's canonical component-to-peer mapping (it folds in the global
+    // scale factor); the platform scale then converts the peer's logical space to the physical
+    // pixels child HWND coordinates use. Smallest-integer-container rounding keeps the child
+    // flush with the client edge at fractional monitor scales.
     const double scale = getPeer()->getPlatformScaleFactor();
-    const juce::Rectangle<int> local = getTopLevelComponent()->getLocalArea(this, getLocalBounds());
-    const auto x = static_cast<int>(local.getX() * scale);
-    const auto y = static_cast<int>(local.getY() * scale);
-    const auto width = static_cast<int>(local.getWidth() * scale);
-    const auto height = static_cast<int>(local.getHeight() * scale);
+    const juce::Rectangle<int> physical =
+        (getPeer()->getAreaCoveredBy(*this).toDouble() * scale).getSmallestIntegerContainer();
+    const int width = std::max(physical.getWidth(), 1);
+    const int height = std::max(physical.getHeight(), 1);
     MoveWindow(
-        static_cast<HWND>(m_child_window), x, y, std::max(width, 1), std::max(height, 1), TRUE);
+        static_cast<HWND>(m_child_window), physical.getX(), physical.getY(), width, height, TRUE);
 
     const PixelSize size{
-        .width = static_cast<std::uint32_t>(std::max(width, 1)),
-        .height = static_cast<std::uint32_t>(std::max(height, 1)),
+        .width = static_cast<std::uint32_t>(width),
+        .height = static_cast<std::uint32_t>(height),
     };
     if (m_device.has_value() &&
         (m_device->width() != size.width || m_device->height() != size.height))
@@ -204,6 +245,26 @@ PreviewSurface::PixelSize PreviewSurface::updateChildBounds()
 void PreviewSurface::renderFrame()
 {
     if (!m_device.has_value() || !m_renderer.has_value())
+    {
+        return;
+    }
+#if JUCE_WINDOWS
+    // Hardening: peer recreation (style-flag changes) would destroy the embedded child under a
+    // live swapchain. Unreachable today (every style call happens before first show), but a
+    // present into a dead window must never be the failure mode. Skip only — this frame runs
+    // inside the vblank attachment's own callback, so the attachment must not destroy itself.
+    if (m_child_window == nullptr || IsWindow(static_cast<HWND>(m_child_window)) == FALSE)
+    {
+        if (!m_reported_lost_child)
+        {
+            m_reported_lost_child = true;
+            RH_LOG_WARNING("editor.preview", "preview child window vanished; frames suspended");
+        }
+        return;
+    }
+#endif
+    // A minimised window keeps its peer and its vblank feed; skip the wasted presents.
+    if (!isShowing() || (getPeer() != nullptr && getPeer()->isMinimised()))
     {
         return;
     }

@@ -809,8 +809,11 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
         return true;
     }
 
-    // F3 toggles the 3D preview window (mirrors View > 3D Preview).
-    if (key == juce::KeyPress{juce::KeyPress::F3Key} && m_state.project_loaded)
+    // F3 toggles the 3D preview window (mirrors View > 3D Preview). Opening needs a project;
+    // closing must always work, or a project close would strand an open preview behind a dead
+    // toggle.
+    if (key == juce::KeyPress{juce::KeyPress::F3Key} &&
+        (m_state.project_loaded || (m_preview_window != nullptr && m_preview_window->isVisible())))
     {
         togglePreviewWindow();
         return true;
@@ -819,8 +822,8 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
     return false;
 }
 
-// Creates the preview window on first use, then shows or hides it; the window rebuilds its
-// render surface per open (hiding a top-level destroys the native peer the surface embeds in).
+// Creates the preview window on first use, then shows or hides it; hiding suspends the render
+// surface's frame ticks while its GPU stack stays alive (bgfx cannot re-initialize in-process).
 void EditorView::togglePreviewWindow()
 {
     if (m_preview_window == nullptr)
@@ -828,7 +831,17 @@ void EditorView::togglePreviewWindow()
         m_preview_window = std::make_unique<PreviewWindow>(
             m_transport,
             m_playback_clock,
-            [this](const juce::KeyPress& key) { return keyPressed(key); },
+            [this](const juce::KeyPress& key) {
+                // Transport keys only (44-Q4), plus F3 so the toggle works from the preview:
+                // the preview shows no selection context, so editing shortcuts (delete, nudge,
+                // undo) stay with the main window.
+                if (key == juce::KeyPress{juce::KeyPress::spaceKey} ||
+                    key == juce::KeyPress{juce::KeyPress::F3Key})
+                {
+                    return keyPressed(key);
+                }
+                return false;
+            },
             getTopLevelComponent());
     }
 
@@ -887,11 +900,16 @@ juce::PopupMenu EditorView::getMenuForIndex(int top_level_menu_index, const juce
             m_state.waveform_visible);
         menu.addItem(
             g_show_undo_history_command, "Undo History", true, m_undo_history_overlay.isVisible());
-        menu.addItem(
-            g_show_preview_command,
-            "3D Preview\tF3",
-            m_state.project_loaded,
-            m_preview_window != nullptr && m_preview_window->isVisible());
+        {
+            const bool preview_open = m_preview_window != nullptr && m_preview_window->isVisible();
+            juce::PopupMenu::Item preview_item{"3D Preview"};
+            preview_item.itemID = g_show_preview_command;
+            preview_item.shortcutKeyDescription = "F3";
+            // Opening needs a project; closing must stay available after a project close.
+            preview_item.isEnabled = m_state.project_loaded || preview_open;
+            preview_item.isTicked = preview_open;
+            menu.addItem(preview_item);
+        }
 
         // The lane-count submenu offers "match the chart" plus explicit minimums up to the
         // format's string cap; picking fewer lanes than the chart has can never hide notes
@@ -938,7 +956,8 @@ void EditorView::menuItemSelected(int menu_item_id, int /*top_level_menu_index*/
         }
         case g_show_preview_command:
         {
-            if (m_state.project_loaded)
+            if (m_state.project_loaded ||
+                (m_preview_window != nullptr && m_preview_window->isVisible()))
             {
                 togglePreviewWindow();
             }

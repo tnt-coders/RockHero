@@ -56,9 +56,10 @@ void PreviewWindow::open()
 
 void PreviewWindow::close()
 {
-    // Surface teardown must precede peer destruction: hiding the window destroys the native
-    // parent of the child window bgfx presents into.
-    m_surface->detach();
+    // Suspend before hiding: the peer (and the render stack) survive a hide, but the vblank
+    // feed does not care about visibility, so the ticks must stop explicitly. The stack itself
+    // stays up — bgfx cannot re-initialize in-process, so it lives until destruction.
+    m_surface->suspend();
     setVisible(false);
 }
 
