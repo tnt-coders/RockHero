@@ -174,7 +174,7 @@ format-side decisions) and the design docs — a fresh session needs no other co
    `EditorUndoHistory` + `IEdit`). Chart edits are pure-data edits: inverse-command or
    before/after-snapshot `IEdit` objects both satisfy it; no Tracktion involvement.
 8. **Charter is a capabilities reference only.** Its notation inventory calibrated the format;
-   its editing UX informs but never dictates ours (note-format plan, "Reference: Charter (MIT)").
+   its editing UX informs but never dictates ours (note-format plan, "Reference: Charter (BSD 3-Clause)").
 9. **Save == publish validation; normalize, don't reject** (established invariant, see
    `docs/roadmap/43-song-information-and-art.md` for the export-gate tension — not this plan's to
    resolve). Edit primitives therefore keep the chart valid at every commit point rather than
