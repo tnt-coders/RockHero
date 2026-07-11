@@ -1,10 +1,9 @@
-#include "surface/render_device.h"
-
 #include <catch2/catch_test_macros.hpp>
 #include <expected>
+#include <rock_hero/common/ui/render/render_device.h>
 #include <utility>
 
-namespace rock_hero::game::ui
+namespace rock_hero::common::ui
 {
 
 // Proves the headless CI path (gate criterion S5): bgfx's Noop backend initializes with no GPU,
@@ -55,4 +54,4 @@ TEST_CASE("Default render backend is Direct3D11 on Windows", "[ui][surface]")
 #endif
 }
 
-} // namespace rock_hero::game::ui
+} // namespace rock_hero::common::ui

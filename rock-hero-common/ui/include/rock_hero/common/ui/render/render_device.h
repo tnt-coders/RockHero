@@ -10,7 +10,7 @@
 #include <expected>
 #include <string>
 
-namespace rock_hero::game::ui
+namespace rock_hero::common::ui
 {
 
 /*!
@@ -205,4 +205,4 @@ private:
     std::uint32_t m_reset_flags = 0;
 };
 
-} // namespace rock_hero::game::ui
+} // namespace rock_hero::common::ui

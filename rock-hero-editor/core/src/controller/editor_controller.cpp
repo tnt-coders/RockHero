@@ -40,6 +40,7 @@
 #include <rock_hero/common/audio/song/i_song_audio.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
+#include <rock_hero/common/core/highway/highway_projection.h>
 #include <rock_hero/common/core/shared/cancellation_token.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/timeline/fraction.h>
@@ -2031,18 +2032,31 @@ EditorViewState EditorController::Impl::deriveViewState() const
 
         // The tab projection resolves thousands of positions to seconds, so it is memoized per
         // displayed arrangement. Charts and the tempo map are immutable while a project is open,
-        // which makes the arrangement id a sufficient cache key.
+        // which makes the arrangement id a sufficient cache key. The 3D highway projection rides
+        // the same rule (plan 44): one shared scene-model snapshot per displayed arrangement,
+        // consumed by the preview window exactly as the game consumes it.
         if (m_tab_arrangement_id != arrangement->id)
         {
             m_tab_view_state = std::make_shared<const TabViewState>(
                 makeTabViewState(*arrangement, state.tempo_map));
+            // Lowest-pitched string on top is the 3D notation's default (user decision
+            // 2026-07-11, recorded in plan 25); the 2D tab keeps standard orientation.
+            m_highway_view_state = std::make_shared<const common::core::HighwayViewState>(
+                common::core::makeHighwayViewState(
+                    *arrangement,
+                    state.tempo_map,
+                    common::core::HighwayDisplayOptions{
+                        .mirrored = false, .invert_string_order = true
+                    }));
             m_tab_arrangement_id = arrangement->id;
         }
         state.tab = m_tab_view_state;
+        state.highway = m_highway_view_state;
     }
     else
     {
         m_tab_view_state.reset();
+        m_highway_view_state.reset();
         m_tab_arrangement_id.clear();
     }
     state.unsaved_changes_prompt = m_deferred_project_action_state.unsavedChangesPrompt();

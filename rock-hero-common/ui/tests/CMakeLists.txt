@@ -3,7 +3,8 @@
 find_package(Catch2 3 REQUIRED)
 include(Catch)
 
-add_executable(rock_hero_common_ui_tests test_highway_atlas.cpp test_string_color_palette.cpp)
+add_executable(rock_hero_common_ui_tests test_highway_atlas.cpp test_render_device.cpp
+                                         test_string_color_palette.cpp)
 
 # The atlas units under test are private to the library, so tests reach their headers through the
 # library's src tree; the private atlas header carries bgfx types, so the bgfx wrapper supplies

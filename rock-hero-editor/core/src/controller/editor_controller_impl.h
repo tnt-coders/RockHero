@@ -39,6 +39,7 @@ definitions, no state added just to make a translation-unit split work.
 #include <rock_hero/common/audio/shared/scoped_listener.h>
 #include <rock_hero/common/audio/song/i_song_audio.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
+#include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/common/core/session/session.h>
 #include <rock_hero/common/core/shared/cancellation_token.h>
 #include <rock_hero/common/core/timeline/fraction.h>
@@ -540,10 +541,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // points is a view arrangement, not an edit). Cleared with the session.
     std::vector<OpenAutomationLane> m_open_automation_lanes{};
 
-    // Memoized tab projection for the displayed arrangement; see deriveViewState for the cache
-    // rule (arrangement id keys it because charts are immutable while a project is open).
-    // Mutable because the cache refreshes lazily inside the const view-state derivation.
+    // Memoized tab and 3D-highway projections for the displayed arrangement; see
+    // deriveViewState for the cache rule (arrangement id keys them because charts are immutable
+    // while a project is open). Mutable because the caches refresh lazily inside the const
+    // view-state derivation.
     mutable std::shared_ptr<const TabViewState> m_tab_view_state{};
+    mutable std::shared_ptr<const common::core::HighwayViewState> m_highway_view_state{};
     mutable std::string m_tab_arrangement_id{};
 
     // App-wide display preferences for the tablature lane, restored from settings at construction

@@ -1,13 +1,12 @@
-#include "surface/render_device.h"
-
 #include <bgfx/bgfx.h>
 #include <bgfx/platform.h>
 #include <chrono>
 #include <cstdint>
+#include <rock_hero/common/ui/render/render_device.h>
 #include <utility>
 #include <vector>
 
-namespace rock_hero::game::ui
+namespace rock_hero::common::ui
 {
 
 namespace
@@ -224,4 +223,4 @@ void RenderDevice::submitFrame()
     bgfx::frame();
 }
 
-} // namespace rock_hero::game::ui
+} // namespace rock_hero::common::ui

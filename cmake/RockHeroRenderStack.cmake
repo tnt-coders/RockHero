@@ -68,3 +68,55 @@ function(rock_hero_add_compiled_shader)
         DEPENDS "${ARG_VARYING}"
         COMMENT "Compiling ${ARG_TYPE} shader ${ARG_SOURCE} for ${ARG_PROFILE}")
 endfunction()
+
+# Stages the shared highway shader programs (rock-hero-common/ui/shaders) into
+# <staging_dir>/dx11 and creates <target_name> carrying the staged tree through the
+# ROCK_HERO_STAGING_DIR / ROCK_HERO_STAGED_FILES target properties (the resource-pack deploy
+# contract from plan 20 Phase 2). Both products call this so the shader program list lives in
+# exactly one place. Compilation is Windows-only: shaderc's HLSL backend needs the Windows D3D
+# compiler; non-Windows builds are compile/test hygiene, not shipped products, so they stage an
+# empty tree and the deploy still works.
+#
+# rock_hero_stage_highway_shaders(<target_name> <staging_dir>)
+function(rock_hero_stage_highway_shaders target_name staging_dir)
+    set(shader_source_dir "${CMAKE_SOURCE_DIR}/rock-hero-common/ui/shaders")
+    set(staged_files "")
+    if(WIN32)
+        foreach(shader_program IN ITEMS color color_fade texture_tint glyph texture)
+            foreach(shader_stage IN ITEMS vertex fragment)
+                if(shader_stage STREQUAL "vertex")
+                    set(stage_prefix vs)
+                else()
+                    set(stage_prefix fs)
+                endif()
+                rock_hero_add_compiled_shader(
+                    OUTPUT
+                    "${staging_dir}/dx11/${stage_prefix}_${shader_program}.bin"
+                    TYPE
+                    ${shader_stage}
+                    SOURCE
+                    "${shader_source_dir}/${stage_prefix}_${shader_program}.sc"
+                    VARYING
+                    "${shader_source_dir}/varying.def.sc"
+                    PROFILE
+                    s_5_0
+                    PLATFORM
+                    windows)
+                list(APPEND staged_files
+                     "${staging_dir}/dx11/${stage_prefix}_${shader_program}.bin")
+            endforeach()
+        endforeach()
+    endif()
+
+    # The staging root must exist even when nothing is staged so deploy copy_directory calls
+    # have a source on every platform.
+    file(MAKE_DIRECTORY "${staging_dir}")
+
+    add_custom_target(${target_name} DEPENDS ${staged_files})
+
+    # Custom target properties carry the staging dir and the staged-file list across directory
+    # scopes: unlike a PARENT_SCOPE variable this survives subdirectory reordering, and a lookup
+    # typo fails loudly (NOTFOUND) instead of silently emptying a copy command.
+    set_target_properties(${target_name} PROPERTIES ROCK_HERO_STAGING_DIR "${staging_dir}"
+                                                    ROCK_HERO_STAGED_FILES "${staged_files}")
+endfunction()
