@@ -133,7 +133,7 @@ HighwayAtlases makeHighwayAtlases()
     // Head atlas: opaque black base (A=0xFF, channels zero) so untouched texels contribute
     // nothing (B = 0 masks them out) while staying premultiplication-proof.
     {
-        juce::Image image{
+        const juce::Image image{
             juce::Image::ARGB,
             g_head_texture_size,
             g_head_texture_size,
@@ -153,7 +153,7 @@ HighwayAtlases makeHighwayAtlases()
 
     // Glyph atlas: transparent base, white glyphs — the shape lives in alpha.
     {
-        juce::Image image{
+        const juce::Image image{
             juce::Image::ARGB,
             g_glyph_texture_size,
             g_glyph_texture_size,

@@ -1,5 +1,7 @@
 #include "highway/highway_renderer.h"
 
+#include "surface/bgfx_program.h"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -87,6 +89,33 @@ struct PosColorUvVertex
     return g_layout;
 }
 
+// Vertex makers keep designated initialization (and the double->float narrowing) in one place,
+// so the drawers below stay readable per corner.
+[[nodiscard]] PosColorVertex makeVertex(
+    const double x, const double y, const double z, const std::uint32_t abgr)
+{
+    return PosColorVertex{
+        .x = static_cast<float>(x),
+        .y = static_cast<float>(y),
+        .z = static_cast<float>(z),
+        .abgr = abgr,
+    };
+}
+
+[[nodiscard]] PosColorUvVertex makeUvVertex(
+    const double x, const double y, const double z, const std::uint32_t abgr, const float u,
+    const float v)
+{
+    return PosColorUvVertex{
+        .x = static_cast<float>(x),
+        .y = static_cast<float>(y),
+        .z = static_cast<float>(z),
+        .abgr = abgr,
+        .u = u,
+        .v = v,
+    };
+}
+
 // HighwayMat4 (row-major, clip = M * world) -> the float[16] bgfx expects (row-major storage
 // under a row-vector convention): a pure transpose plus narrowing. Verified against the bx
 // multiply and the D3D11 no-transpose uniform upload at the Phase 3 checkpoint.
@@ -165,12 +194,10 @@ void pushFloorQuad(
     pushQuad(
         vertices,
         indices,
-        PosColorVertex{static_cast<float>(x0), static_cast<float>(y), static_cast<float>(z0), abgr},
-        PosColorVertex{static_cast<float>(x1), static_cast<float>(y), static_cast<float>(z0), abgr},
-        PosColorVertex{static_cast<float>(x1), static_cast<float>(y), static_cast<float>(z1), abgr},
-        PosColorVertex{
-            static_cast<float>(x0), static_cast<float>(y), static_cast<float>(z1), abgr
-        });
+        makeVertex(x0, y, z0, abgr),
+        makeVertex(x1, y, z0, abgr),
+        makeVertex(x1, y, z1, abgr),
+        makeVertex(x0, y, z1, abgr));
 }
 
 // Axis-aligned quad on the board face (z constant, spanning x and y).
@@ -181,12 +208,10 @@ void pushFaceQuad(
     pushQuad(
         vertices,
         indices,
-        PosColorVertex{static_cast<float>(x0), static_cast<float>(y0), static_cast<float>(z), abgr},
-        PosColorVertex{static_cast<float>(x1), static_cast<float>(y0), static_cast<float>(z), abgr},
-        PosColorVertex{static_cast<float>(x1), static_cast<float>(y1), static_cast<float>(z), abgr},
-        PosColorVertex{
-            static_cast<float>(x0), static_cast<float>(y1), static_cast<float>(z), abgr
-        });
+        makeVertex(x0, y0, z, abgr),
+        makeVertex(x1, y0, z, abgr),
+        makeVertex(x1, y1, z, abgr),
+        makeVertex(x0, y1, z, abgr));
 }
 
 } // namespace
@@ -211,28 +236,13 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
             }};
         }
 
-        const UniqueBgfxHandle<bgfx::ShaderHandle> vertex_handle{bgfx::createShader(
-            bgfx::copy(vertex_bytes->data(), static_cast<std::uint32_t>(vertex_bytes->size())))};
-        const UniqueBgfxHandle<bgfx::ShaderHandle> fragment_handle{bgfx::createShader(
-            bgfx::copy(
-                fragment_bytes->data(), static_cast<std::uint32_t>(fragment_bytes->size())))};
-        if (!vertex_handle.isValid() || !fragment_handle.isValid())
-        {
-            return std::unexpected{HighwayRendererError{
-                .code = HighwayRendererErrorCode::ProgramCreationFailed,
-                .message = "bgfx rejected a compiled highway shader binary"
-            }};
-        }
-
-        // destroyShaders stays false per the project rule (bgfx consumes the stage handles on
-        // some failure paths but not others); the program holds its own references on success.
-        UniqueBgfxHandle<bgfx::ProgramHandle> program_handle{bgfx::createProgram(
-            vertex_handle.get(), fragment_handle.get(), false)};
+        UniqueBgfxHandle<bgfx::ProgramHandle> program_handle =
+            createProgramFromBytes(*vertex_bytes, *fragment_bytes);
         if (!program_handle.isValid())
         {
             return std::unexpected{HighwayRendererError{
                 .code = HighwayRendererErrorCode::ProgramCreationFailed,
-                .message = "bgfx failed to link a highway shader program"
+                .message = "bgfx rejected or failed to link a compiled highway shader program"
             }};
         }
         return program_handle;
@@ -460,9 +470,11 @@ void HighwayRenderer::draw(
                 continue;
             }
             const auto [low_line, high_line] = activeFhpFretLines(m_state, beat.seconds);
-            const auto [x0, x1] = std::minmax(
-                common::core::highwayFretLineX(low_line, m_metrics, mirrored),
-                common::core::highwayFretLineX(high_line, m_metrics, mirrored));
+            // Named operands: std::minmax over prvalues returns references into destroyed
+            // temporaries (the Phase 3 CI dangling-reference finding).
+            const double low_x = common::core::highwayFretLineX(low_line, m_metrics, mirrored);
+            const double high_x = common::core::highwayFretLineX(high_line, m_metrics, mirrored);
+            const auto [x0, x1] = std::minmax(low_x, high_x);
             const double z = time_to_z(beat.seconds);
             const double half = beat.measure_downbeat ? 0.10 : 0.045;
             const double alpha = beat.measure_downbeat ? 0.62 : 0.38;
@@ -477,9 +489,9 @@ void HighwayRenderer::draw(
         std::vector<PosColorVertex> vertices;
         std::vector<std::uint16_t> indices;
         const auto [low_line, high_line] = activeFhpFretLines(m_state, now_seconds);
-        const auto [x0, x1] = std::minmax(
-            common::core::highwayFretLineX(low_line, m_metrics, mirrored),
-            common::core::highwayFretLineX(high_line, m_metrics, mirrored));
+        const double low_x = common::core::highwayFretLineX(low_line, m_metrics, mirrored);
+        const double high_x = common::core::highwayFretLineX(high_line, m_metrics, mirrored);
+        const auto [x0, x1] = std::minmax(low_x, high_x);
         pushFloorQuad(
             vertices,
             indices,
@@ -555,33 +567,14 @@ void HighwayRenderer::draw(
                                          m_metrics,
                                          mirrored)) /
                                         2.0;
+                const std::uint32_t tail_color = packAbgr(style.tail, 0.75);
                 pushQuad(
                     rail_vertices,
                     rail_indices,
-                    PosColorVertex{
-                        static_cast<float>(x - m_metrics.tail_half_width),
-                        static_cast<float>(lane_y),
-                        static_cast<float>(z0),
-                        packAbgr(style.tail, 0.75)
-                    },
-                    PosColorVertex{
-                        static_cast<float>(x + m_metrics.tail_half_width),
-                        static_cast<float>(lane_y),
-                        static_cast<float>(z0),
-                        packAbgr(style.tail, 0.75)
-                    },
-                    PosColorVertex{
-                        static_cast<float>(x + m_metrics.tail_half_width),
-                        static_cast<float>(lane_y),
-                        static_cast<float>(z1),
-                        packAbgr(style.tail, 0.75)
-                    },
-                    PosColorVertex{
-                        static_cast<float>(x - m_metrics.tail_half_width),
-                        static_cast<float>(lane_y),
-                        static_cast<float>(z1),
-                        packAbgr(style.tail, 0.75)
-                    });
+                    makeVertex(x - m_metrics.tail_half_width, lane_y, z0, tail_color),
+                    makeVertex(x + m_metrics.tail_half_width, lane_y, z0, tail_color),
+                    makeVertex(x + m_metrics.tail_half_width, lane_y, z1, tail_color),
+                    makeVertex(x - m_metrics.tail_half_width, lane_y, z1, tail_color));
             }
         }
 
@@ -595,36 +588,17 @@ void HighwayRenderer::draw(
         {
             // Open string: a wide bar spanning the hand window active at the note's time.
             const auto [low_line, high_line] = activeFhpFretLines(m_state, note.start_seconds);
-            const auto [x0, x1] = std::minmax(
-                common::core::highwayFretLineX(low_line, m_metrics, mirrored),
-                common::core::highwayFretLineX(high_line, m_metrics, mirrored));
+            const double low_x = common::core::highwayFretLineX(low_line, m_metrics, mirrored);
+            const double high_x = common::core::highwayFretLineX(high_line, m_metrics, mirrored);
+            const auto [x0, x1] = std::minmax(low_x, high_x);
+            const std::uint32_t bar_color = packAbgr(style.inner, fade);
             pushQuad(
                 open_vertices,
                 open_indices,
-                PosColorVertex{
-                    static_cast<float>(x0),
-                    static_cast<float>(lane_y - m_metrics.tail_half_width),
-                    static_cast<float>(z),
-                    packAbgr(style.inner, fade)
-                },
-                PosColorVertex{
-                    static_cast<float>(x1),
-                    static_cast<float>(lane_y - m_metrics.tail_half_width),
-                    static_cast<float>(z),
-                    packAbgr(style.inner, fade)
-                },
-                PosColorVertex{
-                    static_cast<float>(x1),
-                    static_cast<float>(lane_y + m_metrics.tail_half_width),
-                    static_cast<float>(z),
-                    packAbgr(style.inner, fade)
-                },
-                PosColorVertex{
-                    static_cast<float>(x0),
-                    static_cast<float>(lane_y + m_metrics.tail_half_width),
-                    static_cast<float>(z),
-                    packAbgr(style.inner, fade)
-                });
+                makeVertex(x0, lane_y - m_metrics.tail_half_width, z, bar_color),
+                makeVertex(x1, lane_y - m_metrics.tail_half_width, z, bar_color),
+                makeVertex(x1, lane_y + m_metrics.tail_half_width, z, bar_color),
+                makeVertex(x0, lane_y + m_metrics.tail_half_width, z, bar_color));
             continue;
         }
 
@@ -638,19 +612,16 @@ void HighwayRenderer::draw(
             const double radius_z = 0.13;
             const std::uint32_t shadow_color = packAbgr(0xFF000000, 0.42 * fade);
             const auto center_index = static_cast<std::uint16_t>(shadow_vertices.size());
-            shadow_vertices.push_back(
-                PosColorVertex{static_cast<float>(x), 0.02F, static_cast<float>(z), shadow_color});
+            shadow_vertices.push_back(makeVertex(x, 0.02, z, shadow_color));
             for (int segment = 0; segment <= g_shadow_segments; ++segment)
             {
                 const double angle =
                     2.0 * std::numbers::pi * segment / static_cast<double>(g_shadow_segments);
-                shadow_vertices.push_back(
-                    PosColorVertex{
-                        static_cast<float>(x + (std::cos(angle) * radius_x)),
-                        0.02F,
-                        static_cast<float>(z + (std::sin(angle) * radius_z)),
-                        shadow_color
-                    });
+                shadow_vertices.push_back(makeVertex(
+                    x + (std::cos(angle) * radius_x),
+                    0.02,
+                    z + (std::sin(angle) * radius_z),
+                    shadow_color));
             }
             for (int segment = 0; segment < g_shadow_segments; ++segment)
             {
@@ -679,14 +650,13 @@ void HighwayRenderer::draw(
             packAbgr(common::ui::stringLaneColor(note.string, m_state.string_count, palette), fade);
 
         const auto corner = [&](const double dx, const double dy, const float u, const float v) {
-            return PosColorUvVertex{
-                static_cast<float>(x + (dx * cos_r) - (dy * sin_r)),
-                static_cast<float>(lane_y + (dx * sin_r) + (dy * cos_r)),
-                static_cast<float>(z),
+            return makeUvVertex(
+                x + (dx * cos_r) - (dy * sin_r),
+                lane_y + (dx * sin_r) + (dy * cos_r),
+                z,
                 tint,
                 u,
-                v
-            };
+                v);
         };
         pushQuad(
             head_vertices,
@@ -739,38 +709,16 @@ void HighwayRenderer::draw(
                     pushQuad(
                         glyph_vertices,
                         glyph_indices,
-                        PosColorUvVertex{
-                            static_cast<float>(pen_x),
-                            static_cast<float>(baseline_y),
-                            static_cast<float>(z),
-                            color,
-                            rect[0],
-                            rect[3]
-                        },
-                        PosColorUvVertex{
-                            static_cast<float>(pen_x + glyph_height),
-                            static_cast<float>(baseline_y),
-                            static_cast<float>(z),
+                        makeUvVertex(pen_x, baseline_y, z, color, rect[0], rect[3]),
+                        makeUvVertex(pen_x + glyph_height, baseline_y, z, color, rect[2], rect[3]),
+                        makeUvVertex(
+                            pen_x + glyph_height,
+                            baseline_y + glyph_height,
+                            z,
                             color,
                             rect[2],
-                            rect[3]
-                        },
-                        PosColorUvVertex{
-                            static_cast<float>(pen_x + glyph_height),
-                            static_cast<float>(baseline_y + glyph_height),
-                            static_cast<float>(z),
-                            color,
-                            rect[2],
-                            rect[1]
-                        },
-                        PosColorUvVertex{
-                            static_cast<float>(pen_x),
-                            static_cast<float>(baseline_y + glyph_height),
-                            static_cast<float>(z),
-                            color,
-                            rect[0],
-                            rect[1]
-                        });
+                            rect[1]),
+                        makeUvVertex(pen_x, baseline_y + glyph_height, z, color, rect[0], rect[1]));
                 }
                 pen_x += advance;
             }
