@@ -1,7 +1,9 @@
 #include "surface/render_device.h"
 
+#include <array>
 #include <bgfx/bgfx.h>
 #include <bgfx/platform.h>
+#include <cstring>
 #include <utility>
 
 namespace rock_hero::game::ui
@@ -62,6 +64,11 @@ RenderDeviceError::RenderDeviceError(const RenderDeviceErrorCode error_code)
             message = "bgfx failed to initialize the requested render backend";
             break;
         }
+        case RenderDeviceErrorCode::ShaderProgramCreationFailed:
+        {
+            message = "bgfx rejected a compiled shader binary or failed to link the program";
+            break;
+        }
     }
 }
 
@@ -112,11 +119,16 @@ RenderDevice::RenderDevice(
 {}
 
 // Single-threaded teardown mirror: plain same-thread shutdown, no render-thread drain ceremony
-// (that exists only for app-owned render threads in multithreaded mode).
+// (that exists only for app-owned render threads in multithreaded mode). The program (and, via
+// createProgram's destroyShaders flag, its shaders) must go before the instance does.
 RenderDevice::~RenderDevice()
 {
     if (m_owns_device)
     {
+        if (m_program_handle != bgfx::kInvalidHandle)
+        {
+            bgfx::destroy(bgfx::ProgramHandle{m_program_handle});
+        }
         bgfx::shutdown();
     }
 }
@@ -138,9 +150,79 @@ void RenderDevice::resize(const std::uint32_t width, const std::uint32_t height)
     bgfx::reset(width, height, m_reset_flags);
 }
 
-// Clears and presents one frame. touch() submits an empty draw so the view's clear executes even
-// with no geometry; frame() is where vsync blocks, pacing the loop.
-void RenderDevice::submitClearedFrame()
+// Links the surface program from compiled binaries. bgfx::copy snapshots the spans, so the
+// caller's buffers may die immediately after this returns.
+std::expected<void, RenderDeviceError> RenderDevice::createSurfaceProgram(
+    const std::span<const std::byte> vertex_shader,
+    const std::span<const std::byte> fragment_shader)
+{
+    const bgfx::ShaderHandle vertex_handle = bgfx::createShader(
+        bgfx::copy(vertex_shader.data(), static_cast<std::uint32_t>(vertex_shader.size())));
+    const bgfx::ShaderHandle fragment_handle = bgfx::createShader(
+        bgfx::copy(fragment_shader.data(), static_cast<std::uint32_t>(fragment_shader.size())));
+    if (!bgfx::isValid(vertex_handle) || !bgfx::isValid(fragment_handle))
+    {
+        if (bgfx::isValid(vertex_handle))
+        {
+            bgfx::destroy(vertex_handle);
+        }
+        if (bgfx::isValid(fragment_handle))
+        {
+            bgfx::destroy(fragment_handle);
+        }
+        return std::unexpected{
+            RenderDeviceError{RenderDeviceErrorCode::ShaderProgramCreationFailed}
+        };
+    }
+
+    // destroyShaders=true ties the stage handles' lifetime to the program's.
+    const bgfx::ProgramHandle program = bgfx::createProgram(vertex_handle, fragment_handle, true);
+    if (!bgfx::isValid(program))
+    {
+        bgfx::destroy(vertex_handle);
+        bgfx::destroy(fragment_handle);
+        return std::unexpected{
+            RenderDeviceError{RenderDeviceErrorCode::ShaderProgramCreationFailed}
+        };
+    }
+
+    m_program_handle = program.idx;
+    return {};
+}
+
+namespace
+{
+
+// One vertex of the surface test triangle: clip-space position plus packed ABGR color.
+struct SurfaceVertex
+{
+    float x;
+    float y;
+    float z;
+    std::uint32_t abgr;
+};
+
+// Vertex layout matching SurfaceVertex and the surface_flat shader's inputs. Built lazily
+// because bgfx::VertexLayout::begin needs the renderer type, which exists only after init.
+[[nodiscard]] const bgfx::VertexLayout& surfaceVertexLayout()
+{
+    static const bgfx::VertexLayout g_layout = [] {
+        bgfx::VertexLayout layout;
+        layout.begin()
+            .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
+            .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true)
+            .end();
+        return layout;
+    }();
+    return g_layout;
+}
+
+} // namespace
+
+// Clears, draws the surface program's test triangle when one is loaded, and presents. touch()
+// submits an empty draw so the view's clear executes even with no geometry; frame() is where
+// vsync blocks, pacing the loop.
+void RenderDevice::submitFrame()
 {
     bgfx::setViewRect(
         g_default_view,
@@ -149,6 +231,30 @@ void RenderDevice::submitClearedFrame()
         static_cast<std::uint16_t>(m_width),
         static_cast<std::uint16_t>(m_height));
     bgfx::touch(g_default_view);
+
+    if (m_program_handle != bgfx::kInvalidHandle)
+    {
+        // Transient geometry: three clip-space vertices re-uploaded per frame. Colors are packed
+        // ABGR (bgfx's normalized-Uint8 color convention).
+        constexpr std::array<SurfaceVertex, 3> vertices{
+            SurfaceVertex{0.0F, 0.5F, 0.0F, 0xff408080},
+            SurfaceVertex{0.5F, -0.5F, 0.0F, 0xff804080},
+            SurfaceVertex{-0.5F, -0.5F, 0.0F, 0xff808040},
+        };
+
+        const bgfx::VertexLayout& layout = surfaceVertexLayout();
+        const auto vertex_count = static_cast<std::uint32_t>(vertices.size());
+        if (bgfx::getAvailTransientVertexBuffer(vertex_count, layout) >= vertex_count)
+        {
+            bgfx::TransientVertexBuffer transient_buffer{};
+            bgfx::allocTransientVertexBuffer(&transient_buffer, vertex_count, layout);
+            std::memcpy(transient_buffer.data, vertices.data(), sizeof(vertices));
+            bgfx::setVertexBuffer(0, &transient_buffer);
+            bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A);
+            bgfx::submit(g_default_view, bgfx::ProgramHandle{m_program_handle});
+        }
+    }
+
     bgfx::frame();
 }
 
