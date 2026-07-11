@@ -962,9 +962,46 @@ void HighwayRenderer::Impl::draw(
             visible.push_back(index);
         }
     }
-    // Far-to-near: later onsets draw first so nearer content alpha-composites over them.
-    std::ranges::sort(visible, [this](const std::size_t lhs, const std::size_t rhs) {
-        return state.notes[lhs].start_seconds > state.notes[rhs].start_seconds;
+    // Draw order for every note batch (this single vector orders shadows, rails, opens, and
+    // heads alike). A total order on three keys keeps the paint order deterministic frame to
+    // frame — a single time key leaves same-onset chord notes equivalent, and the non-stable
+    // sort then orders their overlapping heads arbitrarily, which flickers as notes enter and
+    // leave the window. Keys:
+    //   1. onset descending (far-to-near, so nearer-in-time content composites over farther);
+    //   2. base string-lane Y ascending, so a higher-on-screen note paints over a lower one at
+    //      the same onset (the static lane Y, never the bend-animated head Y);
+    //   3. note index, a unique tiebreak that makes the order total (and thus stable).
+    std::vector<double> lane_key(last_note - first_note, 0.0);
+    for (const std::size_t index : visible)
+    {
+        const common::core::HighwayNoteView& note = state.notes[index];
+        lane_key[index - first_note] =
+            common::core::highwayStringLaneY(note.string, state.string_count, metrics, invert);
+    }
+    // Compared with < / > only (no float equality) so the strict-weak-ordering stays clean
+    // under -Wfloat-equal; ties on both real keys fall through to the unique index.
+    std::ranges::sort(visible, [&](const std::size_t lhs, const std::size_t rhs) {
+        const double lhs_onset = state.notes[lhs].start_seconds;
+        const double rhs_onset = state.notes[rhs].start_seconds;
+        if (lhs_onset > rhs_onset)
+        {
+            return true;
+        }
+        if (lhs_onset < rhs_onset)
+        {
+            return false;
+        }
+        const double lhs_lane = lane_key[lhs - first_note];
+        const double rhs_lane = lane_key[rhs - first_note];
+        if (lhs_lane < rhs_lane)
+        {
+            return true;
+        }
+        if (lhs_lane > rhs_lane)
+        {
+            return false;
+        }
+        return lhs < rhs;
     });
 
     // Chord groups: notes sharing an onset (contiguous in the sorted note stream). Membership
