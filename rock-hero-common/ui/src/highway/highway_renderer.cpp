@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstring>
 #include <numbers>
+#include <ranges>
 #include <rock_hero/common/core/highway/highway_camera.h>
 #include <rock_hero/common/core/highway/highway_metrics.h>
 #include <rock_hero/common/core/highway/highway_tail.h>
@@ -104,8 +105,11 @@ constexpr double g_unpitched_slide_end_alpha = 0.25;
 // chord, with corner holders, gradient frame bars, and mute-cross variants.
 constexpr ArgbColor g_chord_box_color = 0xFF00D2D5;
 constexpr ArgbColor g_chord_box_dark_color = 0xFF003C3D;
+// The palm cross uses the reference's dark palm-mute color (its drawer reads the light
+// full-mute color instead — an evident slip given the unused dark constant; the light/dark
+// split is the intended reading, confirmed by the user).
 constexpr ArgbColor g_chord_full_mute_cross_color = 0xFF80D8FF;
-constexpr ArgbColor g_chord_palm_mute_cross_color = 0xFF00C0FF;
+constexpr ArgbColor g_chord_palm_mute_cross_color = 0xFF005064;
 constexpr ArgbColor g_chord_name_color = 0xFFE0E0E0;
 constexpr double g_chord_box_frame_thickness = 0.075;
 
@@ -972,6 +976,14 @@ void HighwayRenderer::Impl::draw(
         std::size_t count;
         bool any_accent;
         common::core::NoteMute common_mute;
+        // True when every note is fully muted (dead chugs never show their notes, and they do
+        // not break a repeat chain).
+        bool all_full_muted;
+        // Repeat-chord treatment (the reference's visibility rules): the strum renders as a
+        // half-height box with its mute cross and NO notes.
+        bool box_only;
+        // Sorted (string, fret) pairs for matching strums against the shape's posture.
+        std::vector<std::pair<int, int>> frets;
     };
     std::vector<ChordGroup> chord_groups;
     std::vector<std::size_t> note_group(last_note - first_note, 0);
@@ -990,18 +1002,327 @@ void HighwayRenderer::Impl::draw(
             .count = group_end - index,
             .any_accent = false,
             .common_mute = state.notes[index].mute,
+            .all_full_muted = true,
+            .box_only = false,
+            .frets = {},
         };
+        group.frets.reserve(group.count);
         for (std::size_t member = index; member < group_end; ++member)
         {
-            group.any_accent = group.any_accent || state.notes[member].accent;
-            if (state.notes[member].mute != group.common_mute)
+            const common::core::HighwayNoteView& note = state.notes[member];
+            group.any_accent = group.any_accent || note.accent;
+            if (note.mute != group.common_mute)
             {
                 group.common_mute = common::core::NoteMute::None;
             }
+            group.all_full_muted =
+                group.all_full_muted && note.mute == common::core::NoteMute::Full;
+            group.frets.emplace_back(note.string, note.fret);
             note_group[member - first_note] = chord_groups.size();
         }
-        chord_groups.push_back(group);
+        std::ranges::sort(group.frets);
+        chord_groups.push_back(std::move(group));
         index = group_end;
+    }
+
+    // Repeat classification (the reference's chord visibility rules): a strum shows only the
+    // half-height repeat box when it repeats the hand shape's own posture within the shape span
+    // — single notes and dead chugs between strums do not break the chain. Fully-muted strums
+    // never show notes; sustained or technique-bearing strums always do.
+    const auto posture_matches = [](const common::core::HighwayShapeView& shape,
+                                    const std::vector<std::pair<int, int>>& frets) {
+        if (shape.strings.empty() || shape.strings.size() != frets.size())
+        {
+            return false;
+        }
+        for (std::size_t entry = 0; entry < frets.size(); ++entry)
+        {
+            // Posture entries ascend by string (projection order), like the sorted pairs.
+            if (shape.strings[entry].string != frets[entry].first ||
+                shape.strings[entry].fret != frets[entry].second)
+            {
+                return false;
+            }
+        }
+        return true;
+    };
+    for (std::size_t group_index = 0; group_index < chord_groups.size(); ++group_index)
+    {
+        ChordGroup& group = chord_groups[group_index];
+        if (group.count < 2)
+        {
+            continue;
+        }
+        bool has_tails = false;
+        bool all_palm_muted = true;
+        bool any_marks = false;
+        for (std::size_t member = group.first; member < group.first + group.count; ++member)
+        {
+            const common::core::HighwayNoteView& note = state.notes[member];
+            has_tails = has_tails || note.end_seconds > note.start_seconds || note.vibrato ||
+                        note.tremolo || !note.bend.empty() || !note.slides.empty();
+            all_palm_muted = all_palm_muted && note.mute == common::core::NoteMute::Palm;
+            any_marks = any_marks || note.harmonic != common::core::NoteHarmonic::None ||
+                        note.attack != common::core::NoteAttack::Pick ||
+                        note.mute != common::core::NoteMute::None;
+        }
+        if (has_tails)
+        {
+            continue;
+        }
+        if (group.all_full_muted)
+        {
+            group.box_only = true;
+            continue;
+        }
+        // Marked chords always show their notes — unless every note is palm muted, where the
+        // reference's mute short-circuit applies the repeat rule anyway.
+        if (any_marks && !all_palm_muted)
+        {
+            continue;
+        }
+        const common::core::HighwayShapeView* shape = nullptr;
+        for (const common::core::HighwayShapeView& candidate : state.shapes)
+        {
+            if (candidate.start_seconds > group.start_seconds)
+            {
+                break;
+            }
+            shape = &candidate;
+        }
+        if (shape == nullptr || group.start_seconds >= shape->end_seconds ||
+            !posture_matches(*shape, group.frets))
+        {
+            continue;
+        }
+        // Walk the raw note stream backward (not the visible-range groups: a predecessor that
+        // scrolled out behind the hit line must still anchor the repeat chain, or repeat boxes
+        // would pop back into full notes as they approach the player).
+        std::size_t cursor = group.first;
+        while (cursor > 0)
+        {
+            const double onset = state.notes[cursor - 1].start_seconds;
+            if (onset < shape->start_seconds)
+            {
+                break;
+            }
+            std::size_t run_begin = cursor - 1;
+            while (run_begin > 0 &&
+                   std::abs(state.notes[run_begin - 1].start_seconds - onset) < 1.0e-4)
+            {
+                --run_begin;
+            }
+            const std::size_t run_count = cursor - run_begin;
+            if (run_count >= 2)
+            {
+                bool run_all_full_muted = true;
+                std::vector<std::pair<int, int>> run_frets;
+                run_frets.reserve(run_count);
+                for (std::size_t member = run_begin; member < cursor; ++member)
+                {
+                    run_all_full_muted = run_all_full_muted &&
+                                         state.notes[member].mute == common::core::NoteMute::Full;
+                    run_frets.emplace_back(state.notes[member].string, state.notes[member].fret);
+                }
+                if (!run_all_full_muted)
+                {
+                    std::ranges::sort(run_frets);
+                    group.box_only = posture_matches(*shape, run_frets);
+                    break;
+                }
+            }
+            cursor = run_begin;
+        }
+    }
+
+    // --- Chord boxes: the reference's translucent panels at chord onsets, drawn far-to-near
+    // BEFORE the notes so nearer content composites over them (the reference draws them after
+    // the notes under a depth buffer; this board view is painter-ordered, so boxes go first —
+    // the only cost is the faint filling no longer tinting its own chord's heads). Repeated and
+    // dead strums render the half-height repeat box with the mute cross. ---
+    {
+        std::vector<PosColorVertex> vertices;
+        std::vector<std::uint16_t> indices;
+
+        // Corner-holder fan outlines (reference ChordBoxHolderModel): a teal L bracket with a
+        // dark inner L, at each bottom corner. Local coordinates; the right corner mirrors in X.
+        constexpr std::array<std::array<double, 2>, 6> g_holder_background{
+            {{-0.01, -0.01}, {1.01, -0.01}, {1.01, 0.11}, {0.11, 0.11}, {0.11, 1.11}, {-0.01, 1.01}}
+        };
+        constexpr std::array<std::array<double, 2>, 6> g_holder_front{
+            {{0.0, 0.0}, {1.0, 0.0}, {1.0, 0.1}, {0.1, 0.1}, {0.1, 1.1}, {0.0, 1.0}}
+        };
+        const auto push_fan = [&](const std::span<const std::array<double, 2>> points,
+                                  const double origin_x,
+                                  const double x_sign,
+                                  const double z,
+                                  const std::uint32_t abgr) {
+            const auto base = static_cast<std::uint16_t>(vertices.size());
+            for (const std::array<double, 2>& point : points)
+            {
+                vertices.push_back(makeVertex(origin_x + (x_sign * point[0]), point[1], z, abgr));
+            }
+            for (std::size_t point = 1; point + 1 < points.size(); ++point)
+            {
+                indices.push_back(base);
+                indices.push_back(static_cast<std::uint16_t>(base + point));
+                indices.push_back(static_cast<std::uint16_t>(base + point + 1));
+            }
+        };
+
+        for (const ChordGroup& group : std::views::reverse(chord_groups))
+        {
+            if (group.count < 2 || group.start_seconds < now_seconds ||
+                group.start_seconds > span_end_seconds)
+            {
+                continue;
+            }
+            const auto [low_line, high_line] = activeFhpFretLines(state, group.start_seconds);
+            const double low_x = common::core::highwayFretLineX(low_line, metrics, mirrored);
+            const double high_x = common::core::highwayFretLineX(high_line, metrics, mirrored);
+            const auto [x0, x1] = std::minmax(low_x, high_x);
+            const double middle_x = (x0 + x1) / 2.0;
+            const double z = std::max(0.0, time_to_z(group.start_seconds));
+            const double y0 = 0.0;
+            const double full_height_y1 =
+                static_cast<double>(state.string_count + 1) * metrics.string_distance;
+            // The repeat box is half height (the reference's onlyBox treatment).
+            const double y1 = group.box_only ? (y0 + full_height_y1) / 2.0 : full_height_y1;
+            const bool with_top = group.count > 2;
+            const double thickness = g_chord_box_frame_thickness;
+
+            const std::uint32_t box_solid = packAbgr(g_chord_box_color);
+            const std::uint32_t box_half = packAbgr(g_chord_box_color, 128.0 / 255.0);
+            const std::uint32_t dark_half = packAbgr(g_chord_box_dark_color, 128.0 / 255.0);
+            const std::uint32_t box_faint = packAbgr(g_chord_box_color, 32.0 / 255.0);
+            const std::uint32_t dark_faint = packAbgr(g_chord_box_dark_color, 32.0 / 255.0);
+            const std::uint32_t box_clear = packAbgr(g_chord_box_color, 0.0);
+
+            // A vertical face quad with per-corner colors (the frame's gradient pieces).
+            const auto push_face = [&](const double xa,
+                                       const double ya,
+                                       const std::uint32_t ca,
+                                       const double xb,
+                                       const double yb,
+                                       const std::uint32_t cb) {
+                pushQuad(
+                    vertices,
+                    indices,
+                    makeVertex(xa, ya, z, ca),
+                    makeVertex(xb, ya, z, cb),
+                    makeVertex(xb, yb, z, cb),
+                    makeVertex(xa, yb, z, ca));
+            };
+            // A horizontal frame bar fading toward the middle from both ends.
+            const auto push_bar = [&](const double y) {
+                push_face(x0, y, box_half, middle_x, y + thickness, dark_half);
+                push_face(middle_x, y, dark_half, x1, y + thickness, box_half);
+            };
+
+            // Corner holders (background L behind the dark L).
+            for (const auto& [origin_x, x_sign] : {std::pair{x0, 1.0}, std::pair{x1, -1.0}})
+            {
+                push_fan(g_holder_background, origin_x, x_sign, z, box_solid);
+                push_fan(g_holder_front, origin_x, x_sign, z, packAbgr(g_chord_box_dark_color));
+            }
+
+            // Frame: bottom bar always; accent chevrons, full sides with a top bar, or short
+            // fading sides (the reference's three variants).
+            push_bar(y0);
+            if (group.any_accent)
+            {
+                const double dx = (x1 - x0) / 3.0;
+                const double y2 = y1 + (thickness * 2.0);
+                for (const auto& [origin_x, x_sign] : {std::pair{x0, 1.0}, std::pair{x1, -1.0}})
+                {
+                    // The reference's chevron strip, unrolled to triangles.
+                    const std::array<std::array<double, 2>, 6> strip{
+                        {{0.0, y0},
+                         {thickness * 2.0, y0},
+                         {0.0, y2},
+                         {thickness * 2.0, y1},
+                         {dx, y2},
+                         {dx + thickness, y1}}
+                    };
+                    const std::array<std::uint32_t, 6> strip_colors{
+                        box_solid, box_solid, box_solid, box_solid, box_half, box_half
+                    };
+                    const auto base = static_cast<std::uint16_t>(vertices.size());
+                    for (std::size_t point = 0; point < strip.size(); ++point)
+                    {
+                        vertices.push_back(makeVertex(
+                            origin_x + (x_sign * strip.at(point)[0]),
+                            strip.at(point)[1],
+                            z,
+                            strip_colors.at(point)));
+                    }
+                    for (std::size_t point = 0; point + 2 < strip.size(); ++point)
+                    {
+                        indices.push_back(static_cast<std::uint16_t>(base + point));
+                        indices.push_back(static_cast<std::uint16_t>(base + point + 1));
+                        indices.push_back(static_cast<std::uint16_t>(base + point + 2));
+                    }
+                }
+            }
+            else if (with_top)
+            {
+                for (const auto& [origin_x, x_sign] : {std::pair{x0, 1.0}, std::pair{x1, -1.0}})
+                {
+                    push_face(
+                        origin_x, y0, box_half, origin_x + (x_sign * thickness), y1, box_half);
+                }
+                push_bar(y1);
+            }
+            else
+            {
+                const double fade_start_y = (y0 + y1) / 2.0;
+                for (const auto& [origin_x, x_sign] : {std::pair{x0, 1.0}, std::pair{x1, -1.0}})
+                {
+                    const double column_x1 = origin_x + (x_sign * thickness);
+                    push_face(origin_x, y0, box_half, column_x1, fade_start_y, box_half);
+                    pushQuad(
+                        vertices,
+                        indices,
+                        makeVertex(origin_x, fade_start_y, z, box_half),
+                        makeVertex(column_x1, fade_start_y, z, box_half),
+                        makeVertex(column_x1, y1, z, box_clear),
+                        makeVertex(origin_x, y1, z, box_clear));
+                }
+            }
+
+            // Filling: the faint panel, darker toward the middle.
+            push_face(x0, y0, box_faint, middle_x, y1, dark_faint);
+            push_face(middle_x, y0, dark_faint, x1, y1, box_faint);
+
+            // Mute cross: thin X strokes on the repeat box alone (a full box's notes carry
+            // their own mute markers), light for full mutes and dark for palm mutes.
+            if (group.box_only && group.common_mute != common::core::NoteMute::None)
+            {
+                const double center_y = (y0 + y1) / 2.0;
+                const bool full = group.common_mute == common::core::NoteMute::Full;
+                const double d0y = 0.8 * (y1 - center_y);
+                const double d1y = (full ? 0.95 : 0.9) * (y1 - center_y);
+                const double d0x = full ? d0y : 0.8 * (x1 - middle_x);
+                const double d1x = full ? d1y : 0.9 * (x1 - middle_x);
+                const std::uint32_t cross =
+                    packAbgr(full ? g_chord_full_mute_cross_color : g_chord_palm_mute_cross_color);
+                pushQuad(
+                    vertices,
+                    indices,
+                    makeVertex(middle_x - d1x, center_y + d0y, z, cross),
+                    makeVertex(middle_x - d0x, center_y + d1y, z, cross),
+                    makeVertex(middle_x + d1x, center_y - d0y, z, cross),
+                    makeVertex(middle_x + d0x, center_y - d1y, z, cross));
+                pushQuad(
+                    vertices,
+                    indices,
+                    makeVertex(middle_x + d1x, center_y + d0y, z, cross),
+                    makeVertex(middle_x - d0x, center_y - d1y, z, cross),
+                    makeVertex(middle_x - d1x, center_y - d0y, z, cross),
+                    makeVertex(middle_x + d0x, center_y + d1y, z, cross));
+            }
+        }
+        submitBatch(vertices, indices, posColorLayout(), color_program.get(), nullptr);
     }
 
     const std::array<float, 4> head_cell = atlases.head_layout.cellRect(g_head_cell_standard);
@@ -1075,6 +1396,13 @@ void HighwayRenderer::Impl::draw(
     for (const std::size_t index : visible)
     {
         const common::core::HighwayNoteView& note = state.notes[index];
+        const ChordGroup& group = chord_groups[note_group[index - first_note]];
+        if (group.box_only)
+        {
+            // Repeated and dead strums render as their repeat box alone (reference visibility):
+            // no heads, shadows, tails, or anticipation for the group's notes.
+            continue;
+        }
         const double lane_y =
             common::core::highwayStringLaneY(note.string, state.string_count, metrics, invert);
         const ArgbColor base_color = stringLaneColor(note.string, state.string_count, palette);
@@ -1332,7 +1660,7 @@ void HighwayRenderer::Impl::draw(
 
         // Chord membership decides the rolling flip, the shadow, and the chord box (the
         // reference skips shadows for chord notes).
-        const bool in_chord = chord_groups[note_group[index - first_note]].count >= 2;
+        const bool in_chord = group.count >= 2;
 
         // Note shadow: the reference's vertical gradient fan — a string-colored glow rising
         // from the board toward the head, load-bearing for depth perception.
@@ -1501,189 +1829,6 @@ void HighwayRenderer::Impl::draw(
         posColorUvLayout(),
         texture_tint_program.get(),
         &heads_texture);
-
-    // --- Chord boxes: the reference's translucent panels at multi-note onsets, drawn after the
-    // notes (the transparent list) and gone once the onset crosses the hit line. ---
-    {
-        std::vector<PosColorVertex> vertices;
-        std::vector<std::uint16_t> indices;
-
-        // Corner-holder fan outlines (reference ChordBoxHolderModel): a teal L bracket with a
-        // dark inner L, at each bottom corner. Local coordinates; the right corner mirrors in X.
-        constexpr std::array<std::array<double, 2>, 6> g_holder_background{
-            {{-0.01, -0.01}, {1.01, -0.01}, {1.01, 0.11}, {0.11, 0.11}, {0.11, 1.11}, {-0.01, 1.01}}
-        };
-        constexpr std::array<std::array<double, 2>, 6> g_holder_front{
-            {{0.0, 0.0}, {1.0, 0.0}, {1.0, 0.1}, {0.1, 0.1}, {0.1, 1.1}, {0.0, 1.0}}
-        };
-        const auto push_fan = [&](const std::span<const std::array<double, 2>> points,
-                                  const double origin_x,
-                                  const double x_sign,
-                                  const double z,
-                                  const std::uint32_t abgr) {
-            const auto base = static_cast<std::uint16_t>(vertices.size());
-            for (const std::array<double, 2>& point : points)
-            {
-                vertices.push_back(makeVertex(origin_x + (x_sign * point[0]), point[1], z, abgr));
-            }
-            for (std::size_t point = 1; point + 1 < points.size(); ++point)
-            {
-                indices.push_back(base);
-                indices.push_back(static_cast<std::uint16_t>(base + point));
-                indices.push_back(static_cast<std::uint16_t>(base + point + 1));
-            }
-        };
-
-        for (const ChordGroup& group : chord_groups)
-        {
-            if (group.count < 2 || group.start_seconds < now_seconds ||
-                group.start_seconds > span_end_seconds)
-            {
-                continue;
-            }
-            const auto [low_line, high_line] = activeFhpFretLines(state, group.start_seconds);
-            const double low_x = common::core::highwayFretLineX(low_line, metrics, mirrored);
-            const double high_x = common::core::highwayFretLineX(high_line, metrics, mirrored);
-            const auto [x0, x1] = std::minmax(low_x, high_x);
-            const double middle_x = (x0 + x1) / 2.0;
-            const double z = std::max(0.0, time_to_z(group.start_seconds));
-            const double y0 = 0.0;
-            const double y1 = static_cast<double>(state.string_count + 1) * metrics.string_distance;
-            const bool with_top = group.count > 2;
-            const double thickness = g_chord_box_frame_thickness;
-
-            const std::uint32_t box_solid = packAbgr(g_chord_box_color);
-            const std::uint32_t box_half = packAbgr(g_chord_box_color, 128.0 / 255.0);
-            const std::uint32_t dark_half = packAbgr(g_chord_box_dark_color, 128.0 / 255.0);
-            const std::uint32_t box_faint = packAbgr(g_chord_box_color, 32.0 / 255.0);
-            const std::uint32_t dark_faint = packAbgr(g_chord_box_dark_color, 32.0 / 255.0);
-            const std::uint32_t box_clear = packAbgr(g_chord_box_color, 0.0);
-
-            // A vertical face quad with per-corner colors (the frame's gradient pieces).
-            const auto push_face = [&](const double xa,
-                                       const double ya,
-                                       const std::uint32_t ca,
-                                       const double xb,
-                                       const double yb,
-                                       const std::uint32_t cb) {
-                pushQuad(
-                    vertices,
-                    indices,
-                    makeVertex(xa, ya, z, ca),
-                    makeVertex(xb, ya, z, cb),
-                    makeVertex(xb, yb, z, cb),
-                    makeVertex(xa, yb, z, ca));
-            };
-            // A horizontal frame bar fading toward the middle from both ends.
-            const auto push_bar = [&](const double y) {
-                push_face(x0, y, box_half, middle_x, y + thickness, dark_half);
-                push_face(middle_x, y, dark_half, x1, y + thickness, box_half);
-            };
-
-            // Corner holders (background L behind the dark L).
-            for (const auto& [origin_x, x_sign] : {std::pair{x0, 1.0}, std::pair{x1, -1.0}})
-            {
-                push_fan(g_holder_background, origin_x, x_sign, z, box_solid);
-                push_fan(g_holder_front, origin_x, x_sign, z, packAbgr(g_chord_box_dark_color));
-            }
-
-            // Frame: bottom bar always; accent chevrons, full sides with a top bar, or short
-            // fading sides (the reference's three variants).
-            push_bar(y0);
-            if (group.any_accent)
-            {
-                const double dx = (x1 - x0) / 3.0;
-                const double y2 = y1 + (thickness * 2.0);
-                for (const auto& [origin_x, x_sign] : {std::pair{x0, 1.0}, std::pair{x1, -1.0}})
-                {
-                    // The reference's chevron strip, unrolled to triangles.
-                    const std::array<std::array<double, 2>, 6> strip{
-                        {{0.0, y0},
-                         {thickness * 2.0, y0},
-                         {0.0, y2},
-                         {thickness * 2.0, y1},
-                         {dx, y2},
-                         {dx + thickness, y1}}
-                    };
-                    const std::array<std::uint32_t, 6> strip_colors{
-                        box_solid, box_solid, box_solid, box_solid, box_half, box_half
-                    };
-                    const auto base = static_cast<std::uint16_t>(vertices.size());
-                    for (std::size_t point = 0; point < strip.size(); ++point)
-                    {
-                        vertices.push_back(makeVertex(
-                            origin_x + (x_sign * strip.at(point)[0]),
-                            strip.at(point)[1],
-                            z,
-                            strip_colors.at(point)));
-                    }
-                    for (std::size_t point = 0; point + 2 < strip.size(); ++point)
-                    {
-                        indices.push_back(static_cast<std::uint16_t>(base + point));
-                        indices.push_back(static_cast<std::uint16_t>(base + point + 1));
-                        indices.push_back(static_cast<std::uint16_t>(base + point + 2));
-                    }
-                }
-            }
-            else if (with_top)
-            {
-                for (const auto& [origin_x, x_sign] : {std::pair{x0, 1.0}, std::pair{x1, -1.0}})
-                {
-                    push_face(
-                        origin_x, y0, box_half, origin_x + (x_sign * thickness), y1, box_half);
-                }
-                push_bar(y1);
-            }
-            else
-            {
-                const double fade_start_y = (y0 + y1) / 2.0;
-                for (const auto& [origin_x, x_sign] : {std::pair{x0, 1.0}, std::pair{x1, -1.0}})
-                {
-                    const double column_x1 = origin_x + (x_sign * thickness);
-                    push_face(origin_x, y0, box_half, column_x1, fade_start_y, box_half);
-                    pushQuad(
-                        vertices,
-                        indices,
-                        makeVertex(origin_x, fade_start_y, z, box_half),
-                        makeVertex(column_x1, fade_start_y, z, box_half),
-                        makeVertex(column_x1, y1, z, box_clear),
-                        makeVertex(origin_x, y1, z, box_clear));
-                }
-            }
-
-            // Filling: the faint panel, darker toward the middle.
-            push_face(x0, y0, box_faint, middle_x, y1, dark_faint);
-            push_face(middle_x, y0, dark_faint, x1, y1, box_faint);
-
-            // Mute cross: an X across the panel when every chord note shares the mute.
-            if (group.common_mute != common::core::NoteMute::None)
-            {
-                const double center_y = (y0 + y1) / 2.0;
-                const bool full = group.common_mute == common::core::NoteMute::Full;
-                const double d0y = 0.8 * (y1 - center_y);
-                const double d1y = (full ? 0.95 : 0.9) * (y1 - center_y);
-                const double d0x = full ? d0y : 0.8 * (x1 - middle_x);
-                const double d1x = full ? d1y : 0.9 * (x1 - middle_x);
-                const std::uint32_t cross =
-                    packAbgr(full ? g_chord_full_mute_cross_color : g_chord_palm_mute_cross_color);
-                pushQuad(
-                    vertices,
-                    indices,
-                    makeVertex(middle_x - d1x, center_y + d0y, z, cross),
-                    makeVertex(middle_x - d0x, center_y + d1y, z, cross),
-                    makeVertex(middle_x + d1x, center_y - d0y, z, cross),
-                    makeVertex(middle_x + d0x, center_y - d1y, z, cross));
-                pushQuad(
-                    vertices,
-                    indices,
-                    makeVertex(middle_x + d1x, center_y + d0y, z, cross),
-                    makeVertex(middle_x - d0x, center_y - d1y, z, cross),
-                    makeVertex(middle_x - d1x, center_y - d0y, z, cross),
-                    makeVertex(middle_x + d0x, center_y + d1y, z, cross));
-            }
-        }
-        submitBatch(vertices, indices, posColorLayout(), color_program.get(), nullptr);
-    }
 
     // --- Board face: dynamic fret lines with the reference's three states (inactive, active
     // within current and upcoming hand windows, and the sqrt-decay hit-flash that thickens up
