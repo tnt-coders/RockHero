@@ -96,8 +96,30 @@ HighwayViewState makeHighwayViewState(
             ++simultaneous;
         }
 
-        std::string name = shape.chord < chart.templates.size() ? chart.templates[shape.chord].name
-                                                                : std::string{};
+        std::string name;
+        std::vector<HighwayShapeStringView> strings;
+        if (shape.chord < chart.templates.size())
+        {
+            const ChordTemplate& chord_template = chart.templates[shape.chord];
+            name = chord_template.name;
+            // Posture entries carry the template's per-string frets and fingerings for the
+            // fingering panel and the arpeggio brackets; array index 0 is the lowest string.
+            for (std::size_t index = 0; index < chord_template.frets.size(); ++index)
+            {
+                if (!chord_template.frets[index].has_value())
+                {
+                    continue;
+                }
+                strings.push_back(
+                    HighwayShapeStringView{
+                        .string = static_cast<int>(index) + 1,
+                        .fret = *chord_template.frets[index],
+                        .finger = index < chord_template.fingers.size()
+                                      ? chord_template.fingers[index]
+                                      : std::nullopt,
+                    });
+            }
+        }
         state.shapes.push_back(
             HighwayShapeView{
                 .start_seconds = tempo_map.secondsAtGlobalBeatPosition(start_beat),
@@ -105,6 +127,7 @@ HighwayViewState makeHighwayViewState(
                     tempo_map.secondsAtGlobalBeatPosition(start_beat + shape.sustain.toDouble()),
                 .name = std::move(name),
                 .arpeggio = simultaneous < 2,
+                .strings = std::move(strings),
             });
     }
 

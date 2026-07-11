@@ -70,6 +70,9 @@ struct HighwayTextureSet
 
     /*! \brief Fretboard skin PNG (8x4 grid, one 256x512 cell per fret). */
     std::vector<std::byte> inlay_atlas_png;
+
+    /*! \brief Fingering-panel PNG (4x4 grid: barre shapes plus finger name glyphs). */
+    std::vector<std::byte> fingering_png;
 };
 
 /*! \brief Stable reasons the highway renderer can fail to come up. */
