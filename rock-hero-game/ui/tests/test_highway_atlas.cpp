@@ -2,6 +2,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <optional>
 
 namespace rock_hero::game::ui
 {
@@ -43,17 +44,26 @@ TEST_CASE("Highway atlas layout clamps out-of-range cells", "[ui][highway]")
 
 TEST_CASE("Highway glyph mapping covers printable ASCII only", "[ui][highway]")
 {
-    REQUIRE(highwayGlyphCellIndex('!').has_value());
-    if (highwayGlyphCellIndex('!').has_value())
+    // Locals + explicit guards: the optional-access checker cannot connect two separate calls,
+    // so each value is bound once and dereferenced only inside its own has_value() branch.
+    const std::optional<int> bang = highwayGlyphCellIndex('!');
+    REQUIRE(bang.has_value());
+    if (bang.has_value())
     {
-        CHECK(*highwayGlyphCellIndex('!') == 0);
+        CHECK(*bang == 0);
     }
-    REQUIRE(highwayGlyphCellIndex('0').has_value());
-    if (highwayGlyphCellIndex('0').has_value())
+    const std::optional<int> zero = highwayGlyphCellIndex('0');
+    REQUIRE(zero.has_value());
+    if (zero.has_value())
     {
-        CHECK(*highwayGlyphCellIndex('0') == '0' - '!');
+        CHECK(*zero == '0' - '!');
     }
-    CHECK(*highwayGlyphCellIndex('~') == '~' - '!');
+    const std::optional<int> tilde = highwayGlyphCellIndex('~');
+    REQUIRE(tilde.has_value());
+    if (tilde.has_value())
+    {
+        CHECK(*tilde == '~' - '!');
+    }
     CHECK_FALSE(highwayGlyphCellIndex(' ').has_value());
     CHECK_FALSE(highwayGlyphCellIndex('\n').has_value());
     CHECK_FALSE(highwayGlyphCellIndex(static_cast<char>(127)).has_value());
