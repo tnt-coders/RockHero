@@ -4,7 +4,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <optional>
 
-namespace rock_hero::game::ui
+namespace rock_hero::common::ui
 {
 
 TEST_CASE("Highway atlas layout reports its grid capacity", "[ui][highway]")
@@ -69,4 +69,4 @@ TEST_CASE("Highway glyph mapping covers printable ASCII only", "[ui][highway]")
     CHECK_FALSE(highwayGlyphCellIndex(static_cast<char>(127)).has_value());
 }
 
-} // namespace rock_hero::game::ui
+} // namespace rock_hero::common::ui

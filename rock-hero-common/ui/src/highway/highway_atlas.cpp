@@ -6,7 +6,7 @@
 #include <juce_graphics/juce_graphics.h>
 #include <string>
 
-namespace rock_hero::game::ui
+namespace rock_hero::common::ui
 {
 
 namespace
@@ -187,4 +187,4 @@ HighwayAtlases makeHighwayAtlases()
     return atlases;
 }
 
-} // namespace rock_hero::game::ui
+} // namespace rock_hero::common::ui
