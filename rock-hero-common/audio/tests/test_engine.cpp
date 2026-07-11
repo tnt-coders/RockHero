@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <chrono>
 #include <cmath>
 #include <compare>
@@ -682,8 +683,8 @@ TEST_CASE("Engine live rig loads empty tone", "[audio][engine][integration]")
         const auto& load_result = result.value();
         REQUIRE(load_result.has_value());
         CHECK(load_result->plugins.empty());
-        CHECK(load_result->output_gain.db == 0.0);
-        CHECK(live_rig.outputGain().db == 0.0);
+        CHECK_THAT(load_result->output_gain.db, Catch::Matchers::WithinULP(0.0, 0));
+        CHECK_THAT(live_rig.outputGain().db, Catch::Matchers::WithinULP(0.0, 0));
         CHECK(live_input.inputGain().db == Catch::Approx(18.0));
     }
 }

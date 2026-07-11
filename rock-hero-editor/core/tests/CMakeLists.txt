@@ -61,8 +61,7 @@ target_link_libraries(
             rock_hero::juce_core
             rock_hero::common::audio_testing
             rock_hero::editor::core_testing
-            Catch2::Catch2WithMain
-            rock_hero::test_warning_exceptions)
+            Catch2::Catch2WithMain)
 
 # Keep persisted editor-settings files inside the build tree.
 target_compile_definitions(rock_hero_editor_core_tests

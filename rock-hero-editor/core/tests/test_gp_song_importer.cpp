@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cmath>
 #include <cstddef>
 #include <filesystem>
@@ -204,7 +205,7 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(arrangement.audio_asset.path == std::filesystem::path{"audio"} / "backing.flac");
     CHECK_FALSE(std::filesystem::exists(workspace / "audio" / "backing_source.wav"));
     // No frame padding in the fixture, so the audio starts at the score's first beat.
-    CHECK(arrangement.audio_asset.start_offset.seconds == 0.0);
+    CHECK_THAT(arrangement.audio_asset.start_offset.seconds, Catch::Matchers::WithinULP(0.0, 0));
 
     const common::core::Chart& chart = requiredChart(arrangement);
     CHECK(chart.tuning.strings == std::vector<std::string>{"E2", "A2", "D3", "G3", "B3", "E4"});
@@ -429,7 +430,9 @@ TEST_CASE("Guitar Pro import ignores negative frame padding", "[core][gp-import]
     const auto song = importer.importSong(archive, workspace);
     REQUIRE(song.has_value());
     REQUIRE(song->arrangements.size() == 1);
-    CHECK(song->arrangements.front().audio_asset.start_offset.seconds == 0.0);
+    CHECK_THAT(
+        song->arrangements.front().audio_asset.start_offset.seconds,
+        Catch::Matchers::WithinULP(0.0, 0));
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }

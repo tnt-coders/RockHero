@@ -69,13 +69,3 @@ add_library(rock_hero::build_policy ALIAS rock_hero_build_policy)
 target_link_libraries(
     rock_hero_build_policy INTERFACE rock_hero::warning_flags rock_hero::config_flags
                                      rock_hero::lto_flags rock_hero::warnings_as_errors)
-
-# Warning exceptions for test targets. Tests deliberately assert exact floating-point round-trips,
-# and GCC's -Wfloat-equal fires through Catch2's assertion decomposition on every such CHECK
-# (Clang and MSVC never warn through the decomposition), so the warning carries no signal there.
-# Test targets must link this AFTER rock_hero::build_policy: interface options accumulate in link
-# order, and the disable only wins when it lands after the warning baseline on the command line.
-add_library(rock_hero_test_warning_exceptions INTERFACE)
-add_library(rock_hero::test_warning_exceptions ALIAS rock_hero_test_warning_exceptions)
-target_compile_options(rock_hero_test_warning_exceptions
-                       INTERFACE "$<$<CXX_COMPILER_ID:GNU>:-Wno-float-equal>")

@@ -30,7 +30,7 @@ target_include_directories(rock_hero_common_core_tests PRIVATE "${CMAKE_CURRENT_
 # These tests stay focused on shared domain behavior and native song package rules.
 target_link_libraries(
     rock_hero_common_core_tests PRIVATE rock_hero::common::core rock_hero::build_policy
-                                        Catch2::Catch2WithMain rock_hero::test_warning_exceptions)
+                                        Catch2::Catch2WithMain)
 
 # Register the discovered Catch2 cases with CTest.
 catch_discover_tests(rock_hero_common_core_tests)
