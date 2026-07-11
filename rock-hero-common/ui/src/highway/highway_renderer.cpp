@@ -1184,8 +1184,10 @@ void HighwayRenderer::Impl::draw(
             const double middle_x = (x0 + x1) / 2.0;
             const double z = std::max(0.0, time_to_z(group.start_seconds));
             const double y0 = 0.0;
+            // Half a string above the top lane (which now sits at (count - 0.5) * string_distance),
+            // matching the reference box top of one string above the top string.
             const double full_height_y1 =
-                static_cast<double>(state.string_count + 1) * metrics.string_distance;
+                (static_cast<double>(state.string_count) + 0.5) * metrics.string_distance;
             // The repeat box is half height (the reference's onlyBox treatment).
             const double y1 = group.box_only ? (y0 + full_height_y1) / 2.0 : full_height_y1;
             const bool with_top = group.count > 2;
@@ -1833,9 +1835,11 @@ void HighwayRenderer::Impl::draw(
     // --- Board face: dynamic fret lines with the reference's three states (inactive, active
     // within current and upcoming hand windows, and the sqrt-decay hit-flash that thickens up
     // to 4x — a large part of the alive feel), drawn over passing content. ---
+    // Fret lines run from the board (y = 0) to here; with lanes centered on half-string offsets
+    // (highwayLaneToY) this leaves an equal half-string margin above the top lane and below the
+    // bottom one.
     const double face_top_y =
-        (static_cast<double>(std::max(state.string_count, 1)) * metrics.string_distance) +
-        (metrics.string_distance * 0.5);
+        static_cast<double>(std::max(state.string_count, 1)) * metrics.string_distance;
     {
         // Active fret lines: the current hand range plus every window arriving soon.
         std::array<bool, g_face_fret_count + 1> active{};
@@ -2135,7 +2139,7 @@ void HighwayRenderer::Impl::draw(
                     }
                 }
                 const auto lane_center_y = [&](const int lane) {
-                    return static_cast<double>(lane) * metrics.string_distance;
+                    return common::core::highwayLaneToY(lane, metrics);
                 };
                 for (std::size_t finger = 0; finger < fingers.size(); ++finger)
                 {
@@ -2235,9 +2239,7 @@ void HighwayRenderer::Impl::draw(
         }
 
         // Section labels floating above the board at their arrival time.
-        const double section_y =
-            (static_cast<double>(std::max(state.string_count, 1)) * metrics.string_distance) +
-            (metrics.string_distance * 2.0);
+        const double section_y = face_top_y + (metrics.string_distance * 1.5);
         for (const common::core::HighwaySectionView& section : state.sections)
         {
             if (section.seconds < now_seconds - 0.5 || section.seconds > span_end_seconds)
@@ -2261,8 +2263,7 @@ void HighwayRenderer::Impl::draw(
 
         // Chord names ride the hit line while their shape is active (reference placement: left
         // of the hand window, above the top lane), skipped once the shape is about to end.
-        const double chord_name_y =
-            (static_cast<double>(std::max(state.string_count, 1)) * metrics.string_distance) + 0.5;
+        const double chord_name_y = face_top_y - (metrics.string_distance * 0.5) + 0.5;
         for (const common::core::HighwayShapeView& shape : state.shapes)
         {
             if (shape.name.empty() || shape.end_seconds < now_seconds ||
