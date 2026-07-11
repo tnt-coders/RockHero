@@ -111,9 +111,9 @@ TEST_CASE("Highway wobbles are onset-phased and bounded", "[core][highway][tail]
     CHECK(highwayTremoloWobble(0.0) == Catch::Approx(0.75));
     CHECK(highwayTremoloWobble(g_highway_tremolo_period_seconds / 2.0) == Catch::Approx(-0.75));
     CHECK(highwayTremoloWobble(g_highway_tremolo_period_seconds) == Catch::Approx(0.75));
-    for (double t = 0.0; t < 0.2; t += 0.007)
+    for (int step = 0; step < 30; ++step)
     {
-        const double wobble = highwayTremoloWobble(t);
+        const double wobble = highwayTremoloWobble(0.007 * step);
         CHECK(wobble >= -0.75);
         CHECK(wobble <= 0.75);
     }
