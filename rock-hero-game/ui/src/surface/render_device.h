@@ -80,6 +80,14 @@ struct RenderDeviceConfig
 
     /*! \brief True enables vsync — the gate's default frame-pacing policy (20-Q6: A). */
     bool vsync = true;
+
+    /*!
+    \brief True enables bgfx's debug checks and the D3D11 SDK debug layers when present.
+
+    Wired to the dev-diagnostics runtime flag (plan 20 Phase 4, 20-Q5: A); bgfx degrades
+    gracefully when the debug layers are not installed.
+    */
+    bool debug = false;
 };
 
 /*!

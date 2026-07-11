@@ -40,6 +40,14 @@ struct GameShellOptions
     math inside the shared highway projection and camera.
     */
     bool lefty{false};
+
+    /*!
+    \brief True activates the dev-diagnostics layer (plan 20 Phase 4, 20-Q5: A).
+
+    Compiled into every build; this runtime flag turns on the diagnostics overlay and its key
+    toggles, chart hot-reload, section seeking, and the bgfx debug checks. Players never pass it.
+    */
+    bool dev_mode{false};
 };
 
 /*!
