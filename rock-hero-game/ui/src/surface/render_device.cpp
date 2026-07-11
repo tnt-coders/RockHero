@@ -261,9 +261,9 @@ void RenderDevice::submitFrame()
         // positions only because no view or model transform is ever set — bgfx defaults both to
         // identity; a future pass that sets view transforms must not reuse view 0 for this draw.
         constexpr std::array<SurfaceVertex, 3> vertices{
-            SurfaceVertex{0.0F, 0.5F, 0.0F, 0xff408080},
-            SurfaceVertex{0.5F, -0.5F, 0.0F, 0xff804080},
-            SurfaceVertex{-0.5F, -0.5F, 0.0F, 0xff808040},
+            SurfaceVertex{.x = 0.0F, .y = 0.5F, .z = 0.0F, .abgr = 0xff408080},
+            SurfaceVertex{.x = 0.5F, .y = -0.5F, .z = 0.0F, .abgr = 0xff804080},
+            SurfaceVertex{.x = -0.5F, .y = -0.5F, .z = 0.0F, .abgr = 0xff808040},
         };
 
         const bgfx::VertexLayout& layout = surfaceVertexLayout();
