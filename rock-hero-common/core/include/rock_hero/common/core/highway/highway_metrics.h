@@ -80,10 +80,18 @@ struct HighwayMetrics
     /*!
     \brief Neck position the focus blends toward (world X of Charter's weighted whole-neck spot).
 
-    Charter blends 10% toward a fixed weighted position over the whole neck; the equivalent world
-    X for the default metrics sits around the neck's middle frets.
+    Charter's weighted position is fretPos(24) * 0.4 + fretPos(0) * 0.6 = 11.52 for the default
+    24-fret, equal-width neck (source-verified 2026-07-11).
     */
-    double focus_whole_neck_x{7.2};
+    double focus_whole_neck_x{11.52};
+
+    /*!
+    \brief Constant world-X offset added to the focus target.
+
+    Charter's focus formula is `1 + middle * 0.9 + weighted * 0.1` — the leading +1 shifts the
+    framed window slightly toward the body. Mirrored setups negate it.
+    */
+    double focus_x_offset{1.0};
 
     /*!
     \brief Fraction of the remaining focus distance covered per second of smoothing.
@@ -99,10 +107,28 @@ struct HighwayMetrics
     The camera projects the world point (focus X, board surface, hit line) and then translates
     the whole picture vertically so that point lands at this NDC height. The translation is
     deliberately vertical-only: the board slides freely left/right as the fret focus moves while
-    the anchor height never changes — one of the two properties that make the reference view
-    read correctly (the other is exact verticality; see highway_camera.h).
+    the anchor height never changes.
     */
     double ndc_pin_y{-0.9};
+
+    /*!
+    \brief Downward camera pitch in radians (Charter rotX = 0.06).
+
+    Together with the yaw this is what gives the reference view its held-guitar-neck reading:
+    the pitch places the vanishing point, the yaw tilts the strings. Zeroing both restores the
+    exactly-vertical zero-rotation projection (the original defect-7 formulation), which remains
+    tested at zero rotation.
+    */
+    double camera_pitch_radians{0.06};
+
+    /*!
+    \brief Camera yaw in radians (Charter rotY = 0.03), negated under the lefty mirror.
+
+    The yaw makes camera depth vary along a string, so strings slope ~2-3 degrees on screen and
+    the body-side neck end renders slightly larger — the angled-neck look (source-verified
+    2026-07-11; the zero-rotation formulation looked flat by comparison, the user's observation).
+    */
+    double camera_yaw_radians{0.03};
 
     /*! \brief Near clip plane distance. */
     double near_plane{0.1};
@@ -111,15 +137,21 @@ struct HighwayMetrics
     double far_plane{100.0};
 
     /*!
-    \brief Vertical field of view in degrees.
+    \brief Base perspective scale of the reference frustum (Charter near / nearRight = 2/3).
 
-    Not pinned by the reference analysis; 90 degrees (projection scale 1.0) is the value at
-    which the pinned board framing works out for the default camera constants — the anchor sits
-    steeply below the view axis, so a narrow field would push the pinned picture off screen.
-    Tuned live once the board renders (plan 25 Phase 3); the pin and verticality invariants hold
-    for any value.
+    Charter's projection multiplies camera-space X and Y by this base times an aspect-dependent
+    screen scale (see makeHighwayWorldToClip); the resulting field of view is very wide
+    (~143 degrees horizontal at 16:9), which is a large part of the reference composition.
     */
-    double field_of_view_y_degrees{90.0};
+    double frustum_scale_base{2.0 / 3.0};
+
+    /*!
+    \brief Extra vertical screen-scale lift (Charter's +0.05 on screenScaleY).
+
+    A deliberate reference fudge: roughly 5 percent more vertical magnification than square
+    pixels would give, kept for visual parity.
+    */
+    double frustum_y_lift{0.05};
 
     /*! \brief Divisor applied to the camera position for the parallax background layer. */
     double background_parallax_divisor{4.0};

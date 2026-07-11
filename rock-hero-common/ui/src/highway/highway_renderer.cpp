@@ -28,8 +28,24 @@ constexpr bgfx::ViewId g_background_view = 0;
 constexpr bgfx::ViewId g_board_view = 1;
 constexpr bgfx::ViewId g_overlay_view = 2;
 
-// Backdrop clear color behind the whole scene (0xRRGGBBAA).
-constexpr std::uint32_t g_backdrop_color = 0x14141cff;
+// Backdrop clear color behind the whole scene (0xRRGGBBAA); the reference clears to black.
+constexpr std::uint32_t g_backdrop_color = 0x000000ff;
+
+// Reference board-furniture colors (0xAARRGGBB), source-verified 2026-07-11.
+constexpr ArgbColor g_beat_bar_color = 0xFF0F3B5E;        // beat and measure bars alike
+constexpr ArgbColor g_fhp_lane_color = 0x402590E8;        // lit runway gap
+constexpr ArgbColor g_fhp_lane_dotted_color = 0x40185C94; // darker gap on inlay-dotted frets
+constexpr ArgbColor g_lane_border_color = 0x0007928F;     // per-fret runway ribbons (alpha varies)
+constexpr ArgbColor g_fret_inactive_color = 0xFF202020;
+constexpr ArgbColor g_fret_active_color = 0xFFC0C0C0;
+constexpr ArgbColor g_fret_highlight_color = 0xFFFFA000;
+
+// Hand-window activity horizon for the active fret state, and the fret hit-flash length.
+constexpr double g_fret_active_horizon_seconds = 0.5;
+constexpr double g_fret_flash_seconds = 0.1;
+
+// Anticipation ring window before a note lands (reference: 500 ms).
+constexpr double g_anticipation_seconds = 0.5;
 
 // Board content draws painter-ordered with alpha throughout (the reference's model), so one
 // blended, depth-test-only state word covers the whole board view. No cull bits on purpose:
@@ -151,6 +167,27 @@ struct PosColorUvVertex
     return (alpha << 24U) | (blue << 16U) | (green << 8U) | red;
 }
 
+// Linear blend between two 0xAARRGGBB colors (the fret hit-flash mix).
+[[nodiscard]] ArgbColor mixArgb(const ArgbColor from, const ArgbColor to, const double weight)
+{
+    const double w = std::clamp(weight, 0.0, 1.0);
+    ArgbColor result = 0;
+    for (const unsigned shift : {24U, 16U, 8U, 0U})
+    {
+        const double a = static_cast<double>((from >> shift) & 0xFFU);
+        const double b = static_cast<double>((to >> shift) & 0xFFU);
+        result |= static_cast<ArgbColor>(std::clamp(a + ((b - a) * w), 0.0, 255.0)) << shift;
+    }
+    return result;
+}
+
+// Reference inlay-dot pattern: fret % 12 in {0, 3, 5, 7, 9} carries a marker.
+[[nodiscard]] bool isDottedFret(const int fret)
+{
+    const int cycle = ((fret % 12) + 12) % 12;
+    return cycle == 0 || cycle == 3 || cycle == 5 || cycle == 7 || cycle == 9;
+}
+
 // Fret window of the hand position active at a given time; the reference four-fret nut window
 // when the chart has none yet.
 [[nodiscard]] std::pair<int, int> activeFhpFretLines(
@@ -207,6 +244,21 @@ void pushFloorQuad(
         makeVertex(x0, y, z1, abgr));
 }
 
+// Floor quad with per-end colors: the reference's beat-bar gradient wings.
+void pushFloorQuadGradient(
+    std::vector<PosColorVertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
+    const double x1, const double y, const double z0, const double z1,
+    const std::uint32_t abgr_at_z0, const std::uint32_t abgr_at_z1)
+{
+    pushQuad(
+        vertices,
+        indices,
+        makeVertex(x0, y, z0, abgr_at_z0),
+        makeVertex(x1, y, z0, abgr_at_z0),
+        makeVertex(x1, y, z1, abgr_at_z1),
+        makeVertex(x0, y, z1, abgr_at_z1));
+}
+
 // Axis-aligned quad on the board face (z constant, spanning x and y).
 void pushFaceQuad(
     std::vector<PosColorVertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
@@ -251,12 +303,16 @@ struct HighwayRenderer::Impl
     UniqueBgfxHandle<bgfx::ProgramHandle> color_fade_program;
     UniqueBgfxHandle<bgfx::ProgramHandle> texture_tint_program;
     UniqueBgfxHandle<bgfx::ProgramHandle> glyph_program;
+    UniqueBgfxHandle<bgfx::ProgramHandle> texture_program;
 
     // Custom uniforms (predefined ones like u_modelViewProj are never created by hand).
     UniqueBgfxHandle<bgfx::UniformHandle> fade_params;
     UniqueBgfxHandle<bgfx::UniformHandle> atlas_sampler;
 
     HighwayAtlases atlases;
+
+    // Fretboard skin (one cell per fret); invalid when the asset is missing (plain board).
+    UniqueBgfxHandle<bgfx::TextureHandle> inlay_texture;
 
     // Retained board-face geometry; rebuilt on chart load, streamed content uses transients.
     UniqueBgfxHandle<bgfx::VertexBufferHandle> face_vertices;
@@ -268,8 +324,8 @@ struct HighwayRenderer::Impl
     common::core::HighwayMetrics metrics;
     common::core::HighwayCamera camera;
 
-    // Player scroll speed; a free setting later (25-Q3), constant 1.0 for the skeleton.
-    double scroll_speed{1.0};
+    // Player scroll speed; a free setting later (25-Q3), the reference default until then.
+    double scroll_speed{1.3};
 
     // One warning per process when a transient batch is dropped (budget exceeded is a bug
     // signal, not an expected runtime path).
@@ -327,7 +383,7 @@ struct HighwayRenderer::Impl
 };
 
 std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
-    const HighwayShaderSet& shaders)
+    const HighwayShaderSet& shaders, const HighwayTextureSet& textures)
 {
     auto impl = std::make_unique<Impl>();
 
@@ -335,25 +391,38 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
     auto color_fade = linkProgram(shaders.color_fade, "color_fade");
     auto texture_tint = linkProgram(shaders.texture_tint, "texture_tint");
     auto glyph = linkProgram(shaders.glyph, "glyph");
-    if (!color || !color_fade || !texture_tint || !glyph)
+    auto texture = linkProgram(shaders.texture, "texture");
+    if (!color || !color_fade || !texture_tint || !glyph || !texture)
     {
         const auto& failed = !color          ? color.error()
                              : !color_fade   ? color_fade.error()
                              : !texture_tint ? texture_tint.error()
-                                             : glyph.error();
+                             : !glyph        ? glyph.error()
+                                             : texture.error();
         return std::unexpected{failed};
     }
     impl->color_program = std::move(*color);
     impl->color_fade_program = std::move(*color_fade);
     impl->texture_tint_program = std::move(*texture_tint);
     impl->glyph_program = std::move(*glyph);
+    impl->texture_program = std::move(*texture);
 
     impl->fade_params = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
         "u_fade_params", bgfx::UniformType::Vec4)};
     impl->atlas_sampler = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
         "s_atlas", bgfx::UniformType::Sampler)};
 
-    impl->atlases = makeHighwayAtlases();
+    impl->atlases = makeHighwayAtlases(textures.note_atlas_png);
+    impl->inlay_texture = uploadPngTexture(textures.inlay_atlas_png);
+    if (!impl->atlases.reference_cells || !impl->inlay_texture.isValid())
+    {
+        RH_LOG_WARNING(
+            "common.highway",
+            "reference texture assets unavailable (heads={}, inlays={}); procedural fallbacks in "
+            "use",
+            impl->atlases.reference_cells,
+            impl->inlay_texture.isValid());
+    }
 
     return HighwayRenderer{std::move(impl)};
 }
@@ -388,8 +457,9 @@ void HighwayRenderer::drawOverlayRects(
     m_impl->drawOverlayRects(rects, width, height);
 }
 
-// The board face is the neck picture standing at the hit line: per-string colored string lines,
-// fret lines, and inlay dots, all on the z = 0 plane. Rebuilt only when the chart changes.
+// The retained half of the board face: the per-string colored string lines on the z = 0 plane.
+// Fret lines moved to the dynamic pass (they carry the reference's per-frame active and
+// hit-flash states); the fretboard picture itself is the inlay skin texture.
 void HighwayRenderer::Impl::rebuildBoardFace()
 {
     face_vertices.reset();
@@ -410,36 +480,6 @@ void HighwayRenderer::Impl::rebuildBoardFace()
     const double x_start = common::core::highwayFretLineX(0, metrics, mirrored);
     const double x_end = common::core::highwayFretLineX(g_face_fret_count, metrics, mirrored);
     const auto [x_low, x_high] = std::minmax(x_start, x_end);
-    const double y_top =
-        common::core::highwayStringLaneY(state.string_count, state.string_count, metrics, false) +
-        (metrics.string_distance * 0.5);
-
-    // Fret lines: thin vertical quads across the string span; the nut is slightly heavier.
-    for (int fret = 0; fret <= g_face_fret_count; ++fret)
-    {
-        const double x = common::core::highwayFretLineX(fret, metrics, mirrored);
-        const double half = fret == 0 ? 0.03 : 0.015;
-        pushFaceQuad(
-            vertices, indices, x - half, x + half, 0.0, y_top, 0.0, packAbgr(0xFF9A9A9A, 0.65));
-    }
-
-    // Inlay dots at the traditional markers, drawn as small quads mid-face.
-    const double inlay_y = y_top * 0.5;
-    for (const int fret : {3, 5, 7, 9, 12, 15, 17, 19, 21, 24})
-    {
-        const double x = common::core::highwayNoteCenterX(fret, metrics, mirrored);
-        const double half = metrics.first_fret_distance * 0.11;
-        const double twelfth = (fret % 12) == 0 ? metrics.string_distance * 0.7 : 0.0;
-        pushFaceQuad(
-            vertices,
-            indices,
-            x - half,
-            x + half,
-            inlay_y - half - twelfth,
-            inlay_y + half + twelfth,
-            0.0,
-            packAbgr(0xFFFFFFFF, 0.18));
-    }
 
     // String lines: per-string colored horizontal quads, the shared palette's lane surface.
     for (int string = 1; string <= state.string_count; ++string)
@@ -448,7 +488,7 @@ void HighwayRenderer::Impl::rebuildBoardFace()
             common::core::highwayStringLaneY(string, state.string_count, metrics, invert);
         const StringLaneStyle style{stringLaneColor(string, state.string_count, palette)};
         pushFaceQuad(
-            vertices, indices, x_low, x_high, y - 0.02, y + 0.02, 0.0, packAbgr(style.lane));
+            vertices, indices, x_low, x_high, y - 0.015, y + 0.015, 0.0, packAbgr(style.lane));
     }
 
     const bgfx::Memory* vertex_memory = bgfx::copy(
@@ -476,10 +516,11 @@ void HighwayRenderer::Impl::draw(
     camera.advance(target, dt_seconds, metrics);
     const common::core::HighwayCameraPose pose = camera.pose(metrics);
     const double aspect = static_cast<double>(width) / static_cast<double>(height);
-    const std::array<float, 16> board_matrix =
-        toBgfxMatrix(common::core::makeHighwayWorldToClip(pose, aspect, metrics));
+    const std::array<float, 16> board_matrix = toBgfxMatrix(
+        common::core::makeHighwayWorldToClip(pose, aspect, state.options.mirrored, metrics));
     const std::array<float, 16> background_matrix = toBgfxMatrix(
-        common::core::makeHighwayBackgroundWorldToClip(pose, aspect, now_seconds, metrics));
+        common::core::makeHighwayBackgroundWorldToClip(
+            pose, aspect, now_seconds, state.options.mirrored, metrics));
 
     // Per-frame view setup, re-asserted from the current backbuffer size (checkpoint trap 2).
     const auto width16 = static_cast<std::uint16_t>(width);
@@ -510,14 +551,138 @@ void HighwayRenderer::Impl::draw(
         return common::core::highwayTimeToZ(seconds - now_seconds, scroll, metrics);
     };
 
-    // --- Beat and measure bars (distance-faded floor quads, clipped to the hand window). ---
+    // Distance fade for the floor furniture: fully faded near the hit line, opaque toward the
+    // horizon (the reference's fading shader constants: 50 ms to 250 ms).
+    const std::array<float, 4> fade_uniform{
+        static_cast<float>(common::core::highwayTimeToZ(0.05, scroll, metrics)),
+        static_cast<float>(common::core::highwayTimeToZ(0.25, scroll, metrics)),
+        0.0F,
+        0.0F
+    };
+
+    // Hand windows visible this frame: each placement owns the time range up to the next one
+    // (the reference lights the runway per window, so the next hand position scrolls in as its
+    // own lit region). A chart with no placements gets the reference nut window.
+    struct HandWindow
     {
-        const std::array<float, 4> fade_uniform{
-            static_cast<float>(common::core::highwayTimeToZ(0.05, scroll, metrics)),
-            static_cast<float>(common::core::highwayTimeToZ(0.25, scroll, metrics)),
-            0.0F,
-            0.0F
-        };
+        double start_seconds;
+        double end_seconds;
+        int fret;
+        int width;
+    };
+    std::vector<HandWindow> hand_windows;
+    for (std::size_t index = 0; index < state.fret_hand_positions.size(); ++index)
+    {
+        const common::core::HighwayFhpView& fhp = state.fret_hand_positions[index];
+        const double window_end = index + 1 < state.fret_hand_positions.size()
+                                      ? state.fret_hand_positions[index + 1].seconds
+                                      : span_end_seconds;
+        if (window_end <= span_start_seconds || fhp.seconds >= span_end_seconds)
+        {
+            continue;
+        }
+        hand_windows.push_back(
+            HandWindow{
+                .start_seconds = std::max(fhp.seconds, span_start_seconds),
+                .end_seconds = std::min(window_end, span_end_seconds),
+                .fret = fhp.fret,
+                .width = fhp.width,
+            });
+    }
+    // Before the first placement (or on a chart without any) the reference nut window applies.
+    if (hand_windows.empty())
+    {
+        hand_windows.push_back(
+            HandWindow{
+                .start_seconds = span_start_seconds,
+                .end_seconds = span_end_seconds,
+                .fret = 1,
+                .width = 4,
+            });
+    }
+    else if (state.fret_hand_positions.front().seconds > span_start_seconds)
+    {
+        hand_windows.insert(
+            hand_windows.begin(),
+            HandWindow{
+                .start_seconds = span_start_seconds,
+                .end_seconds = state.fret_hand_positions.front().seconds,
+                .fret = 1,
+                .width = 4,
+            });
+    }
+    const auto [current_low_line, current_high_line] = activeFhpFretLines(state, now_seconds);
+
+    // --- Lane border ribbons: one faded runway strip per fret line (the reference's floor
+    // grid). Alpha tiers: bright for the current hand range, mid for any visible window's
+    // range, faint elsewhere. ---
+    {
+        std::array<bool, g_face_fret_count + 1> in_visible_window{};
+        for (const HandWindow& window : hand_windows)
+        {
+            for (int line = window.fret - 1; line <= window.fret + window.width - 1; ++line)
+            {
+                if (line >= 0 && line <= g_face_fret_count)
+                {
+                    in_visible_window.at(static_cast<std::size_t>(line)) = true;
+                }
+            }
+        }
+
+        bgfx::setUniform(fade_params.get(), fade_uniform.data());
+        std::vector<PosColorVertex> vertices;
+        std::vector<std::uint16_t> indices;
+        const double z0 = time_to_z(span_start_seconds);
+        const double z1 = time_to_z(span_end_seconds);
+        for (int line = 0; line <= g_face_fret_count; ++line)
+        {
+            const double alpha = (line >= current_low_line && line <= current_high_line) ? 1.0
+                                 : in_visible_window.at(static_cast<std::size_t>(line))  ? 0.375
+                                                                                         : 0.125;
+            const double x = common::core::highwayFretLineX(line, metrics, mirrored);
+            pushFloorQuad(
+                vertices,
+                indices,
+                x - 0.025,
+                x + 0.025,
+                0.004,
+                z0,
+                z1,
+                packAbgr(g_lane_border_color | 0xFF000000U, alpha));
+        }
+        submitBatch(vertices, indices, posColorLayout(), color_fade_program.get(), nullptr);
+    }
+
+    // --- FHP lane highlight: per-window lit runway gaps, darker on inlay-dotted frets. ---
+    {
+        bgfx::setUniform(fade_params.get(), fade_uniform.data());
+        std::vector<PosColorVertex> vertices;
+        std::vector<std::uint16_t> indices;
+        for (const HandWindow& window : hand_windows)
+        {
+            const double z0 = time_to_z(window.start_seconds);
+            const double z1 = time_to_z(window.end_seconds);
+            for (int fret = window.fret; fret <= window.fret + window.width - 1; ++fret)
+            {
+                if (fret < 1 || fret > g_face_fret_count)
+                {
+                    continue;
+                }
+                const double low_x = common::core::highwayFretLineX(fret - 1, metrics, mirrored);
+                const double high_x = common::core::highwayFretLineX(fret, metrics, mirrored);
+                const auto [x0, x1] = std::minmax(low_x, high_x);
+                const ArgbColor color =
+                    isDottedFret(fret) ? g_fhp_lane_dotted_color : g_fhp_lane_color;
+                pushFloorQuad(vertices, indices, x0, x1, 0.008, z0, z1, packAbgr(color));
+            }
+        }
+        submitBatch(vertices, indices, posColorLayout(), color_fade_program.get(), nullptr);
+    }
+
+    // --- Beat and measure bars: the reference's gradient wings in its deep blue, clipped to
+    // each beat's hand window. Measures get a solid core between fade-in and fade-out wings;
+    // plain beats are two wings meeting at the line. ---
+    {
         bgfx::setUniform(fade_params.get(), fade_uniform.data());
 
         std::vector<PosColorVertex> vertices;
@@ -535,33 +700,23 @@ void HighwayRenderer::Impl::draw(
             const double high_x = common::core::highwayFretLineX(high_line, metrics, mirrored);
             const auto [x0, x1] = std::minmax(low_x, high_x);
             const double z = time_to_z(beat.seconds);
-            const double half = beat.measure_downbeat ? 0.10 : 0.045;
-            const double alpha = beat.measure_downbeat ? 0.62 : 0.38;
-            pushFloorQuad(
-                vertices, indices, x0, x1, 0.015, z - half, z + half, packAbgr(0xFFFFFFFF, alpha));
+            const std::uint32_t solid = packAbgr(g_beat_bar_color);
+            const std::uint32_t clear = packAbgr(g_beat_bar_color, 0.0);
+            if (beat.measure_downbeat)
+            {
+                pushFloorQuadGradient(
+                    vertices, indices, x0, x1, 0.015, z - 0.2, z - 0.1, clear, solid);
+                pushFloorQuad(vertices, indices, x0, x1, 0.015, z - 0.1, z + 0.1, solid);
+                pushFloorQuadGradient(
+                    vertices, indices, x0, x1, 0.015, z + 0.1, z + 0.2, solid, clear);
+            }
+            else
+            {
+                pushFloorQuadGradient(vertices, indices, x0, x1, 0.015, z - 0.1, z, clear, solid);
+                pushFloorQuadGradient(vertices, indices, x0, x1, 0.015, z, z + 0.1, solid, clear);
+            }
         }
         submitBatch(vertices, indices, posColorLayout(), color_fade_program.get(), nullptr);
-    }
-
-    // --- FHP lane highlight: the lit runway under the active hand window. ---
-    {
-        std::vector<PosColorVertex> vertices;
-        std::vector<std::uint16_t> indices;
-        const auto [low_line, high_line] = activeFhpFretLines(state, now_seconds);
-        const double low_x = common::core::highwayFretLineX(low_line, metrics, mirrored);
-        const double high_x = common::core::highwayFretLineX(high_line, metrics, mirrored);
-        const auto [x0, x1] = std::minmax(low_x, high_x);
-        pushFloorQuad(
-            vertices,
-            indices,
-            x0,
-            x1,
-            0.008,
-            common::core::highwayTimeToZ(-g_passed_fade_seconds, scroll, metrics),
-            common::core::highwayTimeToZ(
-                metrics.visibility_window_seconds * scroll, scroll, metrics),
-            packAbgr(0xFFFFFFFF, 0.10));
-        submitBatch(vertices, indices, posColorLayout(), color_program.get(), nullptr);
     }
 
     // --- Notes: shadows, sustain rails, open bars, then heads sorted far-to-near. ---
@@ -593,8 +748,11 @@ void HighwayRenderer::Impl::draw(
     });
 
     const std::array<float, 4> head_cell = atlases.head_layout.cellRect(g_head_cell_standard);
+    const std::array<float, 4> anticipation_cell =
+        atlases.head_layout.cellRect(g_head_cell_anticipation);
+    // The reference head is a square quad (0.96 x 0.96 world units), not a lane-squashed one.
     const double head_half_w = metrics.note_half_width;
-    const double head_half_h = metrics.string_distance * 0.45;
+    const double head_half_h = metrics.note_half_width;
 
     for (const std::size_t index : visible)
     {
@@ -661,41 +819,88 @@ void HighwayRenderer::Impl::draw(
         }
 
         const double x = common::core::highwayNoteCenterX(note.fret, metrics, mirrored);
+        const ArgbColor base_color = stringLaneColor(note.string, state.string_count, palette);
 
-        // Note shadow: a dark ellipse on the floor under the note (load-bearing for depth
-        // perception), built as a small triangle fan.
-        {
-            constexpr int g_shadow_segments = 10;
-            const double radius_x = head_half_w * 0.85;
-            const double radius_z = 0.13;
-            const std::uint32_t shadow_color = packAbgr(0xFF000000, 0.42 * fade);
-            const auto center_index = static_cast<std::uint16_t>(shadow_vertices.size());
-            shadow_vertices.push_back(makeVertex(x, 0.02, z, shadow_color));
-            for (int segment = 0; segment <= g_shadow_segments; ++segment)
-            {
-                const double angle =
-                    2.0 * std::numbers::pi * segment / static_cast<double>(g_shadow_segments);
-                shadow_vertices.push_back(makeVertex(
-                    x + (std::cos(angle) * radius_x),
-                    0.02,
-                    z + (std::sin(angle) * radius_z),
-                    shadow_color));
-            }
-            for (int segment = 0; segment < g_shadow_segments; ++segment)
-            {
-                shadow_indices.push_back(center_index);
-                shadow_indices.push_back(static_cast<std::uint16_t>(center_index + 1 + segment));
-                shadow_indices.push_back(static_cast<std::uint16_t>(center_index + 2 + segment));
-            }
-        }
-
-        // Rolling flip: single notes rotate around their travel axis during the last second;
-        // chord notes (a same-onset neighbor) land flat.
+        // Chord membership decides both the rolling flip and the shadow (the reference skips
+        // shadows for chord notes).
         const bool in_chord =
             (index > 0 &&
              std::abs(state.notes[index - 1].start_seconds - note.start_seconds) < 1.0e-4) ||
             (index + 1 < state.notes.size() &&
              std::abs(state.notes[index + 1].start_seconds - note.start_seconds) < 1.0e-4);
+
+        // Note shadow: the reference's vertical gradient fan — a string-colored glow rising
+        // from the board toward the head, load-bearing for depth perception.
+        if (!in_chord)
+        {
+            const double base_half = head_half_w * 0.5;
+            const double apex_y = std::max(lane_y - 0.3, 0.05);
+            const std::uint32_t center_color = packAbgr(base_color, fade);
+            const std::uint32_t edge_color = packAbgr(base_color, 0.0);
+            const auto center_index = static_cast<std::uint16_t>(shadow_vertices.size());
+            shadow_vertices.push_back(makeVertex(x, 0.0, z, center_color));
+            shadow_vertices.push_back(makeVertex(x - base_half, 0.0, z, edge_color));
+            shadow_vertices.push_back(makeVertex(x, apex_y, z, edge_color));
+            shadow_vertices.push_back(makeVertex(x + base_half, 0.0, z, edge_color));
+            for (const std::uint16_t offset :
+                 {std::uint16_t{0},
+                  std::uint16_t{1},
+                  std::uint16_t{2},
+                  std::uint16_t{0},
+                  std::uint16_t{2},
+                  std::uint16_t{3}})
+            {
+                shadow_indices.push_back(static_cast<std::uint16_t>(center_index + offset));
+            }
+        }
+
+        // Anticipation ring: scales down onto the landing spot over the last half second
+        // (reference atlas cell; chart-driven, so the editor preview shows it too — 44-Q1).
+        const double seconds_out = note.start_seconds - now_seconds;
+        if (atlases.reference_cells && seconds_out > 0.0 && seconds_out < g_anticipation_seconds)
+        {
+            double ring_scale =
+                std::min(1.0, 1.0 - (0.5 * ((seconds_out - 0.25) / g_anticipation_seconds)));
+            ring_scale *= ring_scale;
+            const double ring_alpha =
+                std::min(1.0, (g_anticipation_seconds - seconds_out) * (1000.0 / 255.0));
+            const std::uint32_t ring_tint = packAbgr(base_color, ring_alpha);
+            const double half = head_half_w * ring_scale;
+            pushQuad(
+                head_vertices,
+                head_indices,
+                makeUvVertex(
+                    x - half,
+                    lane_y - half,
+                    0.0,
+                    ring_tint,
+                    anticipation_cell[0],
+                    anticipation_cell[3]),
+                makeUvVertex(
+                    x + half,
+                    lane_y - half,
+                    0.0,
+                    ring_tint,
+                    anticipation_cell[2],
+                    anticipation_cell[3]),
+                makeUvVertex(
+                    x + half,
+                    lane_y + half,
+                    0.0,
+                    ring_tint,
+                    anticipation_cell[2],
+                    anticipation_cell[1]),
+                makeUvVertex(
+                    x - half,
+                    lane_y + half,
+                    0.0,
+                    ring_tint,
+                    anticipation_cell[0],
+                    anticipation_cell[1]));
+        }
+
+        // Rolling flip: single notes rotate around their travel axis during the last second;
+        // chord notes land flat.
         const double rotation =
             in_chord ? 0.0
                      : std::clamp(
@@ -704,8 +909,7 @@ void HighwayRenderer::Impl::draw(
                            0.0);
         const double cos_r = std::cos(rotation);
         const double sin_r = std::sin(rotation);
-        const std::uint32_t tint =
-            packAbgr(stringLaneColor(note.string, state.string_count, palette), fade);
+        const std::uint32_t tint = packAbgr(base_color, fade);
 
         const auto corner = [&](const double dx, const double dy, const float u, const float v) {
             return makeUvVertex(
@@ -736,13 +940,115 @@ void HighwayRenderer::Impl::draw(
         texture_tint_program.get(),
         &heads_texture);
 
-    // --- Board face (retained): strings, frets, inlays drawn over passing content. ---
+    // --- Board face: dynamic fret lines with the reference's three states (inactive, active
+    // within current and upcoming hand windows, and the sqrt-decay hit-flash that thickens up
+    // to 4x — a large part of the alive feel), drawn over passing content. ---
+    const double face_top_y =
+        (static_cast<double>(std::max(state.string_count, 1)) * metrics.string_distance) +
+        (metrics.string_distance * 0.5);
+    {
+        // Active fret lines: the current hand range plus every window arriving soon.
+        std::array<bool, g_face_fret_count + 1> active{};
+        for (int line = current_low_line; line <= current_high_line; ++line)
+        {
+            if (line >= 0 && line <= g_face_fret_count)
+            {
+                active.at(static_cast<std::size_t>(line)) = true;
+            }
+        }
+        for (const HandWindow& window : hand_windows)
+        {
+            if (window.start_seconds > now_seconds + g_fret_active_horizon_seconds ||
+                window.end_seconds < now_seconds)
+            {
+                continue;
+            }
+            for (int line = window.fret - 1; line <= window.fret + window.width - 1; ++line)
+            {
+                if (line >= 0 && line <= g_face_fret_count)
+                {
+                    active.at(static_cast<std::size_t>(line)) = true;
+                }
+            }
+        }
+
+        // Hit-flash weights: notes sounding within the last flash window light their fret lines
+        // with a sqrt decay (chart-driven, like the reference preview).
+        std::array<double, g_face_fret_count + 1> flash{};
+        for (const std::size_t index : visible)
+        {
+            const common::core::HighwayNoteView& note = state.notes[index];
+            const double since = now_seconds - note.start_seconds;
+            if (since <= 0.0 || since >= g_fret_flash_seconds || note.fret <= 0)
+            {
+                continue;
+            }
+            const double weight = std::sqrt(1.0 - (since / g_fret_flash_seconds));
+            for (const int line : {note.fret - 1, note.fret})
+            {
+                if (line >= 0 && line <= g_face_fret_count)
+                {
+                    flash.at(static_cast<std::size_t>(line)) =
+                        std::max(flash.at(static_cast<std::size_t>(line)), weight);
+                }
+            }
+        }
+
+        std::vector<PosColorVertex> vertices;
+        std::vector<std::uint16_t> indices;
+        for (int line = 0; line <= g_face_fret_count; ++line)
+        {
+            const double x = common::core::highwayFretLineX(line, metrics, mirrored);
+            const double flash_weight = flash.at(static_cast<std::size_t>(line));
+            const ArgbColor state_color = active.at(static_cast<std::size_t>(line))
+                                              ? g_fret_active_color
+                                              : g_fret_inactive_color;
+            const ArgbColor color = mixArgb(state_color, g_fret_highlight_color, flash_weight);
+            const double half = (line == 0 ? 0.05 : 0.025) * (1.0 + (3.0 * flash_weight));
+            pushFaceQuad(
+                vertices, indices, x - half, x + half, 0.0, face_top_y, 0.0, packAbgr(color));
+        }
+        submitBatch(vertices, indices, posColorLayout(), color_program.get(), nullptr);
+    }
+
+    // --- String lines (retained) over the fret lines. ---
     if (face_index_count > 0 && face_vertices.isValid() && face_indices.isValid())
     {
         bgfx::setVertexBuffer(0, face_vertices.get());
         bgfx::setIndexBuffer(face_indices.get(), 0, face_index_count);
         bgfx::setState(g_blended_state);
         bgfx::submit(g_board_view, color_program.get());
+    }
+
+    // --- Fretboard skin: one textured cell per fret from the reference inlay atlas (8x4 grid),
+    // drawn last on the face like the reference (the art is transparent between markers). ---
+    if (inlay_texture.isValid())
+    {
+        std::vector<PosColorUvVertex> vertices;
+        std::vector<std::uint16_t> indices;
+        constexpr int g_inlay_columns = 8;
+        constexpr int g_inlay_rows = 4;
+        for (int fret = 1; fret <= g_face_fret_count; ++fret)
+        {
+            const int cell = fret - 1;
+            const float u0 = static_cast<float>(cell % g_inlay_columns) / g_inlay_columns;
+            const float v0 = static_cast<float>(cell / g_inlay_columns) / g_inlay_rows;
+            const float u1 = u0 + (1.0F / g_inlay_columns);
+            const float v1 = v0 + (1.0F / g_inlay_rows);
+            const double low_x = common::core::highwayFretLineX(fret - 1, metrics, mirrored);
+            const double high_x = common::core::highwayFretLineX(fret, metrics, mirrored);
+            const auto [x0, x1] = std::minmax(low_x, high_x);
+            const std::uint32_t white = packAbgr(0xFFFFFFFF);
+            pushQuad(
+                vertices,
+                indices,
+                makeUvVertex(x0, 0.0, 0.0, white, u0, v1),
+                makeUvVertex(x1, 0.0, 0.0, white, u1, v1),
+                makeUvVertex(x1, face_top_y, 0.0, white, u1, v0),
+                makeUvVertex(x0, face_top_y, 0.0, white, u0, v0));
+        }
+        const bgfx::TextureHandle inlays = inlay_texture.get();
+        submitBatch(vertices, indices, posColorUvLayout(), texture_program.get(), &inlays);
     }
 
     // --- Fret numbers and section labels through the glyph atlas. ---

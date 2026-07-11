@@ -198,8 +198,29 @@ int GameShell::run(const GameShellOptions& options)
         std::println(stderr, "rock-hero: {}", highway_shaders.error().message);
         return 1;
     }
+    // Texture assets are best-effort: a missing file falls back to procedural art in the
+    // renderer, never a startup failure.
+    common::ui::HighwayTextureSet highway_textures;
+    auto note_atlas = resources->textureBytes(core::GameTexture::HighwayNotes);
+    if (note_atlas.has_value())
+    {
+        highway_textures.note_atlas_png = std::move(*note_atlas);
+    }
+    else
+    {
+        RH_LOG_WARNING("game.highway", "{}", note_atlas.error().message);
+    }
+    auto inlay_atlas = resources->textureBytes(core::GameTexture::HighwayInlays);
+    if (inlay_atlas.has_value())
+    {
+        highway_textures.inlay_atlas_png = std::move(*inlay_atlas);
+    }
+    else
+    {
+        RH_LOG_WARNING("game.highway", "{}", inlay_atlas.error().message);
+    }
     std::expected<common::ui::HighwayRenderer, common::ui::HighwayRendererError> renderer =
-        common::ui::HighwayRenderer::create(*highway_shaders);
+        common::ui::HighwayRenderer::create(*highway_shaders, highway_textures);
     if (!renderer.has_value())
     {
         std::println(stderr, "rock-hero: {}", renderer.error().message);

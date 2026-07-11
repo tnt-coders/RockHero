@@ -67,9 +67,36 @@ namespace
         {
             return "glyph";
         }
+        case GameShaderProgram::Texture:
+        {
+            return "texture";
+        }
     }
 
     return "color";
+}
+
+// Path of a texture asset relative to <root>/textures/. The charter/ subtree carries the
+// reference assets adapted from Charter (BSD 3-Clause; LICENSE.txt deploys alongside).
+[[nodiscard]] std::string_view textureRelativePath(const GameTexture texture)
+{
+    switch (texture)
+    {
+        case GameTexture::HighwayNotes:
+        {
+            return "charter/notes.png";
+        }
+        case GameTexture::HighwayInlays:
+        {
+            return "charter/inlays.png";
+        }
+        case GameTexture::HighwayFingering:
+        {
+            return "charter/fingering.png";
+        }
+    }
+
+    return "charter/notes.png";
 }
 
 } // namespace
@@ -136,30 +163,27 @@ std::expected<std::filesystem::path, GameResourcesError> GameResources::shaderPa
     return path;
 }
 
-std::expected<std::vector<std::byte>, GameResourcesError> GameResources::shaderBytes(
-    const GameShaderProgram program, const ShaderStage stage, const ShaderBackend backend) const
+namespace
 {
-    const auto path = shaderPath(program, stage, backend);
-    if (!path.has_value())
-    {
-        return std::unexpected{path.error()};
-    }
 
-    std::ifstream file{*path, std::ios::binary | std::ios::ate};
+// Reads a whole resource file, rejecting empty files so consumers may assume non-empty bytes
+// (bgfx asserts on zero-length shader blobs rather than returning an error).
+[[nodiscard]] std::expected<std::vector<std::byte>, GameResourcesError> readResourceBytes(
+    const std::filesystem::path& path)
+{
+    std::ifstream file{path, std::ios::binary | std::ios::ate};
     if (!file)
     {
         return std::unexpected{
-            GameResourcesError{GameResourcesErrorCode::UnreadableResourceFile, *path}
+            GameResourcesError{GameResourcesErrorCode::UnreadableResourceFile, path}
         };
     }
 
-    // An empty binary is rejected here so consumers may assume the bytes are non-empty (bgfx
-    // asserts on zero-length shader blobs rather than returning an error).
     const std::streamsize size = file.tellg();
     if (size <= 0)
     {
         return std::unexpected{
-            GameResourcesError{GameResourcesErrorCode::UnreadableResourceFile, *path}
+            GameResourcesError{GameResourcesErrorCode::UnreadableResourceFile, path}
         };
     }
 
@@ -170,13 +194,41 @@ std::expected<std::vector<std::byte>, GameResourcesError> GameResources::shaderB
     if (!file.read(contents.data(), size))
     {
         return std::unexpected{
-            GameResourcesError{GameResourcesErrorCode::UnreadableResourceFile, *path}
+            GameResourcesError{GameResourcesErrorCode::UnreadableResourceFile, path}
         };
     }
 
     std::vector<std::byte> bytes(contents.size());
     std::memcpy(bytes.data(), contents.data(), contents.size());
     return bytes;
+}
+
+} // namespace
+
+std::expected<std::vector<std::byte>, GameResourcesError> GameResources::shaderBytes(
+    const GameShaderProgram program, const ShaderStage stage, const ShaderBackend backend) const
+{
+    const auto path = shaderPath(program, stage, backend);
+    if (!path.has_value())
+    {
+        return std::unexpected{path.error()};
+    }
+    return readResourceBytes(*path);
+}
+
+std::expected<std::vector<std::byte>, GameResourcesError> GameResources::textureBytes(
+    const GameTexture texture) const
+{
+    const std::filesystem::path path = m_resources_root / "textures" / textureRelativePath(texture);
+
+    std::error_code probe_error;
+    if (!std::filesystem::is_regular_file(path, probe_error))
+    {
+        return std::unexpected{
+            GameResourcesError{GameResourcesErrorCode::MissingResourceFile, path}
+        };
+    }
+    return readResourceBytes(path);
 }
 
 GameResources::GameResources(std::filesystem::path resources_root)

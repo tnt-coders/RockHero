@@ -158,27 +158,28 @@ private:
 };
 
 /*!
-\brief Builds the world-to-clip transform: zero-rotation off-axis perspective plus the board pin.
+\brief Builds the world-to-clip transform: the reference camera chain plus the board pin.
 
-The two properties that make the reference view read correctly are guaranteed here by
-construction, not approximation:
+The chain reproduces the reference exactly (source-verified 2026-07-11): view translation, the
+small yaw and pitch rotations that give the board its held-guitar-neck reading (the yaw slopes
+the strings ~2-3 degrees and magnifies the body-side neck end; the pitch places the vanishing
+point), Charter's very wide frustum, and finally **the board pin** — the world point (camera
+focus X, board surface, hit line) is projected and the whole picture is translated vertically so
+that point lands at the configured NDC height. The translation is vertical-only: the board
+slides freely left/right as the focus moves while the anchor height never changes.
 
-- **Exact verticality**: the camera never rotates — the view transform is a pure translation, so
-  a world-vertical segment (constant X and Z) keeps a constant NDC X. The reference
-  implementation approximated this with small rotations hidden by its pin; this formulation makes
-  it mathematically exact and unit-testable.
-- **The board pin**: the world point (camera focus X, board surface, hit line) is projected and
-  the whole picture is translated vertically so that point lands at the configured NDC height.
-  The translation is vertical-only — the board slides freely left/right as the focus moves while
-  the anchor height never changes.
+With both rotation metrics zeroed the chain reduces to the zero-rotation formulation whose exact
+verticality stays regression-tested at that configuration.
 
 \param pose Smoothed camera position.
 \param aspect_ratio Viewport width over height.
-\param metrics World-space constants (field of view, clip planes, pin height).
+\param mirrored True for left-handed display; flips the yaw so the picture mirrors exactly.
+\param metrics World-space constants (rotations, frustum, clip planes, pin height).
 \return World-to-clip transform with the pin applied.
 */
 [[nodiscard]] HighwayMat4 makeHighwayWorldToClip(
-    const HighwayCameraPose& pose, double aspect_ratio, const HighwayMetrics& metrics);
+    const HighwayCameraPose& pose, double aspect_ratio, bool mirrored,
+    const HighwayMetrics& metrics);
 
 /*!
 \brief Builds the background layer's world-to-clip transform: parallax plus slow sway.
@@ -190,11 +191,12 @@ so both layers share the anchor height.
 \param pose Smoothed camera position (the foreground pose; the divisor is applied here).
 \param aspect_ratio Viewport width over height.
 \param time_seconds Injected animation time driving the sway.
+\param mirrored True for left-handed display; flips the yaw so the picture mirrors exactly.
 \param metrics World-space constants.
 \return Background world-to-clip transform.
 */
 [[nodiscard]] HighwayMat4 makeHighwayBackgroundWorldToClip(
-    const HighwayCameraPose& pose, double aspect_ratio, double time_seconds,
+    const HighwayCameraPose& pose, double aspect_ratio, double time_seconds, bool mirrored,
     const HighwayMetrics& metrics);
 
 } // namespace rock_hero::common::core

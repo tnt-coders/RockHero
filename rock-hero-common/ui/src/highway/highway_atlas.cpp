@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstring>
 #include <juce_graphics/juce_graphics.h>
+#include <span>
 #include <string>
 
 namespace rock_hero::common::ui
@@ -122,17 +123,51 @@ std::optional<int> highwayGlyphCellIndex(const char character) noexcept
     return character - g_first_glyph;
 }
 
-HighwayAtlases makeHighwayAtlases()
+UniqueBgfxHandle<bgfx::TextureHandle> uploadPngTexture(const std::span<const std::byte> png_bytes)
+{
+    if (png_bytes.empty())
+    {
+        return {};
+    }
+    juce::MemoryInputStream stream{png_bytes.data(), png_bytes.size(), false};
+    const juce::Image decoded = juce::PNGImageFormat{}.decodeImage(stream);
+    if (decoded.isNull())
+    {
+        return {};
+    }
+    // Normalize to ARGB so RGB-only PNGs (the reference note atlas) gain the opaque alpha the
+    // BGRA8 upload expects.
+    return uploadAtlas(decoded.convertedToFormat(juce::Image::ARGB));
+}
+
+HighwayAtlases makeHighwayAtlases(const std::span<const std::byte> note_atlas_png)
 {
     HighwayAtlases atlases;
-    atlases.head_layout =
-        HighwayAtlasLayout{.texture_size = g_head_texture_size, .cell_size = g_head_cell_size};
     atlases.glyph_layout =
         HighwayAtlasLayout{.texture_size = g_glyph_texture_size, .cell_size = g_glyph_cell_size};
 
-    // Head atlas: opaque black base (A=0xFF, channels zero) so untouched texels contribute
-    // nothing (B = 0 masks them out) while staying premultiplication-proof.
+    // Head atlas: the reference 4x4 channel-scheme asset when it decodes, else the single-cell
+    // procedural fallback — a missing asset degrades the art, never the game.
+    if (!note_atlas_png.empty())
     {
+        juce::MemoryInputStream stream{note_atlas_png.data(), note_atlas_png.size(), false};
+        const juce::Image decoded = juce::PNGImageFormat{}.decodeImage(stream);
+        if (!decoded.isNull() && decoded.getWidth() >= 4)
+        {
+            atlases.heads = uploadAtlas(decoded.convertedToFormat(juce::Image::ARGB));
+            atlases.head_layout = HighwayAtlasLayout{
+                .texture_size = decoded.getWidth(), .cell_size = decoded.getWidth() / 4
+            };
+            atlases.reference_cells = atlases.heads.isValid();
+        }
+    }
+    if (!atlases.reference_cells)
+    {
+        atlases.head_layout =
+            HighwayAtlasLayout{.texture_size = g_head_texture_size, .cell_size = g_head_cell_size};
+
+        // Opaque black base (A=0xFF, channels zero) so untouched texels contribute nothing
+        // (B = 0 masks them out) while staying premultiplication-proof.
         const juce::Image image{
             juce::Image::ARGB,
             g_head_texture_size,

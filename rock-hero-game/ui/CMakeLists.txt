@@ -50,7 +50,7 @@ set(rock_hero_shared_shader_dir "${CMAKE_CURRENT_SOURCE_DIR}/../../rock-hero-com
 set(rock_hero_game_shader_staging "${CMAKE_CURRENT_BINARY_DIR}/resources/shaders")
 set(rock_hero_game_staged_shaders "")
 if(WIN32)
-    foreach(shader_program IN ITEMS color color_fade texture_tint glyph)
+    foreach(shader_program IN ITEMS color color_fade texture_tint glyph texture)
         foreach(shader_stage IN ITEMS vertex fragment)
             if(shader_stage STREQUAL "vertex")
                 set(stage_prefix vs)
