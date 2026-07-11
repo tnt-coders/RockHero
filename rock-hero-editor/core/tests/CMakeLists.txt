@@ -69,3 +69,9 @@ target_compile_definitions(rock_hero_editor_core_tests
 
 # Register the discovered Catch2 cases with CTest and forward Catch tags as CTest labels.
 catch_discover_tests(rock_hero_editor_core_tests ADD_TAGS_AS_LABELS REPORTER JSON)
+
+# GCC's -Wfloat-equal fires through Catch2's assertion decomposition on every exact
+# floating-point check; exact equality in tests is a deliberate round-trip contract, so the
+# warning carries no signal here. Clang and MSVC never warn through the decomposition.
+target_compile_options(rock_hero_editor_core_tests
+                       PRIVATE $<$<CXX_COMPILER_ID:GNU>:-Wno-float-equal>)

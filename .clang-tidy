@@ -22,12 +22,8 @@
 # codebase's non-owning reference-member ports (controller Impl, edit contexts, view AudioPorts),
 # and non-private-member-variables-in-classes conflicts with the documented public-field value
 # structs (error types, view state, edits); see docs/design/coding-conventions.md.
-# clang-diagnostic-c2y-extensions is excluded because clang 22's pedantic pass flags the
-# __COUNTER__ macro that Catch2's TEST_CASE machinery expands in every test file; none of the
-# product compilers warn on it.
 Checks: >
   -*,
-  -clang-diagnostic-c2y-extensions,
   bugprone-*,
   -bugprone-easily-swappable-parameters,
   modernize-*,
@@ -44,6 +40,12 @@ Checks: >
   -cppcoreguidelines-pro-bounds-avoid-unchecked-container-access,
 
 WarningsAsErrors: '*'
+
+# Catch2's TEST_CASE machinery expands __COUNTER__, which clang 22's pedantic pass flags as a
+# C2y extension; the compile flags carry -Werror, promoting it to a hard parse error that no
+# Checks entry can filter, so it must be disabled at the parse level. None of the product
+# compilers warn on it.
+ExtraArgs: ['-Wno-c2y-extensions']
 
 # clang-tidy parses HeaderFilterRegex with llvm::Regex, which does not support negative
 # lookahead. Keep this as a positive match over project-owned paths rather than trying to
