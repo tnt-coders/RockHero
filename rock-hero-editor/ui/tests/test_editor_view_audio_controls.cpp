@@ -110,7 +110,12 @@ TEST_CASE("Calibration gain control hides negative rounded zero", "[ui][editor-v
     auto& window = findRequiredTopLevelComponent<juce::DocumentWindow>("input_calibration_window");
     auto& slider = findRequiredDescendant<juce::Slider>(window, "input_calibration_manual_gain");
 
-    CHECK(slider.getValue() == Catch::Approx(0.0));
+    // Gain sliders snap to a 0.1 dB interval, and the snap arithmetic (start + interval * steps)
+    // contracts to a fused multiply-add on arm64, landing grid points a few ULP off the nominal
+    // value (CI macs deliver 1.3e-15 where x64 delivers exactly 0.0). Slider values therefore
+    // get a tolerance far below the grid step instead of exact comparison; the 1-decimal display
+    // rounding these tests also assert is unaffected either way.
+    CHECK_THAT(slider.getValue(), Catch::Matchers::WithinAbs(0.0, 1e-9));
     CHECK_FALSE(slider.getTextFromValue(slider.getValue()).startsWith("-0.0"));
     CHECK(findDescendant(window, "input_calibration_gain") == nullptr);
 }
@@ -142,7 +147,14 @@ TEST_CASE("Manual calibration stays editable after saving", "[ui][editor-view]")
     apply_button.onClick();
 
     CHECK(controller.input_calibration_manual_set_count == 1);
-    CHECK(controller.last_input_calibration_gain_db == std::optional{3.5});
+    // Tolerance instead of exact equality: arm64 FMA contraction in the interval-snap math (see
+    // the rounded-zero test above).
+    REQUIRE(controller.last_input_calibration_gain_db.has_value());
+    if (controller.last_input_calibration_gain_db.has_value())
+    {
+        CHECK_THAT(
+            *controller.last_input_calibration_gain_db, Catch::Matchers::WithinAbs(3.5, 1e-9));
+    }
     CHECK(slider.isEnabled());
     CHECK(apply_button.isEnabled());
     CHECK(status.getText() == "Manual calibration saved. Gain set to 3.5 dB.");
@@ -169,7 +181,13 @@ TEST_CASE("Output gain slider emits controller intent", "[ui][editor-view]")
 
     CHECK(controller.output_gain_change_count == 1);
     CHECK(controller.output_gain_preview_change_count == 0);
-    CHECK(controller.last_output_gain_db == std::optional{-6.0});
+    // Tolerance instead of exact equality: arm64 FMA contraction in the interval-snap math (see
+    // the rounded-zero test above).
+    REQUIRE(controller.last_output_gain_db.has_value());
+    if (controller.last_output_gain_db.has_value())
+    {
+        CHECK_THAT(*controller.last_output_gain_db, Catch::Matchers::WithinAbs(-6.0, 1e-9));
+    }
 }
 
 // Verifies that output gain drag changes preview continuously and commits once on release.
@@ -198,13 +216,23 @@ TEST_CASE("Output gain drag previews then commits once", "[ui][editor-view]")
 
     CHECK(controller.output_gain_preview_change_count == 2);
     CHECK(controller.output_gain_change_count == 0);
-    CHECK(controller.last_output_gain_preview_db == std::optional{-6.0});
+    // Tolerance instead of exact equality: arm64 FMA contraction in the interval-snap math (see
+    // the rounded-zero test above).
+    REQUIRE(controller.last_output_gain_preview_db.has_value());
+    if (controller.last_output_gain_preview_db.has_value())
+    {
+        CHECK_THAT(*controller.last_output_gain_preview_db, Catch::Matchers::WithinAbs(-6.0, 1e-9));
+    }
 
     output_slider.onDragEnd();
 
     CHECK(controller.output_gain_preview_change_count == 2);
     CHECK(controller.output_gain_change_count == 1);
-    CHECK(controller.last_output_gain_db == std::optional{-6.0});
+    REQUIRE(controller.last_output_gain_db.has_value());
+    if (controller.last_output_gain_db.has_value())
+    {
+        CHECK_THAT(*controller.last_output_gain_db, Catch::Matchers::WithinAbs(-6.0, 1e-9));
+    }
 }
 
 } // namespace rock_hero::editor::ui
