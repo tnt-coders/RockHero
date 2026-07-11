@@ -1382,9 +1382,8 @@ void HighwayRenderer::Impl::draw(
         }
         return true;
     };
-    for (std::size_t group_index = 0; group_index < chord_groups.size(); ++group_index)
+    for (ChordGroup& group : chord_groups)
     {
-        ChordGroup& group = chord_groups[group_index];
         if (group.count < 2)
         {
             continue;
