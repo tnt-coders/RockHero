@@ -1,8 +1,8 @@
-#include "surface/bgfx_program.h"
+#include "highway/bgfx_program.h"
 
 #include <cstdint>
 
-namespace rock_hero::game::ui
+namespace rock_hero::common::ui
 {
 
 UniqueBgfxHandle<bgfx::ProgramHandle> createProgramFromBytes(
@@ -26,4 +26,4 @@ UniqueBgfxHandle<bgfx::ProgramHandle> createProgramFromBytes(
         vertex_handle.get(), fragment_handle.get(), false)};
 }
 
-} // namespace rock_hero::game::ui
+} // namespace rock_hero::common::ui

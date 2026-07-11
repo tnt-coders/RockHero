@@ -1,9 +1,9 @@
 #include "surface/game_shell.h"
 
 #include "dev/dev_session.h"
-#include "highway/highway_renderer.h"
 #include "overlay/diagnostics_overlay.h"
 #include "surface/game_window.h"
+#include "surface/highway_shader_loader.h"
 #include "surface/juce_message_pump.h"
 #include "surface/render_device.h"
 
@@ -18,6 +18,7 @@
 #include <print>
 #include <rock_hero/common/audio/clock/playback_clock_snapshot.h>
 #include <rock_hero/common/core/shared/logger.h>
+#include <rock_hero/common/ui/highway/highway_renderer.h>
 #include <rock_hero/game/core/diagnostics/diagnostics.h>
 #include <rock_hero/game/core/frame_clock/frame_clock.h>
 #include <rock_hero/game/core/resources/game_resources.h>
@@ -67,35 +68,6 @@ constexpr int g_max_juce_messages_per_frame = 256;
         return std::nullopt;
     }
     return std::move(*resources);
-}
-
-// Builds the diagnostics overlay from the packaged color program; a failure only costs the
-// overlay (warn and run on), never the game.
-[[nodiscard]] std::optional<DiagnosticsOverlay> makeDiagnosticsOverlay(
-    const core::GameResources& resources)
-{
-    const auto vertex_bytes = resources.shaderBytes(
-        core::GameShaderProgram::Color, core::ShaderStage::Vertex, core::ShaderBackend::Direct3D11);
-    const auto fragment_bytes = resources.shaderBytes(
-        core::GameShaderProgram::Color,
-        core::ShaderStage::Fragment,
-        core::ShaderBackend::Direct3D11);
-    if (!vertex_bytes.has_value() || !fragment_bytes.has_value())
-    {
-        RH_LOG_WARNING(
-            "game.diagnostics",
-            "overlay disabled: {}",
-            vertex_bytes.has_value() ? fragment_bytes.error().message
-                                     : vertex_bytes.error().message);
-        return std::nullopt;
-    }
-    std::optional<DiagnosticsOverlay> overlay =
-        DiagnosticsOverlay::create(*vertex_bytes, *fragment_bytes);
-    if (!overlay.has_value())
-    {
-        RH_LOG_WARNING("game.diagnostics", "overlay disabled: color program failed to link");
-    }
-    return overlay;
 }
 
 // Emits the Phase 3 timing channels: a per-frame trace record (dormant at the logger's default
@@ -148,7 +120,7 @@ std::optional<core::FramePacingSummary> logFrameInstrumentation(
 struct DiagnosticsIntentExecutor
 {
     std::optional<DevSession>& dev_session;
-    HighwayRenderer& renderer;
+    common::ui::HighwayRenderer& renderer;
     std::chrono::nanoseconds now;
 
     void operator()(const core::ReloadChartIntent& /*intent*/) const
@@ -219,14 +191,21 @@ int GameShell::run(const GameShellOptions& options)
     {
         return 1;
     }
-    std::expected<HighwayRenderer, HighwayRendererError> renderer =
-        HighwayRenderer::create(*resources);
+    const std::expected<common::ui::HighwayShaderSet, core::GameResourcesError> highway_shaders =
+        loadHighwayShaderSet(*resources);
+    if (!highway_shaders.has_value())
+    {
+        std::println(stderr, "rock-hero: {}", highway_shaders.error().message);
+        return 1;
+    }
+    std::expected<common::ui::HighwayRenderer, common::ui::HighwayRendererError> renderer =
+        common::ui::HighwayRenderer::create(*highway_shaders);
     if (!renderer.has_value())
     {
         std::println(stderr, "rock-hero: {}", renderer.error().message);
         return 1;
     }
-    std::optional<DiagnosticsOverlay> overlay = makeDiagnosticsOverlay(*resources);
+    DiagnosticsOverlay overlay;
 
     // Dev-diagnostics layer (plan 20 Phase 4): compiled into every build, active only behind the
     // runtime flag; every mutation is gated inside the controller.
@@ -371,13 +350,10 @@ int GameShell::run(const GameShellOptions& options)
         // Diagnostics overlay: the frame-time graph plus the debug-text readouts.
         const bool overlay_visible = diagnostics.state().overlay_visible;
         device->setDebugTextEnabled(overlay_visible);
-        if (overlay.has_value())
+        overlay.recordFrameDelta(frame_sample.frame_delta);
+        if (overlay_visible)
         {
-            overlay->recordFrameDelta(frame_sample.frame_delta);
-            if (overlay_visible)
-            {
-                overlay->draw(device->width(), device->height());
-            }
+            renderer->drawOverlayRects(overlay.buildRects(), device->width(), device->height());
         }
         device->clearDebugText();
         if (overlay_visible)

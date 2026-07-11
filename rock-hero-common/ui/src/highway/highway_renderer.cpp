@@ -1,19 +1,23 @@
-#include "highway/highway_renderer.h"
-
-#include "surface/bgfx_program.h"
+#include "highway/bgfx_program.h"
+#include "highway/highway_atlas.h"
 
 #include <algorithm>
 #include <array>
+#include <bgfx/bgfx.h>
 #include <cmath>
 #include <cstddef>
 #include <cstring>
 #include <numbers>
+#include <rock_hero/common/core/highway/highway_camera.h>
+#include <rock_hero/common/core/highway/highway_metrics.h>
 #include <rock_hero/common/core/shared/logger.h>
+#include <rock_hero/common/ui/highway/highway_renderer.h>
 #include <rock_hero/common/ui/string_colors/string_color_palette.h>
 #include <string_view>
 #include <utility>
+#include <vector>
 
-namespace rock_hero::game::ui
+namespace rock_hero::common::ui
 {
 
 namespace
@@ -33,6 +37,10 @@ constexpr std::uint32_t g_backdrop_color = 0x14141cff;
 constexpr std::uint64_t g_blended_state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A |
                                           BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_BLEND_ALPHA |
                                           BGFX_STATE_MSAA;
+
+// Overlay content is screen-space and never depth-tested.
+constexpr std::uint64_t g_overlay_state =
+    BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA;
 
 // How many fret slots the board face draws; charts cap at g_max_fret but the reference draws a
 // fixed neck.
@@ -133,8 +141,7 @@ struct PosColorUvVertex
 }
 
 // Packs the palette's 0xAARRGGBB into the 0xAABBGGRR vertex color bgfx consumes, scaling alpha.
-[[nodiscard]] std::uint32_t packAbgr(
-    const common::ui::ArgbColor argb, const double alpha_scale = 1.0)
+[[nodiscard]] std::uint32_t packAbgr(const ArgbColor argb, const double alpha_scale = 1.0)
 {
     const auto alpha = static_cast<std::uint32_t>(
         std::clamp(static_cast<double>((argb >> 24U) & 0xFFU) * alpha_scale, 0.0, 255.0));
@@ -214,44 +221,120 @@ void pushFaceQuad(
         makeVertex(x0, y1, z, abgr));
 }
 
+// Links one program from its compiled pair; the typed error names the failing program.
+[[nodiscard]] std::expected<UniqueBgfxHandle<bgfx::ProgramHandle>, HighwayRendererError>
+linkProgram(const HighwayShaderPair& pair, const std::string_view name)
+{
+    UniqueBgfxHandle<bgfx::ProgramHandle> program =
+        createProgramFromBytes(pair.vertex, pair.fragment);
+    if (!program.isValid())
+    {
+        return std::unexpected{HighwayRendererError{
+            .code = HighwayRendererErrorCode::ProgramCreationFailed,
+            .message = "bgfx rejected or failed to link the highway " + std::string{name} +
+                       " shader program"
+        }};
+    }
+    return program;
+}
+
 } // namespace
 
-std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
-    const core::GameResources& resources)
+/*
+All bgfx-facing state and drawing lives here, behind the public header's opaque pointer, so the
+framework never leaks into common/ui's interface (the Tracktion isolation treatment).
+*/
+struct HighwayRenderer::Impl
 {
-    HighwayRenderer renderer;
+    // Shader programs, one per HighwayShaderSet member.
+    UniqueBgfxHandle<bgfx::ProgramHandle> color_program;
+    UniqueBgfxHandle<bgfx::ProgramHandle> color_fade_program;
+    UniqueBgfxHandle<bgfx::ProgramHandle> texture_tint_program;
+    UniqueBgfxHandle<bgfx::ProgramHandle> glyph_program;
 
-    const auto load_program = [&resources](const core::GameShaderProgram program)
-        -> std::expected<UniqueBgfxHandle<bgfx::ProgramHandle>, HighwayRendererError> {
-        const auto vertex_bytes = resources.shaderBytes(
-            program, core::ShaderStage::Vertex, core::ShaderBackend::Direct3D11);
-        const auto fragment_bytes = resources.shaderBytes(
-            program, core::ShaderStage::Fragment, core::ShaderBackend::Direct3D11);
-        if (!vertex_bytes.has_value() || !fragment_bytes.has_value())
+    // Custom uniforms (predefined ones like u_modelViewProj are never created by hand).
+    UniqueBgfxHandle<bgfx::UniformHandle> fade_params;
+    UniqueBgfxHandle<bgfx::UniformHandle> atlas_sampler;
+
+    HighwayAtlases atlases;
+
+    // Retained board-face geometry; rebuilt on chart load, streamed content uses transients.
+    UniqueBgfxHandle<bgfx::VertexBufferHandle> face_vertices;
+    UniqueBgfxHandle<bgfx::IndexBufferHandle> face_indices;
+    std::uint32_t face_index_count{0};
+
+    common::core::HighwayViewState state;
+    std::vector<double> sustain_prefix_max;
+    common::core::HighwayMetrics metrics;
+    common::core::HighwayCamera camera;
+
+    // Player scroll speed; a free setting later (25-Q3), constant 1.0 for the skeleton.
+    double scroll_speed{1.0};
+
+    // One warning per process when a transient batch is dropped (budget exceeded is a bug
+    // signal, not an expected runtime path).
+    bool reported_transient_drop{false};
+
+    void rebuildBoardFace();
+    void draw(double now_seconds, double dt_seconds, std::uint32_t width, std::uint32_t height);
+    void drawOverlayRects(
+        std::span<const HighwayOverlayRect> rects, std::uint32_t width, std::uint32_t height);
+
+    // Submits a CPU-built batch through the transient buffers; drops the batch (with one
+    // process-lifetime warning) if the transient budget is ever exceeded — a bug signal, not a
+    // runtime path (the defaults hold >6x headroom over the worst-case highway frame).
+    template <typename Vertex>
+    void submitBatch(
+        const std::vector<Vertex>& vertices, const std::vector<std::uint16_t>& indices,
+        const bgfx::VertexLayout& layout, const bgfx::ProgramHandle program,
+        const bgfx::TextureHandle* texture, const bgfx::ViewId view = g_board_view,
+        const std::uint64_t render_state = g_blended_state)
+    {
+        if (vertices.empty())
         {
-            return std::unexpected{HighwayRendererError{
-                .code = HighwayRendererErrorCode::ResourceLoadFailed,
-                .message = vertex_bytes.has_value() ? fragment_bytes.error().message
-                                                    : vertex_bytes.error().message
-            }};
+            return;
         }
-
-        UniqueBgfxHandle<bgfx::ProgramHandle> program_handle =
-            createProgramFromBytes(*vertex_bytes, *fragment_bytes);
-        if (!program_handle.isValid())
+        bgfx::TransientVertexBuffer tvb{};
+        bgfx::TransientIndexBuffer tib{};
+        if (!bgfx::allocTransientBuffers(
+                &tvb,
+                layout,
+                static_cast<std::uint32_t>(vertices.size()),
+                &tib,
+                static_cast<std::uint32_t>(indices.size())))
         {
-            return std::unexpected{HighwayRendererError{
-                .code = HighwayRendererErrorCode::ProgramCreationFailed,
-                .message = "bgfx rejected or failed to link a compiled highway shader program"
-            }};
+            if (!reported_transient_drop)
+            {
+                reported_transient_drop = true;
+                RH_LOG_WARNING(
+                    "common.highway",
+                    "transient buffer budget exceeded; dropping a batch (vertices={})",
+                    vertices.size());
+            }
+            return;
         }
-        return program_handle;
-    };
+        std::memcpy(tvb.data, vertices.data(), vertices.size() * sizeof(Vertex));
+        std::memcpy(tib.data, indices.data(), indices.size() * sizeof(std::uint16_t));
+        bgfx::setVertexBuffer(0, &tvb);
+        bgfx::setIndexBuffer(&tib);
+        if (texture != nullptr)
+        {
+            bgfx::setTexture(0, atlas_sampler.get(), *texture);
+        }
+        bgfx::setState(render_state);
+        bgfx::submit(view, program);
+    }
+};
 
-    auto color = load_program(core::GameShaderProgram::Color);
-    auto color_fade = load_program(core::GameShaderProgram::ColorFade);
-    auto texture_tint = load_program(core::GameShaderProgram::TextureTint);
-    auto glyph = load_program(core::GameShaderProgram::Glyph);
+std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
+    const HighwayShaderSet& shaders)
+{
+    auto impl = std::make_unique<Impl>();
+
+    auto color = linkProgram(shaders.color, "color");
+    auto color_fade = linkProgram(shaders.color_fade, "color_fade");
+    auto texture_tint = linkProgram(shaders.texture_tint, "texture_tint");
+    auto glyph = linkProgram(shaders.glyph, "glyph");
     if (!color || !color_fade || !texture_tint || !glyph)
     {
         const auto& failed = !color          ? color.error()
@@ -260,59 +343,81 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
                                              : glyph.error();
         return std::unexpected{failed};
     }
-    renderer.m_color_program = std::move(*color);
-    renderer.m_color_fade_program = std::move(*color_fade);
-    renderer.m_texture_tint_program = std::move(*texture_tint);
-    renderer.m_glyph_program = std::move(*glyph);
+    impl->color_program = std::move(*color);
+    impl->color_fade_program = std::move(*color_fade);
+    impl->texture_tint_program = std::move(*texture_tint);
+    impl->glyph_program = std::move(*glyph);
 
-    renderer.m_fade_params = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
+    impl->fade_params = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
         "u_fade_params", bgfx::UniformType::Vec4)};
-    renderer.m_atlas_sampler = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
+    impl->atlas_sampler = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
         "s_atlas", bgfx::UniformType::Sampler)};
 
-    renderer.m_atlases = makeHighwayAtlases();
+    impl->atlases = makeHighwayAtlases();
 
-    return renderer;
+    return HighwayRenderer{std::move(impl)};
 }
+
+HighwayRenderer::HighwayRenderer(std::unique_ptr<Impl> impl) noexcept
+    : m_impl{std::move(impl)}
+{}
+
+HighwayRenderer::~HighwayRenderer() = default;
+HighwayRenderer::HighwayRenderer(HighwayRenderer&& other) noexcept = default;
+HighwayRenderer& HighwayRenderer::operator=(HighwayRenderer&& other) noexcept = default;
 
 void HighwayRenderer::setViewState(common::core::HighwayViewState state)
 {
-    m_state = std::move(state);
-    m_sustain_prefix_max = common::core::makeHighwaySustainPrefixMax(m_state.notes);
-    m_camera.reset();
-    rebuildBoardFace();
+    m_impl->state = std::move(state);
+    m_impl->sustain_prefix_max = common::core::makeHighwaySustainPrefixMax(m_impl->state.notes);
+    m_impl->camera.reset();
+    m_impl->rebuildBoardFace();
+}
+
+void HighwayRenderer::draw(
+    const double now_seconds, const double dt_seconds, const std::uint32_t width,
+    const std::uint32_t height)
+{
+    m_impl->draw(now_seconds, dt_seconds, width, height);
+}
+
+void HighwayRenderer::drawOverlayRects(
+    const std::span<const HighwayOverlayRect> rects, const std::uint32_t width,
+    const std::uint32_t height)
+{
+    m_impl->drawOverlayRects(rects, width, height);
 }
 
 // The board face is the neck picture standing at the hit line: per-string colored string lines,
 // fret lines, and inlay dots, all on the z = 0 plane. Rebuilt only when the chart changes.
-void HighwayRenderer::rebuildBoardFace()
+void HighwayRenderer::Impl::rebuildBoardFace()
 {
-    m_face_vertices.reset();
-    m_face_indices.reset();
-    m_face_index_count = 0;
-    if (m_state.string_count <= 0)
+    face_vertices.reset();
+    face_indices.reset();
+    face_index_count = 0;
+    if (state.string_count <= 0)
     {
         return;
     }
 
-    const bool mirrored = m_state.options.mirrored;
-    const bool invert = m_state.options.invert_string_order;
-    const common::ui::StringColorPalette& palette = common::ui::charterClassicPalette();
+    const bool mirrored = state.options.mirrored;
+    const bool invert = state.options.invert_string_order;
+    const StringColorPalette& palette = charterClassicPalette();
 
     std::vector<PosColorVertex> vertices;
     std::vector<std::uint16_t> indices;
 
-    const double x_start = common::core::highwayFretLineX(0, m_metrics, mirrored);
-    const double x_end = common::core::highwayFretLineX(g_face_fret_count, m_metrics, mirrored);
+    const double x_start = common::core::highwayFretLineX(0, metrics, mirrored);
+    const double x_end = common::core::highwayFretLineX(g_face_fret_count, metrics, mirrored);
     const auto [x_low, x_high] = std::minmax(x_start, x_end);
-    const double y_top = common::core::highwayStringLaneY(
-                             m_state.string_count, m_state.string_count, m_metrics, false) +
-                         (m_metrics.string_distance * 0.5);
+    const double y_top =
+        common::core::highwayStringLaneY(state.string_count, state.string_count, metrics, false) +
+        (metrics.string_distance * 0.5);
 
     // Fret lines: thin vertical quads across the string span; the nut is slightly heavier.
     for (int fret = 0; fret <= g_face_fret_count; ++fret)
     {
-        const double x = common::core::highwayFretLineX(fret, m_metrics, mirrored);
+        const double x = common::core::highwayFretLineX(fret, metrics, mirrored);
         const double half = fret == 0 ? 0.03 : 0.015;
         pushFaceQuad(
             vertices, indices, x - half, x + half, 0.0, y_top, 0.0, packAbgr(0xFF9A9A9A, 0.65));
@@ -322,9 +427,9 @@ void HighwayRenderer::rebuildBoardFace()
     const double inlay_y = y_top * 0.5;
     for (const int fret : {3, 5, 7, 9, 12, 15, 17, 19, 21, 24})
     {
-        const double x = common::core::highwayNoteCenterX(fret, m_metrics, mirrored);
-        const double half = m_metrics.first_fret_distance * 0.11;
-        const double twelfth = (fret % 12) == 0 ? m_metrics.string_distance * 0.7 : 0.0;
+        const double x = common::core::highwayNoteCenterX(fret, metrics, mirrored);
+        const double half = metrics.first_fret_distance * 0.11;
+        const double twelfth = (fret % 12) == 0 ? metrics.string_distance * 0.7 : 0.0;
         pushFaceQuad(
             vertices,
             indices,
@@ -337,12 +442,11 @@ void HighwayRenderer::rebuildBoardFace()
     }
 
     // String lines: per-string colored horizontal quads, the shared palette's lane surface.
-    for (int string = 1; string <= m_state.string_count; ++string)
+    for (int string = 1; string <= state.string_count; ++string)
     {
         const double y =
-            common::core::highwayStringLaneY(string, m_state.string_count, m_metrics, invert);
-        const common::ui::StringLaneStyle style{common::ui::stringLaneColor(
-            string, m_state.string_count, palette)};
+            common::core::highwayStringLaneY(string, state.string_count, metrics, invert);
+        const StringLaneStyle style{stringLaneColor(string, state.string_count, palette)};
         pushFaceQuad(
             vertices, indices, x_low, x_high, y - 0.02, y + 0.02, 0.0, packAbgr(style.lane));
     }
@@ -351,14 +455,13 @@ void HighwayRenderer::rebuildBoardFace()
         vertices.data(), static_cast<std::uint32_t>(vertices.size() * sizeof(PosColorVertex)));
     const bgfx::Memory* index_memory = bgfx::copy(
         indices.data(), static_cast<std::uint32_t>(indices.size() * sizeof(std::uint16_t)));
-    m_face_vertices = UniqueBgfxHandle<bgfx::VertexBufferHandle>{bgfx::createVertexBuffer(
+    face_vertices = UniqueBgfxHandle<bgfx::VertexBufferHandle>{bgfx::createVertexBuffer(
         vertex_memory, posColorLayout())};
-    m_face_indices =
-        UniqueBgfxHandle<bgfx::IndexBufferHandle>{bgfx::createIndexBuffer(index_memory)};
-    m_face_index_count = static_cast<std::uint32_t>(indices.size());
+    face_indices = UniqueBgfxHandle<bgfx::IndexBufferHandle>{bgfx::createIndexBuffer(index_memory)};
+    face_index_count = static_cast<std::uint32_t>(indices.size());
 }
 
-void HighwayRenderer::draw(
+void HighwayRenderer::Impl::draw(
     const double now_seconds, const double dt_seconds, const std::uint32_t width,
     const std::uint32_t height)
 {
@@ -369,14 +472,14 @@ void HighwayRenderer::draw(
 
     // Camera: instantaneous targets from the chart, smoothed frame-rate independently.
     const common::core::HighwayCameraTarget target =
-        common::core::makeHighwayCameraTarget(m_state, now_seconds, m_metrics);
-    m_camera.advance(target, dt_seconds, m_metrics);
-    const common::core::HighwayCameraPose pose = m_camera.pose(m_metrics);
+        common::core::makeHighwayCameraTarget(state, now_seconds, metrics);
+    camera.advance(target, dt_seconds, metrics);
+    const common::core::HighwayCameraPose pose = camera.pose(metrics);
     const double aspect = static_cast<double>(width) / static_cast<double>(height);
     const std::array<float, 16> board_matrix =
-        toBgfxMatrix(common::core::makeHighwayWorldToClip(pose, aspect, m_metrics));
+        toBgfxMatrix(common::core::makeHighwayWorldToClip(pose, aspect, metrics));
     const std::array<float, 16> background_matrix = toBgfxMatrix(
-        common::core::makeHighwayBackgroundWorldToClip(pose, aspect, now_seconds, m_metrics));
+        common::core::makeHighwayBackgroundWorldToClip(pose, aspect, now_seconds, metrics));
 
     // Per-frame view setup, re-asserted from the current backbuffer size (checkpoint trap 2).
     const auto width16 = static_cast<std::uint16_t>(width);
@@ -396,84 +499,40 @@ void HighwayRenderer::draw(
     bgfx::touch(g_background_view);
     bgfx::touch(g_board_view);
 
-    const double scroll = m_scroll_speed;
-    const bool mirrored = m_state.options.mirrored;
-    const bool invert = m_state.options.invert_string_order;
-    const double span_end_seconds = now_seconds + (m_metrics.visibility_window_seconds * scroll);
+    const double scroll = scroll_speed;
+    const bool mirrored = state.options.mirrored;
+    const bool invert = state.options.invert_string_order;
+    const double span_end_seconds = now_seconds + (metrics.visibility_window_seconds * scroll);
     const double span_start_seconds = now_seconds - g_passed_fade_seconds;
-    const common::ui::StringColorPalette& palette = common::ui::charterClassicPalette();
+    const StringColorPalette& palette = charterClassicPalette();
 
     const auto time_to_z = [&](const double seconds) {
-        return common::core::highwayTimeToZ(seconds - now_seconds, scroll, m_metrics);
-    };
-
-    // Submits a CPU-built batch through the transient buffers; drops the batch (with one
-    // process-lifetime warning) if the transient budget is ever exceeded — a bug signal, not a
-    // runtime path (the defaults hold >6x headroom over the worst-case highway frame).
-    const auto submit_batch = [this]<typename Vertex>(
-                                  const std::vector<Vertex>& vertices,
-                                  const std::vector<std::uint16_t>& indices,
-                                  const bgfx::VertexLayout& layout,
-                                  const bgfx::ProgramHandle program,
-                                  const bgfx::TextureHandle* texture) {
-        if (vertices.empty())
-        {
-            return;
-        }
-        bgfx::TransientVertexBuffer tvb{};
-        bgfx::TransientIndexBuffer tib{};
-        if (!bgfx::allocTransientBuffers(
-                &tvb,
-                layout,
-                static_cast<std::uint32_t>(vertices.size()),
-                &tib,
-                static_cast<std::uint32_t>(indices.size())))
-        {
-            if (!m_reported_transient_drop)
-            {
-                m_reported_transient_drop = true;
-                RH_LOG_WARNING(
-                    "game.highway",
-                    "transient buffer budget exceeded; dropping a batch (vertices={})",
-                    vertices.size());
-            }
-            return;
-        }
-        std::memcpy(tvb.data, vertices.data(), vertices.size() * sizeof(Vertex));
-        std::memcpy(tib.data, indices.data(), indices.size() * sizeof(std::uint16_t));
-        bgfx::setVertexBuffer(0, &tvb);
-        bgfx::setIndexBuffer(&tib);
-        if (texture != nullptr)
-        {
-            bgfx::setTexture(0, m_atlas_sampler.get(), *texture);
-        }
-        bgfx::setState(g_blended_state);
-        bgfx::submit(g_board_view, program);
+        return common::core::highwayTimeToZ(seconds - now_seconds, scroll, metrics);
     };
 
     // --- Beat and measure bars (distance-faded floor quads, clipped to the hand window). ---
     {
-        const std::array<float, 4> fade_params{
-            static_cast<float>(common::core::highwayTimeToZ(0.05, scroll, m_metrics)),
-            static_cast<float>(common::core::highwayTimeToZ(0.25, scroll, m_metrics)),
+        const std::array<float, 4> fade_uniform{
+            static_cast<float>(common::core::highwayTimeToZ(0.05, scroll, metrics)),
+            static_cast<float>(common::core::highwayTimeToZ(0.25, scroll, metrics)),
             0.0F,
             0.0F
         };
-        bgfx::setUniform(m_fade_params.get(), fade_params.data());
+        bgfx::setUniform(fade_params.get(), fade_uniform.data());
 
         std::vector<PosColorVertex> vertices;
         std::vector<std::uint16_t> indices;
-        for (const common::core::HighwayBeatView& beat : m_state.beats)
+        for (const common::core::HighwayBeatView& beat : state.beats)
         {
             if (beat.seconds < now_seconds - 0.2 || beat.seconds > span_end_seconds)
             {
                 continue;
             }
-            const auto [low_line, high_line] = activeFhpFretLines(m_state, beat.seconds);
+            const auto [low_line, high_line] = activeFhpFretLines(state, beat.seconds);
             // Named operands: std::minmax over prvalues returns references into destroyed
             // temporaries (the Phase 3 CI dangling-reference finding).
-            const double low_x = common::core::highwayFretLineX(low_line, m_metrics, mirrored);
-            const double high_x = common::core::highwayFretLineX(high_line, m_metrics, mirrored);
+            const double low_x = common::core::highwayFretLineX(low_line, metrics, mirrored);
+            const double high_x = common::core::highwayFretLineX(high_line, metrics, mirrored);
             const auto [x0, x1] = std::minmax(low_x, high_x);
             const double z = time_to_z(beat.seconds);
             const double half = beat.measure_downbeat ? 0.10 : 0.045;
@@ -481,16 +540,16 @@ void HighwayRenderer::draw(
             pushFloorQuad(
                 vertices, indices, x0, x1, 0.015, z - half, z + half, packAbgr(0xFFFFFFFF, alpha));
         }
-        submit_batch(vertices, indices, posColorLayout(), m_color_fade_program.get(), nullptr);
+        submitBatch(vertices, indices, posColorLayout(), color_fade_program.get(), nullptr);
     }
 
     // --- FHP lane highlight: the lit runway under the active hand window. ---
     {
         std::vector<PosColorVertex> vertices;
         std::vector<std::uint16_t> indices;
-        const auto [low_line, high_line] = activeFhpFretLines(m_state, now_seconds);
-        const double low_x = common::core::highwayFretLineX(low_line, m_metrics, mirrored);
-        const double high_x = common::core::highwayFretLineX(high_line, m_metrics, mirrored);
+        const auto [low_line, high_line] = activeFhpFretLines(state, now_seconds);
+        const double low_x = common::core::highwayFretLineX(low_line, metrics, mirrored);
+        const double high_x = common::core::highwayFretLineX(high_line, metrics, mirrored);
         const auto [x0, x1] = std::minmax(low_x, high_x);
         pushFloorQuad(
             vertices,
@@ -498,16 +557,16 @@ void HighwayRenderer::draw(
             x0,
             x1,
             0.008,
-            common::core::highwayTimeToZ(-g_passed_fade_seconds, scroll, m_metrics),
+            common::core::highwayTimeToZ(-g_passed_fade_seconds, scroll, metrics),
             common::core::highwayTimeToZ(
-                m_metrics.visibility_window_seconds * scroll, scroll, m_metrics),
+                metrics.visibility_window_seconds * scroll, scroll, metrics),
             packAbgr(0xFFFFFFFF, 0.10));
-        submit_batch(vertices, indices, posColorLayout(), m_color_program.get(), nullptr);
+        submitBatch(vertices, indices, posColorLayout(), color_program.get(), nullptr);
     }
 
     // --- Notes: shadows, sustain rails, open bars, then heads sorted far-to-near. ---
     const auto [first_note, last_note] = common::core::highwayVisibleNoteRange(
-        m_state.notes, m_sustain_prefix_max, span_start_seconds, span_end_seconds);
+        state.notes, sustain_prefix_max, span_start_seconds, span_end_seconds);
 
     std::vector<PosColorVertex> shadow_vertices;
     std::vector<std::uint16_t> shadow_indices;
@@ -522,7 +581,7 @@ void HighwayRenderer::draw(
     visible.reserve(last_note - first_note);
     for (std::size_t index = first_note; index < last_note; ++index)
     {
-        const common::core::HighwayNoteView& note = m_state.notes[index];
+        const common::core::HighwayNoteView& note = state.notes[index];
         if (note.start_seconds <= span_end_seconds && note.end_seconds >= span_start_seconds)
         {
             visible.push_back(index);
@@ -530,20 +589,19 @@ void HighwayRenderer::draw(
     }
     // Far-to-near: later onsets draw first so nearer content alpha-composites over them.
     std::ranges::sort(visible, [this](const std::size_t lhs, const std::size_t rhs) {
-        return m_state.notes[lhs].start_seconds > m_state.notes[rhs].start_seconds;
+        return state.notes[lhs].start_seconds > state.notes[rhs].start_seconds;
     });
 
-    const std::array<float, 4> head_cell = m_atlases.head_layout.cellRect(g_head_cell_standard);
-    const double head_half_w = m_metrics.note_half_width;
-    const double head_half_h = m_metrics.string_distance * 0.45;
+    const std::array<float, 4> head_cell = atlases.head_layout.cellRect(g_head_cell_standard);
+    const double head_half_w = metrics.note_half_width;
+    const double head_half_h = metrics.string_distance * 0.45;
 
     for (const std::size_t index : visible)
     {
-        const common::core::HighwayNoteView& note = m_state.notes[index];
+        const common::core::HighwayNoteView& note = state.notes[index];
         const double lane_y =
-            common::core::highwayStringLaneY(note.string, m_state.string_count, m_metrics, invert);
-        const common::ui::StringLaneStyle style{common::ui::stringLaneColor(
-            note.string, m_state.string_count, palette)};
+            common::core::highwayStringLaneY(note.string, state.string_count, metrics, invert);
+        const StringLaneStyle style{stringLaneColor(note.string, state.string_count, palette)};
         const double fade =
             note.start_seconds >= now_seconds
                 ? 1.0
@@ -557,24 +615,24 @@ void HighwayRenderer::draw(
             if (z1 > z0)
             {
                 const double x =
-                    note.fret > 0 ? common::core::highwayNoteCenterX(note.fret, m_metrics, mirrored)
+                    note.fret > 0 ? common::core::highwayNoteCenterX(note.fret, metrics, mirrored)
                                   : (common::core::highwayFretLineX(
-                                         activeFhpFretLines(m_state, note.start_seconds).first,
-                                         m_metrics,
+                                         activeFhpFretLines(state, note.start_seconds).first,
+                                         metrics,
                                          mirrored) +
                                      common::core::highwayFretLineX(
-                                         activeFhpFretLines(m_state, note.start_seconds).second,
-                                         m_metrics,
+                                         activeFhpFretLines(state, note.start_seconds).second,
+                                         metrics,
                                          mirrored)) /
                                         2.0;
                 const std::uint32_t tail_color = packAbgr(style.tail, 0.75);
                 pushQuad(
                     rail_vertices,
                     rail_indices,
-                    makeVertex(x - m_metrics.tail_half_width, lane_y, z0, tail_color),
-                    makeVertex(x + m_metrics.tail_half_width, lane_y, z0, tail_color),
-                    makeVertex(x + m_metrics.tail_half_width, lane_y, z1, tail_color),
-                    makeVertex(x - m_metrics.tail_half_width, lane_y, z1, tail_color));
+                    makeVertex(x - metrics.tail_half_width, lane_y, z0, tail_color),
+                    makeVertex(x + metrics.tail_half_width, lane_y, z0, tail_color),
+                    makeVertex(x + metrics.tail_half_width, lane_y, z1, tail_color),
+                    makeVertex(x - metrics.tail_half_width, lane_y, z1, tail_color));
             }
         }
 
@@ -587,22 +645,22 @@ void HighwayRenderer::draw(
         if (note.fret == 0)
         {
             // Open string: a wide bar spanning the hand window active at the note's time.
-            const auto [low_line, high_line] = activeFhpFretLines(m_state, note.start_seconds);
-            const double low_x = common::core::highwayFretLineX(low_line, m_metrics, mirrored);
-            const double high_x = common::core::highwayFretLineX(high_line, m_metrics, mirrored);
+            const auto [low_line, high_line] = activeFhpFretLines(state, note.start_seconds);
+            const double low_x = common::core::highwayFretLineX(low_line, metrics, mirrored);
+            const double high_x = common::core::highwayFretLineX(high_line, metrics, mirrored);
             const auto [x0, x1] = std::minmax(low_x, high_x);
             const std::uint32_t bar_color = packAbgr(style.inner, fade);
             pushQuad(
                 open_vertices,
                 open_indices,
-                makeVertex(x0, lane_y - m_metrics.tail_half_width, z, bar_color),
-                makeVertex(x1, lane_y - m_metrics.tail_half_width, z, bar_color),
-                makeVertex(x1, lane_y + m_metrics.tail_half_width, z, bar_color),
-                makeVertex(x0, lane_y + m_metrics.tail_half_width, z, bar_color));
+                makeVertex(x0, lane_y - metrics.tail_half_width, z, bar_color),
+                makeVertex(x1, lane_y - metrics.tail_half_width, z, bar_color),
+                makeVertex(x1, lane_y + metrics.tail_half_width, z, bar_color),
+                makeVertex(x0, lane_y + metrics.tail_half_width, z, bar_color));
             continue;
         }
 
-        const double x = common::core::highwayNoteCenterX(note.fret, m_metrics, mirrored);
+        const double x = common::core::highwayNoteCenterX(note.fret, metrics, mirrored);
 
         // Note shadow: a dark ellipse on the floor under the note (load-bearing for depth
         // perception), built as a small triangle fan.
@@ -635,9 +693,9 @@ void HighwayRenderer::draw(
         // chord notes (a same-onset neighbor) land flat.
         const bool in_chord =
             (index > 0 &&
-             std::abs(m_state.notes[index - 1].start_seconds - note.start_seconds) < 1.0e-4) ||
-            (index + 1 < m_state.notes.size() &&
-             std::abs(m_state.notes[index + 1].start_seconds - note.start_seconds) < 1.0e-4);
+             std::abs(state.notes[index - 1].start_seconds - note.start_seconds) < 1.0e-4) ||
+            (index + 1 < state.notes.size() &&
+             std::abs(state.notes[index + 1].start_seconds - note.start_seconds) < 1.0e-4);
         const double rotation =
             in_chord ? 0.0
                      : std::clamp(
@@ -647,7 +705,7 @@ void HighwayRenderer::draw(
         const double cos_r = std::cos(rotation);
         const double sin_r = std::sin(rotation);
         const std::uint32_t tint =
-            packAbgr(common::ui::stringLaneColor(note.string, m_state.string_count, palette), fade);
+            packAbgr(stringLaneColor(note.string, state.string_count, palette), fade);
 
         const auto corner = [&](const double dx, const double dy, const float u, const float v) {
             return makeUvVertex(
@@ -667,24 +725,24 @@ void HighwayRenderer::draw(
             corner(-head_half_w, head_half_h, head_cell[0], head_cell[1]));
     }
 
-    submit_batch(shadow_vertices, shadow_indices, posColorLayout(), m_color_program.get(), nullptr);
-    submit_batch(rail_vertices, rail_indices, posColorLayout(), m_color_program.get(), nullptr);
-    submit_batch(open_vertices, open_indices, posColorLayout(), m_color_program.get(), nullptr);
-    const bgfx::TextureHandle heads_texture = m_atlases.heads.get();
-    submit_batch(
+    submitBatch(shadow_vertices, shadow_indices, posColorLayout(), color_program.get(), nullptr);
+    submitBatch(rail_vertices, rail_indices, posColorLayout(), color_program.get(), nullptr);
+    submitBatch(open_vertices, open_indices, posColorLayout(), color_program.get(), nullptr);
+    const bgfx::TextureHandle heads_texture = atlases.heads.get();
+    submitBatch(
         head_vertices,
         head_indices,
         posColorUvLayout(),
-        m_texture_tint_program.get(),
+        texture_tint_program.get(),
         &heads_texture);
 
     // --- Board face (retained): strings, frets, inlays drawn over passing content. ---
-    if (m_face_index_count > 0 && m_face_vertices.isValid() && m_face_indices.isValid())
+    if (face_index_count > 0 && face_vertices.isValid() && face_indices.isValid())
     {
-        bgfx::setVertexBuffer(0, m_face_vertices.get());
-        bgfx::setIndexBuffer(m_face_indices.get(), 0, m_face_index_count);
+        bgfx::setVertexBuffer(0, face_vertices.get());
+        bgfx::setIndexBuffer(face_indices.get(), 0, face_index_count);
         bgfx::setState(g_blended_state);
-        bgfx::submit(g_board_view, m_color_program.get());
+        bgfx::submit(g_board_view, color_program.get());
     }
 
     // --- Fret numbers and section labels through the glyph atlas. ---
@@ -705,7 +763,7 @@ void HighwayRenderer::draw(
                 const std::optional<int> cell = highwayGlyphCellIndex(character);
                 if (cell.has_value())
                 {
-                    const std::array<float, 4> rect = m_atlases.glyph_layout.cellRect(*cell);
+                    const std::array<float, 4> rect = atlases.glyph_layout.cellRect(*cell);
                     pushQuad(
                         glyph_vertices,
                         glyph_indices,
@@ -726,7 +784,7 @@ void HighwayRenderer::draw(
         };
 
         // Fret numbers along the bottom of the face (defect 3 fix: atlas, not per-frame text).
-        if (m_state.string_count > 0)
+        if (state.string_count > 0)
         {
             constexpr double g_number_height = 0.30;
             for (int fret = 1; fret <= g_face_fret_count; ++fret)
@@ -734,17 +792,17 @@ void HighwayRenderer::draw(
                 const std::string label = std::to_string(fret);
                 const double text_width =
                     g_number_height * 0.62 * static_cast<double>(label.size());
-                const double x = common::core::highwayNoteCenterX(fret, m_metrics, mirrored) -
-                                 (text_width / 2.0);
+                const double x =
+                    common::core::highwayNoteCenterX(fret, metrics, mirrored) - (text_width / 2.0);
                 (void)push_text(label, x, -0.42, 0.0, g_number_height, packAbgr(0xFFFFFFFF, 0.55));
             }
         }
 
         // Section labels floating above the board at their arrival time.
         const double section_y =
-            (static_cast<double>(std::max(m_state.string_count, 1)) * m_metrics.string_distance) +
-            (m_metrics.string_distance * 2.0);
-        for (const common::core::HighwaySectionView& section : m_state.sections)
+            (static_cast<double>(std::max(state.string_count, 1)) * metrics.string_distance) +
+            (metrics.string_distance * 2.0);
+        for (const common::core::HighwaySectionView& section : state.sections)
         {
             if (section.seconds < now_seconds - 0.5 || section.seconds > span_end_seconds)
             {
@@ -754,25 +812,78 @@ void HighwayRenderer::draw(
             std::ranges::transform(label, label.begin(), [](const char c) {
                 return static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
             });
-            const auto [low_line, high_line] = activeFhpFretLines(m_state, section.seconds);
-            const double x = common::core::highwayFretLineX(low_line, m_metrics, mirrored);
+            const auto [low_line, high_line] = activeFhpFretLines(state, section.seconds);
+            const double x = common::core::highwayFretLineX(low_line, metrics, mirrored);
             (void)push_text(
                 label,
-                std::min(x, common::core::highwayFretLineX(high_line, m_metrics, mirrored)),
+                std::min(x, common::core::highwayFretLineX(high_line, metrics, mirrored)),
                 section_y,
                 time_to_z(section.seconds),
                 0.5,
                 packAbgr(0xFFFFFFFF, 0.85));
         }
 
-        const bgfx::TextureHandle glyph_texture = m_atlases.glyphs.get();
-        submit_batch(
-            glyph_vertices,
-            glyph_indices,
-            posColorUvLayout(),
-            m_glyph_program.get(),
-            &glyph_texture);
+        const bgfx::TextureHandle glyph_texture = atlases.glyphs.get();
+        submitBatch(
+            glyph_vertices, glyph_indices, posColorUvLayout(), glyph_program.get(), &glyph_texture);
     }
 }
 
-} // namespace rock_hero::game::ui
+// Overlay rectangles ride the same transient path as the scene, on the overlay view with a
+// pixel-space orthographic transform (x right, y down from the top-left corner).
+void HighwayRenderer::Impl::drawOverlayRects(
+    const std::span<const HighwayOverlayRect> rects, const std::uint32_t width,
+    const std::uint32_t height)
+{
+    if (rects.empty() || width == 0 || height == 0)
+    {
+        return;
+    }
+
+    const auto width_f = static_cast<float>(width);
+    const auto height_f = static_cast<float>(height);
+    const std::array<float, 16> ortho{
+        2.0F / width_f,
+        0.0F,
+        0.0F,
+        0.0F,
+        0.0F,
+        -2.0F / height_f,
+        0.0F,
+        0.0F,
+        0.0F,
+        0.0F,
+        1.0F,
+        0.0F,
+        -1.0F,
+        1.0F,
+        0.0F,
+        1.0F,
+    };
+    bgfx::setViewTransform(g_overlay_view, ortho.data(), nullptr);
+
+    std::vector<PosColorVertex> vertices;
+    std::vector<std::uint16_t> indices;
+    vertices.reserve(rects.size() * 4);
+    indices.reserve(rects.size() * 6);
+    for (const HighwayOverlayRect& rect : rects)
+    {
+        pushQuad(
+            vertices,
+            indices,
+            makeVertex(rect.left, rect.top, 0.0, rect.abgr),
+            makeVertex(rect.right, rect.top, 0.0, rect.abgr),
+            makeVertex(rect.right, rect.bottom, 0.0, rect.abgr),
+            makeVertex(rect.left, rect.bottom, 0.0, rect.abgr));
+    }
+    submitBatch(
+        vertices,
+        indices,
+        posColorLayout(),
+        color_program.get(),
+        nullptr,
+        g_overlay_view,
+        g_overlay_state);
+}
+
+} // namespace rock_hero::common::ui

@@ -41,10 +41,10 @@ enum class ShaderStage : std::uint8_t
 /*!
 \brief Shader programs the game ships.
 
-Each enumerator names one committed .sc source pair in rock-hero-game/ui/shaders/ whose compiled
-binaries land in the deployed resources tree. The set mirrors the highway reference's programs
-(plan 25 § Decisions): plain vertex color, distance-faded color, channel-scheme tinted texture,
-and glyph text.
+Each enumerator names one committed .sc source pair in the shared rock-hero-common/ui/shaders/
+tree (compiled per product) whose binaries land in the deployed resources tree. The set mirrors
+the highway reference's programs (plan 25 § Decisions): plain vertex color, distance-faded color,
+channel-scheme tinted texture, and glyph text.
 */
 enum class GameShaderProgram : std::uint8_t
 {

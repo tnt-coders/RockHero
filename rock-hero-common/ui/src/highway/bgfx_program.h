@@ -5,13 +5,13 @@
 
 #pragma once
 
-#include "surface/bgfx_handle.h"
+#include "highway/bgfx_handle.h"
 
 #include <bgfx/bgfx.h>
 #include <cstddef>
 #include <span>
 
-namespace rock_hero::game::ui
+namespace rock_hero::common::ui
 {
 
 /*!
@@ -29,4 +29,4 @@ the local stage handles are released on return.
 [[nodiscard]] UniqueBgfxHandle<bgfx::ProgramHandle> createProgramFromBytes(
     std::span<const std::byte> vertex_bytes, std::span<const std::byte> fragment_bytes);
 
-} // namespace rock_hero::game::ui
+} // namespace rock_hero::common::ui
