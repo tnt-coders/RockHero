@@ -10,47 +10,94 @@ namespace rock_hero::common::core
 namespace
 {
 
-// Perspective projection scale for a vertical field of view: 1 / tan(fov / 2).
-[[nodiscard]] double projectionScale(const HighwayMetrics& metrics)
+// View translation: camera-relative world coordinates.
+[[nodiscard]] HighwayMat4 makeViewTranslation(const HighwayCameraPose& camera)
 {
-    const double half_fov_radians = metrics.field_of_view_y_degrees * std::numbers::pi / 360.0;
-    return 1.0 / std::tan(half_fov_radians);
+    HighwayMat4 translation = HighwayMat4::identity();
+    translation.m[3] = -camera.x;
+    translation.m[7] = -camera.y;
+    translation.m[11] = -camera.z;
+    return translation;
 }
 
-// Zero-rotation perspective looking toward +Z from the camera position: a pure view translation
-// composed with an axis-aligned perspective (D3D-style depth in [0, 1]). Rotation-free by
-// design — this is what makes world-vertical lines project exactly screen-vertical.
-[[nodiscard]] HighwayMat4 makePinnedProjection(
-    const HighwayCameraPose& camera, double aspect_ratio, const HighwayMetrics& metrics)
+// Rotation about the X axis (pitch). Positive angles pitch the view downward: far content moves
+// down in camera space, lowering the vanishing point.
+[[nodiscard]] HighwayMat4 makeRotationX(const double radians)
 {
-    const double scale = projectionScale(metrics);
+    HighwayMat4 rotation = HighwayMat4::identity();
+    const double c = std::cos(radians);
+    const double s = std::sin(radians);
+    rotation.m[5] = c;
+    rotation.m[6] = -s;
+    rotation.m[9] = s;
+    rotation.m[10] = c;
+    return rotation;
+}
+
+// Rotation about the Y axis (yaw). Positive angles bring the +X (body-side) neck end closer to
+// the camera, which is what slopes the strings on screen.
+[[nodiscard]] HighwayMat4 makeRotationY(const double radians)
+{
+    HighwayMat4 rotation = HighwayMat4::identity();
+    const double c = std::cos(radians);
+    const double s = std::sin(radians);
+    rotation.m[0] = c;
+    rotation.m[2] = s;
+    rotation.m[8] = -s;
+    rotation.m[10] = c;
+    return rotation;
+}
+
+// The reference camera chain: translate -> yaw -> pitch -> wide perspective -> NDC pin.
+//
+// The rotations are Charter's rotX/rotY constants — they are load-bearing for the look (the yaw
+// slopes the strings like a held guitar neck; source analysis 2026-07-11). With both rotations
+// zero this reduces to the original zero-rotation formulation whose exact-verticality property
+// stays regression-tested at that configuration.
+[[nodiscard]] HighwayMat4 makePinnedProjection(
+    const HighwayCameraPose& camera, double aspect_ratio, const bool mirrored,
+    const HighwayMetrics& metrics)
+{
+    const double aspect = std::max(aspect_ratio, 1.0e-6);
+
+    // Charter's frustum: camera-space X/Y scaled by scale_base times an aspect-dependent screen
+    // scale — screenScaleX = min(0.5, 1/aspect), screenScaleY = min(1, aspect/2) + lift. For
+    // aspects up to 2:1 the horizontal half-angle is constant (tan = 3 at the defaults) and the
+    // vertical follows the aspect; wider viewports widen vertically instead.
+    const double screen_scale_x = std::min(0.5, 1.0 / aspect);
+    const double screen_scale_y = std::min(1.0, aspect / 2.0) + metrics.frustum_y_lift;
+    const double scale_x = metrics.frustum_scale_base * screen_scale_x;
+    const double scale_y = metrics.frustum_scale_base * screen_scale_y;
     const double depth_range = metrics.far_plane - metrics.near_plane;
 
-    HighwayMat4 projection{};
-    // Row 0: clip.x = (scale / aspect) * (x - cam.x)
-    projection.m[0] = scale / std::max(aspect_ratio, 1.0e-6);
-    projection.m[3] = -camera.x * projection.m[0];
-    // Row 1: clip.y = scale * (y - cam.y)
-    projection.m[5] = scale;
-    projection.m[7] = -camera.y * scale;
-    // Row 2: clip.z maps eye depth (z - cam.z) from [near, far] onto [0, far] pre-divide, the
-    // D3D convention. The constant term must stay camera-relative: anchoring it at world Z
-    // instead (an earlier defect caught by the plan-25 Phase 3 checkpoint) near-clipped the hit
-    // line itself, because the hit line sits at world z = 0 while the camera looks from
-    // negative Z.
-    projection.m[10] = metrics.far_plane / depth_range;
-    projection.m[11] = (-camera.z - metrics.near_plane) * metrics.far_plane / depth_range;
-    // Row 3: clip.w = eye depth (z - cam.z); positive for content in front of the camera.
-    projection.m[14] = 1.0;
-    projection.m[15] = -camera.z;
+    HighwayMat4 perspective{};
+    perspective.m[0] = scale_x;
+    perspective.m[5] = scale_y;
+    // Depth maps eye depth from [near, far] onto D3D's [0, 1]. The eye depth is camera-relative
+    // by construction here (the view translation runs first) — anchoring it at world Z instead
+    // was an earlier defect caught by the plan-25 Phase 3 checkpoint.
+    perspective.m[10] = metrics.far_plane / depth_range;
+    perspective.m[11] = -metrics.near_plane * metrics.far_plane / depth_range;
+    perspective.m[14] = 1.0;
+
+    // The lefty mirror reflects world X, so the yaw must flip with it for the mirrored picture
+    // to be the true reflection of the unmirrored one.
+    const double yaw = mirrored ? -metrics.camera_yaw_radians : metrics.camera_yaw_radians;
+    const HighwayMat4 view = makeRotationX(metrics.camera_pitch_radians) * makeRotationY(yaw) *
+                             makeViewTranslation(camera);
+    HighwayMat4 projection = perspective * view;
 
     // The board pin: project the anchor (focus X, board surface, hit line) and translate the
     // whole picture vertically so it lands at the configured NDC height. Adding ty * w to
     // clip.y is exactly a post-divide NDC translation, and it is vertical-only on purpose: the
-    // board slides freely on X while the anchor height never moves.
+    // board slides freely on X while the anchor height never moves. With rotations in the chain
+    // the w row has X/Y terms, so the whole row folds into the translation.
     const std::array<double, 3> anchor_ndc = projection.projectPoint(camera.x, 0.0, 0.0);
-    projection.m[7] += (metrics.ndc_pin_y - anchor_ndc[1]) * projection.m[15];
-    projection.m[6] += (metrics.ndc_pin_y - anchor_ndc[1]) * projection.m[14];
+    const double pin_offset = metrics.ndc_pin_y - anchor_ndc[1];
+    for (std::size_t column = 0; column < 4; ++column)
+    {
+        projection.m.at(4 + column) += pin_offset * projection.m.at(12 + column);
+    }
 
     return projection;
 }
@@ -143,9 +190,10 @@ HighwayCameraTarget makeHighwayCameraTarget(
                              highwayFretLineX(high_line, metrics, mirrored)) /
                             2.0;
     const double whole_neck_x = mirrored ? -metrics.focus_whole_neck_x : metrics.focus_whole_neck_x;
+    const double offset = mirrored ? -metrics.focus_x_offset : metrics.focus_x_offset;
 
     return HighwayCameraTarget{
-        .focus_x = middle_x + ((whole_neck_x - middle_x) * metrics.focus_whole_neck_blend),
+        .focus_x = middle_x + ((whole_neck_x - middle_x) * metrics.focus_whole_neck_blend) + offset,
         .span = static_cast<double>(high_line - low_line),
     };
 }
@@ -187,13 +235,14 @@ HighwayCameraPose HighwayCamera::pose(const HighwayMetrics& metrics) const
 }
 
 HighwayMat4 makeHighwayWorldToClip(
-    const HighwayCameraPose& pose, double aspect_ratio, const HighwayMetrics& metrics)
+    const HighwayCameraPose& pose, double aspect_ratio, const bool mirrored,
+    const HighwayMetrics& metrics)
 {
-    return makePinnedProjection(pose, aspect_ratio, metrics);
+    return makePinnedProjection(pose, aspect_ratio, mirrored, metrics);
 }
 
 HighwayMat4 makeHighwayBackgroundWorldToClip(
-    const HighwayCameraPose& pose, double aspect_ratio, double time_seconds,
+    const HighwayCameraPose& pose, double aspect_ratio, double time_seconds, const bool mirrored,
     const HighwayMetrics& metrics)
 {
     const double divisor = std::max(metrics.background_parallax_divisor, 1.0);
@@ -205,7 +254,7 @@ HighwayMat4 makeHighwayBackgroundWorldToClip(
         .y = pose.y / divisor,
         .z = pose.z / divisor,
     };
-    return makePinnedProjection(background_pose, aspect_ratio, metrics);
+    return makePinnedProjection(background_pose, aspect_ratio, mirrored, metrics);
 }
 
 } // namespace rock_hero::common::core

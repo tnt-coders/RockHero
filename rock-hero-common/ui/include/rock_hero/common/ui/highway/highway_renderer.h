@@ -50,6 +50,26 @@ struct HighwayShaderSet
 
     /*! \brief Glyph-atlas text (fret numbers, section labels). */
     HighwayShaderPair glyph;
+
+    /*! \brief Plain textured quads modulated by vertex color (fretboard skin, background art). */
+    HighwayShaderPair texture;
+};
+
+/*!
+\brief Texture assets the highway renderer uploads at creation.
+
+The reference assets (adapted from Charter, BSD 3-Clause — the LICENSE.txt beside the deployed
+files) live under rock-hero-common/ui/resources/textures/charter and are deployed per product.
+Every member is optional: empty bytes select a procedural fallback so a missing asset degrades
+the art, never the product.
+*/
+struct HighwayTextureSet
+{
+    /*! \brief Note-head atlas PNG (4x4 grid, reference channel scheme). */
+    std::vector<std::byte> note_atlas_png;
+
+    /*! \brief Fretboard skin PNG (8x4 grid, one 256x512 cell per fret). */
+    std::vector<std::byte> inlay_atlas_png;
 };
 
 /*! \brief Stable reasons the highway renderer can fail to come up. */
@@ -108,13 +128,14 @@ class HighwayRenderer
 {
 public:
     /*!
-    \brief Links the shader programs and rasterizes the highway atlases.
+    \brief Links the shader programs and uploads the highway atlases and textures.
 
-    \param shaders Compiled stage binaries for the four highway programs.
+    \param shaders Compiled stage binaries for the highway programs.
+    \param textures Texture assets; empty members select procedural fallbacks.
     \return The renderer, or a typed error naming the program that failed.
     */
     [[nodiscard]] static std::expected<HighwayRenderer, HighwayRendererError> create(
-        const HighwayShaderSet& shaders);
+        const HighwayShaderSet& shaders, const HighwayTextureSet& textures);
 
     /*! \brief Destroys every owned GPU resource; must run before bgfx shutdown. */
     ~HighwayRenderer();

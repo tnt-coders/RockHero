@@ -45,7 +45,8 @@ TEST_CASE("Highway camera targets the scanned hand window", "[core][highway][cam
     const double middle =
         (highwayFretLineX(4, metrics, false) + highwayFretLineX(12, metrics, false)) / 2.0;
     const double expected =
-        middle + ((metrics.focus_whole_neck_x - middle) * metrics.focus_whole_neck_blend);
+        middle + ((metrics.focus_whole_neck_x - middle) * metrics.focus_whole_neck_blend) +
+        metrics.focus_x_offset;
     CHECK(target.focus_x == Catch::Approx(expected));
     CHECK(target.span == Catch::Approx(8.0));
 
@@ -93,12 +94,15 @@ TEST_CASE("Highway camera smoothing is frame-rate independent", "[core][highway]
         Catch::Approx(metrics.camera_z_base - (4.0 * metrics.camera_span_gain)).margin(1.0e-6));
 }
 
-// THE verticality invariant: a world-vertical segment (constant X and Z) projects to a constant
-// screen X for every legal camera state — exact, not approximate. This is one of the two
-// properties that make the reference view read correctly, upgraded to a tested guarantee.
+// The verticality invariant holds exactly at the zero-rotation configuration: with the Charter
+// pitch/yaw zeroed the chain reduces to a pure translation plus perspective, and a
+// world-vertical segment keeps a constant NDC X. (The shipped defaults deliberately rotate — see
+// the next case — so this pins the machinery, not the default look.)
 TEST_CASE("Highway camera projects world-vertical lines screen-vertical", "[core][highway][camera]")
 {
-    const HighwayMetrics metrics{};
+    HighwayMetrics metrics{};
+    metrics.camera_pitch_radians = 0.0;
+    metrics.camera_yaw_radians = 0.0;
 
     for (const double focus_x : {0.0, 2.4, 12.0, 28.8, -6.0})
     {
@@ -113,7 +117,8 @@ TEST_CASE("Highway camera projects world-vertical lines screen-vertical", "[core
             };
             for (const double aspect : {16.0 / 9.0, 4.0 / 3.0, 21.0 / 9.0})
             {
-                const HighwayMat4 world_to_clip = makeHighwayWorldToClip(pose, aspect, metrics);
+                const HighwayMat4 world_to_clip =
+                    makeHighwayWorldToClip(pose, aspect, false, metrics);
                 for (const double x : {0.0, 6.0, 14.4, 28.8})
                 {
                     for (const double z : {0.5, 4.0, 16.0, 32.0})
@@ -124,6 +129,29 @@ TEST_CASE("Highway camera projects world-vertical lines screen-vertical", "[core
                     }
                 }
             }
+        }
+    }
+}
+
+// The shipped defaults carry Charter's small rotations: verticals tilt, but only slightly —
+// the angled-neck look must never degenerate into a visibly skewed picture.
+TEST_CASE(
+    "Highway camera default rotations keep verticals near-vertical", "[core][highway][camera]")
+{
+    const HighwayMetrics metrics{};
+    const HighwayCameraPose pose{.x = 5.0, .y = metrics.camera_y_base, .z = metrics.camera_z_base};
+    const HighwayMat4 world_to_clip = makeHighwayWorldToClip(pose, 16.0 / 9.0, false, metrics);
+
+    for (const double x : {0.0, 6.0, 14.4})
+    {
+        for (const double z : {0.5, 4.0, 16.0})
+        {
+            const auto bottom = world_to_clip.projectPoint(x, 0.0, z);
+            const auto top = world_to_clip.projectPoint(x, 2.8, z);
+            // Rotated but bounded: a few degrees of tilt at most across a string-stack height.
+            const double ndc_dx = std::abs(top[0] - bottom[0]);
+            const double ndc_dy = std::abs(top[1] - bottom[1]);
+            CHECK(ndc_dx < 0.15 * ndc_dy);
         }
     }
 }
@@ -141,17 +169,21 @@ TEST_CASE(
         const HighwayCameraPose pose{
             .x = focus_x, .y = metrics.camera_y_base, .z = metrics.camera_z_base
         };
-        const HighwayMat4 world_to_clip = makeHighwayWorldToClip(pose, 16.0 / 9.0, metrics);
+        const HighwayMat4 world_to_clip = makeHighwayWorldToClip(pose, 16.0 / 9.0, false, metrics);
 
         const auto anchor = world_to_clip.projectPoint(focus_x, 0.0, 0.0);
         CHECK(anchor[1] == Catch::Approx(metrics.ndc_pin_y).margin(1.0e-9));
-        // The anchor sits directly under the camera on X, so it projects to screen center X;
-        // off-focus board points spread around it and the pin never touches X.
-        CHECK(anchor[0] == Catch::Approx(0.0).margin(1.0e-9));
+        // The anchor sits under the camera on X; the small default yaw shifts it slightly off
+        // screen-center (about +0.01 NDC at the reference pose), and the pin never touches X.
+        CHECK(std::abs(anchor[0]) < 0.03);
 
         const auto off_focus = world_to_clip.projectPoint(focus_x + 6.0, 0.0, 0.0);
         CHECK(off_focus[0] > 0.0);
-        CHECK(off_focus[1] == Catch::Approx(metrics.ndc_pin_y).margin(1.0e-9));
+        // With the default pitch/yaw the board floor slopes gently (the angled-neck look) —
+        // about -0.13 NDC over 6 world units at the reference pose. Bound it so the slope can
+        // never silently degenerate into a skewed picture.
+        CHECK(off_focus[1] == Catch::Approx(metrics.ndc_pin_y).margin(0.2));
+        CHECK(off_focus[1] < metrics.ndc_pin_y);
     }
 }
 
@@ -177,8 +209,10 @@ TEST_CASE("Highway camera mirror reflects the projected picture", "[core][highwa
     const HighwayCameraPose mirrored_pose{
         .x = mirrored_target.focus_x, .y = metrics.camera_y_base, .z = metrics.camera_z_base
     };
-    const HighwayMat4 plain_clip = makeHighwayWorldToClip(plain_pose, 16.0 / 9.0, metrics);
-    const HighwayMat4 mirrored_clip = makeHighwayWorldToClip(mirrored_pose, 16.0 / 9.0, metrics);
+    // The mirrored projection flips the yaw with the geometry, keeping the reflection exact.
+    const HighwayMat4 plain_clip = makeHighwayWorldToClip(plain_pose, 16.0 / 9.0, false, metrics);
+    const HighwayMat4 mirrored_clip =
+        makeHighwayWorldToClip(mirrored_pose, 16.0 / 9.0, true, metrics);
 
     for (const double x : {0.0, 3.0, 8.4})
     {
@@ -192,26 +226,23 @@ TEST_CASE("Highway camera mirror reflects the projected picture", "[core][highwa
     }
 }
 
-// The background matrix keeps the pin and verticality while riding the divided camera; the sway
-// is a pure function of injected time (zero at time zero).
+// The background matrix keeps the pin while riding the divided camera; the sway is a pure
+// function of injected time (zero at time zero).
 TEST_CASE("Highway background matrix parallaxes with the pin intact", "[core][highway][camera]")
 {
     const HighwayMetrics metrics{};
     const HighwayCameraPose pose{.x = 12.0, .y = metrics.camera_y_base, .z = metrics.camera_z_base};
 
-    const HighwayMat4 background = makeHighwayBackgroundWorldToClip(pose, 16.0 / 9.0, 0.0, metrics);
+    const HighwayMat4 background =
+        makeHighwayBackgroundWorldToClip(pose, 16.0 / 9.0, 0.0, false, metrics);
 
     const double divisor = metrics.background_parallax_divisor;
     const auto anchor = background.projectPoint(pose.x / divisor, 0.0, 0.0);
     CHECK(anchor[1] == Catch::Approx(metrics.ndc_pin_y).margin(1.0e-9));
 
-    const auto bottom = background.projectPoint(20.0, 0.0, 30.0);
-    const auto top = background.projectPoint(20.0, 5.0, 30.0);
-    CHECK(bottom[0] == Catch::Approx(top[0]).margin(1.0e-12));
-
     // A quarter sway period later the picture has shifted horizontally: injected time drives it.
     const HighwayMat4 swayed = makeHighwayBackgroundWorldToClip(
-        pose, 16.0 / 9.0, 0.25 / metrics.background_sway_hertz, metrics);
+        pose, 16.0 / 9.0, 0.25 / metrics.background_sway_hertz, false, metrics);
     const auto swayed_anchor = swayed.projectPoint(pose.x / divisor, 0.0, 0.0);
     CHECK(swayed_anchor[0] != Catch::Approx(anchor[0]).margin(1.0e-6));
 }
@@ -224,7 +255,7 @@ TEST_CASE("Highway camera keeps the hit line inside the depth volume", "[core][h
 {
     const HighwayMetrics metrics{};
     const HighwayCameraPose pose{.x = 6.0, .y = metrics.camera_y_base, .z = metrics.camera_z_base};
-    const HighwayMat4 world_to_clip = makeHighwayWorldToClip(pose, 16.0 / 9.0, metrics);
+    const HighwayMat4 world_to_clip = makeHighwayWorldToClip(pose, 16.0 / 9.0, false, metrics);
 
     const auto hit_line = world_to_clip.projectPoint(pose.x, 0.0, 0.0);
     CHECK(hit_line[2] >= 0.0);

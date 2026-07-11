@@ -37,6 +37,13 @@ target_link_libraries(rock_hero_game_exe PRIVATE rock_hero::common rock_hero::ga
 # stamp depends on the staged files, so a recompiled shader re-runs the copy on the next build.
 get_target_property(rock_hero_game_shader_staging_dir rock_hero_game_shaders ROCK_HERO_STAGING_DIR)
 get_target_property(rock_hero_game_staged_shaders rock_hero_game_shaders ROCK_HERO_STAGED_FILES)
+# Shared texture assets deploy from their committed source tree (rock-hero-common/ui —
+# 44-Q3 outcome: shared asset sources under common, deployed per product). The glob feeds the
+# stamp's dependency list so an asset edit re-runs the copy; adding a file still needs a
+# reconfigure, which asset drops rarely do without one.
+set(rock_hero_shared_texture_dir
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../rock-hero-common/ui/resources/textures")
+file(GLOB_RECURSE rock_hero_shared_texture_files "${rock_hero_shared_texture_dir}/*")
 set(rock_hero_game_resources_stamp "${CMAKE_CURRENT_BINARY_DIR}/resources-deployed.stamp")
 add_custom_command(
     OUTPUT "${rock_hero_game_resources_stamp}"
@@ -46,8 +53,11 @@ add_custom_command(
         "$<TARGET_FILE_DIR:rock_hero_game_exe>/resources/textures"
     COMMAND ${CMAKE_COMMAND} -E copy_directory "${rock_hero_game_shader_staging_dir}"
             "$<TARGET_FILE_DIR:rock_hero_game_exe>/resources/shaders"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${rock_hero_shared_texture_dir}"
+            "$<TARGET_FILE_DIR:rock_hero_game_exe>/resources/textures"
     COMMAND ${CMAKE_COMMAND} -E touch "${rock_hero_game_resources_stamp}"
-    DEPENDS ${rock_hero_game_staged_shaders} rock_hero_game_shaders
+    DEPENDS ${rock_hero_game_staged_shaders} ${rock_hero_shared_texture_files}
+            rock_hero_game_shaders
     COMMENT "Deploying game resources next to the executable")
 add_custom_target(rock_hero_game_resources DEPENDS "${rock_hero_game_resources_stamp}")
 add_dependencies(rock_hero_game_exe rock_hero_game_resources)
@@ -67,6 +77,6 @@ install(
     DESTINATION "${CMAKE_INSTALL_BINDIR}/resources/sfx"
     COMPONENT Runtime)
 install(
-    DIRECTORY
+    DIRECTORY "${rock_hero_shared_texture_dir}/"
     DESTINATION "${CMAKE_INSTALL_BINDIR}/resources/textures"
     COMPONENT Runtime)
