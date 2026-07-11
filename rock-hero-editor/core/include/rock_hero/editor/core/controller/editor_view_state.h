@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <memory>
 #include <optional>
+#include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
@@ -301,6 +302,16 @@ struct EditorViewState
     equality in view-state comparisons, matching the rebuild-on-arrangement-change rule.
     */
     std::shared_ptr<const TabViewState> tab{};
+
+    /*!
+    \brief Seconds-resolved 3D highway projection of the displayed arrangement.
+
+    The shared scene model the 3D preview window renders (plan 44) — the same projection the
+    game highway consumes, so what the charter previews is what the player gets. Rebuilt under
+    the same rule as \ref tab (only when the displayed arrangement changes) and shared immutably
+    across state copies. Null when the arrangement has no chart.
+    */
+    std::shared_ptr<const common::core::HighwayViewState> highway{};
 
     /*! \brief True when the waveform draws behind the tablature lane; app-wide preference. */
     bool waveform_visible{true};

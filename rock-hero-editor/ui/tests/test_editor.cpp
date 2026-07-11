@@ -9,6 +9,8 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <optional>
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
+#include <rock_hero/common/audio/clock/i_playback_clock.h>
+#include <rock_hero/common/audio/clock/playback_clock_snapshot.h>
 #include <rock_hero/common/audio/device/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/input/i_audio_meter_source.h>
 #include <rock_hero/common/audio/input/i_live_input.h>
@@ -108,9 +110,15 @@ class FakeEditorAudioPorts final : public common::audio::IAudioDeviceConfigurati
                                    public common::audio::ILiveRig,
                                    public common::audio::ILiveInput,
                                    public common::audio::IAudioMeterSource,
-                                   public common::audio::IToneAutomation
+                                   public common::audio::IToneAutomation,
+                                   public common::audio::IPlaybackClock
 {
 public:
+    // Playback clock port: never publishes; the preview never opens in these tests.
+    [[nodiscard]] common::audio::PlaybackClockSnapshot snapshot() const noexcept override
+    {
+        return {};
+    }
     // Tone automation port: no tones are loaded in these view tests, so every query is empty.
     [[nodiscard]] std::expected<
         std::vector<common::audio::AutomatableParamInfo>, common::audio::ToneAutomationError>
@@ -385,6 +393,7 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor]")
             .tone_automation = audio_ports,
             .live_input = audio_ports,
             .meter_source = audio_ports,
+            .playback_clock = audio_ports,
         },
         Editor::Services{
             .settings = settings,

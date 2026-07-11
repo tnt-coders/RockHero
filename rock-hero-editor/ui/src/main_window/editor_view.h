@@ -25,6 +25,7 @@
 #include <memory>
 #include <optional>
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
+#include <rock_hero/common/audio/clock/i_playback_clock.h>
 #include <rock_hero/common/audio/device/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/input/i_audio_meter_source.h>
 #include <rock_hero/common/audio/input/i_live_input.h>
@@ -46,8 +47,10 @@ class Component;
 namespace rock_hero::editor::ui
 {
 
-// Forward declarations so the timeline cursor overlay and viewport units stay out of this header.
+// Forward declarations so the timeline cursor overlay, viewport, and preview window units stay
+// out of this header.
 class CursorOverlay;
+class PreviewWindow;
 class TrackViewport;
 
 /*!
@@ -79,6 +82,9 @@ public:
     {
         /*! \brief Read-only transport used by cursor drawing and viewport following. */
         const common::audio::ITransport& transport;
+
+        /*! \brief Playback-time telemetry sampled by the 3D preview while playing (plan 44). */
+        const common::audio::IPlaybackClock& playback_clock;
 
         /*! \brief Factory used by the arrangement view to create its thumbnail. */
         common::audio::IThumbnailFactory& thumbnail_factory;
@@ -373,6 +379,12 @@ private:
     // Read-only transport sampled at display cadence for the transport-strip time readout.
     const common::audio::ITransport& m_transport;
 
+    // Playback-time telemetry the 3D preview samples while playing (plan 44).
+    const common::audio::IPlaybackClock& m_playback_clock;
+
+    // Shows or hides the 3D preview window (View > 3D Preview, or F3).
+    void togglePreviewWindow();
+
     // Last state pushed by the controller; used for load target lookup and layout mapping.
     // Updates the top-level window title to reflect the open project name, REAPER-style.
     void updateWindowTitle();
@@ -451,6 +463,10 @@ private:
 
     // Optional top-level audio-device settings window.
     std::unique_ptr<juce::DocumentWindow> m_audio_device_settings_window;
+
+    // Optional top-level 3D preview window (plan 44); created on first toggle, then kept and
+    // shown/hidden (its render surface rebuilds per open).
+    std::unique_ptr<PreviewWindow> m_preview_window;
 
     // True once the settings window has reported close and is waiting for deferred destruction.
     bool m_audio_device_settings_window_reset_pending{false};

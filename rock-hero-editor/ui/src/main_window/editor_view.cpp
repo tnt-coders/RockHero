@@ -3,6 +3,7 @@
 #include "audio_device/audio_device_settings_window.h"
 #include "input_calibration/input_calibration_window.h"
 #include "main_window/menu_look_and_feel.h"
+#include "preview/preview_window.h"
 #include "shared/editor_theme.h"
 #include "timeline/cursor_overlay.h"
 #include "timeline/timeline_cursor.h"
@@ -42,6 +43,7 @@ constexpr int g_undo_command{101};
 constexpr int g_redo_command{102};
 constexpr int g_show_waveform_command{201};
 constexpr int g_show_undo_history_command{202};
+constexpr int g_show_preview_command{203};
 // Tablature lane-count menu ids encode the requested minimum as an offset from this base, with
 // the base itself meaning "match the chart" (a zero minimum).
 constexpr int g_tab_strings_command_base{210};
@@ -242,6 +244,7 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     , m_audio_meters(audio_ports.meter_source)
     , m_live_input(audio_ports.live_input)
     , m_transport(audio_ports.transport)
+    , m_playback_clock(audio_ports.playback_clock)
     , m_menu_look_and_feel(std::make_unique<MenuLookAndFeel>())
     , m_menu_bar(this)
     , m_transport_controls(*this)
@@ -411,6 +414,13 @@ void EditorView::setState(const core::EditorViewState& state)
     // Feed the history inspector every push so it tracks the stack live (this is also how the
     // storm of idle plugin-state edits becomes visible as it grows).
     m_undo_history_overlay.setHistory(m_state.undo_history);
+
+    // Live-edit updates for the 3D preview: pointer identity stands in for content equality on
+    // the shared snapshot, so ordinary pushes never rebuild the retained board geometry.
+    if (m_preview_window != nullptr && previous_state.highway != m_state.highway)
+    {
+        m_preview_window->setHighwayState(m_state.highway);
+    }
 
     if (previous_state.project_file != m_state.project_file)
     {
@@ -799,7 +809,38 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
         return true;
     }
 
+    // F3 toggles the 3D preview window (mirrors View > 3D Preview).
+    if (key == juce::KeyPress{juce::KeyPress::F3Key} && m_state.project_loaded)
+    {
+        togglePreviewWindow();
+        return true;
+    }
+
     return false;
+}
+
+// Creates the preview window on first use, then shows or hides it; the window rebuilds its
+// render surface per open (hiding a top-level destroys the native peer the surface embeds in).
+void EditorView::togglePreviewWindow()
+{
+    if (m_preview_window == nullptr)
+    {
+        m_preview_window = std::make_unique<PreviewWindow>(
+            m_transport,
+            m_playback_clock,
+            [this](const juce::KeyPress& key) { return keyPressed(key); },
+            getTopLevelComponent());
+    }
+
+    if (m_preview_window->isVisible())
+    {
+        m_preview_window->close();
+    }
+    else
+    {
+        m_preview_window->setHighwayState(m_state.highway);
+        m_preview_window->open();
+    }
 }
 
 // Returns the top-level editor menus displayed by the editor.
@@ -846,6 +887,11 @@ juce::PopupMenu EditorView::getMenuForIndex(int top_level_menu_index, const juce
             m_state.waveform_visible);
         menu.addItem(
             g_show_undo_history_command, "Undo History", true, m_undo_history_overlay.isVisible());
+        menu.addItem(
+            g_show_preview_command,
+            "3D Preview\tF3",
+            m_state.project_loaded,
+            m_preview_window != nullptr && m_preview_window->isVisible());
 
         // The lane-count submenu offers "match the chart" plus explicit minimums up to the
         // format's string cap; picking fewer lanes than the chart has can never hide notes
@@ -888,6 +934,14 @@ void EditorView::menuItemSelected(int menu_item_id, int /*top_level_menu_index*/
         case g_show_undo_history_command:
         {
             toggleUndoHistoryPanel();
+            break;
+        }
+        case g_show_preview_command:
+        {
+            if (m_state.project_loaded)
+            {
+                togglePreviewWindow();
+            }
             break;
         }
         case g_redo_command:

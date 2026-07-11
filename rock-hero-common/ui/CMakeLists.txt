@@ -9,7 +9,8 @@ add_library(rock_hero::common::ui ALIAS rock_hero_common_ui)
 target_sources(
     rock_hero_common_ui
     PRIVATE src/highway/bgfx_program.cpp src/highway/highway_atlas.cpp
-            src/highway/highway_renderer.cpp src/string_colors/string_color_palette.cpp)
+            src/highway/highway_renderer.cpp src/render/render_device.cpp
+            src/string_colors/string_color_palette.cpp)
 
 # The PRIVATE src dir lets library and test translation units reference private headers with
 # feature-qualified quoted includes across feature folders.
