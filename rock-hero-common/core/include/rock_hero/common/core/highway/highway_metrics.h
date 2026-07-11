@@ -112,14 +112,14 @@ struct HighwayMetrics
     double ndc_pin_y{-0.9};
 
     /*!
-    \brief Downward camera pitch in radians (Charter rotX = 0.06).
+    \brief Downward camera pitch in radians; zero on purpose (deliberate reference divergence).
 
-    Together with the yaw this is what gives the reference view its held-guitar-neck reading:
-    the pitch places the vanishing point, the yaw tilts the strings. Zeroing both restores the
-    exactly-vertical zero-rotation projection (the original defect-7 formulation), which remains
-    tested at zero rotation.
+    Charter ships rotX = 0.06, but that forward tilt skews the whole picture (verticals lean)
+    and was rejected by the user on sight (2026-07-11): the wanted angled-neck reading is the
+    yaw's string slope alone. The yaw never mixes world Y into clip W or X, so with zero pitch
+    fret lines project exactly vertical — regression-tested at the shipped defaults.
     */
-    double camera_pitch_radians{0.06};
+    double camera_pitch_radians{0.0};
 
     /*!
     \brief Camera yaw in radians (Charter rotY = 0.03), negated under the lefty mirror.
@@ -127,6 +127,7 @@ struct HighwayMetrics
     The yaw makes camera depth vary along a string, so strings slope ~2-3 degrees on screen and
     the body-side neck end renders slightly larger — the angled-neck look (source-verified
     2026-07-11; the zero-rotation formulation looked flat by comparison, the user's observation).
+    This is the only nonzero rotation the shipped camera carries; see camera_pitch_radians.
     */
     double camera_yaw_radians{0.03};
 

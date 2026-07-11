@@ -59,7 +59,7 @@ constexpr std::uint64_t g_blended_state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRIT
 
 // Overlay content is screen-space and never depth-tested.
 constexpr std::uint64_t g_overlay_state =
-    BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA;
+    BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA | BGFX_STATE_MSAA;
 
 // JUCE premultiplies real-alpha PNGs at decode, so textures with genuine transparency (the
 // inlay skin) carry rgb*a texels and must composite with the premultiplied blend — straight
@@ -75,6 +75,20 @@ constexpr int g_face_fret_count = 24;
 
 // Seconds a passed note takes to fade out after crossing the hit line.
 constexpr double g_passed_fade_seconds = 0.15;
+
+// Open-note bar cross-section (reference OpenNoteModel): a thin hexagonal prism spanning the
+// hand window, half-thickness 0.04 at the ends bulging to 0.05 at the center station, squashed
+// to a tenth of that in Z. An earlier flat slab at tail width read over 3x too tall.
+constexpr double g_open_note_end_half_thickness = 0.04;
+constexpr double g_open_note_middle_half_thickness = 0.05;
+constexpr double g_open_note_z_squash = 0.1;
+constexpr int g_open_note_segments = 6;
+
+// Sustain tails are three-band ribbons in the reference: solid edge strips around an inner band
+// at 192/255 alpha. Fretted tails split the tail width quarter/half/quarter; open tails span
+// the hand window inset by a margin, with edge bands of the same width.
+constexpr double g_tail_inner_alpha = 192.0 / 255.0;
+constexpr double g_open_tail_margin = 0.2;
 
 // Vertex with a world position and a packed ABGR color (color / color_fade programs).
 struct PosColorVertex
@@ -257,6 +271,18 @@ void pushFloorQuad(
         makeVertex(x0, y, z1, abgr));
 }
 
+// One three-band sustain ribbon on the string plane: solid edge strips [x0,x1] and [x2,x3]
+// around a translucent core [x1,x2] (the reference's tail cross-section).
+void pushTailRibbon(
+    std::vector<PosColorVertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
+    const double x1, const double x2, const double x3, const double lane_y, const double z0,
+    const double z1, const std::uint32_t edge_abgr, const std::uint32_t inner_abgr)
+{
+    pushFloorQuad(vertices, indices, x0, x1, lane_y, z0, z1, edge_abgr);
+    pushFloorQuad(vertices, indices, x1, x2, lane_y, z0, z1, inner_abgr);
+    pushFloorQuad(vertices, indices, x2, x3, lane_y, z0, z1, edge_abgr);
+}
+
 // Floor quad with per-end colors: the reference's beat-bar gradient wings.
 void pushFloorQuadGradient(
     std::vector<PosColorVertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
@@ -270,6 +296,74 @@ void pushFloorQuadGradient(
         makeVertex(x1, y, z0, abgr_at_z0),
         makeVertex(x1, y, z1, abgr_at_z1),
         makeVertex(x0, y, z1, abgr_at_z1));
+}
+
+// The reference open-note bar: a hexagonal prism along X across [x0, x1], with the center
+// station slightly thicker than the ends and the ring squashed nearly flat in Z. Flat-colored
+// and unlit, its silhouette reads as the reference's thin rounded bar from every board-view
+// angle; end-cap fans close the side-on silhouette.
+void pushOpenNoteBar(
+    std::vector<PosColorVertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
+    const double x1, const double lane_y, const double z, const std::uint32_t abgr)
+{
+    constexpr std::size_t g_ring_size = static_cast<std::size_t>(g_open_note_segments);
+    std::array<double, g_ring_size> ring_y{};
+    std::array<double, g_ring_size> ring_z{};
+    for (std::size_t point = 0; point < g_ring_size; ++point)
+    {
+        const double angle =
+            2.0 * std::numbers::pi * static_cast<double>(point) / g_open_note_segments;
+        ring_y.at(point) = std::cos(angle);
+        ring_z.at(point) = std::sin(angle) * g_open_note_z_squash;
+    }
+
+    // Three cross-section stations: end, bulged middle, end.
+    const std::array<double, 3> station_x{x0, (x0 + x1) / 2.0, x1};
+    const std::array<double, 3> station_half{
+        g_open_note_end_half_thickness,
+        g_open_note_middle_half_thickness,
+        g_open_note_end_half_thickness,
+    };
+
+    const auto ring_vertex = [&](const std::size_t station, const std::size_t point) {
+        return makeVertex(
+            station_x.at(station),
+            lane_y + (station_half.at(station) * ring_y.at(point)),
+            z + (station_half.at(station) * ring_z.at(point)),
+            abgr);
+    };
+
+    // Prism sides between adjacent stations.
+    for (std::size_t station = 0; station + 1 < station_x.size(); ++station)
+    {
+        for (std::size_t point = 0; point < g_ring_size; ++point)
+        {
+            const std::size_t next_point = (point + 1) % g_ring_size;
+            pushQuad(
+                vertices,
+                indices,
+                ring_vertex(station, point),
+                ring_vertex(station, next_point),
+                ring_vertex(station + 1, next_point),
+                ring_vertex(station + 1, point));
+        }
+    }
+
+    // End caps: a triangle fan per end station (no cull state, so winding is free).
+    for (const std::size_t station : {std::size_t{0}, station_x.size() - 1})
+    {
+        const auto base = static_cast<std::uint16_t>(vertices.size());
+        for (std::size_t point = 0; point < g_ring_size; ++point)
+        {
+            vertices.push_back(ring_vertex(station, point));
+        }
+        for (std::size_t point = 1; point + 1 < g_ring_size; ++point)
+        {
+            indices.push_back(base);
+            indices.push_back(static_cast<std::uint16_t>(base + point));
+            indices.push_back(static_cast<std::uint16_t>(base + point + 1));
+        }
+    }
 }
 
 // Axis-aligned quad on the board face (z constant, spanning x and y).
@@ -788,40 +882,71 @@ void HighwayRenderer::Impl::draw(
         const common::core::HighwayNoteView& note = state.notes[index];
         const double lane_y =
             common::core::highwayStringLaneY(note.string, state.string_count, metrics, invert);
-        const StringLaneStyle style{stringLaneColor(note.string, state.string_count, palette)};
+        const ArgbColor base_color = stringLaneColor(note.string, state.string_count, palette);
+        const StringLaneStyle style{base_color};
         const double fade =
             note.start_seconds >= now_seconds
                 ? 1.0
                 : std::max(0.0, 1.0 - ((now_seconds - note.start_seconds) / g_passed_fade_seconds));
 
-        // Sustain rail: from the hit line (while sounding) or the onset to the sustain end.
+        // Sustain tail: from the hit line (while sounding) or the onset to the sustain end, as
+        // the reference's three-band ribbon (solid edges around a translucent core).
         if (note.end_seconds > note.start_seconds && note.end_seconds > now_seconds)
         {
             const double z0 = time_to_z(std::max(note.start_seconds, now_seconds));
             const double z1 = time_to_z(std::min(note.end_seconds, span_end_seconds));
             if (z1 > z0)
             {
-                double x = 0.0;
+                const std::uint32_t edge_color = packAbgr(style.tail);
+                const std::uint32_t inner_color = packAbgr(style.tail, g_tail_inner_alpha);
                 if (note.fret > 0)
                 {
-                    x = common::core::highwayNoteCenterX(note.fret, metrics, mirrored);
+                    const double x = common::core::highwayNoteCenterX(note.fret, metrics, mirrored);
+                    const double half = metrics.tail_half_width;
+                    pushTailRibbon(
+                        rail_vertices,
+                        rail_indices,
+                        x - half,
+                        x - (half / 2.0),
+                        x + (half / 2.0),
+                        x + half,
+                        lane_y,
+                        z0,
+                        z1,
+                        edge_color,
+                        inner_color);
                 }
                 else
                 {
+                    // Open sustain: the ribbon spans the hand window like the bar it trails
+                    // (with the reference's inset), never the skinny fretted cross-section.
                     const auto [rail_low, rail_high] =
                         activeFhpFretLines(state, note.start_seconds);
-                    x = (common::core::highwayFretLineX(rail_low, metrics, mirrored) +
-                         common::core::highwayFretLineX(rail_high, metrics, mirrored)) /
-                        2.0;
+                    const double low_x =
+                        common::core::highwayFretLineX(rail_low, metrics, mirrored);
+                    const double high_x =
+                        common::core::highwayFretLineX(rail_high, metrics, mirrored);
+                    const auto [window_x0, window_x1] = std::minmax(low_x, high_x);
+                    const double xa = window_x0 + g_open_tail_margin;
+                    const double xd = window_x1 - g_open_tail_margin;
+                    // Degenerate-window guard: a tapered neck could shrink a far window below
+                    // the margins plus edge bands; skip rather than draw crossed bands.
+                    if (xd - xa > 2.0 * g_open_tail_margin)
+                    {
+                        pushTailRibbon(
+                            rail_vertices,
+                            rail_indices,
+                            xa,
+                            xa + g_open_tail_margin,
+                            xd - g_open_tail_margin,
+                            xd,
+                            lane_y,
+                            z0,
+                            z1,
+                            edge_color,
+                            inner_color);
+                    }
                 }
-                const std::uint32_t tail_color = packAbgr(style.tail, 0.75);
-                pushQuad(
-                    rail_vertices,
-                    rail_indices,
-                    makeVertex(x - metrics.tail_half_width, lane_y, z0, tail_color),
-                    makeVertex(x + metrics.tail_half_width, lane_y, z0, tail_color),
-                    makeVertex(x + metrics.tail_half_width, lane_y, z1, tail_color),
-                    makeVertex(x - metrics.tail_half_width, lane_y, z1, tail_color));
             }
         }
 
@@ -833,24 +958,18 @@ void HighwayRenderer::Impl::draw(
 
         if (note.fret == 0)
         {
-            // Open string: a wide bar spanning the hand window active at the note's time.
+            // Open string: the reference's thin rounded bar spanning the active hand window, in
+            // the full note color (the flat tail-width slab it replaces read as a plank).
             const auto [low_line, high_line] = activeFhpFretLines(state, note.start_seconds);
             const double low_x = common::core::highwayFretLineX(low_line, metrics, mirrored);
             const double high_x = common::core::highwayFretLineX(high_line, metrics, mirrored);
             const auto [x0, x1] = std::minmax(low_x, high_x);
-            const std::uint32_t bar_color = packAbgr(style.inner, fade);
-            pushQuad(
-                open_vertices,
-                open_indices,
-                makeVertex(x0, lane_y - metrics.tail_half_width, z, bar_color),
-                makeVertex(x1, lane_y - metrics.tail_half_width, z, bar_color),
-                makeVertex(x1, lane_y + metrics.tail_half_width, z, bar_color),
-                makeVertex(x0, lane_y + metrics.tail_half_width, z, bar_color));
+            pushOpenNoteBar(
+                open_vertices, open_indices, x0, x1, lane_y, z, packAbgr(base_color, fade));
             continue;
         }
 
         const double x = common::core::highwayNoteCenterX(note.fret, metrics, mirrored);
-        const ArgbColor base_color = stringLaneColor(note.string, state.string_count, palette);
 
         // Chord membership decides both the rolling flip and the shadow (the reference skips
         // shadows for chord notes).
