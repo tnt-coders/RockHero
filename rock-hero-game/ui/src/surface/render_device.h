@@ -5,8 +5,10 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <span>
 #include <string>
 
 namespace rock_hero::game::ui
@@ -44,6 +46,9 @@ enum class RenderDeviceErrorCode : std::uint8_t
 
     /*! \brief bgfx initialization failed for the requested backend. */
     InitializationFailed,
+
+    /*! \brief bgfx rejected a compiled shader binary or failed to link the program. */
+    ShaderProgramCreationFailed,
 };
 
 /*! \brief Typed boundary error for render-device startup failures. */
@@ -128,12 +133,26 @@ public:
     void resize(std::uint32_t width, std::uint32_t height);
 
     /*!
-    \brief Submits one frame that clears the whole window and presents it.
+    \brief Creates the flat vertex-color surface program from compiled shader binaries.
+
+    The binaries come from the deployed resource-pack tree, resolved through game/core's
+    GameResources — the render device only consumes bytes and never touches the filesystem.
+
+    \param vertex_shader Compiled vertex-stage binary for the device's backend.
+    \param fragment_shader Compiled fragment-stage binary for the device's backend.
+    \return Nothing on success, or a typed error when bgfx rejects a stage or the link.
+    */
+    [[nodiscard]] std::expected<void, RenderDeviceError> createSurfaceProgram(
+        std::span<const std::byte> vertex_shader, std::span<const std::byte> fragment_shader);
+
+    /*!
+    \brief Submits one frame — clear, the surface program's test triangle when loaded — and
+    presents it.
 
     With vsync on, the present blocks until the display's next refresh — this call is the frame
     pacer of the main loop.
     */
-    void submitClearedFrame();
+    void submitFrame();
 
 private:
     // Adopts an initialized bgfx instance; only create() calls this.
@@ -141,6 +160,10 @@ private:
 
     // True while this object owns the process bgfx instance and must shut it down.
     bool m_owns_device = false;
+
+    // bgfx handle index of the loaded surface program; bgfx's invalid-handle sentinel until
+    // createSurfaceProgram succeeds. Kept as a raw index so bgfx types stay out of this header.
+    std::uint16_t m_program_handle = UINT16_MAX;
 
     // Current backbuffer size, kept in sync by resize() for per-frame view rects.
     std::uint32_t m_width = 0;

@@ -4,8 +4,11 @@
 Option 1; alternatives analysis, stage/band and engine questions all answered in the Gate
 record). Closure actions applied: architecture.md amended (Game View / Threading Model),
 .claude/agents/game-render-expert.md created. Phase 1 complete 2026-07-10 (checkpoint answers +
-wiring decisions in the Gate record's Phase 1 record); Phases 2–4 ready; downstream plans
-21/25/44 unblocked.** | Date: 2026-07-10 | Baseline: `work-in-progress @ 050f884e` (spike
+wiring decisions in the Gate record's Phase 1 record); Phase 2 complete 2026-07-10 (resource-pack
+convention; correction: the Phase 1 shaderc IMPORTED shim never worked — Conan's CMakeDeps
+already declares bgfx::shaderc as an interface-library component, so the guarded shim was
+skipped; the compile helper now invokes the find_program path directly); Phases 3–4 ready;
+downstream plans 21/25/44 unblocked.** | Date: 2026-07-10 | Baseline: `work-in-progress @ 050f884e` (spike
 evidence on `spike/render-stack @ 049c898c`)
 
 This plan is the structural gate for all game-side work. Phases 0a–0c form the decision gate; no
