@@ -16,8 +16,9 @@ namespace
 // no scene renderer encoded content this frame; the highway's own views draw over it.
 constexpr std::uint32_t g_clear_color = 0x1a1a22ff;
 
-// The one view id the cleared frame touches; view ordering for real passes is decided at the
-// plan 25 Phase 3 expert checkpoint.
+// The one view id the cleared frame touches. Shared with the highway renderer's background view
+// (its g_background_view): when a scene draws, the renderer's per-frame setViewClear overrides
+// this backstop color, and the touch here only keeps presentation alive when no renderer exists.
 constexpr bgfx::ViewId g_default_view = 0;
 
 // Platform table mapping project backends to bgfx renderer types. Deliberately pinned rather

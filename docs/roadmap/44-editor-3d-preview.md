@@ -480,10 +480,15 @@ Shipped shape (departures from the phase text are noted with their reasons):
   phase text requires never ran) and IEditorSettings bounds persistence.
 - **Surface (Phase 2).** `PreviewSurface` embeds a paint-inert native child window in the
   preview window's peer (the S2 pattern) and drives `common::ui::RenderDevice` +
-  `common::ui::HighwayRenderer` from a `juce::VBlankAttachment`. Lifecycle decision: hiding a
-  JUCE top-level destroys its peer (and the embedded child), so the GPU stack tears down on
-  close and rebuilds on open (attach/detach) rather than keeping a device against a dead HWND —
-  bgfx re-init per open is the working pattern; watch it (S2 never exercised re-init).
+  `common::ui::HighwayRenderer` from a `juce::VBlankAttachment`. Lifecycle (corrected by the
+  2026-07-11 expert review): hiding a JUCE top-level keeps its peer — and the embedded child —
+  alive, and bgfx **cannot** re-initialize after shutdown in the same process (its
+  renderFrame-before-init pin trips a live assert on the second cycle in debug packages), so
+  the stack comes up once on first open, close only suspends the vblank ticks, and full
+  teardown happens at destruction. Open/close/reopen verified live in a debug build. The
+  surface also handles monitor-scale changes via `ComponentPeer::ScaleFactorListener` (DPI
+  moves never fire `resized()`), maps its child rect through `getAreaCoveredBy` × platform
+  scale, and skips frames while minimised or if the child window ever vanishes.
 - **Rendering + follow (Phases 3–4).** The controller builds
   `EditorViewState::highway` (shared `HighwayViewState` snapshot) under the same
   arrangement-id memoization as the tab snapshot; the view pushes it to the surface on pointer

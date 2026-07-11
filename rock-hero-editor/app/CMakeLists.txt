@@ -32,7 +32,8 @@ get_target_property(rock_hero_editor_shader_staging_dir rock_hero_editor_shaders
                     ROCK_HERO_STAGING_DIR)
 get_target_property(rock_hero_editor_staged_shaders rock_hero_editor_shaders ROCK_HERO_STAGED_FILES)
 set(rock_hero_editor_texture_dir "${CMAKE_SOURCE_DIR}/rock-hero-common/ui/resources/textures")
-file(GLOB_RECURSE rock_hero_editor_texture_files "${rock_hero_editor_texture_dir}/*")
+file(GLOB_RECURSE rock_hero_editor_texture_files CONFIGURE_DEPENDS
+     "${rock_hero_editor_texture_dir}/*")
 set(rock_hero_editor_resources_stamp "${CMAKE_CURRENT_BINARY_DIR}/resources-deployed.stamp")
 add_custom_command(
     OUTPUT "${rock_hero_editor_resources_stamp}"
@@ -46,3 +47,17 @@ add_custom_command(
     COMMENT "Deploying editor preview resources next to the executable")
 add_custom_target(rock_hero_editor_resources DEPENDS "${rock_hero_editor_resources_stamp}")
 add_dependencies(rock_hero_editor_exe rock_hero_editor_resources)
+
+# The installed layout mirrors the build layout: resources/ beside the executable in bindir.
+# The game's install rules place identical content in the same shared bindir today, but each
+# product installs its own resources so the editor stays self-contained if the products are
+# ever packaged separately or their program lists diverge.
+include(GNUInstallDirs)
+install(
+    DIRECTORY "${rock_hero_editor_shader_staging_dir}"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}/resources"
+    COMPONENT Runtime)
+install(
+    DIRECTORY "${rock_hero_editor_texture_dir}/"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}/resources/textures"
+    COMPONENT Runtime)

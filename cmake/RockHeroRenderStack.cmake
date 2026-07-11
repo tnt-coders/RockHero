@@ -26,7 +26,12 @@ target_link_libraries(rock_hero_bgfx INTERFACE bgfx::bgfx)
 # ships — it declares bgfx::shaderc as an interface library component, which is why the shader
 # helper below cannot lean on that target name. Locate the packaged shaderc binary off the
 # recipe-exported BGFX_SHADER_INCLUDE_PATH — the pattern proven by gate criterion S4 — and use
-# the cached program path directly.
+# the cached program path directly. A bgfx package-revision bump relocates the Conan package
+# folder while the cached absolute path survives reconfigures, so a dangling cache entry is
+# cleared before the search re-runs.
+if(DEFINED ROCK_HERO_BGFX_SHADERC AND NOT EXISTS "${ROCK_HERO_BGFX_SHADERC}")
+    unset(ROCK_HERO_BGFX_SHADERC CACHE)
+endif()
 cmake_path(GET BGFX_SHADER_INCLUDE_PATH PARENT_PATH _rock_hero_bgfx_include_root)
 cmake_path(GET _rock_hero_bgfx_include_root PARENT_PATH _rock_hero_bgfx_package_root)
 find_program(ROCK_HERO_BGFX_SHADERC shaderc HINTS "${_rock_hero_bgfx_package_root}/bin" REQUIRED)
@@ -57,15 +62,17 @@ function(rock_hero_add_compiled_shader)
     # it as a dependency to get correct rebuilds when only the varyings change. Includes are NOT
     # tracked: today the only include dir is immutable Conan package content, so that is correct;
     # the moment project-owned shared .sh includes appear, switch to shaderc's --depends output
-    # via DEPFILE (see docs/todo/game-render-watch-items.md).
+    # via DEPFILE (see docs/todo/game-render-watch-items.md). The source rides plain DEPENDS,
+    # never MAIN_DEPENDENCY: both products compile the same shared sources, and a source file may
+    # be the main dependency of at most one custom command (benign under Ninja, silently drops a
+    # rule under other generators).
     add_custom_command(
         OUTPUT "${ARG_OUTPUT}"
         COMMAND
             "${ROCK_HERO_BGFX_SHADERC}" -f "${ARG_SOURCE}" -o "${ARG_OUTPUT}" --type ${ARG_TYPE}
             --platform ${ARG_PLATFORM} -p ${ARG_PROFILE} -O 3 --varyingdef "${ARG_VARYING}" -i
             "${BGFX_SHADER_INCLUDE_PATH}"
-        MAIN_DEPENDENCY "${ARG_SOURCE}"
-        DEPENDS "${ARG_VARYING}"
+        DEPENDS "${ARG_SOURCE}" "${ARG_VARYING}"
         COMMENT "Compiling ${ARG_TYPE} shader ${ARG_SOURCE} for ${ARG_PROFILE}")
 endfunction()
 
