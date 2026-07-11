@@ -2,11 +2,16 @@
 
 ## 1. Status
 
-**Phases 0–3 complete** (Phase 3: 2026-07-11 — board and notes rendering, the playable
-skeleton; checkpoint answers and rendering decisions in the Phase 3 record at the end of this
-file; the checkpoint caught and fixed a Phase 2 camera depth-anchoring defect; user decision:
-lowest-pitched string on top by default in 3D). Phases 0–2: 2026-07-10,
-`work-in-progress @ 92b95ba4`. Phase 0 gate intake:
+**Phases 0–3 complete, plus the 2026-07-11 look-parity pass** (see the Look-parity record at
+the end of this file: reference camera chain with Charter's rotations and wide frustum,
+Charter's texture assets adopted, board-furniture parity, renderer promoted to
+rock-hero-common/ui and shared with the editor preview). License correction 2026-07-11: Charter
+is **BSD 3-Clause**, not MIT as this plan previously stated; the adopted assets ship with the
+license text at rock-hero-common/ui/resources/textures/charter/LICENSE.txt. (Phase 3:
+2026-07-11 — board and notes rendering, the playable skeleton; checkpoint answers and rendering
+decisions in the Phase 3 record; the checkpoint caught and fixed a Phase 2 camera
+depth-anchoring defect; user decision: lowest-pitched string on top by default in 3D).
+Phases 0–2: 2026-07-10, `work-in-progress @ 92b95ba4`. Phase 0 gate intake:
 G20-RENDER signed off 2026-07-10 (SDL3+bgfx, loop L2); `<core-lib>` = **rock-hero-common/core**
 (seam Option 1); plan 45 Phase 1 (shared palette) landed 2026-07-10; plan 12 (playback clock)
 landed 2026-07-10. Phases 1–2 implemented in `rock-hero-common/core` `highway/`: scene model +
@@ -55,7 +60,7 @@ already carries everything rendered here — no format changes are required by t
 - (b) **Public-header minimalism**: headers move to `include/` only when a consumer outside the
   library exists (docs/design/architectural-principles.md, "Placement Procedure for New Files").
 - (c) **NAMING FIREWALL**: the commercial real-guitar game that inspired this project is never
-  named in any file; use "RS" or neutral phrasing. Charter (MIT) may be cited by name.
+  named in any file; use "RS" or neutral phrasing. Charter (BSD 3-Clause) may be cited by name.
 - (h) **Builds**: all build/test/lint commands go through `.agents/rockhero-build.ps1` (usage in
   `.agents/README.md`) — never raw cmake/ctest/ninja. Intermediate phases run only the checks
   their changes warrant; the final acceptance phase is the sanctioned bundle as separate
@@ -541,3 +546,47 @@ program count resolved to four (color, color_fade, texture_tint, glyph): plain c
 no Phase 3 consumer and arrives with background art. Exit evidence: an 8-string corpus chart
 (1356 notes) scrolls correctly at a locked 144 fps (avg 6.95 ms, no measurable cost over the
 empty window), lefty and string-order flags verified visually, all suites green.
+
+## Look-parity record (2026-07-11) — user-directed pass, fresh Charter source analysis
+
+The user judged the Phase 3 skeleton visually far from the reference; a fresh source-level
+analysis of Charter's preview3D (two research passes with file:line citations, session record)
+drove this pass. Corrections to this plan's own claims are included below.
+
+- **License correction: Charter is BSD 3-Clause, not MIT** (`LICENSE` line 1, "Copyright (c)
+  2025, Lordszynencja"). Every "Charter (MIT)" mention in docs/.claude was corrected. The
+  adopted texture assets (notes.png note atlas, inlays.png fretboard skin, fingering.png) live
+  at rock-hero-common/ui/resources/textures/charter/ beside the required license text and are
+  deployed per product.
+- **Defect 7's "same composition" claim was wrong — the reference rotations are load-bearing.**
+  Charter's rotY = 0.03 makes camera depth vary along a string, sloping the strings ~2–3° and
+  magnifying the body-side neck end: the held-guitar-neck look the user asked for. rotX = 0.06
+  places the vanishing point. The camera chain now reproduces Charter exactly (translate → yaw →
+  pitch → wide frustum → NDC pin); the zero-rotation formulation survives as a tested
+  configuration (exact verticality holds when both rotation metrics are zeroed), and the shipped
+  defaults are covered by a bounded-tilt regression instead. The yaw flips under the lefty
+  mirror so the mirrored picture stays an exact reflection.
+- **Frustum**: Charter's real perspective is very wide (~143° horizontal at 16:9; scale base
+  2/3, screenScaleX = min(0.5, 1/aspect), screenScaleY = min(1, aspect/2) + 0.05). Replaces the
+  never-pinned 90° vertical FOV. Camera focus formula corrected to Charter's
+  `1 + middle*0.9 + weighted*0.1` with weighted = 11.52 (this plan had guessed 7.2 and omitted
+  the +1).
+- **Note heads**: Charter's 4×4 channel-scheme atlas adopted (cell 0 = standard head, cell 1 =
+  anticipation ring); heads are 1:1 squares (0.96 world units — the Phase 3 lane-squashed height
+  was wrong); anticipation ring implemented chart-driven (44-Q1: a). Procedural fallback kept for
+  a missing asset.
+- **Board**: fretboard skin texture (8×4 atlas, one 256×512 cell per fret, new plain `texture`
+  program — the fifth program has its consumer now); dynamic fret lines with Charter's three
+  states (inactive 0x202020, active 0xC0C0C0 within current + ≤500ms windows, 100ms sqrt-decay
+  hit-flash toward 0xFFA000 up to 4× thickness, chart-driven); per-fret lane-border ribbons
+  (0x07928F, alpha tiers 32/96/255); per-hand-window lit runway gaps (0x2590E8, darker 0x185C94
+  on inlay-dotted frets) — each window owns its own z-segment; beat/measure bars in Charter's
+  0x0F3B5E with gradient wings (measures: fade-in wing + solid core + fade-out wing); note
+  shadow corrected to Charter's vertical gradient fan (string-colored, board→head, skipped for
+  chord notes); backdrop black; scroll-speed default 1.3 (Charter's default).
+- **Renderer home**: promoted to rock-hero-common/ui behind a bgfx-free public seam (user
+  decision; recorded in plan 20's status and plan 44's record). §7's "module placement" bullet
+  is superseded accordingly: drawers live once in common/ui, not per product.
+
+Verified visually against the corpus fixture: angled neck, textured heads, hit-flash, runway,
+and anticipation ring all present at a locked 144 fps; all suites green.

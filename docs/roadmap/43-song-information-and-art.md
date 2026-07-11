@@ -51,7 +51,7 @@ Applicable subset of the roadmap constraint block (see `docs/roadmap/00-roadmap.
   shared art-codec header; everything else stays `src/`-private
   (`docs/design/architectural-principles.md` "Placement Procedure for New Files", step 4).
 - (c) **Naming firewall**: the commercial real-guitar game that inspired this project is never
-  named in any file; use "RS" or neutral phrasing. Charter (MIT) may be named.
+  named in any file; use "RS" or neutral phrasing. Charter (BSD 3-Clause) may be named.
 - (d) **Derived over authored**: only presentation facts a machine cannot derive are authored here
   (title, artist, album, year, art, sort overrides, preview window). No authored difficulty, no
   authored chart version (Q6).

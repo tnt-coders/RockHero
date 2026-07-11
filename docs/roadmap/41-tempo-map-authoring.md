@@ -41,7 +41,7 @@ Applicable subset of the roadmap constraint block, restated:
 - (b) **Public-header minimalism**: headers stay in `src/` until a consumer outside the library
   exists (docs/design/architectural-principles.md, "Placement Procedure for New Files").
 - (c) **Naming firewall**: the commercial real-guitar game that inspired this project is never
-  named; use "RS" or neutral phrasing. Charter (MIT) may be named.
+  named; use "RS" or neutral phrasing. Charter (BSD 3-Clause) may be named.
 - (f) **Undo**: RockHero-owned mementos/inverse edits through the editor-core undo history;
   Tracktion is never the product undo stack.
 - (h) **Builds**: all build/test/lint commands go through `.agents/rockhero-build.ps1` (usage in

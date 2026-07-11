@@ -47,7 +47,7 @@ Applicable subset of the roadmap constraint block (docs/roadmap/00-roadmap.md):
   docs/design/architectural-principles.md ("Ports and Adapters", "Placement Procedure for New
   Files").
 - (c) **NAMING FIREWALL**: the commercial real-guitar game that inspired this project is never
-  named in any file; use "RS" or neutral phrasing. Charter (MIT) may be named.
+  named in any file; use "RS" or neutral phrasing. Charter (BSD 3-Clause) may be named.
 - (f) **Undo**: undo is RockHero-owned full-state mementos over document state. The loop
   selection is deliberately NOT part of the undo history — justified in Decisions below.
 - (h) **Builds**: all build/test/lint commands go through `.agents/rockhero-build.ps1` (usage in

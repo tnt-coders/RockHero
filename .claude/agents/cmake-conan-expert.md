@@ -28,7 +28,7 @@ Conan documentation, so build-wiring designs rest on verified mechanisms instead
 - Separate **fundamental constraints** (Conan/CMake semantics) from **current-code accidents**
   (choices this fork or this repo happens to make), and label which is which.
 - NAMING FIREWALL: the commercial real-guitar game that inspired this project is never named in
-  any repo file; use "RS"/neutral phrasing. Charter (MIT) may be cited by name.
+  any repo file; use "RS"/neutral phrasing. Charter (BSD 3-Clause) may be cited by name.
 
 # Settled facts (verified 2026-07-10 — verify against source before extending)
 

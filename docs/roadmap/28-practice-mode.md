@@ -42,7 +42,7 @@ the same tone rig used in normal gameplay. Practice never fails a player out of 
   ("Ports and Adapters", "Keep Threading at the Boundary"). Speed and loop control ride the
   existing transport port surface from docs/roadmap/21-game-audio-engine-and-session.md Phase 1.
 - (c) NAMING FIREWALL: the commercial real-guitar game that inspired this project is never named
-  in any file; use "RS"/neutral phrasing. Charter (MIT) may be named.
+  in any file; use "RS"/neutral phrasing. Charter (BSD 3-Clause) may be named.
 - (g) Tone fidelity: practice uses the same rock-hero-common/audio Engine path as gameplay; the
   backing clip is the only stretched element, and the live rig is untouched.
   docs/design/architecture.md "VST Plugin Safety" grants full plugin freedom in practice mode.

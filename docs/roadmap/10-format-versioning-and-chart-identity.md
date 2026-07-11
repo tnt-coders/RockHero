@@ -47,7 +47,7 @@ Applicable subset of the roadmap constraint block (see `docs/roadmap/00-roadmap.
   only the chart-identity API and the read-result surface that callers genuinely need go public,
   per `docs/design/architectural-principles.md` ("Placement Procedure for New Files", step 4).
 - (c) **Naming firewall**: the commercial real-guitar game that inspired this project is never
-  named in any file; use "RS" or neutral phrasing. Charter (MIT) may be named.
+  named in any file; use "RS" or neutral phrasing. Charter (BSD 3-Clause) may be named.
 - (d) **Derived over authored**: the chart hash is derived from content; no authored "chart
   version" field is introduced (see Open question Q6 in
   `docs/roadmap/43-song-information-and-art.md`, which recommends resolving chart "version" via this

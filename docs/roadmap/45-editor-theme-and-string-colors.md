@@ -45,7 +45,7 @@ Applicable subset of the roadmap's non-negotiable block (see `docs/roadmap/00-ro
   per `docs/design/architectural-principles.md` (Ports and Adapters; Placement Procedure for New
   Files, step 4).
 - (c) **NAMING FIREWALL**: the commercial real-guitar game that inspired this project is never
-  named in any file; use "RS"/"RS2014" or neutral phrasing. Charter (MIT) may be named.
+  named in any file; use "RS"/"RS2014" or neutral phrasing. Charter (BSD 3-Clause) may be named.
 - (h) **Builds**: all build/test/lint commands go through `.agents/rockhero-build.ps1` (usage in
   `.agents/README.md`) — never raw cmake/ctest/ninja. Intermediate phases run only the checks
   their changes determinately warrant; the final acceptance phase runs the sanctioned bundle as

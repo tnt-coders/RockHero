@@ -47,7 +47,7 @@ Applicable subset of the roadmap constraint block, restated:
   docs/design/architectural-principles.md ("Ports and Adapters", "Framework-Adapter Units");
   game/core scoring and submission logic stays pure and testable with a fake adapter.
 - (c) **NAMING FIREWALL**: the commercial real-guitar game that inspired this project is never
-  named in any file; use "RS" or neutral phrasing. Charter (MIT) and the RS leaderboard companion
+  named in any file; use "RS" or neutral phrasing. Charter (BSD 3-Clause) and the RS leaderboard companion
   app (github.com/tnt-coders/rock-buddy-app) may be cited as here.
 - (h) **Builds**: all C++ build/test/lint through `.agents/rockhero-build.ps1` (usage in
   `.agents/README.md`); intermediate phases run only determinately warranted checks; the final
