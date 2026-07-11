@@ -652,3 +652,23 @@ drawers (session Charter clone).
   verified paths): hammer/pull/tap icons, harmonic heads, arpeggio brackets, tremolo wobble.
 - **Still open here**: hit explosions and camera shake belong to Phase 5's event feed; the
   fingering-panel default can become a setting when plans 26/27 land their stores.
+
+### Chord-box correction round (2026-07-11, user feedback)
+
+- **Repeat-chord boxes** (the reference's chord visibility rules, source-decoded from
+  `shouldChordShowNotes` / `chordNotesVisibility`): a strum that repeats the hand shape's own
+  posture within the shape span renders as a **half-height box with no notes** — single notes
+  and dead chugs between strums do not break the repeat chain, fully-muted strums never show
+  notes, and sustained or technique-marked strums always do (an all-palm-muted strum follows
+  the repeat rule despite its marks, the reference's mute short-circuit). The repeat walk runs
+  over the raw note stream so a predecessor that scrolled out behind the hit line still anchors
+  the chain.
+- **Mute crosses**: only on repeat boxes (a full box's notes carry their own markers), as the
+  reference's thin two-stroke outline X sized to the half box — light (0x80D8FF) for full
+  mutes, dark (0x005064) for palm mutes. The palm color is the reference's unused dark
+  palm-mute constant: its drawer reads the light full-mute color instead, an evident slip the
+  user's reading confirmed.
+- **Layering**: boxes now draw far-to-near BEFORE the notes so nearer content composites over
+  them (the reference draws boxes after notes under a depth buffer; this board view is
+  painter-ordered — the only cost is the faint filling no longer tinting its own chord's
+  heads, recorded as a deliberate simplification).
