@@ -28,6 +28,16 @@ struct HighwayDisplayOptions
     bool invert_string_order{false};
 
     /*!
+    \brief Minimum number of string lanes to display, padding the chart's own string count.
+
+    The editor mirrors the 2D tab's "show at least N strings" setting so the 3D preview shows the
+    same lanes; when this exceeds the chart's string count the extra empty lanes appear and every
+    note/posture string index is shifted into the padded lane range (see makeHighwayViewState).
+    Zero (the game default) leaves the chart's string count untouched.
+    */
+    int minimum_string_count{0};
+
+    /*!
     \brief Compares two option sets by their stored fields.
     \param lhs Left-hand options.
     \param rhs Right-hand options.
@@ -87,7 +97,13 @@ struct HighwayNoteView
     /*! \brief Absolute end of the sustain; equals start_seconds when there is no sustain. */
     double end_seconds{0.0};
 
-    /*! \brief One-based string, counted from the lowest-pitched string. */
+    /*!
+    \brief One-based displayed string lane, counted from the lowest-pitched lane.
+
+    Equals the chart string when no display padding applies (HighwayDisplayOptions::
+    minimum_string_count of zero, the game default); when the projection pads to a larger
+    displayed lane count it is the chart string shifted into the padded range.
+    */
     int string{1};
 
     /*! \brief Fret sounded; zero is the open string. */
@@ -138,7 +154,7 @@ struct HighwayNoteView
 /*! \brief What the hand holds on one string under a shape span (fingering-panel data). */
 struct HighwayShapeStringView
 {
-    /*! \brief One-based string, counted from the lowest-pitched string. */
+    /*! \brief One-based displayed string lane (padded like HighwayNoteView::string). */
     int string{1};
 
     /*! \brief Fret held on the string; zero is the open string. */

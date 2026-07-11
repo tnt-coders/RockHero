@@ -2035,21 +2035,30 @@ EditorViewState EditorController::Impl::deriveViewState() const
         // which makes the arrangement id a sufficient cache key. The 3D highway projection rides
         // the same rule (plan 44): one shared scene-model snapshot per displayed arrangement,
         // consumed by the preview window exactly as the game consumes it.
-        if (m_tab_arrangement_id != arrangement->id)
+        const bool arrangement_changed = m_tab_arrangement_id != arrangement->id;
+        if (arrangement_changed)
         {
             m_tab_view_state = std::make_shared<const TabViewState>(
                 makeTabViewState(*arrangement, state.tempo_map));
-            // Lowest-pitched string on top is the 3D notation's default (user decision
-            // 2026-07-11, recorded in plan 25); the 2D tab keeps standard orientation.
+        }
+        // The 3D projection bakes in the displayed-string minimum (the shared palette must anchor
+        // exactly as the 2D tab's), so it rebuilds on an arrangement change OR a minimum change —
+        // the tab, which pads in the view, needs neither. Lowest-pitched string on top is the 3D
+        // default (user decision 2026-07-11, recorded in plan 25).
+        if (arrangement_changed || m_highway_min_strings != m_tab_minimum_displayed_strings)
+        {
             m_highway_view_state = std::make_shared<const common::core::HighwayViewState>(
                 common::core::makeHighwayViewState(
                     *arrangement,
                     state.tempo_map,
                     common::core::HighwayDisplayOptions{
-                        .mirrored = false, .invert_string_order = true
+                        .mirrored = false,
+                        .invert_string_order = true,
+                        .minimum_string_count = m_tab_minimum_displayed_strings,
                     }));
-            m_tab_arrangement_id = arrangement->id;
+            m_highway_min_strings = m_tab_minimum_displayed_strings;
         }
+        m_tab_arrangement_id = arrangement->id;
         state.tab = m_tab_view_state;
         state.highway = m_highway_view_state;
     }
