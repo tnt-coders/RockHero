@@ -79,6 +79,13 @@ constexpr int g_face_fret_count = 24;
 // Seconds a passed note takes to fade out after crossing the hit line.
 constexpr double g_passed_fade_seconds = 0.15;
 
+// Tolerance for matching an onset to a shape-span boundary (or grouping simultaneous onsets).
+// Two events at the same musical grid position resolve through the tempo map on different code
+// paths (a forward cursor for note onsets, the plain resolver for shape ends), so they can land
+// a rounding epsilon apart; without this tolerance a chord sitting exactly on a handshape's
+// start or end would intermittently fall outside the span and lose its repeat-box treatment.
+constexpr double g_onset_match_epsilon = 1.0e-4;
+
 // Open-note bar cross-section (reference OpenNoteModel): a thin hexagonal prism spanning the
 // hand window, half-thickness 0.04 at the ends bulging to 0.05 at the center station, squashed
 // to a tenth of that in Z. An earlier flat slab at tail width read over 3x too tall.
@@ -1029,7 +1036,7 @@ void HighwayRenderer::Impl::draw(
         std::size_t group_end = index + 1;
         while (group_end < last_note &&
                std::abs(state.notes[group_end].start_seconds - state.notes[index].start_seconds) <
-                   1.0e-4)
+                   g_onset_match_epsilon)
         {
             ++group_end;
         }
@@ -1121,13 +1128,17 @@ void HighwayRenderer::Impl::draw(
         const common::core::HighwayShapeView* shape = nullptr;
         for (const common::core::HighwayShapeView& candidate : state.shapes)
         {
-            if (candidate.start_seconds > group.start_seconds)
+            // Tolerance so a shape starting on the same grid position as the chord (resolved a
+            // rounding epsilon later) is still selected rather than skipped.
+            if (candidate.start_seconds > group.start_seconds + g_onset_match_epsilon)
             {
                 break;
             }
             shape = &candidate;
         }
-        if (shape == nullptr || group.start_seconds >= shape->end_seconds ||
+        // A chord onset at (or within rounding of) the shape's end is still under the span — the
+        // strict >= here used to drop the handshape's last strum from repeat-box treatment.
+        if (shape == nullptr || group.start_seconds > shape->end_seconds + g_onset_match_epsilon ||
             !posture_matches(*shape, group.frets))
         {
             continue;
@@ -1139,13 +1150,16 @@ void HighwayRenderer::Impl::draw(
         while (cursor > 0)
         {
             const double onset = state.notes[cursor - 1].start_seconds;
-            if (onset < shape->start_seconds)
+            // Tolerance at the span start: the first strum of a repeat chain usually sits exactly
+            // on the shape start, and a rounding epsilon below it would break the walk before it
+            // finds the anchoring run — the common cause of a repeat chord flickering to notes.
+            if (onset < shape->start_seconds - g_onset_match_epsilon)
             {
                 break;
             }
             std::size_t run_begin = cursor - 1;
-            while (run_begin > 0 &&
-                   std::abs(state.notes[run_begin - 1].start_seconds - onset) < 1.0e-4)
+            while (run_begin > 0 && std::abs(state.notes[run_begin - 1].start_seconds - onset) <
+                                        g_onset_match_epsilon)
             {
                 --run_begin;
             }
