@@ -217,13 +217,19 @@ TEST_CASE("Highway geometry mirrors and inverts as pure reflections", "[core][hi
     CHECK(highwayNoteCenterX(1, metrics, false) == Catch::Approx(0.6));
     CHECK(highwayNoteCenterX(1, metrics, true) == Catch::Approx(-0.6));
 
-    CHECK(highwayStringLaneY(1, 6, metrics, false) == Catch::Approx(0.35));
-    CHECK(highwayStringLaneY(6, 6, metrics, false) == Catch::Approx(2.1));
-    CHECK(highwayStringLaneY(1, 6, metrics, true) == Catch::Approx(2.1));
-    CHECK(highwayStringLaneY(6, 6, metrics, true) == Catch::Approx(0.35));
+    // Lanes are centered on half-string offsets: the bottom lane sits half a string spacing off
+    // the board (0.175) so fret margins are symmetric above the top lane and below the bottom.
+    CHECK(highwayStringLaneY(1, 6, metrics, false) == Catch::Approx(0.175));
+    CHECK(highwayStringLaneY(6, 6, metrics, false) == Catch::Approx(1.925));
+    CHECK(highwayStringLaneY(1, 6, metrics, true) == Catch::Approx(1.925));
+    CHECK(highwayStringLaneY(6, 6, metrics, true) == Catch::Approx(0.175));
 
     // Eight-string arrangements stack two more lanes above the standard six.
-    CHECK(highwayStringLaneY(8, 8, metrics, false) == Catch::Approx(2.8));
+    CHECK(highwayStringLaneY(8, 8, metrics, false) == Catch::Approx(2.625));
+
+    // The shared lane-to-Y seam that highwayStringLaneY delegates to.
+    CHECK(highwayLaneToY(1, metrics) == Catch::Approx(0.175));
+    CHECK(highwayLaneToY(6, metrics) == Catch::Approx(1.925));
 
     CHECK(highwayTimeToZ(1.0, 1.0, metrics) == Catch::Approx(20.0));
     CHECK(highwayTimeToZ(1.0, 2.0, metrics) == Catch::Approx(10.0));
