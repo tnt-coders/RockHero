@@ -62,6 +62,27 @@ enum class GameShaderProgram : std::uint8_t
 
     /*! \brief Glyph-atlas text (fret numbers, section labels). */
     Glyph,
+
+    /*! \brief Plain textured quads modulated by vertex color (fretboard skin, background art). */
+    Texture,
+};
+
+/*!
+\brief Texture assets the game ships under resources/textures/.
+
+The charter/ subtree carries the reference texture assets adapted from Charter (BSD 3-Clause;
+LICENSE.txt accompanies them in the deployed tree).
+*/
+enum class GameTexture : std::uint8_t
+{
+    /*! \brief Note-head atlas (4x4 grid, reference channel scheme). */
+    HighwayNotes,
+
+    /*! \brief Fretboard skin atlas (8x4 grid, one cell per fret). */
+    HighwayInlays,
+
+    /*! \brief Fingering panel shapes and digits (4x4 grid). */
+    HighwayFingering,
 };
 
 /*! \brief Stable reasons resource resolution can fail. */
@@ -138,6 +159,15 @@ public:
     */
     [[nodiscard]] std::expected<std::vector<std::byte>, GameResourcesError> shaderBytes(
         GameShaderProgram program, ShaderStage stage, ShaderBackend backend) const;
+
+    /*!
+    \brief Resolves and reads one texture asset into memory.
+
+    \param texture Texture asset to read.
+    \return The image file's bytes (never empty), or a typed error naming the failing file.
+    */
+    [[nodiscard]] std::expected<std::vector<std::byte>, GameResourcesError> textureBytes(
+        GameTexture texture) const;
 
 private:
     // Only create() constructs a resolver, after validating the root.

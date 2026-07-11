@@ -51,11 +51,17 @@ std::expected<common::ui::HighwayShaderSet, core::GameResourcesError> loadHighwa
     {
         return std::unexpected{glyph.error()};
     }
+    auto texture = load_pair(core::GameShaderProgram::Texture);
+    if (!texture.has_value())
+    {
+        return std::unexpected{texture.error()};
+    }
 
     set.color = std::move(*color);
     set.color_fade = std::move(*color_fade);
     set.texture_tint = std::move(*texture_tint);
     set.glyph = std::move(*glyph);
+    set.texture = std::move(*texture);
     return set;
 }
 
