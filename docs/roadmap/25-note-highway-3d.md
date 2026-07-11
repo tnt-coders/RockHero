@@ -672,3 +672,38 @@ drawers (session Charter clone).
   them (the reference draws boxes after notes under a depth buffer; this board view is
   painter-ordered — the only cost is the faint filling no longer tinting its own chord's
   heads, recorded as a deliberate simplification).
+
+### 3D-view fixes round (2026-07-11) — user feedback, expert-designed + adversarially reviewed
+
+Six UI issues, each with a game-render-expert design pass and an independent adversarial code
+review before implementation (correctness-first, one commit per fix):
+
+- **Vertical z-order.** The far-to-near note sort keyed only on onset, so same-onset chord notes
+  were order-equivalent and the non-stable sort painted their overlapping heads arbitrarily
+  (frame-varying flicker). Now a total order — onset descending, base string-lane Y ascending
+  (higher-on-screen note on top), note index as a unique tiebreak. No depth-buffer change (the
+  zero-pitch camera cannot encode world Y in depth).
+- **String height + fret margins.** Lanes centered on half-string offsets (`highwayLaneToY`
+  seam): bottom lane at 0.175 (halved), symmetric 0.5·string_distance fret margins. Board-face
+  top, chord-box top, fingering spots, and section/chord-name anchors all follow.
+- **Scrolling fret numbers (the readability fix).** Reproduces the reference's
+  `Preview3DBeatsDrawer`: dotted-fret numbers ({3,5,7,9,12,15,17,19,21,24}) ride each measure
+  downbeat down the board floor (bright blue inside the hand range, dim teal elsewhere), FHP
+  arrivals marked orange, the current hand's numbers pinned at the hit line; fade baked into the
+  vertex color (the glyph program has no fade uniform). Replaces the static hit-line row.
+- **Repeat-chord boundary.** A chord on a handshape's start OR end could fall outside the span on
+  any of three strict onset-vs-boundary comparisons once the tempo map rounded the two equal grid
+  positions apart (the intermittent drop-out). All three use a shared `g_onset_match_epsilon`; the
+  backward repeat-chain walk's start check was the likely real culprit the review surfaced.
+- **Arpeggio box.** Each arpeggio shape gets a chord-box-style panel at its start (scroll-and-park)
+  with the fretboard bracket notation overlaid — the arpeggio distinguisher. A chord landing on
+  an arpeggio start draws one arpeggio-styled box (not a second plain box); note heads are never
+  suppressed. Chord-box panel factored into a shared `pushChordBoxPanel`; the old active-shape-only
+  bracket pass folds into the scrolling one.
+- **Editor displayed-string count.** The 3D preview now honors the View menu's "show at least N
+  strings" (it took the chart count directly before). The projection bakes the minimum in
+  (`HighwayDisplayOptions::minimum_string_count`): displayed lane count raised, every note/posture
+  string shifted into the padded range so the shared palette anchors exactly as the 2D tab; the
+  memoized highway state rebuilds on a minimum change. Game passes zero (unaffected). Chosen the
+  projection-shift approach over a renderer-side shift to keep issue 6 out of the (heavily
+  modified) renderer and ride the existing view-state rebuild path.
