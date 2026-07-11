@@ -101,8 +101,10 @@ private:
     const common::audio::ITransport& m_transport;
     const common::audio::IPlaybackClock& m_playback_clock;
 
-    // Native child window handle (HWND) bgfx renders into; null while detached.
-    void* m_child_window{nullptr};
+    // Native child window handle (HWND) bgfx renders into; null while detached. maybe_unused:
+    // every consumer sits behind JUCE_WINDOWS, so non-Windows compile-hygiene builds never
+    // reference it (the preview ships Windows-only for now, like the compiled shaders).
+    [[maybe_unused]] void* m_child_window{nullptr};
 
     std::optional<common::ui::RenderDevice> m_device;
     std::optional<common::ui::HighwayRenderer> m_renderer;
@@ -113,7 +115,8 @@ private:
     bool m_state_dirty{false};
 
     // One warning per attach when the embedded child window unexpectedly disappears.
-    bool m_reported_lost_child{false};
+    // maybe_unused for the same non-Windows reason as m_child_window.
+    [[maybe_unused]] bool m_reported_lost_child{false};
 
     common::audio::PlaybackClockExtrapolator m_extrapolator;
 
