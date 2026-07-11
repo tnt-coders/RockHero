@@ -6,10 +6,8 @@
 #pragma once
 
 #include <chrono>
-#include <cstddef>
 #include <cstdint>
 #include <expected>
-#include <span>
 #include <string>
 
 namespace rock_hero::game::ui
@@ -47,9 +45,6 @@ enum class RenderDeviceErrorCode : std::uint8_t
 
     /*! \brief bgfx initialization failed for the requested backend. */
     InitializationFailed,
-
-    /*! \brief bgfx rejected a compiled shader binary or failed to link the program. */
-    ShaderProgramCreationFailed,
 };
 
 /*! \brief Typed boundary error for render-device startup failures. */
@@ -134,28 +129,46 @@ public:
     void resize(std::uint32_t width, std::uint32_t height);
 
     /*!
-    \brief Creates the flat vertex-color surface program from compiled shader binaries.
-
-    The binaries come from the deployed resource-pack tree, resolved through game/core's
-    GameResources — the render device only consumes bytes and never touches the filesystem.
-
-    \param vertex_shader Compiled vertex-stage binary for the device's backend.
-    \param fragment_shader Compiled fragment-stage binary for the device's backend.
-    \return Nothing on success, or a typed error when bgfx rejects a stage or the link.
-    */
-    [[nodiscard]] std::expected<void, RenderDeviceError> createSurfaceProgram(
-        std::span<const std::byte> vertex_shader, std::span<const std::byte> fragment_shader);
-
-    /*!
-    \brief Submits one frame — clear, the surface program's test triangle when loaded — and
+    \brief Submits one frame — the backstop clear plus everything scene renderers encoded — and
     presents it.
 
-    With vsync on, the present blocks until the display's next refresh — this call is the frame
-    pacer of the main loop. Present semantics (Phase 3 checkpoint): bgfx flips BEFORE it renders,
-    so each call presents the PREVIOUS frame's content and then executes this frame's commands; a
-    timestamp taken after this returns is a pacing anchor, never a photon time.
+    Scene content (the highway renderer) encodes its views before this call; this executes and
+    presents them. With vsync on, the present blocks until the display's next refresh — this
+    call is the frame pacer of the main loop. Present semantics (Phase 3 checkpoint): bgfx flips
+    BEFORE it renders, so each call presents the PREVIOUS frame's content and then executes this
+    frame's commands; a timestamp taken after this returns is a pacing anchor, never a photon
+    time.
     */
     void submitFrame();
+
+    /*!
+    \brief Current backbuffer width in pixels (scene renderers size their view rects from this).
+    \return Backbuffer width.
+    */
+    [[nodiscard]] std::uint32_t width() const noexcept;
+
+    /*!
+    \brief Current backbuffer height in pixels.
+    \return Backbuffer height.
+    */
+    [[nodiscard]] std::uint32_t height() const noexcept;
+
+    /*!
+    \brief Enables or disables bgfx's built-in debug-text overlay (the Phase 3 overlay v1).
+    \param enabled True to draw queued debug text over every frame.
+    */
+    void setDebugTextEnabled(bool enabled);
+
+    /*! \brief Clears the queued debug text; call once per frame before printing. */
+    void clearDebugText();
+
+    /*!
+    \brief Queues one line of debug text at a character cell position.
+    \param column Character column from the left edge.
+    \param row Character row from the top edge.
+    \param text Line content.
+    */
+    void printDebugText(std::uint16_t column, std::uint16_t row, const std::string& text);
 
     /*!
     \brief bgfx's own measurement of the last frame period, as a cross-check channel.
@@ -174,10 +187,6 @@ private:
 
     // True while this object owns the process bgfx instance and must shut it down.
     bool m_owns_device = false;
-
-    // bgfx handle index of the loaded surface program; bgfx's invalid-handle sentinel until
-    // createSurfaceProgram succeeds. Kept as a raw index so bgfx types stay out of this header.
-    std::uint16_t m_program_handle = UINT16_MAX;
 
     // Current backbuffer size, kept in sync by resize() for per-frame view rects.
     std::uint32_t m_width = 0;

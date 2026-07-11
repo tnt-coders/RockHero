@@ -1,9 +1,8 @@
-#include "highway/highway_projection.h"
-
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <rock_hero/common/core/highway/highway_metrics.h>
+#include <rock_hero/common/core/highway/highway_projection.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>

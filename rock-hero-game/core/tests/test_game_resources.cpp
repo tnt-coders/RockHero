@@ -26,10 +26,17 @@ public:
         std::filesystem::create_directories(m_root);
     }
 
-    ~TempResourcesRoot()
+    // Removes the fixture tree on a best-effort basis; cleanup failure must never terminate
+    // the test run (even the error_code overload may throw std::bad_alloc).
+    ~TempResourcesRoot() noexcept
     {
-        std::error_code cleanup_error;
-        std::filesystem::remove_all(m_root, cleanup_error);
+        try
+        {
+            std::error_code cleanup_error;
+            std::filesystem::remove_all(m_root, cleanup_error);
+        }
+        catch (...)
+        {}
     }
 
     TempResourcesRoot(const TempResourcesRoot&) = delete;
@@ -76,27 +83,27 @@ TEST_CASE("GameResources rejects a missing resources root", "[core][resources]")
 TEST_CASE("GameResources resolves shader stage binaries by convention", "[core][resources]")
 {
     const TempResourcesRoot fixture;
-    fixture.touch("shaders/dx11/vs_surface_flat.bin");
-    fixture.touch("shaders/dx11/fs_surface_flat.bin");
+    fixture.touch("shaders/dx11/vs_color.bin");
+    fixture.touch("shaders/dx11/fs_color.bin");
 
     const auto resources = GameResources::create(fixture.path());
     REQUIRE(resources.has_value());
     if (resources.has_value())
     {
         const auto vertex = resources->shaderPath(
-            GameShaderProgram::SurfaceFlat, ShaderStage::Vertex, ShaderBackend::Direct3D11);
+            GameShaderProgram::Color, ShaderStage::Vertex, ShaderBackend::Direct3D11);
         REQUIRE(vertex.has_value());
         if (vertex.has_value())
         {
-            CHECK(*vertex == fixture.path() / "shaders" / "dx11" / "vs_surface_flat.bin");
+            CHECK(*vertex == fixture.path() / "shaders" / "dx11" / "vs_color.bin");
         }
 
         const auto fragment = resources->shaderPath(
-            GameShaderProgram::SurfaceFlat, ShaderStage::Fragment, ShaderBackend::Direct3D11);
+            GameShaderProgram::Color, ShaderStage::Fragment, ShaderBackend::Direct3D11);
         REQUIRE(fragment.has_value());
         if (fragment.has_value())
         {
-            CHECK(*fragment == fixture.path() / "shaders" / "dx11" / "fs_surface_flat.bin");
+            CHECK(*fragment == fixture.path() / "shaders" / "dx11" / "fs_color.bin");
         }
     }
 }
@@ -104,19 +111,19 @@ TEST_CASE("GameResources resolves shader stage binaries by convention", "[core][
 TEST_CASE("GameResources reports a missing shader binary as a typed error", "[core][resources]")
 {
     const TempResourcesRoot fixture;
-    fixture.touch("shaders/dx11/vs_surface_flat.bin");
+    fixture.touch("shaders/dx11/vs_color.bin");
 
     const auto resources = GameResources::create(fixture.path());
     REQUIRE(resources.has_value());
     if (resources.has_value())
     {
         const auto fragment = resources->shaderPath(
-            GameShaderProgram::SurfaceFlat, ShaderStage::Fragment, ShaderBackend::Direct3D11);
+            GameShaderProgram::Color, ShaderStage::Fragment, ShaderBackend::Direct3D11);
         REQUIRE_FALSE(fragment.has_value());
         if (!fragment.has_value())
         {
             CHECK(fragment.error().code == GameResourcesErrorCode::MissingResourceFile);
-            CHECK(fragment.error().message.find("fs_surface_flat.bin") != std::string::npos);
+            CHECK(fragment.error().message.find("fs_color.bin") != std::string::npos);
         }
     }
 }
@@ -124,14 +131,14 @@ TEST_CASE("GameResources reports a missing shader binary as a typed error", "[co
 TEST_CASE("GameResources reads shader binary bytes", "[core][resources]")
 {
     const TempResourcesRoot fixture;
-    fixture.touch("shaders/dx11/vs_surface_flat.bin", "VSH\x03");
+    fixture.touch("shaders/dx11/vs_color.bin", "VSH\x03");
 
     const auto resources = GameResources::create(fixture.path());
     REQUIRE(resources.has_value());
     if (resources.has_value())
     {
         const auto bytes = resources->shaderBytes(
-            GameShaderProgram::SurfaceFlat, ShaderStage::Vertex, ShaderBackend::Direct3D11);
+            GameShaderProgram::Color, ShaderStage::Vertex, ShaderBackend::Direct3D11);
         REQUIRE(bytes.has_value());
         if (bytes.has_value())
         {
@@ -145,19 +152,19 @@ TEST_CASE("GameResources reads shader binary bytes", "[core][resources]")
 TEST_CASE("GameResources reports an empty shader binary as a typed error", "[core][resources]")
 {
     const TempResourcesRoot fixture;
-    fixture.touch("shaders/dx11/vs_surface_flat.bin");
+    fixture.touch("shaders/dx11/vs_color.bin");
 
     const auto resources = GameResources::create(fixture.path());
     REQUIRE(resources.has_value());
     if (resources.has_value())
     {
         const auto bytes = resources->shaderBytes(
-            GameShaderProgram::SurfaceFlat, ShaderStage::Vertex, ShaderBackend::Direct3D11);
+            GameShaderProgram::Color, ShaderStage::Vertex, ShaderBackend::Direct3D11);
         REQUIRE_FALSE(bytes.has_value());
         if (!bytes.has_value())
         {
             CHECK(bytes.error().code == GameResourcesErrorCode::UnreadableResourceFile);
-            CHECK(bytes.error().message.find("vs_surface_flat.bin") != std::string::npos);
+            CHECK(bytes.error().message.find("vs_color.bin") != std::string::npos);
         }
     }
 }

@@ -216,4 +216,32 @@ TEST_CASE("Highway background matrix parallaxes with the pin intact", "[core][hi
     CHECK(swayed_anchor[0] != Catch::Approx(anchor[0]).margin(1.0e-6));
 }
 
+// Depth regression for the plan-25 Phase 3 checkpoint finding: the near plane must be
+// camera-relative (eye depth), never anchored at world Z. The hit line (world z = 0) and the
+// short passed-note region behind it sit inside the depth volume, and depth stays monotonic
+// along the time axis so far-to-near draw ordering can rely on the depth test.
+TEST_CASE("Highway camera keeps the hit line inside the depth volume", "[core][highway][camera]")
+{
+    const HighwayMetrics metrics{};
+    const HighwayCameraPose pose{.x = 6.0, .y = metrics.camera_y_base, .z = metrics.camera_z_base};
+    const HighwayMat4 world_to_clip = makeHighwayWorldToClip(pose, 16.0 / 9.0, metrics);
+
+    const auto hit_line = world_to_clip.projectPoint(pose.x, 0.0, 0.0);
+    CHECK(hit_line[2] >= 0.0);
+    CHECK(hit_line[2] < 1.0);
+
+    // One and a half world units behind the hit line: still in front of the camera, still
+    // inside the depth volume (passed notes fade out in this region).
+    const auto behind = world_to_clip.projectPoint(pose.x, 0.0, -1.5);
+    CHECK(behind[2] >= 0.0);
+    CHECK(behind[2] < 1.0);
+
+    // Depth increases monotonically toward the horizon.
+    const auto near_note = world_to_clip.projectPoint(pose.x, 0.35, 4.0);
+    const auto far_note = world_to_clip.projectPoint(pose.x, 0.35, 24.0);
+    CHECK(behind[2] < hit_line[2]);
+    CHECK(hit_line[2] < near_note[2]);
+    CHECK(near_note[2] < far_note[2]);
+}
+
 } // namespace rock_hero::common::core

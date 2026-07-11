@@ -51,13 +51,25 @@ namespace
 {
     switch (program)
     {
-        case GameShaderProgram::SurfaceFlat:
+        case GameShaderProgram::Color:
         {
-            return "surface_flat";
+            return "color";
+        }
+        case GameShaderProgram::ColorFade:
+        {
+            return "color_fade";
+        }
+        case GameShaderProgram::TextureTint:
+        {
+            return "texture_tint";
+        }
+        case GameShaderProgram::Glyph:
+        {
+            return "glyph";
         }
     }
 
-    return "surface_flat";
+    return "color";
 }
 
 } // namespace
