@@ -4,10 +4,18 @@
 #include "surface/juce_message_pump.h"
 #include "surface/render_device.h"
 
+#include <SDL3/SDL.h>
 #include <cstdint>
 #include <expected>
+#include <filesystem>
+#include <fstream>
+#include <ios>
 #include <juce_events/juce_events.h>
+#include <optional>
 #include <print>
+#include <rock_hero/game/core/resources/game_resources.h>
+#include <span>
+#include <vector>
 
 namespace rock_hero::game::ui
 {
@@ -22,6 +30,87 @@ constexpr std::uint32_t g_initial_window_height = 720;
 // Per-frame JUCE dispatch bound. The gate soak measured a real-world per-frame maximum of 3
 // messages; this is a safety valve against a pathological self-posting burst, not a tuned value.
 constexpr int g_max_juce_messages_per_frame = 256;
+
+// Reads a whole file into memory; empty optional when the file cannot be opened or read.
+[[nodiscard]] std::optional<std::vector<char>> readBinaryFile(const std::filesystem::path& path)
+{
+    std::ifstream file{path, std::ios::binary | std::ios::ate};
+    if (!file)
+    {
+        return std::nullopt;
+    }
+
+    const std::streamsize size = file.tellg();
+    std::vector<char> contents(static_cast<std::size_t>(size));
+    file.seekg(0);
+    if (!file.read(contents.data(), size))
+    {
+        return std::nullopt;
+    }
+
+    return contents;
+}
+
+// Maps the shell's production backend to the resource tree's shader-backend vocabulary. Noop is
+// a test-only backend that never reaches the shell, so it maps to the shipped default.
+[[nodiscard]] core::ShaderBackend toShaderBackend(const RenderBackend backend)
+{
+    switch (backend)
+    {
+        case RenderBackend::Direct3D11:
+        case RenderBackend::Noop:
+            return core::ShaderBackend::Direct3D11;
+    }
+
+    return core::ShaderBackend::Direct3D11;
+}
+
+// Loads the surface program's compiled shaders through the resource resolver — the one loading
+// seam packaged assets come through (plan 20 Phase 2) — and hands the bytes to the device.
+[[nodiscard]] bool loadSurfaceProgram(RenderDevice& device, const RenderBackend backend)
+{
+    const std::filesystem::path resources_root =
+        std::filesystem::path{SDL_GetBasePath()} / "resources";
+    const std::expected<core::GameResources, core::GameResourcesError> resources =
+        core::GameResources::create(resources_root);
+    if (!resources.has_value())
+    {
+        std::println(stderr, "rock-hero: {}", resources.error().message);
+        return false;
+    }
+
+    const core::ShaderBackend shader_backend = toShaderBackend(backend);
+    const auto vertex_path = resources->shaderPath(
+        core::GameShaderProgram::SurfaceFlat, core::ShaderStage::Vertex, shader_backend);
+    const auto fragment_path = resources->shaderPath(
+        core::GameShaderProgram::SurfaceFlat, core::ShaderStage::Fragment, shader_backend);
+    if (!vertex_path.has_value() || !fragment_path.has_value())
+    {
+        std::println(
+            stderr,
+            "rock-hero: {}",
+            vertex_path.has_value() ? fragment_path.error().message : vertex_path.error().message);
+        return false;
+    }
+
+    const std::optional<std::vector<char>> vertex_bytes = readBinaryFile(*vertex_path);
+    const std::optional<std::vector<char>> fragment_bytes = readBinaryFile(*fragment_path);
+    if (!vertex_bytes.has_value() || !fragment_bytes.has_value())
+    {
+        std::println(stderr, "rock-hero: failed to read a compiled shader binary");
+        return false;
+    }
+
+    const std::expected<void, RenderDeviceError> program = device.createSurfaceProgram(
+        std::as_bytes(std::span{*vertex_bytes}), std::as_bytes(std::span{*fragment_bytes}));
+    if (!program.has_value())
+    {
+        std::println(stderr, "rock-hero: {}", program.error().message);
+        return false;
+    }
+
+    return true;
+}
 
 } // namespace
 
@@ -62,6 +151,11 @@ int GameShell::run(const GameShellOptions& options)
         return 1;
     }
 
+    if (!loadSurfaceProgram(*device, defaultRenderBackend()))
+    {
+        return 1;
+    }
+
     // The L2 frame loop: freshest input first, JUCE callbacks settled before the frame is built,
     // then the vsynced present paces the whole loop.
     std::uint64_t frames_submitted = 0;
@@ -79,7 +173,7 @@ int GameShell::run(const GameShellOptions& options)
 
         drainPendingJuceMessages(g_max_juce_messages_per_frame);
 
-        device->submitClearedFrame();
+        device->submitFrame();
         ++frames_submitted;
 
         if (options.frame_limit.has_value() && frames_submitted >= *options.frame_limit)

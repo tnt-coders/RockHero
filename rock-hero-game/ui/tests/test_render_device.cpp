@@ -23,11 +23,11 @@ TEST_CASE("Render device runs headless frames on the Noop backend", "[ui][surfac
 
     for (int frame = 0; frame < 4; ++frame)
     {
-        device->submitClearedFrame();
+        device->submitFrame();
     }
 
     device->resize(128, 72);
-    device->submitClearedFrame();
+    device->submitFrame();
 }
 
 // The windowed-backend guard must reject a null native handle before touching bgfx, so the

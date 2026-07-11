@@ -22,19 +22,14 @@ add_library(rock_hero_bgfx INTERFACE)
 add_library(rock_hero::bgfx ALIAS rock_hero_bgfx)
 target_link_libraries(rock_hero_bgfx INTERFACE bgfx::bgfx)
 
-# The classic CMakeDeps generator declares no executable targets for the tools the bgfx package
-# ships (the recipe documents a CMakeConfigDeps requirement, but that generator is still marked
-# experimental by Conan and our provider fork injects CMakeDeps unconditionally). Locate the
-# packaged shaderc off the recipe-exported BGFX_SHADER_INCLUDE_PATH — the pattern proven by gate
-# criterion S4 — and shim it as an IMPORTED executable. The if(NOT TARGET) guard makes this a
-# no-op if a future CMakeConfigDeps migration starts generating the real target.
+# The classic CMakeDeps generator declares no EXECUTABLE targets for the tools the bgfx package
+# ships — it declares bgfx::shaderc as an interface library component, which is why the shader
+# helper below cannot lean on that target name. Locate the packaged shaderc binary off the
+# recipe-exported BGFX_SHADER_INCLUDE_PATH — the pattern proven by gate criterion S4 — and use
+# the cached program path directly.
 cmake_path(GET BGFX_SHADER_INCLUDE_PATH PARENT_PATH _rock_hero_bgfx_include_root)
 cmake_path(GET _rock_hero_bgfx_include_root PARENT_PATH _rock_hero_bgfx_package_root)
 find_program(ROCK_HERO_BGFX_SHADERC shaderc HINTS "${_rock_hero_bgfx_package_root}/bin" REQUIRED)
-if(NOT TARGET bgfx::shaderc)
-    add_executable(bgfx::shaderc IMPORTED GLOBAL)
-    set_target_properties(bgfx::shaderc PROPERTIES IMPORTED_LOCATION "${ROCK_HERO_BGFX_SHADERC}")
-endif()
 
 # Compiles one bgfx .sc shader for one backend profile at build time (gate criterion S4,
 # productionized). Callers own output layout and the profile list, so adding a backend later is a
@@ -58,14 +53,13 @@ function(rock_hero_add_compiled_shader)
         endif()
     endforeach()
 
-    # CMake resolves the IMPORTED bgfx::shaderc target in COMMAND to the packaged tool path. The
-    # varying definition is a real input even though shaderc takes it as a flag, so declare it as
-    # a dependency to get correct rebuilds when only the varyings change.
+    # The varying definition is a real input even though shaderc takes it as a flag, so declare
+    # it as a dependency to get correct rebuilds when only the varyings change.
     add_custom_command(
         OUTPUT "${ARG_OUTPUT}"
         COMMAND
-            bgfx::shaderc -f "${ARG_SOURCE}" -o "${ARG_OUTPUT}" --type ${ARG_TYPE} --platform
-            ${ARG_PLATFORM} -p ${ARG_PROFILE} -O 3 --varyingdef "${ARG_VARYING}" -i
+            "${ROCK_HERO_BGFX_SHADERC}" -f "${ARG_SOURCE}" -o "${ARG_OUTPUT}" --type ${ARG_TYPE}
+            --platform ${ARG_PLATFORM} -p ${ARG_PROFILE} -O 3 --varyingdef "${ARG_VARYING}" -i
             "${BGFX_SHADER_INCLUDE_PATH}"
         MAIN_DEPENDENCY "${ARG_SOURCE}"
         DEPENDS "${ARG_VARYING}"
