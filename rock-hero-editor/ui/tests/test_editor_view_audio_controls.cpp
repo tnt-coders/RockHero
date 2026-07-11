@@ -1,3 +1,4 @@
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
 
 namespace rock_hero::editor::ui
@@ -64,7 +65,7 @@ TEST_CASE("Calibration prompt starts with target and status", "[ui][editor-view]
         "\"Apply\".");
     CHECK(status.isVisible());
     CHECK(status.isColourSpecified(juce::Label::backgroundColourId));
-    CHECK(status.getMinimumHorizontalScale() == 1.0f);
+    CHECK_THAT(status.getMinimumHorizontalScale(), Catch::Matchers::WithinULP(1.0f, 0));
     CHECK_FALSE(status.getText().startsWith("Info:"));
     REQUIRE(help_button.onClick);
     CHECK(help_button.getTooltip() == "Open input calibration guide");

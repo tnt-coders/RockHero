@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <compare>
 #include <rock_hero/common/audio/shared/gain.h>
 
@@ -9,18 +10,18 @@ namespace rock_hero::common::audio
 TEST_CASE("Gain defaults to 0 dB", "[audio][gain]")
 {
     constexpr Gain gain{};
-    CHECK(gain.db == 0.0);
+    CHECK_THAT(gain.db, Catch::Matchers::WithinULP(0.0, 0));
     CHECK(std::is_eq(gain.db <=> defaultGainDb()));
 }
 
 // Verifies that clampGain passes through values inside the accepted range.
 TEST_CASE("clampGain passes through in-range values", "[audio][gain]")
 {
-    CHECK(clampGain(Gain{0.0}).db == 0.0);
+    CHECK_THAT(clampGain(Gain{0.0}).db, Catch::Matchers::WithinULP(0.0, 0));
     CHECK(std::is_eq(clampGain(Gain{-12.0}).db <=> -12.0));
-    CHECK(clampGain(Gain{3.0}).db == 3.0);
+    CHECK_THAT(clampGain(Gain{3.0}).db, Catch::Matchers::WithinULP(3.0, 0));
     CHECK(std::is_eq(clampGain(Gain{-24.0}).db <=> -24.0));
-    CHECK(clampGain(Gain{24.0}).db == 24.0);
+    CHECK_THAT(clampGain(Gain{24.0}).db, Catch::Matchers::WithinULP(24.0, 0));
     CHECK(std::is_eq(clampGain(Gain{minimumGainDb()}).db <=> minimumGainDb()));
     CHECK(std::is_eq(clampGain(Gain{maximumGainDb()}).db <=> maximumGainDb()));
 }

@@ -1,3 +1,4 @@
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 
 namespace rock_hero::editor::core
@@ -157,7 +158,7 @@ TEST_CASE(
     CHECK(transport.set_live_input_monitoring_call_count >= 1);
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK(transport.calibration_input_monitoring_enabled);
-    CHECK(transport.current_input_gain.db == 0.0);
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(0.0, 0));
 
     const auto calibration_succeeded = controller.onInputCalibrationSucceeded(7.5);
     REQUIRE(calibration_succeeded.has_value());
@@ -167,7 +168,7 @@ TEST_CASE(
     CHECK(final_state->input_calibration_prompt.has_value());
     CHECK(final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Calibrated);
     CHECK(final_state->signal_chain.disabled_message.empty());
-    CHECK(transport.current_input_gain.db == 7.5);
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(7.5, 0));
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
 
@@ -177,7 +178,7 @@ TEST_CASE(
     REQUIRE(stored_calibration.has_value());
     if (stored_calibration.has_value())
     {
-        CHECK(stored_calibration->calibration_gain.db == 7.5);
+        CHECK_THAT(stored_calibration->calibration_gain.db, Catch::Matchers::WithinULP(7.5, 0));
         CHECK(stored_calibration->input_device_identity == *audio_devices.current_input_identity);
     }
 }
@@ -212,11 +213,11 @@ TEST_CASE(
 
     const auto first_measurement_started = controller.onInputCalibrationMeasurementStarted();
     REQUIRE(first_measurement_started.has_value());
-    CHECK(transport.current_input_gain.db == 0.0);
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(0.0, 0));
 
     const auto first_calibration_succeeded = controller.onInputCalibrationSucceeded(7.5);
     REQUIRE(first_calibration_succeeded.has_value());
-    CHECK(transport.current_input_gain.db == 7.5);
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(7.5, 0));
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
     const auto* const prompt_state = stateOrNull(view.last_state);
@@ -225,13 +226,13 @@ TEST_CASE(
 
     const auto retry_measurement_started = controller.onInputCalibrationMeasurementStarted();
     REQUIRE(retry_measurement_started.has_value());
-    CHECK(transport.current_input_gain.db == 0.0);
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(0.0, 0));
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK(transport.calibration_input_monitoring_enabled);
 
     controller.onInputCalibrationMeasurementCancelled();
 
-    CHECK(transport.current_input_gain.db == 7.5);
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(7.5, 0));
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
 }
@@ -276,7 +277,7 @@ TEST_CASE("Input calibration start restores route on gain failure", "[core][edit
     CHECK(
         measurement_started.error().code ==
         common::audio::LiveInputErrorCode::CouldNotSetInputGain);
-    CHECK(transport.current_input_gain.db == 4.0);
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(4.0, 0));
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
 }
@@ -321,7 +322,7 @@ TEST_CASE("Input calibration start restores route on monitor failure", "[core][e
     CHECK(
         measurement_started.error().code ==
         common::audio::LiveInputErrorCode::CouldNotSetMonitoring);
-    CHECK(transport.current_input_gain.db == 4.0);
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(4.0, 0));
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
 }
@@ -360,7 +361,7 @@ TEST_CASE(
     REQUIRE(final_state != nullptr);
     CHECK(final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Calibrated);
     CHECK(final_state->signal_chain.disabled_message.empty());
-    CHECK(transport.current_input_gain.db == 3.25);
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(3.25, 0));
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
 
@@ -370,7 +371,7 @@ TEST_CASE(
     REQUIRE(stored_calibration.has_value());
     if (stored_calibration.has_value())
     {
-        CHECK(stored_calibration->calibration_gain.db == 3.25);
+        CHECK_THAT(stored_calibration->calibration_gain.db, Catch::Matchers::WithinULP(3.25, 0));
         CHECK(stored_calibration->input_device_identity == *audio_devices.current_input_identity);
     }
 }
@@ -542,7 +543,7 @@ TEST_CASE("Stored input calibration waits for disconnected device", "[core][edit
     audio_devices.current_input_identity = identity;
     audio_devices.notifyChanged();
 
-    CHECK(transport.current_input_gain.db == 5.0);
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(5.0, 0));
     CHECK(transport.live_input_monitoring_enabled);
     REQUIRE(inputCalibrationFor(settings, identity).has_value());
     const auto* const restored_state = stateOrNull(view.last_state);
@@ -597,7 +598,7 @@ TEST_CASE(
 
     REQUIRE(live_rig.completePendingLoad());
 
-    CHECK(transport.current_input_gain.db == 5.0);
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(5.0, 0));
     CHECK(transport.live_input_monitoring_enabled);
 }
 
@@ -702,12 +703,12 @@ TEST_CASE("Input disconnect preserves calibration for same reconnect", "[core][e
     audio_devices.notifyChanged();
 
     CHECK(transport.live_input_monitoring_enabled);
-    CHECK(transport.current_input_gain.db == 5.0);
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(5.0, 0));
     const auto preserved_calibration = inputCalibrationFor(settings, identity);
     REQUIRE(preserved_calibration.has_value());
     if (preserved_calibration.has_value())
     {
-        CHECK(preserved_calibration->calibration_gain.db == 5.0);
+        CHECK_THAT(preserved_calibration->calibration_gain.db, Catch::Matchers::WithinULP(5.0, 0));
     }
     const auto* const restored_state = stateOrNull(view.last_state);
     REQUIRE(restored_state != nullptr);
@@ -750,7 +751,7 @@ TEST_CASE("Input route change preserves previous calibration history", "[core][e
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     REQUIRE(
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
-    CHECK(transport.current_input_gain.db == 5.0);
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(5.0, 0));
     CHECK(transport.live_input_monitoring_enabled);
 
     audio_devices.current_input_identity = makeInputDeviceIdentity("Interface B");
@@ -820,7 +821,7 @@ TEST_CASE("Input route change applies saved route calibration", "[core][editor-c
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
-    CHECK(transport.current_input_gain.db == 8.0);
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(8.0, 0));
     CHECK(transport.live_input_monitoring_enabled);
     CHECK(inputCalibrationFor(settings, initial_identity).has_value());
     CHECK(inputCalibrationFor(settings, next_identity).has_value());
@@ -870,7 +871,7 @@ TEST_CASE("Input route change restores saved calibration on return", "[core][edi
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
-    CHECK(transport.current_input_gain.db == 5.0);
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(5.0, 0));
     CHECK(transport.live_input_monitoring_enabled);
     REQUIRE(inputCalibrationFor(settings, initial_identity).has_value());
     CHECK(final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Calibrated);
@@ -922,7 +923,7 @@ TEST_CASE("Input route return restores renamed physical channel", "[core][editor
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
-    CHECK(transport.current_input_gain.db == 5.0);
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(5.0, 0));
     CHECK(transport.live_input_monitoring_enabled);
     REQUIRE(inputCalibrationFor(settings, renamed_identity).has_value());
     CHECK(final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Calibrated);
@@ -1023,7 +1024,7 @@ TEST_CASE("Audio settings close applies saved replacement route", "[core][editor
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
-    CHECK(transport.current_input_gain.db == 8.0);
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(8.0, 0));
     CHECK(transport.live_input_monitoring_enabled);
     CHECK(final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Calibrated);
 }
@@ -1118,7 +1119,7 @@ TEST_CASE(
 
     REQUIRE(
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
-    CHECK(transport.current_input_gain.db == 4.0);
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(4.0, 0));
     CHECK(transport.live_input_monitoring_enabled);
 
     controller.onInputCalibrationRequested();
@@ -1130,7 +1131,7 @@ TEST_CASE(
     REQUIRE(measurement_started.has_value());
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK(transport.calibration_input_monitoring_enabled);
-    CHECK(transport.current_input_gain.db == 0.0);
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(0.0, 0));
 
     controller.onInputCalibrationDismissed();
 
@@ -1138,14 +1139,14 @@ TEST_CASE(
     REQUIRE(final_state != nullptr);
     CHECK_FALSE(final_state->input_calibration_prompt.has_value());
     CHECK(final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Calibrated);
-    CHECK(transport.current_input_gain.db == 4.0);
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(4.0, 0));
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
     const auto restored_calibration = inputCalibrationFor(settings, identity);
     REQUIRE(restored_calibration.has_value());
     if (restored_calibration.has_value())
     {
-        CHECK(restored_calibration->calibration_gain.db == 4.0);
+        CHECK_THAT(restored_calibration->calibration_gain.db, Catch::Matchers::WithinULP(4.0, 0));
     }
 }
 
@@ -1194,14 +1195,14 @@ TEST_CASE(
     REQUIRE(final_state != nullptr);
     CHECK(final_state->input_calibration_prompt.has_value());
     CHECK(final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Calibrated);
-    CHECK(transport.current_input_gain.db == 4.0);
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(4.0, 0));
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
     const auto restored_calibration = inputCalibrationFor(settings, identity);
     REQUIRE(restored_calibration.has_value());
     if (restored_calibration.has_value())
     {
-        CHECK(restored_calibration->calibration_gain.db == 4.0);
+        CHECK_THAT(restored_calibration->calibration_gain.db, Catch::Matchers::WithinULP(4.0, 0));
     }
 }
 
@@ -1258,14 +1259,14 @@ TEST_CASE(
     CHECK(
         final_state->signal_chain.disabled_message ==
         "Live input disabled: live input backend unavailable.");
-    CHECK(transport.current_input_gain.db == 4.0);
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(4.0, 0));
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
     const auto preserved_calibration = inputCalibrationFor(settings, identity);
     REQUIRE(preserved_calibration.has_value());
     if (preserved_calibration.has_value())
     {
-        CHECK(preserved_calibration->calibration_gain.db == 4.0);
+        CHECK_THAT(preserved_calibration->calibration_gain.db, Catch::Matchers::WithinULP(4.0, 0));
     }
 }
 
@@ -1325,14 +1326,14 @@ TEST_CASE(
     CHECK(
         final_state->signal_chain.disabled_message ==
         "Live input disabled: live input backend unavailable.");
-    CHECK(transport.current_input_gain.db == 4.0);
+    CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(4.0, 0));
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
     const auto preserved_calibration = inputCalibrationFor(settings, identity);
     REQUIRE(preserved_calibration.has_value());
     if (preserved_calibration.has_value())
     {
-        CHECK(preserved_calibration->calibration_gain.db == 4.0);
+        CHECK_THAT(preserved_calibration->calibration_gain.db, Catch::Matchers::WithinULP(4.0, 0));
     }
 }
 

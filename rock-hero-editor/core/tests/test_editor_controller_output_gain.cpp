@@ -1,3 +1,4 @@
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <compare>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 
@@ -29,7 +30,7 @@ TEST_CASE("Output gain controls enabled with live rig and arrangement", "[core][
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
     CHECK(final_state->signal_chain.output_gain_controls_enabled);
-    CHECK(final_state->signal_chain.output_gain_db == 0.0);
+    CHECK_THAT(final_state->signal_chain.output_gain_db, Catch::Matchers::WithinULP(0.0, 0));
     CHECK(
         final_state->signal_chain.input_calibration_status ==
         InputCalibrationStatus::NoActiveInputDevice);
@@ -123,7 +124,7 @@ TEST_CASE("Output gain undo redo restores live rig", "[core][editor-controller]"
     CHECK(live_rig.current_output_gain == common::audio::Gain{0.0});
     const auto* const undone_state = stateOrNull(view.last_state);
     REQUIRE(undone_state != nullptr);
-    CHECK(undone_state->signal_chain.output_gain_db == 0.0);
+    CHECK_THAT(undone_state->signal_chain.output_gain_db, Catch::Matchers::WithinULP(0.0, 0));
     CHECK(undone_state->redo_label == std::optional<std::string>{"Set Output Gain to -9 dB"});
 
     controller.onRedoRequested();
@@ -179,7 +180,7 @@ TEST_CASE("Output gain preview commits one undo entry", "[core][editor-controlle
     CHECK(live_rig.current_output_gain == common::audio::Gain{0.0});
     const auto* const undone_state = stateOrNull(view.last_state);
     REQUIRE(undone_state != nullptr);
-    CHECK(undone_state->signal_chain.output_gain_db == 0.0);
+    CHECK_THAT(undone_state->signal_chain.output_gain_db, Catch::Matchers::WithinULP(0.0, 0));
 }
 
 // Verifies that output gain values are clamped through the project-owned gain value type.
@@ -267,7 +268,7 @@ TEST_CASE("Output gain resets on project close", "[core][editor-controller]")
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
-    CHECK(final_state->signal_chain.output_gain_db == 0.0);
+    CHECK_THAT(final_state->signal_chain.output_gain_db, Catch::Matchers::WithinULP(0.0, 0));
     CHECK_FALSE(final_state->signal_chain.output_gain_controls_enabled);
 }
 
