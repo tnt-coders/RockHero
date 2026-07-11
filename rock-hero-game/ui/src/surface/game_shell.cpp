@@ -5,12 +5,16 @@
 #include "surface/render_device.h"
 
 #include <SDL3/SDL.h>
+#include <chrono>
 #include <cstdint>
 #include <expected>
 #include <filesystem>
 #include <juce_events/juce_events.h>
 #include <optional>
 #include <print>
+#include <rock_hero/common/audio/clock/playback_clock_snapshot.h>
+#include <rock_hero/common/core/shared/logger.h>
+#include <rock_hero/game/core/frame_clock/frame_clock.h>
 #include <rock_hero/game/core/resources/game_resources.h>
 #include <string>
 #include <string_view>
@@ -99,6 +103,49 @@ constexpr int g_max_juce_messages_per_frame = 256;
     return true;
 }
 
+// Emits the Phase 3 timing channels: a per-frame trace record (dormant at the logger's default
+// Info runtime level until the dev-diagnostics flag raises verbosity — plan 20 Phase 4) and a
+// once-per-second pacing summary at Info so steady-state logs stay readable. mirror_age_ns
+// logs -1 while the playback clock has never published (no engine lives in this process yet).
+void logFrameInstrumentation(
+    const RenderDevice& device, const core::FrameClockSample& frame_sample,
+    const std::chrono::nanoseconds frame_boundary_time,
+    const std::chrono::nanoseconds previous_frame_boundary, core::FramePacingStats& pacing_stats)
+{
+    const std::chrono::nanoseconds boundary_delta =
+        previous_frame_boundary == std::chrono::nanoseconds{0}
+            ? std::chrono::nanoseconds{0}
+            : frame_boundary_time - previous_frame_boundary;
+    const std::int64_t mirror_age_ns = frame_sample.snapshot_age.has_value()
+                                           ? frame_sample.snapshot_age->count()
+                                           : std::int64_t{-1};
+
+    RH_LOG_TRACE(
+        "game.frame",
+        "frame boundary_ns={} delta_ns={} bgfx_cpu_ns={} song_time_s={} mirror_age_ns={} "
+        "playing={}",
+        frame_boundary_time.count(),
+        boundary_delta.count(),
+        device.lastCpuFrameTime().count(),
+        frame_sample.song_time.seconds,
+        mirror_age_ns,
+        frame_sample.playing);
+
+    const std::optional<core::FramePacingSummary> summary = pacing_stats.record(boundary_delta);
+    if (summary.has_value())
+    {
+        RH_LOG_INFO(
+            "game.frame",
+            "pacing frames={} window_ms={} avg_ns={} min_ns={} max_ns={} mirror_age_ns={}",
+            summary->frame_count,
+            std::chrono::duration_cast<std::chrono::milliseconds>(summary->window_duration).count(),
+            summary->average_delta.count(),
+            summary->min_delta.count(),
+            summary->max_delta.count(),
+            mirror_age_ns);
+    }
+}
+
 } // namespace
 
 // Composes the L2 loop. Declaration order is the teardown contract, in reverse: the JUCE runtime
@@ -145,6 +192,9 @@ int GameShell::run(const GameShellOptions& options)
 
     // The L2 frame loop: freshest input first, JUCE callbacks settled before the frame is built,
     // then the vsynced present paces the whole loop.
+    core::FrameClock frame_clock;
+    core::FramePacingStats pacing_stats;
+    std::chrono::nanoseconds previous_frame_boundary{0};
     std::uint64_t frames_submitted = 0;
     while (true)
     {
@@ -160,8 +210,29 @@ int GameShell::run(const GameShellOptions& options)
 
         drainPendingJuceMessages(g_max_juce_messages_per_frame);
 
+        // One steady-clock stamp at the start of frame building anchors everything this frame
+        // draws, and the clock snapshot is read once so every drawable shares one coherent song
+        // time. No engine lives in the game process yet — plan 21 (G21-TRACKTION-GO, closed)
+        // composes the real IPlaybackClock — so the loop consumes an unpublished snapshot,
+        // keeping the sanctioned song-time path live end to end. Song time never comes from
+        // wall clock or frame counts (architecture.md "Timing and Latency").
+        const std::chrono::nanoseconds frame_sample_time =
+            std::chrono::steady_clock::now().time_since_epoch();
+        const core::FrameClockSample frame_sample = frame_clock.sample(
+            rock_hero::common::audio::PlaybackClockSnapshot{}, frame_sample_time);
+
         device->submitFrame();
         ++frames_submitted;
+
+        // Post-frame stamp: the frame boundary that paces the loop. It is a pacing anchor, not
+        // photon time — bgfx presents the PREVIOUS frame at the top of each submit, and DXGI
+        // queues presents ahead; plan 13's video-offset calibration owns that quasi-constant
+        // chain (magnitudes recorded in the plan-20 Phase 3 record).
+        const std::chrono::nanoseconds frame_boundary_time =
+            std::chrono::steady_clock::now().time_since_epoch();
+        logFrameInstrumentation(
+            *device, frame_sample, frame_boundary_time, previous_frame_boundary, pacing_stats);
+        previous_frame_boundary = frame_boundary_time;
 
         if (options.frame_limit.has_value() && frames_submitted >= *options.frame_limit)
         {

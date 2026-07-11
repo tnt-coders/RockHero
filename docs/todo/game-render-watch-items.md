@@ -71,3 +71,19 @@ bgfx compiles its own debug asserts per config, but whether the Conan CMakeDeps 
 re-exports `BX_CONFIG_DEBUG` to RockHero TUs (affecting header-inline `BX_ASSERT`s compiled into
 project code) is untraced. Irrelevant today — project code calls no asserting inline bx code —
 but verify before designing anything that expects bgfx debug asserts to fire from our TUs.
+
+## 9. Minimized/occluded window may spin the loop — trigger: pacing log shows it
+
+bgfx has zero `DXGI_STATUS_OCCLUDED` handling (success-status codes fall through its error-only
+`isLost()` check), so if Windows stops throttling Present for a minimized/occluded FLIP_DISCARD
+swapchain, the L2 loop spins uncapped on one core. The Phase 3 pacing log detects this for free
+(frame delta collapsing toward zero while minimized). If observed: shell-side throttle — skip
+`submitFrame()` and sleep ~one refresh period on `SDL_EVENT_WINDOW_MINIMIZED`/`HIDDEN`, resume
+on `RESTORED`. Wire the throttle only when the log proves the spin.
+
+## 10. Silent Noop-renderer fallback on device loss — trigger: pacing silently disappears
+
+`Context::flip()` replaces the renderer with Noop on device removal; Noop never blocks, so
+vsync pacing vanishes without an error. The collapsing frame delta in the pacing log is the
+tell. If it ever bites: log/assert `bgfx::getRendererType()` periodically in dev builds, and
+decide a recovery policy (recreate the device vs. exit with a message).

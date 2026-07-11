@@ -7,9 +7,12 @@ record). Closure actions applied: architecture.md amended (Game View / Threading
 wiring decisions in the Gate record's Phase 1 record); Phase 2 complete 2026-07-10 (resource-pack
 convention; correction: the Phase 1 shaderc IMPORTED shim never worked — Conan's CMakeDeps
 already declares bgfx::shaderc as an interface-library component, so the guarded shim was
-skipped; the compile helper now invokes the find_program path directly); Phases 3–4 ready;
-downstream plans 21/25/44 unblocked.** | Date: 2026-07-10 | Baseline: `work-in-progress @ 050f884e` (spike
-evidence on `spike/render-stack @ 049c898c`)
+skipped; the compile helper now invokes the find_program path directly); Phase 3 complete
+2026-07-10 (frame clock + timing instrumentation; checkpoint answers and the timing contract in
+the Gate record's Phase 3 record; exit criterion amended with user sign-off — the S1-mirror
+engine soak transferred to plan 21's first engine-embedding phase, G21-TRACKTION-GO closed GO
+the same day); Phase 4 ready; downstream plans 21/25/44 unblocked.** | Date: 2026-07-10 |
+Baseline: `work-in-progress @ 050f884e` (spike evidence on `spike/render-stack @ 049c898c`)
 
 This plan is the structural gate for all game-side work. Phases 0a–0c form the decision gate; no
 phase after the gate — and no dependent plan (docs/roadmap/25-note-highway-3d.md,
@@ -118,7 +121,12 @@ Verified by direct inspection of the tree:
 Verified against code on 2026-07-06, refactor @ 3c7febe0. Re-verified for Phase 0a on
 2026-07-09, work-in-progress @ 39aa1168 (corrections: engine.h interface list and line
 references above; all other claims confirmed unchanged — `main.cpp` shell, game placeholder
-libs, `conanfile.txt` contents, app CMake resource registration).
+libs, `conanfile.txt` contents, app CMake resource registration). Re-verified for Phase 3 on
+2026-07-10, master @ 27188b94: the `main.cpp`/placeholder-lib/no-SDL claims above describe the
+pre-plan tree by design (Phases 1–2 replaced them; see their records); the Phase 3 dependencies
+still hold — engine.h message-thread contract (now lines 46-50), shared quill logger, and plan
+12's delivered clock surface (`IPlaybackClock`, `PlaybackClockSnapshot`,
+`PlaybackClockExtrapolator` under rock-hero-common/audio `clock/`).
 
 ## 5. Dependencies
 
@@ -406,8 +414,12 @@ One convention so plans 25/26/27 never invent their own loading paths.
 - **Testing plan**: pure unit tests for extrapolation-consumption and pacing-stat math with
   simulated timestamps (time as a dependency, per `docs/design/architectural-principles.md`,
   "Time Must Be a Dependency"); no test touches a real clock or GPU.
-- **Exit criteria**: window renders with the backing engine playing (manual soak mirroring S1);
-  instrumentation log lines present; frame-clock tests green.
+- **Exit criteria** (amended 2026-07-10 with user sign-off): instrumentation log lines present;
+  frame-clock tests green; window renders with the loop sampling song time exclusively through
+  the clock port. The original "backing engine playing (manual soak mirroring S1)" criterion
+  transfers to plan 21's first engine-embedding phase — engine-in-game sits behind
+  G21-TRACKTION-GO (closed the same day: GO), and the first moment an engine exists in the game
+  process is where that soak is meaningful.
 - **Verification commands**:
 
   ```powershell
@@ -757,3 +769,54 @@ swapped from the JUCE `DocumentWindow` shell to a plain `main()` composing `Game
 (PackageBuilder now embeds the icon; the JUCE version resource is gone with `juce_add_gui_app`);
 first `rock-hero-game/ui/tests` target with the headless Noop suite. A `--smoke-frames <n>`
 diagnostic argument gives automated verification a bounded clean-exit run.
+
+### Phase 3 record (2026-07-10) — checkpoint answers and the frame-timing contract
+
+Game-render-expert checkpoint on bgfx frame-timing semantics (single-threaded, D3D11, vsync ON),
+source-verified against the Conan bgfx package:
+
+- **`bgfx::frame()` order is flip-BEFORE-render**: each call first Presents the *previous*
+  frame's content (`Present(1, 0)`, the only vsync-blocking point), then executes the frame just
+  submitted. So a frame's own Present happens at the top of the *next* `frame()` call — bgfx
+  adds one frame of flip deferral before DXGI even sees the content.
+- **Queue depth**: bgfx sets `SetMaximumFrameLatency` from `init.resolution.maxFrameLatency`
+  (default 0 → DXGI default 3); no waitable-object swapchain (compiled out); FLIP_DISCARD
+  windowed adds ~1 DWM composition frame. Steady-state sample-to-photons ≈ **4–5 refresh
+  periods** when vsync-limited (~28–35 ms at 144 Hz, ~67–83 ms at 60 Hz), collapsing to ~1–2
+  vblanks below refresh rate — regime-dependent, quasi-constant within a regime. **Plan 13's
+  video-offset calibration owns this constant**; Phase 3 deliberately does not compensate.
+  Latency levers if ever needed (both init-time, both change the soaked regime — plan 13's
+  call): `init.resolution.maxFrameLatency = 1` and `BGFX_RESET_FLIP_AFTER_RENDER`.
+- **Stats trust table** (`bgfx::getStats()` right after `frame()`, API thread): `cpuTimeFrame`
+  fresh (stamped inside the call that just returned — the loop period); `cpuTimeBegin/End` +
+  `numDraw` describe the previous frame; `gpuTimeBegin/End` describe the newest *completed* GPU
+  frame, keyed by `gpuFrameNum` (typically 2–4 back), and the frame-level GPU timer runs
+  unconditionally on FL≥10_0 (no `init.debug` needed, no cost to add); `maxGpuLatency` is an
+  all-time high-water mark with debug off (never per-frame); `waitRender/waitSubmit` are always
+  zero single-threaded.
+
+**Instrumentation contract implemented** (`game.frame` log category): `frame_sample_time` —
+one steady-clock stamp at the start of frame building, the `monotonic_now` fed to the
+extrapolation path, so everything drawn in a frame shares one coherent song time;
+`frame_boundary_time` — steady-clock stamp immediately after `submitFrame()` returns, the
+pacing anchor (Present-return of frame N−1 + frame N's CPU submit; vblank-aligned only when
+vsync-limited; never photon time); `clock_mirror_age` = `frame_sample_time` − snapshot capture
+stamp, −1 while unpublished (zero-stamp sentinel). Per-frame record at Trace (dormant at the
+logger's default Info runtime level until Phase 4's dev flag raises verbosity) plus a ~1 Hz
+pacing summary at Info (count/min/max/avg over an accumulated 1 s window); bgfx `cpuTimeFrame`
+logged per frame as the cross-check channel. Helpers are pure and tested in
+`rock-hero-game/core` `frame_clock/` (`FrameClock`, `FramePacingStats`), consuming plan 12's
+snapshot + `PlaybackClockExtrapolator`; the shell composes them and owns all clock reads (time
+at the boundary). Logging backend composed in `rock-hero-game/app/main.cpp` (game log file
+beside the editor's). First live run: 144 frames/s summaries, avg 6.95 ms — the S1 soak's
+vsync-limited regime reproduced through the shipped loop.
+
+**Thread map documented** in architecture.md § Threading Model (message thread == frame loop
+under L2, audio thread, quill logging backend thread, plan-22 analysis slot; song time only
+through the clock port). **Watch items** (docs/todo/game-render-watch-items.md items 9–10):
+minimized/occluded windows may stop Present throttling (bgfx has zero occlusion handling → loop
+would spin; detection is free in the pacing log, throttle in the shell only if observed), and
+bgfx silently swaps in the Noop renderer on device loss (pacing silently disappears — the
+collapsing frame delta is the tell). Exit-criterion amendment recorded under the phase text: the
+S1-mirror engine soak transferred to plan 21's first engine-embedding phase (G21-TRACKTION-GO
+closed the same day: GO).
