@@ -94,10 +94,10 @@ TEST_CASE("Highway camera smoothing is frame-rate independent", "[core][highway]
         Catch::Approx(metrics.camera_z_base - (4.0 * metrics.camera_span_gain)).margin(1.0e-6));
 }
 
-// The verticality invariant holds exactly at the zero-rotation configuration: with the Charter
-// pitch/yaw zeroed the chain reduces to a pure translation plus perspective, and a
-// world-vertical segment keeps a constant NDC X. (The shipped defaults deliberately rotate — see
-// the next case — so this pins the machinery, not the default look.)
+// The verticality invariant holds exactly at the zero-rotation configuration: with pitch and
+// yaw zeroed the chain reduces to a pure translation plus perspective, and a world-vertical
+// segment keeps a constant NDC X. (This pins the machinery across many poses and aspects; the
+// next case pins the same property at the shipped defaults.)
 TEST_CASE("Highway camera projects world-vertical lines screen-vertical", "[core][highway][camera]")
 {
     HighwayMetrics metrics{};
@@ -133,10 +133,11 @@ TEST_CASE("Highway camera projects world-vertical lines screen-vertical", "[core
     }
 }
 
-// The shipped defaults carry Charter's small rotations: verticals tilt, but only slightly —
-// the angled-neck look must never degenerate into a visibly skewed picture.
+// The shipped defaults carry only Charter's yaw (the string slope); the forward pitch is zero
+// by user decision (2026-07-11). A yaw-only chain never mixes world Y into clip W or X, so
+// verticals must project EXACTLY vertical — the regression that guards "no forward tilt".
 TEST_CASE(
-    "Highway camera default rotations keep verticals near-vertical", "[core][highway][camera]")
+    "Highway camera default rotations keep verticals exactly vertical", "[core][highway][camera]")
 {
     const HighwayMetrics metrics{};
     const HighwayCameraPose pose{.x = 5.0, .y = metrics.camera_y_base, .z = metrics.camera_z_base};
@@ -148,10 +149,7 @@ TEST_CASE(
         {
             const auto bottom = world_to_clip.projectPoint(x, 0.0, z);
             const auto top = world_to_clip.projectPoint(x, 2.8, z);
-            // Rotated but bounded: a few degrees of tilt at most across a string-stack height.
-            const double ndc_dx = std::abs(top[0] - bottom[0]);
-            const double ndc_dy = std::abs(top[1] - bottom[1]);
-            CHECK(ndc_dx < 0.15 * ndc_dy);
+            CHECK(bottom[0] == Catch::Approx(top[0]).margin(1.0e-12));
         }
     }
 }
@@ -179,9 +177,9 @@ TEST_CASE(
 
         const auto off_focus = world_to_clip.projectPoint(focus_x + 6.0, 0.0, 0.0);
         CHECK(off_focus[0] > 0.0);
-        // With the default pitch/yaw the board floor slopes gently (the angled-neck look) —
-        // about -0.13 NDC over 6 world units at the reference pose. Bound it so the slope can
-        // never silently degenerate into a skewed picture.
+        // With the default yaw the board floor slopes gently (the angled-neck look) — about
+        // -0.10 NDC over 6 world units at the reference pose. Bound it so the slope can never
+        // silently degenerate into a skewed picture.
         CHECK(off_focus[1] == Catch::Approx(metrics.ndc_pin_y).margin(0.2));
         CHECK(off_focus[1] < metrics.ndc_pin_y);
     }

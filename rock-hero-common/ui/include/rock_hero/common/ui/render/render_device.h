@@ -37,6 +37,30 @@ enum class RenderBackend : std::uint8_t
 */
 [[nodiscard]] RenderBackend defaultRenderBackend() noexcept;
 
+/*!
+\brief Backbuffer multisample anti-aliasing levels.
+
+bgfx clamps a requested level to the nearest one the device supports, so these are requests, not
+guarantees — though every Direct3D 11 device guarantees 4x for the backbuffer format.
+*/
+enum class RenderMsaa : std::uint8_t
+{
+    /*! \brief No multisampling; edges alias. */
+    None,
+
+    /*! \brief 2x multisampling. */
+    X2,
+
+    /*! \brief 4x multisampling — the default request. */
+    X4,
+
+    /*! \brief 8x multisampling. */
+    X8,
+
+    /*! \brief 16x multisampling. */
+    X16,
+};
+
 /*! \brief Stable reasons a render device can fail to come up. */
 enum class RenderDeviceErrorCode : std::uint8_t
 {
@@ -82,6 +106,14 @@ struct RenderDeviceConfig
     bool vsync = true;
 
     /*!
+    \brief Backbuffer multisample level.
+
+    The highway scene is thin-line-heavy (fret lines, strings, lane ribbons), so its edges alias
+    visibly without multisampling; 4x is the request every consumer inherits by default.
+    */
+    RenderMsaa msaa = RenderMsaa::X4;
+
+    /*!
     \brief True enables bgfx's debug checks and the D3D11 SDK debug layers when present.
 
     Wired to the dev-diagnostics runtime flag (plan 20 Phase 4, 20-Q5: A); bgfx degrades
@@ -106,7 +138,7 @@ public:
     /*!
     \brief Initializes bgfx single-threaded for the configured backend and window.
 
-    \param config Backend, target window, initial size, and pacing policy.
+    \param config Backend, target window, initial size, pacing, and anti-aliasing policy.
     \return The initialized device, or a typed error when bgfx refuses to come up.
     */
     [[nodiscard]] static std::expected<RenderDevice, RenderDeviceError> create(
