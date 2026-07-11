@@ -95,6 +95,48 @@ inline constexpr int g_head_cell_standard = 0;
 /*! \brief Cell index of the anticipation ring (reference atlas only; see reference_cells). */
 inline constexpr int g_head_cell_anticipation = 1;
 
+// The rest of the reference atlas's 4x4 cell vocabulary (row-major indices; reference_cells
+// gates every use). Cell 11 is empty in the reference asset.
+
+/*! \brief Technique note head: the base head variant under left-hand technique markers. */
+inline constexpr int g_head_cell_tech = 2;
+
+/*! \brief Arpeggio bracket for a fretted posture note. */
+inline constexpr int g_head_cell_arpeggio_fret_bracket = 3;
+
+/*! \brief Hammer-on marker. */
+inline constexpr int g_head_cell_hammer_on = 4;
+
+/*! \brief Pull-off marker. */
+inline constexpr int g_head_cell_pull_off = 5;
+
+/*! \brief Tap marker. */
+inline constexpr int g_head_cell_tap = 6;
+
+/*! \brief Arpeggio bracket end for an open posture string. */
+inline constexpr int g_head_cell_arpeggio_open_bracket = 7;
+
+/*! \brief Palm-mute marker. */
+inline constexpr int g_head_cell_palm_mute = 8;
+
+/*! \brief Full-mute marker. */
+inline constexpr int g_head_cell_full_mute = 9;
+
+/*! \brief Accent marker. */
+inline constexpr int g_head_cell_accent = 10;
+
+/*! \brief Natural-harmonic head marker. */
+inline constexpr int g_head_cell_harmonic = 12;
+
+/*! \brief Pinch-harmonic head marker. */
+inline constexpr int g_head_cell_pinch_harmonic = 13;
+
+/*! \brief Slap (bass) marker. */
+inline constexpr int g_head_cell_slap = 14;
+
+/*! \brief Pop (bass) marker. */
+inline constexpr int g_head_cell_pop = 15;
+
 /*!
 \brief Builds the highway atlases and uploads them as immutable bgfx textures.
 

@@ -2,7 +2,9 @@
 
 ## 1. Status
 
-**Phases 0–3 complete, plus the 2026-07-11 look-parity pass** (see the Look-parity record at
+**Phases 0–4 complete** (Phase 4 techniques: 2026-07-11, record at the end of this file; open
+question 2 resolved as recommendation (a) — fingering panels on by default — under the user's
+"use every applicable reference asset now" direction), **plus the 2026-07-11 look-parity pass** (see the Look-parity record at
 the end of this file: reference camera chain with Charter's rotations and wide frustum,
 Charter's texture assets adopted, board-furniture parity, renderer promoted to
 rock-hero-common/ui and shared with the editor preview). License correction 2026-07-11: Charter
@@ -610,3 +612,43 @@ and anticipation ring all present at a locked 144 fps; all suites green.
 
 Verified visually (game corpus captures with open sustains, editor preview open via F3): vertical
 frets with sloped strings, thin window-spanning open bars, banded tails, smoothed line edges.
+
+## Phase 4 record (2026-07-11) — techniques
+
+User-directed ("missing chart features — chord boxes, hammer-ons, taps, palm mutes, mutes, etc.;
+use every applicable reference asset now"), executed against a fresh read of the reference
+drawers (session Charter clone).
+
+- **Scene model**: `HighwayShapeView` gained posture entries (`HighwayShapeStringView`: string,
+  fret, optional finger) from the shape's chord template, filled at projection time. Everything
+  else the phase needed was already in the Phase 1 model.
+- **Pure tail math** (`common/core highway/highway_tail.{h,cpp}`, unit-tested): adaptive sample
+  counts from projected screen length (defect 1 fix — one sample per 4 px, capped at 256, vs the
+  reference's per-millisecond tessellation), taper envelope anchoring modulated rails on the
+  string line (defect 2 fix), onset-phased vibrato sine (160 ms) and tremolo triangle (60 ms),
+  piecewise-linear bend evaluation with prebend anchoring, slide easing curves (pitched
+  sin^3 / unpitched early-release), display-space bend inversion (upper displayed half bends
+  downward — restated from the reference's string-index rule so any string count works).
+- **Renderer**: technique-aware heads (tech-head base cell under full mute / natural harmonic /
+  hammer / pull; rotating markers for harmonics, palm mute, tap, slap, pop, accent riding the
+  rolling flip exactly like the reference's CPU-composited textures — alpha "over" is
+  associative, so overlay quads replace the compositing wart; upright overlays for full mute and
+  hammer/pull), open-note technique overlays and the reference's triple-thickness accent halo,
+  harmonic heads at the chart's fractional touch position, modulated three-band tails (bends,
+  vibrato, tremolo, multi-waypoint slides with per-segment easing and unpitched dimming to 25%),
+  chord boxes at multi-note onsets (corner holders, gradient frame, accent chevrons, short/full
+  sides by chord size, full/palm mute crosses, reference colors), chord names riding the hit
+  line, hand-shape span rails (arpeggio purple / lane teal), fingering panels (barre-aware
+  shapes + finger names from fingering.png, suppressed while the current chord is fully muted)
+  and arpeggio brackets for the active shape. Chord grouping is a contiguous same-onset prepass
+  shared by the flip, the shadow, and the boxes.
+- **Dev fixture**: prefers a charted guitar part over bass (packages often list bass first —
+  every earlier game capture had silently exercised the bass chart).
+- **Verified**: all suites green (new tail tests: sample caps, taper anchoring, bend control
+  points hit exactly, easing endpoints, wobble bounds, breakpoint inclusion); corpus captures
+  show chord boxes with names and mute crosses, fingering panels (A-major ①②③ spot stack),
+  eased double-stop slide rails, bend-curved tails, open-note mute icons, section labels — at a
+  locked ~145 fps with the full pass set. Not yet witnessed in captures (mechanisms shared with
+  verified paths): hammer/pull/tap icons, harmonic heads, arpeggio brackets, tremolo wobble.
+- **Still open here**: hit explosions and camera shake belong to Phase 5's event feed; the
+  fingering-panel default can become a setting when plans 26/27 land their stores.

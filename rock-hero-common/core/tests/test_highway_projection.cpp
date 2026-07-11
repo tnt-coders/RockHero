@@ -145,6 +145,14 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
     CHECK(state.shapes[0].name == "F5");
     CHECK_FALSE(state.shapes[0].arpeggio);
     CHECK(state.shapes[1].arpeggio);
+    // Posture entries carry the template's frets and fingerings (only strings in the posture).
+    REQUIRE(state.shapes[0].strings.size() == 3);
+    CHECK(state.shapes[0].strings[0].string == 1);
+    CHECK(state.shapes[0].strings[0].fret == 1);
+    CHECK(state.shapes[0].strings[0].finger == 1);
+    CHECK(state.shapes[0].strings[2].string == 3);
+    CHECK(state.shapes[0].strings[2].fret == 3);
+    CHECK(state.shapes[0].strings[2].finger == 4);
 
     REQUIRE(state.fret_hand_positions.size() == 1);
     CHECK(state.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
