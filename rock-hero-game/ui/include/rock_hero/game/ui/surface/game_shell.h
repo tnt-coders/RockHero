@@ -26,8 +26,9 @@ struct GameShellOptions
 /*!
 \brief Owns the game process surface: the SDL window, the bgfx device, and the frame loop.
 
-Implements loop model L2 from the G20-RENDER gate (docs/roadmap/20-game-architecture-and-render-
-stack.md § Gate record): SDL owns the frame loop on the calling thread, which JUCE binds as its
+Implements loop model L2 from the G20-RENDER gate (§ Gate record in
+docs/roadmap/20-game-architecture-and-render-stack.md): SDL owns the frame loop on the calling
+thread, which JUCE binds as its
 message thread, and every frame polls SDL events, drains JUCE's pending message queue with a
 bounded dispatch loop, and submits the bgfx frame. Later phases grow this type into the full game
 composition (resources, playback clock, diagnostics), so it is a class rather than a free function

@@ -30,22 +30,32 @@ target_link_libraries(rock_hero_game_exe PRIVATE rock_hero::common rock_hero::ga
 # from game/ui's staging dir plus the empty asset directories later plans fill (fonts and click
 # samples arrive with plan 26's art direction; textures with plan 25's atlases). The game loads
 # everything under this tree through game/core's GameResources resolver.
-add_dependencies(rock_hero_game_exe rock_hero_game_shaders)
+#
+# The deploy is a stamp-based build step, NOT a POST_BUILD command: under Ninja, POST_BUILD only
+# runs when the executable relinks, so a shader edit would rebuild the staged .bin without
+# refreshing the copy beside the executable — the dev loop would silently run stale shaders. The
+# stamp depends on the staged files, so a recompiled shader re-runs the copy on the next build.
+get_target_property(rock_hero_game_shader_staging_dir rock_hero_game_shaders ROCK_HERO_STAGING_DIR)
+get_target_property(rock_hero_game_staged_shaders rock_hero_game_shaders ROCK_HERO_STAGED_FILES)
+set(rock_hero_game_resources_stamp "${CMAKE_CURRENT_BINARY_DIR}/resources-deployed.stamp")
 add_custom_command(
-    TARGET rock_hero_game_exe
-    POST_BUILD
+    OUTPUT "${rock_hero_game_resources_stamp}"
     COMMAND
         ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:rock_hero_game_exe>/resources/fonts"
         "$<TARGET_FILE_DIR:rock_hero_game_exe>/resources/sfx"
         "$<TARGET_FILE_DIR:rock_hero_game_exe>/resources/textures"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory "${ROCK_HERO_GAME_SHADER_STAGING_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory "${rock_hero_game_shader_staging_dir}"
             "$<TARGET_FILE_DIR:rock_hero_game_exe>/resources/shaders"
+    COMMAND ${CMAKE_COMMAND} -E touch "${rock_hero_game_resources_stamp}"
+    DEPENDS ${rock_hero_game_staged_shaders} rock_hero_game_shaders
     COMMENT "Deploying game resources next to the executable")
+add_custom_target(rock_hero_game_resources DEPENDS "${rock_hero_game_resources_stamp}")
+add_dependencies(rock_hero_game_exe rock_hero_game_resources)
 
 # The installed layout mirrors the build layout: resources/ beside the executable in bindir.
 include(GNUInstallDirs)
 install(
-    DIRECTORY "${ROCK_HERO_GAME_SHADER_STAGING_DIR}"
+    DIRECTORY "${rock_hero_game_shader_staging_dir}"
     DESTINATION "${CMAKE_INSTALL_BINDIR}/resources"
     COMPONENT Runtime)
 install(

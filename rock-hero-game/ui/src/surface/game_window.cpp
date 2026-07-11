@@ -132,7 +132,8 @@ void* GameWindow::nativeWindowHandle() const noexcept
 }
 
 // Queries the drawable size in physical pixels — the unit bgfx backbuffers are sized in, distinct
-// from window coordinates on high-density displays.
+// from window coordinates on high-density displays. The SDL result is deliberately unchecked: a
+// failure (implausible for a live window) leaves 0x0, which bgfx::reset clamps to a valid size.
 PixelSize GameWindow::pixelSize() const
 {
     int width = 0;
