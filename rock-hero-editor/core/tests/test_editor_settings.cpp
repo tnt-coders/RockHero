@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <filesystem>
 #include <juce_data_structures/juce_data_structures.h>
 #include <memory>
@@ -552,7 +553,7 @@ TEST_CASE("EditorSettings persists physical input calibration", "[core][settings
     REQUIRE(stored_calibration.has_value());
     if (stored_calibration.has_value())
     {
-        CHECK(stored_calibration->calibration_gain.db == 6.5);
+        CHECK_THAT(stored_calibration->calibration_gain.db, Catch::Matchers::WithinULP(6.5, 0));
         CHECK(stored_calibration->input_device_identity == identity);
     }
     CHECK_FALSE(inputCalibrationFor(reloaded_settings, other_identity).has_value());
@@ -578,7 +579,7 @@ TEST_CASE("EditorSettings overwrites physical input calibration", "[core][settin
     REQUIRE(stored_calibration.has_value());
     if (stored_calibration.has_value())
     {
-        CHECK(stored_calibration->calibration_gain.db == 8.0);
+        CHECK_THAT(stored_calibration->calibration_gain.db, Catch::Matchers::WithinULP(8.0, 0));
     }
 }
 
@@ -598,7 +599,7 @@ TEST_CASE("EditorSettings restores renamed physical channel", "[core][settings]"
     REQUIRE(restored_calibration.has_value());
     if (restored_calibration.has_value())
     {
-        CHECK(restored_calibration->calibration_gain.db == 4.0);
+        CHECK_THAT(restored_calibration->calibration_gain.db, Catch::Matchers::WithinULP(4.0, 0));
         CHECK(restored_calibration->input_device_identity == current_identity);
     }
 
@@ -607,7 +608,8 @@ TEST_CASE("EditorSettings restores renamed physical channel", "[core][settings]"
     REQUIRE(overwritten_calibration.has_value());
     if (overwritten_calibration.has_value())
     {
-        CHECK(overwritten_calibration->calibration_gain.db == 7.0);
+        CHECK_THAT(
+            overwritten_calibration->calibration_gain.db, Catch::Matchers::WithinULP(7.0, 0));
         CHECK(overwritten_calibration->input_device_identity == saved_identity);
     }
 
@@ -632,8 +634,10 @@ TEST_CASE("EditorSettings keeps input channels separate", "[core][settings]")
     REQUIRE(channel_three_calibration.has_value());
     if (channel_one_calibration.has_value() && channel_three_calibration.has_value())
     {
-        CHECK(channel_one_calibration->calibration_gain.db == 3.0);
-        CHECK(channel_three_calibration->calibration_gain.db == 9.0);
+        CHECK_THAT(
+            channel_one_calibration->calibration_gain.db, Catch::Matchers::WithinULP(3.0, 0));
+        CHECK_THAT(
+            channel_three_calibration->calibration_gain.db, Catch::Matchers::WithinULP(9.0, 0));
     }
 }
 
@@ -654,7 +658,7 @@ TEST_CASE("EditorSettings removes one physical calibration", "[core][settings]")
     REQUIRE(preserved_calibration.has_value());
     if (preserved_calibration.has_value())
     {
-        CHECK(preserved_calibration->calibration_gain.db == 6.0);
+        CHECK_THAT(preserved_calibration->calibration_gain.db, Catch::Matchers::WithinULP(6.0, 0));
     }
 }
 
@@ -681,7 +685,7 @@ TEST_CASE("EditorSettings collapses duplicate calibration history", "[core][sett
     REQUIRE(stored_calibration.has_value());
     if (stored_calibration.has_value())
     {
-        CHECK(stored_calibration->calibration_gain.db == 7.0);
+        CHECK_THAT(stored_calibration->calibration_gain.db, Catch::Matchers::WithinULP(7.0, 0));
         CHECK(stored_calibration->input_device_identity == identity);
     }
 }
@@ -725,7 +729,7 @@ TEST_CASE("EditorSettings ignores obsolete flat calibration", "[core][settings]"
     REQUIRE(new_calibration.has_value());
     if (new_calibration.has_value())
     {
-        CHECK(new_calibration->calibration_gain.db == 7.0);
+        CHECK_THAT(new_calibration->calibration_gain.db, Catch::Matchers::WithinULP(7.0, 0));
     }
     CHECK_FALSE(inputCalibrationFor(reloaded_settings, obsolete_identity).has_value());
 }

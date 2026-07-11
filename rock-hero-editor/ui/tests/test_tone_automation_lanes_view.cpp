@@ -1,6 +1,7 @@
 #include "tone/tone_automation_lanes_view.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cmath>
 #include <expected>
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -406,7 +407,8 @@ TEST_CASE("Lanes view Shift-locks a point drag to its dominant axis", "[ui][tone
 
     REQUIRE(harness.listener.edit_count == 1);
     REQUIRE(harness.listener.last_edit_points.size() == 2);
-    CHECK(harness.listener.last_edit_points.back().norm_value == 0.75F);
+    CHECK_THAT(
+        harness.listener.last_edit_points.back().norm_value, Catch::Matchers::WithinULP(0.75F, 0));
     // 260 px = 2.6 s snaps to the 2.5 s quarter-note line: measure 2, beat 2 at 120 BPM 4/4.
     CHECK(
         harness.listener.last_edit_points.back().position ==
@@ -489,14 +491,16 @@ TEST_CASE(
     view.mouseUp(testing::makeMouseDownEvent(view, 200.0f, 15.0f));
     REQUIRE(harness.listener.edit_count == 1);
     REQUIRE(harness.listener.last_edit_points.size() == 1);
-    CHECK(harness.listener.last_edit_points.front().norm_value == 1.0F);
+    CHECK_THAT(
+        harness.listener.last_edit_points.front().norm_value, Catch::Matchers::WithinULP(1.0F, 0));
 
     view.mouseDown(testing::makeMouseDownEvent(view, 200.0f, 45.0f));
     view.mouseDrag(testing::makeMouseDragEvent(view, 200.0f, 33.0f, 200.0f, 45.0f));
     view.mouseUp(testing::makeMouseDownEvent(view, 200.0f, 33.0f));
     REQUIRE(harness.listener.edit_count == 2);
     REQUIRE(harness.listener.last_edit_points.size() == 1);
-    CHECK(harness.listener.last_edit_points.front().norm_value == 0.0F);
+    CHECK_THAT(
+        harness.listener.last_edit_points.front().norm_value, Catch::Matchers::WithinULP(0.0F, 0));
 }
 
 TEST_CASE(
@@ -517,7 +521,8 @@ TEST_CASE(
     REQUIRE(harness.listener.edit_count == 1);
     REQUIRE(harness.listener.last_edit_points.size() == 2);
     // The dragged point committed at its new value rather than reverting to the authored 0.75.
-    CHECK(harness.listener.last_edit_points.back().norm_value == 0.5F);
+    CHECK_THAT(
+        harness.listener.last_edit_points.back().norm_value, Catch::Matchers::WithinULP(0.5F, 0));
 }
 
 TEST_CASE(

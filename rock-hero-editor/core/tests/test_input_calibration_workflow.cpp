@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <optional>
 #include <string>
 #include <utility>
@@ -166,7 +167,7 @@ TEST_CASE("Input calibration workflow selects saved state on route change", "[co
     REQUIRE(calibration_state.has_value());
     if (calibration_state.has_value())
     {
-        CHECK(calibration_state->calibration_gain.db == 7.0);
+        CHECK_THAT(calibration_state->calibration_gain.db, Catch::Matchers::WithinULP(7.0, 0));
     }
     CHECK(workflow.calibrationMatches(next_identity));
 }
@@ -197,7 +198,7 @@ TEST_CASE(
     REQUIRE(calibration_state.has_value());
     if (calibration_state.has_value())
     {
-        CHECK(calibration_state->calibration_gain.db == 4.0);
+        CHECK_THAT(calibration_state->calibration_gain.db, Catch::Matchers::WithinULP(4.0, 0));
     }
     CHECK(workflow.calibrationMatches(initial_identity));
 }
@@ -249,7 +250,7 @@ TEST_CASE("Input calibration workflow preserves calibration through route loss",
     REQUIRE(calibration_state.has_value());
     if (calibration_state.has_value())
     {
-        CHECK(calibration_state->calibration_gain.db == 4.0);
+        CHECK_THAT(calibration_state->calibration_gain.db, Catch::Matchers::WithinULP(4.0, 0));
     }
     CHECK(
         workflow.snapshot(readyContext(std::nullopt)).status ==
@@ -285,7 +286,7 @@ TEST_CASE("Input calibration workflow closes prompt on backend unavailable", "[c
     REQUIRE(calibration_state.has_value());
     if (calibration_state.has_value())
     {
-        CHECK(calibration_state->calibration_gain.db == 4.0);
+        CHECK_THAT(calibration_state->calibration_gain.db, Catch::Matchers::WithinULP(4.0, 0));
     }
 }
 
@@ -327,7 +328,7 @@ TEST_CASE(
     REQUIRE(calibration_state.has_value());
     if (calibration_state.has_value())
     {
-        CHECK(calibration_state->calibration_gain.db == 4.0);
+        CHECK_THAT(calibration_state->calibration_gain.db, Catch::Matchers::WithinULP(4.0, 0));
     }
 }
 

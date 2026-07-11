@@ -1,4 +1,5 @@
 ﻿#include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <chrono>
 #include <cstdint>
 #include <expected>
@@ -487,7 +488,9 @@ TEST_CASE("Rock song package round-trips audio start offset", "[core][rock-song-
     const auto read_song = readRockSongPackageDirectory(package_directory);
     REQUIRE(read_song.has_value());
     REQUIRE(read_song->arrangements.size() == 1);
-    CHECK(read_song->arrangements.front().audio_asset.start_offset.seconds == 0.75);
+    CHECK_THAT(
+        read_song->arrangements.front().audio_asset.start_offset.seconds,
+        Catch::Matchers::WithinULP(0.75, 0));
 }
 
 // Verifies the persisted "startOffset" key loads, and that packages omitting it (every package
@@ -525,7 +528,9 @@ TEST_CASE("Rock song package reads an explicit audio start offset", "[core][rock
 
     REQUIRE(read_song.has_value());
     REQUIRE(read_song->arrangements.size() == 1);
-    CHECK(read_song->arrangements.front().audio_asset.start_offset.seconds == 0.5);
+    CHECK_THAT(
+        read_song->arrangements.front().audio_asset.start_offset.seconds,
+        Catch::Matchers::WithinULP(0.5, 0));
 }
 
 // Verifies older packages whose audio entries omit normalization still load with empty optional.

@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
@@ -162,7 +163,7 @@ TEST_CASE(
         analyzeAudioForGainNormalization(input_path, common::core::AudioNormalizationTarget{});
 
     REQUIRE(result.has_value());
-    CHECK(result->gain_db != 0.0);
+    CHECK_THAT(result->gain_db, !Catch::Matchers::WithinULP(0.0, 0));
     CHECK(result->validation_sha256.size() == 64);
 }
 

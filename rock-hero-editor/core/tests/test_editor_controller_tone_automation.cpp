@@ -1,5 +1,6 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <compare>
 #include <filesystem>
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
@@ -361,7 +362,7 @@ TEST_CASE(
     REQUIRE(written != editor.tone_automation.curves.end());
     REQUIRE(written->second.size() == 1);
     CHECK(written->second.front().seconds == Catch::Approx(2.0));
-    CHECK(written->second.front().norm_value == 0.75F);
+    CHECK_THAT(written->second.front().norm_value, Catch::Matchers::WithinULP(0.75F, 0));
 
     REQUIRE(editor.automation().lanes.size() == 1);
     CHECK(editor.automation().lanes.front().resolved);

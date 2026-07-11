@@ -1,5 +1,6 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
@@ -515,7 +516,7 @@ TEST_CASE("Timeline cursor placement snaps or keeps the click point by mode", "[
     REQUIRE(free_position.has_value());
     if (free_position.has_value())
     {
-        CHECK(free_position->seconds == 1.5);
+        CHECK_THAT(free_position->seconds, Catch::Matchers::WithinULP(1.5, 0));
     }
 
     const auto snapped_position = timelineCursorPlacementTime(
@@ -528,7 +529,7 @@ TEST_CASE("Timeline cursor placement snaps or keeps the click point by mode", "[
     REQUIRE(snapped_position.has_value());
     if (snapped_position.has_value())
     {
-        CHECK(snapped_position->seconds == 1.0);
+        CHECK_THAT(snapped_position->seconds, Catch::Matchers::WithinULP(1.0, 0));
     }
 }
 
@@ -549,7 +550,7 @@ TEST_CASE(
     REQUIRE(position.has_value());
     if (position.has_value())
     {
-        CHECK(position->seconds == 1.0);
+        CHECK_THAT(position->seconds, Catch::Matchers::WithinULP(1.0, 0));
     }
 }
 

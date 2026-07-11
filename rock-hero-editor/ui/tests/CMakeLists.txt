@@ -41,13 +41,8 @@ target_include_directories(rock_hero_editor_ui_tests PRIVATE "${CMAKE_CURRENT_SO
 # Link only the editor UI module and Catch2; concrete app composition stays outside this target.
 target_link_libraries(
     rock_hero_editor_ui_tests
-    PRIVATE rock_hero::editor::ui
-            rock_hero::common::audio_testing
-            rock_hero::editor::core_testing
-            rock_hero::editor::ui_testing
-            rock_hero::build_policy
-            Catch2::Catch2WithMain
-            rock_hero::test_warning_exceptions)
+    PRIVATE rock_hero::editor::ui rock_hero::common::audio_testing rock_hero::editor::core_testing
+            rock_hero::editor::ui_testing rock_hero::build_policy Catch2::Catch2WithMain)
 
 # Register the discovered Catch2 cases with CTest and forward Catch tags as CTest labels.
 catch_discover_tests(rock_hero_editor_ui_tests ADD_TAGS_AS_LABELS)

@@ -14,12 +14,17 @@ namespace rock_hero::editor::ui::testing
 
 /*!
 \brief Searches a component tree by component ID.
+
+The ID parameter is a by-value juce::StringRef on purpose: GCC's -Wdangling-reference heuristic
+flags any reference bound to a reference-returning call that also received a temporary through a
+reference parameter, which is exactly what literal IDs passed as const juce::String& would be.
+A value parameter gives the heuristic nothing to key on, and matches JUCE's own ID-lookup API.
+
 \param parent Root component to search, including the parent itself.
 \param id Component ID to find.
 \return Matching component, or nullptr when no descendant has the requested ID.
 */
-[[nodiscard]] inline juce::Component* findDescendant(
-    juce::Component& parent, const juce::String& id)
+[[nodiscard]] inline juce::Component* findDescendant(juce::Component& parent, juce::StringRef id)
 {
     if (parent.getComponentID() == id)
     {
@@ -50,18 +55,20 @@ namespace rock_hero::editor::ui::testing
 \throws std::runtime_error when the component is missing or has a different type.
 */
 template <class ComponentType>
-[[nodiscard]] ComponentType& findRequiredDescendant(juce::Component& parent, const juce::String& id)
+[[nodiscard]] ComponentType& findRequiredDescendant(juce::Component& parent, juce::StringRef id)
 {
     juce::Component* const child = findDescendant(parent, id);
     if (child == nullptr)
     {
-        throw std::runtime_error{"Missing descendant component: " + id.toStdString()};
+        throw std::runtime_error{"Missing descendant component: " + juce::String{id}.toStdString()};
     }
 
     auto* const typed_child = dynamic_cast<ComponentType*>(child);
     if (typed_child == nullptr)
     {
-        throw std::runtime_error{"Descendant component has unexpected type: " + id.toStdString()};
+        throw std::runtime_error{
+            "Descendant component has unexpected type: " + juce::String{id}.toStdString()
+        };
     }
 
     return *typed_child;
@@ -75,19 +82,22 @@ template <class ComponentType>
 \throws std::runtime_error when the component is missing or has a different type.
 */
 template <class ComponentType>
-[[nodiscard]] ComponentType& findRequiredDirectChild(
-    juce::Component& parent, const juce::String& id)
+[[nodiscard]] ComponentType& findRequiredDirectChild(juce::Component& parent, juce::StringRef id)
 {
     juce::Component* const child = parent.findChildWithID(id);
     if (child == nullptr)
     {
-        throw std::runtime_error{"Missing direct child component: " + id.toStdString()};
+        throw std::runtime_error{
+            "Missing direct child component: " + juce::String{id}.toStdString()
+        };
     }
 
     auto* const typed_child = dynamic_cast<ComponentType*>(child);
     if (typed_child == nullptr)
     {
-        throw std::runtime_error{"Direct child component has unexpected type: " + id.toStdString()};
+        throw std::runtime_error{
+            "Direct child component has unexpected type: " + juce::String{id}.toStdString()
+        };
     }
 
     return *typed_child;
