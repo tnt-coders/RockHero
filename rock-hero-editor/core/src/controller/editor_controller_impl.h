@@ -548,6 +548,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     mutable std::shared_ptr<const TabViewState> m_tab_view_state{};
     mutable std::shared_ptr<const common::core::HighwayViewState> m_highway_view_state{};
     mutable std::string m_tab_arrangement_id{};
+    // The displayed-string minimum the memoized highway projection was built with; unlike the 2D
+    // tab (which pads in the view), the 3D projection bakes the minimum in, so a change to it must
+    // rebuild the highway state even when the arrangement is unchanged. -1 forces the first build.
+    mutable int m_highway_min_strings{-1};
 
     // App-wide display preferences for the tablature lane, restored from settings at construction
     // and persisted on change; never part of project content.

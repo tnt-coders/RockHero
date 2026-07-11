@@ -31,7 +31,12 @@ HighwayViewState makeHighwayViewState(
     }
 
     const Chart& chart = *arrangement.chart;
-    state.string_count = static_cast<int>(chart.tuning.strings.size());
+    // Display padding (editor "show at least N strings"): the chart's strings occupy the top of a
+    // larger displayed lane range, so every note/posture string index shifts up by the padding
+    // amount, keeping the shared string-color palette anchored exactly as the 2D tab anchors it.
+    const int chart_string_count = static_cast<int>(chart.tuning.strings.size());
+    state.string_count = std::max(chart_string_count, options.minimum_string_count);
+    const int displayed_lane_shift = state.string_count - chart_string_count;
 
     // Note onsets ascend, so the forward cursor resolves them in amortized constant time.
     // Sustain ends and intra-note payload offsets can jump past later onsets, so those use the
@@ -47,7 +52,7 @@ HighwayViewState makeHighwayViewState(
             note.sustain.numerator > 0
                 ? tempo_map.secondsAtGlobalBeatPosition(onset_beat + note.sustain.toDouble())
                 : view.start_seconds;
-        view.string = note.string;
+        view.string = note.string + displayed_lane_shift;
         view.fret = note.fret;
         view.attack = note.attack;
         view.mute = note.mute;
@@ -115,7 +120,7 @@ HighwayViewState makeHighwayViewState(
                 }
                 strings.push_back(
                     HighwayShapeStringView{
-                        .string = static_cast<int>(index) + 1,
+                        .string = static_cast<int>(index) + 1 + displayed_lane_shift,
                         .fret = *fret,
                         .finger = index < chord_template.fingers.size()
                                       ? chord_template.fingers[index]

@@ -162,6 +162,33 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
     CHECK(state.sections[0].type == "verse");
 }
 
+// The displayed-string minimum (the editor's "show at least N strings") raises the lane count and
+// shifts every note and posture string into the padded range, so the shared palette anchors the
+// chart's strings exactly as the 2D tab does. The game leaves it at zero (no shift).
+TEST_CASE("Highway projection pads the displayed string count", "[core][highway]")
+{
+    const TempoMap tempo_map = makeHighwayTempoMap();
+
+    // Chart has six strings; ask for eight displayed lanes → a shift of two.
+    const HighwayViewState padded = makeHighwayViewState(
+        makeArrangementWithChart(), tempo_map, HighwayDisplayOptions{.minimum_string_count = 8});
+    CHECK(padded.string_count == 8);
+    REQUIRE(padded.notes.size() == 4);
+    // Chart strings 1 and 2 (the chord at measure 2) become displayed lanes 3 and 4.
+    CHECK(padded.notes[0].string == 3);
+    CHECK(padded.notes[1].string == 4);
+    // Posture entries shift with the notes so brackets and fingering stay on the same lanes.
+    REQUIRE(padded.shapes[0].strings.size() == 3);
+    CHECK(padded.shapes[0].strings[0].string == 3);
+    CHECK(padded.shapes[0].strings[2].string == 5);
+
+    // A minimum at or below the chart count leaves everything unshifted.
+    const HighwayViewState unshifted = makeHighwayViewState(
+        makeArrangementWithChart(), tempo_map, HighwayDisplayOptions{.minimum_string_count = 4});
+    CHECK(unshifted.string_count == 6);
+    CHECK(unshifted.notes[0].string == 1);
+}
+
 // The beat list covers the whole song grid up to the terminal anchor with correct downbeat
 // marks, so beat bars never query the tempo map at render time.
 TEST_CASE("Highway projection resolves the beat grid with downbeats", "[core][highway]")
