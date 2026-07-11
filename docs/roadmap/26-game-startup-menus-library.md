@@ -48,7 +48,7 @@ Applicable subset of the roadmap constraint block:
 - (b) **Public-header minimalism**: only headers that must be public are public; ports-and-adapters
   per docs/design/architectural-principles.md ("Ports and Adapters", "Library Roles").
 - (c) **NAMING FIREWALL**: the commercial real-guitar game that inspired this project must never be
-  named in any file; use "RS"/"RS2014" or neutral phrasing. Charter (MIT) may be named.
+  named in any file; use "RS"/"RS2014" or neutral phrasing. Charter (BSD 3-Clause) may be named.
 - (d) **Derived over authored**: intensity values in the index are computed by versioned
   calculators and cached with the calculator version — never hand-authored.
 - (e) **FLAC** is the enforced package audio format (relevant to Phase 9 preview playback).

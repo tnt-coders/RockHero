@@ -35,7 +35,7 @@ advisory content layer above it.
   per-rule helpers stay in implementation files
   (docs/design/architectural-principles.md, "Ports and Adapters", "Core Modules").
 - (c) **Naming firewall**: the commercial real-guitar game that inspired this project is never
-  named; use "RS" or neutral phrasing. Charter (MIT) may be named.
+  named; use "RS" or neutral phrasing. Charter (BSD 3-Clause) may be named.
 - (h) **Builds**: all build/test/lint commands go through `.agents/rockhero-build.ps1` (usage in
   `.agents/README.md`) — never raw cmake/ctest/ninja. Intermediate phases run only the checks
   their changes warrant; the final acceptance phase is the sanctioned bundle as separate

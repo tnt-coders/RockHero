@@ -32,7 +32,7 @@ soak runs and demos.
 - (b) **Public-header minimalism**: only headers that must be public are public; ports-and-adapters
   per docs/design/architectural-principles.md.
 - (c) **NAMING FIREWALL**: the commercial real-guitar game that inspired this project is never
-  named in any file; use "RS"/neutral phrasing. Charter (MIT) may be cited by name.
+  named in any file; use "RS"/neutral phrasing. Charter (BSD 3-Clause) may be cited by name.
 - (e) **FLAC** is the enforced package audio format; committed fixture audio is FLAC.
 - (h) **Builds**: all build/test/lint commands go through `.agents/rockhero-build.ps1` (usage in
   `.agents/README.md`) — never raw cmake/ctest/ninja. Intermediate phases run only the checks their

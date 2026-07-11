@@ -24,7 +24,7 @@ mechanisms instead of assumptions.
   the vendored source at `external/tracktion_engine/modules/juce/` — cite `file:line`.
 - Separate **fundamental constraints** from **current-code accidents**, and label which is which.
 - NAMING FIREWALL: the commercial real-guitar game that inspired this project is never named in
-  any repo file; use "RS"/neutral phrasing. Charter (MIT) may be cited by name.
+  any repo file; use "RS"/neutral phrasing. Charter (BSD 3-Clause) may be cited by name.
 
 # Settled facts (gate record, 2026-07-10 — do not re-litigate, verify against it)
 

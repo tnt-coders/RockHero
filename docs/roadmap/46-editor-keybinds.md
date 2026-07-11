@@ -42,7 +42,7 @@ hardcoded copy. Plans 40/41/44 register their new shortcuts through this system 
   docs/design/architectural-principles.md "Placement Procedure for New Files" and "Ports and
   Adapters".
 - (c) **NAMING FIREWALL**: the commercial real-guitar game that inspired this project is never
-  named in any file; use "RS"/neutral phrasing. Charter (MIT) may be named.
+  named in any file; use "RS"/neutral phrasing. Charter (BSD 3-Clause) may be named.
 - (h) **Builds**: all build/test/lint commands go through `.agents/rockhero-build.ps1` (usage in
   `.agents/README.md`), never raw cmake/ctest/ninja. Intermediate phases run only the checks their
   changes determinately warrant; the final acceptance phase is the sanctioned bundle as separate

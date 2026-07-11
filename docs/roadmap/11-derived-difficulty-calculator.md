@@ -38,7 +38,7 @@ Restated subset of the roadmap constraint block (`docs/roadmap/00-roadmap.md`):
 - (b) **Public-header minimalism**: one new public header for the calculator API; feature
   extraction internals stay in the `.cpp`.
 - (c) **NAMING FIREWALL**: the commercial real-guitar game that inspired this project is never
-  named in any file; use "RS" or neutral phrasing. Charter (MIT) may be named.
+  named in any file; use "RS" or neutral phrasing. Charter (BSD 3-Clause) may be named.
 - (d) **Derived over authored**: chart-derived descriptors are computed by versioned calculators
   and cached with the calculator version — never hand-authored. Only relational choices (part,
   representative) are authored.

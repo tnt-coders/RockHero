@@ -46,7 +46,7 @@ Applicable subset of the roadmap constraint block:
   and controller-intent surfaces are public, per `docs/design/architectural-principles.md`
   ("Ports and Adapters", "Library Roots Hold Folders Only").
 - (c) **Naming firewall**: the reference real-guitar game is never named; "RS" or neutral phrasing
-  only. Charter (MIT) may be named and is a capabilities reference only — no blind ports.
+  only. Charter (BSD 3-Clause) may be named and is a capabilities reference only — no blind ports.
 - (d) **Derived over authored**: difficulty is never authored; the editor persists the inputs the
   calculator needs (fingerings, FHPs, techniques) but no rating fields.
 - (f) **Undo**: every edit integrates with the RockHero-owned undo history in editor-core
@@ -176,7 +176,7 @@ format-side decisions) and the design docs — a fresh session needs no other co
    `EditorUndoHistory` + `IEdit`). Chart edits are pure-data edits: inverse-command or
    before/after-snapshot `IEdit` objects both satisfy it; no Tracktion involvement.
 8. **Charter is a capabilities reference only.** Its notation inventory calibrated the format;
-   its editing UX informs but never dictates ours (note-format plan, "Reference: Charter (MIT)").
+   its editing UX informs but never dictates ours (note-format plan, "Reference: Charter (BSD 3-Clause)").
 9. **Save == publish validation; normalize, don't reject** (established invariant, see
    `docs/roadmap/43-song-information-and-art.md` for the export-gate tension — not this plan's to
    resolve). Edit primitives therefore keep the chart valid at every commit point rather than

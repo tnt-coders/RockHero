@@ -2,12 +2,20 @@
 
 ## 1. Status
 
-**Decision-gated** — blocked on docs/roadmap/20-game-architecture-and-render-stack.md Phases 0b–0c
-(the bgfx-in-a-JUCE-child-HWND spike finding S2 decides this plan's surface shape; the Phase 0c
-renderer-sharing seam decides where the highway scene model lives) and on
-docs/roadmap/25-note-highway-3d.md Phases 1–2 (headless scene model and camera). No phase below
-starts before plan 20's gate closes with user sign-off. Date: 2026-07-06. Baseline:
-`refactor @ 13e82fb0`.
+**Phases 0–4 substantially complete 2026-07-11** (user-directed overnight pass; see the
+execution record at the end of this file). The window opens from View > 3D Preview or F3,
+renders the current arrangement through the shared highway renderer (promoted to
+rock-hero-common/ui — the user's promotion decision supersedes 44-Q2's
+duplicated-thin-drawers recommendation; 44-Q3 resolved as (a) with shader/texture sources in
+rock-hero-common/ui deployed per product; 44-Q1 resolved as (a) — the anticipation ring and
+rolling flip render, being the same shared drawers; 44-Q4 resolved as (b) — the window forwards
+keys to the main view's handler), follows playback through IPlaybackClock + extrapolation with
+exact paused-cursor time from ITransport, and receives live-edit snapshots through
+`EditorViewState::highway`. Remaining from the original phase plan: fullscreen/kiosk toggle,
+window-bounds persistence via IEditorSettings, and the Phase 5 polish items (scroll-speed
+setting, lefty toggle) — plus plan-46 keybind integration when that lands. Gate prerequisites
+all closed before execution (S2 passed, seam recorded, plan 25 Phases 1–3 + look-parity pass,
+plan 45 Phase 1, plan 12). Original date: 2026-07-06. Baseline: `refactor @ 13e82fb0`.
 
 ## 2. Goal
 
@@ -58,7 +66,7 @@ Applicable subset of the roadmap constraint block (see docs/roadmap/00-roadmap.m
   library exists (docs/design/architectural-principles.md, "Placement Procedure for New Files");
   the preview window and its drawers stay private to rock-hero-editor/ui.
 - (c) **NAMING FIREWALL**: the commercial real-guitar game that inspired this project is never
-  named in any file; use "RS" or neutral phrasing. Charter (MIT) may be cited by name.
+  named in any file; use "RS" or neutral phrasing. Charter (BSD 3-Clause) may be cited by name.
 - (h) **Builds**: all build/test/lint commands go through `.agents/rockhero-build.ps1` (usage in
   `.agents/README.md`) — never raw cmake/ctest/ninja. Intermediate phases run only the checks
   their changes warrant; the final acceptance phase is the sanctioned bundle as separate
@@ -447,3 +455,44 @@ identically (same scene model, same palette — differences indicate a drawer di
 - Phases 1–2 are additive and confined to `rock-hero-editor/ui/src/preview/` plus small
   EditorView hooks; worst-case rollback is deleting the feature folder, the menu item, and the
   CMake links. Phase 4's `EditorViewState` member is additive and reverts cleanly.
+
+## Execution record (2026-07-11) — user-directed overnight pass
+
+Shipped shape (departures from the phase text are noted with their reasons):
+
+- **Shared renderer instead of duplicated drawers.** The user decided "promotion is the only
+  viable solution" for drawer duplication, superseding 44-Q2 (a): the full highway renderer was
+  promoted from game/ui to `rock-hero-common/ui` behind a bgfx-free pimpl public header
+  (`rock_hero/common/ui/highway/highway_renderer.h`), with bgfx isolated to implementation files
+  — the Tracktion treatment constraint (a) prescribes. `RenderDevice` moved to
+  `rock-hero-common/ui` render/ as well (its header was already bgfx-free). The renderer's
+  no-filesystem contract is a `HighwayShaderSet`/`HighwayTextureSet` byte seam each product
+  fills from its own deployed resources.
+- **Shared assets (44-Q3: a).** Shader sources live in `rock-hero-common/ui/shaders` and the
+  reference texture assets (Charter, BSD 3-Clause, license text alongside) in
+  `rock-hero-common/ui/resources/textures/charter`; `rock_hero_stage_highway_shaders()` in
+  cmake/RockHeroRenderStack.cmake compiles the one shader-program list for both products, and
+  each app deploys shaders + textures beside its executable with the stamp-based pattern.
+- **Window shell (Phase 1, partial).** `PreviewWindow` (juce::DocumentWindow, component id
+  `preview_window`) owned by EditorView; View > "3D Preview" toggle item plus an F3 shortcut in
+  `EditorView::keyPressed` (both enabled only with a project loaded); title-bar close behaves
+  like toggling off. NOT yet done: kiosk/fullscreen (the juce-tracktion-expert consultation the
+  phase text requires never ran) and IEditorSettings bounds persistence.
+- **Surface (Phase 2).** `PreviewSurface` embeds a paint-inert native child window in the
+  preview window's peer (the S2 pattern) and drives `common::ui::RenderDevice` +
+  `common::ui::HighwayRenderer` from a `juce::VBlankAttachment`. Lifecycle decision: hiding a
+  JUCE top-level destroys its peer (and the embedded child), so the GPU stack tears down on
+  close and rebuilds on open (attach/detach) rather than keeping a device against a dead HWND —
+  bgfx re-init per open is the working pattern; watch it (S2 never exercised re-init).
+- **Rendering + follow (Phases 3–4).** The controller builds
+  `EditorViewState::highway` (shared `HighwayViewState` snapshot) under the same
+  arrangement-id memoization as the tab snapshot; the view pushes it to the surface on pointer
+  change (live-edit updates ride the existing rebuild rule — charts are immutable while open
+  today, so this is load/arrangement-switch granularity until plan 40 introduces chart edits).
+  Song time: `IPlaybackClock` + `PlaybackClockExtrapolator` while playing (threaded through
+  `Editor::AudioPorts`/`EditorView::AudioPorts` from the Engine); the exact
+  `ITransport::position()` while paused, so paused seeks always land even if the clock publisher
+  is idle. Transport keys forward to the main view's key handler (44-Q4: b).
+- **Verification.** Editor opened with a restored corpus project; F3 opened the preview showing
+  the correct highway at the paused cursor (screenshots in the session record); all suites
+  green. The Phase 2 headless/noop device test moved to common/ui tests with the device.

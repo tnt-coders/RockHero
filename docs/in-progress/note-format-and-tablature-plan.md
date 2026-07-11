@@ -31,9 +31,9 @@ Two deliverables, in order:
    feel of the tab icons should feel very similar to Charter's 2D editor view, even though the
    implementation will differ.
 
-## Reference: Charter (MIT)
+## Reference: Charter (BSD 3-Clause)
 
-[Charter](https://github.com/Lordszynencja/Charter) is an MIT-licensed RS-format chart
+[Charter](https://github.com/Lordszynencja/Charter) is a BSD-3-Clause-licensed RS-format chart
 editor whose notation model was reviewed at source level (2026-07-05) to enumerate what a complete
 guitar notation format needs. Its layout also validates this plan's display direction: Charter
 draws the waveform inside the same editor lane as the notes (`WaveFormDrawer` sits among its chart

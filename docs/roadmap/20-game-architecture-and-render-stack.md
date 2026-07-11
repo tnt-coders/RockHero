@@ -11,7 +11,17 @@ skipped; the compile helper now invokes the find_program path directly); Phase 3
 2026-07-10 (frame clock + timing instrumentation; checkpoint answers and the timing contract in
 the Gate record's Phase 3 record; exit criterion amended with user sign-off — the S1-mirror
 engine soak transferred to plan 21's first engine-embedding phase, G21-TRACKTION-GO closed GO
-the same day); Phase 4 ready; downstream plans 21/25/44 unblocked.** | Date: 2026-07-10 |
+the same day); Phase 4 complete 2026-07-11 (dev-diagnostics layer: headless DiagnosticsState +
+typed intents + ChartSourceWatcher in game/core with tests; frame-time-graph overlay drawn
+through the shared renderer's overlay pass; chart hot-reload on the --dev-package source;
+autoplay stub flag + HUD tag; activation per 20-Q5 A — `--dev` runtime flag, F1/F2/F5/PgUp/PgDn
+key toggles, the shared logger gained a runtime-level config so the Phase 3 trace channel
+records under --dev, bgfx init.debug wired to the flag). Seam amendment (user decision
+2026-07-11): the highway renderer itself was promoted to rock-hero-common/ui behind a bgfx-free
+pimpl seam (Tracktion-style isolation) so the editor preview and the game share one renderer —
+superseding Option 1's duplicated-thin-drawers cost; the headless scene model stays in
+common/core, and RenderDevice moved to common/ui render/ (its header was already bgfx-free).
+Downstream plans 21/25/44 unblocked; final acceptance bundle pending.** | Date: 2026-07-11 |
 Baseline: `work-in-progress @ 050f884e` (spike evidence on `spike/render-stack @ 049c898c`)
 
 This plan is the structural gate for all game-side work. Phases 0a–0c form the decision gate; no
@@ -59,7 +69,7 @@ Applicable subset of the roadmap constraint block (see docs/roadmap/00-roadmap.m
   ports-and-adapters per `docs/design/architectural-principles.md` ("Ports and Adapters",
   "Library Roles").
 - (c) **NAMING FIREWALL**: the commercial real-guitar game that inspired this project is never
-  named in any file; use "RS"/neutral phrasing. Charter (MIT) may be named.
+  named in any file; use "RS"/neutral phrasing. Charter (BSD 3-Clause) may be named.
 - (h) **Builds**: all build/test/lint commands go through `.agents/rockhero-build.ps1` (usage in
   `.agents/README.md`) — never raw cmake/ctest/ninja. Intermediate phases run only the checks
   their changes warrant; the final acceptance phase is the one sanctioned bundle.
