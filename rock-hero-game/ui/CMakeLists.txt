@@ -31,31 +31,40 @@ target_link_libraries(
 # Committed .sc shader sources compile at build time into the staging half of the resource-pack
 # convention (plan 20 Phase 2); the app deploys the staged tree next to the executable. Only the
 # Direct3D 11 profile ships now (gate 0a memo) — another backend is one more block here plus a
-# ShaderBackend enumerator, never a redesign.
+# ShaderBackend enumerator, never a redesign. Compilation is Windows-only because shaderc's HLSL
+# backend needs the Windows D3D compiler ("HLSL compiler is not supported on this platform"
+# elsewhere); non-Windows builds are compile/test hygiene, not shipped products, so they stage an
+# empty tree and the deploy still works.
 set(rock_hero_game_shader_staging "${CMAKE_CURRENT_BINARY_DIR}/resources/shaders")
 set(rock_hero_game_staged_shaders "")
-foreach(shader_stage IN ITEMS vertex fragment)
-    if(shader_stage STREQUAL "vertex")
-        set(stage_prefix vs)
-    else()
-        set(stage_prefix fs)
-    endif()
-    rock_hero_add_compiled_shader(
-        OUTPUT
-        "${rock_hero_game_shader_staging}/dx11/${stage_prefix}_surface_flat.bin"
-        TYPE
-        ${shader_stage}
-        SOURCE
-        "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${stage_prefix}_surface_flat.sc"
-        VARYING
-        "${CMAKE_CURRENT_SOURCE_DIR}/shaders/varying.def.sc"
-        PROFILE
-        s_5_0
-        PLATFORM
-        windows)
-    list(APPEND rock_hero_game_staged_shaders
-         "${rock_hero_game_shader_staging}/dx11/${stage_prefix}_surface_flat.bin")
-endforeach()
+if(WIN32)
+    foreach(shader_stage IN ITEMS vertex fragment)
+        if(shader_stage STREQUAL "vertex")
+            set(stage_prefix vs)
+        else()
+            set(stage_prefix fs)
+        endif()
+        rock_hero_add_compiled_shader(
+            OUTPUT
+            "${rock_hero_game_shader_staging}/dx11/${stage_prefix}_surface_flat.bin"
+            TYPE
+            ${shader_stage}
+            SOURCE
+            "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${stage_prefix}_surface_flat.sc"
+            VARYING
+            "${CMAKE_CURRENT_SOURCE_DIR}/shaders/varying.def.sc"
+            PROFILE
+            s_5_0
+            PLATFORM
+            windows)
+        list(APPEND rock_hero_game_staged_shaders
+             "${rock_hero_game_shader_staging}/dx11/${stage_prefix}_surface_flat.bin")
+    endforeach()
+endif()
+
+# The staging root must exist even when nothing is staged so the app's copy_directory has a
+# source on every platform.
+file(MAKE_DIRECTORY "${rock_hero_game_shader_staging}")
 
 add_custom_target(rock_hero_game_shaders DEPENDS ${rock_hero_game_staged_shaders})
 
