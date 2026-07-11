@@ -2,19 +2,17 @@ add_library(rock_hero_game_ui STATIC)
 add_library(rock_hero::game::ui ALIAS rock_hero_game_ui)
 
 # Game surface feature: the SDL window, the bgfx render device, and the L2 frame loop composition
-# point (plan 20 gate outcome: SDL owns main; JUCE's queue is drained per frame). Highway
-# feature: the 3D note-highway renderer over the shared headless scene model (plan 25 Phase 3).
-# Dev feature + overlay: the --dev-package fixture session and the diagnostics overlay
-# (plan 20 Phase 4).
+# point (plan 20 gate outcome: SDL owns main; JUCE's queue is drained per frame). The highway
+# renderer itself is shared (rock-hero-common/ui highway feature); this library composes it with
+# the game's resources. Dev feature + overlay: the --dev-package fixture session and the
+# diagnostics overlay content (plan 20 Phase 4).
 target_sources(
     rock_hero_game_ui
     PRIVATE src/dev/dev_session.cpp
-            src/highway/highway_atlas.cpp
-            src/highway/highway_renderer.cpp
             src/overlay/diagnostics_overlay.cpp
-            src/surface/bgfx_program.cpp
             src/surface/game_shell.cpp
             src/surface/game_window.cpp
+            src/surface/highway_shader_loader.cpp
             src/surface/juce_message_pump.cpp
             src/surface/render_device.cpp)
 
@@ -38,16 +36,17 @@ target_link_libraries(
             rock_hero::build_policy
             rock_hero::sdl3
             rock_hero::bgfx
-            rock_hero::juce_events
-            rock_hero::juce_graphics)
+            rock_hero::juce_events)
 
-# Committed .sc shader sources compile at build time into the staging half of the resource-pack
-# convention (plan 20 Phase 2); the app deploys the staged tree next to the executable. Only the
+# Shared .sc shader sources (rock-hero-common/ui/shaders — the promotion moved them beside the
+# shared renderer) compile at build time into the staging half of the resource-pack convention
+# (plan 20 Phase 2); the app deploys the staged tree next to the executable. Only the
 # Direct3D 11 profile ships now (gate 0a memo) — another backend is one more block here plus a
 # ShaderBackend enumerator, never a redesign. Compilation is Windows-only because shaderc's HLSL
 # backend needs the Windows D3D compiler ("HLSL compiler is not supported on this platform"
 # elsewhere); non-Windows builds are compile/test hygiene, not shipped products, so they stage an
 # empty tree and the deploy still works.
+set(rock_hero_shared_shader_dir "${CMAKE_CURRENT_SOURCE_DIR}/../../rock-hero-common/ui/shaders")
 set(rock_hero_game_shader_staging "${CMAKE_CURRENT_BINARY_DIR}/resources/shaders")
 set(rock_hero_game_staged_shaders "")
 if(WIN32)
@@ -64,9 +63,9 @@ if(WIN32)
                 TYPE
                 ${shader_stage}
                 SOURCE
-                "${CMAKE_CURRENT_SOURCE_DIR}/shaders/${stage_prefix}_${shader_program}.sc"
+                "${rock_hero_shared_shader_dir}/${stage_prefix}_${shader_program}.sc"
                 VARYING
-                "${CMAKE_CURRENT_SOURCE_DIR}/shaders/varying.def.sc"
+                "${rock_hero_shared_shader_dir}/varying.def.sc"
                 PROFILE
                 s_5_0
                 PLATFORM

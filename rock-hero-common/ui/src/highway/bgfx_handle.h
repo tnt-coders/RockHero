@@ -8,7 +8,7 @@
 #include <bgfx/bgfx.h>
 #include <utility>
 
-namespace rock_hero::game::ui
+namespace rock_hero::common::ui
 {
 
 /*!
@@ -108,4 +108,4 @@ private:
     HandleT m_handle{bgfx::kInvalidHandle};
 };
 
-} // namespace rock_hero::game::ui
+} // namespace rock_hero::common::ui

@@ -5,13 +5,13 @@
 
 #pragma once
 
-#include "surface/bgfx_handle.h"
+#include "highway/bgfx_handle.h"
 
 #include <array>
 #include <bgfx/bgfx.h>
 #include <optional>
 
-namespace rock_hero::game::ui
+namespace rock_hero::common::ui
 {
 
 /*!
@@ -95,4 +95,4 @@ via the shell's declaration order).
 */
 [[nodiscard]] HighwayAtlases makeHighwayAtlases();
 
-} // namespace rock_hero::game::ui
+} // namespace rock_hero::common::ui
