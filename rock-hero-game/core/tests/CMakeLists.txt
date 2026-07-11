@@ -5,11 +5,8 @@ include(Catch)
 
 add_executable(rock_hero_game_core_tests test_game_resources.cpp)
 
-# The resolver's header is public, but tests use the same feature-qualified include form the
-# library's own sources use.
-target_include_directories(rock_hero_game_core_tests PRIVATE ../include/rock_hero/game/core)
-
-# Tests link the library under test plus Catch2's generated main.
+# Tests consume the resolver through its public include form; the library under test carries the
+# public include path.
 target_link_libraries(rock_hero_game_core_tests
                       PRIVATE rock_hero::game::core rock_hero::build_policy Catch2::Catch2WithMain)
 
