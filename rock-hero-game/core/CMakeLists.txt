@@ -10,10 +10,8 @@ target_include_directories(
     PUBLIC include
     PRIVATE include/rock_hero/game/core)
 
-# Game core depends only on shared domain data and the standard library.
-target_link_libraries(
-    rock_hero_game_core
-    PUBLIC rock_hero::common::core
-    PRIVATE rock_hero::build_policy)
+# Game core is std-only today. Link rock_hero::common::core when the first use arrives (PUBLIC
+# only if a public header exposes its types); the layering already permits it.
+target_link_libraries(rock_hero_game_core PRIVATE rock_hero::build_policy)
 
 add_subdirectory(tests)

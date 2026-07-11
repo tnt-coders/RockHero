@@ -5,10 +5,12 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <filesystem>
 #include <string>
+#include <vector>
 
 namespace rock_hero::game::core
 {
@@ -56,6 +58,9 @@ enum class GameResourcesErrorCode : std::uint8_t
 
     /*! \brief A resolved resource file is absent from the resources tree. */
     MissingResourceFile,
+
+    /*! \brief A resolved resource file exists but could not be read, or is empty. */
+    UnreadableResourceFile,
 };
 
 /*! \brief Typed boundary error for resource resolution failures. */
@@ -103,6 +108,21 @@ public:
     \return Absolute path of the existing binary, or a typed error naming the missing file.
     */
     [[nodiscard]] std::expected<std::filesystem::path, GameResourcesError> shaderPath(
+        GameShaderProgram program, ShaderStage stage, ShaderBackend backend) const;
+
+    /*!
+    \brief Resolves and reads one compiled shader-stage binary into memory.
+
+    Reading resolved resources lives here rather than in each consumer so every failure — missing
+    file, unreadable file, empty file — reports through the same typed error channel naming the
+    exact path.
+
+    \param program Shader program the stage belongs to.
+    \param stage Vertex or fragment stage.
+    \param backend Backend whose compiled binary to read.
+    \return The binary's bytes (never empty), or a typed error naming the failing file.
+    */
+    [[nodiscard]] std::expected<std::vector<std::byte>, GameResourcesError> shaderBytes(
         GameShaderProgram program, ShaderStage stage, ShaderBackend backend) const;
 
 private:

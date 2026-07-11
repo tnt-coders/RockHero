@@ -54,7 +54,10 @@ function(rock_hero_add_compiled_shader)
     endforeach()
 
     # The varying definition is a real input even though shaderc takes it as a flag, so declare
-    # it as a dependency to get correct rebuilds when only the varyings change.
+    # it as a dependency to get correct rebuilds when only the varyings change. Includes are NOT
+    # tracked: today the only include dir is immutable Conan package content, so that is correct;
+    # the moment project-owned shared .sh includes appear, switch to shaderc's --depends output
+    # via DEPFILE (see docs/todo/game-render-watch-items.md).
     add_custom_command(
         OUTPUT "${ARG_OUTPUT}"
         COMMAND

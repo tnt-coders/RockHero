@@ -1,9 +1,10 @@
-#include "resources/game_resources.h"
-
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>
+#include <cstddef>
 #include <filesystem>
 #include <fstream>
+#include <ios>
+#include <rock_hero/game/core/resources/game_resources.h>
 #include <string>
 
 namespace rock_hero::game::core
@@ -41,12 +42,15 @@ public:
         return m_root;
     }
 
-    // Creates an empty file (and its parent directories) under the fixture root.
-    void touch(const std::filesystem::path& relative) const
+    // Creates a file (and its parent directories) under the fixture root with the given content;
+    // empty content produces an empty file.
+    void touch(const std::filesystem::path& relative, const std::string& content = {}) const
     {
         const std::filesystem::path target = m_root / relative;
         std::filesystem::create_directories(target.parent_path());
-        const std::ofstream file{target};
+        std::ofstream file{target, std::ios::binary};
+        REQUIRE(file.is_open());
+        file << content;
     }
 
 private:
@@ -55,7 +59,7 @@ private:
 
 } // namespace
 
-TEST_CASE("GameResources rejects a missing resources root", "[game-core][resources]")
+TEST_CASE("GameResources rejects a missing resources root", "[core][resources]")
 {
     const TempResourcesRoot fixture;
 
@@ -69,7 +73,7 @@ TEST_CASE("GameResources rejects a missing resources root", "[game-core][resourc
     }
 }
 
-TEST_CASE("GameResources resolves shader stage binaries by convention", "[game-core][resources]")
+TEST_CASE("GameResources resolves shader stage binaries by convention", "[core][resources]")
 {
     const TempResourcesRoot fixture;
     fixture.touch("shaders/dx11/vs_surface_flat.bin");
@@ -97,8 +101,7 @@ TEST_CASE("GameResources resolves shader stage binaries by convention", "[game-c
     }
 }
 
-TEST_CASE(
-    "GameResources reports a missing shader binary as a typed error", "[game-core][resources]")
+TEST_CASE("GameResources reports a missing shader binary as a typed error", "[core][resources]")
 {
     const TempResourcesRoot fixture;
     fixture.touch("shaders/dx11/vs_surface_flat.bin");
@@ -114,6 +117,47 @@ TEST_CASE(
         {
             CHECK(fragment.error().code == GameResourcesErrorCode::MissingResourceFile);
             CHECK(fragment.error().message.find("fs_surface_flat.bin") != std::string::npos);
+        }
+    }
+}
+
+TEST_CASE("GameResources reads shader binary bytes", "[core][resources]")
+{
+    const TempResourcesRoot fixture;
+    fixture.touch("shaders/dx11/vs_surface_flat.bin", "VSH\x03");
+
+    const auto resources = GameResources::create(fixture.path());
+    REQUIRE(resources.has_value());
+    if (resources.has_value())
+    {
+        const auto bytes = resources->shaderBytes(
+            GameShaderProgram::SurfaceFlat, ShaderStage::Vertex, ShaderBackend::Direct3D11);
+        REQUIRE(bytes.has_value());
+        if (bytes.has_value())
+        {
+            REQUIRE(bytes->size() == 4);
+            CHECK((*bytes)[0] == std::byte{'V'});
+            CHECK((*bytes)[3] == std::byte{0x03});
+        }
+    }
+}
+
+TEST_CASE("GameResources reports an empty shader binary as a typed error", "[core][resources]")
+{
+    const TempResourcesRoot fixture;
+    fixture.touch("shaders/dx11/vs_surface_flat.bin");
+
+    const auto resources = GameResources::create(fixture.path());
+    REQUIRE(resources.has_value());
+    if (resources.has_value())
+    {
+        const auto bytes = resources->shaderBytes(
+            GameShaderProgram::SurfaceFlat, ShaderStage::Vertex, ShaderBackend::Direct3D11);
+        REQUIRE_FALSE(bytes.has_value());
+        if (!bytes.has_value())
+        {
+            CHECK(bytes.error().code == GameResourcesErrorCode::UnreadableResourceFile);
+            CHECK(bytes.error().message.find("vs_surface_flat.bin") != std::string::npos);
         }
     }
 }

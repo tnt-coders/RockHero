@@ -30,6 +30,10 @@ charter authored in the editor.
 
 ## Constraints
 
+Before starting any phase, work through the render-stack watch list in
+`docs/todo/game-render-watch-items.md` — item 1 (GameShell composition placement) is explicitly
+gated on this plan's start and must be decided, not accreted past.
+
 Applicable subset of the roadmap's non-negotiable block:
 
 - (a) **Layering**: common never depends on editor or game code; editor and game never depend on

@@ -8,13 +8,12 @@
 #include <cstdint>
 #include <expected>
 #include <filesystem>
-#include <fstream>
-#include <ios>
 #include <juce_events/juce_events.h>
 #include <optional>
 #include <print>
 #include <rock_hero/game/core/resources/game_resources.h>
-#include <span>
+#include <string>
+#include <string_view>
 #include <vector>
 
 namespace rock_hero::game::ui
@@ -31,26 +30,6 @@ constexpr std::uint32_t g_initial_window_height = 720;
 // messages; this is a safety valve against a pathological self-posting burst, not a tuned value.
 constexpr int g_max_juce_messages_per_frame = 256;
 
-// Reads a whole file into memory; empty optional when the file cannot be opened or read.
-[[nodiscard]] std::optional<std::vector<char>> readBinaryFile(const std::filesystem::path& path)
-{
-    std::ifstream file{path, std::ios::binary | std::ios::ate};
-    if (!file)
-    {
-        return std::nullopt;
-    }
-
-    const std::streamsize size = file.tellg();
-    std::vector<char> contents(static_cast<std::size_t>(size));
-    file.seekg(0);
-    if (!file.read(contents.data(), size))
-    {
-        return std::nullopt;
-    }
-
-    return contents;
-}
-
 // Maps the shell's production backend to the resource tree's shader-backend vocabulary. Noop is
 // a test-only backend that never reaches the shell, so it maps to the shipped default.
 [[nodiscard]] core::ShaderBackend toShaderBackend(const RenderBackend backend)
@@ -59,7 +38,9 @@ constexpr int g_max_juce_messages_per_frame = 256;
     {
         case RenderBackend::Direct3D11:
         case RenderBackend::Noop:
+        {
             return core::ShaderBackend::Direct3D11;
+        }
     }
 
     return core::ShaderBackend::Direct3D11;
@@ -69,8 +50,21 @@ constexpr int g_max_juce_messages_per_frame = 256;
 // seam packaged assets come through (plan 20 Phase 2) — and hands the bytes to the device.
 [[nodiscard]] bool loadSurfaceProgram(RenderDevice& device, const RenderBackend backend)
 {
+    // SDL documents the base path as UTF-8 and as null on failure: the null must be caught before
+    // path construction (UB), and the bytes must be decoded as UTF-8 explicitly — MSVC's narrow
+    // std::filesystem::path constructor decodes via the system codepage, which corrupts
+    // non-ASCII install paths.
+    const char* base_path = SDL_GetBasePath();
+    if (base_path == nullptr)
+    {
+        std::println(stderr, "rock-hero: SDL_GetBasePath failed: {}", SDL_GetError());
+        return false;
+    }
+    const std::string_view base_path_bytes{base_path};
+    const std::u8string base_path_utf8(base_path_bytes.begin(), base_path_bytes.end());
     const std::filesystem::path resources_root =
-        std::filesystem::path{SDL_GetBasePath()} / "resources";
+        std::filesystem::path{base_path_utf8} / "resources";
+
     const std::expected<core::GameResources, core::GameResourcesError> resources =
         core::GameResources::create(resources_root);
     if (!resources.has_value())
@@ -80,29 +74,22 @@ constexpr int g_max_juce_messages_per_frame = 256;
     }
 
     const core::ShaderBackend shader_backend = toShaderBackend(backend);
-    const auto vertex_path = resources->shaderPath(
+    const auto vertex_bytes = resources->shaderBytes(
         core::GameShaderProgram::SurfaceFlat, core::ShaderStage::Vertex, shader_backend);
-    const auto fragment_path = resources->shaderPath(
+    const auto fragment_bytes = resources->shaderBytes(
         core::GameShaderProgram::SurfaceFlat, core::ShaderStage::Fragment, shader_backend);
-    if (!vertex_path.has_value() || !fragment_path.has_value())
+    if (!vertex_bytes.has_value() || !fragment_bytes.has_value())
     {
         std::println(
             stderr,
             "rock-hero: {}",
-            vertex_path.has_value() ? fragment_path.error().message : vertex_path.error().message);
+            vertex_bytes.has_value() ? fragment_bytes.error().message
+                                     : vertex_bytes.error().message);
         return false;
     }
 
-    const std::optional<std::vector<char>> vertex_bytes = readBinaryFile(*vertex_path);
-    const std::optional<std::vector<char>> fragment_bytes = readBinaryFile(*fragment_path);
-    if (!vertex_bytes.has_value() || !fragment_bytes.has_value())
-    {
-        std::println(stderr, "rock-hero: failed to read a compiled shader binary");
-        return false;
-    }
-
-    const std::expected<void, RenderDeviceError> program = device.createSurfaceProgram(
-        std::as_bytes(std::span{*vertex_bytes}), std::as_bytes(std::span{*fragment_bytes}));
+    const std::expected<void, RenderDeviceError> program =
+        device.createSurfaceProgram(*vertex_bytes, *fragment_bytes);
     if (!program.has_value())
     {
         std::println(stderr, "rock-hero: {}", program.error().message);

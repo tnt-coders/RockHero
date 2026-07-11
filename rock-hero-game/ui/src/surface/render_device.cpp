@@ -1,8 +1,11 @@
 #include "surface/render_device.h"
 
+#include "surface/bgfx_handle.h"
+
 #include <array>
 #include <bgfx/bgfx.h>
 #include <bgfx/platform.h>
+#include <cstdint>
 #include <cstring>
 #include <utility>
 
@@ -11,6 +14,11 @@ namespace rock_hero::game::ui
 
 namespace
 {
+
+// The header stores the program handle as a raw index with UINT16_MAX standing in for bgfx's
+// invalid-handle sentinel; pin that equivalence so an upstream change breaks the build, not
+// the teardown logic.
+static_assert(bgfx::kInvalidHandle == UINT16_MAX);
 
 // Neutral dark clear color (0xRRGGBBAA) so the Phase 1 window reads as an intentional surface
 // rather than an uninitialized buffer; real scene content replaces it in later phases.
@@ -119,8 +127,8 @@ RenderDevice::RenderDevice(
 {}
 
 // Single-threaded teardown mirror: plain same-thread shutdown, no render-thread drain ceremony
-// (that exists only for app-owned render threads in multithreaded mode). The program (and, via
-// createProgram's destroyShaders flag, its shaders) must go before the instance does.
+// (that exists only for app-owned render threads in multithreaded mode). The program (which holds
+// the stage shaders' remaining references) must go before the instance does.
 RenderDevice::~RenderDevice()
 {
     if (m_owns_device)
@@ -133,9 +141,12 @@ RenderDevice::~RenderDevice()
     }
 }
 
-// Transfers bgfx ownership; the source keeps m_owns_device false so it tears nothing down.
+// Transfers bgfx ownership; the source keeps m_owns_device false so it tears nothing down. The
+// program handle moves too: the source must not keep a live-looking handle a later submitFrame
+// on the moved-from object could submit with.
 RenderDevice::RenderDevice(RenderDevice&& other) noexcept
     : m_owns_device{std::exchange(other.m_owns_device, false)}
+    , m_program_handle{std::exchange(other.m_program_handle, bgfx::kInvalidHandle)}
     , m_width{other.m_width}
     , m_height{other.m_height}
     , m_reset_flags{other.m_reset_flags}
@@ -151,36 +162,30 @@ void RenderDevice::resize(const std::uint32_t width, const std::uint32_t height)
 }
 
 // Links the surface program from compiled binaries. bgfx::copy snapshots the spans, so the
-// caller's buffers may die immediately after this returns.
+// caller's buffers may die immediately after this returns. The stage handles are RAII-owned and
+// destroyed unconditionally at scope exit — correct on every path because destroyShaders stays
+// false (a project rule: bgfx consumes the stage handles on some createProgram failure paths but
+// not others, so the consuming flag makes correct cleanup impossible); on success the program
+// holds its own shader references and keeps the stages alive until it is destroyed.
 std::expected<void, RenderDeviceError> RenderDevice::createSurfaceProgram(
     const std::span<const std::byte> vertex_shader,
     const std::span<const std::byte> fragment_shader)
 {
-    const bgfx::ShaderHandle vertex_handle = bgfx::createShader(
-        bgfx::copy(vertex_shader.data(), static_cast<std::uint32_t>(vertex_shader.size())));
-    const bgfx::ShaderHandle fragment_handle = bgfx::createShader(
-        bgfx::copy(fragment_shader.data(), static_cast<std::uint32_t>(fragment_shader.size())));
-    if (!bgfx::isValid(vertex_handle) || !bgfx::isValid(fragment_handle))
+    const UniqueBgfxHandle<bgfx::ShaderHandle> vertex_handle{bgfx::createShader(
+        bgfx::copy(vertex_shader.data(), static_cast<std::uint32_t>(vertex_shader.size())))};
+    const UniqueBgfxHandle<bgfx::ShaderHandle> fragment_handle{bgfx::createShader(
+        bgfx::copy(fragment_shader.data(), static_cast<std::uint32_t>(fragment_shader.size())))};
+    if (!vertex_handle.isValid() || !fragment_handle.isValid())
     {
-        if (bgfx::isValid(vertex_handle))
-        {
-            bgfx::destroy(vertex_handle);
-        }
-        if (bgfx::isValid(fragment_handle))
-        {
-            bgfx::destroy(fragment_handle);
-        }
         return std::unexpected{
             RenderDeviceError{RenderDeviceErrorCode::ShaderProgramCreationFailed}
         };
     }
 
-    // destroyShaders=true ties the stage handles' lifetime to the program's.
-    const bgfx::ProgramHandle program = bgfx::createProgram(vertex_handle, fragment_handle, true);
+    const bgfx::ProgramHandle program =
+        bgfx::createProgram(vertex_handle.get(), fragment_handle.get(), false);
     if (!bgfx::isValid(program))
     {
-        bgfx::destroy(vertex_handle);
-        bgfx::destroy(fragment_handle);
         return std::unexpected{
             RenderDeviceError{RenderDeviceErrorCode::ShaderProgramCreationFailed}
         };
@@ -235,7 +240,9 @@ void RenderDevice::submitFrame()
     if (m_program_handle != bgfx::kInvalidHandle)
     {
         // Transient geometry: three clip-space vertices re-uploaded per frame. Colors are packed
-        // ABGR (bgfx's normalized-Uint8 color convention).
+        // ABGR (bgfx's normalized-Uint8 color convention). The vertices are usable as clip-space
+        // positions only because no view or model transform is ever set — bgfx defaults both to
+        // identity; a future pass that sets view transforms must not reuse view 0 for this draw.
         constexpr std::array<SurfaceVertex, 3> vertices{
             SurfaceVertex{0.0F, 0.5F, 0.0F, 0xff408080},
             SurfaceVertex{0.5F, -0.5F, 0.0F, 0xff804080},

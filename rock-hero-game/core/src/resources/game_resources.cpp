@@ -1,5 +1,8 @@
 #include "resources/game_resources.h"
 
+#include <cstring>
+#include <fstream>
+#include <ios>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -17,7 +20,9 @@ namespace
     switch (backend)
     {
         case ShaderBackend::Direct3D11:
+        {
             return "dx11";
+        }
     }
 
     return "dx11";
@@ -29,9 +34,13 @@ namespace
     switch (stage)
     {
         case ShaderStage::Vertex:
+        {
             return "vs";
+        }
         case ShaderStage::Fragment:
+        {
             return "fs";
+        }
     }
 
     return "vs";
@@ -43,7 +52,9 @@ namespace
     switch (program)
     {
         case GameShaderProgram::SurfaceFlat:
+        {
             return "surface_flat";
+        }
     }
 
     return "surface_flat";
@@ -58,11 +69,20 @@ GameResourcesError::GameResourcesError(
     switch (error_code)
     {
         case GameResourcesErrorCode::MissingResourcesRoot:
+        {
             message = "Game resources directory not found: " + path.string();
             return;
+        }
         case GameResourcesErrorCode::MissingResourceFile:
+        {
             message = "Game resource file not found: " + path.string();
             return;
+        }
+        case GameResourcesErrorCode::UnreadableResourceFile:
+        {
+            message = "Game resource file is empty or unreadable: " + path.string();
+            return;
+        }
     }
 
     message = "Game resource resolution failed: " + path.string();
@@ -71,11 +91,14 @@ GameResourcesError::GameResourcesError(
 std::expected<GameResources, GameResourcesError> GameResources::create(
     std::filesystem::path resources_root)
 {
+    // The error_code overload is chosen so probe failures never throw; any failure to inspect the
+    // root (permissions, unreachable volume) deliberately reports as the same missing-root error.
     std::error_code probe_error;
     if (!std::filesystem::is_directory(resources_root, probe_error))
     {
-        return std::unexpected(
-            GameResourcesError{GameResourcesErrorCode::MissingResourcesRoot, resources_root});
+        return std::unexpected{
+            GameResourcesError{GameResourcesErrorCode::MissingResourcesRoot, resources_root}
+        };
     }
 
     return GameResources{std::move(resources_root)};
@@ -88,14 +111,60 @@ std::expected<std::filesystem::path, GameResourcesError> GameResources::shaderPa
     path /= std::string{shaderStagePrefix(stage)} + "_" + std::string{shaderProgramName(program)} +
             ".bin";
 
+    // Non-throwing probe; failures to inspect the file intentionally count as missing, and any
+    // probe/read race is caught by the read in shaderBytes anyway.
     std::error_code probe_error;
     if (!std::filesystem::is_regular_file(path, probe_error))
     {
-        return std::unexpected(
-            GameResourcesError{GameResourcesErrorCode::MissingResourceFile, path});
+        return std::unexpected{
+            GameResourcesError{GameResourcesErrorCode::MissingResourceFile, path}
+        };
     }
 
     return path;
+}
+
+std::expected<std::vector<std::byte>, GameResourcesError> GameResources::shaderBytes(
+    const GameShaderProgram program, const ShaderStage stage, const ShaderBackend backend) const
+{
+    const auto path = shaderPath(program, stage, backend);
+    if (!path.has_value())
+    {
+        return std::unexpected{path.error()};
+    }
+
+    std::ifstream file{*path, std::ios::binary | std::ios::ate};
+    if (!file)
+    {
+        return std::unexpected{
+            GameResourcesError{GameResourcesErrorCode::UnreadableResourceFile, *path}
+        };
+    }
+
+    // An empty binary is rejected here so consumers may assume the bytes are non-empty (bgfx
+    // asserts on zero-length shader blobs rather than returning an error).
+    const std::streamsize size = file.tellg();
+    if (size <= 0)
+    {
+        return std::unexpected{
+            GameResourcesError{GameResourcesErrorCode::UnreadableResourceFile, *path}
+        };
+    }
+
+    // Read into chars (the stream's element type), then widen to std::byte with one memcpy —
+    // sidestepping the byte-pointer reinterpret_cast a direct read into std::byte storage needs.
+    std::vector<char> contents(static_cast<std::size_t>(size));
+    file.seekg(0);
+    if (!file.read(contents.data(), size))
+    {
+        return std::unexpected{
+            GameResourcesError{GameResourcesErrorCode::UnreadableResourceFile, *path}
+        };
+    }
+
+    std::vector<std::byte> bytes(contents.size());
+    std::memcpy(bytes.data(), contents.data(), contents.size());
+    return bytes;
 }
 
 GameResources::GameResources(std::filesystem::path resources_root)
