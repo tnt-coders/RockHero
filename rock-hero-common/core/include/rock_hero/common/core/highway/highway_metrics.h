@@ -232,11 +232,28 @@ flips the stacking for players who prefer the mirrored string order.
 \param invert_string_order True to stack the lowest-pitched string on top.
 \return World Y of the string lane.
 */
+/*!
+\brief Returns the world Y of a one-based lane, counted from the bottom.
+
+Lanes are centered on half-string offsets: the bottom lane (1) sits half a string spacing off the
+board surface, so the fret lines that run from the board to \ref HighwayMetrics::string_distance
+times the lane count stick out the same distance above the top lane as below the bottom lane. The
+shared seam so every string-plane consumer (string lanes, fingering spots) maps lanes identically.
+
+\param lane One-based lane index, 1 at the bottom.
+\param metrics World-space constants.
+\return World Y of the lane center.
+*/
+[[nodiscard]] inline double highwayLaneToY(int lane, const HighwayMetrics& metrics)
+{
+    return (static_cast<double>(lane) - 0.5) * metrics.string_distance;
+}
+
 [[nodiscard]] inline double highwayStringLaneY(
     int string, int string_count, const HighwayMetrics& metrics, bool invert_string_order)
 {
     const int lane = invert_string_order ? (string_count + 1 - string) : string;
-    return static_cast<double>(lane) * metrics.string_distance;
+    return highwayLaneToY(lane, metrics);
 }
 
 /*!
