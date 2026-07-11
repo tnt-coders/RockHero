@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstdint>
+#include <filesystem>
 #include <optional>
 
 namespace rock_hero::game::ui
@@ -21,6 +22,24 @@ struct GameShellOptions
     through the window's quit request.
     */
     std::optional<std::uint64_t> frame_limit;
+
+    /*!
+    \brief When set, loads this .rock package at startup and scrolls its first charted
+    arrangement on the highway against a development clock.
+
+    Development hook (plan 25 Phase 3): song selection belongs to plan 26's library, and the real
+    playback clock arrives with plan 21's engine. Empty means no chart is loaded and the highway
+    renders an empty board.
+    */
+    std::optional<std::filesystem::path> dev_package;
+
+    /*!
+    \brief True to mirror the highway for left-handed display.
+
+    Development flag until plan 26/27 surface the user-facing setting; the mirror itself is pure
+    math inside the shared highway projection and camera.
+    */
+    bool lefty{false};
 };
 
 /*!

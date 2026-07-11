@@ -42,12 +42,26 @@ enum class ShaderStage : std::uint8_t
 \brief Shader programs the game ships.
 
 Each enumerator names one committed .sc source pair in rock-hero-game/ui/shaders/ whose compiled
-binaries land in the deployed resources tree.
+binaries land in the deployed resources tree. The set mirrors the highway reference's programs
+(plan 25 § Decisions): plain vertex color, distance-faded color, channel-scheme tinted texture,
+and glyph text.
 */
 enum class GameShaderProgram : std::uint8_t
 {
-    /*! \brief The flat vertex-color surface program: the render surface's first visible draw. */
-    SurfaceFlat,
+    /*! \brief Flat vertex-color geometry (board furniture, rails, boxes). */
+    Color,
+
+    /*! \brief Vertex color with a Z-ramp alpha fade (beat bars fading toward the horizon). */
+    ColorFade,
+
+    /*!
+    \brief Atlas-textured quads with the reference channel scheme: texture R multiplies the tint
+    color, G adds white highlight, B is the alpha mask — one atlas serves every string color.
+    */
+    TextureTint,
+
+    /*! \brief Glyph-atlas text (fret numbers, section labels). */
+    Glyph,
 };
 
 /*! \brief Stable reasons resource resolution can fail. */

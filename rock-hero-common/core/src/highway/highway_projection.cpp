@@ -1,9 +1,8 @@
-#include "highway_projection.h"
-
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <rock_hero/common/core/highway/highway_projection.h>
 #include <utility>
 
 namespace rock_hero::common::core

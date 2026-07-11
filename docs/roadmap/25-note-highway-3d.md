@@ -2,7 +2,11 @@
 
 ## 1. Status
 
-**Phases 0–2 complete** (2026-07-10, `work-in-progress @ 92b95ba4`). Phase 0 gate intake:
+**Phases 0–3 complete** (Phase 3: 2026-07-11 — board and notes rendering, the playable
+skeleton; checkpoint answers and rendering decisions in the Phase 3 record at the end of this
+file; the checkpoint caught and fixed a Phase 2 camera depth-anchoring defect; user decision:
+lowest-pitched string on top by default in 3D). Phases 0–2: 2026-07-10,
+`work-in-progress @ 92b95ba4`. Phase 0 gate intake:
 G20-RENDER signed off 2026-07-10 (SDL3+bgfx, loop L2); `<core-lib>` = **rock-hero-common/core**
 (seam Option 1); plan 45 Phase 1 (shared palette) landed 2026-07-10; plan 12 (playback clock)
 landed 2026-07-10. Phases 1–2 implemented in `rock-hero-common/core` `highway/`: scene model +
@@ -250,6 +254,10 @@ normative):
   sees. Nearly free now, painful to retrofit. The user-facing toggle ships with the settings
   work (plans 26/27); a separate string-order-invert option (Charter has one) rides the same
   seam.
+- **String order in 3D: lowest-pitched string on TOP by default** (user decision 2026-07-11,
+  superseding the reference's bottom-anchored default for the game highway). Realized through
+  the shared projection's `invert_string_order` flag at the game's composition point; the 2D tab
+  lane keeps standard tab orientation, and plans 26/27 surface the per-player setting.
 - **String colors come from plan 45's shared palette** — single source of truth across editor
   tab, editor preview, and game highway. This plan never defines note/string colors.
 - **Hit/miss feedback is event-driven**: the renderer is a pure function of
@@ -481,3 +489,55 @@ docs/roadmap/23-detection-verification-harness.md.
   sampling shows artifacts, densify the cap — never revert to per-millisecond sampling.
 - Phase 5 degrades gracefully if plan 24 slips: the event port can be fed by the plan 23
   autoplay bot alone, keeping the phase demonstrable without real detection.
+
+## Phase 3 record (2026-07-11) — checkpoint answers and rendering decisions
+
+Game-render-expert checkpoint (source-verified against the Conan bgfx package; full citations in
+the session record):
+
+- **Matrix handoff**: bgfx/bx matrices are row-major storage under a row-vector convention with
+  no D3D11-side transpose and D3DCompile's default column-major packing — so `HighwayMat4`
+  (row-major, `clip = M * world`) converts by a **pure transpose + narrowing** and feeds
+  `setViewTransform(view, M, nullptr)` (proj defaults identity; per-draw `setTransform` stays
+  free for future object-local placement). The NDC pin is ordinary matrix coefficients — legal
+  in any slot.
+- **Depth**: `makePinnedProjection` already emits D3D-style [0,1] depth; no adaptation needed.
+  The checkpoint caught a real Phase 2 defect first: the projection's constant term anchored the
+  near plane at **world** z = near instead of camera-relative eye depth, which would have
+  near-clipped the hit line itself (world z = 0). Fixed in common/core with a depth-volume
+  regression test (hit line and the passed-note region stay inside [0,1); depth monotonic).
+- **Reversed depth (reference heritage) dropped**: conventional LESS + clear 1.0 — the default
+  D3D11 depth buffer is 24-bit fixed point, where reversed-z buys nothing; image identical.
+- **Views**: 0 = background (color+depth clear, parallax matrix), 1 = board (depth-only clear,
+  foreground matrix), 2 = overlay (reserved; overlay v1 uses bgfx debug text). All Sequential —
+  the reference's painter-ordered pass list becomes an enforceable contract; blended content
+  interleaves in view 1 with a depth-test-only no-z-write state. No cull bits anywhere (mirrored
+  mode reflects world X and would invert winding). Clear-bearing views are `touch()`ed (a view
+  with zero items skips its clear entirely).
+- **Transient budgets**: worst-case highway frame ≈ 16% of the 6 MB vertex / 6% of the 2 MB
+  index defaults — >6x headroom; `allocTransientBuffers` (all-or-nothing) per batch, drop +
+  one-time warning on failure (never partial draws — the single-alloc calls silently clamp in
+  release).
+- **Static furniture**: `bgfx::copy`-built retained VB/IB in `UniqueBgfxHandle`; destroy-after-
+  submit is safe (bgfx defers frees to the frame boundary; recreation lands next frame).
+- **Atlases**: JUCE `SoftwareImageType` ARGB is premultiplied BGRA in memory → bgfx `BGRA8`
+  natively on D3D11, no conversion; rows tight-copied (JUCE lineStride may exceed width*4).
+  Channel-scheme atlas authored fully opaque so premultiplication is the identity; glyph atlas
+  white-on-transparent, shape in alpha. CLAMP sampler, linear, no mips. Tint rides **vertex
+  color** rather than a per-draw uniform so all heads/glyphs batch into single draws.
+- **String order decision (user, 2026-07-11)**: lowest-pitched string on top is the 3D default,
+  realized via the shared projection's `invert_string_order` flag at the game's composition
+  point.
+
+Scope shipped: board face (per-string palette-colored string lines, fret lines with a heavier
+nut, inlay dots) as retained geometry; beat/measure bars (distance-fade shader, clipped to the
+active hand window); FHP runway highlight; note shadows; plain sustain rails (held at the hit
+line while sounding); open-note bars spanning the hand window; atlas-tinted note heads with the
+rolling flip (chord notes land flat) and passed-note fade, sorted far-to-near; fret-number rail
+and section labels from the runtime-rasterized glyph atlas; debug overlay v1 (frame pacing +
+clock readout via bgfx debug text); `--dev-package`/`--lefty` dev fixture path reading .rock
+and .rhp (project-wrapped) packages; dev clock publisher until plan 21's engine. The five-
+program count resolved to four (color, color_fade, texture_tint, glyph): plain color-texture has
+no Phase 3 consumer and arrives with background art. Exit evidence: an 8-string corpus chart
+(1356 notes) scrolls correctly at a locked 144 fps (avg 6.95 ms, no measurable cost over the
+empty window), lefty and string-order flags verified visually, all suites green.

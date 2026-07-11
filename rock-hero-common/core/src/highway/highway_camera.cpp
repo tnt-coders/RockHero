@@ -33,10 +33,13 @@ namespace
     // Row 1: clip.y = scale * (y - cam.y)
     projection.m[5] = scale;
     projection.m[7] = -camera.y * scale;
-    // Row 2: clip.z maps eye depth [near, far] onto [0, far] pre-divide.
+    // Row 2: clip.z maps eye depth (z - cam.z) from [near, far] onto [0, far] pre-divide, the
+    // D3D convention. The constant term must stay camera-relative: anchoring it at world Z
+    // instead (an earlier defect caught by the plan-25 Phase 3 checkpoint) near-clipped the hit
+    // line itself, because the hit line sits at world z = 0 while the camera looks from
+    // negative Z.
     projection.m[10] = metrics.far_plane / depth_range;
-    projection.m[11] = (-camera.z - metrics.near_plane) * metrics.far_plane / depth_range -
-                       (-camera.z) * projection.m[10];
+    projection.m[11] = (-camera.z - metrics.near_plane) * metrics.far_plane / depth_range;
     // Row 3: clip.w = eye depth (z - cam.z); positive for content in front of the camera.
     projection.m[14] = 1.0;
     projection.m[15] = -camera.z;

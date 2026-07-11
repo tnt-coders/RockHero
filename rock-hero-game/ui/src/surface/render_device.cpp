@@ -1,13 +1,9 @@
 #include "surface/render_device.h"
 
-#include "surface/bgfx_handle.h"
-
-#include <array>
 #include <bgfx/bgfx.h>
 #include <bgfx/platform.h>
 #include <chrono>
 #include <cstdint>
-#include <cstring>
 #include <utility>
 
 namespace rock_hero::game::ui
@@ -16,13 +12,8 @@ namespace rock_hero::game::ui
 namespace
 {
 
-// The header stores the program handle as a raw index with UINT16_MAX standing in for bgfx's
-// invalid-handle sentinel; pin that equivalence so an upstream change breaks the build, not
-// the teardown logic.
-static_assert(bgfx::kInvalidHandle == UINT16_MAX);
-
-// Neutral dark clear color (0xRRGGBBAA) so the Phase 1 window reads as an intentional surface
-// rather than an uninitialized buffer; real scene content replaces it in later phases.
+// Neutral dark clear color (0xRRGGBBAA) so the window reads as an intentional surface even when
+// no scene renderer encoded content this frame; the highway's own views draw over it.
 constexpr std::uint32_t g_clear_color = 0x1a1a22ff;
 
 // The one view id the cleared frame touches; view ordering for real passes is decided at the
@@ -71,11 +62,6 @@ RenderDeviceError::RenderDeviceError(const RenderDeviceErrorCode error_code)
         case RenderDeviceErrorCode::InitializationFailed:
         {
             message = "bgfx failed to initialize the requested render backend";
-            break;
-        }
-        case RenderDeviceErrorCode::ShaderProgramCreationFailed:
-        {
-            message = "bgfx rejected a compiled shader binary or failed to link the program";
             break;
         }
     }
@@ -128,26 +114,20 @@ RenderDevice::RenderDevice(
 {}
 
 // Single-threaded teardown mirror: plain same-thread shutdown, no render-thread drain ceremony
-// (that exists only for app-owned render threads in multithreaded mode). The program (which holds
-// the stage shaders' remaining references) must go before the instance does.
+// (that exists only for app-owned render threads in multithreaded mode). Every scene-owned bgfx
+// handle (the highway renderer's) must already be gone — structural via declaration order in
+// the shell.
 RenderDevice::~RenderDevice()
 {
     if (m_owns_device)
     {
-        if (m_program_handle != bgfx::kInvalidHandle)
-        {
-            bgfx::destroy(bgfx::ProgramHandle{m_program_handle});
-        }
         bgfx::shutdown();
     }
 }
 
-// Transfers bgfx ownership; the source keeps m_owns_device false so it tears nothing down. The
-// program handle moves too: the source must not keep a live-looking handle a later submitFrame
-// on the moved-from object could submit with.
+// Transfers bgfx ownership; the source keeps m_owns_device false so it tears nothing down.
 RenderDevice::RenderDevice(RenderDevice&& other) noexcept
     : m_owns_device{std::exchange(other.m_owns_device, false)}
-    , m_program_handle{std::exchange(other.m_program_handle, bgfx::kInvalidHandle)}
     , m_width{other.m_width}
     , m_height{other.m_height}
     , m_reset_flags{other.m_reset_flags}
@@ -162,68 +142,33 @@ void RenderDevice::resize(const std::uint32_t width, const std::uint32_t height)
     bgfx::reset(width, height, m_reset_flags);
 }
 
-// Links the surface program from compiled binaries. bgfx::copy snapshots the spans, so the
-// caller's buffers may die immediately after this returns. The stage handles are RAII-owned and
-// destroyed unconditionally at scope exit — correct on every path because destroyShaders stays
-// false (a project rule: bgfx consumes the stage handles on some createProgram failure paths but
-// not others, so the consuming flag makes correct cleanup impossible); on success the program
-// holds its own shader references and keeps the stages alive until it is destroyed.
-std::expected<void, RenderDeviceError> RenderDevice::createSurfaceProgram(
-    const std::span<const std::byte> vertex_shader,
-    const std::span<const std::byte> fragment_shader)
+std::uint32_t RenderDevice::width() const noexcept
 {
-    const UniqueBgfxHandle<bgfx::ShaderHandle> vertex_handle{bgfx::createShader(
-        bgfx::copy(vertex_shader.data(), static_cast<std::uint32_t>(vertex_shader.size())))};
-    const UniqueBgfxHandle<bgfx::ShaderHandle> fragment_handle{bgfx::createShader(
-        bgfx::copy(fragment_shader.data(), static_cast<std::uint32_t>(fragment_shader.size())))};
-    if (!vertex_handle.isValid() || !fragment_handle.isValid())
-    {
-        return std::unexpected{
-            RenderDeviceError{RenderDeviceErrorCode::ShaderProgramCreationFailed}
-        };
-    }
-
-    const bgfx::ProgramHandle program =
-        bgfx::createProgram(vertex_handle.get(), fragment_handle.get(), false);
-    if (!bgfx::isValid(program))
-    {
-        return std::unexpected{
-            RenderDeviceError{RenderDeviceErrorCode::ShaderProgramCreationFailed}
-        };
-    }
-
-    m_program_handle = program.idx;
-    return {};
+    return m_width;
 }
 
-namespace
+std::uint32_t RenderDevice::height() const noexcept
 {
-
-// One vertex of the surface test triangle: clip-space position plus packed ABGR color.
-struct SurfaceVertex
-{
-    float x;
-    float y;
-    float z;
-    std::uint32_t abgr;
-};
-
-// Vertex layout matching SurfaceVertex and the surface_flat shader's inputs. Built lazily
-// because bgfx::VertexLayout::begin needs the renderer type, which exists only after init.
-[[nodiscard]] const bgfx::VertexLayout& surfaceVertexLayout()
-{
-    static const bgfx::VertexLayout g_layout = [] {
-        bgfx::VertexLayout layout;
-        layout.begin()
-            .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
-            .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true)
-            .end();
-        return layout;
-    }();
-    return g_layout;
+    return m_height;
 }
 
-} // namespace
+// bgfx's built-in debug text is a global overlay drawn during frame(), independent of views —
+// the cheapest possible overlay v1 until plan 20 Phase 4's diagnostics layer replaces it.
+void RenderDevice::setDebugTextEnabled(const bool enabled)
+{
+    bgfx::setDebug(enabled ? BGFX_DEBUG_TEXT : BGFX_DEBUG_NONE);
+}
+
+void RenderDevice::clearDebugText()
+{
+    bgfx::dbgTextClear();
+}
+
+void RenderDevice::printDebugText(
+    const std::uint16_t column, const std::uint16_t row, const std::string& text)
+{
+    bgfx::dbgTextPrintf(column, row, 0x0f, "%s", text.c_str());
+}
 
 // Converts bgfx's tick-based frame-period measurement to nanoseconds. getStats() is valid right
 // after frame() on the API thread; cpuTimeFrame is stamped inside the frame() call that just
@@ -241,9 +186,9 @@ std::chrono::nanoseconds RenderDevice::lastCpuFrameTime() const
     };
 }
 
-// Clears, draws the surface program's test triangle when one is loaded, and presents. touch()
-// submits an empty draw so the view's clear executes even with no geometry; frame() is where
-// vsync blocks, pacing the loop.
+// Executes the backstop clear plus every view scene renderers encoded, then presents. touch()
+// submits an empty draw so the clear runs even when nothing was encoded; frame() is where vsync
+// blocks, pacing the loop.
 void RenderDevice::submitFrame()
 {
     bgfx::setViewRect(
@@ -253,31 +198,6 @@ void RenderDevice::submitFrame()
         static_cast<std::uint16_t>(m_width),
         static_cast<std::uint16_t>(m_height));
     bgfx::touch(g_default_view);
-
-    if (m_program_handle != bgfx::kInvalidHandle)
-    {
-        // Transient geometry: three clip-space vertices re-uploaded per frame. Colors are packed
-        // ABGR (bgfx's normalized-Uint8 color convention). The vertices are usable as clip-space
-        // positions only because no view or model transform is ever set — bgfx defaults both to
-        // identity; a future pass that sets view transforms must not reuse view 0 for this draw.
-        constexpr std::array<SurfaceVertex, 3> vertices{
-            SurfaceVertex{.x = 0.0F, .y = 0.5F, .z = 0.0F, .abgr = 0xff408080},
-            SurfaceVertex{.x = 0.5F, .y = -0.5F, .z = 0.0F, .abgr = 0xff804080},
-            SurfaceVertex{.x = -0.5F, .y = -0.5F, .z = 0.0F, .abgr = 0xff808040},
-        };
-
-        const bgfx::VertexLayout& layout = surfaceVertexLayout();
-        const auto vertex_count = static_cast<std::uint32_t>(vertices.size());
-        if (bgfx::getAvailTransientVertexBuffer(vertex_count, layout) >= vertex_count)
-        {
-            bgfx::TransientVertexBuffer transient_buffer{};
-            bgfx::allocTransientVertexBuffer(&transient_buffer, vertex_count, layout);
-            std::memcpy(transient_buffer.data, vertices.data(), sizeof(vertices));
-            bgfx::setVertexBuffer(0, &transient_buffer);
-            bgfx::setState(BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A);
-            bgfx::submit(g_default_view, bgfx::ProgramHandle{m_program_handle});
-        }
-    }
 
     bgfx::frame();
 }
