@@ -174,8 +174,8 @@ struct PosColorUvVertex
     ArgbColor result = 0;
     for (const unsigned shift : {24U, 16U, 8U, 0U})
     {
-        const double a = static_cast<double>((from >> shift) & 0xFFU);
-        const double b = static_cast<double>((to >> shift) & 0xFFU);
+        const auto a = static_cast<double>((from >> shift) & 0xFFU);
+        const auto b = static_cast<double>((to >> shift) & 0xFFU);
         result |= static_cast<ArgbColor>(std::clamp(a + ((b - a) * w), 0.0, 255.0)) << shift;
     }
     return result;
@@ -1031,8 +1031,12 @@ void HighwayRenderer::Impl::draw(
         for (int fret = 1; fret <= g_face_fret_count; ++fret)
         {
             const int cell = fret - 1;
-            const float u0 = static_cast<float>(cell % g_inlay_columns) / g_inlay_columns;
-            const float v0 = static_cast<float>(cell / g_inlay_columns) / g_inlay_rows;
+            // Named row/column: the integer division is the grid addressing, kept out of the
+            // float expressions on purpose.
+            const int cell_column = cell % g_inlay_columns;
+            const int cell_row = cell / g_inlay_columns;
+            const float u0 = static_cast<float>(cell_column) / g_inlay_columns;
+            const float v0 = static_cast<float>(cell_row) / g_inlay_rows;
             const float u1 = u0 + (1.0F / g_inlay_columns);
             const float v1 = v0 + (1.0F / g_inlay_rows);
             const double low_x = common::core::highwayFretLineX(fret - 1, metrics, mirrored);
