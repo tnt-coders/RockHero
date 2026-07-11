@@ -9,6 +9,7 @@
 #include <expected>
 #include <optional>
 #include <string>
+#include <vector>
 
 // SDL3's window type is an opaque C struct, so a forward declaration keeps SDL headers out of
 // every consumer of this private header.
@@ -63,6 +64,30 @@ struct [[nodiscard]] GameWindowError
     GameWindowError(GameWindowErrorCode error_code, std::string message_text);
 };
 
+/*!
+\brief Game-meaningful key actions translated from the platform event queue.
+
+The window translates raw key events into these so no SDL types cross the frame loop; today the
+set covers the dev-diagnostics layer (plan 20 Phase 4), and plan 26's menu input layer widens it.
+*/
+enum class GameKey : std::uint8_t
+{
+    /*! \brief F1 — show or hide the diagnostics overlay. */
+    ToggleDiagnosticsOverlay,
+
+    /*! \brief F2 — flip the autoplay stub flag. */
+    ToggleAutoplay,
+
+    /*! \brief F5 — reload the loaded chart from its on-disk source. */
+    ReloadChart,
+
+    /*! \brief Page Up — seek to the previous chart section. */
+    SeekPreviousSection,
+
+    /*! \brief Page Down — seek to the next chart section. */
+    SeekNextSection,
+};
+
 /*! \brief Frame-relevant events observed by one \ref GameWindow::pollEvents call. */
 struct GameWindowEvents
 {
@@ -71,6 +96,9 @@ struct GameWindowEvents
 
     /*! \brief Present when the window's pixel size changed; carries the new backbuffer size. */
     std::optional<PixelSize> pixel_size_changed;
+
+    /*! \brief Key actions pressed this frame, in event order (auto-repeats filtered out). */
+    std::vector<GameKey> keys_pressed;
 };
 
 /*!

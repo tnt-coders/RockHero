@@ -103,12 +103,20 @@ try
 {
     using rock_hero::common::core::Logger;
 
+    // The dev flag activates the diagnostics layer (plan 20 Phase 4, 20-Q5: A) and lowers the
+    // runtime log level so the per-frame trace instrumentation records.
+    const bool dev_mode = rock_hero::game::app::hasFlag("--dev", argc, argv);
+
     const std::filesystem::path log_file = rock_hero::game::app::gameLogFile();
-    const std::expected<void, rock_hero::common::core::LoggerError> logging_result =
-        Logger::init(Logger::Config{.log_file = log_file});
+    const std::expected<void, rock_hero::common::core::LoggerError> logging_result = Logger::init(
+        Logger::Config{
+            .log_file = log_file,
+            .default_level = dev_mode ? Logger::Level::Trace : Logger::Level::Info,
+        });
     if (logging_result.has_value())
     {
-        RH_LOG_INFO("game.app", "Rock Hero started log_file={:?}", log_file.string());
+        RH_LOG_INFO(
+            "game.app", "Rock Hero started log_file={:?} dev_mode={}", log_file.string(), dev_mode);
     }
     else
     {
@@ -122,6 +130,7 @@ try
     options.frame_limit = rock_hero::game::app::smokeFrameLimit(argc, argv);
     options.dev_package = rock_hero::game::app::devPackagePath(argc, argv);
     options.lefty = rock_hero::game::app::hasFlag("--lefty", argc, argv);
+    options.dev_mode = dev_mode;
     const int exit_code = rock_hero::game::ui::GameShell{}.run(options);
 
     if (logging_result.has_value())

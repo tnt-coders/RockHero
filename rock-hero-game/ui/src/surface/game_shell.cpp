@@ -1,6 +1,8 @@
 #include "surface/game_shell.h"
 
+#include "dev/dev_session.h"
 #include "highway/highway_renderer.h"
+#include "overlay/diagnostics_overlay.h"
 #include "surface/game_window.h"
 #include "surface/juce_message_pump.h"
 #include "surface/render_device.h"
@@ -15,17 +17,14 @@
 #include <optional>
 #include <print>
 #include <rock_hero/common/audio/clock/playback_clock_snapshot.h>
-#include <rock_hero/common/core/highway/highway_projection.h>
-#include <rock_hero/common/core/highway/highway_view_state.h>
-#include <rock_hero/common/core/package/rock_song_package.h>
 #include <rock_hero/common/core/shared/logger.h>
-#include <rock_hero/common/core/song/song.h>
+#include <rock_hero/game/core/diagnostics/diagnostics.h>
 #include <rock_hero/game/core/frame_clock/frame_clock.h>
 #include <rock_hero/game/core/resources/game_resources.h>
 #include <string>
 #include <string_view>
-#include <system_error>
 #include <utility>
+#include <vector>
 
 namespace rock_hero::game::ui
 {
@@ -70,83 +69,40 @@ constexpr int g_max_juce_messages_per_frame = 256;
     return std::move(*resources);
 }
 
-// Loads the dev package's first charted arrangement into a highway view state (plan 25 Phase
-// 3's fixture path; plan 26's library replaces this for players, plan 21's session for real
-// playback). Archives extract into a scratch workspace that is removed immediately after the
-// read — the projected view state is fully materialized in memory.
-[[nodiscard]] std::optional<common::core::HighwayViewState> loadDevViewState(
-    const std::filesystem::path& package_path, const bool lefty)
+// Builds the diagnostics overlay from the packaged color program; a failure only costs the
+// overlay (warn and run on), never the game.
+[[nodiscard]] std::optional<DiagnosticsOverlay> makeDiagnosticsOverlay(
+    const core::GameResources& resources)
 {
-    // Editor project packages (.rhp) wrap the song content in a song/ subdirectory beside
-    // project.json; bare song packages carry song.json at the root. Accept both.
-    const auto song_content_root = [](const std::filesystem::path& root) {
-        std::error_code probe_error;
-        return std::filesystem::exists(root / "song" / "song.json", probe_error) ? root / "song"
-                                                                                 : root;
-    };
-
-    const auto read_song =
-        [&]() -> std::expected<common::core::Song, common::core::SongPackageError> {
-        std::error_code probe_error;
-        if (std::filesystem::is_directory(package_path, probe_error))
-        {
-            return common::core::readRockSongPackageDirectory(song_content_root(package_path));
-        }
-        const std::filesystem::path workspace =
-            std::filesystem::temp_directory_path() /
-            ("rock-hero-dev-" +
-             std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
-        std::filesystem::create_directories(workspace);
-        auto extracted = common::core::readRockSongPackage(package_path, workspace);
-        if (!extracted.has_value() &&
-            std::filesystem::exists(workspace / "song" / "song.json", probe_error))
-        {
-            extracted = common::core::readRockSongPackageDirectory(workspace / "song");
-        }
-        std::error_code cleanup_error;
-        std::filesystem::remove_all(workspace, cleanup_error);
-        return extracted;
-    };
-    const std::expected<common::core::Song, common::core::SongPackageError> song = read_song();
-
-    if (!song.has_value())
+    const auto vertex_bytes = resources.shaderBytes(
+        core::GameShaderProgram::Color, core::ShaderStage::Vertex, core::ShaderBackend::Direct3D11);
+    const auto fragment_bytes = resources.shaderBytes(
+        core::GameShaderProgram::Color,
+        core::ShaderStage::Fragment,
+        core::ShaderBackend::Direct3D11);
+    if (!vertex_bytes.has_value() || !fragment_bytes.has_value())
     {
-        std::println(stderr, "rock-hero: dev package load failed: {}", song.error().message);
+        RH_LOG_WARNING(
+            "game.diagnostics",
+            "overlay disabled: {}",
+            vertex_bytes.has_value() ? fragment_bytes.error().message
+                                     : vertex_bytes.error().message);
         return std::nullopt;
     }
-
-    for (const common::core::Arrangement& arrangement : song->arrangements)
+    std::optional<DiagnosticsOverlay> overlay =
+        DiagnosticsOverlay::create(*vertex_bytes, *fragment_bytes);
+    if (!overlay.has_value())
     {
-        if (!arrangement.chart.has_value())
-        {
-            continue;
-        }
-        // Lowest-pitched string on top is the 3D notation's default (user decision 2026-07-11,
-        // recorded in plan 25); the shared projection's invert flag realizes it, and plans 26/27
-        // surface the per-player setting later.
-        common::core::HighwayViewState state = common::core::makeHighwayViewState(
-            arrangement,
-            song->tempo_map,
-            common::core::HighwayDisplayOptions{.mirrored = lefty, .invert_string_order = true});
-        RH_LOG_INFO(
-            "game.highway",
-            "dev package loaded notes={} beats={} sections={} lefty={}",
-            state.notes.size(),
-            state.beats.size(),
-            state.sections.size(),
-            lefty);
-        return state;
+        RH_LOG_WARNING("game.diagnostics", "overlay disabled: color program failed to link");
     }
-
-    std::println(stderr, "rock-hero: dev package has no charted arrangement");
-    return std::nullopt;
+    return overlay;
 }
 
 // Emits the Phase 3 timing channels: a per-frame trace record (dormant at the logger's default
-// Info runtime level until the dev-diagnostics flag raises verbosity — plan 20 Phase 4) and a
-// once-per-second pacing summary at Info so steady-state logs stay readable. mirror_age_ns
-// logs -1 while the playback clock has never published. Returns the pacing summary when this
-// frame closed a window so the overlay can display it.
+// Info runtime level; the --dev flag lowers the level to Trace) and a once-per-second pacing
+// summary at Info so steady-state logs stay readable. mirror_age_ns logs -1 while the playback
+// clock has never published. Returns the pacing summary when this frame closed a window so the
+// overlay can display it.
 std::optional<core::FramePacingSummary> logFrameInstrumentation(
     const RenderDevice& device, const core::FrameClockSample& frame_sample,
     const std::chrono::nanoseconds frame_boundary_time,
@@ -187,6 +143,35 @@ std::optional<core::FramePacingSummary> logFrameInstrumentation(
     return summary;
 }
 
+// Typed-overload executor for the diagnostics layer's requested side effects; the shell owns the
+// session and renderer, so intent execution lives here rather than in the headless controller.
+struct DiagnosticsIntentExecutor
+{
+    std::optional<DevSession>& dev_session;
+    HighwayRenderer& renderer;
+    std::chrono::nanoseconds now;
+
+    void operator()(const core::ReloadChartIntent& /*intent*/) const
+    {
+        if (dev_session.has_value())
+        {
+            std::optional<common::core::HighwayViewState> state = dev_session->reload(now);
+            if (state.has_value())
+            {
+                renderer.setViewState(std::move(*state));
+            }
+        }
+    }
+
+    void operator()(const core::SeekToSectionIntent& intent) const
+    {
+        if (dev_session.has_value())
+        {
+            dev_session->seekToSection(intent.section_index, now);
+        }
+    }
+};
+
 } // namespace
 
 // Composes the L2 loop. Declaration order is the teardown contract, in reverse: the JUCE runtime
@@ -219,6 +204,7 @@ int GameShell::run(const GameShellOptions& options)
             .width = initial_size.width,
             .height = initial_size.height,
             .vsync = true,
+            .debug = options.dev_mode,
         });
     if (!device.has_value())
     {
@@ -226,8 +212,8 @@ int GameShell::run(const GameShellOptions& options)
         return 1;
     }
 
-    // The highway renderer owns every scene-side bgfx handle; declared after the device so it is
-    // destroyed first (all handles die before bgfx::shutdown — the wrapper's ordering contract).
+    // Scene renderers own bgfx handles, so they are declared after the device and destroyed
+    // first (all handles die before bgfx::shutdown — the wrapper's ordering contract).
     std::optional<core::GameResources> resources = makeGameResources();
     if (!resources.has_value())
     {
@@ -240,22 +226,31 @@ int GameShell::run(const GameShellOptions& options)
         std::println(stderr, "rock-hero: {}", renderer.error().message);
         return 1;
     }
+    std::optional<DiagnosticsOverlay> overlay = makeDiagnosticsOverlay(*resources);
+
+    // Dev-diagnostics layer (plan 20 Phase 4): compiled into every build, active only behind the
+    // runtime flag; every mutation is gated inside the controller.
+    core::DiagnosticsController diagnostics{options.dev_mode};
 
     // Dev fixture path: load the requested package's first charted arrangement and scroll it
-    // against a development clock publisher (plan 21's engine replaces both).
-    bool dev_clock_active = false;
+    // against the session's stand-in clock (plan 21's engine replaces both).
+    std::optional<DevSession> dev_session;
     if (options.dev_package.has_value())
     {
-        std::optional<common::core::HighwayViewState> dev_state =
-            loadDevViewState(*options.dev_package, options.lefty);
-        if (dev_state.has_value())
+        dev_session = DevSession::create(
+            *options.dev_package,
+            options.lefty,
+            std::chrono::steady_clock::now().time_since_epoch());
+        if (dev_session.has_value())
         {
-            renderer->setViewState(std::move(*dev_state));
-            dev_clock_active = true;
+            std::optional<common::core::HighwayViewState> dev_state =
+                dev_session->takeLoadedViewState();
+            if (dev_state.has_value())
+            {
+                renderer->setViewState(std::move(*dev_state));
+            }
         }
     }
-
-    device->setDebugTextEnabled(true);
 
     // The L2 frame loop: freshest input first, JUCE callbacks settled before the frame is built,
     // then the vsynced present paces the whole loop.
@@ -263,8 +258,7 @@ int GameShell::run(const GameShellOptions& options)
     core::FramePacingStats pacing_stats;
     std::optional<core::FramePacingSummary> last_pacing_summary;
     std::chrono::nanoseconds previous_frame_boundary{0};
-    const std::chrono::nanoseconds dev_clock_start =
-        std::chrono::steady_clock::now().time_since_epoch();
+    double last_song_seconds = 0.0;
     std::uint64_t frames_submitted = 0;
     while (true)
     {
@@ -277,6 +271,53 @@ int GameShell::run(const GameShellOptions& options)
         {
             device->resize(events.pixel_size_changed->width, events.pixel_size_changed->height);
         }
+        for (const GameKey key : events.keys_pressed)
+        {
+            switch (key)
+            {
+                case GameKey::ToggleDiagnosticsOverlay:
+                {
+                    diagnostics.toggleOverlay();
+                    break;
+                }
+                case GameKey::ToggleAutoplay:
+                {
+                    diagnostics.toggleAutoplay();
+                    break;
+                }
+                case GameKey::ReloadChart:
+                {
+                    diagnostics.requestChartReload();
+                    break;
+                }
+                case GameKey::SeekPreviousSection:
+                {
+                    if (dev_session.has_value())
+                    {
+                        const std::optional<std::size_t> section =
+                            dev_session->sectionBefore(last_song_seconds);
+                        if (section.has_value())
+                        {
+                            diagnostics.requestSeekToSection(*section);
+                        }
+                    }
+                    break;
+                }
+                case GameKey::SeekNextSection:
+                {
+                    if (dev_session.has_value())
+                    {
+                        const std::optional<std::size_t> section =
+                            dev_session->sectionAfter(last_song_seconds);
+                        if (section.has_value())
+                        {
+                            diagnostics.requestSeekToSection(*section);
+                        }
+                    }
+                    break;
+                }
+            }
+        }
 
         drainPendingJuceMessages(g_max_juce_messages_per_frame);
 
@@ -284,25 +325,42 @@ int GameShell::run(const GameShellOptions& options)
         // draws, and the clock snapshot is read once so every drawable shares one coherent song
         // time. No engine lives in the game process yet — plan 21 (G21-TRACKTION-GO, closed)
         // composes the real IPlaybackClock — so the loop consumes either an unpublished snapshot
-        // or, in dev-package mode, a locally published stand-in that plays from process start.
-        // The sanctioned song-time path stays live end to end; song time never comes from wall
-        // clock or frame counts inside the loop (architecture.md "Timing and Latency").
+        // or, in dev-package mode, the session's stand-in. The sanctioned song-time path stays
+        // live end to end; song time never comes from wall clock or frame counts inside the loop
+        // (architecture.md "Timing and Latency").
         const std::chrono::nanoseconds frame_sample_time =
             std::chrono::steady_clock::now().time_since_epoch();
-        common::audio::PlaybackClockSnapshot snapshot{};
-        if (dev_clock_active)
+
+        // Requested diagnostics side effects run at the frame stamp, before content is built, so
+        // a reload or seek is visible in the same frame that acknowledged it.
+        for (const core::DiagnosticsIntent& intent : diagnostics.takePendingIntents())
         {
-            snapshot = common::audio::PlaybackClockSnapshot{
-                .position =
-                    common::core::TimePosition{
-                        static_cast<double>((frame_sample_time - dev_clock_start).count()) / 1.0e9
-                    },
-                .monotonic_capture_time = frame_sample_time,
-                .playback_rate = 1.0,
-                .playing = true,
-            };
+            std::visit(
+                DiagnosticsIntentExecutor{
+                    .dev_session = dev_session, .renderer = *renderer, .now = frame_sample_time
+                },
+                intent);
+        }
+
+        // Chart hot-reload: settled on-disk edits reproject into the renderer (dev mode only —
+        // the watcher polls nothing without a dev session, and players run without dev mode).
+        if (options.dev_mode && dev_session.has_value())
+        {
+            std::optional<common::core::HighwayViewState> reloaded =
+                dev_session->pollForReload(frame_sample_time);
+            if (reloaded.has_value())
+            {
+                renderer->setViewState(std::move(*reloaded));
+            }
+        }
+
+        common::audio::PlaybackClockSnapshot snapshot{};
+        if (dev_session.has_value())
+        {
+            snapshot = dev_session->clockSnapshotAt(frame_sample_time);
         }
         const core::FrameClockSample frame_sample = frame_clock.sample(snapshot, frame_sample_time);
+        last_song_seconds = frame_sample.song_time.seconds;
 
         renderer->draw(
             frame_sample.song_time.seconds,
@@ -310,31 +368,53 @@ int GameShell::run(const GameShellOptions& options)
             device->width(),
             device->height());
 
-        // Overlay v1: frame pacing and playback-clock drift readouts over the scene.
-        device->clearDebugText();
-        if (last_pacing_summary.has_value())
+        // Diagnostics overlay: the frame-time graph plus the debug-text readouts.
+        const bool overlay_visible = diagnostics.state().overlay_visible;
+        device->setDebugTextEnabled(overlay_visible);
+        if (overlay.has_value())
         {
+            overlay->recordFrameDelta(frame_sample.frame_delta);
+            if (overlay_visible)
+            {
+                overlay->draw(device->width(), device->height());
+            }
+        }
+        device->clearDebugText();
+        if (overlay_visible)
+        {
+            if (last_pacing_summary.has_value())
+            {
+                device->printDebugText(
+                    1,
+                    1,
+                    std::format(
+                        "frame avg {:.2f} ms  max {:.2f} ms  ({} fps)",
+                        static_cast<double>(last_pacing_summary->average_delta.count()) / 1.0e6,
+                        static_cast<double>(last_pacing_summary->max_delta.count()) / 1.0e6,
+                        last_pacing_summary->frame_count));
+            }
+            // Clock panel: song time, mirror age, and the extrapolation drift (rendered song
+            // time minus the raw snapshot position — how far ahead of the mirror the frame ran).
             device->printDebugText(
                 1,
-                1,
+                2,
                 std::format(
-                    "frame avg {:.2f} ms  max {:.2f} ms  ({} fps)",
-                    static_cast<double>(last_pacing_summary->average_delta.count()) / 1.0e6,
-                    static_cast<double>(last_pacing_summary->max_delta.count()) / 1.0e6,
-                    last_pacing_summary->frame_count));
+                    "song {:.3f} s  mirror {}  drift {:+.2f} ms  {}",
+                    frame_sample.song_time.seconds,
+                    frame_sample.snapshot_age.has_value()
+                        ? std::format(
+                              "{:.2f} ms",
+                              static_cast<double>(frame_sample.snapshot_age->count()) / 1.0e6)
+                        : std::string{"unpublished"},
+                    (frame_sample.song_time.seconds - snapshot.position.seconds) * 1.0e3,
+                    frame_sample.playing ? "playing" : "stopped"));
+            device->printDebugText(
+                1,
+                3,
+                std::format(
+                    "F1 overlay  F2 autoplay{}  F5 reload  PgUp/PgDn section",
+                    diagnostics.state().autoplay_enabled ? " [AUTOPLAY]" : ""));
         }
-        device->printDebugText(
-            1,
-            2,
-            std::format(
-                "song {:.3f} s  mirror {}  {}",
-                frame_sample.song_time.seconds,
-                frame_sample.snapshot_age.has_value()
-                    ? std::format(
-                          "{:.2f} ms",
-                          static_cast<double>(frame_sample.snapshot_age->count()) / 1.0e6)
-                    : std::string{"unpublished"},
-                frame_sample.playing ? "playing" : "stopped"));
 
         device->submitFrame();
         ++frames_submitted;
