@@ -29,11 +29,16 @@ mechanism — sampling song time from the playback clock while playing (block-qu
 reads shimmer on a moving field) and from the transport exactly while paused, so a paused seek
 always lands.
 
-Lifecycle: attach() brings the whole stack up against the current peer and detach() tears it
-down renderer-first; the preview window drives both around show/hide because hiding a JUCE
-top-level destroys its native peer (and with it the embedded child window bgfx renders into).
+Lifecycle: attach() brings the stack up against the current peer on first open and merely
+resumes frame ticks on later opens; suspend() stops the ticks when the window hides (JUCE keeps
+a hidden top-level's native peer — and with it our child window — alive, but vblank dispatch is
+visibility-blind, so the ticks must stop explicitly). The bgfx device deliberately lives until
+detach() at destruction: bgfx cannot be re-initialized after shutdown in the same process
+(bgfx's renderFrame-before-init single-thread pin trips an internal assert on the second cycle),
+so one init per editor process is a correctness requirement, not a cache.
 */
-class PreviewSurface final : public juce::Component
+class PreviewSurface final : public juce::Component,
+                             private juce::ComponentPeer::ScaleFactorListener
 {
 public:
     /*!
@@ -53,8 +58,11 @@ public:
     PreviewSurface(PreviewSurface&&) = delete;
     PreviewSurface& operator=(PreviewSurface&&) = delete;
 
-    /*! \brief Creates the child window, the bgfx device, and the renderer; starts frame ticks. */
+    /*! \brief Brings the render stack up on first open, resumes frame ticks on later opens. */
     void attach();
+
+    /*! \brief Stops frame ticks while the window hides; the render stack stays alive. */
+    void suspend();
 
     /*! \brief Stops frame ticks and destroys renderer, device, and child window, in that order. */
     void detach();
@@ -71,7 +79,14 @@ public:
     /*! \brief Repositions the embedded child window when the component moves. */
     void moved() override;
 
+    /*! \brief Paints the fallback background (visible only when the render stack is down). */
+    void paint(juce::Graphics& graphics) override;
+
 private:
+    // Monitor-scale changes keep the logical bounds constant, so resized()/moved() never fire;
+    // this is the only reliable signal to recompute the physical child rect and backbuffer.
+    void nativeScaleFactorChanged(double new_scale_factor) override;
+
     // Renders one frame: clock sample, highway draw, present.
     void renderFrame();
 
@@ -96,6 +111,9 @@ private:
 
     // Applied to the renderer on the next frame after a state swap.
     bool m_state_dirty{false};
+
+    // One warning per attach when the embedded child window unexpectedly disappears.
+    bool m_reported_lost_child{false};
 
     common::audio::PlaybackClockExtrapolator m_extrapolator;
 

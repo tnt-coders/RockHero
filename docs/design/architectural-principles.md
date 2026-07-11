@@ -680,9 +680,12 @@ Suggested shape:
 
 - `rock-hero-common/core/tests`
 - `rock-hero-common/audio/tests`
+- `rock-hero-common/ui/tests` for shared presentation data and the render stack's headless paths
 - `rock-hero-editor/core/tests`
 - `rock-hero-editor/ui/tests` for non-GUI or narrowly scoped GUI wiring checks
-- `rock-hero-game/core/tests`, `rock-hero-game/audio/tests`, and `rock-hero-game/ui/tests`
+- `rock-hero-game/core/tests`, plus `rock-hero-game/audio/tests` and `rock-hero-game/ui/tests`
+  as reserved homes once those modules carry testable game-owned behavior (the render-stack
+  suites moved to `rock-hero-common/ui/tests` with the shared renderer)
 
 Register them with `ctest`, but keep most of them free from hardware and windowing requirements.
 

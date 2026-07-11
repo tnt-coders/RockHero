@@ -22,8 +22,10 @@ class PreviewSurface;
 arrangement.
 
 Owned by EditorView like the other secondary windows and toggled from the View menu (or F3).
-Show and hide drive the render surface's attach/detach: hiding a JUCE top-level destroys its
-native peer, so the GPU stack is rebuilt per open rather than kept against a dead window handle.
+Show resumes the render surface and hide suspends its frame ticks: a hidden JUCE top-level
+keeps its native peer (and the embedded render child) alive, but the vblank feed is
+visibility-blind, so the ticks stop explicitly while the window is away. The GPU stack itself
+lives from first open until destruction because bgfx cannot re-initialize in-process.
 Transport keys pressed while the preview has focus forward to the main view (44-Q4), so
 play/pause works without refocusing the editor.
 */
@@ -51,10 +53,10 @@ public:
     PreviewWindow(PreviewWindow&&) = delete;
     PreviewWindow& operator=(PreviewWindow&&) = delete;
 
-    /*! \brief Shows the window and brings the render surface up. */
+    /*! \brief Shows the window and brings the render surface up (or resumes its ticks). */
     void open();
 
-    /*! \brief Tears the render surface down and hides the window. */
+    /*! \brief Suspends the render surface's frame ticks and hides the window. */
     void close();
 
     /*!

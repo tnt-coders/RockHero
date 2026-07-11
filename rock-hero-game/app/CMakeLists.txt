@@ -41,9 +41,9 @@ get_target_property(rock_hero_game_staged_shaders rock_hero_game_shaders ROCK_HE
 # 44-Q3 outcome: shared asset sources under common, deployed per product). The glob feeds the
 # stamp's dependency list so an asset edit re-runs the copy; adding a file still needs a
 # reconfigure, which asset drops rarely do without one.
-set(rock_hero_shared_texture_dir
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../rock-hero-common/ui/resources/textures")
-file(GLOB_RECURSE rock_hero_shared_texture_files "${rock_hero_shared_texture_dir}/*")
+set(rock_hero_shared_texture_dir "${CMAKE_SOURCE_DIR}/rock-hero-common/ui/resources/textures")
+file(GLOB_RECURSE rock_hero_shared_texture_files CONFIGURE_DEPENDS
+     "${rock_hero_shared_texture_dir}/*")
 set(rock_hero_game_resources_stamp "${CMAKE_CURRENT_BINARY_DIR}/resources-deployed.stamp")
 add_custom_command(
     OUTPUT "${rock_hero_game_resources_stamp}"

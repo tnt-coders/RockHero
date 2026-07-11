@@ -23,7 +23,10 @@ namespace rock_hero::common::ui
 namespace
 {
 
-// The three fixed render views, executed in id order (plan 25 Phase 3 checkpoint).
+// The three fixed render views, executed in id order (plan 25 Phase 3 checkpoint). View 0 is
+// shared with RenderDevice's backstop (its g_default_view): the device touches it so a frame
+// with no scene still clears and presents, and this renderer's per-frame setViewClear wins
+// whenever a scene draws — nothing else may reconfigure view 0.
 constexpr bgfx::ViewId g_background_view = 0;
 constexpr bgfx::ViewId g_board_view = 1;
 constexpr bgfx::ViewId g_overlay_view = 2;
@@ -58,6 +61,14 @@ constexpr std::uint64_t g_blended_state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRIT
 constexpr std::uint64_t g_overlay_state =
     BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_BLEND_ALPHA;
 
+// JUCE premultiplies real-alpha PNGs at decode, so textures with genuine transparency (the
+// inlay skin) carry rgb*a texels and must composite with the premultiplied blend — straight
+// SRC_ALPHA would apply alpha twice and darken every anti-aliased edge. The channel-scheme and
+// glyph atlases are immune (opaque alpha / alpha-only sampling).
+constexpr std::uint64_t g_premultiplied_state =
+    BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_DEPTH_TEST_LESS |
+    BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE, BGFX_STATE_BLEND_INV_SRC_ALPHA) | BGFX_STATE_MSAA;
+
 // How many fret slots the board face draws; charts cap at g_max_fret but the reference draws a
 // fixed neck.
 constexpr int g_face_fret_count = 24;
@@ -85,7 +96,9 @@ struct PosColorUvVertex
     float v;
 };
 
-// Lazily built layouts (bgfx::VertexLayout::begin needs the renderer type, post-init only).
+// Lazily built layouts. begin()'s default RendererType::Noop merely selects an attribute-size
+// table shared with D3D11 (it never consults the live context), so building these is safe at
+// any time; laziness just keeps the construction in one place.
 [[nodiscard]] const bgfx::VertexLayout& posColorLayout()
 {
     static const bgfx::VertexLayout g_layout = [] {
@@ -348,6 +361,22 @@ struct HighwayRenderer::Impl
     {
         if (vertices.empty())
         {
+            return;
+        }
+        // The batch builders index with 16-bit bases: past 65535 vertices the bases would wrap
+        // and render garbage silently, so an oversized batch (malformed input; unreachable for
+        // real charts) is dropped loudly instead.
+        if (vertices.size() > 65535 || (texture != nullptr && !bgfx::isValid(*texture)))
+        {
+            if (!reported_transient_drop)
+            {
+                reported_transient_drop = true;
+                RH_LOG_WARNING(
+                    "common.highway",
+                    "unsubmittable batch dropped (vertices={}, texture_valid={})",
+                    vertices.size(),
+                    texture == nullptr || bgfx::isValid(*texture));
+            }
             return;
         }
         bgfx::TransientVertexBuffer tvb{};
@@ -772,17 +801,19 @@ void HighwayRenderer::Impl::draw(
             const double z1 = time_to_z(std::min(note.end_seconds, span_end_seconds));
             if (z1 > z0)
             {
-                const double x =
-                    note.fret > 0 ? common::core::highwayNoteCenterX(note.fret, metrics, mirrored)
-                                  : (common::core::highwayFretLineX(
-                                         activeFhpFretLines(state, note.start_seconds).first,
-                                         metrics,
-                                         mirrored) +
-                                     common::core::highwayFretLineX(
-                                         activeFhpFretLines(state, note.start_seconds).second,
-                                         metrics,
-                                         mirrored)) /
-                                        2.0;
+                double x = 0.0;
+                if (note.fret > 0)
+                {
+                    x = common::core::highwayNoteCenterX(note.fret, metrics, mirrored);
+                }
+                else
+                {
+                    const auto [rail_low, rail_high] =
+                        activeFhpFretLines(state, note.start_seconds);
+                    x = (common::core::highwayFretLineX(rail_low, metrics, mirrored) +
+                         common::core::highwayFretLineX(rail_high, metrics, mirrored)) /
+                        2.0;
+                }
                 const std::uint32_t tail_color = packAbgr(style.tail, 0.75);
                 pushQuad(
                     rail_vertices,
@@ -1052,7 +1083,14 @@ void HighwayRenderer::Impl::draw(
                 makeUvVertex(x0, face_top_y, 0.0, white, u0, v0));
         }
         const bgfx::TextureHandle inlays = inlay_texture.get();
-        submitBatch(vertices, indices, posColorUvLayout(), texture_program.get(), &inlays);
+        submitBatch(
+            vertices,
+            indices,
+            posColorUvLayout(),
+            texture_program.get(),
+            &inlays,
+            g_board_view,
+            g_premultiplied_state);
     }
 
     // --- Fret numbers and section labels through the glyph atlas. ---
