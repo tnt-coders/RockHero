@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
@@ -150,9 +151,22 @@ public:
     presents it.
 
     With vsync on, the present blocks until the display's next refresh — this call is the frame
-    pacer of the main loop.
+    pacer of the main loop. Present semantics (Phase 3 checkpoint): bgfx flips BEFORE it renders,
+    so each call presents the PREVIOUS frame's content and then executes this frame's commands; a
+    timestamp taken after this returns is a pacing anchor, never a photon time.
     */
     void submitFrame();
+
+    /*!
+    \brief bgfx's own measurement of the last frame period, as a cross-check channel.
+
+    This is bgfx's cpuTimeFrame — the time between the two most recent submitFrame() swaps,
+    stamped inside bgfx. The loop logs it beside its own steady-clock frame delta; the two should
+    track within noise, and divergence is itself a diagnostic.
+
+    \return Last frame period per bgfx's high-precision counter.
+    */
+    [[nodiscard]] std::chrono::nanoseconds lastCpuFrameTime() const;
 
 private:
     // Adopts an initialized bgfx instance; only create() calls this.

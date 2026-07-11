@@ -451,6 +451,15 @@ bounded dispatch loop, and submits the bgfx frame.
 **Render thread** (optional): bgfx can submit GPU work separately if needed. For the note highway's
 geometric simplicity, single-threaded rendering from the UI thread is likely sufficient.
 
+**Logging backend thread** (quill, both executables): the shared logger's asynchronous writer.
+Producers on any thread — including the audio thread through the realtime handle — enqueue
+without blocking; only this thread formats and performs file IO. It is infrastructure owned by
+the logging facade; no product code schedules work on it.
+
+The analysis thread does not exist yet — it arrives with note detection (plan 22). The game
+frame loop reads song time exclusively through the playback-clock port's published snapshots
+(plan 12); it never derives time from wall clock or frame counts.
+
 ## Rules
 
 - No locks, heap allocation, or file IO on the audio thread.
