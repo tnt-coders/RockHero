@@ -10,6 +10,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
+#include <rock_hero/common/audio/clock/i_playback_clock.h>
 #include <rock_hero/editor/core/controller/editor_controller.h>
 
 namespace rock_hero::common::audio
@@ -76,6 +77,9 @@ public:
 
         /*! \brief Meter source sampled by the view for continuous level display. */
         const common::audio::IAudioMeterSource& meter_source;
+
+        /*! \brief Playback-time telemetry sampled by the 3D preview while playing (plan 44). */
+        const common::audio::IPlaybackClock& playback_clock;
     };
 
     /*! \brief Requests host exit after controller-level shutdown policy has completed. */

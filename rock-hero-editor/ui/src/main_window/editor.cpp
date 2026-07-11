@@ -56,6 +56,7 @@ Editor::Editor(
           std::make_unique<EditorView>(
               m_controller, EditorView::AudioPorts{
                                 .transport = audio_ports.transport,
+                                .playback_clock = audio_ports.playback_clock,
                                 .thumbnail_factory = audio_ports.thumbnail_factory,
                                 .audio_devices = audio_ports.audio_devices,
                                 .meter_source = audio_ports.meter_source,

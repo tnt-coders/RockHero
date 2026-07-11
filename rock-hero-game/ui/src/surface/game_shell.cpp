@@ -5,7 +5,6 @@
 #include "surface/game_window.h"
 #include "surface/highway_shader_loader.h"
 #include "surface/juce_message_pump.h"
-#include "surface/render_device.h"
 
 #include <SDL3/SDL.h>
 #include <chrono>
@@ -19,6 +18,7 @@
 #include <rock_hero/common/audio/clock/playback_clock_snapshot.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/ui/highway/highway_renderer.h>
+#include <rock_hero/common/ui/render/render_device.h>
 #include <rock_hero/game/core/diagnostics/diagnostics.h>
 #include <rock_hero/game/core/frame_clock/frame_clock.h>
 #include <rock_hero/game/core/resources/game_resources.h>
@@ -76,7 +76,7 @@ constexpr int g_max_juce_messages_per_frame = 256;
 // clock has never published. Returns the pacing summary when this frame closed a window so the
 // overlay can display it.
 std::optional<core::FramePacingSummary> logFrameInstrumentation(
-    const RenderDevice& device, const core::FrameClockSample& frame_sample,
+    const common::ui::RenderDevice& device, const core::FrameClockSample& frame_sample,
     const std::chrono::nanoseconds frame_boundary_time,
     const std::chrono::nanoseconds previous_frame_boundary, core::FramePacingStats& pacing_stats)
 {
@@ -169,15 +169,16 @@ int GameShell::run(const GameShellOptions& options)
     }
 
     const PixelSize initial_size = window->pixelSize();
-    std::expected<RenderDevice, RenderDeviceError> device = RenderDevice::create(
-        RenderDeviceConfig{
-            .backend = defaultRenderBackend(),
-            .native_window_handle = window->nativeWindowHandle(),
-            .width = initial_size.width,
-            .height = initial_size.height,
-            .vsync = true,
-            .debug = options.dev_mode,
-        });
+    std::expected<common::ui::RenderDevice, common::ui::RenderDeviceError> device =
+        common::ui::RenderDevice::create(
+            common::ui::RenderDeviceConfig{
+                .backend = common::ui::defaultRenderBackend(),
+                .native_window_handle = window->nativeWindowHandle(),
+                .width = initial_size.width,
+                .height = initial_size.height,
+                .vsync = true,
+                .debug = options.dev_mode,
+            });
     if (!device.has_value())
     {
         std::println(stderr, "rock-hero: {}", device.error().message);

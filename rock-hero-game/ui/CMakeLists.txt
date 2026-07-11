@@ -8,13 +8,9 @@ add_library(rock_hero::game::ui ALIAS rock_hero_game_ui)
 # diagnostics overlay content (plan 20 Phase 4).
 target_sources(
     rock_hero_game_ui
-    PRIVATE src/dev/dev_session.cpp
-            src/overlay/diagnostics_overlay.cpp
-            src/surface/game_shell.cpp
-            src/surface/game_window.cpp
-            src/surface/highway_shader_loader.cpp
-            src/surface/juce_message_pump.cpp
-            src/surface/render_device.cpp)
+    PRIVATE src/dev/dev_session.cpp src/overlay/diagnostics_overlay.cpp src/surface/game_shell.cpp
+            src/surface/game_window.cpp src/surface/highway_shader_loader.cpp
+            src/surface/juce_message_pump.cpp)
 
 # The src include path lets sibling translation units reach private feature headers with the
 # quoted feature-qualified form ("surface/render_device.h").
@@ -38,56 +34,9 @@ target_link_libraries(
             rock_hero::bgfx
             rock_hero::juce_events)
 
-# Shared .sc shader sources (rock-hero-common/ui/shaders — the promotion moved them beside the
-# shared renderer) compile at build time into the staging half of the resource-pack convention
-# (plan 20 Phase 2); the app deploys the staged tree next to the executable. Only the
-# Direct3D 11 profile ships now (gate 0a memo) — another backend is one more block here plus a
-# ShaderBackend enumerator, never a redesign. Compilation is Windows-only because shaderc's HLSL
-# backend needs the Windows D3D compiler ("HLSL compiler is not supported on this platform"
-# elsewhere); non-Windows builds are compile/test hygiene, not shipped products, so they stage an
-# empty tree and the deploy still works.
-set(rock_hero_shared_shader_dir "${CMAKE_CURRENT_SOURCE_DIR}/../../rock-hero-common/ui/shaders")
-set(rock_hero_game_shader_staging "${CMAKE_CURRENT_BINARY_DIR}/resources/shaders")
-set(rock_hero_game_staged_shaders "")
-if(WIN32)
-    foreach(shader_program IN ITEMS color color_fade texture_tint glyph texture)
-        foreach(shader_stage IN ITEMS vertex fragment)
-            if(shader_stage STREQUAL "vertex")
-                set(stage_prefix vs)
-            else()
-                set(stage_prefix fs)
-            endif()
-            rock_hero_add_compiled_shader(
-                OUTPUT
-                "${rock_hero_game_shader_staging}/dx11/${stage_prefix}_${shader_program}.bin"
-                TYPE
-                ${shader_stage}
-                SOURCE
-                "${rock_hero_shared_shader_dir}/${stage_prefix}_${shader_program}.sc"
-                VARYING
-                "${rock_hero_shared_shader_dir}/varying.def.sc"
-                PROFILE
-                s_5_0
-                PLATFORM
-                windows)
-            list(APPEND rock_hero_game_staged_shaders
-                 "${rock_hero_game_shader_staging}/dx11/${stage_prefix}_${shader_program}.bin")
-        endforeach()
-    endforeach()
-endif()
-
-# The staging root must exist even when nothing is staged so the app's copy_directory has a
-# source on every platform.
-file(MAKE_DIRECTORY "${rock_hero_game_shader_staging}")
-
-add_custom_target(rock_hero_game_shaders DEPENDS ${rock_hero_game_staged_shaders})
-
-# The app's deploy step consumes the staged tree. Custom target properties carry the staging dir
-# and the staged-file list across directory scopes: unlike a PARENT_SCOPE variable this survives
-# subdirectory reordering, and a lookup typo fails loudly (NOTFOUND) instead of silently emptying
-# a copy command. The file list is what lets the deploy re-run when a shader recompiles.
-set_target_properties(
-    rock_hero_game_shaders PROPERTIES ROCK_HERO_STAGING_DIR "${rock_hero_game_shader_staging}"
-                                      ROCK_HERO_STAGED_FILES "${rock_hero_game_staged_shaders}")
-
-add_subdirectory(tests)
+# Shared highway shaders compile into the staging half of the resource-pack convention (plan 20
+# Phase 2); the app deploys the staged tree next to the executable. The program list and the
+# Windows-only HLSL caveat live in rock_hero_stage_highway_shaders, shared with the editor's
+# preview deploy.
+rock_hero_stage_highway_shaders(rock_hero_game_shaders
+                                "${CMAKE_CURRENT_BINARY_DIR}/resources/shaders")

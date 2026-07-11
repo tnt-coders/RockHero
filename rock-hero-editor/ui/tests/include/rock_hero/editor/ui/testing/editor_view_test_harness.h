@@ -219,6 +219,25 @@ defaultAudioDevices() noexcept
     return g_live_input;
 }
 
+/*! \brief Playback clock that never publishes; the preview surface is untested-by-unit. */
+struct FakePlaybackClock final : public common::audio::IPlaybackClock
+{
+    [[nodiscard]] common::audio::PlaybackClockSnapshot snapshot() const noexcept override
+    {
+        return {};
+    }
+};
+
+/*!
+\brief Supplies a default playback-clock port for editor-view tests.
+\return Process-lifetime fake playback clock.
+*/
+[[nodiscard]] inline FakePlaybackClock& defaultPlaybackClock() noexcept
+{
+    static FakePlaybackClock g_playback_clock;
+    return g_playback_clock;
+}
+
 /*! \brief Tone-automation port whose queries all resolve to empty for editor-view tests. */
 struct FakeToneAutomation final : public common::audio::IToneAutomation
 {
@@ -286,6 +305,7 @@ struct FakeToneAutomation final : public common::audio::IToneAutomation
 {
     return EditorView::AudioPorts{
         .transport = transport,
+        .playback_clock = defaultPlaybackClock(),
         .thumbnail_factory = thumbnail_factory,
         .audio_devices = defaultAudioDevices(),
         .meter_source = defaultAudioMeterSource(),
@@ -307,6 +327,7 @@ struct FakeToneAutomation final : public common::audio::IToneAutomation
 {
     return EditorView::AudioPorts{
         .transport = transport,
+        .playback_clock = defaultPlaybackClock(),
         .thumbnail_factory = thumbnail_factory,
         .audio_devices = defaultAudioDevices(),
         .meter_source = meter_source,

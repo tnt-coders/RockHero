@@ -27,6 +27,12 @@ target_sources(
             src/main_window/menu_look_and_feel.h
             src/main_window/undo_history_overlay.cpp
             src/main_window/undo_history_overlay.h
+            src/preview/preview_resources.cpp
+            src/preview/preview_resources.h
+            src/preview/preview_surface.cpp
+            src/preview/preview_surface.h
+            src/preview/preview_window.cpp
+            src/preview/preview_window.h
             src/shared/audio_level_meter.cpp
             src/shared/audio_level_meter.h
             src/shared/editor_theme.cpp
