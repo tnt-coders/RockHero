@@ -30,6 +30,26 @@
 #include <string>
 #include <utility>
 
+namespace Catch
+{
+
+/*!
+\brief Prints optional gain values in assertion failures.
+
+Catch has no default stringification for std::optional, so a failed comparison logs only
+"{?} == {?}" — useless for CI-only failures where the log is the sole evidence. This prints the
+held value (or "nullopt") instead.
+*/
+template <> struct StringMaker<std::optional<double>>
+{
+    static std::string convert(const std::optional<double>& value)
+    {
+        return value.has_value() ? StringMaker<double>::convert(*value) : "nullopt";
+    }
+};
+
+} // namespace Catch
+
 namespace rock_hero::editor::ui
 {
 
