@@ -371,9 +371,9 @@ still integrating. Phases 3+ need the render stack in the build.
 
 ### Phase 3 — board and notes rendering (playable skeleton; assumes plan 20 gate outcome)
 
-- Before starting: work through `docs/todo/game-render-watch-items.md` — item 2 (bgfx handle
-  ownership at scale: wrap every retained handle in UniqueBgfxHandle, mind the shutdown-ordering
-  trap) is explicitly gated on this phase.
+- Before starting: work through the bgfx handle-ownership watch item (wrap every retained handle
+  in UniqueBgfxHandle, mind the shutdown-ordering trap), which was gated on this phase. (Resolved
+  during Phase 3/4 and now retired — see `docs/tracking/watch-items.md` § Retired.)
 - Checkpoint (before implementing): consult game-render-expert on the bgfx specifics this phase
   commits to — view/pass ordering and view IDs for background/board/overlay, transient
   vertex-buffer budgets for the streamed dynamic content, texture-atlas creation and sampler

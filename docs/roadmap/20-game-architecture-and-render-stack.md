@@ -823,8 +823,8 @@ vsync-limited regime reproduced through the shipped loop.
 
 **Thread map documented** in architecture.md § Threading Model (message thread == frame loop
 under L2, audio thread, quill logging backend thread, plan-22 analysis slot; song time only
-through the clock port). **Watch items** (docs/todo/game-render-watch-items.md items 9–10):
-minimized/occluded windows may stop Present throttling (bgfx has zero occlusion handling → loop
+through the clock port). **Watch items** (`docs/tracking/watch-items.md`, the minimized-window
+loop-spin and silent-Noop-fallback entries): minimized/occluded windows may stop Present throttling (bgfx has zero occlusion handling → loop
 would spin; detection is free in the pacing log, throttle in the shell only if observed), and
 bgfx silently swaps in the Noop renderer on device loss (pacing silently disappears — the
 collapsing frame delta is the tell). Exit-criterion amendment recorded under the phase text: the
