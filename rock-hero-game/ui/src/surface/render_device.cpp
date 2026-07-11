@@ -5,6 +5,7 @@
 #include <array>
 #include <bgfx/bgfx.h>
 #include <bgfx/platform.h>
+#include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <utility>
@@ -223,6 +224,22 @@ struct SurfaceVertex
 }
 
 } // namespace
+
+// Converts bgfx's tick-based frame-period measurement to nanoseconds. getStats() is valid right
+// after frame() on the API thread; cpuTimeFrame is stamped inside the frame() call that just
+// returned, so it is fresh (unlike the render/GPU fields, which describe earlier frames).
+std::chrono::nanoseconds RenderDevice::lastCpuFrameTime() const
+{
+    const bgfx::Stats* const stats = bgfx::getStats();
+    if (stats->cpuTimerFreq == 0)
+    {
+        return std::chrono::nanoseconds{0};
+    }
+    return std::chrono::nanoseconds{
+        stats->cpuTimeFrame * std::int64_t{1'000'000'000} /
+        static_cast<std::int64_t>(stats->cpuTimerFreq)
+    };
+}
 
 // Clears, draws the surface program's test triangle when one is loaded, and presents. touch()
 // submits an empty draw so the view's clear executes even with no geometry; frame() is where

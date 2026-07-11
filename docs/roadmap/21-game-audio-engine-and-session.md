@@ -1,8 +1,12 @@
 # Plan 21 — Game Audio Engine and GameplaySession
 
-Status: Decision-gated (Phase 0 sign-off; render-loop coexistence input from
-docs/roadmap/20-game-architecture-and-render-stack.md Phase 0b). Date: 2026-07-06.
-Baseline: `refactor @ 3c7febe0`.
+Status: **G21-TRACKTION-GO CLOSED — user signed off 2026-07-10: embed `common::audio::Engine` in
+the game (Phase 0 outcome GO).** The coexistence input was already proven by plan 20's gate
+(criterion S1: SDL-owned loop + JUCE message drain + engine playback). Phases 1–6 are unblocked;
+plan 20 Phase 3's S1-mirror soak (window renders while the backing engine plays) transfers to
+this plan's first engine-embedding phase, since that is the first moment an engine exists in the
+game process. Date: 2026-07-06 (gate closed 2026-07-10). Baseline: `refactor @ 3c7febe0` —
+re-verify the inventory before starting Phase 1.
 
 ## Goal
 
