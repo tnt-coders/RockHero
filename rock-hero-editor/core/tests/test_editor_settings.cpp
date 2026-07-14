@@ -7,6 +7,7 @@
 #include <rock_hero/common/core/shared/application_identity.h>
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/timeline/fraction.h>
+#include <rock_hero/editor/core/audio/editor_effective_audio_config_store.h>
 #include <rock_hero/editor/core/settings/editor_settings.h>
 #include <string>
 #include <string_view>
@@ -305,6 +306,28 @@ TEST_CASE("EditorSettings persists tab display preferences", "[core][settings]")
     const EditorSettings reloaded_settings{settings_file.path()};
     CHECK(reloaded_settings.waveformVisible() == std::optional{false});
     CHECK(reloaded_settings.tabMinimumDisplayedStrings() == std::optional{8});
+}
+
+// The use-game-audio-settings toggle is editor workflow state: absent until first written, then the
+// stored choice is authoritative. An absent value resolves to the first-run default (on); a written
+// value wins on reload.
+TEST_CASE(
+    "EditorSettings resolves and persists the use-game-audio-settings toggle", "[core][settings]")
+{
+    const ScopedSettingsFile settings_file{"persists_use_game_audio_settings.settings"};
+
+    {
+        EditorSettings settings{settings_file.path()};
+        CHECK_FALSE(settings.useGameAudioSettings().has_value());
+        CHECK(useGameAudioSettingsOrDefault(settings));
+        REQUIRE(settings.setUseGameAudioSettings(false).has_value());
+        CHECK(settings.useGameAudioSettings() == std::optional{false});
+        CHECK_FALSE(useGameAudioSettingsOrDefault(settings));
+    }
+
+    const EditorSettings reloaded_settings{settings_file.path()};
+    CHECK(reloaded_settings.useGameAudioSettings() == std::optional{false});
+    CHECK_FALSE(useGameAudioSettingsOrDefault(reloaded_settings));
 }
 
 TEST_CASE("EditorSettings overwrites the project grid note value", "[core][settings]")
