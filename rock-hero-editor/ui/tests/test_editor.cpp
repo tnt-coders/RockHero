@@ -372,6 +372,31 @@ public:
         return common::audio::LiveRigLoadResult{};
     }
 
+    [[nodiscard]] std::expected<void, common::audio::LiveRigError> exportAudibleTone(
+        const common::audio::ToneFileExportRequest&) override
+    {
+        return {};
+    }
+
+    [[nodiscard]] std::expected<common::audio::AudibleToneState, common::audio::LiveRigError>
+    captureAudibleToneState() override
+    {
+        return common::audio::AudibleToneState{};
+    }
+
+    void replaceAudibleToneFromFile(
+        common::audio::ToneFileReplaceRequest,
+        common::audio::LiveRigLoadResultCallback completion) override
+    {
+        completion(common::audio::LiveRigLoadResult{});
+    }
+
+    [[nodiscard]] std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>
+    restoreAudibleToneState(const common::audio::AudibleToneState&) override
+    {
+        return common::audio::LiveRigLoadResult{};
+    }
+
     [[nodiscard]] common::audio::Gain outputGain() const override
     {
         return {};

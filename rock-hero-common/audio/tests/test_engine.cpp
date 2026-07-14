@@ -1,4 +1,5 @@
 ﻿#include "live_rig/tone_document.h"
+#include "live_rig/tone_file.h"
 
 #include <algorithm>
 #include <catch2/catch_approx.hpp>
@@ -1191,6 +1192,219 @@ TEST_CASE("Engine live rig mints an empty tone document", "[audio][engine][integ
     REQUIRE(minted.has_value());
     CHECK(common::core::isCanonicalToneDocumentRef(*minted));
     CHECK(std::filesystem::exists(song_directory.path() / *minted));
+}
+
+// Verifies tone-file export is refused without a loaded rig and round-trips the audible chain
+// and output gain once one exists (the placeholder branch of an empty rig is exportable).
+TEST_CASE("Engine exports the audible tone to a tone file", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    const TemporarySongDirectory scratch_directory;
+    ILiveRig& live_rig = harness.engine;
+    const std::filesystem::path tone_file = scratch_directory.path() / "exported.rocktone";
+
+    const auto refused = live_rig.exportAudibleTone(
+        ToneFileExportRequest{
+            .tone_file_path = tone_file,
+            .block_indices = {},
+            .display_type_overrides = {},
+        });
+    REQUIRE_FALSE(refused.has_value());
+    CHECK(refused.error().code == LiveRigErrorCode::InvalidRequest);
+
+    std::optional<std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>>
+        load_result;
+    live_rig.loadLiveRig(common::audio::LiveRigLoadRequest{}, [&load_result](auto value) {
+        load_result = std::move(value);
+    });
+    REQUIRE(load_result.has_value());
+    REQUIRE(live_rig.setOutputGain(Gain{-6.0}).has_value());
+
+    const auto exported = live_rig.exportAudibleTone(
+        ToneFileExportRequest{
+            .tone_file_path = tone_file,
+            .block_indices = {},
+            .display_type_overrides = {},
+        });
+    REQUIRE(exported.has_value());
+
+    const auto payload = readToneFile(tone_file);
+    REQUIRE(payload.has_value());
+    CHECK(payload->document.chain.empty());
+    CHECK(payload->document.output_gain.db == Catch::Approx(-6.0));
+}
+
+// Verifies the whole-chain undo memento is refused without a rig and captures the audible
+// chain's gain once one exists.
+TEST_CASE("Engine captures the audible tone chain state", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    ILiveRig& live_rig = harness.engine;
+
+    const auto refused = live_rig.captureAudibleToneState();
+    REQUIRE_FALSE(refused.has_value());
+    CHECK(refused.error().code == LiveRigErrorCode::InvalidRequest);
+
+    std::optional<std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>>
+        load_result;
+    live_rig.loadLiveRig(common::audio::LiveRigLoadRequest{}, [&load_result](auto value) {
+        load_result = std::move(value);
+    });
+    REQUIRE(load_result.has_value());
+    REQUIRE(live_rig.setOutputGain(Gain{-3.0}).has_value());
+
+    const auto state = live_rig.captureAudibleToneState();
+    REQUIRE(state.has_value());
+    CHECK(state->plugin_states.empty());
+    CHECK(state->output_gain.db == Catch::Approx(-3.0));
+}
+
+// Verifies a tone-file replace applies the file's chain and gain to the audible branch, and that
+// unreadable files or a rig-less engine refuse without touching anything.
+TEST_CASE("Engine replaces the audible tone from a tone file", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    const TemporarySongDirectory scratch_directory;
+    ILiveRig& live_rig = harness.engine;
+    const std::filesystem::path tone_file = scratch_directory.path() / "replacement.rocktone";
+
+    // An empty-chain tone file carrying only an authored gain exercises the full transactional
+    // read + swap path without needing an installed plugin.
+    REQUIRE(writeToneFile(tone_file, ToneDocument{.chain = {}, .output_gain = Gain{-4.5}}, {})
+                .has_value());
+
+    std::optional<std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>>
+        replace_result;
+    live_rig.replaceAudibleToneFromFile(
+        ToneFileReplaceRequest{
+            .tone_file_path = tone_file,
+            .progress_callback = {},
+            .yield_callback = [](const auto& next) { next(); },
+        },
+        [&replace_result](auto value) { replace_result = std::move(value); });
+    REQUIRE(replace_result.has_value());
+    REQUIRE_FALSE(replace_result->has_value());
+    CHECK(replace_result->error().code == LiveRigErrorCode::InvalidRequest);
+
+    std::optional<std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>>
+        load_result;
+    live_rig.loadLiveRig(common::audio::LiveRigLoadRequest{}, [&load_result](auto value) {
+        load_result = std::move(value);
+    });
+    REQUIRE(load_result.has_value());
+    REQUIRE(live_rig.setOutputGain(Gain{2.0}).has_value());
+
+    replace_result.reset();
+    live_rig.replaceAudibleToneFromFile(
+        ToneFileReplaceRequest{
+            .tone_file_path = tone_file,
+            .progress_callback = {},
+            .yield_callback = [](const auto& next) { next(); },
+        },
+        [&replace_result](auto value) { replace_result = std::move(value); });
+    REQUIRE(replace_result.has_value());
+    if (replace_result.has_value())
+    {
+        REQUIRE(replace_result->has_value());
+        CHECK((*replace_result)->plugins.empty());
+        CHECK((*replace_result)->output_gain.db == Catch::Approx(-4.5));
+    }
+    CHECK(live_rig.outputGain().db == Catch::Approx(-4.5));
+
+    replace_result.reset();
+    live_rig.replaceAudibleToneFromFile(
+        ToneFileReplaceRequest{
+            .tone_file_path = scratch_directory.path() / "missing.rocktone",
+            .progress_callback = {},
+            .yield_callback = [](const auto& next) { next(); },
+        },
+        [&replace_result](auto value) { replace_result = std::move(value); });
+    REQUIRE(replace_result.has_value());
+    REQUIRE_FALSE(replace_result->has_value());
+    CHECK(replace_result->error().code == LiveRigErrorCode::CouldNotReadToneFile);
+    // The failed replace never touched the live chain.
+    CHECK(live_rig.outputGain().db == Catch::Approx(-4.5));
+}
+
+// Verifies a tone file naming an uninstalled plugin is refused with the aggregated
+// missing-plugin policy and leaves the previous chain state intact.
+TEST_CASE("Engine tone-file replace refuses missing plugins", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    const TemporarySongDirectory scratch_directory;
+    ILiveRig& live_rig = harness.engine;
+    const std::filesystem::path tone_file = scratch_directory.path() / "missing_amp.rocktone";
+
+    PluginIdentity missing_identity;
+    missing_identity.format_name = "VST3";
+    missing_identity.name = "Nonexistent Amp";
+    missing_identity.manufacturer = "Nobody";
+    missing_identity.unique_id = "feedc0de";
+    ToneDocument document;
+    document.chain.push_back(
+        PluginRecord{
+            .id = "plugin-1",
+            .identity = missing_identity,
+            .tracktion_state_ref = {},
+            .block_index = 0,
+            .display_type_override = {},
+            .stable_id = {},
+        });
+    document.output_gain = Gain{};
+    juce::ValueTree state{tracktion::IDs::PLUGIN};
+    state.setProperty(tracktion::IDs::type, tracktion::ExternalPlugin::xmlTypeName, nullptr);
+    const std::vector<juce::ValueTree> states{state};
+    REQUIRE(writeToneFile(tone_file, document, states).has_value());
+
+    std::optional<std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>>
+        load_result;
+    live_rig.loadLiveRig(common::audio::LiveRigLoadRequest{}, [&load_result](auto value) {
+        load_result = std::move(value);
+    });
+    REQUIRE(load_result.has_value());
+    REQUIRE(live_rig.setOutputGain(Gain{-1.5}).has_value());
+
+    std::optional<std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>>
+        replace_result;
+    live_rig.replaceAudibleToneFromFile(
+        ToneFileReplaceRequest{
+            .tone_file_path = tone_file,
+            .progress_callback = {},
+            .yield_callback = [](const auto& next) { next(); },
+        },
+        [&replace_result](auto value) { replace_result = std::move(value); });
+
+    REQUIRE(replace_result.has_value());
+    REQUIRE_FALSE(replace_result->has_value());
+    CHECK(replace_result->error().code == LiveRigErrorCode::MissingPlugins);
+    // Refusal is transactional: the previous chain state stays untouched.
+    CHECK(live_rig.outputGain().db == Catch::Approx(-1.5));
+}
+
+// Verifies the memento restore round trip: capture, mutate, restore, and the audible chain's
+// gain returns to the captured value.
+TEST_CASE("Engine restores the audible tone chain from a memento", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    ILiveRig& live_rig = harness.engine;
+
+    std::optional<std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>>
+        load_result;
+    live_rig.loadLiveRig(common::audio::LiveRigLoadRequest{}, [&load_result](auto value) {
+        load_result = std::move(value);
+    });
+    REQUIRE(load_result.has_value());
+    REQUIRE(live_rig.setOutputGain(Gain{-3.0}).has_value());
+
+    const auto state = live_rig.captureAudibleToneState();
+    REQUIRE(state.has_value());
+    REQUIRE(live_rig.setOutputGain(Gain{6.0}).has_value());
+
+    const auto restore_result = live_rig.restoreAudibleToneState(*state);
+
+    REQUIRE(restore_result.has_value());
+    CHECK(restore_result->output_gain.db == Catch::Approx(-3.0));
+    CHECK(live_rig.outputGain().db == Catch::Approx(-3.0));
 }
 
 // Verifies empty tone loads clear project tone state without clearing input calibration.

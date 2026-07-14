@@ -427,6 +427,47 @@ public:
         }};
     }
 
+    // The session never exports tone files; fail loudly if it ever tries.
+    [[nodiscard]] std::expected<void, common::audio::LiveRigError> exportAudibleTone(
+        const common::audio::ToneFileExportRequest& /*request*/) override
+    {
+        return std::unexpected{common::audio::LiveRigError{
+            common::audio::LiveRigErrorCode::InvalidRequest, "export not expected in gameplay"
+        }};
+    }
+
+    // The session never captures chain mementos; fail loudly if it ever tries.
+    [[nodiscard]] std::expected<common::audio::AudibleToneState, common::audio::LiveRigError>
+    captureAudibleToneState() override
+    {
+        return std::unexpected{common::audio::LiveRigError{
+            common::audio::LiveRigErrorCode::InvalidRequest,
+            "chain capture not expected in gameplay"
+        }};
+    }
+
+    // The session never imports tone files; fail loudly if it ever tries.
+    void replaceAudibleToneFromFile(
+        common::audio::ToneFileReplaceRequest /*request*/,
+        common::audio::LiveRigLoadResultCallback completion) override
+    {
+        completion(
+            std::unexpected{common::audio::LiveRigError{
+                common::audio::LiveRigErrorCode::InvalidRequest,
+                "chain replace not expected in gameplay"
+            }});
+    }
+
+    // The session never restores chain mementos; fail loudly if it ever tries.
+    [[nodiscard]] std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>
+    restoreAudibleToneState(const common::audio::AudibleToneState& /*state*/) override
+    {
+        return std::unexpected{common::audio::LiveRigError{
+            common::audio::LiveRigErrorCode::InvalidRequest,
+            "chain restore not expected in gameplay"
+        }};
+    }
+
     // Returns the stored monitor gain (the session's monitor volume forwards here).
     [[nodiscard]] common::audio::Gain outputGain() const override
     {

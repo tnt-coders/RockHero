@@ -38,6 +38,7 @@ add_executable(
     test_tempo_mirror.cpp
     test_tone_automation_curve.cpp
     test_tone_branch_gain_plugin.cpp
+    test_tone_file.cpp
     test_thumbnail_source.cpp
     test_transport.cpp
     test_engine.cpp

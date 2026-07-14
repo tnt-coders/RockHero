@@ -57,6 +57,18 @@ namespace
         {
             return "Could not read tone plugin state";
         }
+        case LiveRigErrorCode::InvalidToneFile:
+        {
+            return "File is not a valid tone file";
+        }
+        case LiveRigErrorCode::CouldNotReadToneFile:
+        {
+            return "Could not read tone file";
+        }
+        case LiveRigErrorCode::CouldNotWriteToneFile:
+        {
+            return "Could not write tone file";
+        }
         case LiveRigErrorCode::UnsupportedPlugin:
         {
             return "Tone chain contains an unsupported plugin";

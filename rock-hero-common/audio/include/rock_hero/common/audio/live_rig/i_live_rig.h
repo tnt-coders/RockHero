@@ -12,6 +12,7 @@
 #include <rock_hero/common/audio/live_rig/live_rig_error.h>
 #include <rock_hero/common/audio/plugin/plugin_chain_limits.h>
 #include <rock_hero/common/audio/plugin/plugin_chain_snapshot.h>
+#include <rock_hero/common/audio/plugin/plugin_instance_state.h>
 #include <rock_hero/common/audio/shared/gain.h>
 #include <string>
 #include <vector>
@@ -203,6 +204,71 @@ using LiveRigLoadResultCallback =
     std::function<void(std::expected<LiveRigLoadResult, LiveRigError>)>;
 
 /*!
+\brief Message-thread request to export the audible tone's rig to a standalone tone file.
+
+The exported file carries the rig only: plugin chain, full plugin state, and output gain. It
+never carries automation, catalog identity, or durable plugin ids — the tone-file container
+normalizes those away on write regardless of the live chain's state.
+*/
+struct [[nodiscard]] ToneFileExportRequest
+{
+    /*! \brief Absolute output path for the tone file; parent directories are created. */
+    std::filesystem::path tone_file_path;
+
+    /*!
+    \brief Opaque editor-owned visual block per audible-chain plugin, in chain order.
+
+    Written through to the exported document without interpretation, exactly like
+    LiveRigCaptureRequest::block_indices. Entries beyond the supplied size default to the gapless
+    block equal to the chain position.
+    */
+    std::vector<std::size_t> block_indices;
+
+    /*!
+    \brief Opaque editor-owned display type overrides per audible-chain plugin, in chain order.
+
+    Written through to the exported document without interpretation. Entries beyond the supplied
+    size default to empty, meaning no override.
+    */
+    std::vector<std::string> display_type_overrides;
+};
+
+/*!
+\brief Opaque whole-chain memento of the audible tone used by editor undo.
+
+Each plugin state is a full serialized plugin tree that keeps its runtime instance id, so a
+restore recreates the prior chain with the prior instance ids and editor-side bindings stay
+valid across an undo. Editor-owned layout (blocks, display overrides, durable ids) is not part
+of this memento — the editor's undo entry carries it, matching the plugin-remove precedent.
+*/
+struct [[nodiscard]] AudibleToneState
+{
+    /*! \brief Full per-plugin state mementos in chain order, instance ids preserved. */
+    std::vector<PluginInstanceState> plugin_states;
+
+    /*! \brief Output gain applied after the chain. */
+    Gain output_gain{};
+};
+
+/*! \brief Message-thread request to replace the audible tone's chain from a tone file. */
+struct [[nodiscard]] ToneFileReplaceRequest
+{
+    /*! \brief Absolute path of the tone file to read. */
+    std::filesystem::path tone_file_path;
+
+    /*! \brief Optional callback invoked as plugin restore progress changes. */
+    LiveRigLoadProgressCallback progress_callback;
+
+    /*!
+    \brief Optional callback used to yield to the message loop between plugin steps.
+
+    Same contract as LiveRigLoadRequest::yield_callback: wire a paint fence so per-plugin
+    progress actually paints; unset falls back to plain async posts.
+    */
+    LiveRigLoadYieldCallback yield_callback;
+};
+
+/*!
 \brief Project-owned facade for the currently loaded playable guitar rig.
 
 All methods are message-thread operations. Implementations may stop transport, scan plugin files,
@@ -289,6 +355,65 @@ public:
     */
     [[nodiscard]] virtual std::expected<LiveRigLoadResult, LiveRigError> setAudibleTone(
         const std::string& tone_document_ref) = 0;
+
+    /*!
+    \brief Exports the audible tone's rig to a standalone tone file.
+
+    A pure read of the live chain: no graph mutation, no transport stop, so saving a tone never
+    interrupts monitoring. Works for any audible branch, including the placeholder branch of a
+    tone-less rig, because the exported payload is the chain itself rather than a catalog tone.
+
+    \param request Output path and editor-owned audible-chain layout.
+    \return Empty success, or a typed failure.
+    */
+    [[nodiscard]] virtual std::expected<void, LiveRigError> exportAudibleTone(
+        const ToneFileExportRequest& request) = 0;
+
+    /*!
+    \brief Captures the audible tone's chain into an in-memory whole-chain memento.
+
+    A pure read used by editor undo before a destructive chain replacement; instance ids are
+    preserved inside the per-plugin states so restoreAudibleToneState() can rebuild the exact
+    prior chain.
+
+    \return Whole-chain memento, or a typed failure.
+    */
+    [[nodiscard]] virtual std::expected<AudibleToneState, LiveRigError>
+    captureAudibleToneState() = 0;
+
+    /*!
+    \brief Replaces the audible tone's chain with the contents of a standalone tone file.
+
+    Transactional: the file is fully read and validated, and every plugin is resolved and
+    instantiated, before the existing chain is touched — a failure (corrupt file, missing
+    plugins) leaves the previous chain intact. Missing plugins are collected across the whole
+    chain and refused once with the complete list, matching loadLiveRig's policy. Runs
+    cooperatively on the message thread like loadLiveRig; the completion fires exactly once with
+    the new audible chain or a typed failure. Only the audible branch changes; other loaded
+    tones are untouched.
+
+    \param request Tone file path and optional progress/yield callbacks.
+    \param completion Callback invoked once the operation finishes or fails.
+    */
+    virtual void replaceAudibleToneFromFile(
+        ToneFileReplaceRequest request, LiveRigLoadResultCallback completion) = 0;
+
+    /*!
+    \brief Restores the audible tone's chain from a memento captured by captureAudibleToneState().
+
+    The undo-side counterpart of replaceAudibleToneFromFile(): synchronous, because editor undo
+    entries apply synchronously (behind the plugin-loading busy presentation when they
+    instantiate plugins). Transactional like the file replace — every plugin instantiates before
+    the existing chain is touched — and restored plugins keep the instance ids recorded in the
+    memento so editor-side bindings stay valid across an undo. The engine resets the restored
+    chain's retained panel layout to defaults; the editor's undo entry owns the authoritative
+    layout and reapplies it.
+
+    \param state Whole-chain memento captured by captureAudibleToneState().
+    \return The restored audible chain for panel rebinding, or a typed failure.
+    */
+    [[nodiscard]] virtual std::expected<LiveRigLoadResult, LiveRigError> restoreAudibleToneState(
+        const AudibleToneState& state) = 0;
 
     /*!
     \brief Reads the current output gain applied after the signal chain.

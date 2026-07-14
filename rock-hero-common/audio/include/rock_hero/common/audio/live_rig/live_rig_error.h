@@ -47,6 +47,15 @@ enum class LiveRigErrorCode : std::uint8_t
     /*! \brief A Tracktion plugin-state sidecar could not be read or parsed. */
     CouldNotReadPluginState,
 
+    /*! \brief A standalone tone file is not a valid tone-file archive. */
+    InvalidToneFile,
+
+    /*! \brief A standalone tone file could not be read. */
+    CouldNotReadToneFile,
+
+    /*! \brief A standalone tone file could not be written. */
+    CouldNotWriteToneFile,
+
     /*! \brief A plugin in the current runtime chain cannot be persisted yet. */
     UnsupportedPlugin,
 

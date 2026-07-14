@@ -1,5 +1,7 @@
 #include "engine_impl.h"
 #include "live_rig/tone_document.h"
+#include "live_rig/tone_file.h"
+#include "plugin/plugin_state_memento.h"
 #include "shared/audio_path_util.h"
 #include "tracktion/live_rig_gain_plugin.h"
 #include "tracktion/plugin_state_hygiene.h"
@@ -54,6 +56,50 @@ void reportLiveRigLoadProgress(
             .active_plugin_index = active_plugin_index,
             .active_plugin_name = active_plugin_name,
         });
+}
+
+// Sends chain-replacement progress only when the caller provided a progress callback.
+void reportToneReplaceProgress(
+    const ToneChainReplaceOperation& operation, std::size_t completed_plugins,
+    std::size_t active_plugin_index = 0, const std::string& active_plugin_name = {})
+{
+    if (!operation.progress_callback)
+    {
+        return;
+    }
+
+    operation.progress_callback(
+        LiveRigLoadProgress{
+            .completed_plugins = completed_plugins,
+            .total_plugins = operation.candidates.size(),
+            .active_plugin_index = active_plugin_index,
+            .active_plugin_name = active_plugin_name,
+        });
+}
+
+// Flushes and copies one live external plugin's state with persistence hygiene applied. The
+// instance id is kept only for undo mementos, whose restore must recreate the same instance.
+[[nodiscard]] juce::ValueTree cleanPluginStateCopy(
+    tracktion::ExternalPlugin& plugin, bool keep_instance_id)
+{
+    // Without a live instance the flush keeps the previously captured chunk; persisting that is
+    // the correct don't-clobber behavior (same stance as captureActiveRig).
+    if (plugin.getAudioPluginInstance() == nullptr)
+    {
+        RH_LOG_WARNING(
+            "audio.live_rig",
+            "Capturing prior state for plugin without a live instance name={:?}",
+            plugin.getName().toStdString());
+    }
+    plugin.flushPluginStateToValueTree();
+    juce::ValueTree state = plugin.state.createCopy();
+    if (!keep_instance_id)
+    {
+        state.removeProperty(tracktion::IDs::id, nullptr);
+    }
+    stripAutomationCurves(state);
+    stripTempoRemapFlag(state);
+    return state;
 }
 
 } // namespace
@@ -500,9 +546,11 @@ std::expected<void, LiveRigError> Engine::clearLiveRig()
         return std::unexpected{LiveRigError{LiveRigErrorCode::MessageThreadRequired}};
     }
 
-    // Clear also cancels cooperative restore steps queued by loadLiveRig(); otherwise stale
-    // continuations could rebuild the chain after the editor has closed the project.
+    // Clear also cancels cooperative restore steps queued by loadLiveRig() and any in-flight
+    // chain replacement; otherwise stale continuations could rebuild the chain after the editor
+    // has closed the project.
     m_impl->m_load_op.reset();
+    m_impl->m_replace_op.reset();
     m_impl->clearPluginUndoCaptureDeferral();
 
     if (m_impl->instrumentTrack() == nullptr)
@@ -975,6 +1023,9 @@ void Engine::loadLiveRig(LiveRigLoadRequest request, LiveRigLoadResultCallback o
         return;
     }
 
+    // A full rig load supersedes any in-flight chain replacement, exactly like clearLiveRig().
+    m_impl->m_replace_op.reset();
+
     m_impl->beginPluginUndoCaptureDeferral();
     m_impl->stopTransportAndReleaseContext();
     auto cleared = m_impl->clearUserLiveRigPlugins();
@@ -1420,6 +1471,595 @@ void Engine::Impl::abortLiveRigLoad(LiveRigError error)
     rebuildInstrumentMonitoringGraphBestEffort("live rig load abort rollback failed");
     endPluginUndoCaptureDeferral();
     operation->on_result(std::unexpected{std::move(error)});
+}
+
+// Exports the audible tone's rig to a standalone tone file: a pure read of the live chain, so
+// saving a tone never interrupts monitoring or mutates the graph.
+std::expected<void, LiveRigError> Engine::exportAudibleTone(const ToneFileExportRequest& request)
+{
+    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        return std::unexpected{LiveRigError{LiveRigErrorCode::MessageThreadRequired}};
+    }
+
+    if (request.tone_file_path.empty())
+    {
+        return std::unexpected{LiveRigError{LiveRigErrorCode::InvalidRequest}};
+    }
+
+    const ToneRackBranch* const branch = m_impl->audibleToneBranch();
+    if (branch == nullptr)
+    {
+        return std::unexpected{
+            LiveRigError{LiveRigErrorCode::InvalidRequest, "No audible tone to export"}
+        };
+    }
+
+    ToneDocument document;
+    std::vector<juce::ValueTree> plugin_states;
+    document.chain.reserve(branch->chain.size());
+    plugin_states.reserve(branch->chain.size());
+    std::size_t chain_index = 0;
+    for (const tracktion::Plugin::Ptr& plugin : branch->chain)
+    {
+        if (plugin == nullptr)
+        {
+            continue;
+        }
+
+        auto* const external_plugin = dynamic_cast<tracktion::ExternalPlugin*>(plugin.get());
+        if (external_plugin == nullptr)
+        {
+            return std::unexpected{LiveRigError{
+                LiveRigErrorCode::UnsupportedPlugin,
+                "Only external plugins can be exported right now: " +
+                    plugin->getName().toStdString()
+            }};
+        }
+
+        plugin_states.push_back(cleanPluginStateCopy(*external_plugin, false));
+        document.chain.push_back(
+            PluginRecord{
+                .id = "plugin-" + std::to_string(chain_index + 1),
+                .identity = makePluginIdentity(external_plugin->desc),
+                // The tone-file writer owns the container layout and derives the canonical ref.
+                .tracktion_state_ref = {},
+                .block_index = chain_index < request.block_indices.size()
+                                   ? request.block_indices[chain_index]
+                                   : chain_index,
+                .display_type_override = chain_index < request.display_type_overrides.size()
+                                             ? request.display_type_overrides[chain_index]
+                                             : std::string{},
+                .stable_id = {},
+            });
+        ++chain_index;
+    }
+
+    document.output_gain = m_impl->readGainFromPlugin(m_impl->m_output_gain_plugin_id);
+    return writeToneFile(request.tone_file_path, document, plugin_states);
+}
+
+// Captures the audible tone's chain into an in-memory whole-chain undo memento.
+std::expected<AudibleToneState, LiveRigError> Engine::captureAudibleToneState()
+{
+    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        return std::unexpected{LiveRigError{LiveRigErrorCode::MessageThreadRequired}};
+    }
+
+    const ToneRackBranch* const branch = m_impl->audibleToneBranch();
+    if (branch == nullptr)
+    {
+        return std::unexpected{
+            LiveRigError{LiveRigErrorCode::InvalidRequest, "No audible tone to capture"}
+        };
+    }
+
+    AudibleToneState state;
+    state.plugin_states.reserve(branch->chain.size());
+    for (const tracktion::Plugin::Ptr& plugin : branch->chain)
+    {
+        if (plugin == nullptr)
+        {
+            continue;
+        }
+
+        auto* const external_plugin = dynamic_cast<tracktion::ExternalPlugin*>(plugin.get());
+        if (external_plugin == nullptr)
+        {
+            return std::unexpected{LiveRigError{
+                LiveRigErrorCode::UnsupportedPlugin,
+                "Only external plugins can be captured right now: " +
+                    plugin->getName().toStdString()
+            }};
+        }
+
+        // Instance ids stay in the memento so a restore recreates the exact prior chain.
+        auto plugin_state = makePluginInstanceState(cleanPluginStateCopy(*external_plugin, true));
+        if (!plugin_state.has_value())
+        {
+            return std::unexpected{LiveRigError{
+                LiveRigErrorCode::CouldNotWritePluginState, plugin_state.error().message
+            }};
+        }
+        state.plugin_states.push_back(std::move(*plugin_state));
+    }
+
+    state.output_gain = m_impl->readGainFromPlugin(m_impl->m_output_gain_plugin_id);
+    return state;
+}
+
+// Replaces the audible tone's chain from a fully validated tone file.
+void Engine::replaceAudibleToneFromFile(
+    ToneFileReplaceRequest request, LiveRigLoadResultCallback completion)
+{
+    if (!completion)
+    {
+        return;
+    }
+
+    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        completion(std::unexpected{LiveRigError{LiveRigErrorCode::MessageThreadRequired}});
+        return;
+    }
+
+    if (m_impl->m_load_op != nullptr || m_impl->m_replace_op != nullptr)
+    {
+        completion(
+            std::unexpected{LiveRigError{
+                LiveRigErrorCode::InvalidRequest,
+                "Another live rig operation is already in progress",
+            }});
+        return;
+    }
+
+    if (m_impl->audibleToneBranch() == nullptr)
+    {
+        completion(
+            std::unexpected{
+                LiveRigError{LiveRigErrorCode::InvalidRequest, "No audible tone to replace"}
+            });
+        return;
+    }
+
+    // Transactional: the whole file parses and validates before anything is instantiated, and
+    // instantiation completes before anything is removed.
+    auto payload = readToneFile(request.tone_file_path);
+    if (!payload.has_value())
+    {
+        completion(std::unexpected{std::move(payload.error())});
+        return;
+    }
+
+    auto operation = std::make_unique<ToneChainReplaceOperation>();
+    operation->candidates.reserve(payload->document.chain.size());
+    operation->block_indices.reserve(payload->document.chain.size());
+    operation->display_type_overrides.reserve(payload->document.chain.size());
+    for (std::size_t index = 0; index < payload->document.chain.size(); ++index)
+    {
+        const PluginRecord& record = payload->document.chain[index];
+        operation->candidates.push_back(
+            ToneChainReplaceOperation::Candidate{
+                .identity = record.identity,
+                .state = payload->plugin_states[index],
+                .display_name = pluginDisplayName(record.identity, index),
+            });
+        operation->block_indices.push_back(record.block_index);
+        operation->display_type_overrides.push_back(record.display_type_override);
+    }
+    operation->output_gain = payload->document.output_gain;
+    operation->progress_callback = std::move(request.progress_callback);
+    operation->yield_callback = std::move(request.yield_callback);
+    operation->on_result = std::move(completion);
+
+    m_impl->startToneChainReplace(std::move(operation));
+}
+
+// Restores the audible tone's chain from a memento captured by captureAudibleToneState().
+// Synchronous by contract: editor undo entries apply inline (behind the busy presentation when
+// they instantiate plugins), so this path cannot be cooperative.
+std::expected<LiveRigLoadResult, LiveRigError> Engine::restoreAudibleToneState(
+    const AudibleToneState& state)
+{
+    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        return std::unexpected{LiveRigError{LiveRigErrorCode::MessageThreadRequired}};
+    }
+
+    if (m_impl->m_load_op != nullptr || m_impl->m_replace_op != nullptr)
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::InvalidRequest,
+            "Another live rig operation is already in progress",
+        }};
+    }
+
+    if (m_impl->audibleToneBranch() == nullptr)
+    {
+        return std::unexpected{
+            LiveRigError{LiveRigErrorCode::InvalidRequest, "No audible tone to restore"}
+        };
+    }
+
+    // Restore re-announces plugin state; none of it is a user edit. The guard also reinstalls
+    // the plugin edit observers on every exit path.
+    const Impl::ScopedPluginUndoCaptureDeferral capture_deferral{*m_impl};
+
+    // Instantiate every memento plugin free-floating before anything is removed, so a failure
+    // leaves the current chain intact (the transactional contract).
+    std::vector<tracktion::Plugin::Ptr> restored_plugins;
+    restored_plugins.reserve(state.plugin_states.size());
+    for (const PluginInstanceState& plugin_memento : state.plugin_states)
+    {
+        auto plugin_state = pluginStateTreeFromMemento(plugin_memento);
+        if (!plugin_state.has_value())
+        {
+            return std::unexpected{
+                LiveRigError{LiveRigErrorCode::PluginRestoreFailed, plugin_state.error().message}
+            };
+        }
+
+        // Memento states were hygiene-stripped at capture; re-strip defensively so a stale or
+        // hand-built memento can never smuggle derived curves back into the live chain.
+        stripAutomationCurves(*plugin_state);
+        stripTempoRemapFlag(*plugin_state);
+
+        // The memento tree carries the original instance id; readOrCreateNewID only mints when
+        // one is absent, so restored plugins keep their prior ids and bindings stay valid.
+        tracktion::EditItemID::readOrCreateNewID(*m_impl->m_edit, *plugin_state);
+        const tracktion::Plugin::Ptr restored_plugin =
+            m_impl->m_edit->getPluginCache().getOrCreatePluginFor(*plugin_state);
+        auto* const external_plugin =
+            restored_plugin != nullptr
+                ? dynamic_cast<tracktion::ExternalPlugin*>(restored_plugin.get())
+                : nullptr;
+        if (external_plugin == nullptr)
+        {
+            return std::unexpected{LiveRigError{
+                LiveRigErrorCode::PluginRestoreFailed, "Could not restore persisted tone plugin"
+            }};
+        }
+
+        if (external_plugin->getLoadError().isNotEmpty())
+        {
+            return std::unexpected{LiveRigError{
+                LiveRigErrorCode::MissingPlugins,
+                "Missing plugins: " + external_plugin->getName().toStdString(),
+            }};
+        }
+
+        restored_plugins.push_back(restored_plugin);
+    }
+
+    // The editor's undo entry owns the authoritative panel layout and reapplies it after this
+    // returns; the engine keeps only size-consistent defaults.
+    if (auto swapped = m_impl->swapAudibleChainPlugins(restored_plugins, state.output_gain, {}, {});
+        !swapped.has_value())
+    {
+        return std::unexpected{std::move(swapped.error())};
+    }
+
+    return m_impl->audibleToneResult();
+}
+
+// Adopts the prepared replacement operation and posts its first cooperative step.
+void Engine::Impl::startToneChainReplace(std::unique_ptr<ToneChainReplaceOperation> operation)
+{
+    // Instantiation and the swap re-announce plugin state; none of it is a user edit, so the
+    // whole replacement runs under the plugin-undo capture deferral like a rig load.
+    beginPluginUndoCaptureDeferral();
+    operation->created.reserve(operation->candidates.size());
+    reportToneReplaceProgress(*operation, 0);
+    m_replace_op = std::move(operation);
+
+    // An empty replacement chain (importing an empty tone) has no heavy construction; swap
+    // synchronously, matching the loader's empty-load contract.
+    if (m_replace_op->candidates.empty())
+    {
+        finalizeToneChainReplace();
+        return;
+    }
+
+    std::weak_ptr<bool> replace_alive_source = m_alive;
+    replaceYieldThenContinue([this, replace_alive = std::move(replace_alive_source)] {
+        if (replace_alive.expired())
+        {
+            return;
+        }
+        executeToneReplaceStep();
+    });
+}
+
+// Instantiates the next replacement candidate, collecting missing plugins across the whole chain
+// so the refusal lists every one at once (the loader's 21-Q1(A) policy).
+void Engine::Impl::executeToneReplaceStep()
+{
+    if (m_replace_op == nullptr)
+    {
+        return;
+    }
+
+    if (m_replace_op->next_candidate >= m_replace_op->candidates.size())
+    {
+        finalizeToneChainReplace();
+        return;
+    }
+
+    const std::size_t candidate_index = m_replace_op->next_candidate;
+    const ToneChainReplaceOperation::Candidate& candidate =
+        m_replace_op->candidates[candidate_index];
+    reportToneReplaceProgress(
+        *m_replace_op, candidate_index, candidate_index, candidate.display_name);
+
+    // Collects the candidate as missing and advances to keep scanning the rest of the chain.
+    const auto collect_missing_and_advance = [this, candidate_index, &candidate] {
+        m_replace_op->missing_plugin_names.push_back(candidate.display_name);
+        m_replace_op->next_candidate = candidate_index + 1;
+        std::weak_ptr<bool> skip_alive_source = m_alive;
+        replaceYieldThenContinue([this, replace_alive = std::move(skip_alive_source)] {
+            if (replace_alive.expired())
+            {
+                return;
+            }
+            executeToneReplaceStep();
+        });
+    };
+
+    if (candidate.identity.has_value())
+    {
+        auto plugin_known = ensureKnownPluginForIdentity(*candidate.identity);
+        if (!plugin_known.has_value())
+        {
+            if (plugin_known.error().code == LiveRigErrorCode::PluginNotFound)
+            {
+                collect_missing_and_advance();
+                return;
+            }
+
+            abortToneChainReplace(std::move(plugin_known.error()));
+            return;
+        }
+    }
+
+    // Candidates instantiate free-floating through the plugin cache; nothing touches the
+    // existing chain until every candidate has resolved.
+    juce::ValueTree state_copy = candidate.state.createCopy();
+    tracktion::EditItemID::readOrCreateNewID(*m_edit, state_copy);
+    const tracktion::Plugin::Ptr restored_plugin =
+        m_edit->getPluginCache().getOrCreatePluginFor(state_copy);
+    auto* const external_plugin =
+        restored_plugin != nullptr ? dynamic_cast<tracktion::ExternalPlugin*>(restored_plugin.get())
+                                   : nullptr;
+    if (external_plugin == nullptr)
+    {
+        abortToneChainReplace(
+            LiveRigError{
+                LiveRigErrorCode::PluginRestoreFailed, "Could not restore persisted tone plugin"
+            });
+        return;
+    }
+
+    if (external_plugin->getLoadError().isNotEmpty())
+    {
+        // Broken-install plugins get the same collect-and-continue treatment as unresolvable
+        // identities; the dropped Ptr disposes the failed instance like the loader's abort does.
+        collect_missing_and_advance();
+        return;
+    }
+
+    m_replace_op->created.push_back(restored_plugin);
+    m_replace_op->next_candidate = candidate_index + 1;
+    reportToneReplaceProgress(
+        *m_replace_op, candidate_index + 1, candidate_index, candidate.display_name);
+
+    std::weak_ptr<bool> replace_alive_source = m_alive;
+    replaceYieldThenContinue([this, replace_alive = std::move(replace_alive_source)] {
+        if (replace_alive.expired())
+        {
+            return;
+        }
+        executeToneReplaceStep();
+    });
+}
+
+// Swaps the audible branch's chain for the instantiated candidates; refuses with the complete
+// missing list (previous chain intact) when any candidate could not be resolved.
+void Engine::Impl::finalizeToneChainReplace()
+{
+    if (m_replace_op == nullptr)
+    {
+        return;
+    }
+
+    if (!m_replace_op->missing_plugin_names.empty())
+    {
+        std::string missing_list;
+        for (const std::string& name : m_replace_op->missing_plugin_names)
+        {
+            if (!missing_list.empty())
+            {
+                missing_list += "; ";
+            }
+            missing_list += name;
+        }
+        // Created candidates are free-floating and never entered the chain; dropping their Ptrs
+        // with the operation disposes them, mirroring the loader's abort disposal.
+        abortToneChainReplace(
+            LiveRigError{LiveRigErrorCode::MissingPlugins, "Missing plugins: " + missing_list});
+        return;
+    }
+
+    auto swapped = swapAudibleChainPlugins(
+        m_replace_op->created,
+        m_replace_op->output_gain,
+        m_replace_op->block_indices,
+        m_replace_op->display_type_overrides);
+    if (!swapped.has_value())
+    {
+        abortToneChainReplace(std::move(swapped.error()));
+        return;
+    }
+
+    reportToneReplaceProgress(*m_replace_op, m_replace_op->candidates.size());
+
+    endPluginUndoCaptureDeferral();
+    auto operation = std::move(m_replace_op);
+    operation->on_result(audibleToneResult());
+}
+
+// Swaps the audible branch's user chain for already-instantiated replacements, with rollback,
+// outgoing-chain hygiene, and gain/layout bookkeeping.
+std::expected<void, LiveRigError> Engine::Impl::swapAudibleChainPlugins(
+    const std::vector<tracktion::Plugin::Ptr>& replacements, Gain output_gain,
+    const std::vector<std::size_t>& block_indices,
+    const std::vector<std::string>& display_type_overrides)
+{
+    const std::optional<std::size_t> branch_index = audibleBranchIndex();
+    if (!branch_index.has_value() || !m_tone_rack.has_value())
+    {
+        return std::unexpected{
+            LiveRigError{LiveRigErrorCode::InvalidRequest, "No audible tone to replace"}
+        };
+    }
+
+    // Keep the previous chain alive for rollback and post-swap window/parameter hygiene.
+    const std::vector<tracktion::Plugin::Ptr> previous_chain =
+        m_tone_rack->branches[*branch_index].chain;
+
+    auto mutation_result = mutateAndReroutePluginChain(
+        [this, branch_index, &replacements] -> std::expected<void, PluginChainMutationFailure> {
+            // Remove the existing user plugins back to front, then insert the replacements in
+            // order. Rack mutations coalesce into one asynchronous graph rebuild, so the swap
+            // never re-instantiates other branches' plugins.
+            for (std::size_t remaining = m_tone_rack->branches[*branch_index].chain.size();
+                 remaining-- > 0;)
+            {
+                if (auto removed = removeFromBranch(*m_tone_rack, *branch_index, remaining);
+                    !removed.has_value())
+                {
+                    return std::unexpected{PluginChainMutationFailure{
+                        .error =
+                            PluginHostError{
+                                PluginHostErrorCode::PluginRemovalFailed,
+                                std::move(removed.error().message),
+                            },
+                        .reroute_context = "tone replace removal rollback failed",
+                    }};
+                }
+            }
+
+            for (std::size_t index = 0; index < replacements.size(); ++index)
+            {
+                if (auto inserted =
+                        insertIntoBranch(*m_tone_rack, *branch_index, index, replacements[index]);
+                    !inserted.has_value())
+                {
+                    return std::unexpected{PluginChainMutationFailure{
+                        .error =
+                            PluginHostError{
+                                PluginHostErrorCode::PluginInsertionFailed,
+                                std::move(inserted.error().message),
+                            },
+                        .reroute_context = "tone replace insertion rollback failed",
+                    }};
+                }
+            }
+
+            return {};
+        },
+        [this, branch_index, &previous_chain] {
+            // Best-effort rollback: strip whatever the partial swap left in the branch, then
+            // re-insert the previous chain in order.
+            for (std::size_t remaining = m_tone_rack->branches[*branch_index].chain.size();
+                 remaining-- > 0;)
+            {
+                if (!removeFromBranch(*m_tone_rack, *branch_index, remaining).has_value())
+                {
+                    logInstrumentMonitoringFailure("tone replace rollback could not unwire");
+                    return;
+                }
+            }
+            for (std::size_t index = 0; index < previous_chain.size(); ++index)
+            {
+                if (!insertIntoBranch(*m_tone_rack, *branch_index, index, previous_chain[index])
+                         .has_value())
+                {
+                    logInstrumentMonitoringFailure("tone replace rollback could not rewire");
+                    return;
+                }
+            }
+        },
+        "tone replace route rollback failed");
+    if (!mutation_result.has_value())
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::PluginRestoreFailed, std::move(mutation_result.error().message)
+        }};
+    }
+
+    // The previous chain is out of the graph for good: close its windows and hide its parameters
+    // before the Ptrs drop, exactly like a single-plugin removal.
+    for (const tracktion::Plugin::Ptr& removed : previous_chain)
+    {
+        if (removed != nullptr)
+        {
+            commitPluginRemoval(*removed);
+        }
+    }
+
+    // The replacement chain's gain and retained panel layout become the audible branch's truth.
+    if (auto gain_applied = applyGainToPlugin(m_output_gain_plugin_id, output_gain);
+        !gain_applied.has_value())
+    {
+        logInstrumentMonitoringFailure(toJuceString(gain_applied.error().message));
+    }
+    if (*branch_index < m_branch_output_gains.size())
+    {
+        m_branch_output_gains[*branch_index] = output_gain;
+    }
+    if (*branch_index < m_branch_display_metadata.size())
+    {
+        BranchDisplayMetadata& metadata = m_branch_display_metadata[*branch_index];
+        metadata.block_indices = block_indices;
+        metadata.display_type_overrides = display_type_overrides;
+        metadata.stable_ids.assign(replacements.size(), std::string{});
+    }
+
+    return {};
+}
+
+// Aborts the in-flight chain replacement and delivers the failure to the original caller.
+void Engine::Impl::abortToneChainReplace(LiveRigError error)
+{
+    if (m_replace_op == nullptr)
+    {
+        return;
+    }
+
+    // Nothing was removed from the existing chain before the swap, so there is no graph state to
+    // repair; free-floating candidates dispose when the operation's Ptrs drop.
+    endPluginUndoCaptureDeferral();
+    auto operation = std::move(m_replace_op);
+    operation->on_result(std::unexpected{std::move(error)});
+}
+
+// Routes replacement continuations through the caller's yield callback when provided, matching
+// yieldThenContinue's paint-fence contract for the load path.
+void Engine::Impl::replaceYieldThenContinue(std::function<void()> next)
+{
+    if (!next)
+    {
+        return;
+    }
+
+    if (m_replace_op != nullptr && m_replace_op->yield_callback)
+    {
+        m_replace_op->yield_callback(std::move(next));
+        return;
+    }
+
+    juce::MessageManager::callAsync(std::move(next));
 }
 
 } // namespace rock_hero::common::audio
