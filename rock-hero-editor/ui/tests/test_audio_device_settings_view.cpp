@@ -1,6 +1,7 @@
 #include "audio_device/audio_device_settings_view.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <functional>
 #include <optional>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
 
@@ -277,7 +278,8 @@ TEST_CASE(
         });
 
     std::optional<bool> requested;
-    view.setGameAudioSettingsChangedCallback([&](bool enabled) { requested = enabled; });
+    view.setGameAudioSettingsChangedCallback(
+        [&](bool enabled, std::function<void(bool)>) { requested = enabled; });
 
     auto& toggle =
         findRequiredDirectChild<juce::ToggleButton>(view, "audio_settings_use_game_toggle");
@@ -314,7 +316,8 @@ TEST_CASE(
         });
 
     std::optional<bool> requested;
-    view.setGameAudioSettingsChangedCallback([&](bool enabled) { requested = enabled; });
+    view.setGameAudioSettingsChangedCallback(
+        [&](bool enabled, std::function<void(bool)>) { requested = enabled; });
 
     auto& toggle =
         findRequiredDirectChild<juce::ToggleButton>(view, "audio_settings_use_game_toggle");
@@ -351,7 +354,8 @@ TEST_CASE(
         });
 
     std::optional<bool> requested;
-    view.setGameAudioSettingsChangedCallback([&](bool enabled) { requested = enabled; });
+    view.setGameAudioSettingsChangedCallback(
+        [&](bool enabled, std::function<void(bool)>) { requested = enabled; });
 
     clickTextButton(view, "audio_settings_cancel_button");
 
@@ -386,7 +390,8 @@ TEST_CASE(
     CHECK(toggle.isEnabled());
 
     std::optional<bool> requested;
-    view.setGameAudioSettingsChangedCallback([&](bool enabled) { requested = enabled; });
+    view.setGameAudioSettingsChangedCallback(
+        [&](bool enabled, std::function<void(bool)>) { requested = enabled; });
 
     // Unchecking the toggle drops locally into the editable device flow before the controller
     // round-trip and asks the host to restore the editor's own audio.
@@ -420,7 +425,8 @@ TEST_CASE(
     CHECK(input_device.isEnabled());
 
     std::optional<bool> requested;
-    view.setGameAudioSettingsChangedCallback([&](bool enabled) { requested = enabled; });
+    view.setGameAudioSettingsChangedCallback(
+        [&](bool enabled, std::function<void(bool)>) { requested = enabled; });
 
     // Drive the toggle deterministically: set the state, then invoke its handler as a real click
     // would, matching the file's direct-onClick pattern for buttons.
