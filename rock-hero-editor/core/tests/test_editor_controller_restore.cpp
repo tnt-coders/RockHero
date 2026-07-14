@@ -682,4 +682,154 @@ TEST_CASE(
     CHECK(own_store.activeDeviceRoute() == editor_route);
 }
 
+namespace
+{
+
+// Reports whether any state pushed to the view carried the audio-device open overlay.
+[[nodiscard]] bool sawAudioDeviceOpenOverlay(const FakeEditorView& view)
+{
+    for (const EditorViewState& state : view.pushed_states)
+    {
+        if (state.busy.has_value() && state.busy->operation == BusyOperation::OpeningAudioDevice)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+} // namespace
+
+// When the game route resolves to the device that is already open, the toggle applies the route
+// inline: the guarded restore no-ops, so no "Opening audio device..." overlay is shown.
+TEST_CASE(
+    "EditorController game-audio toggle applies instantly when the device is unchanged",
+    "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"game_toggle_instant"};
+    const ScopedGameFile game_file{"game_toggle_instant.settings"};
+    writeCalibratedGameRoute(game_file.path(), "game-device-state");
+
+    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore own_store;
+    REQUIRE(own_store
+                .setActiveDeviceRoute(
+                    common::audio::ActiveDeviceRoute{
+                        .serialized_state = "own-device-state", .identity = std::nullopt
+                    })
+                .has_value());
+
+    EditorAudioConfigStore editor_store{own_store, game_file.path()};
+    REQUIRE(editor_store.gameSourceAvailable());
+
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    // The live device already matches the target route.
+    audio_devices.device_state_matches_active = true;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, editor_store};
+
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices),
+        EditorController::Services{
+            .settings = settings,
+            .task_runner = immediateTaskRunner(),
+            .message_thread_scheduler = immediateMessageThreadScheduler(),
+            .audio_config_store = editor_store,
+            .live_input_monitor = monitor,
+            .editor_audio_config_store = &editor_store,
+        },
+        noopExitFunction()
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    // Ignore the startup restore; assert only the toggle's behavior.
+    audio_devices.restore_serialized_device_state_call_count = 0;
+    const int paint_callbacks_before = view.busy_overlay_paint_callback_count;
+
+    controller.onUseGameAudioSettingsChangeRequested(true);
+
+    // The toggle consulted the skip-if-unchanged predicate against the now-active game route.
+    CHECK(audio_devices.device_state_matches_active_call_count >= 1);
+    CHECK(
+        audio_devices.last_device_state_match_query ==
+        std::optional<std::string>{"game-device-state"});
+    // The guarded restore still ran (idempotent no-op), and the monitor source flip is not gated.
+    CHECK(audio_devices.restore_serialized_device_state_call_count == 1);
+    CHECK(
+        audio_devices.last_restored_serialized_device_state ==
+        std::optional<std::string>{"game-device-state"});
+    // No genuine re-open, so no busy overlay paint fence was scheduled.
+    CHECK(view.busy_overlay_paint_callback_count == paint_callbacks_before);
+    CHECK_FALSE(sawAudioDeviceOpenOverlay(view));
+    const EditorViewState* final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK_FALSE(final_state->busy.has_value());
+}
+
+// When the game route resolves to a different device, the toggle re-opens the device behind the
+// busy overlay so the blocking juce::AudioDeviceManager work paints "Opening audio device..." first.
+TEST_CASE(
+    "EditorController game-audio toggle re-opens behind the busy overlay when the device changes",
+    "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"game_toggle_reopen"};
+    const ScopedGameFile game_file{"game_toggle_reopen.settings"};
+    writeCalibratedGameRoute(game_file.path(), "game-device-state");
+
+    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore own_store;
+    REQUIRE(own_store
+                .setActiveDeviceRoute(
+                    common::audio::ActiveDeviceRoute{
+                        .serialized_state = "own-device-state", .identity = std::nullopt
+                    })
+                .has_value());
+
+    EditorAudioConfigStore editor_store{own_store, game_file.path()};
+    REQUIRE(editor_store.gameSourceAvailable());
+
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    // The live device differs from the target route, so a genuine re-open is required.
+    audio_devices.device_state_matches_active = false;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, editor_store};
+
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices),
+        EditorController::Services{
+            .settings = settings,
+            .task_runner = immediateTaskRunner(),
+            .message_thread_scheduler = immediateMessageThreadScheduler(),
+            .audio_config_store = editor_store,
+            .live_input_monitor = monitor,
+            .editor_audio_config_store = &editor_store,
+        },
+        noopExitFunction()
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    audio_devices.restore_serialized_device_state_call_count = 0;
+    const int paint_callbacks_before = view.busy_overlay_paint_callback_count;
+
+    controller.onUseGameAudioSettingsChangeRequested(true);
+
+    CHECK(audio_devices.device_state_matches_active_call_count >= 1);
+    // The re-open ran behind exactly one busy overlay paint fence.
+    CHECK(view.busy_overlay_paint_callback_count == paint_callbacks_before + 1);
+    CHECK(sawAudioDeviceOpenOverlay(view));
+    CHECK(audio_devices.restore_serialized_device_state_call_count == 1);
+    CHECK(
+        audio_devices.last_restored_serialized_device_state ==
+        std::optional<std::string>{"game-device-state"});
+    // The overlay clears once the re-open completes.
+    const EditorViewState* final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK_FALSE(final_state->busy.has_value());
+}
+
 } // namespace rock_hero::editor::core

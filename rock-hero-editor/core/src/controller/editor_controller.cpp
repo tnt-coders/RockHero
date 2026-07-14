@@ -1488,9 +1488,30 @@ void EditorController::Impl::onUseGameAudioSettingsChangeRequested(bool enabled)
         refreshGameSourceAvailability();
         const bool source_game = enabled && m_game_source_available;
         m_editor_audio_config_store->useGameSource(source_game);
-        // restoreAudioDeviceState reads the active route through the store, so it now applies the
-        // game's route (on) or the editor's own route (off) to the engine, keeping the live device
-        // and the selected source in agreement in both directions.
+
+        // Decide instant-vs-overlay before touching the device, using the now-active route. When the
+        // resolved route already matches the open device (e.g. the game route was imported from this
+        // editor's own route), restoreAudioDeviceState reads through the store and no-ops, so apply
+        // it inline with no overlay. Only a genuine device re-open goes behind the busy overlay so
+        // the blocking juce::AudioDeviceManager work paints "Opening audio device..." first.
+        //
+        // The monitoring source flips regardless of whether the device changed, so the live-input
+        // monitor refresh runs on both paths, outside the device-reapply skip.
+        const std::optional<common::audio::ActiveDeviceRoute> route =
+            m_audio_config_store.activeDeviceRoute();
+        const bool device_reopen_required =
+            route.has_value() && !route->serialized_state.empty() &&
+            !m_audio_devices.deviceStateMatchesActive(route->serialized_state);
+
+        if (device_reopen_required)
+        {
+            m_busy.runMessageThreadBusyOperation(BusyOperation::OpeningAudioDevice, [this] {
+                restoreAudioDeviceState();
+                static_cast<void>(m_live_input_monitor.refresh(monitoringContext()));
+            });
+            return;
+        }
+
         restoreAudioDeviceState();
         static_cast<void>(m_live_input_monitor.refresh(monitoringContext()));
     }
