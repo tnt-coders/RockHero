@@ -217,16 +217,9 @@ TEST_CASE("AudioDeviceSettingsView presents an unavailable device", "[ui][audio-
     state.error_message.clear();
     view.setState(state);
 
-    // With no operation error active, the label carries the standing unavailable notice, composed
-    // from the base text plus the backend's own detail.
-    CHECK(
-        error_label.getText() ==
-        "The selected audio device is unavailable: Can't detect asio channels");
-
-    // A backend that supplied no usable detail presents the base message alone.
-    state.staged_device_error = std::string{};
-    view.setState(state);
-    CHECK(error_label.getText() == "The selected audio device is unavailable");
+    // With no operation error active, the label carries the standing unavailable notice: the
+    // backend's own error text, verbatim.
+    CHECK(error_label.getText() == "Can't detect asio channels");
 }
 
 // Toggle ON with an available game config renders the device fields read-only, disabled, and

@@ -721,12 +721,11 @@ TEST_CASE(
     CHECK(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
 }
 
-// JUCE substitutes the placeholder "Driver failed to initialise" when a failed driver init supplies
-// no vendor message; the placeholder carries no information beyond the failure itself, so the
-// composed message stays at its base form instead of echoing backend filler (with its non-American
-// spelling).
+// JUCE substitutes the pinned placeholder "Driver failed to initialise" when a failed driver init
+// supplies no vendor message; it passes through like any other backend text, normalized only to
+// American spelling at this boundary.
 TEST_CASE(
-    "AudioDeviceSettings drops the placeholder detail for a silent driver",
+    "AudioDeviceSettings normalizes the placeholder spelling for a silent driver",
     "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -742,9 +741,11 @@ TEST_CASE(
 
     AudioDeviceSettings settings{audio_devices};
     REQUIRE(settings.state().staged_device_error.has_value());
-    // The placeholder maps to engaged-but-empty detail, so the composed message (rendered by the
-    // window's standing notice) stays at its base form instead of echoing backend filler.
-    CHECK(settings.state().staged_device_error.value_or(std::string{"x"}).empty());
+    // The pinned JUCE placeholder passes through like any other backend text, with the one
+    // boundary translation being its spelling (Rock Hero's user-facing text is American English).
+    CHECK(
+        settings.state().staged_device_error.value_or(std::string{}) ==
+        "Driver failed to initialize");
 
     const auto applied = settings.apply();
 
