@@ -14,11 +14,14 @@ add_library(rock_hero::game::core ALIAS rock_hero_game_core)
 # engine that executes a plan through injected lister/describer/album-art ports, signalling commit
 # checkpoints instead of persisting itself (plan 26 Phase 3), and the pure scan-root resolver that
 # composes the default per-user Songs folder with the user's custom roots from settings
-# (plan 26 Phase 4).
+# (plan 26 Phase 4). Input feature: the headless menu-action vocabulary and the bindable resolver
+# that maps device-agnostic input triggers to actions with overwrite-and-clear rebinding
+# (plan 26 Phase 5); concrete device defaults and adapters live at the composition boundary.
 target_sources(
     rock_hero_game_core
     PRIVATE src/diagnostics/diagnostics.cpp
             src/frame_clock/frame_clock.cpp
+            src/input/menu_bindings.cpp
             src/library/album_art_error.cpp
             src/library/library_index_store.cpp
             src/library/library_index_store_error.cpp

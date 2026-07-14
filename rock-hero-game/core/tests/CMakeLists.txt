@@ -13,7 +13,8 @@ add_executable(
     test_library_index_store.cpp
     test_library_scan_engine.cpp
     test_library_scan_plan.cpp
-    test_library_scan_roots.cpp)
+    test_library_scan_roots.cpp
+    test_menu_bindings.cpp)
 
 # Shared test fakes (the null settings port) live under tests/include, mirroring editor/core.
 target_include_directories(rock_hero_game_core_tests PRIVATE include)
