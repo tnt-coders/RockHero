@@ -36,10 +36,10 @@ public:
     /*!
     \brief Records a serialized state restore request and returns the configured result.
     \param serialized_state Serialized audio-device state passed by the object under test.
-    \return Empty success, the next configured typed error, or a generic restore failure.
+    \return The configured outcome, the next configured typed error, or a generic restore failure.
     */
-    [[nodiscard]] std::expected<void, AudioDeviceConfigurationError> restoreSerializedDeviceState(
-        const std::string& serialized_state) override
+    [[nodiscard]] std::expected<DeviceRestoreOutcome, AudioDeviceConfigurationError>
+    restoreSerializedDeviceState(const std::string& serialized_state) override
     {
         last_restored_serialized_device_state = serialized_state;
         restore_serialized_device_state_call_count += 1;
@@ -59,7 +59,7 @@ public:
             }};
         }
 
-        return {};
+        return restore_serialized_device_state_outcome;
     }
 
     /*!
@@ -141,6 +141,9 @@ public:
 
     /*! \brief Result returned by restoreSerializedDeviceState(). */
     bool restore_serialized_device_state_result{true};
+
+    /*! \brief Outcome returned by a successful restoreSerializedDeviceState(). */
+    DeviceRestoreOutcome restore_serialized_device_state_outcome{DeviceRestoreOutcome::Opened};
 
     /*! \brief Optional typed error returned by the next restoreSerializedDeviceState() call. */
     std::optional<AudioDeviceConfigurationError> next_restore_serialized_device_state_error{};

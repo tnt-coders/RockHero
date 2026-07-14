@@ -31,6 +31,7 @@
 #include <juce_core/juce_core.h>
 #include <memory>
 #include <optional>
+#include <rock_hero/common/audio/device/device_restore_outcome.h>
 #include <rock_hero/common/audio/device/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/input/i_live_input.h>
 #include <rock_hero/common/audio/live_rig/i_live_rig.h>
@@ -2158,7 +2159,7 @@ void EditorController::Impl::restoreAudioDeviceState()
         return;
     }
 
-    auto restored = m_audio_devices.restoreSerializedDeviceState(route->serialized_state);
+    const auto restored = m_audio_devices.restoreSerializedDeviceState(route->serialized_state);
     if (!restored.has_value())
     {
         logEditorControllerBestEffortFailure(
@@ -2166,6 +2167,16 @@ void EditorController::Impl::restoreAudioDeviceState()
         recordAudioConfigResultBestEffort(
             m_audio_config_store.setActiveDeviceRoute(std::nullopt),
             "clear invalid serialized audio-device state");
+        return;
+    }
+
+    if (*restored == common::audio::DeviceRestoreOutcome::DeviceUnavailable)
+    {
+        // A designed outcome, not a failure: the saved device is absent or in use, so the route was
+        // applied closed and the saved choice retained. Logged so a silent editor is explainable.
+        logEditorControllerBestEffortFailure(
+            "open saved audio device",
+            "saved device unavailable; the audio device stays closed and the saved choice is kept");
     }
 }
 
