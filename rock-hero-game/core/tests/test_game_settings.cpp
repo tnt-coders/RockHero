@@ -5,6 +5,7 @@
 #include <rock_hero/game/core/settings/game_settings.h>
 #include <rock_hero/game/core/testing/null_game_settings.h>
 #include <string>
+#include <vector>
 
 namespace rock_hero::game::core
 {
@@ -122,6 +123,33 @@ TEST_CASE("Game settings first-run flag persists", "[core][settings]")
     CHECK(reopened.firstRunCompleted() == std::optional{true});
 }
 
+// Verifies custom scan roots default to empty, round-trip (including a non-ASCII path), and a
+// new set replaces the previous one wholesale.
+TEST_CASE("Game settings custom scan roots round-trip", "[core][settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI juce_runtime;
+    const TemporarySettingsDirectory directory;
+
+    const std::vector<std::filesystem::path> roots = {
+        std::filesystem::path{"D:/Extra Songs"},
+        std::filesystem::path{std::u8string{u8"E:/Café Songs"}},
+    };
+
+    {
+        GameSettings settings{directory.settingsFile()};
+        CHECK(settings.customScanRoots().empty());
+        REQUIRE(settings.setCustomScanRoots(roots).has_value());
+        CHECK(settings.customScanRoots() == roots);
+    }
+
+    GameSettings reopened{directory.settingsFile()};
+    CHECK(reopened.customScanRoots() == roots); // persisted across reopen, order and Unicode intact
+
+    // A new set replaces the old one; an empty set clears it.
+    REQUIRE(reopened.setCustomScanRoots(std::vector<std::filesystem::path>{}).has_value());
+    CHECK(reopened.customScanRoots().empty());
+}
+
 // Verifies the null fake satisfies the port with defaults and accepting writes.
 TEST_CASE("Null game settings reports defaults", "[core][settings]")
 {
@@ -132,8 +160,10 @@ TEST_CASE("Null game settings reports defaults", "[core][settings]")
     CHECK_FALSE(profile_id->empty());
     CHECK(settings.profileDisplayName() == "Player");
     CHECK_FALSE(settings.firstRunCompleted().has_value());
+    CHECK(settings.customScanRoots().empty());
     CHECK(settings.setProfileDisplayName("Anyone").has_value());
     CHECK(settings.setFirstRunCompleted(true).has_value());
+    CHECK(settings.setCustomScanRoots(std::vector<std::filesystem::path>{}).has_value());
 }
 
 } // namespace rock_hero::game::core

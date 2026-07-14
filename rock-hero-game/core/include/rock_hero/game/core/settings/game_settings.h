@@ -10,7 +10,9 @@
 #include <juce_data_structures/juce_data_structures.h>
 #include <optional>
 #include <rock_hero/game/core/settings/i_game_settings.h>
+#include <span>
 #include <string>
+#include <vector>
 
 namespace rock_hero::game::core
 {
@@ -82,6 +84,20 @@ public:
     */
     [[nodiscard]] std::expected<void, GameSettingsError> setFirstRunCompleted(
         bool completed) override;
+
+    /*!
+    \brief Reads the user-added custom song directories.
+    \return The custom song directories in user order; empty when none are stored.
+    */
+    [[nodiscard]] std::vector<std::filesystem::path> customScanRoots() const override;
+
+    /*!
+    \brief Stores the user-added custom song directories, replacing any previous set.
+    \param roots Custom song directories to persist.
+    \return Empty success, or a typed settings failure.
+    */
+    [[nodiscard]] std::expected<void, GameSettingsError> setCustomScanRoots(
+        std::span<const std::filesystem::path> roots) override;
 
 private:
     // Backing JUCE properties store; message-thread use only, save-on-set.
