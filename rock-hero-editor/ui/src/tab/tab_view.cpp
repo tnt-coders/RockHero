@@ -26,7 +26,6 @@ namespace
 
 // Charter modern-theme fixed colors.
 const juce::Colour g_note_background_color{0xff101010};     // NOTE_BACKGROUND
-const juce::Colour g_chord_box_color{0xff00d2d5};           // CHORD_BOX
 const juce::Colour g_hand_shape_color{0xff3157a7};          // HAND_SHAPE
 const juce::Colour g_hand_shape_arpeggio_color{0xff8559b7}; // HAND_SHAPE_ARPEGGIO
 const juce::Colour g_vibrato_sine_color{0xffb6b6b6};        // java Color.GRAY.brighter()
@@ -762,12 +761,14 @@ void drawShapeSpan(
     }
 }
 
-// Draws Charter's chord box: a narrow translucent teal pill spanning the lane height at the
-// strummed onset.
-void drawChordBoxPill(juce::Graphics& g, const TabLaneMetrics& metrics, float x)
+// Draws a narrow translucent vertical pill spanning the lane height at an onset, in the
+// hand-shape color of what it marks: blue at strummed chord onsets (a user-directed recolor of
+// Charter's teal chord box, tying the pill to the rail palette) and purple at arpeggio starts.
+void drawOnsetPill(
+    juce::Graphics& g, const TabLaneMetrics& metrics, float x, const juce::Colour& color)
 {
     const float radius = std::max(2.0f, metrics.note_height / 6.0f);
-    g.setColour(g_chord_box_color.withAlpha(static_cast<juce::uint8>(128)));
+    g.setColour(color.withAlpha(static_cast<juce::uint8>(128)));
     g.fillRoundedRectangle(
         juce::Rectangle<float>{
             x - radius,
@@ -896,8 +897,8 @@ void TabView::setState(std::shared_ptr<const core::TabViewState> tab, int minimu
 }
 
 // Draws the visible chart content in Charter's layer order: string lines, hand-shape spans,
-// sustain tails with their slide and bend lines, chord-box pills, note heads with technique
-// glyphs, then the floating labels (slide frets and bend amount chips) on top.
+// sustain tails with their slide and bend lines, chord and arpeggio onset pills, note heads
+// with technique glyphs, then the floating labels (slide frets and bend amount chips) on top.
 void TabView::paint(juce::Graphics& g)
 {
     if (m_tab == nullptr || m_tab->string_count <= 0)
@@ -963,7 +964,7 @@ void TabView::paint(juce::Graphics& g)
         drawBendLines(g, metrics, style, note, onset_x, center_y, bend_chips);
     }
 
-    // Chord-box pills at strummed onsets: two or more notes sharing one start (Charter draws
+    // Onset pills at strummed chord onsets: two or more notes sharing one start (Charter draws
     // these under the heads).
     for (std::size_t index = first; index < last; ++index)
     {
@@ -977,7 +978,17 @@ void TabView::paint(juce::Graphics& g)
              std::is_neq(m_tab->notes[index - 1].start_seconds <=> note.start_seconds));
         if (starts_group)
         {
-            drawChordBoxPill(g, metrics, metrics.x(note.start_seconds));
+            drawOnsetPill(g, metrics, metrics.x(note.start_seconds), g_hand_shape_color);
+        }
+    }
+
+    // Arpeggio spans mark their start with the same pill in purple: their notes arrive
+    // sequentially, so the strummed-group rule above never marks them.
+    for (const core::TabShapeView& shape : m_tab->shapes)
+    {
+        if (shape.arpeggio && shape.start_seconds >= span_start && shape.start_seconds <= span_end)
+        {
+            drawOnsetPill(g, metrics, metrics.x(shape.start_seconds), g_hand_shape_arpeggio_color);
         }
     }
 

@@ -249,16 +249,23 @@ TEST_CASE("TabView draws techniques, shapes, and fret-hand positions", "[ui][tab
     // The template name chip sits against the bottom rail at the span start.
     CHECK(image.getPixelAt(50, 232).getARGB() != 0);
 
+    // The strummed onset at 3.0s wears the hand-shape blue pill (no longer Charter's teal), and
+    // the arpeggio start at 10.0s gets the purple pill. Expected values are the alpha-128 fills
+    // after the software renderer's premultiply round-trip, probed clear of lanes and heads.
+    CHECK(image.getPixelAt(60, 110) == juce::Colour{0x802f55a5});
+    CHECK(image.getPixelAt(200, 110) == juce::Colour{0x808357b5});
+
     // The tremolo strip stays clipped to its sustain: nothing straggles past the note end.
     // String 2 lane of six in 240px: center y = 180. Note ends at 6.0s → x = 120. The probe row
-    // sits above the string line (which now runs the full width) but inside the tremolo band.
+    // sits above the string line (which now runs the full width) but inside the tremolo band,
+    // and the sweep stops short of the arpeggio's full-height onset pill around x = 200.
     bool tremolo_inside = false;
     for (int x = 62; x < 118; ++x)
     {
         tremolo_inside = tremolo_inside || image.getPixelAt(x, 174).getARGB() != 0;
     }
     CHECK(tremolo_inside);
-    for (int x = 123; x < 198; ++x)
+    for (int x = 123; x < 195; ++x)
     {
         CHECK(image.getPixelAt(x, 174).getARGB() == 0);
     }
