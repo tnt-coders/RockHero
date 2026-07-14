@@ -52,6 +52,14 @@ struct ActionConditions
     /*! \brief True when the session has a loaded arrangement. */
     bool has_loaded_arrangement{false};
 
+    /*!
+    \brief True when the Tone Designer owns the live rig (no project open).
+
+    Signal-chain actions treat "arrangement loaded OR designer active" as one gate: both mean a
+    live chain exists to edit. Tone-document actions require the designer specifically.
+    */
+    bool tone_designer_active{false};
+
     /*! \brief True when Stop should reset playback or the playhead. */
     bool can_stop_transport{false};
 

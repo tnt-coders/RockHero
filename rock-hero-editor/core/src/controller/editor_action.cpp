@@ -155,6 +155,22 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::SetToneAutomationPoints;
     }
+    else if constexpr (std::is_same_v<A, EditorAction::NewToneDocument>)
+    {
+        return EditorAction::Id::NewToneDocument;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::OpenToneFile>)
+    {
+        return EditorAction::Id::OpenToneFile;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::SaveToneFile>)
+    {
+        return EditorAction::Id::SaveToneFile;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::SaveToneFileAs>)
+    {
+        return EditorAction::Id::SaveToneFileAs;
+    }
     else
     {
         static_assert(g_dependent_false<A>, "Unhandled editor action alternative");

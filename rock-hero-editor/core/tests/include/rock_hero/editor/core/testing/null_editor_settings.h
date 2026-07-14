@@ -81,6 +81,25 @@ public:
     }
 
     /*!
+    \brief Reports that no tone file directory is stored.
+    \return Always empty.
+    */
+    [[nodiscard]] std::optional<std::filesystem::path> toneFileDirectory() const override
+    {
+        return std::nullopt;
+    }
+
+    /*!
+    \brief Ignores tone file directory writes.
+    \return Always empty success.
+    */
+    [[nodiscard]] std::expected<void, EditorSettingsError> setToneFileDirectory(
+        std::filesystem::path) override
+    {
+        return {};
+    }
+
+    /*!
     \brief Reports that no use-game-audio-settings choice is stored.
     \return Always empty.
     */

@@ -122,6 +122,18 @@ enum class EditorActionId : std::uint8_t
 
     /*! \brief Replace a tone-chain plugin parameter's automation curve points. */
     SetToneAutomationPoints,
+
+    /*! \brief Start a fresh untitled tone document in the Tone Designer. */
+    NewToneDocument,
+
+    /*! \brief Open a standalone tone file as the Tone Designer document. */
+    OpenToneFile,
+
+    /*! \brief Save the Tone Designer document to its associated tone file. */
+    SaveToneFile,
+
+    /*! \brief Save the Tone Designer document to a chosen tone file. */
+    SaveToneFileAs,
 };
 
 } // namespace rock_hero::editor::core

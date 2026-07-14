@@ -73,7 +73,11 @@ target_sources(
             src/tone/tone_region_edits.cpp
             src/tone/tone_region_edits.h
             src/tone/tone_track_projection.cpp
-            src/tone/tone_track_projection.h)
+            src/tone/tone_track_projection.h
+            src/tone_designer/tone_designer_edits.cpp
+            src/tone_designer/tone_designer_edits.h
+            src/tone_designer/tone_designer_handlers.cpp
+            src/tone_designer/tone_designer_state.h)
 
 # The PRIVATE src dir lets library and test translation units reference private headers with
 # feature-qualified quoted includes ("busy/busy_operation_state.h") across feature folders.

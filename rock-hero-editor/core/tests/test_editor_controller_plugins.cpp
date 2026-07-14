@@ -1288,12 +1288,18 @@ TEST_CASE("EditorController rejects over-limit live rig on open", "[core][editor
 
     controller.onOpenRequested(std::filesystem::path{"song.rhp"});
 
-    CHECK(live_rig.load_call_count == 1);
+    // Two loads: the rejected project rig, then the Tone Designer resting rig the failure path
+    // stands back up. The fake echoes its over-limit chain for the second load too, so the
+    // designer's own cap guard is what keeps the panel empty here.
+    CHECK(live_rig.load_call_count == 2);
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
     CHECK_FALSE(state->project_loaded);
+    CHECK(state->tone_designer.active);
     CHECK(state->signal_chain.plugins.empty());
-    REQUIRE(view.shown_errors.size() == 1);
+    // The designer's cap guard reports the fake's echoed over-limit chain first; the open
+    // failure itself is reported last, where the user reads the outcome.
+    REQUIRE(view.shown_errors.size() == 2);
     CHECK(
         view.shown_errors.back() == "Could not load live rig from: song.rhp: " +
                                         common::audio::pluginChainLimitExceededMessage(

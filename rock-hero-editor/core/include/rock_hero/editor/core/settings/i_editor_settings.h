@@ -74,6 +74,20 @@ public:
         bool visible) = 0;
 
     /*!
+    \brief Reads the directory the tone-file choosers should start in.
+    \return Last-used tone file directory, or empty when the user has never saved or opened one.
+    */
+    [[nodiscard]] virtual std::optional<std::filesystem::path> toneFileDirectory() const = 0;
+
+    /*!
+    \brief Stores the directory the tone-file choosers should start in.
+    \param directory Directory of the most recently opened or saved tone file.
+    \return Empty success, or a typed settings failure.
+    */
+    [[nodiscard]] virtual std::expected<void, EditorSettingsError> setToneFileDirectory(
+        std::filesystem::path directory) = 0;
+
+    /*!
     \brief Reads whether the editor sources the game's audio configuration instead of its own.
 
     Editor workflow state, not audio config: it selects a read source and never affects the game.

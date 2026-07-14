@@ -104,6 +104,20 @@ public:
         bool visible) override;
 
     /*!
+    \brief Reads the directory the tone-file choosers should start in.
+    \return Last-used tone file directory, or empty when the user has never saved or opened one.
+    */
+    [[nodiscard]] std::optional<std::filesystem::path> toneFileDirectory() const override;
+
+    /*!
+    \brief Stores the directory the tone-file choosers should start in.
+    \param directory Directory of the most recently opened or saved tone file.
+    \return Empty success, or a typed settings failure.
+    */
+    [[nodiscard]] std::expected<void, EditorSettingsError> setToneFileDirectory(
+        std::filesystem::path directory) override;
+
+    /*!
     \brief Reads whether the editor sources the game's audio configuration instead of its own.
     \return Stored choice, or empty when the user has never set it.
     */

@@ -29,6 +29,7 @@ namespace rock_hero::editor::core
 {
 
 class SignalChainWorkflow;
+struct ToneDesignerState;
 
 /*! \brief Direction of a pending undo-history transition. */
 enum class EditorUndoDirection : std::uint8_t
@@ -94,6 +95,14 @@ struct [[nodiscard]] EditorEditContext
 
     /*! \brief Controller-owned output-gain mirror refreshed after output-gain undo/redo. */
     double& output_gain_db;
+
+    /*!
+    \brief Tone Designer document state updated by document-replace edits.
+
+    Document edits repoint the file association here and request post-commit clean-marker
+    reconciliation through it; every other edit leaves it untouched.
+    */
+    ToneDesignerState& tone_designer;
 };
 
 /*! \brief Polymorphic editor-core undo entry. */

@@ -22,6 +22,8 @@ definitions, no state added just to make a translation-unit split work.
 #include "signal_chain/plugin_catalog_workflow.h"
 #include "signal_chain/signal_chain_workflow.h"
 #include "tone/tone_automation_projection.h"
+#include "tone_designer/tone_designer_edits.h"
+#include "tone_designer/tone_designer_state.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -247,6 +249,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::SetSignalChainPlacement& action);
     void performActionImpl(const EditorAction::SetPluginDisplayTypeOverride& action);
     void performActionImpl(const EditorAction::OpenPlugin& action);
+    void performActionImpl(EditorAction::NewToneDocument action);
+    void performActionImpl(EditorAction::OpenToneFile action);
+    void performActionImpl(EditorAction::SaveToneFile action);
+    void performActionImpl(EditorAction::SaveToneFileAs action);
     [[nodiscard]] EditorEditContext editContext() noexcept;
     void pushUndoEntry(std::unique_ptr<IEdit> edit);
     void pushOutputGainUndoEntry(common::audio::Gain before_gain, common::audio::Gain after_gain);
@@ -288,6 +294,26 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void runProjectActionImpl(EditorAction::PublishProject action);
     void runProjectActionImpl(EditorAction::CloseProject action);
     void runProjectActionImpl(EditorAction::ExitApplication action);
+    void runProjectActionImpl(EditorAction::NewToneDocument action);
+    void runProjectActionImpl(EditorAction::OpenToneFile action);
+
+    // Tone Designer feature slice (definitions in tone_designer/tone_designer_handlers.cpp).
+    // The designer is the editor's resting mode: with no project open, the live rig stays alive
+    // and the signal chain edits a file-backed tone document instead of project content.
+    [[nodiscard]] bool hasActiveSignalChain() const;
+    [[nodiscard]] bool toneDesignerHasUnsavedChanges() const noexcept;
+    void enterToneDesignerIfNoProject(std::string_view context);
+    void leaveToneDesigner(std::string_view context);
+    void reconcileToneDesignerCleanMarker();
+    void runToneDesignerNew();
+    void runToneDesignerOpen(std::filesystem::path file);
+    void runToneDesignerSave(std::filesystem::path destination);
+    [[nodiscard]] std::optional<ToneDesignerDocumentSnapshot> captureToneDesignerSnapshot(
+        bool matches_file);
+    void finishToneDesignerReplace(
+        ToneDesignerDocumentSnapshot before, std::optional<std::filesystem::path> opened_file,
+        std::string operation_label, const common::audio::LiveRigLoadResult& result);
+    void replayDeferredActionAfterToneSave();
     void openProject(const std::filesystem::path& file, bool clear_last_open_project_on_failure);
     void completeOpenProject(const std::shared_ptr<OpenTaskState>& state);
     void finishOpenProjectAfterLiveRigLoad(
@@ -315,7 +341,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void applySignalChainMutationSnapshot(const common::audio::PluginChainSnapshot& snapshot);
     void completePluginCatalogScan(const std::shared_ptr<PluginCatalogTaskState>& state);
     void refreshKnownPluginCatalog();
-    [[nodiscard]] bool closeProject();
+    [[nodiscard]] bool closeProject(bool reenter_tone_designer = true);
     [[nodiscard]] std::shared_ptr<ProjectWriteTaskState> takeProjectForWrite(
         EditorAction::ProjectWriteAction action);
     [[nodiscard]] std::expected<void, common::audio::LiveRigError> captureLiveRigToDisk(
@@ -616,6 +642,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // Project-lifecycle action and prompt state waiting on unsaved-change or Save As decisions.
     DeferredProjectActionState m_deferred_project_action_state{};
+
+    // Tone Designer mode and document state; active exactly when no project is open and the
+    // editor's resting live rig is the editing surface.
+    ToneDesignerState m_tone_designer{};
 
     // Busy operation workflow used by async callbacks to reject stale work and order UI work after
     // the overlay presentation has had a chance to paint.
