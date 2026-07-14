@@ -49,6 +49,42 @@ struct ToneDesignerHarness
     }
 };
 
+// Project-mode harness with the calibrated live-input route that chain mutations (and therefore
+// tone import) gate on; the plain designer harness never has an input device.
+struct CalibratedProjectHarness
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        controllerServices(nullEditorSettings(), store, monitor),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+
+    CalibratedProjectHarness()
+    {
+        controller.attachView(view);
+    }
+
+    // Reads the latest pushed view state, failing the test when none exists.
+    [[nodiscard]] const EditorViewState& state()
+    {
+        const auto* const latest = stateOrNull(view.last_state);
+        REQUIRE(latest != nullptr);
+        return *latest;
+    }
+};
+
 } // namespace
 
 // Startup with no restorable project lands in a clean untitled Tone Designer.
@@ -341,6 +377,121 @@ TEST_CASE("Tone designer prompt cancel keeps the dirty document", "[core][editor
     CHECK_FALSE(state.project_loaded);
     CHECK(state.tone_designer.active);
     CHECK(state.tone_designer.dirty);
+}
+
+// Export writes the active tone's rig without dirtying the project or touching history.
+TEST_CASE("Project tone export is a pure read", "[core][editor-controller]")
+{
+    ToneDesignerHarness harness;
+    REQUIRE(loadArrangement(
+        harness.controller,
+        harness.project_services,
+        harness.audio,
+        std::filesystem::path{"song.wav"}));
+
+    harness.controller.onExportToneFileRequested(std::filesystem::path{"Lead.rocktone"});
+
+    CHECK(harness.live_rig.export_call_count == 1);
+    REQUIRE(harness.live_rig.last_export_request.has_value());
+    CHECK(
+        harness.live_rig.last_export_request->tone_file_path ==
+        std::filesystem::path{"Lead.rocktone"});
+    const EditorViewState& state = harness.state();
+    CHECK_FALSE(state.undo_enabled);
+    CHECK_FALSE(state.unsaved_changes_prompt.has_value());
+}
+
+// Importing over an automation-free tone proceeds silently as one undoable entry. Import shares
+// the chain-mutation gates, so the project must carry a calibrated live-input route.
+TEST_CASE("Project tone import without automation skips the prompt", "[core][editor-controller]")
+{
+    CalibratedProjectHarness harness;
+    REQUIRE(loadCalibratedArrangement(
+        harness.controller,
+        harness.project_services,
+        harness.audio,
+        harness.audio_devices,
+        std::filesystem::path{"song.wav"}));
+
+    harness.controller.onImportToneFileRequested(std::filesystem::path{"riffs/Lead.rocktone"});
+
+    CHECK_FALSE(harness.state().tone_import_prompt.has_value());
+    CHECK(harness.live_rig.replace_call_count == 1);
+    CHECK(
+        harness.live_rig.last_replace_file_path ==
+        std::optional{std::filesystem::path{"riffs/Lead.rocktone"}});
+    CHECK(harness.state().undo_enabled);
+
+    harness.controller.onUndoRequested();
+    CHECK(harness.live_rig.restore_call_count == 1);
+}
+
+// Importing over a tone with automation confirms first; Cancel leaves everything untouched and
+// Import proceeds after acceptance.
+TEST_CASE("Project tone import confirms before dropping automation", "[core][editor-controller]")
+{
+    CalibratedProjectHarness harness;
+    // The loaded rig reports a durable id for the fake's default chain instance, and the song
+    // carries one automation entry keyed by that id — the work an import would drop.
+    harness.live_rig.next_load_result.plugins = {
+        common::audio::PluginChainEntry{
+            .instance_id = "loaded-instance",
+            .plugin_id = "loaded-plugin",
+            .name = "Loaded Amp",
+            .manufacturer = "Example Audio",
+            .format_name = "VST3",
+            .category = {},
+            .chain_index = 0,
+            .display_type_override = {},
+        },
+    };
+    harness.live_rig.next_load_result.tone_chains = {
+        common::audio::LoadedToneChainIdentities{
+            .tone_document_ref = std::string{g_tone_document_ref},
+            .plugins =
+                {
+                    common::audio::LoadedTonePluginIdentity{
+                        .instance_id = "loaded-instance",
+                        .stable_id = "durable-1",
+                    },
+                },
+            .summed_reported_latency_seconds = 0.0,
+        },
+    };
+    harness.audio_devices.current_input_identity = makeInputDeviceIdentity();
+    harness.project_services.next_song =
+        makeSong(std::filesystem::path{"song.wav"}, loadedTimelineRange(), g_tone_document_ref);
+    common::core::ToneParameterAutomation automation_entry;
+    automation_entry.plugin_id = "durable-1";
+    automation_entry.param_id = "0";
+    common::core::ToneAutomationPoint point{};
+    point.norm_value = 0.5F;
+    automation_entry.points = {point};
+    harness.project_services.next_song->arrangements.front().tone_automation = {automation_entry};
+    harness.controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+    REQUIRE(harness.state().project_loaded);
+    // Calibrate the input route so the chain-mutation gates (which import shares) pass.
+    harness.controller.onInputCalibrationRequested();
+    REQUIRE(harness.controller.onInputCalibrationManuallySet(0.0).has_value());
+    harness.controller.onInputCalibrationDismissed();
+
+    harness.controller.onImportToneFileRequested(std::filesystem::path{"B.rocktone"});
+
+    const EditorViewState& prompted = harness.state();
+    REQUIRE(prompted.tone_import_prompt.has_value());
+    CHECK(prompted.tone_import_prompt->automation_parameter_count == 1);
+    CHECK(harness.live_rig.replace_call_count == 0);
+
+    harness.controller.onToneImportDecision(ToneImportDecision::Cancel);
+    CHECK_FALSE(harness.state().tone_import_prompt.has_value());
+    CHECK(harness.live_rig.replace_call_count == 0);
+
+    harness.controller.onImportToneFileRequested(std::filesystem::path{"B.rocktone"});
+    REQUIRE(harness.state().tone_import_prompt.has_value());
+    harness.controller.onToneImportDecision(ToneImportDecision::Import);
+
+    CHECK(harness.live_rig.replace_call_count == 1);
+    CHECK(harness.state().undo_enabled);
 }
 
 // Opening a dirty tone document over another tone file defers behind the same prompt.

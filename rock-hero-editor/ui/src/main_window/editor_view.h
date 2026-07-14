@@ -218,6 +218,15 @@ private:
     // Opens the asynchronous tone-file save chooser, prefilled with the current document name.
     void showToneSaveAsChooser(SaveAsChooserPurpose purpose);
 
+    // Opens the asynchronous tone-file import chooser and forwards accepted selections.
+    void showImportToneChooser();
+
+    // Opens the asynchronous tone-file export chooser, prefilled with the active tone's name.
+    void showExportToneChooser();
+
+    // Presents the tone-import automation-drop confirmation once per prompt request.
+    void presentToneImportPromptIfNeeded(const std::optional<core::ToneImportPrompt>& prompt);
+
     // Presents an unsaved-changes prompt once per prompt request.
     void presentUnsavedChangesPromptIfNeeded(
         const std::optional<core::UnsavedChangesPrompt>& prompt);
@@ -327,6 +336,12 @@ private:
 
     // SignalChainView::Listener implementation.
     void onSaveToneAsPressed() override;
+
+    // SignalChainView::Listener implementation.
+    void onImportTonePressed() override;
+
+    // SignalChainView::Listener implementation.
+    void onExportTonePressed() override;
 
     /*! \copydoc ToneTrackView::Listener::onToneRegionSelected */
     void onToneRegionSelected(std::string region_id) override;
@@ -512,6 +527,9 @@ private:
 
     // Last Save As prompt already shown to avoid re-opening choosers on repeated pushes.
     std::optional<core::SaveAsPrompt> m_last_presented_save_as_prompt{};
+
+    // Last tone-import confirmation shown to avoid re-opening dialogs on repeated pushes.
+    std::optional<core::ToneImportPrompt> m_last_presented_tone_import_prompt{};
 
     // Last restore-interrupted prompt shown to avoid re-opening dialogs on repeated pushes.
     std::optional<core::RestoreInterruptedPrompt> m_last_presented_restore_interrupted_prompt{};

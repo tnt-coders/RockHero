@@ -821,8 +821,11 @@ bool EditorController::Impl::closeProject(bool reenter_tone_designer)
     m_live_input_monitor.disableMonitoring();
 
     // Close resets to the resting state: the designer flag drops before teardown so the tail can
-    // re-enter with a fresh clean document and passthrough rig (skipped only on app exit).
+    // re-enter with a fresh clean document and passthrough rig (skipped only on app exit). A
+    // pending import confirmation dies with the project whose tone it targeted.
     leaveToneDesigner("close_project");
+    m_pending_tone_import.reset();
+    m_pending_tone_import_automation_count = 0;
 
     if (!m_project.has_value())
     {

@@ -258,6 +258,12 @@ SignalChainView::SignalChainView(Listener& listener)
     configure_tone_button(m_tone_save_as_button, "tone_save_as_button", "Save As...", [this] {
         m_listener.onSaveToneAsPressed();
     });
+    configure_tone_button(m_tone_import_button, "tone_import_button", "Import Tone...", [this] {
+        m_listener.onImportTonePressed();
+    });
+    configure_tone_button(m_tone_export_button, "tone_export_button", "Export Tone...", [this] {
+        m_listener.onExportTonePressed();
+    });
 
     configureGainSlider(m_output_gain_slider, "output_gain_slider");
     m_output_gain_slider.setLookAndFeel(m_output_gain_slider_look_and_feel.get());
@@ -341,6 +347,10 @@ void SignalChainView::setState(const core::SignalChainViewState& state)
 {
     m_block_layout.applyPlugins(state.plugins);
     m_state = state;
+    // Project-mode tone-file commands follow their availability flags; the designer strip owns
+    // the header in designer mode and these flags are false there.
+    m_tone_import_button.setVisible(m_state.tone_import_enabled);
+    m_tone_export_button.setVisible(m_state.tone_export_enabled);
     m_input_calibrate_button.setEnabled(m_state.input_calibrate_enabled);
     m_output_gain_slider.setEnabled(m_state.output_gain_controls_enabled);
     m_output_gain_slider.setValue(m_state.output_gain_db, juce::dontSendNotification);
@@ -465,6 +475,15 @@ void SignalChainView::resized()
     place_tone_button(m_tone_save_button, 56);
     place_tone_button(m_tone_open_button, 68);
     place_tone_button(m_tone_new_button, 52);
+
+    // Project-mode commands reuse the same right edge; the two sets are never visible together.
+    auto project_strip = header.reduced(0, 3);
+    const auto place_project_button = [&project_strip](juce::TextButton& button, int width) {
+        button.setBounds(project_strip.removeFromRight(width));
+        project_strip.removeFromRight(tone_button_gap);
+    };
+    place_project_button(m_tone_export_button, 100);
+    place_project_button(m_tone_import_button, 100);
 
     area.removeFromTop(g_panel_inset);
     m_chain_viewport.setBounds(area);

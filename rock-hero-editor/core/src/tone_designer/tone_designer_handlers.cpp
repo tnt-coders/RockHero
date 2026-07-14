@@ -1,5 +1,7 @@
 #include "controller/editor_controller_impl.h"
 
+#include <algorithm>
+#include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <utility>
 
@@ -125,21 +127,29 @@ std::optional<ToneDesignerDocumentSnapshot> EditorController::Impl::captureToneD
     }
 
     ToneDesignerDocumentSnapshot snapshot;
-    snapshot.chain_state = std::move(*chain_state);
+    snapshot.chain.chain_state = std::move(*chain_state);
+    snapshot.chain.visual_states = currentChainVisualStates();
+    snapshot.document_path = m_tone_designer.document_path;
+    snapshot.matches_file = matches_file;
+    return snapshot;
+}
+
+// Captures the editor-owned visual state of the current chain, in chain order.
+std::vector<PluginVisualEditState> EditorController::Impl::currentChainVisualStates() const
+{
     const std::vector<PluginViewState>& plugins = m_signal_chain.plugins();
-    snapshot.visual_states.reserve(plugins.size());
+    std::vector<PluginVisualEditState> visual_states;
+    visual_states.reserve(plugins.size());
     for (const PluginViewState& plugin : plugins)
     {
-        snapshot.visual_states.push_back(
+        visual_states.push_back(
             PluginVisualEditState{
                 .instance_id = plugin.instance_id,
                 .block_index = plugin.block_index,
                 .display_type_override = plugin.display_type_override,
             });
     }
-    snapshot.document_path = m_tone_designer.document_path;
-    snapshot.matches_file = matches_file;
-    return snapshot;
+    return visual_states;
 }
 
 // Applies a completed document replacement: editor chain model, association, exactly one undo
@@ -361,6 +371,316 @@ void EditorController::Impl::runProjectActionImpl(EditorAction::NewToneDocument 
 void EditorController::Impl::runProjectActionImpl(EditorAction::OpenToneFile action)
 {
     runToneDesignerOpen(std::move(action.file));
+}
+
+// Collects the active chain's durable plugin ids (in chain order) through the runtime identity
+// association; instances the association does not know yet simply have no automation to drop.
+std::vector<std::string> EditorController::Impl::activeChainDurablePluginIds() const
+{
+    std::vector<std::string> durable_ids;
+    const std::vector<PluginViewState>& plugins = m_signal_chain.plugins();
+    durable_ids.reserve(plugins.size());
+    for (const PluginViewState& plugin : plugins)
+    {
+        if (const auto identity = m_tone_plugin_identities.find(plugin.instance_id);
+            identity != m_tone_plugin_identities.end())
+        {
+            durable_ids.push_back(identity->second.plugin_id);
+        }
+    }
+    return durable_ids;
+}
+
+// Counts the arrangement automation entries keyed by the active chain's durable plugin ids: the
+// work an import would destroy, and the fact that decides whether the confirm prompt shows.
+std::size_t EditorController::Impl::activeToneAutomationEntryCount() const
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr)
+    {
+        return 0;
+    }
+
+    const std::vector<std::string> durable_ids = activeChainDurablePluginIds();
+    std::size_t count = 0;
+    for (const common::core::ToneParameterAutomation& entry : arrangement->tone_automation)
+    {
+        if (std::ranges::find(durable_ids, entry.plugin_id) != durable_ids.end())
+        {
+            count += 1;
+        }
+    }
+    return count;
+}
+
+void EditorController::Impl::performActionImpl(EditorAction::ImportToneFile action)
+{
+    if (!hasLoadedArrangement())
+    {
+        return;
+    }
+
+    // Automation destruction may live in off-screen tone regions where undo alone is not enough
+    // protection, so it confirms first; an automation-free tone imports silently.
+    const std::size_t automation_count = activeToneAutomationEntryCount();
+    if (automation_count > 0)
+    {
+        m_pending_tone_import = std::move(action.file);
+        m_pending_tone_import_automation_count = automation_count;
+        updateView();
+        return;
+    }
+
+    runToneImport(std::move(action.file));
+}
+
+void EditorController::Impl::performActionImpl(EditorAction::ResolveToneImportPrompt action)
+{
+    if (!m_pending_tone_import.has_value())
+    {
+        return;
+    }
+
+    std::filesystem::path file = std::move(*m_pending_tone_import);
+    m_pending_tone_import.reset();
+    m_pending_tone_import_automation_count = 0;
+    if (action.decision == ToneImportDecision::Import)
+    {
+        runToneImport(std::move(file));
+        return;
+    }
+
+    updateView();
+}
+
+void EditorController::Impl::performActionImpl(EditorAction::ExportToneFile action)
+{
+    if (!hasLoadedArrangement())
+    {
+        return;
+    }
+
+    auto exported = m_live_rig.exportAudibleTone(
+        common::audio::ToneFileExportRequest{
+            .tone_file_path = action.file,
+            .block_indices = m_signal_chain.blockIndices(),
+            .display_type_overrides = m_signal_chain.displayTypeOverrideTokens(),
+        });
+    if (!exported.has_value())
+    {
+        reportError("Could not export tone file: " + exported.error().message);
+        updateView();
+        return;
+    }
+
+    // Export is a pure read: no dirty state, no undo entry, only the remembered directory.
+    recordSettingsResultBestEffort(
+        m_settings.setToneFileDirectory(action.file.parent_path()), "store tone file directory");
+    updateView();
+}
+
+// Replaces the active project tone's chain from a tone file behind the busy overlay: the tone
+// keeps its catalog identity and regions; dropped automation travels into the undo entry.
+void EditorController::Impl::runToneImport(std::filesystem::path file)
+{
+    if (!hasLoadedArrangement())
+    {
+        return;
+    }
+
+    auto before_state = m_live_rig.captureAudibleToneState();
+    if (!before_state.has_value())
+    {
+        reportError("Could not capture the tone state: " + before_state.error().message);
+        updateView();
+        return;
+    }
+
+    ToneChainSnapshot before;
+    before.chain_state = std::move(*before_state);
+    before.visual_states = currentChainVisualStates();
+
+    // Capture the pre-import identity facts now: the replace destroys the instances that key
+    // them, and undo's curve rebuild needs the old instance ids.
+    std::vector<std::pair<std::string, std::string>> prior_instance_to_durable;
+    prior_instance_to_durable.reserve(before.visual_states.size());
+    for (const PluginVisualEditState& visual_state : before.visual_states)
+    {
+        if (const auto identity = m_tone_plugin_identities.find(visual_state.instance_id);
+            identity != m_tone_plugin_identities.end())
+        {
+            prior_instance_to_durable.emplace_back(
+                visual_state.instance_id, identity->second.plugin_id);
+        }
+    }
+    const std::string tone_ref = activeToneDocumentRef();
+    const std::string tone_name = activeToneName();
+
+    const std::uint64_t token = beginBusy(BusyOperation::LoadingLiveRig);
+    m_busy.runAfterBusyPresentationReady(
+        safeCallback([this,
+                      token,
+                      import_file = std::move(file),
+                      captured_before = std::move(before),
+                      prior_ids = std::move(prior_instance_to_durable),
+                      tone_ref,
+                      tone_name]() mutable {
+            if (!m_busy.isCurrentToken(token))
+            {
+                return;
+            }
+
+            common::audio::ToneFileReplaceRequest request{
+                .tone_file_path = import_file,
+                .progress_callback = {},
+                // Same paint-fence yield as the designer open, so multi-plugin imports keep
+                // painting between instantiations.
+                .yield_callback = safeCallback([this, token](std::function<void()> next) {
+                    if (!m_busy.isCurrentToken(token))
+                    {
+                        return;
+                    }
+                    m_busy.runAfterBusyPresentationReady(
+                        [this, token, continuation = std::move(next)]() mutable {
+                            if (!m_busy.isCurrentToken(token))
+                            {
+                                return;
+                            }
+                            if (continuation)
+                            {
+                                continuation();
+                            }
+                        });
+                }),
+            };
+
+            m_live_rig.replaceAudibleToneFromFile(
+                std::move(request),
+                safeCallback(
+                    [this,
+                     token,
+                     import_file,
+                     moved_before = std::move(captured_before),
+                     moved_prior_ids = std::move(prior_ids),
+                     tone_ref,
+                     tone_name](
+                        std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>
+                            result) mutable {
+                        if (!m_busy.isCurrentToken(token))
+                        {
+                            return;
+                        }
+                        finishBusyOperation();
+                        if (!result.has_value())
+                        {
+                            reportError("Could not import tone file: " + result.error().message);
+                            updateView();
+                            return;
+                        }
+
+                        recordSettingsResultBestEffort(
+                            m_settings.setToneFileDirectory(import_file.parent_path()),
+                            "store tone file directory");
+                        finishToneImport(
+                            std::move(moved_before),
+                            std::move(moved_prior_ids),
+                            tone_ref,
+                            tone_name,
+                            import_file,
+                            *result);
+                    }));
+        }));
+}
+
+// Applies a completed tone import: extracts the replaced chain's automation into the undo entry,
+// mints fresh durable ids for the imported plugins, and pushes exactly one undo entry.
+void EditorController::Impl::finishToneImport(
+    ToneChainSnapshot before, std::vector<std::pair<std::string, std::string>> prior_ids,
+    const std::string& tone_ref, const std::string& tone_name,
+    const std::filesystem::path& import_file, const common::audio::LiveRigLoadResult& result)
+{
+    // Extract the automation keyed by the replaced chain's durable ids; the entries travel into
+    // the undo entry with the instance ids their restored curves rebuild on.
+    std::vector<ToneImportRemovedAutomation> removed_automation;
+    if (std::vector<common::core::ToneParameterAutomation>* const automation =
+            m_session.currentToneAutomation();
+        automation != nullptr)
+    {
+        for (const auto& [instance_id, durable_id] : prior_ids)
+        {
+            for (const common::core::ToneParameterAutomation& entry : *automation)
+            {
+                if (entry.plugin_id == durable_id)
+                {
+                    removed_automation.push_back(
+                        ToneImportRemovedAutomation{
+                            .entry = entry,
+                            .instance_id = instance_id,
+                        });
+                }
+            }
+        }
+        for (const auto& [instance_id, durable_id] : prior_ids)
+        {
+            std::erase_if(
+                *automation, [&durable_id](const common::core::ToneParameterAutomation& entry) {
+                    return entry.plugin_id == durable_id;
+                });
+        }
+    }
+    for (const auto& [instance_id, durable_id] : prior_ids)
+    {
+        std::erase_if(m_open_automation_lanes, [&durable_id](const OpenAutomationLane& lane) {
+            return lane.plugin_id == durable_id;
+        });
+    }
+
+    // Mint fresh durable ids for the imported plugins (file-carried ids are never adopted) and
+    // bind them to the live instances. Both maps stay upsert-only: the prior chain's entries
+    // remain so an undo that revives those instance ids finds its associations intact.
+    for (const common::audio::PluginChainEntry& plugin : result.plugins)
+    {
+        const std::string minted_id = common::core::generatePackageId();
+        m_tone_plugin_identities.insert_or_assign(
+            plugin.instance_id,
+            ToneAutomationIdentity{
+                .plugin_id = minted_id,
+                .tone_document_ref = tone_ref,
+            });
+        m_tone_plugin_bindings.insert_or_assign(
+            minted_id,
+            ToneAutomationBinding{
+                .instance_id = plugin.instance_id,
+                .tone_document_ref = tone_ref,
+            });
+    }
+
+    m_signal_chain.replaceSnapshot(common::audio::PluginChainSnapshot{.plugins = result.plugins});
+    m_output_gain_db = result.output_gain.db;
+    m_output_gain_preview_before.reset();
+
+    auto after_state = m_live_rig.captureAudibleToneState();
+    if (!after_state.has_value())
+    {
+        // The chain is already replaced but cannot be represented in history; record an
+        // untracked edit (which also clears the now-partial history) rather than pushing a
+        // lying half-entry.
+        reportError("Could not capture the imported tone state: " + after_state.error().message);
+        markUntrackedUnsavedEdit("undo.reset.tone_import_capture_failed");
+        updateView();
+        return;
+    }
+
+    auto edit = std::make_unique<ToneImportEdit>();
+    edit->before = std::move(before);
+    edit->after.chain_state = std::move(*after_state);
+    edit->after.visual_states = currentChainVisualStates();
+    edit->removed_automation = std::move(removed_automation);
+    edit->tone_document_ref = tone_ref;
+    edit->tone_name = tone_name;
+    edit->file_name = import_file.stem().string();
+    pushUndoEntry(std::move(edit));
+    updateView();
 }
 
 } // namespace rock_hero::editor::core

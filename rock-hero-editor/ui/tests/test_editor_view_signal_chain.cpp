@@ -126,6 +126,19 @@ public:
         save_tone_as_press_count += 1;
     }
 
+    void onImportTonePressed() override
+    {
+        import_tone_press_count += 1;
+    }
+
+    void onExportTonePressed() override
+    {
+        export_tone_press_count += 1;
+    }
+
+    int import_tone_press_count{0};
+    int export_tone_press_count{0};
+
     int new_tone_press_count{0};
     int open_tone_press_count{0};
     int save_tone_press_count{0};
