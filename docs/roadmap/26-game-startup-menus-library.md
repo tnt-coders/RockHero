@@ -2,6 +2,19 @@
 
 ## 1. Status
 
+**Phase 5 PARTIAL — headless menu-input core COMPLETE (2026-07-12, overnight/game-shell):** the
+bindable menu-action layer in game/core. `MenuAction` (navigate up/down/left/right, accept, back,
+pause-menu, rescan), a device-agnostic `MenuInputTrigger` (source + opaque code, so game/core stays
+SDL-free), and `MenuBindings` — resolve a trigger to its action, bind with overwrite-and-clear
+conflict handling (a trigger maps to at most one action; an action may hold several triggers),
+unbind, list triggers per action. Six tests (resolve bound-only, several triggers → one action,
+rebind overwrite-and-clear, unbind, empty-action). **Deferred to their consumers** (the same
+principled deferral as Phase 4): the keyboard/gamepad/MIDI-pedal input adapters (composition
+boundary; gamepad assumes plan 20's SDL3 outcome, pedal needs plan 24's `IMidiTrigger`), the
+concrete device default bindings (adapter-installed), and binding-map persistence via `IGameSettings`
+(attaches when a rebind screen consumes it). The resolver core is what the plan's Testing section
+targets ("resolver unit tests: binding hit/miss, rebind, conflicts, multiple sources → one action").
+
 **Phase 4 PARTIAL — scan roots + first run COMPLETE (2026-07-12, overnight/game-shell):** the
 settings this plan needs for the library-to-play path. `IGameSettings` gained
 `customScanRoots()` / `setCustomScanRoots()` (a JSON array of native paths in one property value,
