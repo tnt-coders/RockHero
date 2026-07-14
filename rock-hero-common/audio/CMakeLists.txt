@@ -34,6 +34,8 @@ target_sources(
             src/plugin/plugin_host_error.cpp
             src/plugin/plugin_scan.cpp
             src/plugin/plugin_scan.h
+            src/settings/audio_config_error.cpp
+            src/settings/audio_config_store.cpp
             src/shared/audio_path_util.cpp
             src/shared/audio_path_util.h
             src/shared/meter_reader.h
