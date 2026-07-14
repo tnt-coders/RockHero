@@ -687,6 +687,42 @@ struct FakeLiveRig final : public common::audio::ILiveRig
         return {};
     }
 
+    // Replays the engine's per-plugin progress sequence for the configured load result.
+    void simulateLoadProgress(
+        const common::audio::LiveRigLoadProgressCallback& progress_callback) const
+    {
+        if (!progress_callback)
+        {
+            return;
+        }
+
+        const std::size_t total_plugins = next_load_result.plugins.size();
+        progress_callback(
+            common::audio::LiveRigLoadProgress{
+                .completed_plugins = 0,
+                .total_plugins = total_plugins,
+                .active_plugin_name = {},
+            });
+        for (std::size_t plugin_index = 0; plugin_index < total_plugins; ++plugin_index)
+        {
+            const common::audio::PluginChainEntry& plugin = next_load_result.plugins[plugin_index];
+            progress_callback(
+                common::audio::LiveRigLoadProgress{
+                    .completed_plugins = plugin_index,
+                    .total_plugins = total_plugins,
+                    .active_plugin_index = plugin_index,
+                    .active_plugin_name = plugin.name,
+                });
+            progress_callback(
+                common::audio::LiveRigLoadProgress{
+                    .completed_plugins = plugin_index + 1,
+                    .total_plugins = total_plugins,
+                    .active_plugin_index = plugin_index,
+                    .active_plugin_name = plugin.name,
+                });
+        }
+    }
+
     // Drives the configured load result or error through the new async callback contract while
     // recording the request and replicating the engine's per-plugin progress sequence.
     void loadLiveRig(
@@ -695,36 +731,7 @@ struct FakeLiveRig final : public common::audio::ILiveRig
     {
         last_load_request = request;
         load_call_count += 1;
-
-        if (request.progress_callback)
-        {
-            const std::size_t total_plugins = next_load_result.plugins.size();
-            request.progress_callback(
-                common::audio::LiveRigLoadProgress{
-                    .completed_plugins = 0,
-                    .total_plugins = total_plugins,
-                    .active_plugin_name = {},
-                });
-            for (std::size_t plugin_index = 0; plugin_index < total_plugins; ++plugin_index)
-            {
-                const common::audio::PluginChainEntry& plugin =
-                    next_load_result.plugins[plugin_index];
-                request.progress_callback(
-                    common::audio::LiveRigLoadProgress{
-                        .completed_plugins = plugin_index,
-                        .total_plugins = total_plugins,
-                        .active_plugin_index = plugin_index,
-                        .active_plugin_name = plugin.name,
-                    });
-                request.progress_callback(
-                    common::audio::LiveRigLoadProgress{
-                        .completed_plugins = plugin_index + 1,
-                        .total_plugins = total_plugins,
-                        .active_plugin_index = plugin_index,
-                        .active_plugin_name = plugin.name,
-                    });
-            }
-        }
+        simulateLoadProgress(request.progress_callback);
 
         std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError> result =
             next_load_result;
@@ -833,7 +840,8 @@ struct FakeLiveRig final : public common::audio::ILiveRig
         return next_capture_state;
     }
 
-    // Records the replace request and synchronously completes with the configured result.
+    // Records the replace request, replays the engine's per-plugin progress sequence, and
+    // synchronously completes with the configured result.
     void replaceAudibleToneFromFile(
         common::audio::ToneFileReplaceRequest request,
         common::audio::LiveRigLoadResultCallback on_result) override
@@ -845,6 +853,7 @@ struct FakeLiveRig final : public common::audio::ILiveRig
             on_result(std::unexpected{*next_replace_error});
             return;
         }
+        simulateLoadProgress(request.progress_callback);
         on_result(next_load_result);
     }
 

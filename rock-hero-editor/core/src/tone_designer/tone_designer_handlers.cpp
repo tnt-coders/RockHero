@@ -226,6 +226,7 @@ void EditorController::Impl::runToneDesignerOpen(std::filesystem::path file)
     }
 
     const std::uint64_t token = beginBusy(BusyOperation::LoadingLiveRig);
+    m_busy.beginLiveRigLoadProgress();
     m_busy.runAfterBusyPresentationReady(safeCallback([this,
                                                        token,
                                                        opened_file = std::move(file),
@@ -238,7 +239,16 @@ void EditorController::Impl::runToneDesignerOpen(std::filesystem::path file)
 
         common::audio::ToneFileReplaceRequest request{
             .tone_file_path = opened_file,
-            .progress_callback = {},
+            // Per-plugin names and fraction ride the busy overlay, matching the project
+            // live-rig load stage.
+            .progress_callback =
+                safeCallback([this, token](const common::audio::LiveRigLoadProgress& progress) {
+                    if (!m_busy.isCurrentToken(token))
+                    {
+                        return;
+                    }
+                    m_busy.updateLiveRigLoadProgress(progress);
+                }),
             // Route the engine's per-step yield through the busy paint fence so multi-plugin
             // opens keep painting between instantiations.
             .yield_callback = safeCallback([this, token](std::function<void()> next) {
@@ -517,6 +527,7 @@ void EditorController::Impl::runToneImport(std::filesystem::path file)
     const std::string tone_name = activeToneName();
 
     const std::uint64_t token = beginBusy(BusyOperation::LoadingLiveRig);
+    m_busy.beginLiveRigLoadProgress();
     m_busy.runAfterBusyPresentationReady(
         safeCallback([this,
                       token,
@@ -532,7 +543,15 @@ void EditorController::Impl::runToneImport(std::filesystem::path file)
 
             common::audio::ToneFileReplaceRequest request{
                 .tone_file_path = import_file,
-                .progress_callback = {},
+                // Same per-plugin busy progress as the designer open.
+                .progress_callback =
+                    safeCallback([this, token](const common::audio::LiveRigLoadProgress& progress) {
+                        if (!m_busy.isCurrentToken(token))
+                        {
+                            return;
+                        }
+                        m_busy.updateLiveRigLoadProgress(progress);
+                    }),
                 // Same paint-fence yield as the designer open, so multi-plugin imports keep
                 // painting between instantiations.
                 .yield_callback = safeCallback([this, token](std::function<void()> next) {
