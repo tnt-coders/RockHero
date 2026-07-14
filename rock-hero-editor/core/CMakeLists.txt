@@ -25,8 +25,8 @@ target_sources(
             src/controller/editor_undo_history.h
             src/input_calibration/input_calibration_controller.cpp
             src/input_calibration/input_calibration_handlers.cpp
-            src/input_calibration/input_calibration_workflow.cpp
-            src/input_calibration/input_calibration_workflow.h
+            src/input_calibration/input_calibration_text.cpp
+            src/input_calibration/input_calibration_text.h
             src/project/gp_chart_builder.cpp
             src/project/gp_chart_builder.h
             src/project/gp_score.h
