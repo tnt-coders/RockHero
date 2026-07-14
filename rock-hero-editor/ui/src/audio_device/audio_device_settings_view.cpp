@@ -327,9 +327,10 @@ void AudioDeviceSettingsView::configureControls()
             if (!applied.has_value())
             {
                 // Declined enable: nothing was persisted or switched, so the checkbox snaps back
-                // and the canonical reason is reported right at the gesture.
+                // and the canonical reason is reported right at the gesture through the editor's
+                // themed AlertWindow (matching the app's other prompts, not the OS message box).
                 m_use_game_settings_toggle.setToggleState(false, juce::dontSendNotification);
-                juce::NativeMessageBox::showAsync(
+                juce::AlertWindow::showAsync(
                     juce::MessageBoxOptions()
                         .withIconType(juce::MessageBoxIconType::WarningIcon)
                         .withTitle("Game audio settings unavailable")

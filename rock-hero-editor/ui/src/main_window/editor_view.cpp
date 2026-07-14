@@ -1307,7 +1307,9 @@ void EditorView::presentGameAudioUnavailablePromptIfNeeded(
 
     m_last_game_audio_unavailable_prompt = prompt;
     const juce::Component::SafePointer<EditorView> safe_this{this};
-    juce::NativeMessageBox::showAsync(
+    // The editor's themed AlertWindow rather than the OS message box, matching the app's other
+    // prompts.
+    juce::AlertWindow::showAsync(
         juce::MessageBoxOptions()
             .withIconType(juce::MessageBoxIconType::WarningIcon)
             .withTitle("Game audio settings unavailable")
