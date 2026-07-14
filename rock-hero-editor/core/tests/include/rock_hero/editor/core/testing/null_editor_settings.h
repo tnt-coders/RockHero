@@ -64,25 +64,6 @@ public:
     }
 
     /*!
-    \brief Reports that no serialized audio-device state is stored.
-    \return Always empty.
-    */
-    [[nodiscard]] std::optional<std::string> audioDeviceState() const override
-    {
-        return std::nullopt;
-    }
-
-    /*!
-    \brief Ignores serialized audio-device state writes.
-    \return Always empty success.
-    */
-    [[nodiscard]] std::expected<void, EditorSettingsError> setAudioDeviceState(
-        std::optional<std::string>) override
-    {
-        return {};
-    }
-
-    /*!
     \brief Reports that no waveform visibility preference is stored.
     \return Always empty.
     */

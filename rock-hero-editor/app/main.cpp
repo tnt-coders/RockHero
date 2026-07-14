@@ -6,6 +6,7 @@
 #include <rock_hero/common/audio/engine/engine.h>
 #include <rock_hero/common/core/shared/application_identity.h>
 #include <rock_hero/common/core/shared/logger.h>
+#include <rock_hero/editor/core/settings/editor_audio_settings_migration.h>
 #include <rock_hero/editor/core/settings/editor_settings.h>
 #include <rock_hero/editor/core/tasks/juce_editor_task_runner.h>
 #include <rock_hero/editor/core/tasks/juce_message_thread_scheduler.h>
@@ -117,12 +118,18 @@ public:
         m_message_thread_scheduler =
             std::make_unique<rock_hero::editor::core::JuceMessageThreadScheduler>();
 
+        // One-shot: move any pre-migration device-state and calibration keys off the legacy
+        // settings file onto the editor's per-app audio-config store before the editor reads them.
+        rock_hero::editor::core::migrateEditorAudioSettings(
+            *m_editor_settings, m_editor_settings->audioConfigStore());
+
         auto editor = std::make_unique<rock_hero::editor::ui::Editor>(
             makeEditorAudioPorts(*m_audio_engine),
             rock_hero::editor::ui::Editor::Services{
                 .settings = *m_editor_settings,
                 .task_runner = *m_editor_task_runner,
                 .message_thread_scheduler = *m_message_thread_scheduler,
+                .audio_config_store = m_editor_settings->audioConfigStore(),
             },
             &juce::JUCEApplicationBase::quit);
 

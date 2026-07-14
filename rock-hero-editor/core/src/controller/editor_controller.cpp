@@ -990,6 +990,7 @@ EditorController::Impl::Impl(
     , m_exit_function(
           exit_function ? std::move(exit_function) : EditorController::ExitFunction{defaultExit})
     , m_settings(services.settings)
+    , m_audio_config_store(services.audio_config_store)
     , m_busy(services.message_thread_scheduler, [this] { updateView(); })
     , m_task_runner(services.task_runner)
     , m_transport_listener(transport, *this)
@@ -2084,36 +2085,62 @@ EditorViewState EditorController::Impl::deriveViewState() const
     return state;
 }
 
-// Applies the serialized audio-device state stored by a previous editor session, if any.
+// Applies the active device route stored by a previous editor session, if any. The route's resolved
+// identity is not needed to reopen the device; only the opaque blob feeds the device manager.
 void EditorController::Impl::restoreAudioDeviceState()
 {
-    const std::optional<std::string> serialized_state = m_settings.audioDeviceState();
-    if (!serialized_state.has_value() || serialized_state->empty())
+    const std::optional<common::audio::ActiveDeviceRoute> route =
+        m_audio_config_store.activeDeviceRoute();
+    if (!route.has_value() || route->serialized_state.empty())
     {
         return;
     }
 
-    auto restored = m_audio_devices.restoreSerializedDeviceState(*serialized_state);
+    auto restored = m_audio_devices.restoreSerializedDeviceState(route->serialized_state);
     if (!restored.has_value())
     {
         logEditorControllerBestEffortFailure(
             "restore serialized audio-device state", restored.error().message);
-        recordSettingsResultBestEffort(
-            m_settings.setAudioDeviceState(std::nullopt),
+        recordAudioConfigResultBestEffort(
+            m_audio_config_store.setActiveDeviceRoute(std::nullopt),
             "clear invalid serialized audio-device state");
     }
 }
 
-// Stores the current device manager state so the next launch can restore the user's selection.
+// Stores the current device blob paired with its resolved input identity so the next launch can
+// restore the user's selection and answer availability questions offline.
 void EditorController::Impl::persistAudioDeviceState()
 {
-    recordSettingsResultBestEffort(
-        m_settings.setAudioDeviceState(m_audio_devices.serializedDeviceState()),
-        "persist serialized audio-device state");
+    std::optional<std::string> serialized_state = m_audio_devices.serializedDeviceState();
+    if (serialized_state.has_value() && !serialized_state->empty())
+    {
+        recordAudioConfigResultBestEffort(
+            m_audio_config_store.setActiveDeviceRoute(
+                common::audio::ActiveDeviceRoute{
+                    .serialized_state = std::move(*serialized_state),
+                    .identity = currentInputDeviceIdentity(),
+                }),
+            "persist serialized audio-device state");
+    }
+    else
+    {
+        recordAudioConfigResultBestEffort(
+            m_audio_config_store.setActiveDeviceRoute(std::nullopt),
+            "clear serialized audio-device state");
+    }
 }
 
 void EditorController::Impl::recordSettingsResultBestEffort(
     std::expected<void, EditorSettingsError> result, std::string_view context)
+{
+    if (!result.has_value())
+    {
+        logEditorControllerBestEffortFailure(context, result.error().message);
+    }
+}
+
+void EditorController::Impl::recordAudioConfigResultBestEffort(
+    std::expected<void, common::audio::AudioConfigError> result, std::string_view context)
 {
     if (!result.has_value())
     {

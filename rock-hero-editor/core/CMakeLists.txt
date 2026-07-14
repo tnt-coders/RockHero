@@ -42,6 +42,7 @@ target_sources(
             src/project/rock_song_importer.cpp
             src/project/rock_song_importer.h
             src/project/song_import_error.cpp
+            src/settings/editor_audio_settings_migration.cpp
             src/settings/editor_settings.cpp
             src/settings/editor_settings_error.cpp
             src/shared/editor_controller_logging.h
