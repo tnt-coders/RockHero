@@ -1005,8 +1005,8 @@ void TabView::paint(juce::Graphics& g)
         {
             // A ghost head is opaque but pulled hard toward the background — dark enough to
             // read as "held, not sounded here" while still covering the string line (earlier
-            // translucent ghosts let the line cut through the head, which read badly) — and
-            // its fret number stays at full strength so the posture remains readable.
+            // translucent ghosts let the line cut through the head, which read badly). The
+            // fret number dims by the same factor so the whole ghost recedes together.
             const StringStyle style{metrics.baseColor(ghost.string)};
             const float center_y = metrics.laneY(ghost.string);
             const float size = metrics.note_height + 1.0f;
@@ -1022,7 +1022,7 @@ void TabView::paint(juce::Graphics& g)
             if (metrics.draw_text)
             {
                 // The same centering box drawNoteHead uses for a plain fret number.
-                g.setColour(juce::Colours::white);
+                g.setColour(charterMultiply(juce::Colours::white, g_ghost_note_darkness));
                 g.setFont(metrics.fret_font);
                 g.drawText(
                     juce::String{ghost.fret},
