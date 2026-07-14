@@ -101,8 +101,8 @@ struct TabNoteView
     friend bool operator==(const TabNoteView& lhs, const TabNoteView& rhs) = default;
 };
 
-/*! \brief One chord-template posture note rendered as a ghost head at an arpeggio start. */
-struct TabGhostNoteView
+/*! \brief One chord-template posture note bracketed at an arpeggio start. */
+struct TabArpeggioNoteView
 {
     /*! \brief One-based string, counted from the lowest-pitched string. */
     int string{1};
@@ -111,13 +111,19 @@ struct TabGhostNoteView
     int fret{0};
 
     /*!
-    \brief Compares two ghost note views by their stored fields.
-    \param lhs Left-hand ghost note view.
-    \param rhs Right-hand ghost note view.
-    \return True when both ghost note views store equal values.
+    \brief True when a chart note actually sounds on this string exactly at the span start;
+    false for posture strings that are held but struck later in the arpeggio.
+    */
+    bool sounded{false};
+
+    /*!
+    \brief Compares two arpeggio note views by their stored fields.
+    \param lhs Left-hand arpeggio note view.
+    \param rhs Right-hand arpeggio note view.
+    \return True when both arpeggio note views store equal values.
     */
     friend constexpr bool operator==(
-        const TabGhostNoteView& lhs, const TabGhostNoteView& rhs) noexcept = default;
+        const TabArpeggioNoteView& lhs, const TabArpeggioNoteView& rhs) noexcept = default;
 };
 
 /*! \brief One hand-posture span resolved to timeline seconds for rendering. */
@@ -139,11 +145,11 @@ struct TabShapeView
     bool arpeggio{false};
 
     /*!
-    \brief Template posture notes not sounded exactly at the span start, in ascending string
-    order. Populated only for arpeggio spans, where they render as ghost heads at the bracket
-    start alongside the notes actually struck there.
+    \brief Every template posture note, in ascending string order. Populated only for arpeggio
+    spans, where each renders bracket marks at the span start — around the sounded note's full
+    head, or around a bare fret number for strings struck later in the arpeggio.
     */
-    std::vector<TabGhostNoteView> ghost_notes;
+    std::vector<TabArpeggioNoteView> arpeggio_notes;
 
     /*!
     \brief Compares two shape views by their stored fields.

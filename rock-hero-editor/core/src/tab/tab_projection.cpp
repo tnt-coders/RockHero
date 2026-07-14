@@ -100,10 +100,10 @@ TabViewState makeTabViewState(
                                                                 : std::string{};
         const bool arpeggio = simultaneous < 2;
 
-        // Ghost heads at an arpeggio bracket start show the held posture: every template string
-        // except those actually struck at the start. Template array index 0 is the lowest
-        // string, matching the highway projection's convention.
-        std::vector<TabGhostNoteView> ghost_notes;
+        // An arpeggio bracket start marks the whole held posture: every template string, each
+        // flagged by whether a chart note actually sounds there at the start. Template array
+        // index 0 is the lowest string, matching the highway projection's convention.
+        std::vector<TabArpeggioNoteView> arpeggio_notes;
         if (arpeggio && shape.chord < chart.templates.size())
         {
             const common::core::ChordTemplate& chord_template = chart.templates[shape.chord];
@@ -124,10 +124,8 @@ TabViewState makeTabViewState(
                 {
                     sounded = sounded || it->string == string;
                 }
-                if (!sounded)
-                {
-                    ghost_notes.push_back(TabGhostNoteView{.string = string, .fret = *fret});
-                }
+                arpeggio_notes.push_back(
+                    TabArpeggioNoteView{.string = string, .fret = *fret, .sounded = sounded});
             }
         }
 
@@ -138,7 +136,7 @@ TabViewState makeTabViewState(
                     tempo_map.secondsAtGlobalBeatPosition(start_beat + shape.sustain.toDouble()),
                 .name = std::move(name),
                 .arpeggio = arpeggio,
-                .ghost_notes = std::move(ghost_notes),
+                .arpeggio_notes = std::move(arpeggio_notes),
             });
     }
 
