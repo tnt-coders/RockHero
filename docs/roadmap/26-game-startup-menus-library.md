@@ -2,6 +2,14 @@
 
 ## 1. Status
 
+**Phase 2 COMPLETE (2026-07-12, overnight/game-shell):** the first game library code —
+`LibraryIndex` value model, versioned JSON store (atomic `replaceWithText` saves,
+rebuild-on-any-doubt loads: missing file, parse failure, version mismatch, and identity-stripped
+entries all schedule a rescan instead of failing), and the pure `planLibraryScan` differ
+(Add/Rescan/Reuse/Remove, deterministic path-sorted output, moved packages = Remove+Add until
+plan 10's identity hash). Ten new game/core tests. Inventory corrections recorded below (game/core
+was no longer a placeholder; the tests target already existed).
+
 **Phase 1 COMPLETE (2026-07-12, overnight/game-shell):** `readRockSongPackageDescription` in
 common/core package/ — streams song.json + chart entries straight from the ZIP (no extraction,
 no workspace); lenient past the structural gate (corrupt chart / unsupported part / missing
@@ -116,6 +124,20 @@ Verified by direct inspection:
   `SongPackageError`, chart failures `ChartError`.
 
 Verified against code on 2026-07-06, refactor @ 3c7febe0.
+
+Phase 2 re-verification (2026-07-12, overnight/game-shell @ 248c9768) — corrections against the
+inventory above, which predates the Stage A game work:
+
+- `rock-hero-game/core` is no longer a placeholder: it carries real features (diagnostics,
+  frame_clock, resources, session, settings), `src/placeholder.cpp` is already deleted, and the
+  `rock-hero-game/core/tests/` Catch2 target already exists (linking the production library per
+  convention). Phase 2 therefore only ADDS the `library/` feature folder and two test files — the
+  "delete placeholder / create tests target" steps in its file list are already done.
+- The game's `IGameSettings` port already exists (plan 27 Phase 1 landed 2026-07-12), so Phase 4's
+  dependency is satisfied.
+- Atomic-write precedent confirmed: `juce::File::replaceWithText` (used by the chart document
+  writer) stages to a temporary sibling file and swaps, which is the pattern the index store
+  reuses.
 
 ## 6. Dependencies
 
@@ -311,14 +333,17 @@ Depends on the `IGameSettings` port phase of docs/roadmap/27-in-song-flow-result
 forward and record it in both plans).
 
 - **Scope**: settings fields this plan owns — `first_run_completed`; library scan roots (list of
-  directories; defaults DECIDED by the user 2026-07-12 after two refinement rounds:
-  (1) PRIMARY `%APPDATA%/Rock Hero/Songs` — per-user, always writable, created on demand, and
-  crucially SURVIVES uninstall/reinstall/update cycles (uninstallers remove the install dir, not
-  per-user app data); (2) SECONDARY: an exe-relative `songs/` folder is auto-scanned whenever it
-  exists — RS-style drop-in muscle memory and portable installs work with zero configuration,
-  accepted as wipeable on uninstall since it is never the library's canonical home; plus
-  user-added roots through settings. Discoverability of the primary is solved by an "Open songs
-  folder" affordance in the library screen — Phase 7 carries it); video
+  directories; FINAL, decided by the user 2026-07-12 after three refinement rounds: the PRIMARY
+  default is the exe-relative `<game>/songs` folder — RS-style drop-in muscle memory, shared
+  across Windows users, created on demand — PLUS user-added custom song directories through
+  settings. Per-user data (settings, the library index cache, thumbnails) stays under
+  `applicationDataFolderName()` app data regardless; only the song library lives beside the
+  game. This decision BINDS the future installer plan three ways: (1) the default install root
+  must be user-writable — never `Program Files`, whose ACLs would demand elevation for every
+  dropped song (e.g. `C:\Rock Hero` or per-user `%LOCALAPPDATA%\Programs`); (2) the default
+  uninstall leaves `songs/` in place, with an explicit opt-in "remove all files including songs"
+  for a clean wipe; (3) updates never touch `songs/`. Discoverability is solved by an "Open
+  songs folder" affordance in the library screen — Phase 7 carries it); video
   settings model {display mode fullscreen/windowed/borderless, monitor identifier, resolution,
   vsync mode} whose semantics follow the frame-pacing policy recorded in
   docs/roadmap/20-game-architecture-and-render-stack.md (this plan persists and displays; 20's

@@ -4,8 +4,14 @@ find_package(Catch2 3 REQUIRED)
 include(Catch)
 
 add_executable(
-    rock_hero_game_core_tests test_diagnostics.cpp test_frame_clock.cpp test_game_resources.cpp
-                              test_game_settings.cpp test_gameplay_session.cpp)
+    rock_hero_game_core_tests
+    test_diagnostics.cpp
+    test_frame_clock.cpp
+    test_game_resources.cpp
+    test_game_settings.cpp
+    test_gameplay_session.cpp
+    test_library_index_store.cpp
+    test_library_scan_plan.cpp)
 
 # Shared test fakes (the null settings port) live under tests/include, mirroring editor/core.
 target_include_directories(rock_hero_game_core_tests PRIVATE include)
