@@ -40,13 +40,15 @@ namespace
 GameplaySession::GameplaySession(
     common::audio::ISongAudio& song_audio, common::audio::ITransport& transport,
     common::audio::ILiveRig& live_rig, common::audio::IToneTimelinePlayer& tone_timeline,
-    common::audio::IMixControls& mix_controls, const common::audio::IPlaybackClock& clock)
+    common::audio::IMixControls& mix_controls, const common::audio::IPlaybackClock& clock,
+    common::audio::LiveInputMonitor& live_input_monitor)
     : m_song_audio{song_audio}
     , m_transport{transport}
     , m_live_rig{live_rig}
     , m_tone_timeline{tone_timeline}
     , m_mix_controls{mix_controls}
     , m_clock{clock}
+    , m_live_input_monitor{live_input_monitor}
 {
     // The session listens for the one transport transition it does not initiate itself: the
     // engine's end-of-content auto-stop, which is how Playing becomes Finished.
@@ -346,6 +348,11 @@ void GameplaySession::close()
     // Invalidate any in-flight rig completion before touching state it would read.
     ++m_load_generation;
 
+    // Tear down the live-input gate the Ready edge may have armed: monitoring must not outlive the
+    // session, and disabling is best-effort by the monitor's contract. restart()/replay do no rig
+    // work, so monitoring stays armed across pause/finish/restart -- only close() disables it.
+    m_live_input_monitor.disableMonitoring();
+
     if (m_stage == GameplaySessionStage::Playing)
     {
         m_transport.pause();
@@ -431,6 +438,21 @@ void GameplaySession::onRigLoadCompleted(
     // The pre-song preload guarantee: Ready is reported only now, after the completion fired,
     // so no plugin instantiation can happen once gameplay is allowed to start.
     m_stage = GameplaySessionStage::Ready;
+
+    // Arm the calibrate-first live-input gate now that arrangement audio and the tone rig are
+    // committed -- the game's readiness edge, the exact analogue of the editor's project-ready
+    // gate. This completion runs on the JUCE message thread (loadLiveRig refuses off-thread and
+    // marshals its continuations back via callAsync), so driving the message-thread-only live-input
+    // port from here is contract-correct. The gate stays silent unless this app's own store holds a
+    // calibration matching the active input route; a disabled result is non-fatal and never blocks
+    // readiness. The status.reason is retained for a future SDL "monitoring off because X" surface
+    // (plan 26).
+    [[maybe_unused]] const common::audio::LiveInputMonitoringStatus monitoring_status =
+        m_live_input_monitor.refresh(
+            common::audio::LiveInputMonitoringContext{
+                .session_audio_ready = true,
+                .arrangement_loaded = true,
+            });
 }
 
 } // namespace rock_hero::game::core

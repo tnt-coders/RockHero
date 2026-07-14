@@ -8,6 +8,10 @@
 #include <optional>
 #include <print>
 #include <rock_hero/common/audio/engine/engine.h>
+#include <rock_hero/common/audio/input/live_input_monitor.h>
+#include <rock_hero/common/audio/settings/active_device_route.h>
+#include <rock_hero/common/audio/settings/audio_config_identity.h>
+#include <rock_hero/common/audio/settings/audio_config_store.h>
 #include <rock_hero/common/core/shared/application_identity.h>
 #include <rock_hero/common/core/shared/cancellation_token.h>
 #include <rock_hero/common/core/shared/juce_path.h>
@@ -216,8 +220,44 @@ try
     // scratch workspace), the engine destructs, and the JUCE guard goes last.
     const juce::ScopedJuceInitialiser_GUI juce_runtime;
     rock_hero::common::audio::Engine audio_engine;
+
+    // The game owns its own audio-config store (its own file, sole writer). Restore the game's own
+    // saved input route before the session starts so the calibrate-first gate lands on the route
+    // the game's native config selected; an absent route keeps the engine's initialise(1, 2)
+    // default. This runs on the message thread, matching the engine's own device init.
+    rock_hero::common::audio::AudioConfigStore game_audio_config_store{
+        rock_hero::common::audio::gameAudioConfigApplicationName(),
+        rock_hero::common::audio::AudioConfigStore::Access::ReadWrite
+    };
+    if (const std::optional<rock_hero::common::audio::ActiveDeviceRoute> active_device_route =
+            game_audio_config_store.activeDeviceRoute();
+        active_device_route.has_value() && !active_device_route->serialized_state.empty())
+    {
+        if (const auto restored =
+                audio_engine.restoreSerializedDeviceState(active_device_route->serialized_state);
+            !restored.has_value())
+        {
+            RH_LOG_WARNING(
+                "game.app",
+                "Stored audio device route could not be restored; using defaults: {}",
+                restored.error().message);
+        }
+    }
+
+    // The engine implements both ILiveInput and IAudioDeviceConfiguration; the store is the
+    // swappable IAudioConfigStore& (the game reads and writes its own file, never the editor's).
+    rock_hero::common::audio::LiveInputMonitor live_input_monitor{
+        audio_engine, audio_engine, game_audio_config_store
+    };
+
     rock_hero::game::core::GameplaySession gameplay_session{
-        audio_engine, audio_engine, audio_engine, audio_engine, audio_engine, audio_engine
+        audio_engine,
+        audio_engine,
+        audio_engine,
+        audio_engine,
+        audio_engine,
+        audio_engine,
+        live_input_monitor
     };
 
     rock_hero::game::ui::GameShellOptions options{};

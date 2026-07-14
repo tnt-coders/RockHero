@@ -8,6 +8,7 @@
 #include <expected>
 #include <filesystem>
 #include <optional>
+#include <rock_hero/game/core/audio/game_audio_config.h>
 #include <rock_hero/game/core/settings/game_settings_error.h>
 #include <span>
 #include <string>
@@ -89,6 +90,27 @@ public:
     */
     [[nodiscard]] virtual std::expected<void, GameSettingsError> setCustomScanRoots(
         std::span<const std::filesystem::path> roots) = 0;
+
+    /*!
+    \brief Reads the game's player-slot-to-route audio configuration.
+
+    The game-private player-to-route mapping (plan 32 Phase 1), distinct from the shared
+    common::audio::AudioConfigStore that holds device state, gain calibration, and latency offsets
+    keyed by route. A corrupt or absent stored value reads as an empty config, mirroring the
+    rebuild-on-doubt tolerance the custom scan roots use so a broken value never crashes startup.
+    Persisted under the reserved key `gameAudioConfig`.
+
+    \return The persisted game audio config, or an empty config when none is stored.
+    */
+    [[nodiscard]] virtual GameAudioConfig gameAudioConfig() const = 0;
+
+    /*!
+    \brief Stores the game's player-slot-to-route audio configuration, replacing any previous set.
+    \param config Player-slot-to-route bindings to persist (v1: a single slot-0 entry).
+    \return Empty success, or a typed settings failure.
+    */
+    [[nodiscard]] virtual std::expected<void, GameSettingsError> setGameAudioConfig(
+        const GameAudioConfig& config) = 0;
 
 protected:
     /*! \brief Creates the game-settings interface. */

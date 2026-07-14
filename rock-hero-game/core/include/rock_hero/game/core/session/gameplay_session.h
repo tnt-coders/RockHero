@@ -12,6 +12,7 @@
 #include <memory>
 #include <optional>
 #include <rock_hero/common/audio/clock/i_playback_clock.h>
+#include <rock_hero/common/audio/input/live_input_monitor.h>
 #include <rock_hero/common/audio/live_rig/i_live_rig.h>
 #include <rock_hero/common/audio/mix/i_mix_controls.h>
 #include <rock_hero/common/audio/shared/gain.h>
@@ -100,11 +101,14 @@ public:
     \param tone_timeline Scheduled tone switching boundary.
     \param mix_controls Master and backing-track gain boundary.
     \param clock Wait-free playback clock handed to gameplay consumers.
+    \param live_input_monitor Shared calibrate-first live-input monitoring gate the session drives
+    at its Ready and close edges.
     */
     GameplaySession(
         common::audio::ISongAudio& song_audio, common::audio::ITransport& transport,
         common::audio::ILiveRig& live_rig, common::audio::IToneTimelinePlayer& tone_timeline,
-        common::audio::IMixControls& mix_controls, const common::audio::IPlaybackClock& clock);
+        common::audio::IMixControls& mix_controls, const common::audio::IPlaybackClock& clock,
+        common::audio::LiveInputMonitor& live_input_monitor);
 
     /*! \brief Closes the session, releasing the arrangement and deleting the scratch workspace. */
     ~GameplaySession() override;
@@ -259,6 +263,11 @@ private:
     common::audio::IToneTimelinePlayer& m_tone_timeline;
     common::audio::IMixControls& m_mix_controls;
     const common::audio::IPlaybackClock& m_clock;
+
+    // Shared calibrate-first live-input monitoring gate. The session is a thin driver: it arms the
+    // gate at Ready and disables it on close; the gate stays silent unless this app's own store
+    // holds a calibration matching the active input route.
+    common::audio::LiveInputMonitor& m_live_input_monitor;
 
     // Current lifecycle stage; every transition happens on the message thread.
     GameplaySessionStage m_stage{GameplaySessionStage::Idle};
