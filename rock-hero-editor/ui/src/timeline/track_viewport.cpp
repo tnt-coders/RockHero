@@ -648,12 +648,11 @@ PlaybackFollowStyle TrackViewport::playbackFollowStyle() const noexcept
     return m_follow_style;
 }
 
-// Fixed-cursor smooth scroll (evaluation spike): every vblank repins the window so the cursor
-// stays at the pin fraction while the content flows past it, rhythm-game style. Known spike
-// limits, accepted for evaluation only: integer viewport positions make low zoom tick instead
-// of glide, and Tracktion's block-quantized audible time shimmers the scroll velocity — the
-// honest implementation is the time-space camera in
-// docs/todo/smooth-scroll-follow-evaluation.md.
+// Fixed-cursor smooth scroll (adopted mode, spike-grade implementation): every vblank repins
+// the window so the cursor stays at the pin fraction while the content flows past it,
+// rhythm-game style. Known spike limits: integer viewport positions make low zoom tick instead
+// of glide, and Tracktion's block-quantized audible time shimmers the scroll velocity — both
+// removed by the time-space camera in docs/roadmap/51-smooth-scroll-camera.md.
 void TrackViewport::followCursorSmoothly(float cursor_x)
 {
     setViewportLeft(
