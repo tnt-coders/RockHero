@@ -186,10 +186,33 @@ if ($Targets.Count -gt 0)
         -SuccessMessage "Built targets: $($Targets -join ', ')."
 }
 
+# Each passing run records the executable's timestamp here, so -RunTouchedTests can skip suites
+# whose binaries did not relink since they last passed. Ticks are stored as strings: they exceed
+# the exact-integer range of JSON's double representation.
+$stamp_path = Join-Path $BuildDir ".agents-test-stamps.json"
+$stamps = @{}
+if (Test-Path -LiteralPath $stamp_path)
+{
+    $stored = Get-Content -LiteralPath $stamp_path -Raw | ConvertFrom-Json
+    foreach ($property in $stored.PSObject.Properties)
+    {
+        $stamps[$property.Name] = $property.Value
+    }
+}
+
+function Get-TestStampValue
+{
+    param([string]$TestPath)
+
+    return (Get-Item -LiteralPath $TestPath).LastWriteTimeUtc.Ticks.ToString()
+}
+
 if ($RunTouchedTests)
 {
     # Discover every built per-library test executable instead of maintaining a hardcoded list;
-    # the previous list silently omitted rock_hero_common_core_tests.
+    # a hardcoded list once silently omitted rock_hero_common_core_tests. "Touched" means the
+    # executable changed since it last passed under this helper: an unchanged binary means none
+    # of the code it tests relinked, so rerunning it cannot change the outcome.
     $discovered = Get-ChildItem -Path $BuildDir -Recurse -Filter "*_tests.exe" `
         -ErrorAction SilentlyContinue |
         Where-Object { $_.FullName -notmatch 'CMakeFiles' } |
@@ -200,7 +223,27 @@ if ($RunTouchedTests)
         throw "No *_tests.exe found under '$BuildDir'. Build the test targets first."
     }
 
-    $Tests += $discovered
+    $skipped = 0
+    foreach ($exe in $discovered)
+    {
+        if ($stamps[$exe] -eq (Get-TestStampValue -TestPath $exe))
+        {
+            $skipped += 1
+            continue
+        }
+
+        $Tests += $exe
+    }
+
+    if ($skipped -gt 0)
+    {
+        Write-Host "Skipped $skipped test suite(s) unchanged since their last passing run."
+    }
+
+    if ($Tests.Count -eq 0)
+    {
+        Write-Host "All test suites are unchanged since their last passing run."
+    }
 }
 
 foreach ($test in $Tests)
@@ -212,4 +255,9 @@ foreach ($test in $Tests)
 
     Invoke-Checked -Command { & $test } -FailureMessage "Test failed: $test" `
         -SuccessMessage "Passed test: $test"
+
+    # Record the pass immediately so suites already validated stay skippable even when a later
+    # suite in this run fails.
+    $stamps[$test] = Get-TestStampValue -TestPath $test
+    $stamps | ConvertTo-Json | Set-Content -LiteralPath $stamp_path -Encoding utf8
 }
