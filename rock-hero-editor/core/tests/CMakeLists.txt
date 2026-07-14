@@ -22,7 +22,6 @@ add_executable(
     test_busy_operation_state.cpp
     test_deferred_project_action_state.cpp
     test_editor_action_availability.cpp
-    test_editor_audio_config_migration.cpp
     test_editor_effective_audio_config_store.cpp
     test_editor_controller_busy.cpp
     test_editor_controller_input_calibration.cpp

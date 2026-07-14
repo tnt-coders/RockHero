@@ -8,13 +8,11 @@
 #include <filesystem>
 #include <juce_data_structures/juce_data_structures.h>
 #include <optional>
-#include <rock_hero/common/audio/input/input_calibration_state.h>
 #include <rock_hero/common/audio/settings/audio_config_store.h>
 #include <rock_hero/common/audio/settings/i_audio_config_store.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/editor/core/settings/i_editor_settings.h>
 #include <string>
-#include <vector>
 
 namespace rock_hero::editor::core
 {
@@ -211,33 +209,6 @@ public:
     \return Audio-config store backing this editor's device route and input calibration.
     */
     [[nodiscard]] common::audio::IAudioConfigStore& audioConfigStore() noexcept;
-
-    /*!
-    \brief Reads the legacy serialized audio-device state from the pre-migration settings file.
-
-    Migration-only accessor: reads the obsolete `audioDeviceState` key so the one-shot migration can
-    move it onto the audio-config store. Not part of the persistence contract.
-
-    \return Stored legacy device state, or empty when none is present.
-    */
-    [[nodiscard]] std::optional<std::string> readLegacyAudioDeviceState() const;
-
-    /*! \brief Clears the legacy serialized audio-device state key after a successful migration. */
-    void clearLegacyAudioDeviceState();
-
-    /*!
-    \brief Reads legacy input calibration records from the pre-migration settings file.
-
-    Migration-only accessor: decodes the obsolete calibration history so the one-shot migration can
-    re-save each record through the audio-config store. Malformed or incomplete records are dropped.
-
-    \return Decoded legacy calibration records, or empty when none are present.
-    */
-    [[nodiscard]] std::vector<common::audio::InputCalibrationState> readLegacyInputCalibrations()
-        const;
-
-    /*! \brief Clears the legacy input calibration history key after a successful migration. */
-    void clearLegacyInputCalibrations();
 
     /*!
     \brief Derives the audio-config file path a settings file's owned store opens.

@@ -9,7 +9,6 @@
 #include <rock_hero/common/core/shared/application_identity.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/editor/core/audio/editor_effective_audio_config_store.h>
-#include <rock_hero/editor/core/settings/editor_audio_settings_migration.h>
 #include <rock_hero/editor/core/settings/editor_settings.h>
 #include <rock_hero/editor/core/tasks/juce_editor_task_runner.h>
 #include <rock_hero/editor/core/tasks/juce_message_thread_scheduler.h>
@@ -138,11 +137,6 @@ public:
         m_editor_task_runner = std::make_unique<rock_hero::editor::core::JuceEditorTaskRunner>();
         m_message_thread_scheduler =
             std::make_unique<rock_hero::editor::core::JuceMessageThreadScheduler>();
-
-        // One-shot: move any pre-migration device-state and calibration keys off the legacy
-        // settings file onto the editor's per-app audio-config store before the editor reads them.
-        rock_hero::editor::core::migrateEditorAudioSettings(
-            *m_editor_settings, m_editor_settings->audioConfigStore());
 
         // Effective-source facade: getters read the editor's own store or a read-only view of the
         // game's file; every write targets the editor's own store. Injected everywhere the editor's
