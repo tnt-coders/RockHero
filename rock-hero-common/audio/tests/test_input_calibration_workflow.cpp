@@ -30,7 +30,7 @@ namespace
     std::optional<InputDeviceIdentity> identity)
 {
     return InputCalibrationWorkflow::Context{
-        .project_audio_ready = true,
+        .live_input_ready = true,
         .arrangement_loaded = true,
         .current_input_device_identity = std::move(identity),
     };
@@ -349,20 +349,26 @@ TEST_CASE("Input calibration workflow evaluateMonitoring branch matrix", "[audio
         CHECK(monitoring.reason == MonitoringDisabledReason::AudioDeviceSettingsOpen);
     }
 
-    SECTION("an unready session reports before route and calibration checks")
+    SECTION("live input not ready blocks both active monitoring and calibration")
     {
         InputCalibrationWorkflow workflow;
         REQUIRE(workflow.syncCommittedInputDeviceIdentity(identity, calibrationFor(identity, 4.0))
                     .empty());
 
         InputCalibrationWorkflow::Context context = readyContext(identity);
-        context.project_audio_ready = false;
+        context.live_input_ready = false;
+
+        // Active processed monitoring reports SessionNotReady before the route and calibration
+        // checks it early-outs ahead of.
         const LiveInputMonitoringStatus monitoring = workflow.evaluateMonitoring(context);
         CHECK(monitoring.state == LiveInputMonitoringState::Disabled);
         CHECK(monitoring.reason == MonitoringDisabledReason::SessionNotReady);
+
+        // Calibration is blocked too: with no live signal to measure, the prompt refuses to open.
+        CHECK(!workflow.requestPrompt(context));
     }
 
-    SECTION("an unloaded arrangement reports as an unready session")
+    SECTION("an unloaded arrangement blocks active monitoring but not calibration")
     {
         InputCalibrationWorkflow workflow;
         REQUIRE(workflow.syncCommittedInputDeviceIdentity(identity, calibrationFor(identity, 4.0))
@@ -370,9 +376,16 @@ TEST_CASE("Input calibration workflow evaluateMonitoring branch matrix", "[audio
 
         InputCalibrationWorkflow::Context context = readyContext(identity);
         context.arrangement_loaded = false;
+
+        // Active processed monitoring still requires an arrangement, folded into SessionNotReady.
         CHECK(
             workflow.evaluateMonitoring(context).reason ==
             MonitoringDisabledReason::SessionNotReady);
+
+        // Calibration needs only the live input path, so the prompt opens and a raw measurement
+        // can start with no arrangement loaded.
+        REQUIRE(workflow.requestPrompt(context));
+        CHECK(workflow.prepareMeasurementStart(context).has_value());
     }
 
     SECTION("a ready session without a route reports no input device")

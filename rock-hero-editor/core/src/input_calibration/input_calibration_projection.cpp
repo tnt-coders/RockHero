@@ -15,7 +15,11 @@ namespace
 [[nodiscard]] bool contextReadyForCalibration(
     common::audio::LiveInputMonitoringContext context) noexcept
 {
-    return context.session_audio_ready && context.arrangement_loaded;
+    // Calibration only needs the live input path up; an arrangement gates active processed
+    // monitoring, not the raw measurement. In the editor m_project_audio_ready (mirrored into
+    // live_input_ready) is only ever true after a load committed an arrangement, so gating on
+    // live_input_ready alone matches the prior behavior for every reachable editor state.
+    return context.live_input_ready;
 }
 
 // Reason reflecting only route identity and calibration match, deliberately ignoring the

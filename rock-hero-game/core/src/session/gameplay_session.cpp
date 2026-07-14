@@ -450,7 +450,7 @@ void GameplaySession::onRigLoadCompleted(
     [[maybe_unused]] const common::audio::LiveInputMonitoringStatus monitoring_status =
         m_live_input_monitor.refresh(
             common::audio::LiveInputMonitoringContext{
-                .session_audio_ready = true,
+                .live_input_ready = true,
                 .arrangement_loaded = true,
             });
 }
