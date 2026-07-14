@@ -1325,36 +1325,25 @@ void EditorView::presentGameAudioUnavailablePromptIfNeeded(
         });
 }
 
-// Opens the startup game-audio recommendation dialog once per controller request and routes its
-// single decision back; the window is released on the state push that clears the prompt.
+// Opens the startup game-audio recommendation alert once per controller request and routes its
+// single decision back; the self-deleting alert owns its own teardown, so the view only tracks
+// whether the current request has been presented.
 void EditorView::presentGameAudioRecommendationIfNeeded(bool prompt_requested)
 {
     if (!prompt_requested)
     {
-        if (m_game_audio_recommendation_window != nullptr)
-        {
-            // The decision callback runs from the window's own button and close paths. Hide now,
-            // but defer destruction until that event stack has unwound.
-            m_game_audio_recommendation_window->setVisible(false);
-            const juce::Component::SafePointer<EditorView> safe_this{this};
-            juce::MessageManager::callAsync([safe_this] {
-                EditorView* const view = safe_this.getComponent();
-                if (view != nullptr && !view->m_state.game_audio_recommendation_prompt)
-                {
-                    view->m_game_audio_recommendation_window.reset();
-                }
-            });
-        }
+        m_game_audio_recommendation_presented = false;
         return;
     }
 
-    if (m_game_audio_recommendation_window != nullptr)
+    if (m_game_audio_recommendation_presented)
     {
         return;
     }
 
+    m_game_audio_recommendation_presented = true;
     const juce::Component::SafePointer<EditorView> safe_this{this};
-    m_game_audio_recommendation_window = GameAudioRecommendationDialog::show(
+    GameAudioRecommendationDialog::show(
         *this, [safe_this](core::GameAudioRecommendationDecision decision, bool suppress_future) {
             if (auto* view = safe_this.getComponent())
             {

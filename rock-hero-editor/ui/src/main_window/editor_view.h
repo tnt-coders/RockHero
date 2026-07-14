@@ -506,8 +506,9 @@ private:
     // Last unavailable-game-audio notice shown to avoid re-opening dialogs on repeated pushes.
     std::optional<core::GameAudioUnavailablePrompt> m_last_game_audio_unavailable_prompt{};
 
-    // Startup game-audio recommendation dialog; open exactly while the controller requests it.
-    std::unique_ptr<juce::DocumentWindow> m_game_audio_recommendation_window;
+    // True while the controller's current recommendation request has been presented; the
+    // self-deleting standard alert owns its own teardown, so only the dedup flag lives here.
+    bool m_game_audio_recommendation_presented{false};
 
     // True after the editor has made its one startup focus request.
     bool m_has_requested_initial_keyboard_focus{false};
