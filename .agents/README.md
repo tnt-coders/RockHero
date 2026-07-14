@@ -18,9 +18,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
   `CMakePresets.json`); the default is `debug` and the build directory defaults to
   `build/<preset>`.
 - `-Targets` takes any Ninja target, including `all` and the `clang-tidy` custom target.
-- `-RunTouchedTests` discovers and runs every built `*_tests.exe` under the build directory
-  (running the executables directly is much faster than `ctest`, which pays process startup per
-  registered case).
+- `-RunTouchedTests` discovers every built `*_tests.exe` under the build directory and runs the
+  ones whose executable changed since it last passed under this helper (each pass stamps the exe
+  timestamp into `<build dir>/.agents-test-stamps.json`). An unchanged binary means none of the
+  code it tests relinked, so those suites are skipped; running the executables directly is also
+  much faster than `ctest`, which pays process startup per registered case.
 - Add `-Configure` only after CMake graph changes or stale Ninja errors. Output is quiet on
   success; add `-FullOutput` when diagnosing build details.
 
