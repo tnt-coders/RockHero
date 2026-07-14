@@ -31,9 +31,7 @@ using testing::setCalibrationInputMonitoringCall;
 using testing::setInputGainCall;
 using testing::setLiveInputMonitoringCall;
 
-constexpr LiveInputMonitoringContext g_ready{
-    .session_audio_ready = true, .arrangement_loaded = true
-};
+constexpr LiveInputMonitoringContext g_ready{.live_input_ready = true, .arrangement_loaded = true};
 
 [[nodiscard]] InputDeviceIdentity makeIdentity(std::string device = "Interface A", int channel = 0)
 {
@@ -128,7 +126,7 @@ TEST_CASE("LiveInputMonitor gate disables when session not ready", "[common][aud
     LiveInputMonitor monitor{live_input, devices, store};
 
     const LiveInputMonitoringStatus status =
-        monitor.applyGate({.session_audio_ready = false, .arrangement_loaded = true});
+        monitor.applyGate({.live_input_ready = false, .arrangement_loaded = true});
 
     CHECK(status.reason == MonitoringDisabledReason::SessionNotReady);
 }

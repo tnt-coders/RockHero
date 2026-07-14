@@ -51,8 +51,8 @@ enum class MonitoringDisabledReason : std::uint8_t
 /*! \brief Session facts the downstream live-input monitoring service evaluates. */
 struct LiveInputMonitoringContext
 {
-    /*! \brief True after arrangement audio and live rig restore have committed. */
-    bool session_audio_ready{false};
+    /*! \brief True when the live input path is up so a raw signal can be measured or monitored. */
+    bool live_input_ready{false};
 
     /*! \brief True when the session has a current arrangement. */
     bool arrangement_loaded{false};

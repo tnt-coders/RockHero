@@ -17,7 +17,9 @@ namespace
 [[nodiscard]] bool contextReadyForCalibration(
     const InputCalibrationWorkflow::Context& context) noexcept
 {
-    return context.project_audio_ready && context.arrangement_loaded;
+    // Calibration only needs a live raw signal to measure; it does not need an arrangement. An
+    // arrangement gates active processed monitoring (evaluateMonitoring), not measurement.
+    return context.live_input_ready;
 }
 
 } // namespace
@@ -147,7 +149,7 @@ InputCalibrationWorkflow::prepareMeasurementStart(const Context& context) const
 
     if (!contextReadyForCalibration(context))
     {
-        return std::unexpected{inputRouteUnavailable("Project audio is not ready")};
+        return std::unexpected{inputRouteUnavailable("Live input is not ready")};
     }
 
     if (!context.current_input_device_identity.has_value())
@@ -194,7 +196,7 @@ std::expected<InputCalibrationWorkflow::CommitPlan, LiveInputError> InputCalibra
 
     if (!contextReadyForCalibration(context))
     {
-        return std::unexpected{inputRouteUnavailable("Project audio is not ready")};
+        return std::unexpected{inputRouteUnavailable("Live input is not ready")};
     }
 
     if (!context.current_input_device_identity.has_value())

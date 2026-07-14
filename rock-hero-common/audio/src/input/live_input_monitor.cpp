@@ -206,7 +206,7 @@ InputCalibrationWorkflow::Context LiveInputMonitor::workflowContext(
     LiveInputMonitoringContext context) const
 {
     return InputCalibrationWorkflow::Context{
-        .project_audio_ready = context.session_audio_ready,
+        .live_input_ready = context.live_input_ready,
         .arrangement_loaded = context.arrangement_loaded,
         .current_input_device_identity = m_device_configuration.currentInputDeviceIdentity(),
     };
@@ -226,9 +226,9 @@ LiveInputMonitoringStatus LiveInputMonitor::applyGateInternal(
         return m_status;
     }
 
-    if (!context.project_audio_ready || !context.arrangement_loaded)
+    if (!context.live_input_ready || !context.arrangement_loaded)
     {
-        setLiveInputMonitoringBestEffort(false, "project-audio gate disable");
+        setLiveInputMonitoringBestEffort(false, "live-input gate disable");
         m_status = {LiveInputMonitoringState::Disabled, MonitoringDisabledReason::SessionNotReady};
         return m_status;
     }
