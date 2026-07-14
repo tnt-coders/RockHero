@@ -1,6 +1,7 @@
 #include "string_colors/string_color_palette.h"
 
 #include <algorithm>
+#include <cmath>
 
 namespace rock_hero::common::ui
 {
@@ -52,6 +53,27 @@ constexpr StringColorPalette g_charter_classic_palette{
         0xffb6b6b6, // near-white gray (8th string, Charter STRING_7)
     },
 };
+
+// Accent brightening that keeps the string's hue: java's brighter() clamps each channel
+// independently, so Charter's ring.brighter().brighter() bleaches saturated hues toward yellow
+// or white (an orange or green accent glow rendered yellow — user-flagged bug). One shared gain
+// preserves the channel ratios; it targets java's double-brighter intensity (1 / 0.7^2) and
+// stops where the hottest channel saturates. Rounded, not truncated, so a capped gain lands the
+// hottest channel exactly on 255.
+[[nodiscard]] ArgbColor huePreservingAccentColor(ArgbColor color)
+{
+    const int max_channel = std::max({redOf(color), greenOf(color), blueOf(color)});
+    if (max_channel == 0)
+    {
+        return color;
+    }
+
+    const double gain = std::min(1.0 / (0.7 * 0.7), 255.0 / max_channel);
+    const auto scale = [gain](int channel) {
+        return static_cast<int>(std::min(255L, std::lround(channel * gain)));
+    };
+    return packColor(scale(redOf(color)), scale(greenOf(color)), scale(blueOf(color)));
+}
 
 } // namespace
 
@@ -121,7 +143,7 @@ StringLaneStyle::StringLaneStyle(ArgbColor base)
     , linked_inner(darkerColor(darkerColor(inner)))
     , tail(multiplyColor(base, 0.66))
     , tail_edge(brighterColor(tail))
-    , accent(brighterColor(brighterColor(border_inner)))
+    , accent(huePreservingAccentColor(border_inner))
 {}
 
 const StringColorPalette& charterClassicPalette()

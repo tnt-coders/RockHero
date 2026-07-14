@@ -58,4 +58,25 @@ TEST_CASE("Palette style derivation matches the Charter chain for red", "[ui][st
     CHECK(style.accent == 0xffff0000);       // saturated red stays saturated
 }
 
+// The accent brightens without shifting hue: Charter's per-channel double brighter bleached
+// saturated hues toward yellow (orange and green accents rendered yellow), so the accent scales
+// all channels by one gain instead, capped where the hottest channel saturates.
+TEST_CASE("Palette accent brightening preserves the string hue", "[ui][string-colors]")
+{
+    // Orange: ring (255, 154, 11) is already saturated, so the accent is the ring itself —
+    // not the (255, 255, 22) yellow the java chain produced.
+    const StringLaneStyle orange{0xffff870a};
+    CHECK(orange.accent == orange.border_inner);
+    CHECK(orange.accent == 0xffff9a0b);
+
+    // Green likewise keeps its ring hue instead of bleaching toward (255, 255, 163).
+    const StringLaneStyle green{0xff85e747};
+    CHECK(green.accent == green.border_inner);
+
+    // An unsaturated ring still gains java's double-brighter headroom: the gray eighth string's
+    // ring (207, 207, 207) scales uniformly until the channels saturate at white.
+    const StringLaneStyle gray{0xffb6b6b6};
+    CHECK(gray.accent == 0xffffffff);
+}
+
 } // namespace rock_hero::common::ui
