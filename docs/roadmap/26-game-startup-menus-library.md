@@ -303,7 +303,10 @@ Depends on the `IGameSettings` port phase of docs/roadmap/27-in-song-flow-result
 forward and record it in both plans).
 
 - **Scope**: settings fields this plan owns — `first_run_completed`; library scan roots (list of
-  directories; default `<user music or app data>/Rock Hero/Songs`, created on demand); video
+  directories; default DECIDED by the user 2026-07-12: `%APPDATA%/Rock Hero/Songs` — the
+  game-owned app-data root, cleanest single home beside settings/logs/sessions; discoverability
+  is solved by an "Open songs folder" affordance in the library screen (Phase 7 carries it),
+  created on demand); video
   settings model {display mode fullscreen/windowed/borderless, monitor identifier, resolution,
   vsync mode} whose semantics follow the frame-pacing policy recorded in
   docs/roadmap/20-game-architecture-and-render-stack.md (this plan persists and displays; 20's

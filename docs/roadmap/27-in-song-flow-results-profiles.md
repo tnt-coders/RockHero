@@ -1,7 +1,14 @@
 # Plan 27 — In-Song Flow, Results, and Profiles
 
-**Status:** Ready — 2026-07-06 — baseline `refactor @ 3c7febe0`.
-Phases 1–4 are executable now (headless game/core). Phase 5 is gated on
+**Status:** Phase 1 COMPLETE (2026-07-12, overnight/game-shell): `IGameSettings` port +
+`GameSettings` (PropertiesFile-backed per-user XML, save-on-set, test-isolation path ctor) +
+`GameSettingsError` + `NullGameSettings` fake, all mirroring the editor pattern; v1 keys
+profileId (UUID, get-or-create, stable across reopen — tested), profileDisplayName ("Player"
+default, empty rejected), firstRunCompleted (absence = first run); `gameApplicationName()` added
+to application_identity.h; key-addition convention + reserved mix keys documented in the port
+header. Verified `-Configure -Targets all` + `-RunTouchedTests` green; clang-tidy pending user
+trigger. Original: Ready — 2026-07-06 — baseline `refactor @ 3c7febe0`.
+Phases 2–4 are executable now (headless game/core). Phase 5 is gated on
 docs/roadmap/21-game-audio-engine-and-session.md and docs/roadmap/24-scoring-star-power-failure.md;
 Phase 6 is gated on docs/roadmap/20-game-architecture-and-render-stack.md Phase 0 and
 docs/roadmap/26-game-startup-menus-library.md (menu input layer). Open questions 1–3 fix policy
@@ -97,6 +104,15 @@ editor-core tone changes that this plan does not touch.
   `-Configure` only after CMake graph changes; quiet by default).
 
 Verified against code on 2026-07-06, refactor @ 3c7febe0.
+
+Re-verified for Phase 1 on 2026-07-12, overnight/game-shell @ 80efcbe2 — corrections: the
+game-skeleton bullet is obsolete (plan 20 Phases 1–4, plan 25 Phases 3–4, and plan 21 Phases 1–6
+landed since: SDL3 shell, game/core carries frame clock/diagnostics/resources/session with a
+tests target, `GameplaySession` EXISTS at rock-hero-game/core session/ with play/pause/seek/
+restart and speed/loop pass-throughs — Phase 3's flow machine drives it through those instead of
+raw transport calls); the editor settings pattern bullet re-verified intact (all five files as
+listed); application_identity.h gained `gameApplicationName()` in this phase. The reserved mix
+key names (Phase 1 scope note) were added 2026-07-12 by plan 21 Phase 4's record.
 
 ## 5. Dependencies
 
