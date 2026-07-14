@@ -9,8 +9,10 @@
 #include <compare>
 #include <concepts>
 #include <cstddef>
+#include <deque>
 #include <expected>
 #include <filesystem>
+#include <functional>
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
@@ -39,6 +41,14 @@ constexpr const char* g_arrangement_id = "4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4";
 constexpr const char* g_rejected_audio_type_name = "Rejected Audio";
 constexpr const char* g_rejected_input_name = "Rejected Input";
 constexpr const char* g_rejected_output_name = "Rejected Output";
+constexpr const char* g_fake_audio_type_name = "Fake Audio";
+constexpr const char* g_fake_device_a_name = "Fake Device A";
+constexpr const char* g_fake_device_b_name = "Fake Device B";
+
+// Serialized route naming fake device A, in the single-name shape createStateXml() writes for a
+// device type without separate input and output devices.
+constexpr const char* g_fake_device_a_state =
+    R"(<DEVICESETUP deviceType="Fake Audio" audioDeviceName="Fake Device A"/>)";
 
 // Verifies at compile time that the concrete adapter is usable through its audio port surfaces.
 static_assert(std::derived_from<Engine, ITransport>);
@@ -197,6 +207,248 @@ void installOnlyRejectingAudioDeviceType(juce::AudioDeviceManager& manager)
     }
 
     manager.addAudioDeviceType(std::make_unique<RejectingAudioDeviceType>());
+}
+
+// Minimal openable audio device so fallback and replug tests can genuinely open fake hardware.
+// It never invokes audio processing; the tests only observe open/closed state.
+class FakeAudioIODevice final : public juce::AudioIODevice
+{
+public:
+    FakeAudioIODevice(const juce::String& device_name, const juce::String& type_name)
+        : juce::AudioIODevice(device_name, type_name)
+    {}
+
+    [[nodiscard]] juce::StringArray getOutputChannelNames() override
+    {
+        return {"Fake Out L", "Fake Out R"};
+    }
+
+    [[nodiscard]] juce::StringArray getInputChannelNames() override
+    {
+        return {"Fake In"};
+    }
+
+    [[nodiscard]] juce::Array<double> getAvailableSampleRates() override
+    {
+        return {48000.0};
+    }
+
+    [[nodiscard]] juce::Array<int> getAvailableBufferSizes() override
+    {
+        return {512};
+    }
+
+    [[nodiscard]] int getDefaultBufferSize() override
+    {
+        return 512;
+    }
+
+    [[nodiscard]] juce::String open(
+        const juce::BigInteger& /*input_channels*/, const juce::BigInteger& /*output_channels*/,
+        double /*sample_rate*/, int /*buffer_size_samples*/) override
+    {
+        m_open = true;
+        return {};
+    }
+
+    void close() override
+    {
+        m_open = false;
+    }
+
+    [[nodiscard]] bool isOpen() override
+    {
+        return m_open;
+    }
+
+    // Announces the start to the callback (the manager expects it) without ever rendering audio.
+    void start(juce::AudioIODeviceCallback* callback) override
+    {
+        m_callback = callback;
+        if (m_callback != nullptr)
+        {
+            m_callback->audioDeviceAboutToStart(this);
+        }
+    }
+
+    void stop() override
+    {
+        if (m_callback != nullptr)
+        {
+            m_callback->audioDeviceStopped();
+            m_callback = nullptr;
+        }
+    }
+
+    [[nodiscard]] bool isPlaying() override
+    {
+        return m_callback != nullptr;
+    }
+
+    [[nodiscard]] juce::String getLastError() override
+    {
+        return {};
+    }
+
+    [[nodiscard]] int getCurrentBufferSizeSamples() override
+    {
+        return 512;
+    }
+
+    [[nodiscard]] double getCurrentSampleRate() override
+    {
+        return 48000.0;
+    }
+
+    [[nodiscard]] int getCurrentBitDepth() override
+    {
+        return 24;
+    }
+
+    [[nodiscard]] juce::BigInteger getActiveOutputChannels() const override
+    {
+        juce::BigInteger channels;
+        channels.setRange(0, 2, true);
+        return channels;
+    }
+
+    [[nodiscard]] juce::BigInteger getActiveInputChannels() const override
+    {
+        juce::BigInteger channels;
+        channels.setBit(0);
+        return channels;
+    }
+
+    [[nodiscard]] int getOutputLatencyInSamples() override
+    {
+        return 0;
+    }
+
+    [[nodiscard]] int getInputLatencyInSamples() override
+    {
+        return 0;
+    }
+
+private:
+    bool m_open{false};
+    juce::AudioIODeviceCallback* m_callback{nullptr};
+};
+
+// Device type whose device list tests mutate to unplug and replug fake hardware. Raising the
+// list-change notification runs JUCE's own AudioDeviceManager::audioDeviceListChanged handler
+// (including its hard-coded disconnect fallback) synchronously, exactly as a platform backend
+// notification would.
+class FakeAudioDeviceType final : public juce::AudioIODeviceType
+{
+public:
+    explicit FakeAudioDeviceType(juce::StringArray device_names)
+        : juce::AudioIODeviceType(g_fake_audio_type_name)
+        , m_device_names(std::move(device_names))
+    {}
+
+    // Replaces the device list and notifies the manager, like hardware arrival or removal.
+    void simulateDeviceListChange(juce::StringArray device_names)
+    {
+        m_device_names = std::move(device_names);
+        callDeviceChangeListeners();
+    }
+
+    // The fake list is authoritative; there is no hardware to scan.
+    void scanForDevices() override
+    {}
+
+    [[nodiscard]] juce::StringArray getDeviceNames(bool /*want_input_names*/) const override
+    {
+        return m_device_names;
+    }
+
+    [[nodiscard]] int getDefaultDeviceIndex(bool /*for_input*/) const override
+    {
+        return 0;
+    }
+
+    [[nodiscard]] int getIndexOfDevice(
+        juce::AudioIODevice* device, bool /*want_input_names*/) const override
+    {
+        return device == nullptr ? -1 : m_device_names.indexOf(device->getName());
+    }
+
+    [[nodiscard]] bool hasSeparateInputsAndOutputs() const override
+    {
+        return false;
+    }
+
+    [[nodiscard]] juce::AudioIODevice* createDevice(
+        const juce::String& output_device_name, const juce::String& input_device_name) override
+    {
+        const juce::String name =
+            output_device_name.isNotEmpty() ? output_device_name : input_device_name;
+        if (!m_device_names.contains(name))
+        {
+            return nullptr;
+        }
+
+        return new FakeAudioIODevice(name, getTypeName());
+    }
+
+private:
+    juce::StringArray m_device_names;
+};
+
+// Replaces platform audio types with one fake list-mutable type and returns it for test control.
+// The manager owns the returned type; the reference stays valid for the manager's lifetime.
+[[nodiscard]] FakeAudioDeviceType& installOnlyFakeAudioDeviceType(
+    juce::AudioDeviceManager& manager, juce::StringArray device_names)
+{
+    const int original_type_count = manager.getAvailableDeviceTypes().size();
+    for (int index = 0; index < original_type_count; ++index)
+    {
+        juce::AudioIODeviceType* const type = manager.getAvailableDeviceTypes().getFirst();
+        if (type != nullptr)
+        {
+            manager.removeAudioDeviceType(type);
+        }
+    }
+
+    auto fake_type = std::make_unique<FakeAudioDeviceType>(std::move(device_names));
+    FakeAudioDeviceType& fake_type_ref = *fake_type;
+    manager.addAudioDeviceType(std::move(fake_type));
+    return fake_type_ref;
+}
+
+// Posts the next scenario step; declared before runMessageThreadSteps for the recursive chain.
+void postNextMessageThreadStep(std::shared_ptr<std::deque<std::function<void()>>> steps)
+{
+    juce::MessageManager::callAsync([steps] {
+        if (steps->empty())
+        {
+            juce::MessageManager::getInstance()->stopDispatchLoop();
+            return;
+        }
+
+        std::function<void()> step = std::move(steps->front());
+        steps->pop_front();
+        step();
+        postNextMessageThreadStep(steps);
+    });
+}
+
+// Runs the supplied steps in order inside one real dispatch loop, so messages a step posts (the
+// engine's coalesced device-configuration refresh) dispatch before the next step runs. The loop
+// stops after the last step. One call per test: JUCE's quit flag latches per MessageManager, and
+// each EngineTestHarness owns the process's only ScopedJuceInitialiser_GUI, so every test gets a
+// fresh manager. Steps must use non-throwing Catch2 macros (CHECK, not REQUIRE): the dispatch
+// loop's exception guard would swallow a throwing assertion and spin forever.
+void runMessageThreadSteps(std::vector<std::function<void()>> steps)
+{
+    auto queue = std::make_shared<std::deque<std::function<void()>>>();
+    for (std::function<void()>& step : steps)
+    {
+        queue->push_back(std::move(step));
+    }
+
+    postNextMessageThreadStep(std::move(queue));
+    juce::MessageManager::getInstance()->runDispatchLoop();
 }
 
 // Owns a temporary song workspace for live-rig file persistence tests.
@@ -436,9 +688,8 @@ TEST_CASE("Engine rejects invalid serialized audio-device state", "[audio][engin
 
 // A saved device that cannot be opened closes gracefully instead of falling back to another
 // device. With only the rejecting type installed there is no device to fall back to, so a
-// successful restore that leaves the device closed proves no fallback occurred. Reporting the
-// DeviceUnavailable outcome (not RestoreFailed) is what stops the editor caller from clearing the
-// user's saved route.
+// successful restore that leaves the device closed proves no fallback occurred. Reporting success
+// (not RestoreFailed) is what stops the editor caller from clearing the user's saved route.
 TEST_CASE(
     "Engine closes an unopenable serialized audio-device route without fallback",
     "[audio][engine][integration]")
@@ -454,6 +705,146 @@ TEST_CASE(
     REQUIRE(restored.has_value());
     CHECK(*restored == DeviceRestoreOutcome::DeviceUnavailable);
     CHECK_FALSE(audio_devices.currentDeviceStatus().open);
+}
+
+// Unplugging the saved device makes JUCE's audioDeviceListChanged fall back to another device
+// (hard-coded in vendored JUCE); the engine's no-fallback policy must close that substitute while
+// the saved choice survives for the next launch.
+TEST_CASE(
+    "Engine closes JUCE's disconnect fallback and keeps the saved device choice",
+    "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    IAudioDeviceConfiguration& audio_devices = harness.engine;
+    FakeAudioDeviceType& fake_type = installOnlyFakeAudioDeviceType(
+        audio_devices.deviceManager(), {g_fake_device_a_name, g_fake_device_b_name});
+
+    const auto restored = audio_devices.restoreSerializedDeviceState(g_fake_device_a_state);
+    REQUIRE(restored.has_value());
+    REQUIRE(*restored == DeviceRestoreOutcome::Opened);
+    REQUIRE(audio_devices.currentDeviceStatus().open);
+
+    juce::AudioDeviceManager& device_manager = audio_devices.deviceManager();
+    runMessageThreadSteps({
+        [&] {
+            // Unplug device A. JUCE's own handler runs synchronously inside this call: it closes A
+            // and falls back to device B because selectDefaultDeviceOnFailure is hard-coded true.
+            fake_type.simulateDeviceListChange({g_fake_device_b_name});
+            CHECK(device_manager.getAudioDeviceSetup().outputDeviceName == g_fake_device_b_name);
+            // Deliver the manager's broadcast so the engine schedules its configuration refresh.
+            device_manager.dispatchPendingMessages();
+        },
+        [&] {
+            // The refresh ran between steps: the policy closed the fallback device, and the saved
+            // route still names device A for the next launch.
+            CHECK_FALSE(audio_devices.currentDeviceStatus().open);
+            const std::optional<std::string> saved = audio_devices.serializedDeviceState();
+            CHECK(saved.has_value());
+            CHECK(saved.value_or(std::string{}).find(g_fake_device_a_name) != std::string::npos);
+        },
+    });
+}
+
+// After a no-fallback close, replugging the saved device must reopen it automatically -- and only
+// it: the absent -> present transition of the saved device is the sole reopen trigger.
+TEST_CASE("Engine reopens the saved device when it is replugged", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    IAudioDeviceConfiguration& audio_devices = harness.engine;
+    FakeAudioDeviceType& fake_type =
+        installOnlyFakeAudioDeviceType(audio_devices.deviceManager(), {g_fake_device_a_name});
+
+    const auto restored = audio_devices.restoreSerializedDeviceState(g_fake_device_a_state);
+    REQUIRE(restored.has_value());
+    REQUIRE(*restored == DeviceRestoreOutcome::Opened);
+
+    juce::AudioDeviceManager& device_manager = audio_devices.deviceManager();
+    runMessageThreadSteps({
+        [&] {
+            // Unplug device A with nothing to fall back to; JUCE closes and stays closed.
+            fake_type.simulateDeviceListChange({});
+            device_manager.dispatchPendingMessages();
+        },
+        [&] {
+            CHECK_FALSE(audio_devices.currentDeviceStatus().open);
+            // Replug device A.
+            fake_type.simulateDeviceListChange({g_fake_device_a_name});
+            device_manager.dispatchPendingMessages();
+        },
+        [&] {
+            // The refresh saw the absent -> present transition and re-applied the saved route.
+            CHECK(audio_devices.currentDeviceStatus().open);
+            CHECK(device_manager.getAudioDeviceSetup().outputDeviceName == g_fake_device_a_name);
+        },
+    });
+}
+
+// A deliberately closed device (the settings dialog stages with the device closed) must stay
+// closed while the saved device remains attached: no absent -> present transition, no auto-reopen.
+TEST_CASE(
+    "Engine leaves a deliberately closed device closed while the saved device stays present",
+    "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    IAudioDeviceConfiguration& audio_devices = harness.engine;
+    FakeAudioDeviceType& fake_type =
+        installOnlyFakeAudioDeviceType(audio_devices.deviceManager(), {g_fake_device_a_name});
+
+    const auto restored = audio_devices.restoreSerializedDeviceState(g_fake_device_a_state);
+    REQUIRE(restored.has_value());
+    REQUIRE(*restored == DeviceRestoreOutcome::Opened);
+
+    juce::AudioDeviceManager& device_manager = audio_devices.deviceManager();
+    runMessageThreadSteps({
+        [&] {
+            // Prime one refresh while device A is open and attached, so the policy records the
+            // saved device as present.
+            device_manager.dispatchPendingMessages();
+        },
+        [&] {
+            // Deliberate close (staging analog), then a benign list event with A still attached.
+            device_manager.closeAudioDevice();
+            fake_type.simulateDeviceListChange({g_fake_device_a_name});
+            device_manager.dispatchPendingMessages();
+        },
+        [&] {
+            // Present at both refreshes means no transition, so the policy must not reopen.
+            CHECK_FALSE(audio_devices.currentDeviceStatus().open);
+            const std::optional<std::string> saved = audio_devices.serializedDeviceState();
+            CHECK(saved.value_or(std::string{}).find(g_fake_device_a_name) != std::string::npos);
+        },
+    });
+}
+
+// A device the user explicitly selects rewrites the saved choice (treatAsChosenDevice), so the
+// no-fallback policy must never mistake it for a disconnect fallback and close it.
+TEST_CASE("Engine keeps a device the user explicitly selected", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    IAudioDeviceConfiguration& audio_devices = harness.engine;
+    static_cast<void>(installOnlyFakeAudioDeviceType(
+        audio_devices.deviceManager(), {g_fake_device_a_name, g_fake_device_b_name}));
+
+    const auto restored = audio_devices.restoreSerializedDeviceState(g_fake_device_a_state);
+    REQUIRE(restored.has_value());
+    REQUIRE(*restored == DeviceRestoreOutcome::Opened);
+
+    juce::AudioDeviceManager& device_manager = audio_devices.deviceManager();
+    runMessageThreadSteps({
+        [&] {
+            // The user picks device B: an explicit choice, so JUCE rewrites the saved route too.
+            juce::AudioDeviceManager::AudioDeviceSetup setup = device_manager.getAudioDeviceSetup();
+            setup.inputDeviceName = g_fake_device_b_name;
+            setup.outputDeviceName = g_fake_device_b_name;
+            CHECK(device_manager.setAudioDeviceSetup(setup, true).isEmpty());
+            device_manager.dispatchPendingMessages();
+        },
+        [&] {
+            // Saved choice and live device agree, so the policy leaves the new device open.
+            CHECK(audio_devices.currentDeviceStatus().open);
+            CHECK(device_manager.getAudioDeviceSetup().outputDeviceName == g_fake_device_b_name);
+        },
+    });
 }
 
 // Verifies meter reads are safe before the playback graph has produced any audio.
