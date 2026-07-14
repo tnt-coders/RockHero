@@ -1,5 +1,7 @@
 #include "audio_device_settings_view.h"
 
+#include "shared/themed_message_box.h"
+
 #include <algorithm>
 #include <expected>
 #include <utility>
@@ -328,16 +330,12 @@ void AudioDeviceSettingsView::configureControls()
             {
                 // Declined enable: nothing was persisted or switched, so the checkbox snaps back
                 // and the canonical reason is reported right at the gesture through the editor's
-                // themed AlertWindow (matching the app's other prompts, not the OS message box).
+                // themed warning box (matching the app's other prompts, not the OS message box).
                 m_use_game_settings_toggle.setToggleState(false, juce::dontSendNotification);
-                juce::AlertWindow::showAsync(
-                    juce::MessageBoxOptions()
-                        .withIconType(juce::MessageBoxIconType::WarningIcon)
-                        .withTitle("Game audio settings unavailable")
-                        .withMessage(juce::String::fromUTF8(applied.error().message.c_str()))
-                        .withButton("OK")
-                        .withAssociatedComponent(this),
-                    nullptr);
+                showThemedWarningBox(
+                    this,
+                    "Game audio settings unavailable",
+                    juce::String::fromUTF8(applied.error().message.c_str()));
                 return;
             }
         }
