@@ -246,6 +246,18 @@ public:
     [[nodiscard]] virtual std::expected<void, AudioDeviceSettingsError> cancel() = 0;
 
     /*!
+    \brief Keeps the currently active route as final, abandoning the captured previous route.
+
+    Used when the active audio device was changed out of band while the settings window was open
+    (for example by the editor's live "use game audio settings" toggle) and the user confirms that
+    live route with OK. Unlike apply(), which opens the staged editor route, commit() keeps
+    whatever device is currently open and only clears the pending restore so destruction does not
+    reopen the captured previous route.
+    \return Empty success, or a typed settings failure.
+    */
+    [[nodiscard]] virtual std::expected<void, AudioDeviceSettingsError> commit() = 0;
+
+    /*!
     \brief Opens the backend control panel for the staged route.
     \return Empty success, or a typed settings failure.
     */
@@ -386,6 +398,12 @@ public:
     \return Empty success, or a typed settings failure.
     */
     [[nodiscard]] std::expected<void, AudioDeviceSettingsError> cancel() override;
+
+    /*!
+    \brief Keeps the currently active route as final, abandoning the captured previous route.
+    \return Empty success, or a typed settings failure.
+    */
+    [[nodiscard]] std::expected<void, AudioDeviceSettingsError> commit() override;
 
     /*!
     \brief Opens the backend control panel for the staged route.
