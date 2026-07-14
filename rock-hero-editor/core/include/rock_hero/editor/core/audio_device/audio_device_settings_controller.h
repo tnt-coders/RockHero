@@ -76,6 +76,7 @@ public:
     void onBufferSizeSelected(int choice_id) override;
     void onControlPanelRequested() override;
     void onOkRequested() override;
+    void onCommitRequested() override;
     void onCancelRequested() override;
 
 private:
