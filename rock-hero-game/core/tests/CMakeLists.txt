@@ -11,6 +11,7 @@ add_executable(
     test_game_settings.cpp
     test_gameplay_session.cpp
     test_library_index_store.cpp
+    test_library_scan_engine.cpp
     test_library_scan_plan.cpp)
 
 # Shared test fakes (the null settings port) live under tests/include, mirroring editor/core.
