@@ -41,8 +41,8 @@ constexpr float g_min_note_height_for_text{9.0f};
 constexpr float g_shape_label_height{10.0f};
 constexpr float g_shape_rail_height{3.0f};
 constexpr double g_shape_mark_brightness{1.5};
-// Hairline stroke width of the side-arc pair bracketing an arpeggio posture note, which reads
-// as "( fret )" parentheses and stays much lighter than the note rings it wraps.
+// Hairline stroke width of the square-bracket pair marking an arpeggio posture note, which
+// reads as "[ fret ]" and stays much lighter than the note rings it wraps.
 constexpr float g_arpeggio_bracket_thickness{1.0f};
 
 // Thin JUCE-converting wrappers over the shared Charter-exact derivation (rock-hero-common/ui)
@@ -970,11 +970,11 @@ void TabView::paint(juce::Graphics& g)
         const float start_x = metrics.x(shape.start_seconds);
         for (const core::TabArpeggioNoteView& arpeggio_note : shape.arpeggio_notes)
         {
-            // Left and right arcs hugging the head's ring, in the head's muted interior color
-            // so they mark the posture without competing with real heads. A string sounded
-            // exactly at the start keeps its full head (drawn by the note pass) inside the
-            // brackets; a string struck later in the arpeggio shows only its held fret number
-            // between them.
+            // Left and right square brackets hugging the head's ring, in the head's muted
+            // interior color so they mark the posture without competing with real heads. A
+            // string sounded exactly at the start keeps its full head (drawn by the note
+            // pass) inside the brackets; a string struck later in the arpeggio shows only its
+            // held fret number between them.
             const StringStyle style{metrics.baseColor(arpeggio_note.string)};
             const float center_y = metrics.laneY(arpeggio_note.string);
             const float size = metrics.note_height + 1.0f;
@@ -982,36 +982,23 @@ void TabView::paint(juce::Graphics& g)
             const float radius = size / 2.0f + border;
             // The note's VISIBLE top and bottom are the bright ring's edges: the head's
             // outermost layer is the near-black backing, which melts into the dark lane. The
-            // opening angle terminates the arc centerlines a stroke-width inside that visible
-            // edge, so even with the stroke's own extent and edge antialiasing the brackets
-            // never rise above or dip below what reads as the note.
-            const float gap =
-                std::acos((size / 2.0f - border - g_arpeggio_bracket_thickness) / radius);
+            // bracket verticals stop a stroke-width inside that visible edge, so even with
+            // the stroke's own extent and edge antialiasing the brackets never rise above or
+            // dip below what reads as the note.
+            const float half_height = size / 2.0f - border - g_arpeggio_bracket_thickness;
+            const float serif = size / 8.0f;
 
-            juce::Path arcs;
-            arcs.addCentredArc(
-                start_x,
-                center_y,
-                radius,
-                radius,
-                0.0f,
-                gap,
-                juce::MathConstants<float>::pi - gap,
-                true);
-            arcs.addCentredArc(
-                start_x,
-                center_y,
-                radius,
-                radius,
-                0.0f,
-                juce::MathConstants<float>::pi + gap,
-                juce::MathConstants<float>::twoPi - gap,
-                true);
-            // Default mitered joints and butt caps: JUCE flattens the arc into segments
-            // shorter than the stroke width, where curved joints and rounded caps lump the
-            // outline instead of keeping it smooth (and the caps overshoot the ends).
+            juce::Path brackets;
+            brackets.startNewSubPath(start_x - radius + serif, center_y - half_height);
+            brackets.lineTo(start_x - radius, center_y - half_height);
+            brackets.lineTo(start_x - radius, center_y + half_height);
+            brackets.lineTo(start_x - radius + serif, center_y + half_height);
+            brackets.startNewSubPath(start_x + radius - serif, center_y - half_height);
+            brackets.lineTo(start_x + radius, center_y - half_height);
+            brackets.lineTo(start_x + radius, center_y + half_height);
+            brackets.lineTo(start_x + radius - serif, center_y + half_height);
             g.setColour(style.inner);
-            g.strokePath(arcs, juce::PathStrokeType{g_arpeggio_bracket_thickness});
+            g.strokePath(brackets, juce::PathStrokeType{g_arpeggio_bracket_thickness});
 
             if (!arpeggio_note.sounded && metrics.draw_text)
             {
