@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <expected>
 #include <memory>
 #include <optional>
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
@@ -13,9 +14,11 @@
 #include <rock_hero/common/audio/input/i_audio_meter_source.h>
 #include <rock_hero/common/audio/input/i_live_input.h>
 #include <rock_hero/common/audio/live_rig/i_live_rig.h>
+#include <rock_hero/common/audio/mix/i_mix_controls.h>
 #include <rock_hero/common/audio/plugin/i_plugin_host.h>
 #include <rock_hero/common/audio/song/i_song_audio.h>
 #include <rock_hero/common/audio/song/i_thumbnail_factory.h>
+#include <rock_hero/common/audio/tone_timeline/i_tone_timeline_player.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <span>
 #include <string>
@@ -56,6 +59,8 @@ non-realtime worker-thread exceptions because discovery can run slow third-party
 \see IPluginHost
 \see ILiveInput
 \see ILiveRig
+\see IToneTimelinePlayer
+\see IMixControls
 \see IThumbnailFactory
 */
 class Engine : public ITransport,
@@ -67,6 +72,8 @@ class Engine : public ITransport,
                public ILiveInput,
                public ILiveRig,
                public IToneAutomation,
+               public IToneTimelinePlayer,
+               public IMixControls,
                public IThumbnailFactory
 {
 public:
@@ -130,6 +137,51 @@ public:
     \param position Target playback position on the session timeline.
     */
     void seek(common::core::TimePosition position) override;
+
+    /*!
+    \brief Requests a backing-playback speed factor; only 1.0 is currently accepted.
+
+    Practice-speed support (docs/roadmap/28-practice-mode.md) implements non-1.0 factors over the
+    proxy-off backing clip; until then any other factor returns SpeedNotSupported unchanged.
+
+    \param factor Requested playback speed multiplier, where 1.0 is normal speed.
+    \return Nothing on success, or SpeedNotSupported for any factor other than 1.0.
+    */
+    [[nodiscard]] std::expected<void, TransportError> setPlaybackSpeed(double factor) override;
+
+    /*!
+    \brief Reads the playback speed factor currently applied to backing playback.
+    \return Current playback speed multiplier; always 1.0 until practice-speed support lands.
+    */
+    [[nodiscard]] double playbackSpeed() const noexcept override;
+
+    /*!
+    \brief Engages loop playback over a region of the edit timeline.
+
+    Endpoints are normalized, then clamped to the loaded audio's length before the minimum-length
+    check — the backend would otherwise accept a loop end the end-of-content auto-stop can never
+    reach. Engaging never moves a stopped position; play() snaps into the region when needed, and
+    an engage during playback clamps the cursor into the region within one backend poll period.
+
+    \param region Loop region in edit-timeline seconds; endpoints may arrive in either order.
+    \return Nothing on success, or LoopRegionTooShort when the clamped region is too short.
+    */
+    [[nodiscard]] std::expected<void, TransportError> setLoopRegion(
+        common::core::TimeRange region) override;
+
+    /*!
+    \brief Disengages loop playback, leaving position and play state untouched.
+
+    Also zeroes the stored backend loop points: they persist in the edit state otherwise, and a
+    stale region must never resurrect on a later engage or survive into another arrangement.
+    */
+    void clearLoopRegion() override;
+
+    /*!
+    \brief Reads the currently engaged loop region.
+    \return Normalized engaged loop region, or std::nullopt when looping is disengaged.
+    */
+    [[nodiscard]] std::optional<common::core::TimeRange> loopRegion() const noexcept override;
 
     /*!
     \brief Reads the current coarse transport state.
@@ -441,6 +493,61 @@ public:
     \return Empty success, or a typed failure.
     */
     [[nodiscard]] std::expected<void, LiveRigError> setOutputGain(Gain gain) override;
+
+    /*!
+    \brief Bakes the tone switch schedule into the loaded rig's branch-gain automation.
+
+    Requires a loaded live rig whose branches cover every tone the schedule references. Baking
+    is a one-time message-thread edit performed before gameplay reports Ready — the coalesced
+    graph rebuild it triggers happens during preparation, never mid-song.
+
+    \param song_directory Native song workspace directory that owns package-relative tone files.
+    \param regions Seconds-resolved, contiguous switch regions (see makeToneSchedule).
+    \return Nothing on success, or a typed live-rig failure.
+    */
+    [[nodiscard]] std::expected<void, LiveRigError> prepareToneTimeline(
+        const std::filesystem::path& song_directory,
+        std::span<const common::core::ToneSwitchRegion> regions) override;
+
+    /*!
+    \brief Seek/scrub resync hook; a no-op today because parameter streams resync automatically.
+    \param position New playhead position to resync the audible tone against.
+    \return Empty success.
+    */
+    [[nodiscard]] std::expected<void, LiveRigError> setToneTimelinePosition(
+        common::core::TimePosition position) override;
+
+    /*!
+    \brief Sets the edit-wide master gain through the always-present master volume plugin.
+
+    Everything audible passes through this stage, including live-input monitoring, because both
+    the backing and instrument tracks route to the default output device. A fresh edit reports
+    the backend's -3 dB master default until a caller sets a value; the port reads and writes
+    truthfully rather than renormalizing, so editor loudness is unchanged by this surface.
+
+    \param gain Desired master gain; the backend clamps to its fader range.
+    \return Empty success, or a typed failure when the master stage is unavailable.
+    */
+    [[nodiscard]] std::expected<void, MixControlsError> setMasterGain(Gain gain) override;
+
+    /*!
+    \brief Reads the edit-wide master gain.
+    \return Current master gain.
+    */
+    [[nodiscard]] Gain masterGain() const override;
+
+    /*!
+    \brief Sets the backing-track gain; a separate stage that composes with clip normalization.
+    \param gain Desired backing gain; the backend clamps to its fader range.
+    \return Empty success, or a typed failure when the backing gain stage is unavailable.
+    */
+    [[nodiscard]] std::expected<void, MixControlsError> setBackingGain(Gain gain) override;
+
+    /*!
+    \brief Reads the backing-track gain.
+    \return Current backing gain.
+    */
+    [[nodiscard]] Gain backingGain() const override;
 
     /*!
     \brief Lists the automatable parameters of every plugin in a loaded tone's chain.

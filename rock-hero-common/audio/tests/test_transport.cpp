@@ -1,4 +1,7 @@
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
+#include <expected>
+#include <optional>
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <vector>
 
@@ -60,6 +63,57 @@ public:
         return m_position;
     }
 
+    // Mirrors the v1 speed contract: exactly 1.0 is accepted, everything else fails loudly.
+    [[nodiscard]] std::expected<void, TransportError> setPlaybackSpeed(double factor) override
+    {
+        if (factor != 1.0)
+        {
+            return std::unexpected{TransportError{TransportErrorCode::SpeedNotSupported}};
+        }
+
+        m_playback_speed = factor;
+        return {};
+    }
+
+    // Returns the fake's stored speed factor; 1.0 under the v1 contract.
+    [[nodiscard]] double playbackSpeed() const noexcept override
+    {
+        return m_playback_speed;
+    }
+
+    // Mirrors the loop contract: normalize endpoint order, then reject sub-minimum regions
+    // without touching any previously engaged loop.
+    [[nodiscard]] std::expected<void, TransportError> setLoopRegion(
+        rock_hero::common::core::TimeRange region) override
+    {
+        const rock_hero::common::core::TimeRange normalized{
+            .start = rock_hero::common::core::TimePosition{std::min(
+                region.start.seconds, region.end.seconds)},
+            .end = rock_hero::common::core::TimePosition{std::max(
+                region.start.seconds, region.end.seconds)},
+        };
+        if (normalized.duration().seconds < g_minimum_loop_region_duration.seconds)
+        {
+            return std::unexpected{TransportError{TransportErrorCode::LoopRegionTooShort}};
+        }
+
+        m_loop_region = normalized;
+        return {};
+    }
+
+    // Disengages the fake's loop; clearing with no loop engaged stays a no-op per the contract.
+    void clearLoopRegion() override
+    {
+        m_loop_region.reset();
+    }
+
+    // Returns the engaged normalized loop region, or nullopt when looping is disengaged.
+    [[nodiscard]] std::optional<rock_hero::common::core::TimeRange> loopRegion()
+        const noexcept override
+    {
+        return m_loop_region;
+    }
+
     // Stores a non-owning listener pointer to mirror the production listener lifetime contract.
     void addListener(Listener& listener) override
     {
@@ -87,6 +141,12 @@ private:
 
     // Current current position returned by position(); intentionally excluded from TransportState.
     rock_hero::common::core::TimePosition m_position{};
+
+    // Port-level speed factor stored by setPlaybackSpeed(); only 1.0 is storable in v1.
+    double m_playback_speed{1.0};
+
+    // Engaged normalized loop region; nullopt while looping is disengaged.
+    std::optional<rock_hero::common::core::TimeRange> m_loop_region{};
 
     // Non-owning listeners registered by tests; each listener outlives its registration.
     std::vector<Listener*> m_listeners{};
@@ -160,6 +220,85 @@ TEST_CASE("ITransport seek accepts a timeline position value", "[audio][transpor
     CHECK(transport.position() == rock_hero::common::core::TimePosition{42.0});
     CHECK(transport.state() == TransportState{});
     CHECK(listener.call_count == 0);
+}
+
+// Verifies the v1 speed contract: 1.0 round-trips, everything else is a typed loud failure.
+TEST_CASE("ITransport playback speed accepts only 1.0 in v1", "[audio][transport]")
+{
+    FakeTransport transport;
+
+    CHECK(transport.setPlaybackSpeed(1.0).has_value());
+    CHECK(transport.playbackSpeed() == 1.0);
+
+    const auto rejected = transport.setPlaybackSpeed(0.5);
+    REQUIRE_FALSE(rejected.has_value());
+    CHECK(rejected.error().code == TransportErrorCode::SpeedNotSupported);
+    CHECK(transport.playbackSpeed() == 1.0);
+}
+
+// Verifies the loop contract's happy path: set round-trips through loopRegion() and clear
+// disengages back to nullopt.
+TEST_CASE("ITransport loop region set and clear round-trip", "[audio][transport]")
+{
+    FakeTransport transport;
+
+    CHECK_FALSE(transport.loopRegion().has_value());
+
+    const rock_hero::common::core::TimeRange region{
+        .start = rock_hero::common::core::TimePosition{2.0},
+        .end = rock_hero::common::core::TimePosition{6.5},
+    };
+    REQUIRE(transport.setLoopRegion(region).has_value());
+    CHECK(transport.loopRegion() == std::optional{region});
+
+    transport.clearLoopRegion();
+    CHECK_FALSE(transport.loopRegion().has_value());
+
+    // Clearing again with no loop engaged stays a harmless no-op per the contract.
+    transport.clearLoopRegion();
+    CHECK_FALSE(transport.loopRegion().has_value());
+}
+
+// Verifies reversed endpoints normalize into a forward region instead of failing.
+TEST_CASE("ITransport loop region normalizes reversed endpoints", "[audio][transport]")
+{
+    FakeTransport transport;
+
+    REQUIRE(transport
+                .setLoopRegion({
+                    .start = rock_hero::common::core::TimePosition{6.5},
+                    .end = rock_hero::common::core::TimePosition{2.0},
+                })
+                .has_value());
+
+    const auto region = transport.loopRegion();
+    REQUIRE(region.has_value());
+    CHECK(region->start == rock_hero::common::core::TimePosition{2.0});
+    CHECK(region->end == rock_hero::common::core::TimePosition{6.5});
+}
+
+// Verifies a sub-minimum region is rejected with the typed error and any engaged loop survives.
+TEST_CASE("ITransport loop region rejects sub-minimum durations", "[audio][transport]")
+{
+    FakeTransport transport;
+
+    const rock_hero::common::core::TimeRange engaged{
+        .start = rock_hero::common::core::TimePosition{1.0},
+        .end = rock_hero::common::core::TimePosition{3.0},
+    };
+    REQUIRE(transport.setLoopRegion(engaged).has_value());
+
+    const auto rejected = transport.setLoopRegion({
+        .start = rock_hero::common::core::TimePosition{5.0},
+        .end = rock_hero::common::core::TimePosition{
+            5.0 + (g_minimum_loop_region_duration.seconds / 2.0)
+        },
+    });
+    REQUIRE_FALSE(rejected.has_value());
+    CHECK(rejected.error().code == TransportErrorCode::LoopRegionTooShort);
+
+    // The previously engaged loop is untouched by the rejected request.
+    CHECK(transport.loopRegion() == std::optional{engaged});
 }
 
 } // namespace rock_hero::common::audio

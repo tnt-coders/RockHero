@@ -238,6 +238,12 @@ Restated inline so a fresh session needs no other context:
    play; `performPlay` pushes the range synchronously at play start
    (tracktion_TransportControl.cpp:1353-1362), avoiding the ~200 ms poll. Live brace drags during
    playback accept the ~200 ms propagation; the port never reaches past `TransportControl`.
+9. **The editor 3D preview is a second consumer of the same loop state, never a second loop**
+   (adopted 2026-07-11 with the user; shared-navigation decision in
+   docs/roadmap/28-practice-mode.md §7). Phase 2's `LoopSelectionViewState` is THE editor loop:
+   the preview (docs/roadmap/44) renders it from `EditorViewState` and modifies it only by
+   dispatching the same Phase 2 intents, so editor-loop ↔ preview-loop sync holds by
+   construction — no mirrored loop state anywhere.
 
 ## 8. Open questions for the user
 
@@ -288,6 +294,21 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
 ```
 
 ### Phase 1 — Shared loop-region port and Tracktion adapter (common-first, constraint (a))
+
+> **LANDED BY PLAN 21 PHASE 1 (2026-07-11)** under the whichever-executes-first rule (§7
+> decision 1): plan 21 executed first and shipped this exact surface — `setLoopRegion` /
+> `clearLoopRegion` / `loopRegion()` on `ITransport`, `transport/transport_error.h` with
+> `TransportError{SpeedNotSupported, LoopRegionTooShort}`, the public 0.1 s
+> `g_minimum_loop_region_duration` constant, the Tracktion adapter in `engine_transport.cpp`
+> (expert-verified semantics; range-then-flag engage order; endpoint clamping to loaded content;
+> read-back through `getLoopRange()`), the shared `Impl::disengageLoop()` helper called by
+> arrangement activation (flag AND stored points — stale points persist in the edit state
+> otherwise), updates to all SIX transport test doubles (not four — the tone work had added two
+> `StubTransport`s), contract tests in test_transport.cpp, and adapter tests in test_engine.cpp
+> (round-trip, reversed normalization, sub-minimum rejection, content clamping,
+> arrangement-load clearing). Per the rule, when this plan executes: **re-verify the landed
+> surface; do not re-declare or re-implement.** Playback-confinement and audible-wrap checks
+> remain deferred to this plan's Phase 4 manual soak as written.
 
 - **Scope**: extend `ITransport` with the loop surface both products share, implemented for real:
   - `[[nodiscard]] std::expected<void, TransportError> setLoopRegion(common::core::TimeRange)`,

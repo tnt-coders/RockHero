@@ -446,13 +446,20 @@ still integrating. Phases 3+ need the render stack in the build.
   section-label overlay; optional camera shake behind a default-off setting (open question 4);
   debug overlay v2 — hit-window visualization at the hit line and detection-confidence trace
   fed by plans 24/22, per plan 20's diagnostics layer; HUD layer reserves the slot for plan 24's
-  meter/star-power visual direction once that open question closes.
+  meter/star-power visual direction once that open question closes. The gamelike navigation HUD
+  (section strip, loop markers, available transport controls) is NOT game-private: it is the
+  shared common/ui widget set from docs/roadmap/28-practice-mode.md §7's shared-navigation
+  decision, rendered from the active mode's capability set (performance = toggle-play/restart
+  only; practice = full set; the editor preview consumes the same widgets) — this phase builds
+  those widgets beside the highway renderer in common/ui and the game subscribes.
 - Files: rock-hero-game/ui highway + hud folders; the event-feed port shape is owned by plan 24
   (game/core) — this phase only subscribes.
 - Public-header impact: none here; the event port's header ownership is plan 24's.
 - Testing: feedback state reduction (event log → per-note visual state) is pure and lands in
-  `<core-lib>` with deterministic replay tests over plan 23-style event logs; particles and
-  shake stay untested-by-unit.
+  `<core-lib>` with deterministic replay tests over plan 23-style event logs — it has a second
+  consumer: docs/roadmap/30-game-2d-tab-view.md Phase 6 presents the same reduction in the 2D
+  view, so it must stay display-agnostic (no highway-specific concepts in its outputs);
+  particles and shake stay untested-by-unit.
 - Exit criteria: an autoplay-bot event log (plan 23) drives visually correct feedback end to
   end with no wall-clock dependence (pause freezes everything; seek replays cleanly).
 - Verification:

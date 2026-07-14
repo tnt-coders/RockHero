@@ -198,6 +198,19 @@ Restated with sources; none originate in conversation:
   keeping views paint-only per docs/design/architectural-principles.md ("Humble Object, But With
   the Right Scope").
 
+Adopted 2026-07-11 with the user (shared-navigation decision; normative here, detailed in
+docs/roadmap/28-practice-mode.md §7):
+
+- **The preview never owns time, loop, or speed — it dispatches editor intents.** Song position,
+  loop region, and playback speed each have exactly one owner per process: the editor transport
+  behind `IEditorController` intents. In-preview navigation gestures (seek, section jumps, loop
+  set/clear, restart) dispatch those intents and the preview follows like every other view, so
+  cursor↔preview and editor-loop↔preview-loop sync hold by construction with no mirrored state.
+  docs/roadmap/47-editor-loop-selection.md Phase 2's `LoopSelectionViewState` is THE loop the
+  preview renders and edits. The gamelike navigation surface (intent vocabulary, capability
+  sets, section-span math, on-highway HUD widgets) is shared with the game; the editor preview
+  presents the full practice-equivalent capability set.
+
 ## 8. Open questions for the user
 
 Mirror all of these into docs/roadmap/00-roadmap.md Decisions-needed.
@@ -399,7 +412,11 @@ outcome).
   exercising the scene model's `mirrored` flag (docs/roadmap/25-note-highway-3d.md §7) so charters
   can check lefty readability; window placement/fullscreen-state persistence hardening
   (multi-monitor restore); chord-fingering-panel visibility following plan 25 open question 2's
-  answer for consistency.
+  answer for consistency; gamelike in-preview navigation per the §7 shared-navigation decision —
+  the shared navigation vocabulary (section jumps, loop set/clear, restart; common/core) and the
+  shared on-highway navigation HUD widgets (common/ui, once docs/roadmap/28 §7's surface exists)
+  wired to the editor's existing seek intents and docs/roadmap/47's loop-selection intents; the
+  preview owns no time/loop state of its own.
 - Files/modules: `rock-hero-editor/ui/src/preview/`, settings keys in editor/core.
 - Public-header impact: none.
 - Testing plan: settings round-trip tests in editor/core tests; mirror toggle correctness is

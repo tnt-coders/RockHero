@@ -177,6 +177,16 @@ Decisions **established as normative by this plan** (restate when citing this pl
 - **All tunables are ruleset-versioned**: hit windows, ladder thresholds, meter constants, star
   thresholds live in one `ScoringRuleset` value (initial id `rh-score-1`); any constant change
   bumps the version; every record carries it.
+- **Run integrity is a record property, not a UI property** (adopted 2026-07-11 with the user;
+  part of the shared-navigation decision in docs/roadmap/28-practice-mode.md §7). Performance
+  mode's UI exposes only pause/restart (docs/roadmap/27 §6), but hiding controls is not the
+  integrity mechanism — a cheater does not use the UI. The score record carries an `integrity`
+  object: `cleanRun` (false once any transport command outside the performance capability set —
+  seek, speed change, loop — touches the run), `pauseCount`, and `pausedTotalMs`. Leaderboard
+  eligibility (docs/roadmap/29-online-leaderboards.md, which already plans server-side
+  re-scoring) is decided from recorded evidence, never from trust in the client UI. Pause is
+  allowed and never invalidates a run by itself; recording its count/duration lets plan 29 set
+  pause policy later without a format change.
 
 ## 7. Open questions for the user
 
@@ -339,6 +349,7 @@ rock-hero-game/core:
   "calibration": { "deviceIdentity": "<from plan 13>", "inputLatencyMs": 0.0,
                    "outputLatencyMs": 0.0, "videoLatencyMs": 0.0 },
   "modifiers": { "noFail": true, "speed": 1.0, "leftyMirror": false },
+  "integrity": { "cleanRun": true, "pauseCount": 0, "pausedTotalMs": 0.0 },
   "profileId": "<uuid, plan 27>",
   "result": { "score": 0, "maxStreak": 0, "accuracyPercent": 0.0, "stars": 0,
               "failed": false, "completed": true, "starPowerDeployments": 0 },
@@ -352,7 +363,9 @@ confidence, sustainHeldFraction]`; verdict codes: `hit`, `hitOnsetOnly`, `missNo
 sections, not stored. Size: compact arrays keep dense charts in the low tens of KB — fine for
 local storage and upload. Chart hash/algorithm fields are written as `null` until
 docs/roadmap/10-format-versioning-and-chart-identity.md lands, and the record format version does
-NOT change when they start being populated (nullable-by-design).
+NOT change when they start being populated (nullable-by-design). The `integrity` object is the
+§6 run-integrity decision: docs/roadmap/27's flow machine accumulates `pauseCount`/`pausedTotalMs`
+and clears `cleanRun` on any out-of-capability transport command; pause alone never clears it.
 **Files**: rock-hero-game/core `scoring/score_record.h/.cpp` + tests.
 **Public-header impact**: game-scope only.
 **Testing**: golden-file round-trip tests; unknown-field tolerance on read (mirrors plan 10's

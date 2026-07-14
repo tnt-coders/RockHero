@@ -1,12 +1,40 @@
 # Plan 21 — Game Audio Engine and GameplaySession
 
-Status: **G21-TRACKTION-GO CLOSED — user signed off 2026-07-10: embed `common::audio::Engine` in
+Status: **Phases 1–3 COMPLETE (2026-07-11).** Phase 3 — scheduled tone switching: 3a/3b
+finalized (crossfade-envelope math `makeToneGainEnvelope` joined `makeToneSchedule` in
+common/core with 4 more unit tests; `IToneTimelinePlayer` implemented on Engine in
+src/engine/engine_tone_timeline.cpp — bake-once branch-gain curve writing over the loaded rack,
+automation-read gate enforced, `setToneTimelinePosition` a documented no-op per the verified
+auto-resync fact); 3c evidence: origin-point correctness unit-tested, wrap ≡ seek confirmed at
+source by Phase 1's expert pass (verdict 5), no-rebuild-after-Ready structural (baking happens
+inside prepare, before the session reports Ready) — audible confirmation stays in Phase 6's
+soak; 3d per 21-Q1(A): rig load now scans to completion and refuses ONCE listing every
+uninstalled plugin (new `LiveRigErrorCode::MissingPlugins`, collect-and-continue at both the
+identity-resolution and restore-load-error sites), session maps it to
+`GameplaySessionErrorCode::MissingPlugins` for the install-these UI. Editor coordination note
+added to the in-progress tone plan (slice 5c consumes, never re-declares). Adapter tests:
+timeline-requires-rig, bake/re-bake/empty/unknown-ref, missing-plugin aggregation (three fixture
+iterations: canonical UUID doc path + canonical `.tracktion-plugin` sidecars that must exist).
+Verified `-Configure -Targets all` + `-RunTouchedTests` green; clang-tidy pending user trigger. Phase 1 — speed + loop surface landed on
+`ITransport`/`Engine` under the whichever-executes-first rule with plan 47 (which had not
+executed; the FULL loop surface from its Phase 1 spec landed here — see the coordination banner
+in that plan); expert source verification of `TransportControl` loop semantics preceded coding.
+Phase 2 — `GameplaySession` state machine in rock-hero-game/core session/ (typed stages,
+scratch-workspace package loading, editor-mirrored rig preload, pre-song preload guarantee,
+instant restart, speed/loop pass-throughs, IPlaybackClock exposure; 10 fake-driven test cases);
+pulled forward per the plans' own whichever-first wording: minimal Phase 3a conversion
+(`makeToneSchedule` in common/core tone/, 5 unit tests) and the Phase 3b port declaration
+(`IToneTimelinePlayer` in common/audio tone_timeline/, adopted shape) — 3c gameplay-fit
+verification and 3d missing-plugin fallback remain Phase 3's substance. Both phases verified
+with `-Targets all` + `-RunTouchedTests` green; clang-tidy deferred to a user-triggered run per
+the on-demand-only rule (this plan's verification lists predate that 2026-07-09 rule).
+**G21-TRACKTION-GO CLOSED — user signed off 2026-07-10: embed `common::audio::Engine` in
 the game (Phase 0 outcome GO).** The coexistence input was already proven by plan 20's gate
-(criterion S1: SDL-owned loop + JUCE message drain + engine playback). Phases 1–6 are unblocked;
+(criterion S1: SDL-owned loop + JUCE message drain + engine playback). Phases 2–6 are unblocked;
 plan 20 Phase 3's S1-mirror soak (window renders while the backing engine plays) transfers to
 this plan's first engine-embedding phase, since that is the first moment an engine exists in the
-game process. Date: 2026-07-06 (gate closed 2026-07-10). Baseline: `refactor @ 3c7febe0` —
-re-verify the inventory before starting Phase 1.
+game process. Date: 2026-07-06 (gate closed 2026-07-10). Original baseline: `refactor @
+3c7febe0`; Phase 1 executed against `master @ 7ba93b90`.
 
 ## Goal
 
@@ -74,12 +102,15 @@ Additional binding design-doc rules:
 ## Current state inventory
 
 - `common::audio::Engine` is the single Tracktion isolation layer and already implements every
-  port the game needs to start: `ITransport`, `ISongAudio`, `IAudioDeviceConfiguration`,
-  `IAudioMeterSource`, `IPluginHost`, `ILiveInput`, `ILiveRig`, `IThumbnailFactory`
-  (rock-hero-common/audio/include/rock_hero/common/audio/engine/engine.h:57-64). Most public
+  port the game needs to start: `ITransport`, `IPlaybackClock` (landed with plan 12),
+  `ISongAudio`, `IAudioDeviceConfiguration`, `IAudioMeterSource`, `IPluginHost`, `ILiveInput`,
+  `ILiveRig`, `IToneAutomation`, `IThumbnailFactory`
+  (rock-hero-common/audio/include/rock_hero/common/audio/engine/engine.h:61-70). Most public
   methods are message-thread-only; plugin catalog scans are the explicit worker-thread exception
   (engine.h header comment). The engine therefore requires a running JUCE message loop wherever
-  it is embedded.
+  it is embedded. Transport operations publish playback-clock boundaries
+  (engine_transport.cpp: play/pause/seek/stop all call `publishClockBoundary`) — new transport
+  operations that move the playhead must follow that pattern.
 - `ITransport` is play/pause/stop/seek plus message-thread `state()`/`position()` reads and a
   coarse state listener (rock-hero-common/audio/include/rock_hero/common/audio/transport/
   i_transport.h). `TransportState` is `{bool playing}` (transport/transport_state.h:12-24).
@@ -110,25 +141,85 @@ Additional binding design-doc rules:
   `tone_document_ref`), `ToneRegion` (musical `start`/`end`, tone ref), `ToneTrack` (sorted,
   non-overlapping regions; "Gaps are allowed; playback holds the previous region's tone through
   a gap") — rock-hero-common/core/include/rock_hero/common/core/tone/tone_track.h.
-  `Arrangement` carries `tone_document_ref` (whole-song default), the `tones` catalog, the
-  `tone_track`, `chart_ref`, and optional loaded `Chart`
-  (rock-hero-common/core/include/rock_hero/common/core/song/arrangement.h:39-121).
+  **Correction 2026-07-11 (lean tone format, tone-capture-scope work): `Arrangement` no longer
+  carries a whole-song default `tone_document_ref` field** — it carries the `tones` catalog, the
+  `tone_track`, `chart_ref`, and optional loaded `Chart`; the load baseline guarantees explicit
+  regions, so the region set is the complete tone set and the audible default is the engine's
+  first-branch fallback (empty `audible_tone_ref`). The editor's rig composition to mirror
+  byte-for-byte (constraint (g)) is rock-hero-editor/core/src/project/project_handlers.cpp
+  ~:1036-1055: dedupe `tone_track.regions[].tone_document_ref` in schedule order, skip empties,
+  `audible_tone_ref = {}`. Phase 2's "plus the default tone_document_ref" wording is therefore
+  stale — the deduped region set alone is correct.
 - Package IO: `readRockSongPackage(package_path, workspace_directory)` extracts a `.rock` into
   an existing workspace directory and parses it; a directory-based reader and writers also
   exist (rock-hero-common/core/include/rock_hero/common/core/package/rock_song_package.h).
   The reader hard-rejects `formatVersion != 1` (rock-hero-common/core/src/package/
   rock_song_package_read.cpp, ~line 976) — game-side version tolerance is
   docs/roadmap/10-format-versioning-and-chart-identity.md scope.
-- `rock-hero-game` is a build skeleton: app/main.cpp is an 81-line JUCE `DocumentWindow` shell
-  (a full JUCE application with a running message loop), and core/audio/ui are `placeholder.cpp`
-  static libraries. No game tests exist. SDL3/bgfx appear nowhere in the build.
-- Adapter test infrastructure exists at rock-hero-common/audio/tests/test_engine.cpp with a
-  `drum_loop.wav` fixture wired through CMake (tests/CMakeLists.txt:6-7).
+- `rock-hero-game` is NO LONGER a skeleton (correction 2026-07-11; the original bullet predated
+  plan 20 Phases 1–4 and plan 25 Phases 3–4): app/main.cpp is a plain portable `main()` under
+  loop model L2 — SDL owns the frame loop, there is **no JUCEApplication**; the shell
+  (`rock-hero-game/ui/src/surface/game_shell.cpp`) initializes JUCE message-pump-only via
+  `juce::ScopedJuceInitialiser_GUI` (game_shell.cpp:159) and drains the JUCE queue each frame.
+  game/core carries real tested code (frame clock, diagnostics, resources); game/ui hosts the
+  shell + dev session; the highway renderer lives in rock-hero-common/ui. Game tests exist
+  (rock-hero-game/core/tests). Phase 6's "existing JUCE game shell" wording is therefore stale —
+  the engine embeds into the SDL3 shell whose message-pump coexistence plan 20's gate proved
+  (S1); reconcile Phase 6's text when that phase executes.
+- Adapter test infrastructure exists at rock-hero-common/audio/tests/test_engine.cpp (1,175
+  lines) with a `drum_loop.wav` fixture wired through CMake, plus port contract tests at
+  tests/test_transport.cpp (165 lines) with a `FakeTransport`. SIX transport test doubles exist
+  repo-wide (correction: plan 47's "four FakeTransport implementations" predates the tone work,
+  which added two anonymous-namespace `StubTransport`s): FakeTransport in test_transport.cpp,
+  editor_controller_test_harness.h, editor_view_test_harness.h, and test_editor.cpp, plus
+  StubTransport in test_tone_automation_lanes_view.cpp and test_tone_track_view.cpp — all must
+  gain any new pure-virtual transport methods in the same commit (plan 47 Phase 1's coordination
+  detail, absorbed here under the whichever-executes-first rule). Name-based searches miss the
+  stubs; find implementers with `rg "public.*ITransport"`.
+- docs/roadmap/47-editor-loop-selection.md has NOT executed (status: Not started) — so under the
+  whichever-executes-first rule Phase 1 here lands the FULL shared loop surface plan 47 Phase 1
+  specified (setLoopRegion/clearLoopRegion/loopRegion, `LoopRegionTooShort`, 0.1 s minimum,
+  engage sequence, arrangement-load clearing via a shared helper, four fake updates) in addition
+  to the speed surface; plan 47 later re-verifies and only extends.
 - docs/todo/audio-engine-multi-track-support.md predates the current engine surface (it cites
   `Engine::createTrack()`/`IEdit`/`EditCoordinator`, none of which exist today) — noted for the
   roadmap disposition table, not absorbed here.
 
-Verified against code on 2026-07-06, refactor @ 3c7febe0.
+Verified against code on 2026-07-06, refactor @ 3c7febe0; re-verified for Phase 1 on 2026-07-11,
+master @ 7ba93b90 (corrections above: engine port list gained IPlaybackClock/IToneAutomation and
+the clock-boundary publishing pattern; game-skeleton bullet replaced with the SDL3-shell reality;
+test inventory expanded; plan 47 non-execution recorded). engine_song_audio.cpp line references
+drifted slightly (start-offset placement now ~:127, proxy-off comment ~:143-156, setGainDB ~:166,
+`transport.looping = false` ~:170) — claims themselves re-verified intact; the backing clip also
+gained `setSyncType(syncAbsolute)` from the tone work.
+
+Re-verified for Phase 3 on 2026-07-11, same baseline: the multi-tone rack backend claims hold
+exactly (buildToneRack/ToneRackBranch with per-branch `ToneBranchGainPlugin*` exposing an
+automatable `branchGainParameter()`; `Engine::Impl::m_tone_rack` optional storage;
+`setAudibleBranch` selection switching documented as replaced by baked automation during
+playback). The in-progress plan's 2026-07-05 verified mechanism notes re-checked against the
+vendored engine for the APIs Phase 3 uses: `AutomationCurve::addPoint(TimePosition, float,
+float, UndoManager*)` (:127), `clear(UndoManager*)` (:86), `getValueAt(TimePosition, float)`
+(:122), `Edit::getAutomationRecordManager().setReadingAutomation(bool)`
+(tracktion_Edit.h:290, tracktion_AutomationRecordManager.h:43-44) — all present. **3d finding:**
+the rig load ALREADY refuses on a missing VST (`ExternalPlugin::getLoadError()` non-empty →
+`abortLiveRigLoad(PluginRestoreFailed, ...)` at engine_live_rig.cpp ~:1278-1285), aborting at
+the FIRST failure — so answer 21-Q1(A)'s semantic exists and 3d reduces to aggregating ALL
+missing plugins before refusing (a strict diagnostic improvement the editor path shares) plus a
+distinct `MissingPlugins` error code the session maps for UI.
+
+Re-verified for Phase 2 on 2026-07-11, same baseline; additional corrections: (1) arrangement
+default-tone field deletion (bullet above); (2) rock-hero-game/core/tests already exists (plan 20
+Phase 4 created it — test_diagnostics/test_frame_clock/test_game_resources) so Phase 2 EXTENDS
+that target rather than creating one; (3) plan 12's IPlaybackClock is landed, so the session
+exposes the clock port directly — Phase 2's "thin position() accessor until then" contingency is
+dead; (4) editor slice 5c has NOT landed `IToneTimelinePlayer` (re-verified: no such symbol in
+tree), so per Phase 3a/3b's own whichever-first wording, Phase 2 pulls forward the MINIMAL 3a
+conversion (pure regions-to-seconds in common/core tone/, landed there directly — never
+game-side) and the 3b port declaration (adopted shape from
+docs/in-progress/tone-track-tempo-map-plan.md "Runtime Audio Direction", with the schedule value
+type in common/core because core cannot depend on audio); 3c gameplay-fit verification and 3d
+missing-plugin fallback remain Phase 3's substance.
 
 ## Dependencies
 
@@ -194,24 +285,32 @@ Restated inline so a fresh session needs no other context:
 
 ## Open questions for the user
 
-1. **Missing-plugin fallback policy.** A tone document may reference VSTs not installed on the
-   player's machine. Options: (A) refuse to start the song, listing the missing plugins;
-   (B) load the chain with missing plugins skipped, show a pre-song warning naming them, and
-   play with the partial tone; (C) substitute a bundled default clean tone for any tone that
-   fails entirely. **Recommendation: B, with C as the degraded case when an entire tone chain
-   fails to load — never block gameplay on tone fidelity, never fail silently.** The warning
-   should also mark the run so results can record "tone degraded" (consumed by
-   docs/roadmap/24-scoring-star-power-failure.md's score record).
-2. **Per-tone reported-latency policy for live monitoring.** Tone docs are arbitrary VST chains
-   with unbounded reported latency (a lookahead limiter can report 100+ ms). Options: (A) warn
-   pre-song when any tone's summed reported latency exceeds a threshold (suggest 10 ms), play
-   anyway; (B) hard-refuse tones above a cap; (C) silent. **Recommendation: A — warn-only.**
-   With compensation off the player only suffers the active branch's real latency, and scoring
-   is unaffected because detection taps the dry input (plan 22); a hard cap would break
-   legitimately authored tones.
-3. **Mix-volume scope.** Should master/backing/monitor volumes be global settings, per-song, or
-   both? **Recommendation: global in v1 (persisted via docs/roadmap/27-in-song-flow-results-
-   profiles.md's IGameSettings), with per-song override deferred until requested.**
+All three ANSWERED 2026-07-11; Q1 and Q2 override the original recommendations (user decision —
+fidelity-first, no soft-degrade paths):
+
+1. **Missing-plugin fallback policy. ANSWERED: (A) — refuse to start the song, listing the
+   missing plugins.** (Recommendation was B+C; the user chose strict fidelity: a song whose tone
+   references uninstalled VSTs does not play until the player installs them.) Consequences for
+   Phase 3d: rig-load failure due to missing plugins surfaces as a typed session Failed carrying
+   the per-tone missing-plugin list for UI display; no partial-tone playback, no bundled
+   substitute tone, and the "tone degraded" score-record marking is unnecessary (degraded runs
+   cannot exist). **Pinned future enhancement (user, 2026-07-11): the refusal should eventually
+   offer an opt-in "play with default tones" option — blocked on a default-tone mechanism that
+   does not exist yet (a bundled clean tone asset; dovetails with plan 26's Q5 starter-song
+   asset). Recorded as a watch item; the refusal UI should be shaped so the option can slot in
+   without rework.**
+2. **Per-tone reported-latency policy. ANSWERED (refined by the user, 2026-07-11): silent in the
+   GAME — tones baked into songs are assumed good — but the guard moves to AUTHORING time: the
+   editor warns on export/publish to `.rock` when any tone's summed reported latency is high, so
+   no song can ship with an unintentionally high-latency tone.** Consequences: Phase 5 KEEPS the
+   per-tone summed-latency surfacing through the rig-load result (its consumer is the editor's
+   export warning, not a game UI); the export-time warning itself is editor work recorded in
+   docs/tracking/backlog.md. A save-file flag marking high-latency tones (so players could be
+   alerted) is explicitly DEFERRED — noted in the same backlog entry so it is not lost; it is a
+   format change routed through plan 10 if adopted.
+3. **Mix-volume scope. ANSWERED: global in v1** (as recommended) — persisted via
+   docs/roadmap/27-in-song-flow-results-profiles.md's IGameSettings once it lands;
+   session-local until then; per-song override deferred until requested.
 
 ## Phased implementation
 
@@ -437,9 +536,13 @@ agreed fallback. Local-only corpus spot-checks (a handful of the 39 converted pa
 never in CI, never committed.
 
 Files: rock-hero-game/app/main.cpp plus a thin app-side composition unit; no new public
-headers. Testing plan: this phase is deliberately manual/soak; automated coverage lives in
-Phases 1-5. Exit criteria: full playthrough of one real song with zero dropouts and correct
-tone changes, witnessed and noted in the roadmap status.
+headers. **Composition placement (watch-item decision, user 2026-07-11): inject from `app/`** —
+main.cpp composes the engine/session and hands GameShell injected ports; the shell keeps only
+the frame loop and input wiring. This phase executes that restructuring alongside the session
+wiring (and reconciles this phase's stale "JUCE game shell" wording against the SDL3 shell —
+see the inventory correction). Testing plan: this phase is deliberately manual/soak; automated
+coverage lives in Phases 1-5. Exit criteria: full playthrough of one real song with zero
+dropouts and correct tone changes, witnessed and noted in the roadmap status.
 Verification commands:
 
 ```powershell

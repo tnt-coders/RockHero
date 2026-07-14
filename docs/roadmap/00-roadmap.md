@@ -211,10 +211,11 @@ Phases 1–2 and plan 10 Phase 0 (G10-DECISIONS answers), both Stage 1 items alr
 26. docs/roadmap/45-editor-theme-and-string-colors.md Phases 2–4 (presets, selection, colorblind-safe); Phase 5 behind G45-STRINGS; Phase 6 stretch.
 27. docs/roadmap/44-editor-3d-preview.md Phases 1–5 (after G20-RENDER + 25 Phases 1–2 + 12 + 45 Phase 1).
 28. docs/roadmap/47-editor-loop-selection.md Phases 2–4 (editor loop-selection state and persistence, ruler drag surface with grid snap, engagement/wrap semantics; no game gates — Phase 1 already runs as Stage 1 item 5, and docs/roadmap/28-practice-mode.md Phase 2 consumes the landed backend, reducing to test extension).
+29. docs/roadmap/30-game-2d-tab-view.md Phase 1 (scene-model promotion — dependency-free), Phase 2 (shared notation paint core + manifest; 30-Q1 amendment landed, runs before item 24's plan 40 Phase 3 per 30-Q2), Phases 3–5 (game strip renderer, three-way game display modes incl. simultaneous 2D+3D, editor preview display selector); Phase 6 (feedback overlays) after 24's event feed + 25 Phase 5's reduction.
 
 **Stage 7 — Deferred**
-29. docs/roadmap/28-practice-mode.md (G28-STRETCH spike first; its one NOW requirement — speed factor + loop-seek in the interfaces — is already delegated to 21 Phase 1 / 47 Phase 1 (whichever executes first) and 12).
-30. docs/roadmap/29-online-leaderboards.md (G29-STABILITY + hosting/identity/licensing sign-off).
+30. docs/roadmap/28-practice-mode.md (G28-STRETCH spike first; its one NOW requirement — speed factor + loop-seek in the interfaces — is already delegated to 21 Phase 1 / 47 Phase 1 (whichever executes first) and 12).
+31. docs/roadmap/29-online-leaderboards.md (G29-STABILITY + hosting/identity/licensing sign-off).
 
 ---
 
@@ -298,11 +299,11 @@ plan's Gate record.**
 - **20-Q5** dev-diagnostics activation: (A) all builds behind a runtime flag; (B) debug-only compilation. **R: A**.
 - **20-Q6** frame pacing default: (A) vsync ON with frame-time instrumentation, toggle later in 26's video settings; (B) uncapped with limiter. **R: A**.
 
-### docs/roadmap/21-game-audio-engine-and-session.md
+### docs/roadmap/21-game-audio-engine-and-session.md (21-Q1..Q3 ANSWERED 2026-07-11)
 
-- **21-Q1** missing-plugin fallback: (A) refuse to start the song; (B) skip unloadable plugins, play partial tone with pre-song warning; (C) substitute a bundled default clean tone. **R: B, with C when an entire tone chain fails** — never block gameplay, never fail silently; run marked "tone degraded" for 24's record.
-- **21-Q2** per-tone reported-latency policy for live monitoring: (A) warn pre-song above ~10 ms summed reported latency, play anyway; (B) hard-refuse above a cap; (C) silent. **R: A** — with PDC off, only the active branch's real latency applies; scoring taps dry input.
-- **21-Q3** mix-volume scope: global, per-song, or both. **R: global at v1** (persisted via 27's IGameSettings); per-song override deferred.
+- **21-Q1** missing-plugin fallback: **ANSWERED: (A) — refuse to start, listing the missing plugins** (user override of the B+C recommendation: strict fidelity, no partial/substitute tones; "tone degraded" record marking unnecessary). Pinned future enhancement: opt-in "play with default tones" once a default-tone mechanism exists (watch item; dovetails with 26-Q5's starter asset).
+- **21-Q2** per-tone reported-latency policy: **ANSWERED (user-refined): silent in the GAME; the guard moves to authoring time** — editor warns on export/publish to `.rock` when a tone's summed latency is high (backlog item; plan 21 Phase 5 keeps the latency surfacing as its data source); a save-file high-latency flag is deferred, recorded so it is not lost (format change via plan 10 if adopted).
+- **21-Q3** mix-volume scope: **ANSWERED: global at v1** (as recommended; persisted via 27's IGameSettings; per-song override deferred).
 
 ### docs/roadmap/22-note-detection.md (gates GATE-A, GATE-B)
 
@@ -363,6 +364,12 @@ plan's Gate record.**
 - **29-Q4** backend stack: (A) small C++ service reusing the project's score-record/re-scoring code; (B) managed-runtime service with a reimplemented validator pinned to plan 23 golden fixtures. **R: A if 29-Q3 = A**, else B with golden cross-validation.
 - **29-Q5** board visibility: (A) invite-code groups; (B) global public board. **R: A at v1**.
 - **29-Q6** ruleset-bump policy: (A) freeze old boards read-only, start new per ruleset major; (B) wipe. **R: A**.
+
+### docs/roadmap/30-game-2d-tab-view.md (30-Q1..Q3 ANSWERED 2026-07-11)
+
+- **30-Q1** common/ui public-header amendment for the shared notation paint core: **ANSWERED: (a)** — `juce_graphics` allowed in designated common/ui public headers; amendment LANDED in docs/design/architectural-principles.md ("UI Modules").
+- **30-Q2** sequencing vs plan 40: **ANSWERED: (a)** — extract the paint core BEFORE plan 40 Phase 3 adds tab-lane interaction.
+- **30-Q3** display-mode setting home: **ANSWERED: (a), user-amended** — global game display setting on plan 26 Phase 4's surface, as a THREE-WAY mode: 3D highway / 2D tab / both simultaneously (composition decision in plan 30 §7); per-song persistence stays additive later.
 
 ### docs/roadmap/40-chart-editing.md
 
@@ -476,7 +483,7 @@ One line per plan; update the right-hand cell as phases complete.
 | docs/roadmap/12-playback-clock.md | **Phases 1–5 complete** | IPlaybackClock atomic mirror of audio-derived time + consumer-side extrapolation policy | Done 2026-07-10 @ c5950abf (12-Q1: A, 12-Q2: B, 12-Q3: A adopted); final acceptance bundle pending user-triggered clang-tidy |
 | docs/roadmap/13-audio-device-settings-and-calibration.md | Ready | Shared per-device settings store, latency-offset model, calibration capture, device-loss policy | Not started |
 | docs/roadmap/20-game-architecture-and-render-stack.md | **G20-RENDER CLOSED; Phases 1–4 complete (Phase 4: 2026-07-11)** — final acceptance bundle pending | Platform scope, SDL3+bgfx spike, renderer-sharing seam, window/loop, resources, threading, dev diagnostics | Gate closed: SDL3+bgfx, loop L2, seam Option 1 (amended 2026-07-11: highway renderer shared in common/ui behind a bgfx-free pimpl seam — user promotion decision); Phases 1–3 as recorded in the plan; Phase 4: dev-diagnostics layer (DiagnosticsState/intents/ChartSourceWatcher in game/core with tests, frame-time-graph overlay, chart hot-reload, autoplay stub, --dev flag + F1/F2/F5/PgUp/PgDn toggles, runtime log level, bgfx debug wiring) |
-| docs/roadmap/21-game-audio-engine-and-session.md | Gate closed (G21-TRACKTION-GO: embed Engine, 2026-07-10) | GameplaySession spine, tone switching, mix, latency stance, milestone-0 audio soak | Phase 0 complete — Phases 1–6 ready |
+| docs/roadmap/21-game-audio-engine-and-session.md | Gate closed (G21-TRACKTION-GO: embed Engine, 2026-07-10); **Phases 1–3 complete 2026-07-11** | GameplaySession spine, tone switching, mix, latency stance, milestone-0 audio soak | Phase 1: speed + loop on ITransport/Engine (plan 47 Phase 1's full loop surface, whichever-executes-first). Phase 2: GameplaySession in game/core (11 fake-driven tests). Phase 3: scheduled tone switching — envelope math in common/core, IToneTimelinePlayer implemented on Engine (bake-once branch-gain curves), 3d missing-plugin aggregate-and-refuse per 21-Q1(A) with session mapping. Build + touched tests green; clang-tidy pending user trigger — Phases 4–6 ready (Q1..Q3 answered; Q2's editor export warning in backlog) |
 | docs/roadmap/22-note-detection.md | Decision-gated (GATE-A, GATE-B) | Detection contract + latency budget, dry tap, algorithm survey, pipeline, v1 detectors, tuner, tuning gate | Not started |
 | docs/roadmap/23-detection-verification-harness.md | Ready | Event-log replay, autoplay bot, fixture generators, synth render sweeps, CC0 DI corpus, regression metrics | Not started |
 | docs/roadmap/24-scoring-star-power-failure.md | Decision-gated (24-Q1..Q5) | Provisional-hit scoring machine, technique matrix, score record format, failure meter, MIDI star power | Not started |
@@ -485,6 +492,7 @@ One line per plan; update the right-hand cell as phases complete.
 | docs/roadmap/27-in-song-flow-results-profiles.md | Ready (Phases 5–6 gated) | IGameSettings + profile, local score store, in-song flow machine, results computation and UI | Not started |
 | docs/roadmap/28-practice-mode.md | Deferred (G28-STRETCH) | Section looping, pitch-preserved slow-down, per-section accuracy; NOW requirement delegated to 21/12 | Not started |
 | docs/roadmap/29-online-leaderboards.md | Deferred + Decision-gated (G29-STABILITY) | Friends-scale boards, unchanged score-record upload, server-side re-scoring, AGPL-aware hosting | Not started |
+| docs/roadmap/30-game-2d-tab-view.md | Ready (Phases 1–5; Phase 6 behind 24 + 25 Phase 5) | Game 2D tab display via the shared JUCE notation paint core + tile strips; layout manifest; three-way display modes (3D/2D/both); editor preview display selector | Not started — architecture decided + 30-Q1..Q3 answered 2026-07-11 (Q3 user-amended: simultaneous 2D+3D mode); design-doc amendment landed |
 | docs/roadmap/40-chart-editing.md | Ready | Full chart authorability: selection, notes, techniques, curves, templates/shapes/FHPs/sections, bulk edit | Not started |
 | docs/roadmap/41-tempo-map-authoring.md | Ready (Phase 6 behind G41-TS) | Anchor place/drag, tap tempo, onset-assisted snapping, TS editing within the warp-anchor model | Not started |
 | docs/roadmap/42-chart-validation.md | Ready | Advisory lint engine + rule set v1 in common/core, corpus-calibrated severities, editor report | Not started |

@@ -89,6 +89,11 @@ struct LiveRigLoadOperation
     std::size_t next_tone{0};
     std::size_t next_plugin{0};
 
+    // Plugins whose backend load failed because they are not installed, as "Name (tone ref)"
+    // display strings. The load keeps scanning so the finalize step can refuse ONCE with the
+    // complete list (gameplay policy 21-Q1(A)) instead of aborting at the first miss.
+    std::vector<std::string> missing_plugin_names;
+
     // Flattened progress counters across all tones.
     std::size_t total_plugins{0};
     std::size_t completed_plugins{0};
@@ -152,6 +157,11 @@ private:
 
     // Duration of the loaded audio, used to clamp seeks and detect end-of-file.
     double m_loaded_length_seconds{0.0};
+
+    // Port-level playback speed factor. Only 1.0 is storable until practice-speed support
+    // (docs/roadmap/28-practice-mode.md) implements real time-stretch over the proxy-off backing
+    // clip; the port rejects every other value with a typed error.
+    double m_playback_speed{1.0};
 
     // Last coarse state used to suppress duplicate listener notifications.
     TransportState m_last_notified_transport_state{};
@@ -594,6 +604,12 @@ private:
 
     // Applies Rock Hero Stop-button semantics: halt playback and reset to timeline start.
     void stopTransport();
+
+    // Disengages transport looping AND zeroes the stored backend loop points. The two must move
+    // together: loop state persists in the edit's TRANSPORT tree, so a flag-only reset would let
+    // a stale region resurrect on a later engage or leak into another arrangement. Shared by
+    // clearLoopRegion() and arrangement activation.
+    void disengageLoop();
 
     // Restores the instrument monitoring context after plugin-list graph mutation or failed
     // insertion.

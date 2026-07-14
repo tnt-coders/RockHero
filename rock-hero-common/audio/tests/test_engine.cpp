@@ -23,6 +23,7 @@
 #include <rock_hero/common/audio/song/i_song_audio.h>
 #include <rock_hero/common/audio/song/i_thumbnail.h>
 #include <rock_hero/common/core/package/package_id.h>
+#include <rock_hero/common/core/tone/tone_schedule.h>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -286,6 +287,139 @@ TEST_CASE("Engine starts with empty transport state", "[audio][engine][integrati
 
     CHECK_FALSE(current_state.playing);
     CHECK(transport.position() == common::core::TimePosition{});
+}
+
+// Verifies the v1 speed contract on the concrete adapter: 1.0 round-trips, anything else is a
+// typed loud failure that leaves the reported speed untouched.
+TEST_CASE("Engine playback speed accepts only 1.0", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    ITransport& transport = harness.engine;
+
+    CHECK(transport.setPlaybackSpeed(1.0).has_value());
+    CHECK(transport.playbackSpeed() == 1.0);
+
+    const auto rejected = transport.setPlaybackSpeed(0.5);
+    REQUIRE_FALSE(rejected.has_value());
+    CHECK(rejected.error().code == TransportErrorCode::SpeedNotSupported);
+    CHECK(transport.playbackSpeed() == 1.0);
+}
+
+// Verifies loop engage/read/clear round-trips through the Tracktion-backed adapter.
+TEST_CASE("Engine loop region round-trips and clears", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    ITransport& transport = harness.engine;
+    const auto duration = requireLoadedFixtureAudio(harness.engine);
+    REQUIRE(duration.seconds > 0.5);
+
+    CHECK_FALSE(transport.loopRegion().has_value());
+
+    const common::core::TimeRange region{
+        .start = common::core::TimePosition{duration.seconds * 0.1},
+        .end = common::core::TimePosition{duration.seconds * 0.6},
+    };
+    REQUIRE(transport.setLoopRegion(region).has_value());
+
+    const auto engaged = transport.loopRegion();
+    REQUIRE(engaged.has_value());
+    CHECK(engaged->start.seconds == Catch::Approx(region.start.seconds));
+    CHECK(engaged->end.seconds == Catch::Approx(region.end.seconds));
+
+    transport.clearLoopRegion();
+    CHECK_FALSE(transport.loopRegion().has_value());
+}
+
+// Verifies reversed endpoints engage as a normalized forward region instead of failing.
+TEST_CASE("Engine loop region normalizes reversed endpoints", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    ITransport& transport = harness.engine;
+    const auto duration = requireLoadedFixtureAudio(harness.engine);
+    REQUIRE(duration.seconds > 0.5);
+
+    REQUIRE(transport
+                .setLoopRegion({
+                    .start = common::core::TimePosition{duration.seconds * 0.6},
+                    .end = common::core::TimePosition{duration.seconds * 0.1},
+                })
+                .has_value());
+
+    const auto engaged = transport.loopRegion();
+    REQUIRE(engaged.has_value());
+    CHECK(engaged->start.seconds == Catch::Approx(duration.seconds * 0.1));
+    CHECK(engaged->end.seconds == Catch::Approx(duration.seconds * 0.6));
+}
+
+// Verifies the 0.1 s port minimum rejects short regions with the typed error and leaves a
+// previously engaged loop untouched, keeping the backend's scattered minima unreachable.
+TEST_CASE("Engine loop region rejects sub-minimum durations", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    ITransport& transport = harness.engine;
+    const auto duration = requireLoadedFixtureAudio(harness.engine);
+    REQUIRE(duration.seconds > 0.5);
+
+    const common::core::TimeRange engaged{
+        .start = common::core::TimePosition{0.0},
+        .end = common::core::TimePosition{duration.seconds * 0.5},
+    };
+    REQUIRE(transport.setLoopRegion(engaged).has_value());
+
+    const auto rejected = transport.setLoopRegion({
+        .start = common::core::TimePosition{0.0},
+        .end = common::core::TimePosition{g_minimum_loop_region_duration.seconds / 2.0},
+    });
+    REQUIRE_FALSE(rejected.has_value());
+    CHECK(rejected.error().code == TransportErrorCode::LoopRegionTooShort);
+
+    const auto surviving = transport.loopRegion();
+    REQUIRE(surviving.has_value());
+    CHECK(surviving->end.seconds == Catch::Approx(engaged.end.seconds));
+}
+
+// Verifies loop endpoints clamp into the loaded audio: the backend would accept a loop end far
+// beyond the content, but the engine's end-of-content auto-stop could never reach it.
+TEST_CASE("Engine loop region clamps to loaded audio length", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    ITransport& transport = harness.engine;
+    const auto duration = requireLoadedFixtureAudio(harness.engine);
+    REQUIRE(duration.seconds > 0.5);
+
+    REQUIRE(transport
+                .setLoopRegion({
+                    .start = common::core::TimePosition{-5.0},
+                    .end = common::core::TimePosition{duration.seconds + 100.0},
+                })
+                .has_value());
+
+    const auto engaged = transport.loopRegion();
+    REQUIRE(engaged.has_value());
+    CHECK(engaged->start.seconds == Catch::Approx(0.0));
+    CHECK(engaged->end.seconds == Catch::Approx(duration.seconds));
+}
+
+// Verifies arrangement activation disengages an engaged loop: loop state persists in the edit's
+// TRANSPORT tree, so without the shared-helper clear a stale region would leak across loads.
+TEST_CASE("Engine arrangement activation clears engaged loop", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    ITransport& transport = harness.engine;
+    const auto duration = requireLoadedFixtureAudio(harness.engine);
+    REQUIRE(duration.seconds > 0.5);
+
+    REQUIRE(transport
+                .setLoopRegion({
+                    .start = common::core::TimePosition{0.0},
+                    .end = common::core::TimePosition{duration.seconds * 0.5},
+                })
+                .has_value());
+    REQUIRE(transport.loopRegion().has_value());
+
+    // Re-activating the fixture arrangement replaces the backing media and must clear the loop.
+    (void)requireLoadedFixtureAudio(harness.engine);
+    CHECK_FALSE(transport.loopRegion().has_value());
 }
 
 // Serialized device restore rejects malformed XML with its own stable error code.
@@ -863,6 +997,185 @@ TEST_CASE("Engine live rig captures every loaded tone branch", "[audio][engine][
     REQUIRE(second_document.has_value());
     CHECK(first_document->output_gain.db == Catch::Approx(-6.0));
     CHECK(second_document->output_gain.db == Catch::Approx(defaultGainDb()));
+}
+
+// Verifies the master gain reports the backend's fresh-edit default truthfully (the port never
+// renormalizes — the editor shares this engine) and round-trips a set value.
+TEST_CASE("Engine master gain reports default and round-trips", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    IMixControls& mix = harness.engine;
+
+    // Tracktion constructs a fresh edit's master volume at -3 dB (Edit::Options default).
+    CHECK(mix.masterGain().db == Catch::Approx(-3.0));
+
+    REQUIRE(mix.setMasterGain(Gain{-6.0}).has_value());
+    CHECK(mix.masterGain().db == Catch::Approx(-6.0));
+}
+
+// Verifies the backing gain is a track-level stage that round-trips independently of the clip
+// normalization gain the song loader applies (separate stages compose; neither overwrites the
+// other), including across an arrangement load carrying normalization metadata.
+TEST_CASE("Engine backing gain composes with normalization", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    IMixControls& mix = harness.engine;
+    ISongAudio& audio = harness.engine;
+
+    // Track volume defaults to 0 dB before any song loads.
+    CHECK(mix.backingGain().db == Catch::Approx(0.0));
+    REQUIRE(mix.setBackingGain(Gain{-4.5}).has_value());
+    CHECK(mix.backingGain().db == Catch::Approx(-4.5));
+
+    // Loading an arrangement WITH normalization sets the clip gain; the track-level backing
+    // gain must survive untouched because it is a different processing stage.
+    auto song = makeFixtureSong();
+    song.arrangements.front().audio_asset.normalization =
+        common::core::AudioNormalization{.gain_db = -8.0};
+    REQUIRE(audio.prepareSong(song).has_value());
+    REQUIRE(audio.setActiveArrangement(song.arrangements.front()).has_value());
+
+    CHECK(mix.backingGain().db == Catch::Approx(-4.5));
+
+    // And the backing gain stays writable after the load without disturbing playback state.
+    REQUIRE(mix.setBackingGain(Gain{-2.0}).has_value());
+    CHECK(mix.backingGain().db == Catch::Approx(-2.0));
+}
+
+// Verifies the tone timeline refuses to bake before a rig is loaded.
+TEST_CASE("Engine tone timeline requires a loaded rig", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    IToneTimelinePlayer& timeline = harness.engine;
+
+    const auto prepared = timeline.prepareToneTimeline(std::filesystem::temp_directory_path(), {});
+
+    REQUIRE_FALSE(prepared.has_value());
+    CHECK(prepared.error().code == LiveRigErrorCode::InvalidRequest);
+}
+
+// Verifies schedule baking succeeds over a loaded rig, is idempotent on re-prepare, and rejects
+// a schedule referencing a tone the rig never loaded.
+TEST_CASE("Engine tone timeline bakes the switch schedule", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    const TemporarySongDirectory song_directory;
+    ILiveRig& live_rig = harness.engine;
+    IToneTimelinePlayer& timeline = harness.engine;
+
+    const auto first_ref = live_rig.mintEmptyTone(song_directory.path());
+    const auto second_ref = live_rig.mintEmptyTone(song_directory.path());
+    REQUIRE(first_ref.has_value());
+    REQUIRE(second_ref.has_value());
+
+    std::optional<std::expected<LiveRigLoadResult, LiveRigError>> loaded;
+    live_rig.loadLiveRig(
+        LiveRigLoadRequest{
+            .song_directory = song_directory.path(),
+            .tone_document_refs = {*first_ref, *second_ref},
+            .audible_tone_ref = *first_ref,
+            .progress_callback = {},
+            .yield_callback = [](const auto& next) { next(); },
+        },
+        [&loaded](auto value) { loaded = std::move(value); });
+    REQUIRE(loaded.has_value());
+    if (!loaded.has_value())
+    {
+        return;
+    }
+    REQUIRE(loaded->has_value());
+
+    const std::vector<common::core::ToneSwitchRegion> schedule{
+        common::core::ToneSwitchRegion{
+            .time_range =
+                {.start = common::core::TimePosition{0.0}, .end = common::core::TimePosition{4.0}},
+            .tone_document_ref = *first_ref,
+        },
+        common::core::ToneSwitchRegion{
+            .time_range =
+                {.start = common::core::TimePosition{4.0}, .end = common::core::TimePosition{8.0}},
+            .tone_document_ref = *second_ref,
+        },
+    };
+    CHECK(timeline.prepareToneTimeline(song_directory.path(), schedule).has_value());
+
+    // Re-preparing (a new load of the same session) must not accumulate stale points.
+    CHECK(timeline.prepareToneTimeline(song_directory.path(), schedule).has_value());
+
+    // An empty schedule is legal (tone-less arrangement) and clears any baked curves.
+    CHECK(timeline.prepareToneTimeline(song_directory.path(), {}).has_value());
+
+    const auto unknown = timeline.prepareToneTimeline(
+        song_directory.path(),
+        std::vector<common::core::ToneSwitchRegion>{
+            common::core::ToneSwitchRegion{
+                .time_range =
+                    {.start = common::core::TimePosition{0.0},
+                     .end = common::core::TimePosition{4.0}},
+                .tone_document_ref = "tones/unloaded/tone.json",
+            },
+        });
+    REQUIRE_FALSE(unknown.has_value());
+    CHECK(unknown.error().code == LiveRigErrorCode::InvalidRequest);
+}
+
+// Verifies the rig load scans to completion and refuses ONCE with the complete missing-plugin
+// list (gameplay policy 21-Q1(A)) instead of aborting at the first uninstalled plugin.
+TEST_CASE("Engine live rig lists every missing plugin", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    const TemporarySongDirectory song_directory;
+    ILiveRig& live_rig = harness.engine;
+
+    // A tone document whose two plugins point at files no machine has: identity resolution
+    // fails with PluginNotFound for each, and both must appear in the final refusal. Sidecar
+    // refs must be canonical (state/ dir, .tracktion-plugin extension) and exist on disk to
+    // pass document validation; their content is never read because identity resolution fails
+    // before the restore step.
+    const std::string tone_ref = "tones/f0e1d2c3-b4a5-4697-8879-9a0b1c2d3e4f/tone.json";
+    ToneDocument document;
+    std::size_t record_index = 0;
+    for (const char* const missing_name : {"Missing One", "Missing Two"})
+    {
+        PluginRecord record;
+        record.id = std::string{"record-"} + std::to_string(record_index);
+        record.identity.format_name = "VST3";
+        record.identity.name = missing_name;
+        record.identity.original_file_or_identifier = "Z:/missing/RockHeroMissing.vst3";
+        const std::filesystem::path state_ref = generatedPluginStatePath(
+            toneDocumentStateDirectory(std::filesystem::path{tone_ref}), record_index);
+        record.tracktion_state_ref = state_ref.generic_string();
+        REQUIRE(writeTextFile(
+                    song_directory.path() / state_ref,
+                    "<PLUGIN type=\"vst\" name=\"placeholder\"/>",
+                    LiveRigErrorCode::CouldNotWritePluginState)
+                    .has_value());
+        document.chain.push_back(std::move(record));
+        ++record_index;
+    }
+    REQUIRE(writeToneDocument(song_directory.path() / tone_ref, document).has_value());
+
+    std::optional<std::expected<LiveRigLoadResult, LiveRigError>> loaded;
+    live_rig.loadLiveRig(
+        LiveRigLoadRequest{
+            .song_directory = song_directory.path(),
+            .tone_document_refs = {tone_ref},
+            .audible_tone_ref = tone_ref,
+            .progress_callback = {},
+            .yield_callback = [](const auto& next) { next(); },
+        },
+        [&loaded](auto value) { loaded = std::move(value); });
+
+    REQUIRE(loaded.has_value());
+    if (!loaded.has_value())
+    {
+        return;
+    }
+    REQUIRE_FALSE(loaded->has_value());
+    INFO("load error message: " << loaded->error().message);
+    CHECK(loaded->error().code == LiveRigErrorCode::MissingPlugins);
+    CHECK(loaded->error().message.find("Missing One") != std::string::npos);
+    CHECK(loaded->error().message.find("Missing Two") != std::string::npos);
 }
 
 // Verifies the incremental empty-branch add registers a switchable, capturable branch without a
