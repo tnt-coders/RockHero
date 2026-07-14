@@ -7,13 +7,18 @@
 namespace rock_hero::editor::core
 {
 
-// Builds the two-bool session context the shared live-input monitor gate evaluates. The monitor
-// samples the current input route identity itself, so the driver supplies only session facts.
+// Builds the two-bool context the shared live-input monitor evaluates. live_input_ready carries
+// its documented meaning — the raw live input path is up (an open device with an input route), so
+// a signal can be measured — matching the game's device-applied semantics; calibration therefore
+// needs no loaded project. Session readiness gates only active processed monitoring, so it rides
+// on arrangement_loaded: an arrangement counts as loaded here only once its audio and live-rig
+// restore have committed (m_project_audio_ready), which keeps the live-tone gate exactly as strict
+// as before.
 common::audio::LiveInputMonitoringContext EditorController::Impl::monitoringContext() const
 {
     return common::audio::LiveInputMonitoringContext{
-        .live_input_ready = m_project_audio_ready,
-        .arrangement_loaded = hasLoadedArrangement(),
+        .live_input_ready = m_audio_devices.currentInputDeviceIdentity().has_value(),
+        .arrangement_loaded = m_project_audio_ready && hasLoadedArrangement(),
     };
 }
 

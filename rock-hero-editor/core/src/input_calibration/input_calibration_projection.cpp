@@ -16,9 +16,8 @@ namespace
     common::audio::LiveInputMonitoringContext context) noexcept
 {
     // Calibration only needs the live input path up; an arrangement gates active processed
-    // monitoring, not the raw measurement. In the editor m_project_audio_ready (mirrored into
-    // live_input_ready) is only ever true after a load committed an arrangement, so gating on
-    // live_input_ready alone matches the prior behavior for every reachable editor state.
+    // monitoring, not the raw measurement. live_input_ready reports exactly that path — an open
+    // device with an input route — so calibration is available with no project loaded.
     return context.live_input_ready;
 }
 
