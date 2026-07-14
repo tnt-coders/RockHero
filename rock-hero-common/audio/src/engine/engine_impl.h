@@ -202,6 +202,12 @@ private:
     // Coalesces JUCE audio-device callbacks so Tracktion route repair runs after callback unwinds.
     bool m_audio_device_configuration_refresh_pending{false};
 
+    // Whether the saved device route's hardware was attached at the last configuration refresh.
+    // enforceNoFallbackDevicePolicy() re-applies the saved route only on an absent -> present
+    // transition of this flag, so a replug reopens the user's device while deliberate closed
+    // states (a staging settings edit) and failed reopen attempts never enter a retry loop.
+    bool m_saved_device_present{false};
+
     // Alive token captured by deferred MessageManager::callAsync lambdas so they can detect
     // Engine destruction before re-entering Impl state.
     std::shared_ptr<bool> m_alive{std::make_shared<bool>(true)};
@@ -298,6 +304,10 @@ private:
 
     // Repairs Tracktion's device cache and notifies editor listeners after JUCE has changed routes.
     void handleAudioDeviceConfigurationRefresh();
+
+    // Undoes JUCE's disconnect fallback (closing the substitute device) and re-applies the saved
+    // route when its device is replugged, so the open device is only ever the user's choice.
+    void enforceNoFallbackDevicePolicy();
 
     // Tracktion publishes playhead movement through the transport ValueTree. The coarse state
     // surface ignores ordinary movement, but this hook still detects automatic end-of-file stops.

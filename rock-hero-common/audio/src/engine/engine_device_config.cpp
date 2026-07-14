@@ -77,6 +77,77 @@ namespace
     return reconstructDeviceSetupFromXml(xml) == reconstructDeviceSetupFromXml(*current_xml);
 }
 
+// Reports whether JUCE's own disconnect handler (AudioDeviceManager::audioDeviceListChanged) just
+// fell back to a default device after the user's saved device vanished. That fallback is hard-coded
+// inside vendored JUCE with selectDefaultDeviceOnFailure=true and cannot be suppressed in-band, so
+// the engine detects and undoes it to honor the same no-fallback policy the startup restore uses.
+//
+// The fallback opens the default with treatAsChosenDevice=false, so it never calls updateXml():
+// createStateXml() (backed by lastExplicitSettings) still names the user's chosen route, while
+// getAudioDeviceSetup()/getCurrentAudioDeviceType() report the fallback device. A genuine device
+// choice goes through setAudioDeviceSetup(.., treatAsChosenDevice=true) -> updateXml(), which keeps
+// the two in agreement, so a divergence between the saved-choice identity and the live-device
+// identity is exactly a fallback. Identity is compared on device type + input/output names only,
+// not the full setup, to avoid the default-channel-mask asymmetry that
+// activeDeviceMatchesSerializedState() documents.
+[[nodiscard]] bool juceFellBackFromExplicitChoice(
+    juce::AudioDeviceManager& device_manager, const juce::XmlElement& saved)
+{
+    juce::AudioIODevice* const live_device = device_manager.getCurrentAudioDevice();
+    if (live_device == nullptr || !live_device->isOpen())
+    {
+        // Nothing open to undo. Also covers a settings edit (device deliberately closed while
+        // staging) and a fallback that itself found no openable device (already closed).
+        return false;
+    }
+
+    const juce::AudioDeviceManager::AudioDeviceSetup saved_setup =
+        reconstructDeviceSetupFromXml(saved);
+    const juce::AudioDeviceManager::AudioDeviceSetup live_setup =
+        device_manager.getAudioDeviceSetup();
+
+    return saved.getStringAttribute("deviceType") != device_manager.getCurrentAudioDeviceType() ||
+           saved_setup.inputDeviceName != live_setup.inputDeviceName ||
+           saved_setup.outputDeviceName != live_setup.outputDeviceName;
+}
+
+// Reports whether the saved route's device is currently attached, so a replug can re-apply the
+// saved route. Mirrors the availability check JUCE's setAudioDeviceSetup performs (a device-type
+// match plus each non-empty device name present in that type's freshly scanned list).
+[[nodiscard]] bool savedDeviceIsPresent(
+    juce::AudioDeviceManager& device_manager, const juce::XmlElement& saved)
+{
+    const juce::String type_name = saved.getStringAttribute("deviceType");
+    juce::AudioIODeviceType* matching_type = nullptr;
+    for (juce::AudioIODeviceType* type : device_manager.getAvailableDeviceTypes())
+    {
+        if (type->getTypeName() == type_name)
+        {
+            matching_type = type;
+            break;
+        }
+    }
+
+    if (matching_type == nullptr)
+    {
+        return false;
+    }
+
+    const juce::AudioDeviceManager::AudioDeviceSetup setup = reconstructDeviceSetupFromXml(saved);
+    if (setup.inputDeviceName.isEmpty() && setup.outputDeviceName.isEmpty())
+    {
+        return false;
+    }
+
+    matching_type->scanForDevices();
+    const bool input_present = setup.inputDeviceName.isEmpty() ||
+                               matching_type->getDeviceNames(true).contains(setup.inputDeviceName);
+    const bool output_present =
+        setup.outputDeviceName.isEmpty() ||
+        matching_type->getDeviceNames(false).contains(setup.outputDeviceName);
+    return input_present && output_present;
+}
+
 } // namespace
 
 void Engine::Impl::scheduleAudioDeviceConfigurationRefresh()
@@ -112,12 +183,65 @@ void Engine::Impl::scheduleAudioDeviceConfigurationRefresh()
 
 void Engine::Impl::handleAudioDeviceConfigurationRefresh()
 {
+    enforceNoFallbackDevicePolicy();
     m_live_input_monitoring_enabled = false;
     m_calibration_input_monitoring_enabled = false;
     detachInstrumentMonitoringRoute();
     m_engine->getDeviceManager().dispatchPendingUpdates();
     m_audio_device_listeners.call(
         &IAudioDeviceConfiguration::Listener::onAudioDeviceConfigurationChanged);
+}
+
+// Applies the no-fallback device policy after any JUCE device-configuration change. JUCE's own
+// disconnect handler falls back to a default device (hard-coded, not suppressible in-band), so a
+// detected fallback is undone here by closing the substitute -- the saved choice survives in
+// lastExplicitSettings, matching the startup restore's behavior. Symmetrically, when the device is
+// closed and the saved device transitions from absent to present, the saved route is re-applied so
+// replugging the interface restores the user's device and never a different one.
+//
+// The absent->present transition gate is load-bearing twice over. A settings edit deliberately
+// stages with the device closed while the saved device stays present, so no transition fires and
+// the edit is left alone (a device replugged mid-edit is the one rare corner that would reopen
+// under the dialog). And a failed reopen (driver busy) does not retry until the device disappears
+// and returns again, which prevents broadcast-driven retry loops: a failing initialise() posts
+// another change message, and an unconditional reopen here would chase it forever.
+void Engine::Impl::enforceNoFallbackDevicePolicy()
+{
+    juce::AudioDeviceManager& device_manager = m_engine->getDeviceManager().deviceManager;
+    const std::unique_ptr<juce::XmlElement> saved = device_manager.createStateXml();
+    if (saved == nullptr)
+    {
+        // No explicit device choice exists (first run), so default auto-detection stands.
+        m_saved_device_present = false;
+        return;
+    }
+
+    if (juceFellBackFromExplicitChoice(device_manager, *saved))
+    {
+        // The saved device just vanished and JUCE opened a substitute; close it. This refresh pass
+        // notifies listeners of the closed state, and the saved route stays persistable.
+        device_manager.closeAudioDevice();
+        m_saved_device_present = false;
+        return;
+    }
+
+    juce::AudioIODevice* const live_device = device_manager.getCurrentAudioDevice();
+    if (live_device != nullptr && live_device->isOpen())
+    {
+        // The open device is the saved device (a fallback was ruled out above).
+        m_saved_device_present = true;
+        return;
+    }
+
+    const bool was_present = m_saved_device_present;
+    m_saved_device_present = savedDeviceIsPresent(device_manager, *saved);
+    if (m_saved_device_present && !was_present)
+    {
+        // Replug: re-apply the saved route with JUCE's fallback disabled so only the user's device
+        // can open. On success the follow-up broadcast converges (open device == saved choice); on
+        // failure the device stays closed until the next absent->present transition.
+        static_cast<void>(device_manager.initialise(1, 2, saved.get(), false));
+    }
 }
 
 void Engine::Impl::attachMeterReader(MeterReader& reader, tracktion::LevelMeterPlugin* meter)
