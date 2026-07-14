@@ -97,12 +97,12 @@ constexpr int g_track_viewport_min_height{80};
 }
 
 // Ensures saved tone files use the Rock Hero tone extension when needed.
-[[nodiscard]] std::filesystem::path pathWithRocktoneExtension(const juce::File& file)
+[[nodiscard]] std::filesystem::path pathWithToneExtension(const juce::File& file)
 {
     std::filesystem::path path = common::core::pathFromJuceFile(file);
     if (!path.empty() && path.extension().empty())
     {
-        path.replace_extension(".rocktone");
+        path.replace_extension(".tone");
     }
     return path;
 }
@@ -1253,7 +1253,7 @@ namespace
 void EditorView::showOpenToneChooser()
 {
     m_file_chooser = std::make_unique<juce::FileChooser>(
-        "Open Tone", toneChooserDirectory(m_state.tone_designer), "*.rocktone");
+        "Open Tone", toneChooserDirectory(m_state.tone_designer), "*.tone");
 
     const juce::Component::SafePointer<EditorView> safe_this{this};
     m_file_chooser->launchAsync(
@@ -1280,8 +1280,8 @@ void EditorView::showToneSaveAsChooser(SaveAsChooserPurpose purpose)
 {
     const juce::File initial_file =
         toneChooserDirectory(m_state.tone_designer)
-            .getChildFile(juce::String{m_state.tone_designer.document_name} + ".rocktone");
-    m_file_chooser = std::make_unique<juce::FileChooser>("Save Tone", initial_file, "*.rocktone");
+            .getChildFile(juce::String{m_state.tone_designer.document_name} + ".tone");
+    m_file_chooser = std::make_unique<juce::FileChooser>("Save Tone", initial_file, "*.tone");
 
     const juce::Component::SafePointer<EditorView> safe_this{this};
     m_file_chooser->launchAsync(
@@ -1303,7 +1303,7 @@ void EditorView::showToneSaveAsChooser(SaveAsChooserPurpose purpose)
                 return;
             }
 
-            safe_this->m_controller.onSaveToneAsRequested(pathWithRocktoneExtension(file));
+            safe_this->m_controller.onSaveToneAsRequested(pathWithToneExtension(file));
         });
 }
 
@@ -1353,7 +1353,7 @@ void EditorView::onExportTonePressed()
 void EditorView::showImportToneChooser()
 {
     m_file_chooser = std::make_unique<juce::FileChooser>(
-        "Import Tone", toneChooserDirectory(m_state.tone_designer), "*.rocktone");
+        "Import Tone", toneChooserDirectory(m_state.tone_designer), "*.tone");
 
     const juce::Component::SafePointer<EditorView> safe_this{this};
     m_file_chooser->launchAsync(
@@ -1394,8 +1394,8 @@ void EditorView::showExportToneChooser()
     }
 
     const juce::File initial_file =
-        toneChooserDirectory(m_state.tone_designer).getChildFile(active_tone_name + ".rocktone");
-    m_file_chooser = std::make_unique<juce::FileChooser>("Export Tone", initial_file, "*.rocktone");
+        toneChooserDirectory(m_state.tone_designer).getChildFile(active_tone_name + ".tone");
+    m_file_chooser = std::make_unique<juce::FileChooser>("Export Tone", initial_file, "*.tone");
 
     const juce::Component::SafePointer<EditorView> safe_this{this};
     m_file_chooser->launchAsync(
@@ -1413,7 +1413,7 @@ void EditorView::showExportToneChooser()
                 return;
             }
 
-            safe_this->m_controller.onExportToneFileRequested(pathWithRocktoneExtension(file));
+            safe_this->m_controller.onExportToneFileRequested(pathWithToneExtension(file));
         });
 }
 

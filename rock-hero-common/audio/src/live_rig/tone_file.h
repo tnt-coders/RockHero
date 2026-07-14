@@ -1,6 +1,6 @@
 /*!
 \file tone_file.h
-\brief Standalone .rocktone tone-file container: one portable rig, no automation, no identity.
+\brief Standalone .tone tone-file container: one portable rig, no automation, no identity.
 */
 
 #pragma once
@@ -19,7 +19,7 @@ namespace rock_hero::common::audio
 {
 
 /*! \brief File extension used by standalone tone files, including the leading dot. */
-inline constexpr std::string_view g_tone_file_extension{".rocktone"};
+inline constexpr std::string_view g_tone_file_extension{".tone"};
 
 /*! \brief Fully validated in-memory contents of a standalone tone file. */
 struct ToneFilePayload
