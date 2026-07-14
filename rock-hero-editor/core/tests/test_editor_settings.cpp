@@ -23,19 +23,9 @@ namespace rock_hero::editor::core
 namespace
 {
 
-constexpr const char* g_input_calibration_gain_db_key{"inputCalibrationGainDb"};
-constexpr const char* g_input_calibration_backend_name_key{"inputCalibrationBackendName"};
-constexpr const char* g_input_calibration_input_device_name_key{"inputCalibrationInputDeviceName"};
-constexpr const char* g_input_calibration_input_channel_index_key{
-    "inputCalibrationInputChannelIndex"
-};
-constexpr const char* g_input_calibration_input_channel_name_key{
-    "inputCalibrationInputChannelName"
-};
 constexpr const char* g_project_cursor_positions_key{"projectCursorPositions"};
 constexpr const char* g_project_grid_note_values_key{"projectGridNoteValues"};
 constexpr const char* g_retired_grid_spacings_key{"projectGridSpacings"};
-constexpr const char* g_input_calibration_states_key{"inputCalibrationStates"};
 
 // Owns one build-local settings file so each test starts with clean persisted state.
 class ScopedSettingsFile final
@@ -109,52 +99,6 @@ void writeRawSetting(
     REQUIRE(properties.save());
 }
 
-// Reads whether a raw property remains present after settings operations.
-[[nodiscard]] bool rawSettingExists(const std::filesystem::path& settings_file, const char* key)
-{
-    const juce::PropertiesFile properties{
-        common::core::juceFileFromPath(settings_file), testSettingsOptions()
-    };
-    return properties.containsKey(key);
-}
-
-// Builds a stable route identity for settings history tests.
-[[nodiscard]] common::audio::InputDeviceIdentity makeIdentity(
-    std::string input_device_name = "Interface A", int channel_index = 0,
-    std::string backend_name = "ASIO", std::string channel_name = {})
-{
-    if (channel_name.empty())
-    {
-        channel_name = "Input " + std::to_string(channel_index + 1);
-    }
-
-    return common::audio::InputDeviceIdentity{
-        .backend_name = std::move(backend_name),
-        .input_device_name = std::move(input_device_name),
-        .input_channel_index = channel_index,
-        .input_channel_name = std::move(channel_name),
-    };
-}
-
-// Builds a calibration record for one physical route.
-[[nodiscard]] common::audio::InputCalibrationState calibrationFor(
-    const common::audio::InputDeviceIdentity& identity, double gain_db)
-{
-    return common::audio::InputCalibrationState{
-        .calibration_gain = common::audio::Gain{gain_db},
-        .input_device_identity = identity,
-    };
-}
-
-// Reads calibration through the typed settings contract and returns the optional payload.
-[[nodiscard]] std::optional<common::audio::InputCalibrationState> inputCalibrationFor(
-    const EditorSettings& settings, const common::audio::InputDeviceIdentity& identity)
-{
-    auto result = settings.inputCalibrationFor(identity);
-    REQUIRE(result.has_value());
-    return std::move(*result);
-}
-
 // Finds the first stored settings key beginning with the given flat-key family prefix, so tests
 // can corrupt a per-project value without recomputing the production path normalization.
 [[nodiscard]] juce::String projectSettingKeyWithPrefix(
@@ -174,30 +118,6 @@ void writeRawSetting(
     return {};
 }
 
-// Seeds obsolete flat calibration keys so no-migration behavior can be verified.
-void writeObsoleteCalibration(
-    const std::filesystem::path& settings_file,
-    const common::audio::InputCalibrationState& calibration)
-{
-    juce::PropertiesFile properties{
-        common::core::juceFileFromPath(settings_file), testSettingsOptions()
-    };
-    properties.setValue(g_input_calibration_gain_db_key, calibration.calibration_gain.db);
-    properties.setValue(
-        g_input_calibration_backend_name_key,
-        juce::String::fromUTF8(calibration.input_device_identity.backend_name.c_str()));
-    properties.setValue(
-        g_input_calibration_input_device_name_key,
-        juce::String::fromUTF8(calibration.input_device_identity.input_device_name.c_str()));
-    properties.setValue(
-        g_input_calibration_input_channel_index_key,
-        calibration.input_device_identity.input_channel_index);
-    properties.setValue(
-        g_input_calibration_input_channel_name_key,
-        juce::String::fromUTF8(calibration.input_device_identity.input_channel_name.c_str()));
-    REQUIRE(properties.save());
-}
-
 } // namespace
 
 // New settings files do not invent a restore target until the app exits with a project open.
@@ -208,7 +128,6 @@ TEST_CASE("EditorSettings starts without a last open project", "[core][settings]
 
     CHECK_FALSE(settings.lastOpenProject().has_value());
     CHECK_FALSE(settings.interruptedRestoreProject().has_value());
-    CHECK_FALSE(inputCalibrationFor(settings, makeIdentity()).has_value());
 }
 
 // The settings file preserves the editor project path that should be restored on next launch.
@@ -488,196 +407,6 @@ TEST_CASE("EditorSettings round-trips a unicode project path", "[core][settings]
     CHECK(
         reloaded_settings.projectSelectedArrangementFor(project_file) ==
         std::optional<std::string>{"arr-unicode"});
-}
-
-// Calibration delegated to the owned store round-trips across reloads and ignores unrelated routes.
-// The store's own tests own the XML-format assertions; this proves the EditorSettings delegation.
-TEST_CASE("EditorSettings persists physical input calibration", "[core][settings]")
-{
-    const ScopedSettingsFile settings_file{"persists_input_calibration.settings"};
-    const common::audio::InputDeviceIdentity identity = makeIdentity();
-    const common::audio::InputDeviceIdentity other_identity = makeIdentity("Interface B");
-
-    {
-        EditorSettings settings{settings_file.path()};
-        REQUIRE(settings.saveInputCalibration(calibrationFor(identity, 6.5)).has_value());
-    }
-
-    const EditorSettings reloaded_settings{settings_file.path()};
-
-    const auto stored_calibration = inputCalibrationFor(reloaded_settings, identity);
-    REQUIRE(stored_calibration.has_value());
-    if (stored_calibration.has_value())
-    {
-        CHECK_THAT(stored_calibration->calibration_gain.db, Catch::Matchers::WithinULP(6.5, 0));
-        CHECK(stored_calibration->input_device_identity == identity);
-    }
-    CHECK_FALSE(inputCalibrationFor(reloaded_settings, other_identity).has_value());
-}
-
-// Saving the same physical route again replaces only that route's gain.
-TEST_CASE("EditorSettings overwrites physical input calibration", "[core][settings]")
-{
-    const ScopedSettingsFile settings_file{"overwrites_input_calibration.settings"};
-    const common::audio::InputDeviceIdentity identity = makeIdentity();
-    EditorSettings settings{settings_file.path()};
-
-    REQUIRE(settings.saveInputCalibration(calibrationFor(identity, 2.0)).has_value());
-    REQUIRE(settings.saveInputCalibration(calibrationFor(identity, 8.0)).has_value());
-
-    const auto stored_calibration = inputCalibrationFor(settings, identity);
-    REQUIRE(stored_calibration.has_value());
-    if (stored_calibration.has_value())
-    {
-        CHECK_THAT(stored_calibration->calibration_gain.db, Catch::Matchers::WithinULP(8.0, 0));
-    }
-}
-
-// Channel display-name drift must not make the same physical route lose calibration.
-TEST_CASE("EditorSettings restores renamed physical channel", "[core][settings]")
-{
-    const ScopedSettingsFile settings_file{"renamed_channel_input_calibration.settings"};
-    const common::audio::InputDeviceIdentity saved_identity =
-        makeIdentity("Interface A", 0, "ASIO", "Input 1");
-    const common::audio::InputDeviceIdentity current_identity =
-        makeIdentity("Interface A", 0, "ASIO", "Mic/Inst 1");
-    EditorSettings settings{settings_file.path()};
-
-    REQUIRE(settings.saveInputCalibration(calibrationFor(saved_identity, 4.0)).has_value());
-
-    const auto restored_calibration = inputCalibrationFor(settings, current_identity);
-    REQUIRE(restored_calibration.has_value());
-    if (restored_calibration.has_value())
-    {
-        CHECK_THAT(restored_calibration->calibration_gain.db, Catch::Matchers::WithinULP(4.0, 0));
-        CHECK(restored_calibration->input_device_identity == current_identity);
-    }
-
-    REQUIRE(settings.saveInputCalibration(calibrationFor(current_identity, 7.0)).has_value());
-    const auto overwritten_calibration = inputCalibrationFor(settings, saved_identity);
-    REQUIRE(overwritten_calibration.has_value());
-    if (overwritten_calibration.has_value())
-    {
-        CHECK_THAT(
-            overwritten_calibration->calibration_gain.db, Catch::Matchers::WithinULP(7.0, 0));
-        CHECK(overwritten_calibration->input_device_identity == saved_identity);
-    }
-
-    REQUIRE(settings.removeInputCalibration(saved_identity).has_value());
-    CHECK_FALSE(inputCalibrationFor(settings, current_identity).has_value());
-}
-
-// Different physical input channels on the same device keep independent calibration records.
-TEST_CASE("EditorSettings keeps input channels separate", "[core][settings]")
-{
-    const ScopedSettingsFile settings_file{"input_calibration_channel_identity.settings"};
-    const common::audio::InputDeviceIdentity channel_one = makeIdentity("Interface A", 0);
-    const common::audio::InputDeviceIdentity channel_three = makeIdentity("Interface A", 2);
-    EditorSettings settings{settings_file.path()};
-
-    REQUIRE(settings.saveInputCalibration(calibrationFor(channel_one, 3.0)).has_value());
-    REQUIRE(settings.saveInputCalibration(calibrationFor(channel_three, 9.0)).has_value());
-
-    const auto channel_one_calibration = inputCalibrationFor(settings, channel_one);
-    const auto channel_three_calibration = inputCalibrationFor(settings, channel_three);
-    REQUIRE(channel_one_calibration.has_value());
-    REQUIRE(channel_three_calibration.has_value());
-    if (channel_one_calibration.has_value() && channel_three_calibration.has_value())
-    {
-        CHECK_THAT(
-            channel_one_calibration->calibration_gain.db, Catch::Matchers::WithinULP(3.0, 0));
-        CHECK_THAT(
-            channel_three_calibration->calibration_gain.db, Catch::Matchers::WithinULP(9.0, 0));
-    }
-}
-
-// Removing one physical route leaves other saved route calibrations intact.
-TEST_CASE("EditorSettings removes one physical calibration", "[core][settings]")
-{
-    const ScopedSettingsFile settings_file{"removes_input_calibration.settings"};
-    const common::audio::InputDeviceIdentity first_identity = makeIdentity("Interface A");
-    const common::audio::InputDeviceIdentity second_identity = makeIdentity("Interface B");
-    EditorSettings settings{settings_file.path()};
-    REQUIRE(settings.saveInputCalibration(calibrationFor(first_identity, 3.0)).has_value());
-    REQUIRE(settings.saveInputCalibration(calibrationFor(second_identity, 6.0)).has_value());
-
-    REQUIRE(settings.removeInputCalibration(first_identity).has_value());
-
-    CHECK_FALSE(inputCalibrationFor(settings, first_identity).has_value());
-    const auto preserved_calibration = inputCalibrationFor(settings, second_identity);
-    REQUIRE(preserved_calibration.has_value());
-    if (preserved_calibration.has_value())
-    {
-        CHECK_THAT(preserved_calibration->calibration_gain.db, Catch::Matchers::WithinULP(6.0, 0));
-    }
-}
-
-// A malformed store history surfaces through the delegation as the translated settings error code,
-// and neither lookup nor removal overwrites the unreadable state.
-TEST_CASE("EditorSettings preserves malformed calibration history", "[core][settings]")
-{
-    const ScopedSettingsFile settings_file{"malformed_input_calibration.settings"};
-    const std::filesystem::path audio_file =
-        EditorSettings::audioConfigFileFor(settings_file.path());
-    const common::audio::InputDeviceIdentity identity = makeIdentity();
-    writeRawSetting(audio_file, g_input_calibration_states_key, juce::String{"[not-xml"});
-
-    EditorSettings settings{settings_file.path()};
-
-    const auto loaded = settings.inputCalibrationFor(identity);
-    REQUIRE_FALSE(loaded.has_value());
-    CHECK(loaded.error().code == EditorSettingsErrorCode::InvalidInputCalibrationHistory);
-    CHECK_FALSE(loaded.error().message.empty());
-    const auto removed = settings.removeInputCalibration(identity);
-    REQUIRE_FALSE(removed.has_value());
-    CHECK(removed.error().code == EditorSettingsErrorCode::InvalidInputCalibrationHistory);
-    CHECK(rawSettingExists(audio_file, g_input_calibration_states_key));
-}
-
-// Obsolete flat calibration keys are ignored rather than migrated into the current history.
-TEST_CASE("EditorSettings ignores obsolete flat calibration", "[core][settings]")
-{
-    const ScopedSettingsFile settings_file{"ignores_obsolete_input_calibration.settings"};
-    const common::audio::InputDeviceIdentity obsolete_identity = makeIdentity("Interface A");
-    const common::audio::InputDeviceIdentity new_identity = makeIdentity("Interface B");
-    writeObsoleteCalibration(settings_file.path(), calibrationFor(obsolete_identity, 4.0));
-
-    {
-        EditorSettings settings{settings_file.path()};
-        CHECK_FALSE(inputCalibrationFor(settings, obsolete_identity).has_value());
-        REQUIRE(settings.saveInputCalibration(calibrationFor(new_identity, 7.0)).has_value());
-    }
-
-    const EditorSettings reloaded_settings{settings_file.path()};
-
-    const auto new_calibration = inputCalibrationFor(reloaded_settings, new_identity);
-    REQUIRE(new_calibration.has_value());
-    if (new_calibration.has_value())
-    {
-        CHECK_THAT(new_calibration->calibration_gain.db, Catch::Matchers::WithinULP(7.0, 0));
-    }
-    CHECK_FALSE(inputCalibrationFor(reloaded_settings, obsolete_identity).has_value());
-}
-
-// Saving through the delegation refuses to overwrite malformed current-format calibration history.
-TEST_CASE("EditorSettings blocks saving over malformed calibration", "[core][settings]")
-{
-    const ScopedSettingsFile settings_file{"malformed_save_input_calibration.settings"};
-    const std::filesystem::path audio_file =
-        EditorSettings::audioConfigFileFor(settings_file.path());
-    const common::audio::InputDeviceIdentity new_identity = makeIdentity("Interface B");
-    writeRawSetting(audio_file, g_input_calibration_states_key, juce::String{"[not-xml"});
-
-    EditorSettings settings{settings_file.path()};
-    const auto saved = settings.saveInputCalibration(calibrationFor(new_identity, 7.0));
-    REQUIRE_FALSE(saved.has_value());
-    CHECK(saved.error().code == EditorSettingsErrorCode::InvalidInputCalibrationHistory);
-    CHECK(rawSettingExists(audio_file, g_input_calibration_states_key));
-
-    const EditorSettings reloaded_settings{settings_file.path()};
-    const auto loaded = reloaded_settings.inputCalibrationFor(new_identity);
-    REQUIRE_FALSE(loaded.has_value());
-    CHECK(loaded.error().code == EditorSettingsErrorCode::InvalidInputCalibrationHistory);
 }
 
 } // namespace rock_hero::editor::core

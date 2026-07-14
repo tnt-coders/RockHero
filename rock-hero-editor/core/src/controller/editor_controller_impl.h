@@ -32,8 +32,7 @@ definitions, no state added just to make a translation-unit split work.
 #include <optional>
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <rock_hero/common/audio/device/i_audio_device_configuration.h>
-#include <rock_hero/common/audio/input/i_live_input.h>
-#include <rock_hero/common/audio/input/input_calibration_workflow.h>
+#include <rock_hero/common/audio/input/live_input_monitor.h>
 #include <rock_hero/common/audio/live_rig/i_live_rig.h>
 #include <rock_hero/common/audio/plugin/i_plugin_host.h>
 #include <rock_hero/common/audio/settings/i_audio_config_store.h>
@@ -105,8 +104,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         common::audio::ITransport& transport, common::audio::ISongAudio& song_audio,
         common::audio::IAudioDeviceConfiguration& audio_devices,
         common::audio::IPluginHost& plugin_host, common::audio::ILiveRig& live_rig,
-        common::audio::IToneAutomation& tone_automation, common::audio::ILiveInput& live_input,
-        EditorController::Services services, EditorController::ExitFunction exit_function,
+        common::audio::IToneAutomation& tone_automation, EditorController::Services services,
+        EditorController::ExitFunction exit_function,
         EditorController::ProjectOperations project_operations);
     ~Impl() override;
 
@@ -186,13 +185,13 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         std::string instance_id, std::optional<PluginDisplayType> display_type);
     void onOpenPluginRequested(std::string instance_id);
     void onInputCalibrationRequested();
-    [[nodiscard]] std::expected<void, common::audio::LiveInputError>
+    [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
     onInputCalibrationMeasurementStarted();
     void onInputCalibrationMeasurementCancelled();
-    [[nodiscard]] std::expected<void, common::audio::LiveInputError> onInputCalibrationSucceeded(
-        double gain_db);
-    [[nodiscard]] std::expected<void, common::audio::LiveInputError> onInputCalibrationManuallySet(
-        double gain_db);
+    [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
+    onInputCalibrationSucceeded(double gain_db);
+    [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
+    onInputCalibrationManuallySet(double gain_db);
     void onInputCalibrationDismissed();
     void onOutputGainPreviewChanged(double gain_db);
     void onOutputGainChanged(double gain_db);
@@ -359,36 +358,14 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void detachView();
     void restoreAudioDeviceState();
     void persistAudioDeviceState();
-    void selectInputCalibrationForCurrentRoute();
-    void saveActiveInputCalibration();
     void recordSettingsResultBestEffort(
         std::expected<void, EditorSettingsError> result, std::string_view context);
     void recordAudioConfigResultBestEffort(
         std::expected<void, common::audio::AudioConfigError> result, std::string_view context);
-    void executeInputCalibrationEffects(
-        const common::audio::InputCalibrationWorkflow::Effects& effects);
-    [[nodiscard]] common::audio::InputCalibrationWorkflow::Context inputCalibrationContext() const;
-    [[nodiscard]] std::optional<common::audio::InputDeviceIdentity> currentInputDeviceIdentity()
-        const;
-    void applyLiveInputGate();
-    // Snapshot of live-input routing values used to roll back failed calibration setup. This is a
-    // backend (live-input port) concern owned by the controller, not the headless workflow.
-    struct InputCalibrationRouteState
-    {
-        common::audio::Gain input_gain;
-        bool live_input_monitoring_enabled{false};
-        bool calibration_input_monitoring_enabled{false};
-    };
-    [[nodiscard]] InputCalibrationRouteState currentInputCalibrationRouteState() const;
-    void restoreInputCalibrationRouteStateBestEffort(const InputCalibrationRouteState& route_state);
+    // Builds the two-bool session context the shared live-input monitor gate evaluates; the monitor
+    // samples the current input route identity itself.
+    [[nodiscard]] common::audio::LiveInputMonitoringContext monitoringContext() const;
     void clearActiveArrangementBestEffort(std::string_view context);
-    bool setLiveInputMonitoringBestEffort(bool enabled, std::string_view context);
-    bool setCalibrationInputMonitoringBestEffort(bool enabled, std::string_view context);
-    bool setInputGainBestEffort(common::audio::Gain gain, std::string_view context);
-    [[nodiscard]] std::expected<void, common::audio::LiveInputError> commitInputCalibration(
-        double gain_db, const std::optional<common::audio::InputDeviceIdentity>& expected_identity);
-    [[nodiscard]] std::expected<void, common::audio::LiveInputError>
-    restoreCalibrationMeasurementState();
     void updateView();
     void reportError(const std::string& message);
 
@@ -456,9 +433,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // Tone parameter automation port used to read and edit tone-chain plugin curves.
     common::audio::IToneAutomation& m_tone_automation;
-
-    // Live input port used to apply app-local calibration and gate monitoring.
-    common::audio::ILiveInput& m_live_input;
 
     // Song aggregate and selected arrangement state currently loaded in the editor.
     common::core::Session m_session;
@@ -572,9 +546,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // True only after arrangement audio and the live rig restore have both committed.
     bool m_project_audio_ready{false};
 
-    // Headless calibration workflow. The controller executes ports, but calibration decisions and
-    // view projection live here.
-    common::audio::InputCalibrationWorkflow m_input_calibration;
+    // Shared calibrate-first live-input monitoring service. The controller drives it at lifecycle
+    // edges (refresh/applyGate/disableMonitoring) and delegates calibration to it; the service owns
+    // the pure calibration workflow and the ILiveInput port driving that used to live here.
+    common::audio::LiveInputMonitor& m_live_input_monitor;
 
     // Browser catalog and selection state for adding known plugins.
     PluginCatalogWorkflow m_plugin_catalog;

@@ -11,7 +11,7 @@
 #include <functional>
 #include <optional>
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
-#include <rock_hero/common/audio/input/live_input_error.h>
+#include <rock_hero/common/audio/input/live_input_monitor_error.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/editor/core/controller/i_editor_controller.h>
@@ -396,7 +396,7 @@ public:
     \brief Records calibration measurement setup through the controller contract.
     \return Always empty success.
     */
-    [[nodiscard]] std::expected<void, common::audio::LiveInputError>
+    [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
     onInputCalibrationMeasurementStarted() override
     {
         input_calibration_measurement_start_count += 1;
@@ -414,8 +414,8 @@ public:
     \param gain_db Calibration gain selected by automatic measurement.
     \return Always empty success.
     */
-    [[nodiscard]] std::expected<void, common::audio::LiveInputError> onInputCalibrationSucceeded(
-        double gain_db) override
+    [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
+    onInputCalibrationSucceeded(double gain_db) override
     {
         last_input_calibration_gain_db = gain_db;
         input_calibration_success_count += 1;
@@ -427,8 +427,8 @@ public:
     \param gain_db Calibration gain selected by the user.
     \return Always empty success.
     */
-    [[nodiscard]] std::expected<void, common::audio::LiveInputError> onInputCalibrationManuallySet(
-        double gain_db) override
+    [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
+    onInputCalibrationManuallySet(double gain_db) override
     {
         last_input_calibration_gain_db = gain_db;
         input_calibration_manual_set_count += 1;

@@ -640,9 +640,8 @@ EditorController::EditorController(
     : m_impl(
           std::make_unique<Impl>(
               audio_ports.transport, audio_ports.song_audio, audio_ports.audio_devices,
-              audio_ports.plugin_host, audio_ports.live_rig, audio_ports.tone_automation,
-              audio_ports.live_input, services, std::move(exit_function),
-              std::move(project_operations)))
+              audio_ports.plugin_host, audio_ports.live_rig, audio_ports.tone_automation, services,
+              std::move(exit_function), std::move(project_operations)))
 {}
 
 // Releases the pimpl after the public controller's listener callbacks can no longer be invoked.
@@ -901,7 +900,7 @@ void EditorController::onInputCalibrationRequested()
     m_impl->onInputCalibrationRequested();
 }
 
-std::expected<void, common::audio::LiveInputError> EditorController::
+std::expected<void, common::audio::LiveInputMonitorError> EditorController::
     onInputCalibrationMeasurementStarted()
 {
     return m_impl->onInputCalibrationMeasurementStarted();
@@ -912,14 +911,14 @@ void EditorController::onInputCalibrationMeasurementCancelled()
     m_impl->onInputCalibrationMeasurementCancelled();
 }
 
-std::expected<void, common::audio::LiveInputError> EditorController::onInputCalibrationSucceeded(
-    double gain_db)
+std::expected<void, common::audio::LiveInputMonitorError> EditorController::
+    onInputCalibrationSucceeded(double gain_db)
 {
     return m_impl->onInputCalibrationSucceeded(gain_db);
 }
 
-std::expected<void, common::audio::LiveInputError> EditorController::onInputCalibrationManuallySet(
-    double gain_db)
+std::expected<void, common::audio::LiveInputMonitorError> EditorController::
+    onInputCalibrationManuallySet(double gain_db)
 {
     return m_impl->onInputCalibrationManuallySet(gain_db);
 }
@@ -962,8 +961,8 @@ EditorController::Impl::Impl(
     common::audio::ITransport& transport, common::audio::ISongAudio& song_audio,
     common::audio::IAudioDeviceConfiguration& audio_devices,
     common::audio::IPluginHost& plugin_host, common::audio::ILiveRig& live_rig,
-    common::audio::IToneAutomation& tone_automation, common::audio::ILiveInput& live_input,
-    EditorController::Services services, EditorController::ExitFunction exit_function,
+    common::audio::IToneAutomation& tone_automation, EditorController::Services services,
+    EditorController::ExitFunction exit_function,
     EditorController::ProjectOperations project_operations)
     : m_transport(transport)
     , m_song_audio(song_audio)
@@ -971,7 +970,6 @@ EditorController::Impl::Impl(
     , m_plugin_host(plugin_host)
     , m_live_rig(live_rig)
     , m_tone_automation(tone_automation)
-    , m_live_input(live_input)
     , m_open_function(
           project_operations.open_function ? std::move(project_operations.open_function)
                                            : EditorController::OpenFunction{defaultOpen})
@@ -991,6 +989,7 @@ EditorController::Impl::Impl(
           exit_function ? std::move(exit_function) : EditorController::ExitFunction{defaultExit})
     , m_settings(services.settings)
     , m_audio_config_store(services.audio_config_store)
+    , m_live_input_monitor(services.live_input_monitor)
     , m_busy(services.message_thread_scheduler, [this] { updateView(); })
     , m_task_runner(services.task_runner)
     , m_transport_listener(transport, *this)
@@ -1051,8 +1050,7 @@ EditorController::Impl::Impl(
     m_audio_device_listener = std::make_unique<common::audio::ScopedListener<
         common::audio::IAudioDeviceConfiguration,
         common::audio::IAudioDeviceConfiguration::Listener>>(m_audio_devices, self_as_listener);
-    selectInputCalibrationForCurrentRoute();
-    applyLiveInputGate();
+    static_cast<void>(m_live_input_monitor.refresh(monitoringContext()));
     m_last_state = deriveViewState();
 }
 
@@ -1407,7 +1405,7 @@ void EditorController::Impl::onOpenPluginRequested(std::string instance_id)
 void EditorController::Impl::onAudioDeviceChangeRequested(
     std::function<void()> change_audio_device, std::function<void()> after_busy_cleared)
 {
-    if (!change_audio_device || m_input_calibration.promptVisible())
+    if (!change_audio_device || m_live_input_monitor.promptVisible())
     {
         if (after_busy_cleared)
         {
@@ -1426,8 +1424,7 @@ void EditorController::Impl::onAudioDeviceChangeRequested(
 void EditorController::Impl::onAudioDeviceConfigurationChanged()
 {
     persistAudioDeviceState();
-    selectInputCalibrationForCurrentRoute();
-    applyLiveInputGate();
+    static_cast<void>(m_live_input_monitor.refresh(monitoringContext()));
     updateView();
 }
 
@@ -1435,7 +1432,7 @@ void EditorController::Impl::onAudioDeviceConfigurationChanged()
 // Refuses while the calibration prompt is up so the two modal flows never overlap.
 bool EditorController::Impl::onAudioDeviceSettingsOpenRequested()
 {
-    if (m_input_calibration.promptVisible())
+    if (m_live_input_monitor.promptVisible())
     {
         return false;
     }
@@ -1445,7 +1442,7 @@ bool EditorController::Impl::onAudioDeviceSettingsOpenRequested()
         m_transport.pause();
     }
 
-    executeInputCalibrationEffects(m_input_calibration.openAudioDeviceSettings());
+    m_live_input_monitor.openAudioDeviceSettings();
     updateView();
     return true;
 }
@@ -1453,9 +1450,7 @@ bool EditorController::Impl::onAudioDeviceSettingsOpenRequested()
 // Re-applies the route gate after settings closes or restores its previous route.
 void EditorController::Impl::onAudioDeviceSettingsClosed()
 {
-    selectInputCalibrationForCurrentRoute();
-    m_input_calibration.closeAudioDeviceSettings();
-    applyLiveInputGate();
+    static_cast<void>(m_live_input_monitor.closeAudioDeviceSettings(monitoringContext()));
     updateView();
 }
 
@@ -1804,7 +1799,7 @@ void EditorController::Impl::performActionImpl(EditorAction::SetGridNoteValue ac
 ActionConditions EditorController::Impl::currentActionConditions() const
 {
     const InputCalibrationViewSlice input_calibration =
-        makeInputCalibrationViewState(m_input_calibration, inputCalibrationContext());
+        makeInputCalibrationViewState(m_live_input_monitor, monitoringContext());
 
     return currentActionConditions(input_calibration, m_transport.state());
 }
@@ -1951,7 +1946,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     const common::audio::TransportState transport_state = m_transport.state();
     const common::core::TimeRange timeline_range = session().timeline();
     const InputCalibrationViewSlice input_calibration =
-        makeInputCalibrationViewState(m_input_calibration, inputCalibrationContext());
+        makeInputCalibrationViewState(m_live_input_monitor, monitoringContext());
     const ActionConditions action_conditions =
         currentActionConditions(input_calibration, transport_state);
 
@@ -2118,7 +2113,7 @@ void EditorController::Impl::persistAudioDeviceState()
             m_audio_config_store.setActiveDeviceRoute(
                 common::audio::ActiveDeviceRoute{
                     .serialized_state = std::move(*serialized_state),
-                    .identity = currentInputDeviceIdentity(),
+                    .identity = m_audio_devices.currentInputDeviceIdentity(),
                 }),
             "persist serialized audio-device state");
     }

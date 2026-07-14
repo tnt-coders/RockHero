@@ -726,9 +726,11 @@ TEST_CASE(
     FakeLiveRig live_rig;
     live_rig.next_load_result.plugins.clear();
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),

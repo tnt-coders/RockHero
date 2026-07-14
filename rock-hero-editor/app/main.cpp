@@ -4,6 +4,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <rock_hero/common/audio/engine/engine.h>
+#include <rock_hero/common/audio/input/live_input_monitor.h>
 #include <rock_hero/common/core/shared/application_identity.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/editor/core/settings/editor_audio_settings_migration.h>
@@ -123,6 +124,11 @@ public:
         rock_hero::editor::core::migrateEditorAudioSettings(
             *m_editor_settings, m_editor_settings->audioConfigStore());
 
+        // The engine implements both ILiveInput and IAudioDeviceConfiguration; the store is the
+        // swappable IAudioConfigStore& (plan 48 later substitutes an effective-source facade here).
+        m_live_input_monitor = std::make_unique<rock_hero::common::audio::LiveInputMonitor>(
+            *m_audio_engine, *m_audio_engine, m_editor_settings->audioConfigStore());
+
         auto editor = std::make_unique<rock_hero::editor::ui::Editor>(
             makeEditorAudioPorts(*m_audio_engine),
             rock_hero::editor::ui::Editor::Services{
@@ -130,6 +136,7 @@ public:
                 .task_runner = *m_editor_task_runner,
                 .message_thread_scheduler = *m_message_thread_scheduler,
                 .audio_config_store = m_editor_settings->audioConfigStore(),
+                .live_input_monitor = *m_live_input_monitor,
             },
             &juce::JUCEApplicationBase::quit);
 
@@ -144,6 +151,7 @@ public:
     void shutdown() override
     {
         m_main_window.reset();
+        m_live_input_monitor.reset();
         m_message_thread_scheduler.reset();
         m_editor_task_runner.reset();
         m_editor_settings.reset();
@@ -180,6 +188,11 @@ private:
 
     // Owns app-local editor settings persistence used by controller restore policy.
     std::unique_ptr<rock_hero::editor::core::EditorSettings> m_editor_settings;
+
+    // Owns the shared calibrate-first live-input monitoring service the controller drives. Composed
+    // over the engine's live-input/device ports and the editor's own audio-config store, and
+    // released before the settings and engine it references during shutdown.
+    std::unique_ptr<rock_hero::common::audio::LiveInputMonitor> m_live_input_monitor;
 
     // Owns the JUCE-backed editor task runner used for background project IO. Outlives the
     // editor so the controller's task_runner pointer remains valid for the editor's lifetime.
