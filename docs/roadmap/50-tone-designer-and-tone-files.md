@@ -15,7 +15,7 @@ Make tones authorable and portable independent of any project:
    and makes "plug in, hear guitar" the floor the whole app stands on. The timeline viewport keeps
    its existing "No Project Loaded" message for now — this plan activates the signal chain panel,
    not a new fullscreen designer layout.
-2. **Standalone tone files (`.rocktone`)** — a portable single-file container carrying exactly one
+2. **Standalone tone files (`.tone`)** — a portable single-file container carrying exactly one
    rig (plugin chain + full plugin state + output gain), no automation, no identity. The designer
    opens/saves them as documents; a project imports/exports them as copies.
 
@@ -117,9 +117,11 @@ principle: **prompts follow the document; undo follows the session.**
   prompt (editor_view.cpp:1194), not "Don't Save".
 - **File dialog defaults**: choosers start at the persisted last-used tone directory (new
   app-wide `IEditorSettings` accessor pair), falling back to the user home directory like every
-  existing chooser; save choosers prefill `<tone name>.rocktone` (designer: document name or
+  existing chooser; save choosers prefill `<tone name>.tone` (designer: document name or
   "Untitled"; project: the active tone's catalog name) and warn on overwrite.
-- **Extension**: `.rocktone` (family resemblance to `.rock`/`.rhp`). Container: ZIP with the
+- **Extension**: `.tone` (plain and self-describing; originally `.rocktone`, simplified
+  2026-07-13 by user decision — the file is identified by its contents, not its extension, and
+  no legacy files exist to honor). Container: ZIP with the
   in-package tone layout (`tone.json` + `state/*.tracktion-plugin`) so one document format
   serves packages and files. `tone.json`'s existing formatVersion field rides along; no
   back-compat machinery (project policy: formats just change).
@@ -240,7 +242,7 @@ exploration passes (session/engine lifecycle, tone persistence, undo/dirty/UI).
 
 ## Phased implementation
 
-### Phase 1 — `.rocktone` container in common/audio (headless)
+### Phase 1 — `.tone` container in common/audio (headless)
 
 **Status: COMPLETE 2026-07-13.** As built: `src/live_rig/tone_file.{h,cpp}` (private header — no
 new public surface yet, per the smaller-surface bias below); `parseToneDocumentJson` and
@@ -274,7 +276,7 @@ changes.
   - New error domain `ToneFileErrorCode`/`ToneFileError` per coding conventions (codes for:
     not-a-tone-file/unreadable archive, malformed document, missing/escaping sidecar ref,
     unwritable destination).
-  - Extension constant (`.rocktone`) exposed alongside the read/write functions for chooser
+  - Extension constant (`.tone`) exposed alongside the read/write functions for chooser
     filters.
 
 Public-header impact: one new public header
@@ -473,7 +475,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
 **Status: COMPLETE 2026-07-13.** As built: the signal-chain header shows
 "Tone Designer - <document>[*]" with a right-aligned New/Open…/Save/Save As… strip visible only
 in designer mode (`SignalChainView::setToneDesignerState`, forwarded through the panel);
-`EditorView` implements the four strip intents, owns the `*.rocktone` choosers (open, and save
+`EditorView` implements the four strip intents, owns the `*.tone` choosers (open, and save
 prefilled with the document name + overwrite warning, starting at the persisted tone directory
 carried in `ToneDesignerViewState::chooser_directory`), routes untitled Save through Save As,
 gives the unsaved-changes prompt tone-flavored copy keyed on the designer slice, and routes the
@@ -489,7 +491,7 @@ Scope: presentation only over Phase 3's view state.
   Project mode shows **Import Tone… / Export Tone…** instead (wired in Phase 5; the buttons land
   here behind the view-state mode so the layout is done once).
 - **Choosers**: async `juce::FileChooser` per the established `m_file_chooser` + `SafePointer`
-  pattern, filter `*.rocktone`, initial directory from the settings accessor (fallback user
+  pattern, filter `*.tone`, initial directory from the settings accessor (fallback user
   home), save prefill per the decision record, `warnAboutOverwriting` on saves; chosen
   directories persist back through the settings accessor.
 - **Prompts/dialogs**: tone Save/Discard/Cancel via `showThemedQuestionBox` (same wording and
@@ -527,7 +529,7 @@ restore via `applyToneAutomationModel` + `rewriteDerivedToneCurve`. Identity map
 upsert-only: import mints fresh durable ids for the new chain and never erases the old entries,
 so undo's revived instance ids find their associations intact. Catalog ref, tone name, and
 regions never change. UI: Import Tone…/Export Tone… in the panel header (project mode only,
-never alongside the designer strip), `*.rocktone` choosers (export prefilled with the active
+never alongside the designer strip), `*.tone` choosers (export prefilled with the active
 tone's catalog name), themed Import/Cancel confirmation naming the dropped parameter count.
 Three controller tests (pure-read export; promptless automation-free import + undo; confirm
 flow with Cancel and Import over a calibrated project harness); all suites green.
@@ -583,7 +585,7 @@ pre-commit run --all-files
 (clang-tidy at user trigger per standing policy.)
 
 Acceptance: with no project open the editor is a live rig — guitar audible, chain editable,
-undoable; tones round-trip through `.rocktone` files with document semantics in the designer
+undoable; tones round-trip through `.tone` files with document semantics in the designer
 (New/Open/Save/Save As, dirty tracking, boundary prompts) and copy semantics in projects
 (Import/Export over the active tone, catalog identity stable, automation dropped only behind the
 confirm and restored by undo); opens/imports are transactional with collect-all missing-plugin
@@ -594,7 +596,7 @@ shows "No Project Loaded".
 
 - **Game reuse**: the container + `ILiveRig` surface land in `common/audio`, so the game's
   between-songs noodle rig, 21-Q1's pinned "play with default tones" enhancement, and 26-Q5's
-  starter asset can consume `.rocktone` files without new format work.
+  starter asset can consume `.tone` files without new format work.
 - **Designer layout**: the "whole window becomes a tone-designer surface" idea is deliberately
   deferred; this plan keeps the viewport message. If/when a designer layout lands, the document
   model here carries over unchanged.

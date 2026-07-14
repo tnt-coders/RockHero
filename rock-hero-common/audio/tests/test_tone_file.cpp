@@ -123,7 +123,7 @@ void writeTestArchive(
 TEST_CASE("Tone file round-trips document records and plugin state", "[audio][tone-file]")
 {
     const ScopedTempDirectory temp;
-    const std::filesystem::path tone_file = temp.path / "round_trip.rocktone";
+    const std::filesystem::path tone_file = temp.path / "round_trip.tone";
 
     const ToneDocument document = makeTestDocument();
     const std::vector<juce::ValueTree> states{makeTestState("amp"), makeTestState("cab")};
@@ -162,7 +162,7 @@ TEST_CASE("Tone file round-trips document records and plugin state", "[audio][to
 TEST_CASE("Tone file write strips automation curves and tempo remap flags", "[audio][tone-file]")
 {
     const ScopedTempDirectory temp;
-    const std::filesystem::path tone_file = temp.path / "hygiene.rocktone";
+    const std::filesystem::path tone_file = temp.path / "hygiene.tone";
 
     ToneDocument document = makeTestDocument();
     document.chain.resize(1);
@@ -190,7 +190,7 @@ TEST_CASE("Tone file write strips automation curves and tempo remap flags", "[au
 TEST_CASE("Tone file read strips smuggled automation and stable ids", "[audio][tone-file]")
 {
     const ScopedTempDirectory temp;
-    const std::filesystem::path tone_file = temp.path / "smuggled.rocktone";
+    const std::filesystem::path tone_file = temp.path / "smuggled.tone";
 
     // Hand-build an archive whose sidecar carries a derived automation curve and whose document
     // carries a stable id — the shapes a hand-edited file could try to smuggle past capture.
@@ -222,11 +222,11 @@ TEST_CASE("Tone file read fails cleanly for missing and non-archive files", "[au
 {
     const ScopedTempDirectory temp;
 
-    const auto missing = readToneFile(temp.path / "does_not_exist.rocktone");
+    const auto missing = readToneFile(temp.path / "does_not_exist.tone");
     REQUIRE_FALSE(missing.has_value());
     CHECK(missing.error().code == LiveRigErrorCode::CouldNotReadToneFile);
 
-    const std::filesystem::path junk_file = temp.path / "junk.rocktone";
+    const std::filesystem::path junk_file = temp.path / "junk.tone";
     {
         std::ofstream junk{junk_file, std::ios::binary};
         junk << "this is not a zip archive";
@@ -239,7 +239,7 @@ TEST_CASE("Tone file read fails cleanly for missing and non-archive files", "[au
 TEST_CASE("Tone file read rejects archives without a tone document", "[audio][tone-file]")
 {
     const ScopedTempDirectory temp;
-    const std::filesystem::path tone_file = temp.path / "no_document.rocktone";
+    const std::filesystem::path tone_file = temp.path / "no_document.tone";
     writeTestArchive(tone_file, {{"other.txt", "not a tone document"}});
 
     const auto payload = readToneFile(tone_file);
@@ -251,13 +251,13 @@ TEST_CASE("Tone file read rejects malformed and unsupported documents", "[audio]
 {
     const ScopedTempDirectory temp;
 
-    const std::filesystem::path unparsable_file = temp.path / "unparsable.rocktone";
+    const std::filesystem::path unparsable_file = temp.path / "unparsable.tone";
     writeTestArchive(unparsable_file, {{"tone.json", "this is not json"}});
     const auto unparsable = readToneFile(unparsable_file);
     REQUIRE_FALSE(unparsable.has_value());
     CHECK(unparsable.error().code == LiveRigErrorCode::InvalidToneFile);
 
-    const std::filesystem::path wrong_version_file = temp.path / "wrong_version.rocktone";
+    const std::filesystem::path wrong_version_file = temp.path / "wrong_version.tone";
     writeTestArchive(wrong_version_file, {{"tone.json", R"({"formatVersion": 2, "slots": []})"}});
     const auto wrong_version = readToneFile(wrong_version_file);
     REQUIRE_FALSE(wrong_version.has_value());
@@ -267,7 +267,7 @@ TEST_CASE("Tone file read rejects malformed and unsupported documents", "[audio]
 TEST_CASE("Tone file read rejects sidecar refs outside the state directory", "[audio][tone-file]")
 {
     const ScopedTempDirectory temp;
-    const std::filesystem::path tone_file = temp.path / "escaping_ref.rocktone";
+    const std::filesystem::path tone_file = temp.path / "escaping_ref.tone";
 
     ToneDocument document = makeTestDocument();
     document.chain.resize(1);
@@ -283,7 +283,7 @@ TEST_CASE("Tone file read rejects sidecar refs outside the state directory", "[a
 TEST_CASE("Tone file read reports missing plugin state entries", "[audio][tone-file]")
 {
     const ScopedTempDirectory temp;
-    const std::filesystem::path tone_file = temp.path / "missing_state.rocktone";
+    const std::filesystem::path tone_file = temp.path / "missing_state.tone";
 
     ToneDocument document = makeTestDocument();
     document.chain.resize(1);
@@ -302,7 +302,7 @@ TEST_CASE("Tone file write rejects mismatched chain and state counts", "[audio][
     const ToneDocument document = makeTestDocument();
     const std::vector<juce::ValueTree> states{makeTestState("only-one")};
 
-    const auto write_result = writeToneFile(temp.path / "mismatch.rocktone", document, states);
+    const auto write_result = writeToneFile(temp.path / "mismatch.tone", document, states);
     REQUIRE_FALSE(write_result.has_value());
     CHECK(write_result.error().code == LiveRigErrorCode::InvalidRequest);
 }

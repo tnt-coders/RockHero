@@ -1201,7 +1201,7 @@ TEST_CASE("Engine exports the audible tone to a tone file", "[audio][engine][int
     EngineTestHarness harness;
     const TemporarySongDirectory scratch_directory;
     ILiveRig& live_rig = harness.engine;
-    const std::filesystem::path tone_file = scratch_directory.path() / "exported.rocktone";
+    const std::filesystem::path tone_file = scratch_directory.path() / "exported.tone";
 
     const auto refused = live_rig.exportAudibleTone(
         ToneFileExportRequest{
@@ -1266,7 +1266,7 @@ TEST_CASE("Engine replaces the audible tone from a tone file", "[audio][engine][
     EngineTestHarness harness;
     const TemporarySongDirectory scratch_directory;
     ILiveRig& live_rig = harness.engine;
-    const std::filesystem::path tone_file = scratch_directory.path() / "replacement.rocktone";
+    const std::filesystem::path tone_file = scratch_directory.path() / "replacement.tone";
 
     // An empty-chain tone file carrying only an authored gain exercises the full transactional
     // read + swap path without needing an installed plugin.
@@ -1314,7 +1314,7 @@ TEST_CASE("Engine replaces the audible tone from a tone file", "[audio][engine][
     replace_result.reset();
     live_rig.replaceAudibleToneFromFile(
         ToneFileReplaceRequest{
-            .tone_file_path = scratch_directory.path() / "missing.rocktone",
+            .tone_file_path = scratch_directory.path() / "missing.tone",
             .progress_callback = {},
             .yield_callback = [](const auto& next) { next(); },
         },
@@ -1333,7 +1333,7 @@ TEST_CASE("Engine tone-file replace refuses missing plugins", "[audio][engine][i
     EngineTestHarness harness;
     const TemporarySongDirectory scratch_directory;
     ILiveRig& live_rig = harness.engine;
-    const std::filesystem::path tone_file = scratch_directory.path() / "missing_amp.rocktone";
+    const std::filesystem::path tone_file = scratch_directory.path() / "missing_amp.tone";
 
     PluginIdentity missing_identity;
     missing_identity.format_name = "VST3";

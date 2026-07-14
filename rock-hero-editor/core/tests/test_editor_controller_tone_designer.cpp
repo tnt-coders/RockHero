@@ -129,13 +129,13 @@ TEST_CASE("Tone designer save-as cleans and associates the document", "[core][ed
     harness.dirtyDocument(-3.0);
     CHECK(harness.state().tone_designer.dirty);
 
-    harness.controller.onSaveToneAsRequested(std::filesystem::path{"leads/Crunch.rocktone"});
+    harness.controller.onSaveToneAsRequested(std::filesystem::path{"leads/Crunch.tone"});
 
     CHECK(harness.live_rig.export_call_count == 1);
     REQUIRE(harness.live_rig.last_export_request.has_value());
     CHECK(
         harness.live_rig.last_export_request->tone_file_path ==
-        std::filesystem::path{"leads/Crunch.rocktone"});
+        std::filesystem::path{"leads/Crunch.tone"});
     const EditorViewState& state = harness.state();
     CHECK_FALSE(state.tone_designer.dirty);
     CHECK(state.tone_designer.has_destination);
@@ -152,15 +152,13 @@ TEST_CASE("Tone designer save requires an association", "[core][editor-controlle
     harness.controller.onSaveToneRequested();
     CHECK(harness.live_rig.export_call_count == 0);
 
-    harness.controller.onSaveToneAsRequested(std::filesystem::path{"A.rocktone"});
+    harness.controller.onSaveToneAsRequested(std::filesystem::path{"A.tone"});
     harness.dirtyDocument(-6.0);
     harness.controller.onSaveToneRequested();
 
     CHECK(harness.live_rig.export_call_count == 2);
     REQUIRE(harness.live_rig.last_export_request.has_value());
-    CHECK(
-        harness.live_rig.last_export_request->tone_file_path ==
-        std::filesystem::path{"A.rocktone"});
+    CHECK(harness.live_rig.last_export_request->tone_file_path == std::filesystem::path{"A.tone"});
     CHECK_FALSE(harness.state().tone_designer.dirty);
 }
 
@@ -171,7 +169,7 @@ TEST_CASE("Tone designer save pushes no undo entry", "[core][editor-controller]"
     harness.dirtyDocument(-3.0);
     const bool undo_before_save = harness.state().undo_enabled;
 
-    harness.controller.onSaveToneAsRequested(std::filesystem::path{"A.rocktone"});
+    harness.controller.onSaveToneAsRequested(std::filesystem::path{"A.tone"});
 
     const EditorViewState& state = harness.state();
     CHECK(undo_before_save);
@@ -184,12 +182,12 @@ TEST_CASE("Tone designer open replaces the document undoably", "[core][editor-co
 {
     ToneDesignerHarness harness;
 
-    harness.controller.onOpenToneFileRequested(std::filesystem::path{"riffs/Lead.rocktone"});
+    harness.controller.onOpenToneFileRequested(std::filesystem::path{"riffs/Lead.tone"});
 
     CHECK(harness.live_rig.replace_call_count == 1);
     CHECK(
         harness.live_rig.last_replace_file_path ==
-        std::optional{std::filesystem::path{"riffs/Lead.rocktone"}});
+        std::optional{std::filesystem::path{"riffs/Lead.tone"}});
     const EditorViewState& opened = harness.state();
     CHECK(opened.tone_designer.document_name == "Lead");
     CHECK(opened.tone_designer.has_destination);
@@ -212,10 +210,10 @@ TEST_CASE("Undo across a tone open lands clean on the saved file", "[core][edito
 {
     ToneDesignerHarness harness;
     harness.dirtyDocument(-3.0);
-    harness.controller.onSaveToneAsRequested(std::filesystem::path{"A.rocktone"});
+    harness.controller.onSaveToneAsRequested(std::filesystem::path{"A.tone"});
     REQUIRE_FALSE(harness.state().tone_designer.dirty);
 
-    harness.controller.onOpenToneFileRequested(std::filesystem::path{"B.rocktone"});
+    harness.controller.onOpenToneFileRequested(std::filesystem::path{"B.tone"});
     REQUIRE(harness.state().tone_designer.document_name == "B");
     REQUIRE_FALSE(harness.state().tone_designer.dirty);
 
@@ -238,7 +236,7 @@ TEST_CASE("Tone designer open failure leaves the document intact", "[core][edito
         common::audio::LiveRigErrorCode::InvalidToneFile, "File is not a tone file"
     };
 
-    harness.controller.onOpenToneFileRequested(std::filesystem::path{"broken.rocktone"});
+    harness.controller.onOpenToneFileRequested(std::filesystem::path{"broken.tone"});
 
     const EditorViewState& state = harness.state();
     CHECK(state.tone_designer.document_name == "Untitled");
@@ -252,7 +250,7 @@ TEST_CASE("Tone designer open failure leaves the document intact", "[core][edito
 TEST_CASE("Tone designer new resets to untitled undoably", "[core][editor-controller]")
 {
     ToneDesignerHarness harness;
-    harness.controller.onSaveToneAsRequested(std::filesystem::path{"A.rocktone"});
+    harness.controller.onSaveToneAsRequested(std::filesystem::path{"A.tone"});
     REQUIRE(harness.state().tone_designer.document_name == "A");
 
     harness.controller.onNewToneRequested();
@@ -296,7 +294,7 @@ TEST_CASE("Dirty tone designer saves before replaying a project open", "[core][e
 {
     ToneDesignerHarness harness;
     harness.dirtyDocument(-3.0);
-    harness.controller.onSaveToneAsRequested(std::filesystem::path{"A.rocktone"});
+    harness.controller.onSaveToneAsRequested(std::filesystem::path{"A.tone"});
     harness.dirtyDocument(-6.0);
     REQUIRE(harness.state().tone_designer.dirty);
     harness.project_services.next_song =
@@ -332,7 +330,7 @@ TEST_CASE("Untitled dirty designer replays after the Save As chooser", "[core][e
     REQUIRE(choosing.save_as_prompt.has_value());
     CHECK(choosing.save_as_prompt->prompted_action == EditorActionId::OpenProject);
 
-    harness.controller.onSaveToneAsRequested(std::filesystem::path{"A.rocktone"});
+    harness.controller.onSaveToneAsRequested(std::filesystem::path{"A.tone"});
 
     CHECK(harness.live_rig.export_call_count == 1);
     const EditorViewState& opened = harness.state();
@@ -389,13 +387,12 @@ TEST_CASE("Project tone export is a pure read", "[core][editor-controller]")
         harness.audio,
         std::filesystem::path{"song.wav"}));
 
-    harness.controller.onExportToneFileRequested(std::filesystem::path{"Lead.rocktone"});
+    harness.controller.onExportToneFileRequested(std::filesystem::path{"Lead.tone"});
 
     CHECK(harness.live_rig.export_call_count == 1);
     REQUIRE(harness.live_rig.last_export_request.has_value());
     CHECK(
-        harness.live_rig.last_export_request->tone_file_path ==
-        std::filesystem::path{"Lead.rocktone"});
+        harness.live_rig.last_export_request->tone_file_path == std::filesystem::path{"Lead.tone"});
     const EditorViewState& state = harness.state();
     CHECK_FALSE(state.undo_enabled);
     CHECK_FALSE(state.unsaved_changes_prompt.has_value());
@@ -413,13 +410,13 @@ TEST_CASE("Project tone import without automation skips the prompt", "[core][edi
         harness.audio_devices,
         std::filesystem::path{"song.wav"}));
 
-    harness.controller.onImportToneFileRequested(std::filesystem::path{"riffs/Lead.rocktone"});
+    harness.controller.onImportToneFileRequested(std::filesystem::path{"riffs/Lead.tone"});
 
     CHECK_FALSE(harness.state().tone_import_prompt.has_value());
     CHECK(harness.live_rig.replace_call_count == 1);
     CHECK(
         harness.live_rig.last_replace_file_path ==
-        std::optional{std::filesystem::path{"riffs/Lead.rocktone"}});
+        std::optional{std::filesystem::path{"riffs/Lead.tone"}});
     CHECK(harness.state().undo_enabled);
 
     harness.controller.onUndoRequested();
@@ -475,7 +472,7 @@ TEST_CASE("Project tone import confirms before dropping automation", "[core][edi
     REQUIRE(harness.controller.onInputCalibrationManuallySet(0.0).has_value());
     harness.controller.onInputCalibrationDismissed();
 
-    harness.controller.onImportToneFileRequested(std::filesystem::path{"B.rocktone"});
+    harness.controller.onImportToneFileRequested(std::filesystem::path{"B.tone"});
 
     const EditorViewState& prompted = harness.state();
     REQUIRE(prompted.tone_import_prompt.has_value());
@@ -486,7 +483,7 @@ TEST_CASE("Project tone import confirms before dropping automation", "[core][edi
     CHECK_FALSE(harness.state().tone_import_prompt.has_value());
     CHECK(harness.live_rig.replace_call_count == 0);
 
-    harness.controller.onImportToneFileRequested(std::filesystem::path{"B.rocktone"});
+    harness.controller.onImportToneFileRequested(std::filesystem::path{"B.tone"});
     REQUIRE(harness.state().tone_import_prompt.has_value());
     harness.controller.onToneImportDecision(ToneImportDecision::Import);
 
@@ -500,7 +497,7 @@ TEST_CASE("Dirty tone designer defers opening another tone file", "[core][editor
     ToneDesignerHarness harness;
     harness.dirtyDocument(-3.0);
 
-    harness.controller.onOpenToneFileRequested(std::filesystem::path{"B.rocktone"});
+    harness.controller.onOpenToneFileRequested(std::filesystem::path{"B.tone"});
 
     const EditorViewState& prompted = harness.state();
     REQUIRE(prompted.unsaved_changes_prompt.has_value());
