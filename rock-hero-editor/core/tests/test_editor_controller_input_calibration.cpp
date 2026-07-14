@@ -69,6 +69,38 @@ TEST_CASE(
         "Live input disabled: no audio input device selected.");
 }
 
+// Calibration is device-level, not project-level: with an input route up it is available with no
+// project loaded, and the prompt opens on request, so a fresh editor can calibrate before ever
+// opening a song.
+TEST_CASE("Input calibration is available without a loaded project", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    audio_devices.current_input_identity = makeInputDeviceIdentity();
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeEditorView view;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        controllerServices(nullEditorSettings(), store, monitor),
+        noopExitFunction()
+    };
+    controller.attachView(view);
+
+    const auto* const initial_state = stateOrNull(view.last_state);
+    REQUIRE(initial_state != nullptr);
+    CHECK(initial_state->signal_chain.input_calibrate_enabled);
+
+    controller.onInputCalibrationRequested();
+
+    const auto* const prompt_state = stateOrNull(view.last_state);
+    REQUIRE(prompt_state != nullptr);
+    CHECK(prompt_state->input_calibration_prompt.has_value());
+}
+
 // Verifies that missing calibration disables the signal chain until calibration is requested.
 TEST_CASE(
     "Missing input calibration disables live input until manually requested",
