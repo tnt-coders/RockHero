@@ -259,9 +259,9 @@ TEST_CASE("TabView draws techniques, shapes, and fret-hand positions", "[ui][tab
     CHECK(image.getPixelAt(60, 110) == juce::Colour{0xff4982fa});
     CHECK(image.getPixelAt(200, 110) == juce::Colour{0xffc785ff});
 
-    // The arpeggio start also draws the held posture's ghost head on string 5 (lane center
-    // y = 60): the pixel there is neither empty nor the bare bar color it would be without
-    // the faded head composited on top.
+    // The arpeggio start also draws the held posture's hollow ghost head on string 5 (lane
+    // center y = 60): the pixel there is neither empty nor the bare bar color it would be
+    // without the head's backing disc composited on top.
     CHECK(image.getPixelAt(200, 60).getARGB() != 0);
     CHECK(image.getPixelAt(200, 60) != juce::Colour{0xffc785ff});
 
