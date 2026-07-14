@@ -468,6 +468,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
 
 ### Phase 4 — Designer UI in editor/ui
 
+**Status: COMPLETE 2026-07-13.** As built: the signal-chain header shows
+"Tone Designer - <document>[*]" with a right-aligned New/Open…/Save/Save As… strip visible only
+in designer mode (`SignalChainView::setToneDesignerState`, forwarded through the panel);
+`EditorView` implements the four strip intents, owns the `*.rocktone` choosers (open, and save
+prefilled with the document name + overwrite warning, starting at the persisted tone directory
+carried in `ToneDesignerViewState::chooser_directory`), routes untitled Save through Save As,
+gives the unsaved-changes prompt tone-flavored copy keyed on the designer slice, and routes the
+deferred-save chooser to the tone dialog in designer mode. Import/Export buttons deliberately
+arrive with Phase 5 (their actions), rather than landing dead controls now. UI wiring test
+covers strip visibility + intent routing; all suites green.
+
 Scope: presentation only over Phase 3's view state.
 
 - **Signal-chain header controls**: the panel header (which already renders the tone name via

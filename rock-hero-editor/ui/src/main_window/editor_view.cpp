@@ -96,6 +96,17 @@ constexpr int g_track_viewport_min_height{80};
     return path;
 }
 
+// Ensures saved tone files use the Rock Hero tone extension when needed.
+[[nodiscard]] std::filesystem::path pathWithRocktoneExtension(const juce::File& file)
+{
+    std::filesystem::path path = common::core::pathFromJuceFile(file);
+    if (!path.empty() && path.extension().empty())
+    {
+        path.replace_extension(".rocktone");
+    }
+    return path;
+}
+
 // Ensures published song packages use the native Rock Hero song extension when needed.
 [[nodiscard]] std::filesystem::path pathWithRockExtension(const juce::File& file)
 {
@@ -175,9 +186,46 @@ constexpr int g_track_viewport_min_height{80};
 
 // Gives the unsaved-changes prompt enough context for the action that triggered it. Only the
 // deferrable subset reaches this switch; the post-switch return is a defensive fallback for ids the
-// controller cannot legitimately stash in a deferred slot.
-[[nodiscard]] juce::String unsavedChangesPromptMessage(core::EditorActionId action)
+// controller cannot legitimately stash in a deferred slot. When the Tone Designer's document is
+// the protected work (no project open), the copy names the tone instead of project changes.
+[[nodiscard]] juce::String unsavedChangesPromptMessage(
+    core::EditorActionId action, bool tone_document)
 {
+    if (tone_document)
+    {
+        switch (action)
+        {
+            case core::EditorActionId::OpenProject:
+            {
+                return "Save your tone before opening a project?";
+            }
+            case core::EditorActionId::RestoreProject:
+            {
+                return "Save your tone before restoring the previous project?";
+            }
+            case core::EditorActionId::ImportSong:
+            {
+                return "Save your tone before importing a project?";
+            }
+            case core::EditorActionId::ExitApplication:
+            {
+                return "Save your tone before exiting Rock Hero Editor?";
+            }
+            case core::EditorActionId::NewToneDocument:
+            {
+                return "Save your tone before starting a new one?";
+            }
+            case core::EditorActionId::OpenToneFile:
+            {
+                return "Save your tone before opening another tone file?";
+            }
+            default:
+            {
+                return "Save your tone before continuing?";
+            }
+        }
+    }
+
     switch (action)
     {
         case core::EditorActionId::CloseProject:
@@ -230,6 +278,10 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::MoveToneBoundary:
         case core::EditorActionId::CreateNewTone:
         case core::EditorActionId::SetToneAutomationPoints:
+        case core::EditorActionId::NewToneDocument:
+        case core::EditorActionId::OpenToneFile:
+        case core::EditorActionId::SaveToneFile:
+        case core::EditorActionId::SaveToneFileAs:
         {
             return "Save changes before continuing?";
         }
@@ -519,6 +571,9 @@ void EditorView::setState(const core::EditorViewState& state)
         }
     }
     m_signal_chain_panel.setToneName(std::move(active_tone_name));
+    // While the designer is active the panel header shows the tone document instead of a
+    // project catalog tone; the slice also carries the file-strip visibility.
+    m_signal_chain_panel.setToneDesignerState(m_state.tone_designer);
 
     m_cursor_overlay->setVisibleTimelineRange(m_state.visible_timeline);
     m_cursor_overlay->setGridNoteValue(m_state.grid_note_value);
@@ -1170,6 +1225,114 @@ void EditorView::showPublishChooser()
         });
 }
 
+namespace
+{
+
+// Resolves where tone-file choosers start: the last-used tone directory, else the user home.
+[[nodiscard]] juce::File toneChooserDirectory(const core::ToneDesignerViewState& state)
+{
+    if (!state.chooser_directory.empty())
+    {
+        const juce::File directory = common::core::juceFileFromPath(state.chooser_directory);
+        if (directory.isDirectory())
+        {
+            return directory;
+        }
+    }
+
+    return juce::File::getSpecialLocation(juce::File::userHomeDirectory);
+}
+
+} // namespace
+
+// Opens an asynchronous tone-file chooser and forwards accepted selections to the controller.
+void EditorView::showOpenToneChooser()
+{
+    m_file_chooser = std::make_unique<juce::FileChooser>(
+        "Open Tone", toneChooserDirectory(m_state.tone_designer), "*.rocktone");
+
+    const juce::Component::SafePointer<EditorView> safe_this{this};
+    m_file_chooser->launchAsync(
+        juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+        [safe_this](const juce::FileChooser& chooser) {
+            if (safe_this == nullptr)
+            {
+                return;
+            }
+
+            const auto file = chooser.getResult();
+            if (!file.existsAsFile())
+            {
+                return;
+            }
+
+            safe_this->m_controller.onOpenToneFileRequested(common::core::pathFromJuceFile(file));
+        });
+}
+
+// Opens an asynchronous tone-file save chooser prefilled with the current document name and
+// forwards accepted destinations to the controller.
+void EditorView::showToneSaveAsChooser(SaveAsChooserPurpose purpose)
+{
+    const juce::File initial_file =
+        toneChooserDirectory(m_state.tone_designer)
+            .getChildFile(juce::String{m_state.tone_designer.document_name} + ".rocktone");
+    m_file_chooser = std::make_unique<juce::FileChooser>("Save Tone", initial_file, "*.rocktone");
+
+    const juce::Component::SafePointer<EditorView> safe_this{this};
+    m_file_chooser->launchAsync(
+        juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles |
+            juce::FileBrowserComponent::warnAboutOverwriting,
+        [safe_this, purpose](const juce::FileChooser& chooser) {
+            if (safe_this == nullptr)
+            {
+                return;
+            }
+
+            const auto file = chooser.getResult();
+            if (file.getFullPathName().isEmpty())
+            {
+                if (purpose == SaveAsChooserPurpose::DeferredAction)
+                {
+                    safe_this->m_controller.onSaveAsCancelled();
+                }
+                return;
+            }
+
+            safe_this->m_controller.onSaveToneAsRequested(pathWithRocktoneExtension(file));
+        });
+}
+
+// Starts a fresh untitled designer document (the controller prompts for unsaved work first).
+void EditorView::onNewTonePressed()
+{
+    m_controller.onNewToneRequested();
+}
+
+// Opens the tone-file chooser; the accepted selection flows through the controller's prompt gate.
+void EditorView::onOpenToneFilePressed()
+{
+    showOpenToneChooser();
+}
+
+// Saves to the associated file, or routes an untitled document through the Save As chooser.
+void EditorView::onSaveTonePressed()
+{
+    if (m_state.tone_designer.has_destination)
+    {
+        m_controller.onSaveToneRequested();
+        return;
+    }
+
+    showToneSaveAsChooser(SaveAsChooserPurpose::UserSaveAs);
+}
+
+// Always asks for a destination, forking the document association on accept.
+void EditorView::onSaveToneAsPressed()
+{
+    showToneSaveAsChooser(SaveAsChooserPurpose::UserSaveAs);
+}
+
 // Shows each distinct unsaved-changes prompt once and reports the selected decision.
 void EditorView::presentUnsavedChangesPromptIfNeeded(
     const std::optional<core::UnsavedChangesPrompt>& prompt)
@@ -1190,7 +1353,7 @@ void EditorView::presentUnsavedChangesPromptIfNeeded(
     showThemedQuestionBox(
         this,
         "Unsaved changes",
-        unsavedChangesPromptMessage(prompt->prompted_action),
+        unsavedChangesPromptMessage(prompt->prompted_action, m_state.tone_designer.active),
         {"Save", "Discard", "Cancel"},
         [safe_this](int button_index) {
             if (safe_this == nullptr)
@@ -1237,6 +1400,13 @@ void EditorView::presentSaveAsPromptIfNeeded(const std::optional<core::SaveAsPro
     }
 
     m_last_presented_save_as_prompt = prompt;
+    // In designer mode the protective save targets the tone document, so the chooser is the tone
+    // Save As dialog rather than the project one.
+    if (m_state.tone_designer.active)
+    {
+        showToneSaveAsChooser(SaveAsChooserPurpose::DeferredAction);
+        return;
+    }
     showSaveAsChooser(SaveAsChooserPurpose::DeferredAction);
 }
 

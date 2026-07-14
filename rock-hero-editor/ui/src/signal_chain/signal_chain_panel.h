@@ -61,6 +61,12 @@ public:
     void setToneName(std::string tone_name);
 
     /*!
+    \brief Applies the Tone Designer document state to the hosted view.
+    \param state Designer document state derived by the editor controller.
+    */
+    void setToneDesignerState(const core::ToneDesignerViewState& state);
+
+    /*!
     \brief Applies live-rig post-fader meter levels.
     \param input_level Level after the input gain fader.
     \param output_level Level after the output gain fader.

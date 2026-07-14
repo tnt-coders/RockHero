@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <filesystem>
 #include <string>
 
 namespace rock_hero::editor::core
@@ -24,6 +25,9 @@ struct ToneDesignerViewState
 
     /*! \brief True when Save can overwrite an associated file; untitled routes to Save As. */
     bool has_destination{false};
+
+    /*! \brief Directory the tone-file choosers start in; empty falls back to the user home. */
+    std::filesystem::path chooser_directory;
 
     /*!
     \brief Compares two Tone Designer view states by their stored values.
