@@ -42,7 +42,9 @@ constexpr float g_min_note_height_for_text{9.0f};
 constexpr float g_shape_label_height{10.0f};
 constexpr float g_shape_rail_height{3.0f};
 constexpr double g_shape_mark_brightness{1.5};
-constexpr double g_ghost_note_darkness{0.35};
+// Half-angle in radians of the openings at the top and bottom of a ghost head's hollow ring,
+// which make it read as "( fret )" rather than a sounded note.
+constexpr float g_ghost_arc_gap{0.6f};
 
 // Thin JUCE-converting wrappers over the shared Charter-exact derivation (rock-hero-common/ui)
 // for the in-file call sites that derive from already-opaque colors.
@@ -1003,26 +1005,51 @@ void TabView::paint(juce::Graphics& g)
         drawOnsetBar(g, metrics, start_x, shapeMarkColor(true));
         for (const core::TabGhostNoteView& ghost : shape.ghost_notes)
         {
-            // A ghost head is opaque but pulled hard toward the background — dark enough to
-            // read as "held, not sounded here" while still covering the string line (earlier
-            // translucent ghosts let the line cut through the head, which read badly). The
-            // fret number dims by the same factor so the whole ghost recedes together.
+            // A ghost head is hollow at a real note's full brightness: a dark backing disc
+            // covers the string line and onset bar (translucent and dimmed heads both read
+            // badly), and the string-colored ring breaks at top and bottom so the head reads
+            // as an RS-style "( fret )" arpeggio bracket rather than a sounded note.
             const StringStyle style{metrics.baseColor(ghost.string)};
             const float center_y = metrics.laneY(ghost.string);
             const float size = metrics.note_height + 1.0f;
-            fillHeadShape(
-                g,
-                charterMultiply(style.border_inner, g_ghost_note_darkness),
-                charterMultiply(style.inner, g_ghost_note_darkness),
+            const float border = std::max(1.0f, size / 15.0f);
+
+            g.setColour(g_note_background_color);
+            g.fillEllipse(start_x - size / 2.0f, center_y - size / 2.0f, size, size);
+
+            // The stroke centerline follows the bright ring of a filled head (fillHeadShape's
+            // middle layer), so ghost and real heads share the same silhouette and brightness.
+            const float radius = (size - 3.0f * border) / 2.0f;
+            juce::Path arcs;
+            arcs.addCentredArc(
                 start_x,
                 center_y,
-                size,
-                false);
+                radius,
+                radius,
+                0.0f,
+                g_ghost_arc_gap,
+                juce::MathConstants<float>::pi - g_ghost_arc_gap,
+                true);
+            arcs.addCentredArc(
+                start_x,
+                center_y,
+                radius,
+                radius,
+                0.0f,
+                juce::MathConstants<float>::pi + g_ghost_arc_gap,
+                juce::MathConstants<float>::twoPi - g_ghost_arc_gap,
+                true);
+            g.setColour(style.border_inner);
+            g.strokePath(
+                arcs,
+                juce::PathStrokeType{
+                    border, juce::PathStrokeType::curved, juce::PathStrokeType::rounded
+                });
 
             if (metrics.draw_text)
             {
                 // The same centering box drawNoteHead uses for a plain fret number.
-                g.setColour(charterMultiply(juce::Colours::white, g_ghost_note_darkness));
+                g.setColour(juce::Colours::white);
                 g.setFont(metrics.fret_font);
                 g.drawText(
                     juce::String{ghost.fret},
