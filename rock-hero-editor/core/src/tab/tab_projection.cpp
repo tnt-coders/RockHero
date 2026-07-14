@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cstddef>
 #include <functional>
+#include <optional>
+#include <vector>
 
 namespace rock_hero::editor::core
 {
@@ -96,13 +98,47 @@ TabViewState makeTabViewState(
 
         std::string name = shape.chord < chart.templates.size() ? chart.templates[shape.chord].name
                                                                 : std::string{};
+        const bool arpeggio = simultaneous < 2;
+
+        // Ghost heads at an arpeggio bracket start show the held posture: every template string
+        // except those actually struck at the start. Template array index 0 is the lowest
+        // string, matching the highway projection's convention.
+        std::vector<TabGhostNoteView> ghost_notes;
+        if (arpeggio && shape.chord < chart.templates.size())
+        {
+            const common::core::ChordTemplate& chord_template = chart.templates[shape.chord];
+            for (std::size_t index = 0; index < chord_template.frets.size(); ++index)
+            {
+                // Bound to a local so the optional check and the access are provably the same
+                // object (bugprone-unchecked-optional-access cannot track repeated indexing).
+                const std::optional<int>& fret = chord_template.frets[index];
+                if (!fret.has_value())
+                {
+                    continue;
+                }
+                const int string = static_cast<int>(index) + 1;
+                bool sounded = false;
+                for (auto it = first_at_start;
+                     it != chart.notes.end() && it->position == shape.position;
+                     ++it)
+                {
+                    sounded = sounded || it->string == string;
+                }
+                if (!sounded)
+                {
+                    ghost_notes.push_back(TabGhostNoteView{.string = string, .fret = *fret});
+                }
+            }
+        }
+
         state.shapes.push_back(
             TabShapeView{
                 .start_seconds = tempo_map.secondsAtGlobalBeatPosition(start_beat),
                 .end_seconds =
                     tempo_map.secondsAtGlobalBeatPosition(start_beat + shape.sustain.toDouble()),
                 .name = std::move(name),
-                .arpeggio = simultaneous < 2,
+                .arpeggio = arpeggio,
+                .ghost_notes = std::move(ghost_notes),
             });
     }
 
