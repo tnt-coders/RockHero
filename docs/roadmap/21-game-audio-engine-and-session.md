@@ -1,6 +1,16 @@
 # Plan 21 — Game Audio Engine and GameplaySession
 
-Status: **Phases 1–3 COMPLETE (2026-07-11).** Phase 3 — scheduled tone switching: 3a/3b
+Status: **Phases 1–4 COMPLETE (Phases 1–3: 2026-07-11; Phase 4: 2026-07-12).** Phase 4 — mix
+controls: `IMixControls` port (common/audio mix/; master + backing only — monitor stays
+`ILiveRig::outputGain`, one owner per volume), Engine implementation over expert-verified
+Tracktion surfaces (`getMasterVolumePlugin()->setVolumeDb` — always-present plugin, -3 dB
+fresh-edit default reported truthfully, master stage verified to cover live monitoring on the
+default output device; `backingTrack()->getVolumePlugin()` — separate stage from clip
+normalization, composition source-verified), session volume accessors forwarding to single
+owners, mix keys reserved in plan 27 Phase 1 (`mixMasterDb`/`mixBackingDb`/`mixMonitorDb`).
+Adapter tests: master default + round-trip, backing round-trip surviving a normalization-bearing
+arrangement load; session fake test for the three-owner forwarding. Verified `-Targets all` +
+`-RunTouchedTests` green; clang-tidy pending user trigger. Phase 3 — scheduled tone switching: 3a/3b
 finalized (crossfade-envelope math `makeToneGainEnvelope` joined `makeToneSchedule` in
 common/core with 4 more unit tests; `IToneTimelinePlayer` implemented on Engine in
 src/engine/engine_tone_timeline.cpp — bake-once branch-gain curve writing over the loaded rack,
