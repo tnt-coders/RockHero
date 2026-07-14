@@ -5,6 +5,7 @@
 #include <optional>
 #include <rock_hero/common/audio/device/audio_device_settings.h>
 #include <rock_hero/common/audio/testing/configurable_audio_device_configuration.h>
+#include <string>
 #include <utility>
 
 namespace rock_hero::common::audio
@@ -248,9 +249,8 @@ public:
                                             ? juce::String{g_open_output_b_error}
                                             : juce::String{};
         const juce::String driver_init_error =
-            m_driver_init_failing_outputs.contains(output_device_name)
-                ? juce::String{"Can't detect asio channels"}
-                : juce::String{};
+            m_driver_init_failing_outputs.contains(output_device_name) ? m_driver_init_error_text
+                                                                       : juce::String{};
         auto device = std::make_unique<MockAudioDevice>(
             getTypeName(),
             output_device_name,
@@ -263,6 +263,13 @@ public:
 
         // JUCE's AudioIODeviceType factory transfers ownership through the raw pointer return.
         return device.release(); // NOLINT(cppcoreguidelines-owning-memory)
+    }
+
+    // Configures the error text a driver-init-failing device reports from construction, so tests
+    // can exercise both a backend-authored detail and JUCE's no-message placeholder.
+    void setDriverInitErrorText(juce::String error_text)
+    {
+        m_driver_init_error_text = std::move(error_text);
     }
 
     // Test observation for scan-cache behavior exercised through AudioDeviceSettings.
@@ -280,6 +287,7 @@ public:
 private:
     juce::StringArray m_failing_outputs;
     juce::StringArray m_driver_init_failing_outputs;
+    juce::String m_driver_init_error_text{"Can't detect asio channels"};
     bool m_has_control_panel{false};
     bool m_show_control_panel_result{false};
     int m_scan_call_count{};
@@ -617,7 +625,7 @@ TEST_CASE(
 
     AudioDeviceSettings settings{audio_devices};
     REQUIRE(settings.state().control_panel_supported);
-    REQUIRE_FALSE(settings.state().staged_device_unavailable);
+    REQUIRE_FALSE(settings.state().staged_device_error.has_value());
 
     const auto opened = settings.openControlPanel();
 
@@ -669,7 +677,10 @@ TEST_CASE(
 
     AudioDeviceSettings settings{audio_devices};
     REQUIRE(settings.state().control_panel_supported);
-    REQUIRE(settings.state().staged_device_unavailable);
+    REQUIRE(settings.state().staged_device_error.has_value());
+    CHECK(
+        settings.state().staged_device_error.value_or(std::string{}) ==
+        "Can't detect asio channels");
 
     const auto opened = settings.openControlPanel();
 
@@ -698,12 +709,45 @@ TEST_CASE(
         juce::StringArray{g_output_a});
 
     AudioDeviceSettings settings{audio_devices};
-    REQUIRE(settings.state().staged_device_unavailable);
+    REQUIRE(settings.state().staged_device_error.has_value());
+
+    const auto applied = settings.apply();
+
+    // The backend authored a detail, so the composed message carries it after the base text.
+    REQUIRE_FALSE(applied.has_value());
+    CHECK(applied.error().code == AudioDeviceSettingsErrorCode::ApplyFailed);
+    CHECK(
+        applied.error().message ==
+        "The selected audio device is unavailable: Can't detect asio channels");
+    CHECK(settings.state().error_message == applied.error().message);
+}
+
+// JUCE substitutes the placeholder "Driver failed to initialise" when a failed driver init supplies
+// no vendor message; the placeholder carries no information beyond the failure itself, so the
+// composed message stays at its base form instead of echoing backend filler (with its non-American
+// spelling).
+TEST_CASE(
+    "AudioDeviceSettings drops the placeholder detail for a silent driver",
+    "[audio][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    auto& audio_type = addMockAudioType(
+        audio_devices.device_manager,
+        g_asio_type_name,
+        juce::StringArray{},
+        true,
+        true,
+        juce::StringArray{g_output_a});
+    audio_type.setDriverInitErrorText("Driver failed to initialise");
+
+    AudioDeviceSettings settings{audio_devices};
+    REQUIRE(settings.state().staged_device_error.has_value());
+    CHECK(settings.state().staged_device_error.value_or(std::string{"x"}).empty());
 
     const auto applied = settings.apply();
 
     REQUIRE_FALSE(applied.has_value());
-    CHECK(applied.error().code == AudioDeviceSettingsErrorCode::ApplyFailed);
     CHECK(applied.error().message == g_device_unavailable_message);
     CHECK(settings.state().error_message == g_device_unavailable_message);
 }

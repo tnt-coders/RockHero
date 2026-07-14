@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -79,13 +80,14 @@ struct AudioDeviceSettingsViewState
     bool control_panel_supported{};
 
     /*!
-    \brief True when the staged selection's driver failed to initialize.
+    \brief The staged selection's driver-init failure, absent while the device is available.
 
     The driver still claims a control panel but showing it silently does nothing (for ASIO:
     hardware not connected, or the device held by another application), so the control panel
-    button renders disabled with an explanatory tooltip instead of enabled-but-inert.
+    button renders disabled with an explanatory tooltip and the error label carries the composed
+    unavailable message. Holds the backend's detail text, empty when the backend supplied none.
     */
-    bool staged_device_unavailable{};
+    std::optional<std::string> staged_device_error{};
 
     /*! \brief True when OK should attempt to apply the staged route. */
     bool ok_enabled{};

@@ -117,7 +117,7 @@ constexpr double g_integer_sample_rate_display_threshold{0.001};
         .buffer_sizes = bufferSizeChoices(state.buffer_sizes),
         .selected_buffer_size_id = state.selected_buffer_size_id,
         .control_panel_supported = state.control_panel_supported,
-        .staged_device_unavailable = state.staged_device_unavailable,
+        .staged_device_error = state.staged_device_error,
         .ok_enabled =
             state.selected_audio_system_id > 0 &&
             (state.uses_separate_input_output_devices
@@ -209,7 +209,7 @@ void AudioDeviceSettingsController::onControlPanelRequested()
 {
     // The unavailable check mirrors the button's disabled presentation: a failed-init driver's
     // panel would silently show nothing, so the intent is refused rather than forwarded.
-    if (m_last_state.control_panel_supported && !m_last_state.staged_device_unavailable)
+    if (m_last_state.control_panel_supported && !m_last_state.staged_device_error.has_value())
     {
         const auto opened = m_settings.openControlPanel();
         if (!opened.has_value())
