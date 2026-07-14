@@ -1213,6 +1213,12 @@ void Engine::Impl::finalizeLiveRigLoad()
                 {
                     continue;
                 }
+
+                // With compensation off, the branch's summed self-reported latency IS the
+                // player's monitoring latency while this tone is audible; surfaced for the
+                // editor's authoring-time export warning (21-Q2 refinement), silent in gameplay.
+                identities.summed_reported_latency_seconds +=
+                    branch.chain[plugin_index]->getLatencySeconds();
                 identities.plugins.push_back(
                     LoadedTonePluginIdentity{
                         .instance_id = branch.chain[plugin_index]->itemID.toString().toStdString(),
