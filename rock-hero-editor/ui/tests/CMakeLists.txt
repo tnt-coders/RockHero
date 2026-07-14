@@ -29,6 +29,7 @@ add_executable(
     test_editor_view_state.cpp
     test_editor_view_timeline.cpp
     test_grid_spacing_selector.cpp
+    test_input_calibration_window.cpp
     test_plugin_browser_window.cpp
     test_signal_chain_block_layout.cpp
     test_tab_view.cpp

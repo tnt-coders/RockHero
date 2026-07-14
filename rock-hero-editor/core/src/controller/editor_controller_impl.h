@@ -17,7 +17,7 @@ definitions, no state added just to make a translation-unit split work.
 #include "editor_action.h"
 #include "editor_action_availability.h"
 #include "editor_undo_history.h"
-#include "input_calibration/input_calibration_text.h"
+#include "input_calibration/input_calibration_projection.h"
 #include "project/project_io.h"
 #include "signal_chain/plugin_catalog_workflow.h"
 #include "signal_chain/signal_chain_workflow.h"
@@ -45,6 +45,7 @@ definitions, no state added just to make a translation-unit split work.
 #include <rock_hero/common/core/shared/cancellation_token.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/timeline.h>
+#include <rock_hero/editor/core/audio/editor_effective_audio_config_store.h>
 #include <rock_hero/editor/core/controller/editor_controller.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <rock_hero/editor/core/controller/i_editor_view.h>
@@ -184,6 +185,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onPluginDisplayTypeOverrideChanged(
         std::string instance_id, std::optional<PluginDisplayType> display_type);
     void onOpenPluginRequested(std::string instance_id);
+    void onUseGameAudioSettingsChangeRequested(bool enabled);
     void onInputCalibrationRequested();
     [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
     onInputCalibrationMeasurementStarted();
@@ -268,7 +270,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onPluginStateEditCompleted(common::audio::PluginStateEdit edit);
     [[nodiscard]] ActionConditions currentActionConditions() const;
     [[nodiscard]] ActionConditions currentActionConditions(
-        const InputCalibrationViewSlice& input_calibration,
+        const InputCalibrationProjection& input_calibration,
         const common::audio::TransportState& transport_state) const;
 
     void requestProjectAction(EditorAction::ProjectAction action);
@@ -358,6 +360,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void detachView();
     void restoreAudioDeviceState();
     void persistAudioDeviceState();
+    // Re-reads whether a calibrated game audio configuration exists and caches the answer. Called at
+    // the meaningful moments only (startup, toggle change, device-settings open) rather than in
+    // deriveViewState, so the freshness is the plan's deliberate one-shot read, not a per-push poll
+    // that would reopen the game's settings file on every state push.
+    void refreshGameSourceAvailability();
     void recordSettingsResultBestEffort(
         std::expected<void, EditorSettingsError> result, std::string_view context);
     void recordAudioConfigResultBestEffort(
@@ -452,6 +459,17 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // Per-app audio-config store used to persist and restore the active device route.
     common::audio::IAudioConfigStore& m_audio_config_store;
+
+    // Effective-source facade the "use game audio settings" toggle re-selects; null in tests that do
+    // not exercise the toggle. When set it is the same object as m_audio_config_store, held
+    // concretely so onUseGameAudioSettingsChangeRequested can switch its read source.
+    EditorEffectiveAudioConfigStore* m_effective_audio_source{nullptr};
+
+    // Cached "a calibrated game config exists" signal, refreshed by refreshGameSourceAvailability at
+    // startup, on toggle change, and when the device-settings window opens. Surfaced through
+    // EditorViewState so both toggle-aware windows can distinguish the read-only reflection from the
+    // unconfigured-game guidance without reopening the game's file on every state push.
+    bool m_game_source_available{false};
 
     // Non-owning view binding installed by attachView(); null before the first attachment.
     // updateView() and reportError() tolerate the null window because the constructor's

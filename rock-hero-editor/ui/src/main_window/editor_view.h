@@ -47,9 +47,10 @@ class Component;
 namespace rock_hero::editor::ui
 {
 
-// Forward declarations so the timeline cursor overlay, viewport, and preview window units stay
-// out of this header.
+// Forward declarations so the timeline cursor overlay, viewport, calibration, and preview window
+// units stay out of this header.
 class CursorOverlay;
+class InputCalibrationWindow;
 class PreviewWindow;
 class TrackViewport;
 
@@ -458,8 +459,9 @@ private:
     // Optional top-level plugin browser window.
     std::unique_ptr<PluginBrowserWindow> m_plugin_browser_window;
 
-    // Optional top-level input calibration window.
-    std::unique_ptr<juce::DocumentWindow> m_input_calibration_window;
+    // Optional top-level input calibration window. Concrete type so its read-only game-reflection
+    // mode can be re-scoped live when the "use game audio settings" toggle flips while it is open.
+    std::unique_ptr<InputCalibrationWindow> m_input_calibration_window;
 
     // Optional top-level audio-device settings window.
     std::unique_ptr<juce::DocumentWindow> m_audio_device_settings_window;

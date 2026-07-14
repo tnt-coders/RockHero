@@ -20,6 +20,15 @@ constexpr int g_error_height{32};
 constexpr int g_min_control_rows{6};
 constexpr int g_max_window_width{1000};
 constexpr int g_max_window_height{760};
+constexpr int g_toggle_row_height{26};
+constexpr int g_notice_height{38};
+constexpr int g_opt_out_button_width{188};
+
+constexpr const char* g_game_settings_available_notice{"These come from your Game audio settings."};
+constexpr const char* g_game_settings_unconfigured_notice{
+    "Your game has no saved audio setup yet. Set it up in the game for a consistent experience "
+    "across both apps, or use the editor's own audio."
+};
 
 // Returns the vertical space occupied by a visible form row set.
 [[nodiscard]] int formRowsHeight(int row_count) noexcept
@@ -94,12 +103,23 @@ int AudioDeviceSettingsView::preferredWidth() noexcept
     return g_preferred_width;
 }
 
-// Returns a derived height from the rows visible for the currently selected audio system.
+// Returns a derived height from the rows visible for the currently selected audio system, plus the
+// "use game audio settings" toggle row and, while the toggle is on, the notice (and unconfigured
+// opt-out) block that governs the fields below.
 int AudioDeviceSettingsView::preferredContentHeight() const noexcept
 {
     const int visible_rows =
         g_min_control_rows + (m_state.uses_separate_input_output_devices ? 1 : 0);
-    return windowHeightForRows(visible_rows);
+    int height = windowHeightForRows(visible_rows) + g_toggle_row_height + g_row_gap;
+    if (m_game_settings.use_game_settings)
+    {
+        height += g_notice_height + g_row_gap;
+        if (!m_game_settings.game_source_available)
+        {
+            height += g_row_height + g_row_gap;
+        }
+    }
+    return height;
 }
 
 // Keeps the route selectors usable without requiring the initial window to be very wide.
@@ -127,6 +147,51 @@ void AudioDeviceSettingsView::setState(const core::AudioDeviceSettingsViewState&
     applyStateToControls();
     syncWindowHeightToContent();
     resized();
+}
+
+// Stores the host callback fired when the user changes the "use game audio settings" toggle.
+void AudioDeviceSettingsView::setGameAudioSettingsChangedCallback(
+    GameAudioSettingsChangedCallback callback)
+{
+    m_on_use_game_settings_changed = std::move(callback);
+}
+
+// Applies the resolved toggle/availability state and re-scopes the panel between the read-only
+// game reflection and the editable editor-own device flow.
+void AudioDeviceSettingsView::setGameAudioSettings(GameAudioSettingsState state)
+{
+    m_game_settings = state;
+    applyGameAudioSettingsPresentation();
+    applyStateToControls();
+    syncWindowHeightToContent();
+    resized();
+}
+
+// The toggle being on renders the device fields read-only whether or not a game config exists: an
+// unconfigured game still locks the fields and points the user at the opt-out rather than letting
+// them edit a route the toggle claims the game owns.
+bool AudioDeviceSettingsView::gameSettingsLockActive() const noexcept
+{
+    return m_game_settings.use_game_settings;
+}
+
+// Reflects the toggle value and derives the notice text plus opt-out visibility from whether a
+// calibrated game configuration exists.
+void AudioDeviceSettingsView::applyGameAudioSettingsPresentation()
+{
+    m_use_game_settings_toggle.setToggleState(
+        m_game_settings.use_game_settings, juce::dontSendNotification);
+
+    const bool show_notice = m_game_settings.use_game_settings;
+    const bool show_opt_out =
+        m_game_settings.use_game_settings && !m_game_settings.game_source_available;
+
+    m_game_settings_notice.setText(
+        m_game_settings.game_source_available ? g_game_settings_available_notice
+                                              : g_game_settings_unconfigured_notice,
+        juce::dontSendNotification);
+    m_game_settings_notice.setVisible(show_notice);
+    m_use_editor_audio_button.setVisible(show_opt_out);
 }
 
 // Requests modal shutdown from the host DialogWindow.
@@ -184,6 +249,24 @@ void AudioDeviceSettingsView::resized()
     m_error_label.setBounds(area.removeFromBottom(std::min(g_error_height, area.getHeight())));
     area.removeFromBottom(std::min(g_row_gap, area.getHeight()));
 
+    // The toggle and its game-source notice sit above the device rows so the read-only effect of the
+    // toggle on the fields below is visually obvious (open question 3: top-of-panel placement).
+    m_use_game_settings_toggle.setBounds(area.removeFromTop(g_toggle_row_height));
+    area.removeFromTop(std::min(g_row_gap, area.getHeight()));
+    if (m_game_settings_notice.isVisible())
+    {
+        m_game_settings_notice.setBounds(
+            area.removeFromTop(std::min(g_notice_height, area.getHeight())));
+        area.removeFromTop(std::min(g_row_gap, area.getHeight()));
+    }
+    if (m_use_editor_audio_button.isVisible())
+    {
+        auto opt_out_row = area.removeFromTop(std::min(g_row_height, area.getHeight()));
+        m_use_editor_audio_button.setBounds(
+            opt_out_row.removeFromLeft(std::min(g_opt_out_button_width, opt_out_row.getWidth())));
+        area.removeFromTop(std::min(g_row_gap, area.getHeight()));
+    }
+
     layoutRow(m_device_type_label, m_device_type_combo, area);
     layoutRow(m_device_label, m_device_combo, area);
     layoutRow(m_output_device_label, m_output_device_combo, area);
@@ -198,6 +281,45 @@ void AudioDeviceSettingsView::resized()
 void AudioDeviceSettingsView::configureControls()
 {
     setComponentID("audio_device_settings_view");
+
+    m_use_game_settings_toggle.setComponentID("audio_settings_use_game_toggle");
+    m_use_game_settings_toggle.setButtonText("Use game audio settings");
+    m_use_game_settings_toggle.onClick = [this] {
+        // Update the local read-only presentation immediately so the panel reflects the flip without
+        // waiting for the controller round-trip, then notify the host to drive the source switch.
+        m_game_settings.use_game_settings = m_use_game_settings_toggle.getToggleState();
+        applyGameAudioSettingsPresentation();
+        applyStateToControls();
+        syncWindowHeightToContent();
+        resized();
+        if (m_on_use_game_settings_changed)
+        {
+            m_on_use_game_settings_changed(m_game_settings.use_game_settings);
+        }
+    };
+
+    m_game_settings_notice.setComponentID("audio_settings_game_notice");
+    m_game_settings_notice.setJustificationType(juce::Justification::centredLeft);
+    m_game_settings_notice.setMinimumHorizontalScale(0.6F);
+    m_game_settings_notice.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
+    m_game_settings_notice.setVisible(false);
+
+    m_use_editor_audio_button.setComponentID("audio_settings_use_editor_button");
+    m_use_editor_audio_button.setButtonText("Use the editor's own audio");
+    m_use_editor_audio_button.onClick = [this] {
+        // The frictionless opt-out drops the toggle off locally and drops into the editable device
+        // flow, then asks the host to persist the off choice and restore the editor's own route.
+        m_game_settings.use_game_settings = false;
+        applyGameAudioSettingsPresentation();
+        applyStateToControls();
+        syncWindowHeightToContent();
+        resized();
+        if (m_on_use_game_settings_changed)
+        {
+            m_on_use_game_settings_changed(false);
+        }
+    };
+    m_use_editor_audio_button.setVisible(false);
 
     m_device_type_label.setText("Audio system", juce::dontSendNotification);
     m_device_label.setText("Device", juce::dontSendNotification);
@@ -257,6 +379,9 @@ void AudioDeviceSettingsView::configureControls()
     m_ok_button.onClick = [this] { m_controller.onOkRequested(); };
     m_cancel_button.onClick = [this] { m_controller.onCancelRequested(); };
 
+    addAndMakeVisible(m_use_game_settings_toggle);
+    addChildComponent(m_game_settings_notice);
+    addChildComponent(m_use_editor_audio_button);
     addAndMakeVisible(m_device_type_label);
     addAndMakeVisible(m_device_type_combo);
     addAndMakeVisible(m_device_label);
@@ -328,7 +453,10 @@ void AudioDeviceSettingsView::applyStateToControls()
     m_output_device_label.setVisible(separate_devices);
     m_output_device_combo.setVisible(separate_devices);
 
-    const bool controls_enabled = !m_applying;
+    // The device fields stay editable only while the editor owns its own audio route. With the
+    // toggle on they are read-only reflections of the game's configuration (or, when the game is
+    // unconfigured, locked to steer the user to the opt-out); an in-flight apply also disables them.
+    const bool controls_enabled = !m_applying && !gameSettingsLockActive();
     m_device_type_combo.setEnabled(controls_enabled && !m_state.audio_systems.empty());
     m_device_combo.setEnabled(
         controls_enabled && m_device_combo.isVisible() && !m_state.devices.empty());
@@ -346,7 +474,12 @@ void AudioDeviceSettingsView::applyStateToControls()
     m_control_panel_button.setVisible(m_state.control_panel_enabled);
     m_control_panel_button.setEnabled(controls_enabled && m_state.control_panel_enabled);
     m_ok_button.setEnabled(controls_enabled && m_state.ok_enabled);
-    m_cancel_button.setEnabled(controls_enabled);
+    // Cancel closes the window in either source mode, so it follows only the apply fence, not the
+    // read-only game lock. The toggle and its opt-out likewise stay usable while locked so the user
+    // can always switch back to the editor's own audio.
+    m_cancel_button.setEnabled(!m_applying);
+    m_use_game_settings_toggle.setEnabled(!m_applying);
+    m_use_editor_audio_button.setEnabled(!m_applying);
 
     m_error_label.setText(juce::String{m_state.error_message.c_str()}, juce::dontSendNotification);
 }

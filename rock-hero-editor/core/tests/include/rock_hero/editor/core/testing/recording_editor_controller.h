@@ -386,6 +386,16 @@ public:
         open_plugin_request_count += 1;
     }
 
+    /*!
+    \brief Records "use game audio settings" toggle changes emitted by the settings window.
+    \param enabled Requested toggle value.
+    */
+    void onUseGameAudioSettingsChangeRequested(bool enabled) override
+    {
+        last_use_game_audio_settings = enabled;
+        use_game_audio_settings_change_count += 1;
+    }
+
     /*! \brief Counts manual input calibration requests emitted by the signal-chain panel. */
     void onInputCalibrationRequested() override
     {
@@ -727,6 +737,12 @@ public:
 
     /*! \brief Last output gain preview value emitted by the signal-chain panel. */
     std::optional<double> last_output_gain_preview_db{};
+
+    /*! \brief Last value requested through onUseGameAudioSettingsChangeRequested(). */
+    std::optional<bool> last_use_game_audio_settings{};
+
+    /*! \brief Number of use-game-audio-settings toggle changes received. */
+    int use_game_audio_settings_change_count{0};
 
     /*! \brief Number of input calibration intents received. */
     int input_calibration_request_count{0};

@@ -333,6 +333,18 @@ public:
     */
     virtual void onOpenPluginRequested(std::string instance_id) = 0;
 
+    /*!
+    \brief Handles a change to the "use game audio settings" toggle.
+
+    Persists the workflow toggle, then (message thread) re-selects the effective audio source and
+    re-applies the selected route to the editor engine: enabling adopts the game's route when a
+    calibrated game configuration exists, disabling restores the editor's own route. Enabling with no
+    calibrated game configuration persists the choice but leaves the editor on its own route.
+
+    \param enabled True to source the game's audio configuration, false to source the editor's own.
+    */
+    virtual void onUseGameAudioSettingsChangeRequested(bool enabled) = 0;
+
     /*! \brief Handles a request to manually calibrate the current input route. */
     virtual void onInputCalibrationRequested() = 0;
 
