@@ -336,7 +336,7 @@ public:
     /*!
     \brief Handles a change to the "use game audio settings" toggle.
 
-    Persists the workflow toggle, then (message thread) re-selects the effective audio source and
+    Persists the workflow toggle, then (message thread) re-selects the store's active source and
     re-applies the selected route to the editor engine: enabling adopts the game's route when a
     calibrated game configuration exists, disabling restores the editor's own route. Enabling with no
     calibrated game configuration persists the choice but leaves the editor on its own route.
