@@ -1,6 +1,8 @@
 # Plan 50 — Tone Designer and standalone tone files
 
-Status: Ready — authored 2026-07-13, all decisions user-settled (no open questions) | baseline
+Status: **Phases 1–5 complete 2026-07-13** — final acceptance pending user-triggered clang-tidy
+and the witnessed manual checklist (Phase 4's real-plugin/real-guitar items) | authored
+2026-07-13, all decisions user-settled (no open questions) | baseline
 `work-in-progress @ 8cf9d9af`
 
 ## Goal
