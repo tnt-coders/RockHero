@@ -47,6 +47,14 @@ namespace
         {
             return GameKey::SeekNextSection;
         }
+        case SDLK_SPACE:
+        {
+            return GameKey::TogglePlayPause;
+        }
+        case SDLK_R:
+        {
+            return GameKey::RestartSong;
+        }
         default:
         {
             return std::nullopt;

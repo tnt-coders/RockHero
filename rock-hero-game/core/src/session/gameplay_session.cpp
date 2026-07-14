@@ -147,6 +147,11 @@ std::expected<void, GameplaySessionError> GameplaySession::start(GameplaySession
             });
     }
 
+    // Hosted plugins read tempo from the backend, so the song's real tempo map is mirrored
+    // exactly like the editor does after its loads — tone fidelity (constraint (g)) includes
+    // tempo-synced effects. Best-effort by the port's contract.
+    m_song_audio.mirrorTempoMap(m_song.tempo_map);
+
     // The seconds-resolved switch schedule is derived once per load and handed to the tone
     // timeline when the rig finishes preloading (Phase 3 implements the backend).
     m_tone_schedule = common::core::makeToneSchedule(

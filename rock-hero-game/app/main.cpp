@@ -4,11 +4,15 @@
 #include <expected>
 #include <filesystem>
 #include <juce_core/juce_core.h>
+#include <juce_events/juce_events.h>
 #include <optional>
 #include <print>
+#include <rock_hero/common/audio/engine/engine.h>
 #include <rock_hero/common/core/shared/application_identity.h>
 #include <rock_hero/common/core/shared/logger.h>
+#include <rock_hero/game/core/session/gameplay_session.h>
 #include <rock_hero/game/ui/surface/game_shell.h>
+#include <string>
 #include <string_view>
 
 namespace rock_hero::game::app
@@ -88,6 +92,35 @@ namespace
     return std::filesystem::path{*path_text};
 }
 
+// Rebuilds a single command-line string from argv for the engine's plugin-scan child check; the
+// scanner child identifies itself with one marker token, so simple space joining is sufficient.
+[[nodiscard]] std::string joinedCommandLine(const int argc, char** argv)
+{
+    std::string command_line;
+    for (int index = 1; index < argc; ++index)
+    {
+        if (!command_line.empty())
+        {
+            command_line += ' ';
+        }
+        command_line += argv[index];
+    }
+    return command_line;
+}
+
+// Composes the unique per-session scratch directory under per-user app data. The session
+// creates and deletes the directory; the composer owns uniqueness (plan 21 Phase 2 contract).
+[[nodiscard]] std::filesystem::path makeSessionWorkspaceDirectory()
+{
+    const std::string_view folder_name = common::core::applicationDataFolderName();
+    const juce::File workspace_root =
+        juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+            .getChildFile(juce::String{folder_name.data(), folder_name.size()})
+            .getChildFile("game-sessions")
+            .getChildFile(juce::Uuid{}.toString());
+    return std::filesystem::path{workspace_root.getFullPathName().toStdString()};
+}
+
 } // namespace
 } // namespace rock_hero::game::app
 
@@ -102,6 +135,15 @@ int main(int argc, char** argv)
 try
 {
     using rock_hero::common::core::Logger;
+
+    // Plugin-file scans relaunch this executable as a short-lived scanner child (the same
+    // out-of-process isolation the editor uses); the marker token must be answered before any
+    // normal startup work.
+    const std::string command_line = rock_hero::game::app::joinedCommandLine(argc, argv);
+    if (rock_hero::common::audio::Engine::isPluginScanChildProcessCommandLine(command_line))
+    {
+        return rock_hero::common::audio::Engine::startPluginScanChildProcess(command_line) ? 0 : 1;
+    }
 
     // The dev flag activates the diagnostics layer (plan 20 Phase 4, 20-Q5: A) and lowers the
     // runtime log level so the per-frame trace instrumentation records.
@@ -126,12 +168,26 @@ try
             logging_result.error().message);
     }
 
+    // Composition per the decided GameShell watch item (inject from app/): main owns the JUCE
+    // runtime, the audio engine, and the gameplay session; the shell receives non-owning
+    // pointers and only drives them. Teardown order is the reverse: run() returns (window and
+    // GPU device die), the session closes (stops audio, releases the arrangement, deletes its
+    // scratch workspace), the engine destructs, and the JUCE guard goes last.
+    const juce::ScopedJuceInitialiser_GUI juce_runtime;
+    rock_hero::common::audio::Engine audio_engine;
+    rock_hero::game::core::GameplaySession gameplay_session{
+        audio_engine, audio_engine, audio_engine, audio_engine, audio_engine, audio_engine
+    };
+
     rock_hero::game::ui::GameShellOptions options{};
     options.frame_limit = rock_hero::game::app::smokeFrameLimit(argc, argv);
     options.dev_package = rock_hero::game::app::devPackagePath(argc, argv);
     options.lefty = rock_hero::game::app::hasFlag("--lefty", argc, argv);
     options.dev_mode = dev_mode;
+    options.gameplay_session = &gameplay_session;
+    options.session_workspace_directory = rock_hero::game::app::makeSessionWorkspaceDirectory();
     const int exit_code = rock_hero::game::ui::GameShell{}.run(options);
+    gameplay_session.close();
 
     if (logging_result.has_value())
     {

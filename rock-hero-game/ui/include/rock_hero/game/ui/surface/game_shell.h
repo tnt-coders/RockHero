@@ -9,6 +9,11 @@
 #include <filesystem>
 #include <optional>
 
+namespace rock_hero::game::core
+{
+class GameplaySession;
+} // namespace rock_hero::game::core
+
 namespace rock_hero::game::ui
 {
 
@@ -48,6 +53,25 @@ struct GameShellOptions
     toggles, chart hot-reload, section seeking, and the bgfx debug checks. Players never pass it.
     */
     bool dev_mode{false};
+
+    /*!
+    \brief Non-owning gameplay session composed by the app (plan 21 Phase 6).
+
+    Composition lives in `app/` per the decided GameShell watch item: main.cpp constructs the
+    audio engine and the session and injects them here; the shell only drives them from its loop
+    and input wiring. Null runs the shell without audio (the pre-engine dev fixture behavior).
+    The caller owns lifetime: the session must outlive run() and be closed by the caller after
+    run() returns.
+    */
+    core::GameplaySession* gameplay_session{nullptr};
+
+    /*!
+    \brief Session-private scratch directory for the extracted package, composed by the app.
+
+    Passed through to GameplaySessionRequest::workspace_directory when the shell starts the
+    session over dev_package; unused when gameplay_session is null.
+    */
+    std::filesystem::path session_workspace_directory;
 };
 
 /*!
@@ -65,10 +89,12 @@ class GameShell
 {
 public:
     /*!
-    \brief Runs the game surface until quit: window + JUCE runtime + render device + frame loop.
+    \brief Runs the game surface until quit: window + render device + frame loop.
 
-    Must be called on the process main thread — the first JUCE initialization inside binds the
-    calling thread as the JUCE message thread for the rest of the process lifetime.
+    Must be called on the process main thread, and the caller must already own the JUCE runtime
+    (a juce::ScopedJuceInitialiser_GUI in main.cpp, constructed before the audio engine) — its
+    first initialization binds the calling thread as the JUCE message thread for the process
+    lifetime, and the loop's per-frame drain services everything JUCE from then on.
 
     \param options Run options; see \ref GameShellOptions.
     \return Process exit code: zero on a clean quit, nonzero when startup fails.
