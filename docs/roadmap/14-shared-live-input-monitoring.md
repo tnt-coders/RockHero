@@ -189,7 +189,7 @@ execution per the plan-phase baseline rule.
   game's headless native setup drivers consume this plan's shared measurement/commit API
   (`beginMeasurement`/`commitCalibration`/`setManualCalibration`), writing the **game's own**
   `AudioConfigStore`. docs/roadmap/26-game-startup-menus-library.md Phase 8 renders the SDL device-setup
-  and calibration wizard over plan 32's drivers and surfaces the typed `MonitoringDisabledReason`
+  and calibration wizard over plan 32's drivers and surfaces the typed `LiveInputMonitoringDisabledReason`
   ("calibrate this device"). No shared code is duplicated for the game UI.
 
 ## Decisions already made
@@ -209,7 +209,7 @@ execution per the plan-phase baseline rule.
 - **The workflow's `Context` KEEPS its identity field; the driver-facing context is two bools (was
   critiques A1/F3).** The pure methods consume `Context::current_input_device_identity` pervasively, so
   it cannot be dropped. Instead: the driver (editor/game) supplies only a `LiveInputMonitoringContext`
-  of two bools (`session_audio_ready`, `arrangement_loaded`); the **service** reads
+  of two bools (`live_input_ready`, `arrangement_loaded`); the **service** reads
   `m_device_configuration.currentInputDeviceIdentity()` **once per driven operation** and populates the
   workflow's internal `Context` from it. This satisfies the "driver does not supply identity" intent
   *and* keeps the pure methods self-contained *and* preserves the single-sample-per-operation semantics
@@ -253,7 +253,7 @@ execution per the plan-phase baseline rule.
   `reportError(message)` today); if none branch on `.code`, the editor handler return type changes from
   `LiveInputError` to `LiveInputMonitorError`.
 - **The service reads the current route itself; a corrupt store is surfaced, never silently degraded.**
-  An `AudioConfigError` from the store maps to `MonitoringDisabledReason::CalibrationStoreUnavailable`
+  An `AudioConfigError` from the store maps to `LiveInputMonitoringDisabledReason::CalibrationStoreUnavailable`
   + a log line — never to a silent "no calibration → disable" (this preserves plan 13's three-state read
   contract). `IGameSettings` is not touched.
 - **Notes to record on plan 13 (documentation only, no store-surface change):** (1) add "shared
@@ -362,7 +362,7 @@ Scope: relocate the pure state machine to `common/audio`, sever its view seam, a
   ```cpp
   enum class LiveInputMonitoringState : std::uint8_t { Active, Disabled };
 
-  enum class MonitoringDisabledReason : std::uint8_t
+  enum class LiveInputMonitoringDisabledReason : std::uint8_t
   {
       None, AudioDeviceSettingsOpen, SessionNotReady, NoInputDevice,
       MissingCalibration, CalibrationRouteMismatch, BackendUnavailable,
@@ -371,14 +371,14 @@ Scope: relocate the pure state machine to `common/audio`, sever its view seam, a
 
   struct LiveInputMonitoringContext
   {
-      bool session_audio_ready{false};
+      bool live_input_ready{false};
       bool arrangement_loaded{false};
   };
 
   struct LiveInputMonitoringStatus
   {
       LiveInputMonitoringState state{LiveInputMonitoringState::Disabled};
-      MonitoringDisabledReason reason{MonitoringDisabledReason::SessionNotReady};
+      LiveInputMonitoringDisabledReason reason{LiveInputMonitoringDisabledReason::SessionNotReady};
   };
   ```
 - Add the pure decision method to the workflow (reads its own `m_calibration_state` + the context
@@ -387,7 +387,7 @@ Scope: relocate the pure state machine to `common/audio`, sever its view seam, a
   struct MonitoringDecision
   {
       LiveInputMonitoringState target{LiveInputMonitoringState::Disabled};
-      MonitoringDisabledReason reason{MonitoringDisabledReason::SessionNotReady};
+      LiveInputMonitoringDisabledReason reason{LiveInputMonitoringDisabledReason::SessionNotReady};
       common::audio::Gain gain{};   // meaningful only when target == Active
   };
 
@@ -398,7 +398,7 @@ Scope: relocate the pure state machine to `common/audio`, sever its view seam, a
 - Extract the editor view seam into a **projection module** (was critique A4 — not a `*View` class;
   coding-conventions.md "Projection Modules" §243-249 and the `make…` grammar §49-63):
   `rock-hero-editor/core/src/input_calibration/input_calibration_text.h`(+`.cpp`), holding free
-  functions — `inputCalibrationStatusFor(MonitoringDisabledReason, bool backend_available) →
+  functions — `inputCalibrationStatusFor(LiveInputMonitoringDisabledReason, bool backend_available) →
   InputCalibrationStatus`, `inputCalibrationDisabledMessageFor(InputCalibrationStatus) → std::string`
   (the hardcoded editor English), and a `makeInputCalibrationViewState(...)` builder that assembles the
   editor slice (renamed from the workflow's `Snapshot` to an editor-owned `InputCalibrationViewState` in
@@ -419,7 +419,7 @@ Public-header impact: two new public common/audio headers (`input_calibration_wo
 `src/`-private per "Projection Modules stay private until an outside consumer exists").
 Testing plan: moved pure workflow tests + `evaluateMonitoring` branch matrix; Phase 1's golden trace
 and settled view-state assertions stay green **unchanged**; a small approval test pins each
-`MonitoringDisabledReason` → `InputCalibrationStatus` + disabled-message in the new projection module.
+`LiveInputMonitoringDisabledReason` → `InputCalibrationStatus` + disabled-message in the new projection module.
 Exit criteria: editor behaves identically; workflow + decision + projection tests green; Phase 1 net
 green.
 Verification (graph changed → configure):
@@ -571,7 +571,7 @@ Files/modules: three new common/audio input files + two impls + service test; ed
 `project_handlers.cpp`, `editor_controller` services wiring, rock-hero-editor/app/main.cpp; CMake source
 lists. This phase removes the `IEditorSettings` calibration methods that plan 13 P2 kept as delegators.
 Public-header impact: two new public common/audio headers (service + error).
-Testing plan: service tests — the `applyGate`/`refresh` decision matrix (each `MonitoringDisabledReason`,
+Testing plan: service tests — the `applyGate`/`refresh` decision matrix (each `LiveInputMonitoringDisabledReason`,
 plus `Active` arming order); `InputRouteUnavailable` rollback via injected `LiveInputError`; gain-vs-enable
 failure rollbacks; `refresh` surfaces `CalibrationStoreUnavailable` on a corrupt store and does not arm;
 `disableMonitoring` tears down both paths; identity sampled once per operation (route change injected
@@ -612,7 +612,7 @@ migration).
   ```cpp
   const auto status = m_live_input_monitor.refresh(
       common::audio::LiveInputMonitoringContext{
-          .session_audio_ready = true, .arrangement_loaded = true});
+          .live_input_ready = true, .arrangement_loaded = true});
   // status.reason retained for a future SDL "monitoring off because X" surface (plan 26); non-fatal.
   ```
   This is the exact analogue of the editor's `project_audio_ready = true; select…; applyLiveInputGate()`.
@@ -640,7 +640,7 @@ Public-header impact: game/core session header ctor change only; nothing added t
 Testing plan (fakes only, no audio hardware): with the game's **own** in-memory `IAudioConfigStore`
 seeded with a calibration matching the fake device identity, reaching `Ready` arms `FakeLiveInput` at
 the calibrated gain on the message thread; no/mismatched/absent-device calibration each leave monitoring
-disabled with the expected `MonitoringDisabledReason` (the **wired-but-silent** default until a
+disabled with the expected `LiveInputMonitoringDisabledReason` (the **wired-but-silent** default until a
 calibration is seeded); a corrupt store logs and is non-fatal; `close()` disables; pause/finish/restart
 leave monitoring armed; the app composition restores a stored active device route when present and falls
 back to defaults when absent. Construct the real `LiveInputMonitor` over the three fakes (the game
@@ -675,7 +675,7 @@ settled view-state green through Phases 2-4); the game composes and drives the s
 **own** store at `Ready`/`close` on the message thread, wired but silent until a game-side calibration
 exists (dev-seeded at Phase 4; the product calibration surface arrives with plan 32); no `common` code
 depends on `editor`/`game`; no `std::optional<Error>` is an operation result; the public
-`LiveInputMonitorError` is coarse; the typed `MonitoringDisabledReason` is exposed for plan 32's drivers
+`LiveInputMonitorError` is coarse; the typed `LiveInputMonitoringDisabledReason` is exposed for plan 32's drivers
 and plan 26's SDL menu; `IGameSettings` carries no calibration. Each product is the sole writer of its
 own audio-config file, so there is no shared file and no cross-process lock — the editor's read of the
 game's store (plan 48) is a one-directional, read-only, **fresh one-shot at toggle-on**, not a live

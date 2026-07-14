@@ -48,7 +48,7 @@ Restores the backend-availability distinction the pure workflow drops: an active
 \return Signal-chain calibration status for the supplied reason.
 */
 [[nodiscard]] InputCalibrationStatus inputCalibrationStatusFor(
-    common::audio::MonitoringDisabledReason reason, bool backend_available);
+    common::audio::LiveInputMonitoringDisabledReason reason, bool backend_available);
 
 /*!
 \brief Builds the editor calibration projection from the shared live-input monitor's read surface.

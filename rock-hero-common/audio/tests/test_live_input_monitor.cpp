@@ -107,7 +107,7 @@ TEST_CASE("LiveInputMonitor gate disables with no input device", "[common][audio
     const LiveInputMonitoringStatus status = monitor.applyGate(g_ready);
 
     CHECK(status.state == LiveInputMonitoringState::Disabled);
-    CHECK(status.reason == MonitoringDisabledReason::NoInputDevice);
+    CHECK(status.reason == LiveInputMonitoringDisabledReason::NoInputDevice);
     CHECK(
         live_input.calls == std::vector<LiveInputSetterCall>{
                                 setCalibrationInputMonitoringCall(false),
@@ -128,7 +128,7 @@ TEST_CASE("LiveInputMonitor gate disables when session not ready", "[common][aud
     const LiveInputMonitoringStatus status =
         monitor.applyGate({.live_input_ready = false, .arrangement_loaded = true});
 
-    CHECK(status.reason == MonitoringDisabledReason::SessionNotReady);
+    CHECK(status.reason == LiveInputMonitoringDisabledReason::SessionNotReady);
 }
 
 // A ready route with no stored calibration reports MissingCalibration and stays disabled.
@@ -142,7 +142,7 @@ TEST_CASE("LiveInputMonitor gate disables without calibration", "[common][audio]
 
     const LiveInputMonitoringStatus status = monitor.applyGate(g_ready);
 
-    CHECK(status.reason == MonitoringDisabledReason::MissingCalibration);
+    CHECK(status.reason == LiveInputMonitoringDisabledReason::MissingCalibration);
     CHECK_FALSE(live_input.live_input_monitoring_enabled);
 }
 
@@ -160,7 +160,7 @@ TEST_CASE("LiveInputMonitor refresh arms matching route in order", "[common][aud
     const LiveInputMonitoringStatus status = monitor.refresh(g_ready);
 
     CHECK(status.state == LiveInputMonitoringState::Active);
-    CHECK(status.reason == MonitoringDisabledReason::None);
+    CHECK(status.reason == LiveInputMonitoringDisabledReason::None);
     CHECK(
         live_input.calls == std::vector<LiveInputSetterCall>{
                                 setCalibrationInputMonitoringCall(false),
@@ -190,8 +190,9 @@ TEST_CASE(
     const LiveInputMonitoringStatus status = monitor.refresh(g_ready);
 
     CHECK(status.state == LiveInputMonitoringState::Disabled);
-    CHECK(status.reason == MonitoringDisabledReason::CalibrationStoreUnavailable);
-    CHECK(monitor.status().reason == MonitoringDisabledReason::CalibrationStoreUnavailable);
+    CHECK(status.reason == LiveInputMonitoringDisabledReason::CalibrationStoreUnavailable);
+    CHECK(
+        monitor.status().reason == LiveInputMonitoringDisabledReason::CalibrationStoreUnavailable);
     CHECK(live_input.calls.empty());
     CHECK_FALSE(live_input.live_input_monitoring_enabled);
 }
@@ -211,7 +212,7 @@ TEST_CASE("LiveInputMonitor gate rolls back on gain failure", "[common][audio][l
 
     const LiveInputMonitoringStatus status = monitor.refresh(g_ready);
 
-    CHECK(status.reason == MonitoringDisabledReason::BackendUnavailable);
+    CHECK(status.reason == LiveInputMonitoringDisabledReason::BackendUnavailable);
     CHECK(
         live_input.calls == std::vector<LiveInputSetterCall>{
                                 setCalibrationInputMonitoringCall(false),
@@ -237,7 +238,7 @@ TEST_CASE("LiveInputMonitor gate rolls back on enable failure", "[common][audio]
 
     const LiveInputMonitoringStatus status = monitor.refresh(g_ready);
 
-    CHECK(status.reason == MonitoringDisabledReason::BackendUnavailable);
+    CHECK(status.reason == LiveInputMonitoringDisabledReason::BackendUnavailable);
     CHECK(
         live_input.calls == std::vector<LiveInputSetterCall>{
                                 setCalibrationInputMonitoringCall(false),
@@ -264,7 +265,7 @@ TEST_CASE("LiveInputMonitor disableMonitoring tears down both paths", "[common][
                                 setLiveInputMonitoringCall(false),
                             });
     CHECK(monitor.status().state == LiveInputMonitoringState::Disabled);
-    CHECK(monitor.status().reason == MonitoringDisabledReason::SessionNotReady);
+    CHECK(monitor.status().reason == LiveInputMonitoringDisabledReason::SessionNotReady);
 }
 
 // Measurement start rolls back the captured route when the neutral-gain reset is rejected.

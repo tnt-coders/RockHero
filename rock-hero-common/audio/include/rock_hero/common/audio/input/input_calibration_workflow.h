@@ -187,24 +187,30 @@ public:
         {
             return {
                 LiveInputMonitoringState::Disabled,
-                MonitoringDisabledReason::AudioDeviceSettingsOpen,
+                LiveInputMonitoringDisabledReason::AudioDeviceSettingsOpen,
             };
         }
 
         if (!context.live_input_ready || !context.arrangement_loaded)
         {
-            return {LiveInputMonitoringState::Disabled, MonitoringDisabledReason::SessionNotReady};
+            return {
+                LiveInputMonitoringState::Disabled,
+                LiveInputMonitoringDisabledReason::SessionNotReady
+            };
         }
 
         if (!context.current_input_device_identity.has_value())
         {
-            return {LiveInputMonitoringState::Disabled, MonitoringDisabledReason::NoInputDevice};
+            return {
+                LiveInputMonitoringState::Disabled, LiveInputMonitoringDisabledReason::NoInputDevice
+            };
         }
 
         if (!m_calibration_state.has_value())
         {
             return {
-                LiveInputMonitoringState::Disabled, MonitoringDisabledReason::MissingCalibration
+                LiveInputMonitoringState::Disabled,
+                LiveInputMonitoringDisabledReason::MissingCalibration
             };
         }
 
@@ -212,11 +218,11 @@ public:
         {
             return {
                 LiveInputMonitoringState::Disabled,
-                MonitoringDisabledReason::CalibrationRouteMismatch,
+                LiveInputMonitoringDisabledReason::CalibrationRouteMismatch,
             };
         }
 
-        return {LiveInputMonitoringState::Active, MonitoringDisabledReason::None};
+        return {LiveInputMonitoringState::Active, LiveInputMonitoringDisabledReason::None};
     }
 
     /*!

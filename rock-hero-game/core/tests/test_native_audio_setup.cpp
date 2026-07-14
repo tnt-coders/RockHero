@@ -247,7 +247,7 @@ TEST_CASE("Native setup reaches an armed store state", "[core][audio][setup]")
             .live_input_ready = true, .arrangement_loaded = true
         });
     CHECK(status.state == common::audio::LiveInputMonitoringState::Active);
-    CHECK(status.reason == common::audio::MonitoringDisabledReason::None);
+    CHECK(status.reason == common::audio::LiveInputMonitoringDisabledReason::None);
 }
 
 // A failed device apply is terminal and writes nothing to either store.
