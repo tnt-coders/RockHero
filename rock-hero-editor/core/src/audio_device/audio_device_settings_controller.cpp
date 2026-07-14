@@ -277,6 +277,21 @@ void AudioDeviceSettingsController::onOkRequested()
     finishAndClose();
 }
 
+void AudioDeviceSettingsController::onCommitRequested()
+{
+    // The live "use game audio settings" toggle already opened the desired device, so there is no
+    // blocking device work to fence behind the dispatcher here: commit only clears the pending
+    // restore so the active route survives window teardown, then closes.
+    const auto committed = m_settings.commit();
+    if (!committed.has_value())
+    {
+        updateView();
+        return;
+    }
+
+    finishAndClose();
+}
+
 void AudioDeviceSettingsController::onCancelRequested()
 {
     if (m_dispatcher)

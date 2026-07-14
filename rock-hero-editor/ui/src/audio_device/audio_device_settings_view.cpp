@@ -22,6 +22,11 @@ constexpr int g_max_window_width{1000};
 constexpr int g_max_window_height{760};
 constexpr int g_toggle_row_height{26};
 
+// Width reserved for the checkbox-only toggle at the left of the "use game audio settings" row.
+// Wide enough to cover the drawn tick box (and a small margin) so clicking the box toggles the
+// setting, while the rest of the row belongs to the separate non-interactive label.
+constexpr int g_toggle_box_width{28};
+
 // Hover text shown on the read-only device fields while the "use game audio settings" toggle is on,
 // explaining why they cannot be edited. Cleared when the editor owns its own audio route.
 constexpr const char* g_game_settings_tooltip{"Derived from game settings"};
@@ -147,11 +152,42 @@ void AudioDeviceSettingsView::setGameAudioSettingsChangedCallback(
 // game reflection and the editable editor-own device flow.
 void AudioDeviceSettingsView::setGameAudioSettings(GameAudioSettingsState state)
 {
+    // Capture the open-time toggle value once. The bridge pushes the initial state exactly once
+    // when the window opens, so this first value is the pre-edit toggle that Cancel restores to.
+    if (!m_captured_original_game_settings)
+    {
+        m_original_use_game_settings = state.use_game_settings;
+        m_captured_original_game_settings = true;
+    }
+
     m_game_settings = state;
     applyGameAudioSettingsPresentation();
     applyStateToControls();
     syncWindowHeightToContent();
     resized();
+}
+
+// Restores the toggle to its open-time value and re-fires the change callback so the editor
+// controller re-persists the flag, flips the store source back, and reopens the original device.
+void AudioDeviceSettingsView::restoreOriginalGameAudioSettings()
+{
+    if (!m_captured_original_game_settings ||
+        m_game_settings.use_game_settings == m_original_use_game_settings)
+    {
+        return;
+    }
+
+    // Mirror the toggle onClick local-update block, then notify the host so the source switch,
+    // persistence, and device re-open run through the same editor path the live toggle uses.
+    m_game_settings.use_game_settings = m_original_use_game_settings;
+    applyGameAudioSettingsPresentation();
+    applyStateToControls();
+    syncWindowHeightToContent();
+    resized();
+    if (m_on_use_game_settings_changed)
+    {
+        m_on_use_game_settings_changed(m_original_use_game_settings);
+    }
 }
 
 // The toggle being on renders the device fields read-only whether or not a game config exists: an
@@ -226,8 +262,12 @@ void AudioDeviceSettingsView::resized()
     area.removeFromBottom(std::min(g_row_gap, area.getHeight()));
 
     // The toggle sits above the device rows so the read-only effect of the toggle on the fields
-    // below is visually obvious (open question 3: top-of-panel placement).
-    m_use_game_settings_toggle.setBounds(area.removeFromTop(g_toggle_row_height));
+    // below is visually obvious (open question 3: top-of-panel placement). The checkbox-only toggle
+    // takes just its box square at the left; the separate caption label fills the rest of the row.
+    auto toggle_row = area.removeFromTop(g_toggle_row_height);
+    m_use_game_settings_toggle.setBounds(
+        toggle_row.removeFromLeft(std::min(g_toggle_box_width, toggle_row.getWidth())));
+    m_use_game_settings_label.setBounds(toggle_row);
     area.removeFromTop(std::min(g_row_gap, area.getHeight()));
 
     layoutRow(m_device_type_label, m_device_type_combo, area);
@@ -246,7 +286,13 @@ void AudioDeviceSettingsView::configureControls()
     setComponentID("audio_device_settings_view");
 
     m_use_game_settings_toggle.setComponentID("audio_settings_use_game_toggle");
-    m_use_game_settings_toggle.setButtonText("Use game audio settings");
+    // Empty button text: the toggle is sized to just the checkbox square so only the box flips the
+    // setting. The row caption lives in the separate non-interactive label below.
+    m_use_game_settings_toggle.setButtonText({});
+    m_use_game_settings_label.setComponentID("audio_settings_use_game_label");
+    m_use_game_settings_label.setText("Use game audio settings", juce::dontSendNotification);
+    // The label is presentation only; let clicks on the text fall through so they never toggle.
+    m_use_game_settings_label.setInterceptsMouseClicks(false, false);
     m_use_game_settings_toggle.onClick = [this] {
         // Update the local read-only presentation immediately so the panel reflects the flip without
         // waiting for the controller round-trip, then notify the host to drive the source switch.
@@ -317,21 +363,28 @@ void AudioDeviceSettingsView::configureControls()
     };
     m_control_panel_button.onClick = [this] { m_controller.onControlPanelRequested(); };
     m_ok_button.onClick = [this] {
-        // With the game source active the fields are read-only and there is nothing to apply, so OK
-        // just closes the window, exactly like Cancel; only the editable editor-own flow runs a real
-        // device apply.
+        // OK confirms the current source. While the game source is active the live toggle already
+        // opened the desired device, so OK commits that live route (keeping it, not restoring the
+        // captured previous one). The editable editor-own flow runs a real staged-route apply.
         if (gameSettingsLockActive())
         {
-            m_controller.onCancelRequested();
+            m_controller.onCommitRequested();
         }
         else
         {
             m_controller.onOkRequested();
         }
     };
-    m_cancel_button.onClick = [this] { m_controller.onCancelRequested(); };
+    m_cancel_button.onClick = [this] {
+        // Restore the editor-side toggle first (source, persistence, checkbox, and original-device
+        // re-open), then let the common cancel restore the device byte-exact as the final
+        // authority. Ordering matters: onCancelRequested() is terminal and tears the window down.
+        restoreOriginalGameAudioSettings();
+        m_controller.onCancelRequested();
+    };
 
     addAndMakeVisible(m_use_game_settings_toggle);
+    addAndMakeVisible(m_use_game_settings_label);
     addAndMakeVisible(m_device_type_label);
     addAndMakeVisible(m_device_type_combo);
     addAndMakeVisible(m_device_label);
@@ -443,6 +496,9 @@ void AudioDeviceSettingsView::applyStateToControls()
     m_output_pair_combo.setTooltip(field_tooltip);
     m_sample_rate_combo.setTooltip(field_tooltip);
     m_buffer_size_combo.setTooltip(field_tooltip);
+    // The control panel button is visible-but-disabled while the game source is active (it is one
+    // of the grayed controls), so it carries the same explanatory tooltip as the locked fields.
+    m_control_panel_button.setTooltip(field_tooltip);
 
     m_error_label.setText(juce::String{m_state.error_message.c_str()}, juce::dontSendNotification);
 }

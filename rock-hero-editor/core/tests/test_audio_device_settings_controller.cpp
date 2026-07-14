@@ -90,6 +90,18 @@ public:
         return {};
     }
 
+    [[nodiscard]] std::expected<void, common::audio::AudioDeviceSettingsError> commit() override
+    {
+        ++commit_call_count;
+        if (next_commit_error.has_value())
+        {
+            current_state.error_message = next_commit_error->message;
+            return std::unexpected{*next_commit_error};
+        }
+
+        return {};
+    }
+
     [[nodiscard]] std::expected<void, common::audio::AudioDeviceSettingsError> openControlPanel()
         override
     {
@@ -141,9 +153,11 @@ public:
     };
     std::optional<common::audio::AudioDeviceSettingsError> next_apply_error{};
     std::optional<common::audio::AudioDeviceSettingsError> next_cancel_error{};
+    std::optional<common::audio::AudioDeviceSettingsError> next_commit_error{};
     std::vector<Listener*> listeners{};
     int cancel_call_count{};
     int apply_call_count{};
+    int commit_call_count{};
     int control_panel_call_count{};
     int selected_audio_system_id{};
     int selected_device_id{};
@@ -251,6 +265,42 @@ TEST_CASE("AudioDeviceSettingsController keeps failed OK open", "[core][audio-de
     CHECK(settings.apply_call_count == 1);
     CHECK(view.close_call_count == 0);
     CHECK(view.last_state.error_message == "Could not open Output B");
+}
+
+// Commit keeps the already-active route and closes the view without applying or canceling. This is
+// the OK path while the settings window is locked to the live game audio source.
+TEST_CASE("AudioDeviceSettingsController commits and closes", "[core][audio-device-settings]")
+{
+    FakeAudioDeviceSettings settings;
+    AudioDeviceSettingsController controller{settings};
+    FakeAudioDeviceSettingsView view;
+    controller.attachView(view);
+
+    controller.onCommitRequested();
+
+    CHECK(settings.commit_call_count == 1);
+    CHECK(settings.apply_call_count == 0);
+    CHECK(settings.cancel_call_count == 0);
+    CHECK(view.close_call_count == 1);
+}
+
+// A failed commit keeps the window open and renders the diagnostic, matching the OK/cancel pattern.
+TEST_CASE("AudioDeviceSettingsController keeps failed commit open", "[core][audio-device-settings]")
+{
+    FakeAudioDeviceSettings settings;
+    settings.next_commit_error = common::audio::AudioDeviceSettingsError{
+        common::audio::AudioDeviceSettingsErrorCode::ApplyFailed,
+        "Could not keep the active route",
+    };
+    AudioDeviceSettingsController controller{settings};
+    FakeAudioDeviceSettingsView view;
+    controller.attachView(view);
+
+    controller.onCommitRequested();
+
+    CHECK(settings.commit_call_count == 1);
+    CHECK(view.close_call_count == 0);
+    CHECK(view.last_state.error_message == "Could not keep the active route");
 }
 
 // Cancel abandons the staged edit and closes the view.

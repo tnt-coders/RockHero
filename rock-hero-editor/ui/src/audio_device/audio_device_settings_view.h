@@ -127,6 +127,19 @@ public:
     */
     void setGameAudioSettings(GameAudioSettingsState state);
 
+    /*!
+    \brief Restores the "use game audio settings" toggle to its open-time value.
+
+    Extends the existing cancel flow: the common settings service restores the audio device
+    byte-exact, but it knows nothing about the editor-side toggle (persisted flag plus store
+    source). This re-applies the toggle value captured when the window opened and re-fires the
+    change callback so the editor controller re-persists the flag, flips the store source back, and
+    reopens the original source's device. It is a no-op when the toggle already matches its
+    open-time value, so it is safe on cancel paths that never touched the toggle and on repeated
+    disposal calls.
+    */
+    void restoreOriginalGameAudioSettings();
+
     /*! \brief Requests modal shutdown from the host DialogWindow. */
     void requestClose() override;
 
@@ -182,7 +195,20 @@ private:
     // Resolved "use game audio settings" toggle and game-availability state governing read-only mode.
     GameAudioSettingsState m_game_settings{};
 
+    // Toggle value captured on the first setGameAudioSettings() call (window open time). Cancel and
+    // bypass-close paths restore the toggle to this value so the window lands back on its exact
+    // pre-open state.
+    bool m_original_use_game_settings{false};
+
+    // True once the open-time toggle value has been captured, so restore is a no-op before the
+    // first game-settings push.
+    bool m_captured_original_game_settings{false};
+
     juce::ToggleButton m_use_game_settings_toggle;
+
+    // Non-interactive row label paired with the checkbox-only toggle so only the box square toggles
+    // the setting; clicks on the text fall through rather than flipping the toggle.
+    juce::Label m_use_game_settings_label;
     juce::Label m_device_type_label;
     juce::ComboBox m_device_type_combo;
     juce::Label m_device_label;

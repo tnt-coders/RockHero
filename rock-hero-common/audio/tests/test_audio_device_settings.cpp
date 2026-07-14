@@ -586,8 +586,13 @@ TEST_CASE("AudioDeviceSettings defaults staged sample rate", "[audio][audio-devi
     CHECK(state.selected_sample_rate_id == 2);
 }
 
-// Backend control-panel refusal returns a typed error and keeps the message in settings state.
-TEST_CASE("AudioDeviceSettings reports control panel failure", "[audio][audio-device-settings]")
+// showControlPanel()'s bool is a dwell-time reload heuristic (ASIO returns true only when the user
+// lingered in the panel long enough to justify reloading buffer sizes), not a success signal. As
+// long as the driver exposes a control panel, opening it succeeds even when showControlPanel()
+// returns false, so no spurious failure surfaces.
+TEST_CASE(
+    "AudioDeviceSettings opens control panel regardless of dwell-time return",
+    "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
@@ -599,11 +604,57 @@ TEST_CASE("AudioDeviceSettings reports control panel failure", "[audio][audio-de
 
     const auto opened = settings.openControlPanel();
 
+    CHECK(opened.has_value());
+    CHECK(audio_type.controlPanelCallCount() == 1);
+    CHECK(settings.state().error_message.empty());
+}
+
+// A backend that exposes no control panel is gated by hasControlPanel() (the only reliable
+// capability signal): the request returns the unavailable error without dispatching to the driver.
+TEST_CASE(
+    "AudioDeviceSettings reports control panel unavailable without a panel",
+    "[audio][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    const auto& audio_type = addMockAudioType(
+        audio_devices.device_manager, g_asio_type_name, juce::StringArray{}, false);
+
+    AudioDeviceSettings settings{audio_devices};
+    REQUIRE_FALSE(settings.state().control_panel_enabled);
+
+    const auto opened = settings.openControlPanel();
+
     REQUIRE_FALSE(opened.has_value());
     CHECK(opened.error().code == AudioDeviceSettingsErrorCode::ControlPanelUnavailable);
-    CHECK(opened.error().message == "The selected audio device did not open its control panel.");
     CHECK(settings.state().error_message == opened.error().message);
-    CHECK(audio_type.controlPanelCallCount() == 1);
+    CHECK(audio_type.controlPanelCallCount() == 0);
+}
+
+// commit() adopts the live route as final: it clears the pending restore so destruction does not
+// reopen the route captured when the settings edit began. Contrast "restores device on
+// destruction", where the same construction reopens the device precisely because commit() did not
+// run.
+TEST_CASE(
+    "AudioDeviceSettings commit skips the destructor route restore",
+    "[audio][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    openInitialRoute(audio_devices);
+    REQUIRE(audio_devices.device_manager.getCurrentAudioDevice() != nullptr);
+
+    {
+        AudioDeviceSettings settings{audio_devices};
+        // Construction closes the active device for editing.
+        REQUIRE(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
+
+        const auto committed = settings.commit();
+        REQUIRE(committed.has_value());
+    }
+
+    // With the previous route abandoned by commit(), destruction must not reopen the device.
+    CHECK(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
 }
 
 // Switching audio systems should reset format selections to their defaults so a stale staged

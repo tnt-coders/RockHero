@@ -66,6 +66,11 @@ public:
         ++ok_call_count;
     }
 
+    void onCommitRequested() override
+    {
+        ++commit_call_count;
+    }
+
     void onCancelRequested() override
     {
         ++cancel_call_count;
@@ -81,6 +86,7 @@ public:
     int selected_buffer_size_id{};
     int control_panel_call_count{};
     int ok_call_count{};
+    int commit_call_count{};
     int cancel_call_count{};
 };
 
@@ -202,6 +208,8 @@ TEST_CASE(
         findRequiredDirectChild<juce::ComboBox>(view, "audio_settings_input_device");
     auto& sample_rate = findRequiredDirectChild<juce::ComboBox>(view, "audio_settings_sample_rate");
     auto& ok_button = findRequiredDirectChild<juce::TextButton>(view, "audio_settings_ok_button");
+    auto& control_panel =
+        findRequiredDirectChild<juce::TextButton>(view, "audio_settings_control_panel_button");
     const auto& toggle =
         findRequiredDirectChild<juce::ToggleButton>(view, "audio_settings_use_game_toggle");
 
@@ -211,14 +219,143 @@ TEST_CASE(
     // The locked fields carry the derived-from-game tooltip explaining why they cannot be edited.
     CHECK(input_device.getTooltip() == "Derived from game settings");
     CHECK(sample_rate.getTooltip() == "Derived from game settings");
-    // OK is not grayed out while locked: with the game source active it simply closes the window
-    // like Cancel, so it stays enabled and routes to the cancel intent (nothing to apply).
+    // The visible-but-disabled control panel button is one of the grayed controls, so it carries
+    // the same tooltip.
+    CHECK(control_panel.isVisible());
+    CHECK_FALSE(control_panel.isEnabled());
+    CHECK(control_panel.getTooltip() == "Derived from game settings");
+    // OK is not grayed out while locked: with the game source active it keeps the live route, so it
+    // stays enabled and routes to the commit intent (not apply, not cancel/restore).
     CHECK(ok_button.isEnabled());
 
     REQUIRE(ok_button.onClick);
     ok_button.onClick();
     CHECK(controller.ok_call_count == 0);
+    CHECK(controller.cancel_call_count == 0);
+    CHECK(controller.commit_call_count == 1);
+}
+
+// The row is a checkbox-only toggle plus a separate non-interactive caption label, so only the box
+// square flips the setting; clicks on the caption text do not toggle it.
+TEST_CASE(
+    "AudioDeviceSettingsView splits the toggle box from its caption label",
+    "[ui][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeAudioDeviceSettingsController controller;
+    AudioDeviceSettingsView view{controller};
+    view.setState(splitDeviceState());
+
+    const auto& toggle =
+        findRequiredDirectChild<juce::ToggleButton>(view, "audio_settings_use_game_toggle");
+    const auto& label = findRequiredDirectChild<juce::Label>(view, "audio_settings_use_game_label");
+
+    // The toggle carries no text of its own; the caption is the separate label.
+    CHECK(toggle.getButtonText().isEmpty());
+    CHECK(label.getText() == "Use game audio settings");
+    // The label must not intercept clicks, so pressing the text never flips the toggle.
+    bool clicks_this{true};
+    bool clicks_children{true};
+    label.getInterceptsMouseClicks(clicks_this, clicks_children);
+    CHECK_FALSE(clicks_this);
+}
+
+// Cancel restores the toggle to its checked open-time value after the user unchecks it, and
+// re-fires the change callback so the host reopens the original source.
+TEST_CASE(
+    "AudioDeviceSettingsView restores the checked toggle on cancel", "[ui][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeAudioDeviceSettingsController controller;
+    AudioDeviceSettingsView view{controller};
+    view.setState(splitDeviceState());
+    view.setGameAudioSettings(
+        AudioDeviceSettingsView::GameAudioSettingsState{
+            .use_game_settings = true,
+            .game_source_available = true,
+        });
+
+    std::optional<bool> requested;
+    view.setGameAudioSettingsChangedCallback([&](bool enabled) { requested = enabled; });
+
+    auto& toggle =
+        findRequiredDirectChild<juce::ToggleButton>(view, "audio_settings_use_game_toggle");
+    // User unchecks the toggle (drops to the editor-own flow).
+    toggle.setToggleState(false, juce::dontSendNotification);
+    REQUIRE(toggle.onClick);
+    toggle.onClick();
+    REQUIRE(requested.has_value());
+    CHECK_FALSE(requested.value());
+
+    // Cancel restores the open-time checked toggle first, then routes the cancel intent.
+    clickTextButton(view, "audio_settings_cancel_button");
+
     CHECK(controller.cancel_call_count == 1);
+    CHECK(toggle.getToggleState());
+    REQUIRE(requested.has_value());
+    CHECK(requested.value());
+}
+
+// Cancel restores the toggle to its unchecked open-time value after the user checks it, landing
+// back on the exact pre-window state in the other direction.
+TEST_CASE(
+    "AudioDeviceSettingsView restores the unchecked toggle on cancel",
+    "[ui][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeAudioDeviceSettingsController controller;
+    AudioDeviceSettingsView view{controller};
+    view.setState(splitDeviceState());
+    view.setGameAudioSettings(
+        AudioDeviceSettingsView::GameAudioSettingsState{
+            .use_game_settings = false,
+            .game_source_available = true,
+        });
+
+    std::optional<bool> requested;
+    view.setGameAudioSettingsChangedCallback([&](bool enabled) { requested = enabled; });
+
+    auto& toggle =
+        findRequiredDirectChild<juce::ToggleButton>(view, "audio_settings_use_game_toggle");
+    // User checks the toggle (adopts the game source live).
+    toggle.setToggleState(true, juce::dontSendNotification);
+    REQUIRE(toggle.onClick);
+    toggle.onClick();
+    REQUIRE(requested.has_value());
+    CHECK(requested.value());
+
+    // Cancel restores the open-time unchecked toggle and re-fires the callback with the off value.
+    clickTextButton(view, "audio_settings_cancel_button");
+
+    CHECK(controller.cancel_call_count == 1);
+    CHECK_FALSE(toggle.getToggleState());
+    REQUIRE(requested.has_value());
+    CHECK_FALSE(requested.value());
+}
+
+// Cancel without a toggle change restores nothing and does not fire the change callback, so a plain
+// device edit followed by Cancel routes only the cancel intent.
+TEST_CASE(
+    "AudioDeviceSettingsView cancel leaves an untouched toggle alone",
+    "[ui][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeAudioDeviceSettingsController controller;
+    AudioDeviceSettingsView view{controller};
+    view.setState(splitDeviceState());
+    view.setGameAudioSettings(
+        AudioDeviceSettingsView::GameAudioSettingsState{
+            .use_game_settings = false,
+            .game_source_available = true,
+        });
+
+    std::optional<bool> requested;
+    view.setGameAudioSettingsChangedCallback([&](bool enabled) { requested = enabled; });
+
+    clickTextButton(view, "audio_settings_cancel_button");
+
+    CHECK(controller.cancel_call_count == 1);
+    CHECK_FALSE(requested.has_value());
 }
 
 // Toggle ON with an unconfigured game still locks the fields; unchecking the toggle is the one way

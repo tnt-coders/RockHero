@@ -385,9 +385,12 @@ private:
     juce::TextButton m_calibrate_button;
     juce::TextButton m_cancel_button;
 
-    // One tooltip window per calibration window renders the "derived from game settings" hover text
-    // on the disabled controls. Parented to this content so its lifetime matches the window.
-    juce::TooltipWindow m_tooltip_window{this};
+    // A single application-wide tooltip window (created on first use, shared across all windows)
+    // renders the hover text on the disabled controls. Using SharedResourcePointer instead of a
+    // per-window instance is JUCE's documented fix for the duplicate-tooltip artifact: two live
+    // TooltipWindow instances each register a global mouse listener and can paint overlaid tips.
+    // Default (desktop) parent gives the native soft-corner drop-shadow window.
+    juce::SharedResourcePointer<juce::TooltipWindow> m_tooltip_window;
 };
 
 InputCalibrationWindow::InputCalibrationWindow(

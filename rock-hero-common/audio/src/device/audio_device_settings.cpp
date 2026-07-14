@@ -550,6 +550,17 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
         return {};
     }
 
+    // Keeps the live route as final: clears the pending restore so ~Impl() does not reopen the
+    // captured previous route, then rebuilds derived state. No device work runs because the active
+    // route is already the one the user is keeping (it was opened out of band while the window was
+    // open, for example by the editor's live "use game audio settings" toggle).
+    [[nodiscard]] std::expected<void, AudioDeviceSettingsError> commit()
+    {
+        m_restore_pending = false;
+        refreshState({});
+        return {};
+    }
+
     // Opens the staged backend's control panel through the in-memory staged device so the panel
     // remains available even though the active audio device is closed during the settings
     // edit. ASIO drivers honor showControlPanel() against a non-open device because the type
@@ -563,15 +574,14 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
             return std::unexpected{std::move(error)};
         }
 
-        if (!m_staged_device->showControlPanel())
-        {
-            AudioDeviceSettingsError error{
-                AudioDeviceSettingsErrorCode::ControlPanelUnavailable,
-                "The selected audio device did not open its control panel.",
-            };
-            refreshState(error.message);
-            return std::unexpected{std::move(error)};
-        }
+        // showControlPanel()'s bool is not a success/failure signal. For ASIO it opens the panel
+        // unconditionally (via the driver's controlPanel() call) and returns true only when the
+        // user dwelt in the panel long enough (>300ms) to justify reloading preferred buffer
+        // sizes; a quick open/close, or a non-blocking driver, returns false even though the panel
+        // opened. hasControlPanel() (already checked via control_panel_enabled above) is the only
+        // reliable capability signal, so the return value is discarded rather than treated as a
+        // failure.
+        m_staged_device->showControlPanel();
 
         refreshState({});
         return {};
@@ -1134,6 +1144,11 @@ std::expected<void, AudioDeviceSettingsError> AudioDeviceSettings::apply()
 std::expected<void, AudioDeviceSettingsError> AudioDeviceSettings::cancel()
 {
     return m_impl->cancel();
+}
+
+std::expected<void, AudioDeviceSettingsError> AudioDeviceSettings::commit()
+{
+    return m_impl->commit();
 }
 
 std::expected<void, AudioDeviceSettingsError> AudioDeviceSettings::openControlPanel()
