@@ -45,7 +45,7 @@ definitions, no state added just to make a translation-unit split work.
 #include <rock_hero/common/core/shared/cancellation_token.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/timeline.h>
-#include <rock_hero/editor/core/audio/editor_effective_audio_config_store.h>
+#include <rock_hero/editor/core/audio/editor_audio_config_store.h>
 #include <rock_hero/editor/core/controller/editor_controller.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <rock_hero/editor/core/controller/i_editor_view.h>
@@ -460,10 +460,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Per-app audio-config store used to persist and restore the active device route.
     common::audio::IAudioConfigStore& m_audio_config_store;
 
-    // Effective-source facade the "use game audio settings" toggle re-selects; null in tests that do
-    // not exercise the toggle. When set it is the same object as m_audio_config_store, held
-    // concretely so onUseGameAudioSettingsChangeRequested can switch its read source.
-    EditorEffectiveAudioConfigStore* m_effective_audio_source{nullptr};
+    // Editor audio-config store the "use game audio settings" toggle re-selects; null in tests that
+    // do not exercise the toggle. When set it is the same object as m_audio_config_store, held
+    // concretely so onUseGameAudioSettingsChangeRequested can switch its active source.
+    EditorAudioConfigStore* m_editor_audio_config_store{nullptr};
 
     // Cached "a calibrated game config exists" signal, refreshed by refreshGameSourceAvailability at
     // startup, on toggle change, and when the device-settings window opens. Surfaced through

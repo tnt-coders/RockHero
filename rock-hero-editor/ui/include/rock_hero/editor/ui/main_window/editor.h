@@ -106,12 +106,13 @@ public:
         common::audio::LiveInputMonitor& live_input_monitor;
 
         /*!
-        \brief Effective-source facade driven by the "use game audio settings" toggle.
+        \brief Editor audio-config store driven by the "use game audio settings" toggle.
 
         Optional; when supplied it is the same object as \ref audio_config_store, forwarded to the
-        controller so a toggle change can re-select the read source and re-apply the resulting route.
+        controller so a toggle change can re-select the active source and re-apply the resulting
+        route.
         */
-        core::EditorEffectiveAudioConfigStore* effective_audio_source{nullptr};
+        core::EditorAudioConfigStore* editor_audio_config_store{nullptr};
     };
 
     /*! \brief Optional project IO operations used by the composed editor workflow. */

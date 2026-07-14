@@ -7,7 +7,7 @@
 #include <rock_hero/common/core/shared/application_identity.h>
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/timeline/fraction.h>
-#include <rock_hero/editor/core/audio/editor_effective_audio_config_store.h>
+#include <rock_hero/editor/core/audio/editor_audio_config_store.h>
 #include <rock_hero/editor/core/settings/editor_settings.h>
 #include <string>
 #include <string_view>
