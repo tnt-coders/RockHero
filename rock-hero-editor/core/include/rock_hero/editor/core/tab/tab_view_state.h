@@ -101,6 +101,25 @@ struct TabNoteView
     friend bool operator==(const TabNoteView& lhs, const TabNoteView& rhs) = default;
 };
 
+/*! \brief One chord-template posture note rendered as a ghost head at an arpeggio start. */
+struct TabGhostNoteView
+{
+    /*! \brief One-based string, counted from the lowest-pitched string. */
+    int string{1};
+
+    /*! \brief Fret held; zero is the open string. */
+    int fret{0};
+
+    /*!
+    \brief Compares two ghost note views by their stored fields.
+    \param lhs Left-hand ghost note view.
+    \param rhs Right-hand ghost note view.
+    \return True when both ghost note views store equal values.
+    */
+    friend constexpr bool operator==(
+        const TabGhostNoteView& lhs, const TabGhostNoteView& rhs) noexcept = default;
+};
+
 /*! \brief One hand-posture span resolved to timeline seconds for rendering. */
 struct TabShapeView
 {
@@ -118,6 +137,13 @@ struct TabShapeView
     together (chord box). Derived at projection time from the notes under the span start.
     */
     bool arpeggio{false};
+
+    /*!
+    \brief Template posture notes not sounded exactly at the span start, in ascending string
+    order. Populated only for arpeggio spans, where they render as ghost heads at the bracket
+    start alongside the notes actually struck there.
+    */
+    std::vector<TabGhostNoteView> ghost_notes;
 
     /*!
     \brief Compares two shape views by their stored fields.

@@ -30,6 +30,13 @@ using common::core::GridPosition;
             .frets = {1, 3, 3, std::nullopt, std::nullopt, std::nullopt},
             .fingers = {1, 3, 4, std::nullopt, std::nullopt, std::nullopt},
         },
+        // Held posture for the arpeggio span; string 4 is struck at the bracket start, so only
+        // the other two entries should ghost.
+        common::core::ChordTemplate{
+            .name = "Dm7",
+            .frets = {std::nullopt, 5, std::nullopt, 7, 8, std::nullopt},
+            .fingers = {std::nullopt, 1, std::nullopt, 3, 4, std::nullopt},
+        },
     };
     chart.notes = {
         // Simultaneous pair at 2:1 under the shape span: reads as a chord box.
@@ -67,7 +74,7 @@ using common::core::GridPosition;
         common::core::ChartShape{
             .position = GridPosition{.measure = 3, .beat = 1, .offset = Fraction{1, 2}},
             .sustain = Fraction{2},
-            .chord = 0,
+            .chord = 1,
         },
     };
     chart.fret_hand_positions = {
@@ -120,7 +127,14 @@ TEST_CASE("Tab projection resolves chart positions to seconds", "[editor-core][t
     REQUIRE(state.shapes.size() == 2);
     CHECK(state.shapes[0].name == "F5");
     CHECK_FALSE(state.shapes[0].arpeggio);
+    CHECK(state.shapes[0].ghost_notes.empty());
     CHECK(state.shapes[1].arpeggio);
+
+    // The arpeggio start ghosts the held posture's unstruck strings only: string 4 is struck
+    // right at the bracket start, so just the template's other two entries appear.
+    REQUIRE(state.shapes[1].ghost_notes.size() == 2);
+    CHECK(state.shapes[1].ghost_notes[0] == TabGhostNoteView{.string = 2, .fret = 5});
+    CHECK(state.shapes[1].ghost_notes[1] == TabGhostNoteView{.string = 5, .fret = 8});
 
     REQUIRE(state.fret_hand_positions.size() == 1);
     CHECK(state.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
