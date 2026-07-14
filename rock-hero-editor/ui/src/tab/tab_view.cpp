@@ -40,7 +40,10 @@ constexpr float g_min_note_height_for_text{9.0f};
 // Height of the hand-shape label bar and its bold name text (Charter chartTextHeight).
 constexpr float g_shape_label_height{10.0f};
 constexpr float g_shape_rail_height{3.0f};
+// Chord marks brighten more than arpeggio marks: at the chord multiplier the purple's clamped
+// blue channel read too loud next to the blue, so the user tuned the arpeggio purple darker.
 constexpr double g_shape_mark_brightness{1.5};
+constexpr double g_arpeggio_mark_brightness{1.3};
 // Bar width in whole pixels of the square-bracket pair marking an arpeggio posture note, which
 // reads as "[ fret ]" and stays much lighter than the note rings it wraps. The brackets draw as
 // pixel-snapped rectangles — a fractional width or position antialiases into fuzzy, unsquare
@@ -827,11 +830,11 @@ juce::Colour tabStringColor(int displayed_string, int displayed_string_count)
 }
 
 // Shared with the timeline ruler's chord/arpeggio name chips so chip and rails always agree
-// (user-directed brightness bump over the Charter hand-shape bases).
+// (user-directed brightness bumps over the Charter hand-shape bases).
 juce::Colour tabShapeMarkColor(bool arpeggio)
 {
-    return charterMultiply(
-        arpeggio ? g_hand_shape_arpeggio_color : g_hand_shape_color, g_shape_mark_brightness);
+    return arpeggio ? charterMultiply(g_hand_shape_arpeggio_color, g_arpeggio_mark_brightness)
+                    : charterMultiply(g_hand_shape_color, g_shape_mark_brightness);
 }
 
 // Standard tablature orientation: highest string on top, lowest on the bottom. The host sizes

@@ -251,9 +251,10 @@ TEST_CASE("TabView draws techniques, shapes, and fret-hand positions", "[ui][tab
     CHECK(image.getPixelAt(150, 1).getARGB() == 0);
     CHECK(image.getPixelAt(150, 238).getARGB() == 0);
 
-    // The arpeggio span's rails are the brightened purple (blue channel clamps at 255).
-    CHECK(image.getPixelAt(220, 1) == juce::Colour{0xffc785ff});
-    CHECK(image.getPixelAt(220, 238) == juce::Colour{0xffc785ff});
+    // The arpeggio span's rails are the purple at its own gentler brightness (base x1.3, user
+    // tuned darker than the chord blue's x1.5).
+    CHECK(image.getPixelAt(220, 1) == juce::Colour{0xffac73ed});
+    CHECK(image.getPixelAt(220, 238) == juce::Colour{0xffac73ed});
 
     // Shape names draw in the timeline ruler's bottom band, not in the lane, so nothing but
     // the rails and the FHP marker touches the lane's top edge here.
