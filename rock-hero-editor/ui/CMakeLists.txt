@@ -13,6 +13,8 @@ target_sources(
             src/audio_device/audio_device_settings_view.h
             src/audio_device/audio_device_settings_window.cpp
             src/audio_device/audio_device_settings_window.h
+            src/audio_device/game_audio_recommendation_dialog.cpp
+            src/audio_device/game_audio_recommendation_dialog.h
             src/busy/busy_overlay.cpp
             src/busy/busy_overlay.h
             src/input_calibration/input_calibration_window.cpp

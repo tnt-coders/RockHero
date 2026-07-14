@@ -5,9 +5,12 @@
 
 #pragma once
 
+#include <expected>
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
+#include <rock_hero/editor/core/audio/game_audio_source_error.h>
+#include <rock_hero/editor/core/audio/game_audio_source_state.h>
 
 namespace juce
 {
@@ -52,19 +55,22 @@ public:
     Receives the requested toggle value plus the dialog's applying presentation (empty on the
     cancel-time restore). The composition layer forwards both to the editor controller, which
     brackets a genuine blocking device re-open with the presentation -- hiding the dialog like the
-    OK/Cancel apply path -- and never invokes it for an instant same-device flip.
+    OK/Cancel apply path -- and never invokes it for an instant same-device flip. A declined enable
+    (the game's configuration is not adoptable) returns the typed reason with nothing persisted;
+    the dialog reverts its checkbox and reports the carried canonical message.
     */
     using GameAudioSettingsChangedCallback =
-        std::function<void(bool enabled, std::function<void(bool)> set_applying)>;
+        std::function<std::expected<void, core::GameAudioSourceError>(
+            bool enabled, std::function<void(bool)> set_applying)>;
 
-    /*! \brief Resolved "use game audio settings" toggle and game-availability state at open. */
+    /*! \brief Resolved "use game audio settings" toggle state at open. */
     struct GameAudioSettings final
     {
         /*! \brief True when the toggle is on and the panel opens read-only. */
         bool use_game_settings{false};
 
-        /*! \brief True when a calibrated game audio configuration exists to reflect. */
-        bool game_source_available{false};
+        /*! \brief Adoption-readiness of the game's configuration, read fresh at window open. */
+        core::GameAudioSourceState source_state{core::GameAudioSourceState::NotConfigured};
     };
 
     /*!

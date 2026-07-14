@@ -5,8 +5,11 @@
 
 #pragma once
 
+#include <expected>
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <rock_hero/editor/core/audio/game_audio_source_error.h>
+#include <rock_hero/editor/core/audio/game_audio_source_state.h>
 #include <rock_hero/editor/core/audio_device/audio_device_settings_view_state.h>
 #include <rock_hero/editor/core/audio_device/i_audio_device_settings_controller.h>
 #include <rock_hero/editor/core/audio_device/i_audio_device_settings_view.h>
@@ -36,12 +39,14 @@ public:
     binds the presentation to this view's setApplying(), so a flip that needs a blocking device
     re-open hides the dialog exactly like the OK/Cancel apply path; the cancel-time restore passes
     an empty presentation instead because its window is already closing, which runs the re-open
-    inline. The host forwards both to the editor controller, which owns the source switch and engine
-    adoption; the view updates its own read-only presentation immediately so the panel reflects the
-    change without waiting for a controller round-trip.
+    inline. The host forwards both to the editor controller, which owns the source switch and
+    engine adoption and declines an enable when the game's configuration is not adoptable; on a
+    declined enable the view reverts its checkbox and reports the carried canonical reason, and
+    only an accepted flip updates the local read-only presentation.
     */
     using GameAudioSettingsChangedCallback =
-        std::function<void(bool enabled, std::function<void(bool)> set_applying)>;
+        std::function<std::expected<void, core::GameAudioSourceError>(
+            bool enabled, std::function<void(bool)> set_applying)>;
 
     /*! \brief Governs whether the panel reflects the game's audio config or edits the editor's own. */
     struct GameAudioSettingsState final
@@ -49,8 +54,14 @@ public:
         /*! \brief True when the "use game audio settings" toggle is on. */
         bool use_game_settings{false};
 
-        /*! \brief True when a calibrated game audio configuration exists to reflect. */
-        bool game_source_available{false};
+        /*!
+        \brief Adoption-readiness of the game's configuration, read fresh at window open.
+
+        NotConfigured disables the toggle with an explanatory tooltip — with no game configuration
+        at all there is nothing a click could adopt or explain. Uncalibrated keeps the toggle
+        clickable so the click can report the calibrate-in-game reason.
+        */
+        core::GameAudioSourceState source_state{core::GameAudioSourceState::NotConfigured};
     };
 
     /*!
@@ -127,7 +138,7 @@ public:
     a "Derived from game settings" tooltip that explains why they cannot be edited. When off the
     panel is the full editable device flow and the tooltip is cleared.
 
-    \param state Resolved toggle and game-availability state.
+    \param state Resolved toggle state.
     */
     void setGameAudioSettings(GameAudioSettingsState state);
 
@@ -167,9 +178,8 @@ private:
     // tooltip are applied alongside the other control state in applyStateToControls().
     void applyGameAudioSettingsPresentation();
 
-    // True while the toggle is on, which renders the device fields read-only regardless of source
-    // availability (an unconfigured game still locks the fields and steers the user to uncheck the
-    // toggle).
+    // True while the toggle is on, which renders the device fields read-only. The toggle can only
+    // be on while the game's configuration is adopted, so the lock always reflects a real route.
     [[nodiscard]] bool gameSettingsLockActive() const noexcept;
 
     // Resizes the view and host window to match the current form rows.
@@ -196,7 +206,7 @@ private:
     // Host callback fired when the user changes the "use game audio settings" toggle.
     GameAudioSettingsChangedCallback m_on_use_game_settings_changed;
 
-    // Resolved "use game audio settings" toggle and game-availability state governing read-only mode.
+    // Resolved "use game audio settings" toggle state governing read-only mode.
     GameAudioSettingsState m_game_settings{};
 
     // Toggle value captured on the first setGameAudioSettings() call (window open time). Cancel and

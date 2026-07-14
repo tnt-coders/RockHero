@@ -185,8 +185,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onPluginDisplayTypeOverrideChanged(
         std::string instance_id, std::optional<PluginDisplayType> display_type);
     void onOpenPluginRequested(std::string instance_id);
-    void onUseGameAudioSettingsChangeRequested(
+    [[nodiscard]] std::expected<void, GameAudioSourceError> onUseGameAudioSettingsChangeRequested(
         bool enabled, std::function<void(bool)> set_applying);
+    [[nodiscard]] GameAudioSourceState gameAudioSourceState() const;
+    void onGameAudioUnavailablePromptDismissed();
+    void onGameAudioRecommendationDecision(
+        GameAudioRecommendationDecision decision, bool suppress_future);
     void onInputCalibrationRequested();
     [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
     onInputCalibrationMeasurementStarted();
@@ -361,11 +365,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void detachView();
     void restoreAudioDeviceState();
     void persistAudioDeviceState();
-    // Re-reads whether a calibrated game audio configuration exists and caches the answer. Called at
-    // the meaningful moments only (startup, toggle change, device-settings open) rather than in
-    // deriveViewState, so the freshness is the plan's deliberate one-shot read, not a per-push poll
-    // that would reopen the game's settings file on every state push.
-    void refreshGameSourceAvailability();
+    // Resolves the persisted "use game audio settings" toggle against a fresh read of the game's
+    // configuration before the startup device restore (plan 48 amended ruleset): on + adoptable
+    // selects the game source so the restore adopts the game route; on + broken writes the toggle
+    // off and stages the unavailable-game prompt; off + adoptable + unsuppressed stages the
+    // recommendation prompt; anything else leaves the editor silently on its own settings.
+    void resolveGameAudioSourceAtStartup();
     void recordSettingsResultBestEffort(
         std::expected<void, EditorSettingsError> result, std::string_view context);
     void recordAudioConfigResultBestEffort(
@@ -466,11 +471,15 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // concretely so onUseGameAudioSettingsChangeRequested can switch its active source.
     EditorAudioConfigStore* m_editor_audio_config_store{nullptr};
 
-    // Cached "a calibrated game config exists" signal, refreshed by refreshGameSourceAvailability at
-    // startup, on toggle change, and when the device-settings window opens. Surfaced through
-    // EditorViewState so both toggle-aware windows can distinguish the read-only reflection from the
-    // unconfigured-game guidance without reopening the game's file on every state push.
-    bool m_game_source_available{false};
+    // Startup unavailable-game notice staged by resolveGameAudioSourceAtStartup when the persisted
+    // toggle asked for the game's configuration but it regressed; cleared when the view reports the
+    // prompt dismissed. Transient by design — the toggle is already written off at staging time, so
+    // no standing on-but-broken state exists for any window to render.
+    std::optional<GameAudioUnavailablePrompt> m_game_audio_unavailable_prompt{};
+
+    // Startup recommendation staged when the toggle is off, a calibrated game configuration exists,
+    // and the user has not suppressed the prompt; cleared when the view reports a decision.
+    bool m_game_audio_recommendation_prompt{false};
 
     // Non-owning view binding installed by attachView(); null before the first attachment.
     // updateView() and reportError() tolerate the null window because the constructor's

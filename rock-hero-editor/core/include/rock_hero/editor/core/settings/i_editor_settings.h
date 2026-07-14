@@ -77,8 +77,8 @@ public:
     \brief Reads whether the editor sources the game's audio configuration instead of its own.
 
     Editor workflow state, not audio config: it selects a read source and never affects the game.
-    Absence means the user has never chosen; the composition root resolves an absent value to the
-    first-run default (on) via useGameAudioSettingsOrDefault, then honors the stored choice.
+    Absence means the user has never chosen and resolves to off via useGameAudioSettingsOrDefault;
+    a stored on is only ever written when adopting the game's configuration actually succeeded.
 
     \return Stored choice, or empty when the user has never set it.
     */
@@ -91,6 +91,26 @@ public:
     */
     [[nodiscard]] virtual std::expected<void, EditorSettingsError> setUseGameAudioSettings(
         bool enabled) = 0;
+
+    /*!
+    \brief Reads whether the startup game-audio recommendation prompt is suppressed.
+
+    The prompt recommends adopting the game's audio configuration when the toggle is off and a
+    calibrated game configuration exists; its "don't show this message again" checkbox persists
+    this flag. It suppresses only that recommendation — never the error popups that report a game
+    configuration the editor was asked to use but cannot.
+
+    \return Stored suppression, or empty when the user has never suppressed the prompt.
+    */
+    [[nodiscard]] virtual std::optional<bool> suppressGameAudioRecommendation() const = 0;
+
+    /*!
+    \brief Stores whether the startup game-audio recommendation prompt is suppressed.
+    \param suppressed True to stop showing the startup recommendation prompt.
+    \return Empty success, or a typed settings failure.
+    */
+    [[nodiscard]] virtual std::expected<void, EditorSettingsError>
+    setSuppressGameAudioRecommendation(bool suppressed) = 0;
 
     /*!
     \brief Reads the app-wide minimum number of tablature string lanes to display.

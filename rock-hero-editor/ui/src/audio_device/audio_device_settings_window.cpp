@@ -356,7 +356,7 @@ std::unique_ptr<juce::DocumentWindow> AudioDeviceSettingsWindow::show(
         },
         AudioDeviceSettingsView::GameAudioSettingsState{
             .use_game_settings = game_settings.use_game_settings,
-            .game_source_available = game_settings.game_source_available,
+            .source_state = game_settings.source_state,
         },
         std::move(on_game_settings_changed));
     const int content_height = content->preferredContentHeight();
