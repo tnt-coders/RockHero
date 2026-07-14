@@ -42,7 +42,7 @@ constexpr float g_min_note_height_for_text{9.0f};
 constexpr float g_shape_label_height{10.0f};
 constexpr float g_shape_rail_height{3.0f};
 constexpr double g_shape_mark_brightness{1.5};
-constexpr float g_ghost_note_alpha{0.2f};
+constexpr float g_ghost_note_alpha{0.1f};
 
 // Thin JUCE-converting wrappers over the shared Charter-exact derivation (rock-hero-common/ui)
 // for the in-file call sites that derive from already-opaque colors.
@@ -1003,20 +1003,39 @@ void TabView::paint(juce::Graphics& g)
         drawOnsetBar(g, metrics, start_x, shapeMarkColor(true));
         for (const core::TabGhostNoteView& ghost : shape.ghost_notes)
         {
-            // A ghost is the plain head stack faded as one unit, fret number included; the
-            // default-constructed view adds no technique glyphs (Pick attack draws nothing).
+            // A ghost keeps its fret number fully opaque so the posture stays readable, over a
+            // very dim head shape; the default-constructed view adds no technique glyphs (Pick
+            // attack draws nothing), and the text-suppressed metrics copy keeps the fret number
+            // out of the faded layer.
             core::TabNoteView ghost_note;
             ghost_note.string = ghost.string;
             ghost_note.fret = ghost.fret;
+            const float center_y = metrics.laneY(ghost.string);
+            TabLaneMetrics head_only = metrics;
+            head_only.draw_text = false;
             g.beginTransparencyLayer(g_ghost_note_alpha);
             drawNoteHead(
                 g,
-                metrics,
+                head_only,
                 StringStyle{metrics.baseColor(ghost.string)},
                 ghost_note,
                 start_x,
-                metrics.laneY(ghost.string));
+                center_y);
             g.endTransparencyLayer();
+
+            if (metrics.draw_text)
+            {
+                // The same centering box drawNoteHead uses for a plain fret number.
+                const float size = metrics.note_height + 1.0f;
+                g.setColour(juce::Colours::white);
+                g.setFont(metrics.fret_font);
+                g.drawText(
+                    juce::String{ghost.fret},
+                    juce::Rectangle<float>{
+                        start_x - size, center_y - size, size * 2.0f, size * 2.0f
+                    },
+                    juce::Justification::centred);
+            }
         }
     }
 
