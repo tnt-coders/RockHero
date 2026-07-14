@@ -18,6 +18,12 @@ namespace rock_hero::common::audio
 
 All methods are message-thread operations. The port separates user-local input calibration from
 authored tone-chain state so the live rig can persist output gain without persisting input gain.
+
+\note Dry-tap contract (plan 21 Phase 5 / plan 22 Phase 1): note detection taps the RAW input
+signal BEFORE the tone rack — the audio thread copies pre-effects samples into a lock-free ring
+buffer for the analysis thread. Consequently tone-chain reported latency never contaminates
+scoring timestamps, and plugin-delay compensation stays disabled product-wide without affecting
+detection. The tap itself lands with plan 22; this contract fixes where it must sit.
 */
 class ILiveInput
 {

@@ -1097,6 +1097,12 @@ TEST_CASE("Engine tone timeline bakes the switch schedule", "[audio][engine][int
             .tone_document_ref = *second_ref,
         },
     };
+    // The load result surfaces each tone's summed reported latency (plan 21 Phase 5): empty
+    // chains report exactly zero, and the field exists for the editor's export warning to read.
+    REQUIRE((*loaded)->tone_chains.size() == 2);
+    CHECK((*loaded)->tone_chains[0].summed_reported_latency_seconds == 0.0);
+    CHECK((*loaded)->tone_chains[1].summed_reported_latency_seconds == 0.0);
+
     CHECK(timeline.prepareToneTimeline(song_directory.path(), schedule).has_value());
 
     // Re-preparing (a new load of the same session) must not accumulate stale points.
