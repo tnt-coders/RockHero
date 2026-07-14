@@ -39,8 +39,8 @@ constexpr double g_follow_shift_duration_seconds{0.3};
 
 // Fixed-cursor smooth scrolling pins the cursor a little inside the left edge: most of the
 // screen is road ahead, with enough recent context behind the cursor to stay oriented (user
-// tuned 1/3 -> 0.05 -> 0.2 -> 0.15).
-constexpr double g_smooth_follow_pin_fraction{0.15};
+// tuned 1/3 -> 0.05 -> 0.2 -> 0.15 -> 0.1).
+constexpr double g_smooth_follow_pin_fraction{0.1};
 
 // Treats tiny wheel deltas as absent so zoom input stays stable across platforms.
 [[nodiscard]] bool hasMouseWheelDelta(float delta) noexcept
