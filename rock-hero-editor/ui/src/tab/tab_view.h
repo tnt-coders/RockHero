@@ -27,6 +27,16 @@ instead of compressing the lanes or leaving empty margins.
 inline constexpr int g_tab_reference_string_count{6};
 
 /*!
+\brief Height of the shape-label strip the tablature lane reserves above its string lanes.
+
+Chord and arpeggio name chips draw in this strip, directly under the timeline ruler and above
+the lane area's top rail, so names never compete with lane content for space. The hosting row
+adds this strip on top of the density-derived lane height (see TrackViewport), keeping the
+per-lane spacing at the reference density.
+*/
+inline constexpr int g_tab_shape_label_strip_height{12};
+
+/*!
 \brief Returns the number of string lanes the tablature lane should draw.
 
 The chart's own string count is the floor: a user minimum only ever adds empty lanes below the
