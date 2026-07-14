@@ -3,7 +3,7 @@
 namespace rock_hero::game::core
 {
 
-std::optional<MenuAction> MenuBindings::resolve(const MenuInputTrigger& trigger) const
+std::optional<MenuAction> MenuBindings::resolve(MenuInputTrigger trigger) const
 {
     if (const auto found = m_action_by_trigger.find(trigger); found != m_action_by_trigger.end())
     {
@@ -12,18 +12,18 @@ std::optional<MenuAction> MenuBindings::resolve(const MenuInputTrigger& trigger)
     return std::nullopt;
 }
 
-void MenuBindings::bind(const MenuAction action, const MenuInputTrigger& trigger)
+void MenuBindings::bind(MenuAction action, MenuInputTrigger trigger)
 {
     // Assigning overwrites any prior action for this trigger, moving it off the old action.
     m_action_by_trigger[trigger] = action;
 }
 
-void MenuBindings::unbind(const MenuInputTrigger& trigger)
+void MenuBindings::unbind(MenuInputTrigger trigger)
 {
     m_action_by_trigger.erase(trigger);
 }
 
-std::vector<MenuInputTrigger> MenuBindings::triggersFor(const MenuAction action) const
+std::vector<MenuInputTrigger> MenuBindings::triggersFor(MenuAction action) const
 {
     // Map iteration is ordered by trigger, so the returned triggers are already in trigger order.
     std::vector<MenuInputTrigger> triggers;

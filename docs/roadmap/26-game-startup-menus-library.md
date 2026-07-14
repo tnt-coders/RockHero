@@ -7,7 +7,7 @@ bindable menu-action layer in game/core. `MenuAction` (navigate up/down/left/rig
 pause-menu, rescan), a device-agnostic `MenuInputTrigger` (source + opaque code, so game/core stays
 SDL-free), and `MenuBindings` — resolve a trigger to its action, bind with overwrite-and-clear
 conflict handling (a trigger maps to at most one action; an action may hold several triggers),
-unbind, list triggers per action. Six tests (resolve bound-only, several triggers → one action,
+unbind, list triggers per action. Five tests (resolve bound-only, several triggers → one action,
 rebind overwrite-and-clear, unbind, empty-action). **Deferred to their consumers** (the same
 principled deferral as Phase 4): the keyboard/gamepad/MIDI-pedal input adapters (composition
 boundary; gamepad assumes plan 20's SDL3 outcome, pedal needs plan 24's `IMidiTrigger`), the

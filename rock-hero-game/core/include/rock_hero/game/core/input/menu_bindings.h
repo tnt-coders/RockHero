@@ -32,20 +32,20 @@ public:
     \param trigger Raw input trigger to look up.
     \return The bound action, or std::nullopt when the trigger is unbound.
     */
-    [[nodiscard]] std::optional<MenuAction> resolve(const MenuInputTrigger& trigger) const;
+    [[nodiscard]] std::optional<MenuAction> resolve(MenuInputTrigger trigger) const;
 
     /*!
     \brief Binds a trigger to an action, moving it off any other action it held.
     \param action Action the trigger should produce.
     \param trigger Raw input trigger to bind.
     */
-    void bind(MenuAction action, const MenuInputTrigger& trigger);
+    void bind(MenuAction action, MenuInputTrigger trigger);
 
     /*!
     \brief Removes a trigger's binding, if it has one.
     \param trigger Raw input trigger to unbind.
     */
-    void unbind(const MenuInputTrigger& trigger);
+    void unbind(MenuInputTrigger trigger);
 
     /*!
     \brief The triggers currently bound to an action.
