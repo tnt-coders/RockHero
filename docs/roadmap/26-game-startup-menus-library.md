@@ -2,6 +2,21 @@
 
 ## 1. Status
 
+**Phases 6-7 MINIMAL PLAYABLE PATH COMPLETE (2026-07-12, overnight/game-shell):** the game boots
+into a working song-selection menu and plays the pick. `main.cpp` scans the library at startup —
+creates the per-user `Songs` folder on demand, resolves default + custom roots, runs the real
+`FilesystemDirectoryLister` + `RockSongPackageDescriber` through `scanLibrary` — and hands the
+index to the shell. The shell runs a `SongSelectMenu` (song list → arrangement list) driven by the
+Phase-5 `MenuBindings` (arrow/Enter/Esc SDL defaults installed at the boundary; raw keycodes now
+surfaced by `game_window`); a pick launches the composed `GameplaySession` plus the chart display
+and drops into the 3D board, and Esc returns to the menu. Presentation is a **functional
+placeholder** (bgfx debug font + a translucent overlay selection bar over the board backdrop; plan
+26 defers real menu art). Verified end to end with a capture: a dropped `.rock` shows its title +
+artist and four arrangements, and Enter loads the chart into gameplay. Not yet done (follow-ups): a
+screen-space glyph-atlas menu (needs a new public renderer text method — the atlas is board-locked
+today), background/index-cached scanning, and the Phase 8 onboarding chain. The remaining Phase 5
+adapters/persistence and Phase 4 video/bindings deferrals still stand.
+
 **Phase 5 PARTIAL — headless menu-input core COMPLETE (2026-07-12, overnight/game-shell):** the
 bindable menu-action layer in game/core. `MenuAction` (navigate up/down/left/right, accept, back,
 pause-menu, rescan), a device-agnostic `MenuInputTrigger` (source + opaque code, so game/core stays
