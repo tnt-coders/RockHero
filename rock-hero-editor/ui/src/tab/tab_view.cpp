@@ -795,10 +795,12 @@ void drawShapeSpan(
     }
 }
 
-// Draws one fret-hand-position marker: a small boxed fret number along the lane's top edge.
+// Draws one fret-hand-position marker: a small boxed fret label along the lane's top edge.
 // This presentation is ours, not Charter's (Charter shows FHPs in a separate strip above the
 // lanes, which this single-row lane does not have); it stays deliberately unobtrusive until the
-// FHP display treatment is decided.
+// FHP display treatment is decided. The standard four-fret hand shows just the index-finger
+// fret; a wider or narrower placement spells out its full inclusive range ("3-7") because the
+// unusual span is exactly what the player needs to see.
 void drawFhpMarker(juce::Graphics& g, const TabLaneMetrics& metrics, const core::TabFhpView& fhp)
 {
     if (!metrics.draw_text)
@@ -807,7 +809,9 @@ void drawFhpMarker(juce::Graphics& g, const TabLaneMetrics& metrics, const core:
     }
 
     const float marker_x = metrics.x(fhp.seconds);
-    const juce::String text{fhp.fret};
+    const juce::String text =
+        fhp.width == 4 ? juce::String{fhp.fret}
+                       : juce::String{fhp.fret} + "-" + juce::String{fhp.fret + fhp.width - 1};
     const float width = static_cast<float>(textWidth(metrics.label_font, text)) + 6.0f;
     constexpr float height = 12.0f;
     const juce::Rectangle<float> box{
