@@ -128,6 +128,46 @@ TEST_CASE("TimelineRuler draws shorter subdivision ticks", "[ui][timeline-ruler]
     CHECK(image.getPixelAt(175, beat_band_y) != image.getPixelAt(150, beat_band_y));
 }
 
+// Verifies the tab-derived chord/arpeggio name chips draw in the ruler's bottom tick band —
+// blue for chords, purple for arpeggios — flush with the bottom edge and below the
+// measure-number row.
+TEST_CASE("TimelineRuler draws shape name chips in the bottom band", "[ui][timeline-ruler]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    constexpr common::core::TimeRange one_measure_window{
+        .start = common::core::TimePosition{0.0},
+        .end = common::core::TimePosition{4.0},
+    };
+    const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4.0);
+    constexpr common::core::Fraction grid_note_value{1, 4};
+    TimelineRuler ruler;
+    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
+    ruler.setGrid(tempo_map, grid_note_value);
+    ruler.setGridLines(
+        core::visibleTempoGridLines(
+            tempo_map, grid_note_value, one_measure_window, ruler.getWidth(), 0, ruler.getWidth()));
+    ruler.setProjectLoaded(true);
+    ruler.setShapeLabels(
+        std::vector<RulerShapeLabel>{
+            RulerShapeLabel{.seconds = 1.0, .name = "Am", .arpeggio = false},
+            RulerShapeLabel{.seconds = 3.0, .name = "Dm", .arpeggio = true},
+        });
+
+    const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
+
+    // One measure across 401px maps seconds * 100: the chord chip at 1.0s starts at x = 100
+    // and the arpeggio chip at 3.0s at x = 300. Probes sit in each chip's left margin at the
+    // band's mid-height, clear of the centered glyphs and the rounded corners, in the same
+    // brightened hand-shape colors the lane's span rails use.
+    const int chip_y = g_timeline_ruler_height - 5;
+    CHECK(image.getPixelAt(101, chip_y) == juce::Colour{0xff4982fa});
+    CHECK(image.getPixelAt(301, chip_y) == juce::Colour{0xffc785ff});
+
+    // The measure-number row above the band stays chip-free.
+    CHECK(image.getPixelAt(101, 36) != juce::Colour{0xff4982fa});
+}
+
 // Verifies the measure-number row pins the active measure to the left edge while scrolled,
 // matching the pinned tempo and signature: a mid-measure scroll position would otherwise show
 // no number until the next downbeat enters the view.
