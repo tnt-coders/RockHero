@@ -237,45 +237,45 @@ TEST_CASE("TabView draws techniques, shapes, and fret-hand positions", "[ui][tab
     juce::Graphics graphics{image};
     view.paint(graphics);
 
-    // The strummed A5 span rails the lane's top and bottom edges in the hand-shape blue inside
-    // its range and not outside it, and no longer tints the lane interior. The probe column
-    // sits at 4.5s, clear of the chord-box pill over the 3.0s onsets.
-    CHECK(image.getPixelAt(90, 1) == juce::Colour{0xff3157a7});
-    CHECK(image.getPixelAt(90, 238) == juce::Colour{0xff3157a7});
+    // The strummed A5 span rails the lane's top and bottom edges in the brightened hand-shape
+    // blue (base x1.5) inside its range and not outside it, and no longer tints the lane
+    // interior. The probe column sits at 4.5s, clear of the onset bar over the 3.0s onsets.
+    CHECK(image.getPixelAt(90, 1) == juce::Colour{0xff4982fa});
+    CHECK(image.getPixelAt(90, 238) == juce::Colour{0xff4982fa});
     CHECK(image.getPixelAt(90, 5).getARGB() == 0);
     CHECK(image.getPixelAt(150, 1).getARGB() == 0);
     CHECK(image.getPixelAt(150, 238).getARGB() == 0);
 
-    // The arpeggio span's rails are purple.
-    CHECK(image.getPixelAt(220, 1) == juce::Colour{0xff8559b7});
-    CHECK(image.getPixelAt(220, 238) == juce::Colour{0xff8559b7});
+    // The arpeggio span's rails are the brightened purple (blue channel clamps at 255).
+    CHECK(image.getPixelAt(220, 1) == juce::Colour{0xffc785ff});
+    CHECK(image.getPixelAt(220, 238) == juce::Colour{0xffc785ff});
 
     // The template name chip sits against the bottom rail at the span start.
     CHECK(image.getPixelAt(50, 232).getARGB() != 0);
 
-    // The strummed onset at 3.0s wears the hand-shape blue pill (no longer Charter's teal), and
-    // the arpeggio start at 10.0s gets the purple pill. Expected values are the alpha-128 fills
-    // after the software renderer's premultiply round-trip, probed clear of lanes and heads.
-    CHECK(image.getPixelAt(60, 110) == juce::Colour{0x802f55a5});
-    CHECK(image.getPixelAt(200, 110) == juce::Colour{0x808357b5});
+    // The strummed onset at 3.0s wears the solid rail-width blue bar and the arpeggio start at
+    // 10.0s the purple one, both in the same brightened colors as the rails, probed clear of
+    // lanes and heads.
+    CHECK(image.getPixelAt(60, 110) == juce::Colour{0xff4982fa});
+    CHECK(image.getPixelAt(200, 110) == juce::Colour{0xffc785ff});
 
     // The arpeggio start also draws the held posture's ghost head on string 5 (lane center
-    // y = 60): the pixel there is neither empty nor the bare pill color it would be without
+    // y = 60): the pixel there is neither empty nor the bare bar color it would be without
     // the faded head composited on top.
     CHECK(image.getPixelAt(200, 60).getARGB() != 0);
-    CHECK(image.getPixelAt(200, 60) != juce::Colour{0x808357b5});
+    CHECK(image.getPixelAt(200, 60) != juce::Colour{0xffc785ff});
 
     // The tremolo strip stays clipped to its sustain: nothing straggles past the note end.
     // String 2 lane of six in 240px: center y = 180. Note ends at 6.0s → x = 120. The probe row
     // sits above the string line (which now runs the full width) but inside the tremolo band,
-    // and the sweep stops short of the arpeggio's full-height onset pill around x = 200.
+    // and the sweep stops short of the arpeggio's rail-width onset bar around x = 200.
     bool tremolo_inside = false;
     for (int x = 62; x < 118; ++x)
     {
         tremolo_inside = tremolo_inside || image.getPixelAt(x, 174).getARGB() != 0;
     }
     CHECK(tremolo_inside);
-    for (int x = 123; x < 195; ++x)
+    for (int x = 123; x < 198; ++x)
     {
         CHECK(image.getPixelAt(x, 174).getARGB() == 0);
     }
