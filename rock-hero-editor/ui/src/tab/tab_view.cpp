@@ -59,14 +59,6 @@ constexpr int g_arpeggio_bracket_thickness{2};
     return juce::Colour{common::ui::multiplyColor(color.getARGB(), multiplier)};
 }
 
-// Hand-shape mark color: the Charter base brightened so the narrow rails and name chips read
-// clearly against the dark lane (user-directed brightness bump).
-[[nodiscard]] juce::Colour shapeMarkColor(bool arpeggio)
-{
-    return charterMultiply(
-        arpeggio ? g_hand_shape_arpeggio_color : g_hand_shape_color, g_shape_mark_brightness);
-}
-
 // Bridges the shared Charter-exact style derivation (rock-hero-common/ui) to JUCE colors at
 // this module's boundary; field meanings match common::ui::StringLaneStyle one for one.
 struct StringStyle
@@ -768,7 +760,7 @@ void drawShapeSpan(
         return;
     }
 
-    const juce::Colour color = shapeMarkColor(shape.arpeggio);
+    const juce::Colour color = tabShapeMarkColor(shape.arpeggio);
     const float width = end_x - start_x;
     const float bottom_rail_y =
         static_cast<float>(metrics.bounds.getBottom()) - g_shape_rail_height;
@@ -779,26 +771,9 @@ void drawShapeSpan(
         });
     g.fillRect(juce::Rectangle<float>{start_x, bottom_rail_y, width, g_shape_rail_height});
 
-    // The name chip rides in the reserved label strip directly above the lane area's top rail
-    // (and under the pinned ruler), so names never compete with lane content or the FHP
-    // markers on the lane's own top edge.
-    if (metrics.draw_text && !shape.name.empty())
-    {
-        const juce::String name{shape.name};
-        const float chip_width = static_cast<float>(textWidth(metrics.label_font, name)) + 6.0f;
-        const float chip_height = g_shape_label_height + 2.0f;
-        const juce::Rectangle<float> chip{
-            start_x,
-            static_cast<float>(metrics.bounds.getY()) - chip_height,
-            chip_width,
-            chip_height
-        };
-        g.setColour(color);
-        g.fillRoundedRectangle(chip, 2.0f);
-        g.setColour(juce::Colours::white);
-        g.setFont(metrics.label_font);
-        g.drawText(name, chip, juce::Justification::centred);
-    }
+    // The template name is not drawn here: the same tab projection feeds the timeline ruler's
+    // shape-label band, which shows the name directly above this span in the ruler's vertical
+    // space (user-directed placement; the lane itself has no clean room for names).
 }
 
 // Draws one fret-hand-position marker: a small boxed fret label along the lane's top edge.
@@ -849,6 +824,14 @@ juce::Colour tabStringColor(int displayed_string, int displayed_string_count)
 {
     return juce::Colour{common::ui::stringLaneColor(
         displayed_string, displayed_string_count, common::ui::charterClassicPalette())};
+}
+
+// Shared with the timeline ruler's chord/arpeggio name chips so chip and rails always agree
+// (user-directed brightness bump over the Charter hand-shape bases).
+juce::Colour tabShapeMarkColor(bool arpeggio)
+{
+    return charterMultiply(
+        arpeggio ? g_hand_shape_arpeggio_color : g_hand_shape_color, g_shape_mark_brightness);
 }
 
 // Standard tablature orientation: highest string on top, lowest on the bottom. The host sizes
@@ -932,11 +915,7 @@ void TabView::paint(juce::Graphics& g)
         return;
     }
 
-    // The lane area sits below the reserved shape-label strip: the hosting row added the strip
-    // on top of the density-derived lane height, so trimming it here keeps the reference
-    // per-lane spacing intact while chord/arpeggio name chips get the strip to themselves.
-    const juce::Rectangle<int> bounds =
-        getLocalBounds().withTrimmedTop(g_tab_shape_label_strip_height);
+    const juce::Rectangle<int> bounds = getLocalBounds();
     const double duration = m_visible_timeline.duration().seconds;
     if (bounds.isEmpty() || duration <= 0.0)
     {

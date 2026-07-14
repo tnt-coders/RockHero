@@ -2,6 +2,7 @@
 
 #include "shared/editor_theme.h"
 #include "shared/text_metrics.h"
+#include "tab/tab_view.h"
 #include "timeline/timeline_cursor.h"
 
 #include <cmath>
@@ -35,6 +36,10 @@ constexpr int g_measure_row_y{30};
 constexpr int g_label_row_height{12};
 constexpr int g_beat_tick_height{10};
 constexpr int g_subdivision_tick_height{5};
+// Tab-derived chord/arpeggio name chips fill the tick band below the measure-number row (which
+// ends at g_measure_row_y + g_label_row_height = 42 of the 53px ruler), flush with the bottom
+// edge so each chip reads as sitting directly on the tablature lane's top rail beneath it.
+constexpr int g_shape_chip_height{11};
 
 // Shared ruler text face. Cached label widths are measured with the same face they are drawn
 // with, so measurement and drawing must both go through these helpers.
@@ -222,6 +227,7 @@ void TimelineRuler::paint(juce::Graphics& g)
     drawLabelRow(g, m_tempo_prefix_labels, noteGlyphFont(), 0, g_tempo_band_bottom);
     drawLabelRow(g, m_tempo_labels, label_font, g_tempo_row_y, g_label_row_height);
 
+    drawShapeChips(g);
     drawCursor(g);
 }
 
@@ -251,6 +257,55 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& event)
     if (position.has_value())
     {
         m_cursor_placement_callback(*position);
+    }
+}
+
+// Stores the tab-derived chord/arpeggio name chips for the bottom tick band. An unchanged list
+// returns early because every controller state push repeats it.
+void TimelineRuler::setShapeLabels(std::vector<RulerShapeLabel> labels)
+{
+    if (m_shape_labels == labels)
+    {
+        return;
+    }
+
+    m_shape_labels = std::move(labels);
+    repaint();
+}
+
+// Draws the chord/arpeggio name chips flush with the ruler's bottom edge, directly above the
+// tablature lane's top rail (user-directed placement: the lane has no clean room for names, and
+// this band overlaps only ticks — the measure-number row above stays clear). Chips draw left to
+// right in span order, so where shape changes crowd tighter than a name's width the later
+// span's chip wins locally instead of being suppressed entirely.
+void TimelineRuler::drawShapeChips(juce::Graphics& g)
+{
+    if (m_shape_labels.empty())
+    {
+        return;
+    }
+
+    const juce::Font chip_font{juce::FontOptions{10.0f}.withStyle("Bold")};
+    for (const RulerShapeLabel& label : m_shape_labels)
+    {
+        const std::optional<float> local_x = localXForSeconds(label.seconds);
+        if (!local_x.has_value())
+        {
+            continue;
+        }
+
+        const float chip_width = static_cast<float>(textWidth(chip_font, label.name)) + 6.0f;
+        const juce::Rectangle<float> chip{
+            *local_x,
+            static_cast<float>(getHeight() - g_shape_chip_height),
+            chip_width,
+            static_cast<float>(g_shape_chip_height)
+        };
+        g.setColour(tabShapeMarkColor(label.arpeggio));
+        g.fillRoundedRectangle(chip, 2.0f);
+        g.setColour(juce::Colours::white);
+        g.setFont(chip_font);
+        g.drawText(label.name, chip, juce::Justification::centred);
     }
 }
 

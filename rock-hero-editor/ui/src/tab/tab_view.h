@@ -27,16 +27,6 @@ instead of compressing the lanes or leaving empty margins.
 inline constexpr int g_tab_reference_string_count{6};
 
 /*!
-\brief Height of the shape-label strip the tablature lane reserves above its string lanes.
-
-Chord and arpeggio name chips draw in this strip, directly under the timeline ruler and above
-the lane area's top rail, so names never compete with lane content for space. The hosting row
-adds this strip on top of the density-derived lane height (see TrackViewport), keeping the
-per-lane spacing at the reference density.
-*/
-inline constexpr int g_tab_shape_label_strip_height{12};
-
-/*!
 \brief Returns the number of string lanes the tablature lane should draw.
 
 The chart's own string count is the floor: a user minimum only ever adds empty lanes below the
@@ -65,6 +55,19 @@ palette data and Charter's fixed derivation multipliers live in rock-hero-common
 \return Base lane color the tablature style derives its surfaces from.
 */
 [[nodiscard]] juce::Colour tabStringColor(int displayed_string, int displayed_string_count);
+
+/*!
+\brief Returns the hand-shape mark color shared by the tab lane and the ruler's name chips.
+
+The Charter hand-shape base brightened so the narrow span rails and the chord/arpeggio name
+chips read clearly against dark chrome. The tablature lane (rails) and the timeline ruler
+(name chips derived from the same tab projection) must agree on it so a chip visually belongs
+to the rails below it.
+
+\param arpeggio True for arpeggio spans (purple); false for chord spans (blue).
+\return Opaque mark color.
+*/
+[[nodiscard]] juce::Colour tabShapeMarkColor(bool arpeggio);
 
 /*!
 \brief Returns the vertical center of one string lane inside the tablature bounds.

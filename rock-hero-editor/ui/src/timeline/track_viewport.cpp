@@ -362,6 +362,13 @@ void TrackViewport::setTabDisplayedStrings(int displayed_strings)
     layoutScaledCanvas();
 }
 
+// Forwards the tab-derived chord/arpeggio name chips to the pinned ruler, which renders them
+// in its bottom tick band directly above the tablature lane.
+void TrackViewport::setShapeLabels(std::vector<RulerShapeLabel> labels)
+{
+    m_timeline_ruler.setShapeLabels(std::move(labels));
+}
+
 // Requests one viewport recenter once a restored project cursor is available.
 void TrackViewport::requestCursorFocus()
 {
@@ -426,9 +433,7 @@ int TrackViewport::toneTrackHeight() const noexcept
 // Sizes the waveform row so tablature lanes keep the six-string reference density at any count.
 // Without a chart the row stays at one third of the usable viewport for a plain waveform; with a
 // chart the row scales to the string count, so a four-string bass shrinks the row to fit its
-// lanes and an eight-string display grows it (the vertical scrollbar absorbs the overflow), and
-// gains the shape-label strip the lane reserves above its lanes so chord and arpeggio name
-// chips never compress the lane density.
+// lanes and an eight-string display grows it (the vertical scrollbar absorbs the overflow).
 int TrackViewport::primaryTrackHeight() const noexcept
 {
     const int reference_height =
@@ -438,8 +443,7 @@ int TrackViewport::primaryTrackHeight() const noexcept
         return reference_height;
     }
 
-    return g_tab_shape_label_strip_height +
-           std::max(1, reference_height * m_tab_displayed_strings / g_tab_reference_string_count);
+    return std::max(1, reference_height * m_tab_displayed_strings / g_tab_reference_string_count);
 }
 
 // Converts the current pixel density into the width of the full timeline content.

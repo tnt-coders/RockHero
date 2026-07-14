@@ -542,6 +542,26 @@ void EditorView::setState(const core::EditorViewState& state)
         m_state.tab != nullptr ? m_state.tab->string_count : 0,
         m_state.tab_minimum_displayed_strings));
 
+    // The ruler's bottom band shows the tab projection's named chord/arpeggio spans directly
+    // above the lane's rails; unnamed shapes get no chip by design.
+    std::vector<RulerShapeLabel> shape_labels;
+    if (m_state.tab != nullptr)
+    {
+        for (const core::TabShapeView& shape : m_state.tab->shapes)
+        {
+            if (!shape.name.empty())
+            {
+                shape_labels.push_back(
+                    RulerShapeLabel{
+                        .seconds = shape.start_seconds,
+                        .name = juce::String{shape.name},
+                        .arpeggio = shape.arpeggio,
+                    });
+            }
+        }
+    }
+    m_track_viewport->setShapeLabels(std::move(shape_labels));
+
     m_tone_track_view.setVisibleTimeline(m_state.visible_timeline);
     m_tone_track_view.setGridNoteValue(m_state.grid_note_value);
     m_tone_track_view.setState(m_state.tone_track);
