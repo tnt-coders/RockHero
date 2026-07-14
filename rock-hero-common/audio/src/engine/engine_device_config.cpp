@@ -220,6 +220,10 @@ void Engine::Impl::enforceNoFallbackDevicePolicy()
     {
         // The saved device just vanished and JUCE opened a substitute; close it. This refresh pass
         // notifies listeners of the closed state, and the saved route stays persistable.
+        RH_LOG_WARNING(
+            "audio.device_policy",
+            "Saved audio device vanished; closing JUCE's fallback substitute and keeping the "
+            "saved choice");
         device_manager.closeAudioDevice();
         m_saved_device_present = false;
         return;
@@ -240,7 +244,22 @@ void Engine::Impl::enforceNoFallbackDevicePolicy()
         // Replug: re-apply the saved route with JUCE's fallback disabled so only the user's device
         // can open. On success the follow-up broadcast converges (open device == saved choice); on
         // failure the device stays closed until the next absent->present transition.
+        RH_LOG_INFO(
+            "audio.device_policy", "Saved audio device reappeared; re-applying the saved route");
         static_cast<void>(device_manager.initialise(1, 2, saved.get(), false));
+        return;
+    }
+
+    if (m_saved_device_present && was_present)
+    {
+        // The stuck-closed corner: the device is closed but its driver still lists it, so the
+        // absent->present retry gate never fires and nothing reopens automatically (a settings
+        // edit staging with a deliberately closed device also lands here and must stay untouched).
+        // Logged so a session sitting in this state is explainable from the log alone.
+        RH_LOG_WARNING(
+            "audio.device_policy",
+            "Audio device is closed while the saved device is still listed; no automatic reopen "
+            "(reopen through the audio settings or restart)");
     }
 }
 
