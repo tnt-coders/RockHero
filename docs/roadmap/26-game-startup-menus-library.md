@@ -333,17 +333,15 @@ Depends on the `IGameSettings` port phase of docs/roadmap/27-in-song-flow-result
 forward and record it in both plans).
 
 - **Scope**: settings fields this plan owns — `first_run_completed`; library scan roots (list of
-  directories; FINAL, decided by the user 2026-07-12 after three refinement rounds: the PRIMARY
-  default is the exe-relative `<game>/songs` folder — RS-style drop-in muscle memory, shared
-  across Windows users, created on demand — PLUS user-added custom song directories through
-  settings. Per-user data (settings, the library index cache, thumbnails) stays under
-  `applicationDataFolderName()` app data regardless; only the song library lives beside the
-  game. This decision BINDS the future installer plan three ways: (1) the default install root
-  must be user-writable — never `Program Files`, whose ACLs would demand elevation for every
-  dropped song (e.g. `C:\Rock Hero` or per-user `%LOCALAPPDATA%\Programs`); (2) the default
-  uninstall leaves `songs/` in place, with an explicit opt-in "remove all files including songs"
-  for a clean wipe; (3) updates never touch `songs/`. Discoverability is solved by an "Open
-  songs folder" affordance in the library screen — Phase 7 carries it); video
+  directories; FINAL, decided by the user 2026-07-12: the PRIMARY default is the per-user
+  `Songs` folder under `applicationDataFolderName()` app data — user-specific by explicit
+  requirement, created on demand, and inherently survives uninstall/reinstall/update cycles —
+  PLUS user-added custom song directories through settings (anyone wanting a shared or
+  install-dir library just adds it as a custom root). All per-user data (settings, the library
+  index cache, thumbnails, songs) therefore lives under the same app-data root. An eventual
+  uninstaller may offer an opt-in "remove all files including songs" purge of that root for a
+  clean wipe; nothing else about the installer is constrained. Discoverability is solved by an
+  "Open songs folder" affordance in the library screen — Phase 7 carries it); video
   settings model {display mode fullscreen/windowed/borderless, monitor identifier, resolution,
   vsync mode} whose semantics follow the frame-pacing policy recorded in
   docs/roadmap/20-game-architecture-and-render-stack.md (this plan persists and displays; 20's
