@@ -162,7 +162,7 @@ TEST_CASE("TimelineRuler draws shape name chips in the bottom band", "[ui][timel
     // brightened hand-shape colors the lane's span rails use.
     const int chip_y = g_timeline_ruler_height - 5;
     CHECK(image.getPixelAt(101, chip_y) == juce::Colour{0xff4982fa});
-    CHECK(image.getPixelAt(301, chip_y) == juce::Colour{0xffc785ff});
+    CHECK(image.getPixelAt(301, chip_y) == juce::Colour{0xffac73ed});
 
     // The measure-number row above the band stays chip-free.
     CHECK(image.getPixelAt(101, 36) != juce::Colour{0xff4982fa});
