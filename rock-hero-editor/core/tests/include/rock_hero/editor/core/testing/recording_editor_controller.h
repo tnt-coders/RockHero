@@ -110,6 +110,26 @@ public:
         save_tone_as_request_count += 1;
     }
 
+    /*! \brief Captures the tone file selected by the Import Tone command. */
+    void onImportToneFileRequested(std::filesystem::path file) override
+    {
+        last_import_tone_file = std::move(file);
+        import_tone_request_count += 1;
+    }
+
+    /*! \brief Captures the destination selected by the Export Tone command. */
+    void onExportToneFileRequested(std::filesystem::path file) override
+    {
+        last_export_tone_file = std::move(file);
+        export_tone_request_count += 1;
+    }
+
+    /*! \brief Captures decisions selected through the tone-import confirmation. */
+    void onToneImportDecision(ToneImportDecision decision) override
+    {
+        last_tone_import_decision = decision;
+    }
+
     /*! \brief Counts busy-operation cancellation notifications. */
     void onBusyCancelRequested() override
     {
@@ -743,6 +763,21 @@ public:
 
     /*! \brief Number of Save Tone As intents received. */
     int save_tone_as_request_count{0};
+
+    /*! \brief Last tone file requested for import. */
+    std::filesystem::path last_import_tone_file{};
+
+    /*! \brief Number of Import Tone intents received. */
+    int import_tone_request_count{0};
+
+    /*! \brief Last tone file destination requested for export. */
+    std::filesystem::path last_export_tone_file{};
+
+    /*! \brief Number of Export Tone intents received. */
+    int export_tone_request_count{0};
+
+    /*! \brief Last tone-import confirmation decision received. */
+    std::optional<ToneImportDecision> last_tone_import_decision{};
 
     /*! \brief Number of busy-operation cancellation intents received. */
     int busy_cancel_request_count{0};

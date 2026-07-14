@@ -36,6 +36,9 @@ namespace
         case EditorAction::Id::OpenToneFile:
         case EditorAction::Id::SaveToneFile:
         case EditorAction::Id::SaveToneFileAs:
+        case EditorAction::Id::ImportToneFile:
+        case EditorAction::Id::ExportToneFile:
+        case EditorAction::Id::ResolveToneImportPrompt:
         {
             return true;
         }
@@ -119,6 +122,10 @@ namespace
             case EditorAction::Id::OpenToneFile:
             case EditorAction::Id::SaveToneFile:
             case EditorAction::Id::SaveToneFileAs:
+            // Tone-file import/export mutate or read the untrusted live chain.
+            case EditorAction::Id::ImportToneFile:
+            case EditorAction::Id::ExportToneFile:
+            case EditorAction::Id::ResolveToneImportPrompt:
             {
                 return false;
             }
@@ -225,6 +232,20 @@ namespace
         {
             return conditions.tone_designer_active;
         }
+        case EditorAction::Id::ImportToneFile:
+        {
+            // Import replaces the live monitored chain, so it shares the chain-mutation gates.
+            return conditions.has_loaded_arrangement && conditions.live_input_audition_available;
+        }
+        case EditorAction::Id::ExportToneFile:
+        {
+            // Export is a pure read of the active tone's rig.
+            return conditions.has_loaded_arrangement;
+        }
+        case EditorAction::Id::ResolveToneImportPrompt:
+        {
+            return conditions.has_tone_import_prompt;
+        }
     }
 
     return false;
@@ -279,6 +300,9 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::OpenToneFile:
         case EditorAction::Id::SaveToneFile:
         case EditorAction::Id::SaveToneFileAs:
+        case EditorAction::Id::ImportToneFile:
+        case EditorAction::Id::ExportToneFile:
+        case EditorAction::Id::ResolveToneImportPrompt:
         {
             return false;
         }

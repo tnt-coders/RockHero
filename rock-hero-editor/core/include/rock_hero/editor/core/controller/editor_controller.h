@@ -323,6 +323,24 @@ public:
     */
     void onSaveToneAsRequested(std::filesystem::path file) override;
 
+    /*!
+    \brief Handles a request to import a tone file into the active project tone.
+    \param file Tone file path selected by the user.
+    */
+    void onImportToneFileRequested(std::filesystem::path file) override;
+
+    /*!
+    \brief Handles a request to export the active project tone to a tone file.
+    \param file Tone file destination path selected by the user.
+    */
+    void onExportToneFileRequested(std::filesystem::path file) override;
+
+    /*!
+    \brief Handles the user's decision on the tone-import automation-drop confirmation.
+    \param decision User-selected import decision.
+    */
+    void onToneImportDecision(ToneImportDecision decision) override;
+
     /*! \brief Handles a request to cancel the active cancellable busy operation. */
     void onBusyCancelRequested() override;
 

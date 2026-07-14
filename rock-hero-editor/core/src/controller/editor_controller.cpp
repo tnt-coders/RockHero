@@ -728,6 +728,21 @@ void EditorController::onSaveToneAsRequested(std::filesystem::path file)
     m_impl->runAction(EditorAction::SaveToneFileAs{std::move(file)});
 }
 
+void EditorController::onImportToneFileRequested(std::filesystem::path file)
+{
+    m_impl->runAction(EditorAction::ImportToneFile{std::move(file)});
+}
+
+void EditorController::onExportToneFileRequested(std::filesystem::path file)
+{
+    m_impl->runAction(EditorAction::ExportToneFile{std::move(file)});
+}
+
+void EditorController::onToneImportDecision(ToneImportDecision decision)
+{
+    m_impl->runAction(EditorAction::ResolveToneImportPrompt{decision});
+}
+
 void EditorController::onUndoRequested()
 {
     m_impl->onUndoRequested();
@@ -2020,6 +2035,7 @@ ActionConditions EditorController::Impl::currentActionConditions(
         .has_project = m_project.has_value(),
         .has_unsaved_changes_prompt =
             m_deferred_project_action_state.unsavedChangesPrompt().has_value(),
+        .has_tone_import_prompt = m_pending_tone_import.has_value(),
         .has_save_as_prompt = m_deferred_project_action_state.saveAsPrompt().has_value(),
         // A pending plugin edit is flushed into a real undo entry at the action gate, so undo is
         // offered for it too.
@@ -2210,6 +2226,10 @@ EditorViewState EditorController::Impl::deriveViewState() const
              m_tone_designer.active) &&
             !action_conditions.session_faulted,
         .output_gain_db = m_output_gain_db,
+        .tone_import_enabled =
+            isActionAvailable(EditorAction::Id::ImportToneFile, action_conditions),
+        .tone_export_enabled =
+            isActionAvailable(EditorAction::Id::ExportToneFile, action_conditions),
     };
     state.plugin_browser = m_plugin_catalog.viewState(
         isActionAvailable(EditorAction::Id::ScanPluginCatalog, action_conditions),
@@ -2281,6 +2301,10 @@ EditorViewState EditorController::Impl::deriveViewState() const
     }
     state.unsaved_changes_prompt = m_deferred_project_action_state.unsavedChangesPrompt();
     state.save_as_prompt = m_deferred_project_action_state.saveAsPrompt();
+    state.tone_import_prompt =
+        m_pending_tone_import.has_value()
+            ? std::optional{ToneImportPrompt{m_pending_tone_import_automation_count}}
+            : std::nullopt;
 
     if (m_restore_interrupted_prompt_file.has_value())
     {
