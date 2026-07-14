@@ -695,7 +695,7 @@ TEST_CASE(
 // failure reads identically to the window's standing unavailable notice. Other apply failures keep
 // the backend's specific diagnostic.
 TEST_CASE(
-    "AudioDeviceSettings apply reports the canonical message for an unavailable device",
+    "AudioDeviceSettings apply adopts an unavailable route as closed",
     "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -713,13 +713,12 @@ TEST_CASE(
 
     const auto applied = settings.apply();
 
-    // The backend authored a detail, so the composed message carries it after the base text.
-    REQUIRE_FALSE(applied.has_value());
-    CHECK(applied.error().code == AudioDeviceSettingsErrorCode::ApplyFailed);
-    CHECK(
-        applied.error().message ==
-        "The selected audio device is unavailable: Can't detect asio channels");
-    CHECK(settings.state().error_message == applied.error().message);
+    // The designed no-fallback outcome: the route is adopted with the device closed, OK closes the
+    // settings window, and the editor status shows [audio device closed]. The standing notice
+    // (staged_device_error) already explains the condition, so no operation error is raised.
+    CHECK(applied.has_value());
+    CHECK(settings.state().error_message.empty());
+    CHECK(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
 }
 
 // JUCE substitutes the placeholder "Driver failed to initialise" when a failed driver init supplies
@@ -743,13 +742,15 @@ TEST_CASE(
 
     AudioDeviceSettings settings{audio_devices};
     REQUIRE(settings.state().staged_device_error.has_value());
+    // The placeholder maps to engaged-but-empty detail, so the composed message (rendered by the
+    // window's standing notice) stays at its base form instead of echoing backend filler.
     CHECK(settings.state().staged_device_error.value_or(std::string{"x"}).empty());
 
     const auto applied = settings.apply();
 
-    REQUIRE_FALSE(applied.has_value());
-    CHECK(applied.error().message == g_device_unavailable_message);
-    CHECK(settings.state().error_message == g_device_unavailable_message);
+    // The silent driver adopts identically: closed route, no operation error.
+    CHECK(applied.has_value());
+    CHECK(settings.state().error_message.empty());
 }
 
 // commit() adopts the live route as final: it clears the pending restore so destruction does not

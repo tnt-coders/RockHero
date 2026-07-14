@@ -189,10 +189,10 @@ TEST_CASE("AudioDeviceSettingsView emits button intents", "[ui][audio-device-set
     CHECK(controller.cancel_call_count == 1);
 }
 
-// A supported control panel whose device driver failed to initialize renders visible but disabled,
-// with a tooltip explaining the unavailability instead of an enabled button that silently no-ops.
-// The error label doubles as the standing unavailable notice once no more-specific operation error
-// is active, so a re-open that lands on a disconnected device never finishes silently.
+// A supported control panel whose device driver failed to initialize renders visible but disabled;
+// the error label doubles as the standing unavailable notice once no more-specific operation error
+// is active, so a re-open that lands on a disconnected device never finishes silently and the
+// disabled button needs no tooltip of its own.
 TEST_CASE("AudioDeviceSettingsView presents an unavailable device", "[ui][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -209,9 +209,8 @@ TEST_CASE("AudioDeviceSettingsView presents an unavailable device", "[ui][audio-
 
     CHECK(control_panel.isVisible());
     CHECK_FALSE(control_panel.isEnabled());
-    CHECK(
-        control_panel.getTooltip() ==
-        "The selected audio device is unavailable: Can't detect asio channels");
+    // No tooltip: the standing notice in the error label already explains the disable.
+    CHECK(control_panel.getTooltip().isEmpty());
     // A transient operation error is the more specific diagnostic and wins the label.
     CHECK(error_label.getText() == "Could not open Output B");
 
