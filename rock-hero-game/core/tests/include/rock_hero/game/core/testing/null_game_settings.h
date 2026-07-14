@@ -8,6 +8,7 @@
 #include <expected>
 #include <filesystem>
 #include <optional>
+#include <rock_hero/game/core/audio/game_audio_config.h>
 #include <rock_hero/game/core/settings/i_game_settings.h>
 #include <span>
 #include <string>
@@ -90,6 +91,26 @@ public:
     */
     [[nodiscard]] std::expected<void, GameSettingsError> setCustomScanRoots(
         std::span<const std::filesystem::path> /*roots*/) override
+    {
+        return {};
+    }
+
+    /*!
+    \brief Reports an empty game audio config.
+    \return Always empty.
+    */
+    [[nodiscard]] GameAudioConfig gameAudioConfig() const override
+    {
+        return {};
+    }
+
+    /*!
+    \brief Accepts the game audio config without storing it.
+    \param config Ignored.
+    \return Always success.
+    */
+    [[nodiscard]] std::expected<void, GameSettingsError> setGameAudioConfig(
+        const GameAudioConfig& /*config*/) override
     {
         return {};
     }

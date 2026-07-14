@@ -99,6 +99,20 @@ public:
     [[nodiscard]] std::expected<void, GameSettingsError> setCustomScanRoots(
         std::span<const std::filesystem::path> roots) override;
 
+    /*!
+    \brief Reads the game's player-slot-to-route audio configuration.
+    \return The persisted game audio config, or an empty config when none is stored.
+    */
+    [[nodiscard]] GameAudioConfig gameAudioConfig() const override;
+
+    /*!
+    \brief Stores the game's player-slot-to-route audio configuration, replacing any previous set.
+    \param config Player-slot-to-route bindings to persist (v1: a single slot-0 entry).
+    \return Empty success, or a typed settings failure.
+    */
+    [[nodiscard]] std::expected<void, GameSettingsError> setGameAudioConfig(
+        const GameAudioConfig& config) override;
+
 private:
     // Backing JUCE properties store; message-thread use only, save-on-set.
     mutable juce::PropertiesFile m_properties;
