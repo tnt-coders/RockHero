@@ -202,27 +202,30 @@ TEST_CASE(
         findRequiredDirectChild<juce::ComboBox>(view, "audio_settings_input_device");
     const auto& sample_rate =
         findRequiredDirectChild<juce::ComboBox>(view, "audio_settings_sample_rate");
-    const auto& ok_button =
-        findRequiredDirectChild<juce::TextButton>(view, "audio_settings_ok_button");
+    auto& ok_button = findRequiredDirectChild<juce::TextButton>(view, "audio_settings_ok_button");
     const auto& toggle =
         findRequiredDirectChild<juce::ToggleButton>(view, "audio_settings_use_game_toggle");
     const auto& notice = findRequiredDirectChild<juce::Label>(view, "audio_settings_game_notice");
-    const auto& opt_out =
-        findRequiredDirectChild<juce::TextButton>(view, "audio_settings_use_editor_button");
 
     CHECK(toggle.getToggleState());
     CHECK_FALSE(input_device.isEnabled());
     CHECK_FALSE(sample_rate.isEnabled());
-    CHECK_FALSE(ok_button.isEnabled());
+    // OK is not grayed out while locked: with the game source active it simply closes the window
+    // like Cancel, so it stays enabled and routes to the cancel intent (nothing to apply).
+    CHECK(ok_button.isEnabled());
     CHECK(notice.isVisible());
     CHECK(notice.getText().contains("Game audio settings"));
-    CHECK_FALSE(opt_out.isVisible());
+
+    REQUIRE(ok_button.onClick);
+    ok_button.onClick();
+    CHECK(controller.ok_call_count == 0);
+    CHECK(controller.cancel_call_count == 1);
 }
 
-// Toggle ON with an unconfigured game surfaces the disabled reason and the one-action opt-out
-// instead of an inert switch.
+// Toggle ON with an unconfigured game locks the fields and shows the unconfigured notice. There is
+// no separate opt-out button: unchecking the toggle is the one way back to the editor's own audio.
 TEST_CASE(
-    "AudioDeviceSettingsView surfaces the opt-out when the game is unconfigured",
+    "AudioDeviceSettingsView locks fields with an unconfigured-game notice",
     "[ui][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -239,27 +242,26 @@ TEST_CASE(
     const auto& input_device =
         findRequiredDirectChild<juce::ComboBox>(view, "audio_settings_input_device");
     const auto& notice = findRequiredDirectChild<juce::Label>(view, "audio_settings_game_notice");
-    auto& opt_out =
-        findRequiredDirectChild<juce::TextButton>(view, "audio_settings_use_editor_button");
+    auto& toggle =
+        findRequiredDirectChild<juce::ToggleButton>(view, "audio_settings_use_game_toggle");
 
     CHECK_FALSE(input_device.isEnabled());
     CHECK(notice.isVisible());
-    CHECK(opt_out.isVisible());
-    CHECK(opt_out.isEnabled());
+    CHECK(notice.getText().contains("no saved audio setup"));
+    // The toggle stays usable so the user can uncheck it -- the only opt-out, no separate button.
+    CHECK(toggle.isEnabled());
 
-    bool last_requested_on{true};
-    int change_count{0};
-    view.setGameAudioSettingsChangedCallback([&](bool enabled) {
-        last_requested_on = enabled;
-        change_count += 1;
-    });
+    std::optional<bool> requested;
+    view.setGameAudioSettingsChangedCallback([&](bool enabled) { requested = enabled; });
 
-    REQUIRE(opt_out.onClick);
-    opt_out.onClick();
+    // Unchecking the toggle drops locally into the editable device flow before the controller
+    // round-trip and asks the host to restore the editor's own audio.
+    toggle.setToggleState(false, juce::dontSendNotification);
+    REQUIRE(toggle.onClick);
+    toggle.onClick();
 
-    CHECK(change_count == 1);
-    CHECK_FALSE(last_requested_on);
-    // The opt-out drops locally into the editable device flow before the controller round-trip.
+    REQUIRE(requested.has_value());
+    CHECK_FALSE(requested.value());
     CHECK(input_device.isEnabled());
     CHECK_FALSE(notice.isVisible());
 }

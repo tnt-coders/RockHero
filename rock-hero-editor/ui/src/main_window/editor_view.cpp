@@ -1309,11 +1309,12 @@ void EditorView::presentInputCalibrationPromptIfNeeded(
         return;
     }
 
-    // One toggle governs both surfaces: sourcing a calibrated game configuration shows the game's
-    // calibration value read-only with a notice and no measure action; otherwise the full editable
-    // strum-to-calibrate flow runs against the editor's own store.
-    const bool read_only_game_reflection =
-        m_state.use_game_audio_settings && m_state.game_audio_source_available;
+    // The "use game audio settings" toggle governs both surfaces: while it is on, the calibration
+    // popup is read-only -- the game's calibration value with a notice and no measure action -- to
+    // match the device window's lock, which keys off the toggle alone. Unchecking the toggle is the
+    // one way back to the editable editor-own flow, so read-only follows the toggle regardless of
+    // whether a calibrated game configuration exists yet.
+    const bool read_only_game_reflection = m_state.use_game_audio_settings;
 
     if (m_input_calibration_window != nullptr)
     {
