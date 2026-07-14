@@ -277,6 +277,10 @@ private:
 
     // Passive JUCE controls rendered inside this window content.
     AudioDeviceSettingsView m_view;
+
+    // One tooltip window per settings window renders the "derived from game settings" hover text on
+    // the locked device fields. Parented to this content so its lifetime matches the window.
+    juce::TooltipWindow m_tooltip_window{this};
 };
 
 } // namespace
