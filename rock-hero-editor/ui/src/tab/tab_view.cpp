@@ -41,9 +41,9 @@ constexpr float g_min_note_height_for_text{9.0f};
 constexpr float g_shape_label_height{10.0f};
 constexpr float g_shape_rail_height{3.0f};
 constexpr double g_shape_mark_brightness{1.5};
-// Hairline stroke width of the square-bracket pair marking an arpeggio posture note, which
-// reads as "[ fret ]" and stays much lighter than the note rings it wraps.
-constexpr float g_arpeggio_bracket_thickness{1.0f};
+// Stroke width of the square-bracket pair marking an arpeggio posture note, which reads as
+// "[ fret ]" and stays much lighter than the note rings it wraps.
+constexpr float g_arpeggio_bracket_thickness{1.5f};
 
 // Thin JUCE-converting wrappers over the shared Charter-exact derivation (rock-hero-common/ui)
 // for the in-file call sites that derive from already-opaque colors.
@@ -182,7 +182,12 @@ struct TabLaneMetrics
 
 // Draws one string line per displayed lane across the visible clip, exactly like Charter's lane
 // lines: one pixel, the string's base color at 80%.
-void drawStringLines(juce::Graphics& g, const TabLaneMetrics& metrics)
+// Draws the lane lines, leaving gaps over the given per-lane x ranges (indexed by displayed
+// string minus one, each lane's ranges in ascending order) so arpeggio "[ fret ]" posture
+// marks sit on a clean background instead of the line cutting through them.
+void drawStringLines(
+    juce::Graphics& g, const TabLaneMetrics& metrics,
+    const std::vector<std::vector<juce::Range<float>>>& exclusions)
 {
     const juce::Rectangle<int> clip = g.getClipBounds();
     for (int displayed_string = 1; displayed_string <= metrics.displayed_count; ++displayed_string)
@@ -191,7 +196,23 @@ void drawStringLines(juce::Graphics& g, const TabLaneMetrics& metrics)
         g.setColour(
             charterMultiply(tabStringColor(displayed_string, metrics.displayed_count), 0.8));
         // Snapped to a whole pixel row so the one-pixel line stays crisp like Charter's.
-        g.fillRect(clip.getX(), static_cast<int>(y), clip.getWidth(), 1);
+        const auto row = static_cast<float>(static_cast<int>(y));
+        float cursor = static_cast<float>(clip.getX());
+        const auto right = static_cast<float>(clip.getRight());
+        for (const juce::Range<float>& range :
+             exclusions[static_cast<std::size_t>(displayed_string - 1)])
+        {
+            const float gap_start = std::min(right, std::max(cursor, range.getStart()));
+            if (gap_start > cursor)
+            {
+                g.fillRect(juce::Rectangle<float>{cursor, row, gap_start - cursor, 1.0f});
+            }
+            cursor = std::max(cursor, range.getEnd());
+        }
+        if (cursor < right)
+        {
+            g.fillRect(juce::Rectangle<float>{cursor, row, right - cursor, 1.0f});
+        }
     }
 }
 
@@ -890,8 +911,8 @@ void TabView::setState(std::shared_ptr<const core::TabViewState> tab, int minimu
 }
 
 // Draws the visible chart content in Charter's layer order: string lines, hand-shape spans,
-// sustain tails with their slide and bend lines, chord and arpeggio onset pills, note heads
-// with technique glyphs, then the floating labels (slide frets and bend amount chips) on top.
+// sustain tails with their slide and bend lines, arpeggio posture brackets, note heads with
+// technique glyphs, then the floating labels (slide frets and bend amount chips) on top.
 void TabView::paint(juce::Graphics& g)
 {
     if (m_tab == nullptr || m_tab->string_count <= 0)
@@ -923,7 +944,36 @@ void TabView::paint(juce::Graphics& g)
                             static_cast<double>(clip.getRight()) * seconds_per_pixel +
                             slack_seconds;
 
-    drawStringLines(g, metrics);
+    // Bracket geometry shared by the string-line gaps below and the bracket pass further
+    // down; the values depend only on the lane metrics, not on the individual note.
+    const float bracket_size = metrics.note_height + 1.0f;
+    const float bracket_border = std::max(1.0f, bracket_size / 15.0f);
+    const float bracket_radius = bracket_size / 2.0f + bracket_border;
+
+    // The lane lines hide inside each visible arpeggio bracket so the "[ fret ]" marks read
+    // on a clean background.
+    std::vector<std::vector<juce::Range<float>>> line_exclusions(
+        static_cast<std::size_t>(metrics.displayed_count));
+    for (const core::TabShapeView& shape : m_tab->shapes)
+    {
+        if (!shape.arpeggio || shape.start_seconds < span_start || shape.start_seconds > span_end)
+        {
+            continue;
+        }
+
+        const float start_x = metrics.x(shape.start_seconds);
+        for (const core::TabArpeggioNoteView& arpeggio_note : shape.arpeggio_notes)
+        {
+            const int displayed = arpeggio_note.string + metrics.extra_lanes;
+            if (displayed >= 1 && displayed <= metrics.displayed_count)
+            {
+                line_exclusions[static_cast<std::size_t>(displayed - 1)].push_back(
+                    juce::Range<float>{start_x - bracket_radius, start_x + bracket_radius});
+            }
+        }
+    }
+
+    drawStringLines(g, metrics, line_exclusions);
 
     for (const core::TabShapeView& shape : m_tab->shapes)
     {
@@ -977,26 +1027,24 @@ void TabView::paint(juce::Graphics& g)
             // held fret number between them.
             const StringStyle style{metrics.baseColor(arpeggio_note.string)};
             const float center_y = metrics.laneY(arpeggio_note.string);
-            const float size = metrics.note_height + 1.0f;
-            const float border = std::max(1.0f, size / 15.0f);
-            const float radius = size / 2.0f + border;
             // The note's VISIBLE top and bottom are the bright ring's edges: the head's
             // outermost layer is the near-black backing, which melts into the dark lane. The
             // bracket verticals stop a stroke-width inside that visible edge, so even with
             // the stroke's own extent and edge antialiasing the brackets never rise above or
             // dip below what reads as the note.
-            const float half_height = size / 2.0f - border - g_arpeggio_bracket_thickness;
-            const float serif = size / 8.0f;
+            const float half_height =
+                bracket_size / 2.0f - bracket_border - g_arpeggio_bracket_thickness;
+            const float serif = bracket_size / 8.0f;
 
             juce::Path brackets;
-            brackets.startNewSubPath(start_x - radius + serif, center_y - half_height);
-            brackets.lineTo(start_x - radius, center_y - half_height);
-            brackets.lineTo(start_x - radius, center_y + half_height);
-            brackets.lineTo(start_x - radius + serif, center_y + half_height);
-            brackets.startNewSubPath(start_x + radius - serif, center_y - half_height);
-            brackets.lineTo(start_x + radius, center_y - half_height);
-            brackets.lineTo(start_x + radius, center_y + half_height);
-            brackets.lineTo(start_x + radius - serif, center_y + half_height);
+            brackets.startNewSubPath(start_x - bracket_radius + serif, center_y - half_height);
+            brackets.lineTo(start_x - bracket_radius, center_y - half_height);
+            brackets.lineTo(start_x - bracket_radius, center_y + half_height);
+            brackets.lineTo(start_x - bracket_radius + serif, center_y + half_height);
+            brackets.startNewSubPath(start_x + bracket_radius - serif, center_y - half_height);
+            brackets.lineTo(start_x + bracket_radius, center_y - half_height);
+            brackets.lineTo(start_x + bracket_radius, center_y + half_height);
+            brackets.lineTo(start_x + bracket_radius - serif, center_y + half_height);
             g.setColour(style.inner);
             g.strokePath(brackets, juce::PathStrokeType{g_arpeggio_bracket_thickness});
 
@@ -1008,7 +1056,10 @@ void TabView::paint(juce::Graphics& g)
                 g.drawText(
                     juce::String{arpeggio_note.fret},
                     juce::Rectangle<float>{
-                        start_x - size, center_y - size, size * 2.0f, size * 2.0f
+                        start_x - bracket_size,
+                        center_y - bracket_size,
+                        bracket_size * 2.0f,
+                        bracket_size * 2.0f
                     },
                     juce::Justification::centred);
             }

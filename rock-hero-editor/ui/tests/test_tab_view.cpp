@@ -273,6 +273,11 @@ TEST_CASE("TabView draws techniques, shapes, and fret-hand positions", "[ui][tab
     CHECK(image.getPixelAt(206, 52).getARGB() == 0);
     CHECK(image.getPixelAt(197, 136).getARGB() == 0);
 
+    // The string line hides between the brackets (probed right of the fret number, left of the
+    // bracket's vertical) and resumes past them.
+    CHECK(image.getPixelAt(208, 60).getARGB() == 0);
+    CHECK(image.getPixelAt(220, 60).getARGB() != 0);
+
     // The tremolo strip stays clipped to its sustain: nothing straggles past the note end.
     // String 2 lane of six in 240px: center y = 180. Note ends at 6.0s → x = 120. The probe row
     // sits above the string line (which now runs the full width) but inside the tremolo band.
