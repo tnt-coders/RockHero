@@ -1,17 +1,17 @@
 # Plan 13 — Audio Device Settings and Calibration
 
-Status: Ready | 2026-07-06 | baseline `refactor @ 3c7febe0`
+Status: Ready | 2026-07-12 | baseline `refactor @ 75cc26dd`
 
 ## Goal
 
-One audio-hardware identity for the whole product: the user configures a device, input channel,
-sample rate, and buffer size once, and both the editor and the game restore that exact route on
-launch. On top of that shared store: a full latency-offset model (input + output + video, per
-device identity) whose measured offsets shift scoring hit windows, a headless play-on-cue
-calibration capture flow the game wizard can drive, and a device-loss policy so an unplugged
-interface never destroys in-progress state. docs/design/architecture.md ("Gameplay Systems")
-mandates "Latency calibration: Built into the timing architecture from day one, not bolted on
-later" — this plan is that day-one architecture.
+A shared per-app audio-config store **type** in `common/audio/settings/` that **each product
+instantiates independently over its own file** — the editor and the game each own their active
+device route (opaque blob + resolved identity), per-route input calibration, and (Phase 3) latency
+offsets. Shared code, per-app data: exactly one writer per file, so **no `InterProcessLock`**. On
+top of that store: the latency-offset model + scoring-offset contract (Phase 3), the headless
+play-on-cue calibration capture (Phase 4), and the device-loss policy (Phase 5), all app-agnostic.
+docs/design/architecture.md ("Gameplay Systems") mandates "Latency calibration: Built into the
+timing architecture from day one, not bolted on later" — this plan is that day-one architecture.
 
 ## Non-goals
 
@@ -148,10 +148,14 @@ Downstream consumers (recorded in both directions in docs/roadmap/00-roadmap.md)
   docs/completed/per-device-input-calibration-plan.md.
 - **Calibration never enters project packages or tone documents**; it is app-local user state —
   docs/completed/per-device-input-calibration-plan.md.
-- **Editor workflow state stays in `EditorSettings`** and is never shared; **a value has exactly
-  one authoritative store** — anything plausibly shared (e.g. buffer size) belongs to the shared
-  store, with Tracktion/JUCE copies derived — absorbed from
-  the former shared-user-audio-settings todo plan.
+- **Editor workflow state stays in `EditorSettings`** and is never shared (last-open-project,
+  cursors, grid, zoom, waveform-visible remain editor-only).
+- **Each app is the sole authority for its own audio config.** There is no shared configuration
+  file: the per-app store *type* is instantiated independently over each product's own file. The
+  editor may additionally consume the game's config **read-only** (one-directional, one-shot at
+  toggle-on) via the toggle in plan 48; there is no reverse. (This supersedes the former
+  shared-user-audio-settings premise that "a value has exactly one authoritative store" backed by a
+  single shared file.)
 
 ## Open questions for the user
 
@@ -165,10 +169,12 @@ Mirrored into docs/roadmap/00-roadmap.md "Decisions needed".
    the active display name recorded as advisory metadata; (B) key video offsets per monitor
    identity now. **Recommendation: A** — monitor identity APIs are brittle, the wizard remeasures
    in under a minute, and (A) leaves the schema field ready if (B) is ever needed.
-3. **Per-product buffer-size override.** Options: (A) one shared device configuration for both
+3. **Per-product buffer-size override.** ~~Options: (A) one shared device configuration for both
    products (configure once — the absorbed plan's default); (B) add a per-product override layer
-   now. **Recommendation: A**; add an override only when the game demonstrates a concrete need
-   (e.g. editor wants larger buffers for heavy plugin chains).
+   now.~~ **SUPERSEDED** — per-app independence was chosen by user directive: each product owns its
+   own audio-config file, so buffer size (and every other device setting) is already per-product by
+   construction. The shared-configuration option is withdrawn; there is no shared device
+   configuration to override.
 4. **WASAPI-Shared during gameplay.** Options: (A) allow, with a visible high-latency warning in
    the setup UI when the reported round trip exceeds a threshold (~15 ms, tuned later); (B) allow
    detection/scoring but force live monitoring off; (C) refuse shared mode for gameplay.
@@ -181,88 +187,137 @@ Mirrored into docs/roadmap/00-roadmap.md "Decisions needed".
 
 ## Phased implementation
 
-### Phase 1 — Shared user-audio settings store in common
+### Phase 1 — Per-app audio-config store in common
 
-Scope: create the shared per-user store both products read, absorbing the design from the former
-shared-user-audio-settings todo plan (deleted after absorption) with these corrections against
-the current tree:
-new headers go in a `settings/` feature folder (the absorbed doc predates feature folders); the
-error type is a new common-audio `UserAudioSettingsError` (the editor's `EditorSettingsError`
-stays editor-owned); the `inputCalibrationStates` schema is the shipped XML-valued property with
-a `formatVersion` root (the absorbed doc's description is current — reuse the editor's
-serialization code verbatim when it moves in Phase 2).
+Scope: create ONE shared per-app audio-config store **type** that each product instantiates
+independently over its own file — **no shared file, no `InterProcessLock`**. The locked per-app
+model gives every file exactly one writer, so the two-writer concurrency machinery is deleted and
+the only cross-process interaction (the editor reading the game's file) is one-directional and
+read-only. New headers go in a `settings/` feature folder; the error type is a new common-audio
+`AudioConfigError`; the calibration schema is the shipped XML-valued property with a `formatVersion`
+root — reuse the editor's serialization code verbatim when it moves in Phase 2.
 
-- `IUserAudioSettings` port: `audioDeviceState()` / `setAudioDeviceState()`, per-route
-  `inputCalibrationFor` / `saveInputCalibration` / `removeInputCalibration` (signatures mirror
-  today's `IEditorSettings` methods, returning `std::expected<..., UserAudioSettingsError>`), plus
-  the Phase 3 offset accessors (landed there, port designed here with room for them).
-- `UserAudioSettings` implementation: `juce::PropertiesFile` with `folderName` "Rock Hero"
-  (reuse `applicationDataFolderName()`), `applicationName` "Rock Hero User Audio" (new constant
-  beside `editorApplicationName()` in
-  rock-hero-common/core/include/rock_hero/common/core/shared/application_identity.h),
-  `.settings` suffix, XML storage, and — unlike today's editor store, which sets
-  `processLock = nullptr` — a `juce::InterProcessLock`, because editor and game can run
-  concurrently. Explicit-path constructor for test isolation. Writes save immediately.
-- Concurrency policy (absorbed, still valid): write only on successful device apply or
+- **`ActiveDeviceRoute` value type** (`common/audio/settings/active_device_route.h`):
+  `{ std::string serialized_state; std::optional<InputDeviceIdentity> identity; }`. The opaque blob
+  is the JUCE restore payload; the identity is the semantic route it resolves to, persisted
+  **together** on each successful apply so availability and mirroring can be answered offline
+  without opening a device.
+- **`IAudioConfigStore` port:** `activeDeviceRoute()` / `setActiveDeviceRoute()`; per-route
+  `inputCalibrationFor` / `saveInputCalibration` / `removeInputCalibration`, returning
+  `std::expected<…, AudioConfigError>` (calibration signatures mirror today's `IEditorSettings`
+  accessors at `i_editor_settings.h:179-194`), with room for Phase 3's `latencyOffsetsFor` /
+  `saveLatencyOffsets` / `removeLatencyOffsets`.
+- **`AudioConfigStore` implementation:** `juce::PropertiesFile`, `folderName` =
+  `applicationDataFolderName()`, **`applicationName` supplied by a ctor parameter**
+  (`std::string_view`), `.settings` suffix, XML storage, **`processLock = nullptr`**. A scoped
+  `Access { ReadWrite, ReadOnly }` mode: `ReadOnly` sets `Options.doNotSave = true` (`save()`
+  early-returns, `juce_PropertiesFile.cpp:183`) and setters return
+  `AudioConfigError{CouldNotSave, "store opened read-only"}`, so the editor's read of the game's
+  file can never mutate it. Explicit-path ctor for test isolation.
+- **`AudioConfigError` / `AudioConfigErrorCode { InvalidSettingValue, InvalidInputCalibrationHistory,
+  CouldNotSave }`** — `<Subject>ErrorCode`/`<Subject>Error`, `code` + `message`. No `ReadOnlySource`
+  code (a read-only write is a defended-against no-op reported as `CouldNotSave`, not a distinct
+  enum value only one composition emits). The `InvalidInputCalibrationHistory` path preserves the
+  editor's malformed-vs-missing distinction so a corrupt game file surfaces as a typed failure
+  rather than "no calibration."
+- **Two identity constants in `common/audio`** (`settings/audio_config_identity.h`):
+  `editorAudioConfigApplicationName()` ("Rock Hero Editor Audio") and
+  `gameAudioConfigApplicationName()` ("Rock Hero Audio"). They belong beside the store by
+  feature-over-kind (they encode the audio-config *file-partition* convention); the generic product
+  names stay in `common/core`. Each names a distinct file from the editor's `Rock Hero Editor.settings`
+  (workflow state) and the game's `Rock Hero.settings` (profile). The game's audio config being its
+  own file is what lets the editor read it read-only without touching the game's profile/library
+  data.
+- **Multi-input forward-compat requires no type here:** calibration is already a route-keyed map
+  (keyed by `InputDeviceIdentity`), inherently N-capable **for channels on the one active device**.
+  The player-slot model (`PlayerInputConfig`) is **game/core, not common** (plan 32). Do **not** add
+  multiplayer types to the shared store. Record the honest boundary: N *separate interfaces* would
+  need a multi-device `ActiveDeviceRoute` and a multi-channel selection surface — out of scope here,
+  and not falsely promised as "no rework."
+- **Concurrency policy** (retained, minus the lock): write only on successful device apply or
   calibration success; last-writer-wins; never clear stored state merely because an app starts
-  without an open device; no cross-process refresh path until a real conflict is user-visible.
+  without an open device. Cross-process consistency rides JUCE's atomic temp-file+rename XML save
+  (`saveAsXml → XmlElement::writeTo → TemporaryFile::overwriteTargetFileWithTemporary`, 5×100 ms
+  `replaceFileIn` retry): a concurrent reader sees the complete old or new file, never a torn one.
 
 Files/modules: new `rock-hero-common/audio/include/rock_hero/common/audio/settings/
-{i_user_audio_settings.h, user_audio_settings.h, user_audio_settings_error.h}`, new
-`rock-hero-common/audio/src/settings/user_audio_settings.cpp`, one new constant in
-application_identity.h, CMake source-list additions.
+{i_audio_config_store.h, audio_config_store.h, audio_config_error.h, active_device_route.h,
+audio_config_identity.h}`, new `rock-hero-common/audio/src/settings/audio_config_store.cpp` (holding
+the private `KeyedRecordStore<Codec>` + `InputCalibrationCodec` once relocated in Phase 2), CMake
+source-list additions.
 
-Public-header impact: three new public headers (the port, the concrete store for app composition,
-the typed error). Nothing else becomes public.
+Public-header impact: new public headers for the port, concrete store, typed error,
+`ActiveDeviceRoute`, and the two identity constants. The codec and `KeyedRecordStore` stay
+`src/`-private.
 
-Testing plan: new `rock-hero-common/audio/tests/test_user_audio_settings.cpp` — empty start with a
-test-local file; device-state persist/reload/clear; calibration history persist, duplicate-route
-collapse, per-route remove, gain clamp, malformed-history preservation as a typed error (mirror
-the cases in rock-hero-editor/core/tests/test_editor_settings.cpp, which the schema comes from);
-device state and calibration independence.
+Testing plan: new `rock-hero-common/audio/tests/test_audio_config_store.cpp` — empty start with a
+test-local file; active-route persist/reload/clear **including the paired identity**; calibration
+history persist, duplicate-route collapse, per-route remove, gain clamp, malformed-history preserved
+as a typed `InvalidInputCalibrationHistory` error; active-route and calibration independence; a
+`ReadOnly` instance rejects every setter with `CouldNotSave` and leaves the file byte-unchanged.
 
 Exit criteria: store builds and passes its tests; no editor code touched yet.
 
-Verification (graph changed → configure; code + tests changed → build + tests):
+Verification:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -Configure -Targets rock_hero_common_audio_tests
 powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -RunTouchedTests
 ```
 
-### Phase 2 — Editor migrates to the shared store
+### Phase 2 — Editor moves its device route onto its own per-app file
 
-Scope: move the two audio-owned values out of `EditorSettings` and point the controller at the
-shared store, per the absorbed plan.
+Scope: move the **device-route** value out of `EditorSettings` into the **editor's own**
+`AudioConfigStore` instance, add a one-shot same-schema migration, and re-point (but do **not** yet
+delete) the calibration accessors so the build stays green until plan 14 P3 relocates them.
 
-- Remove `audioDeviceState` and the calibration trio from `IEditorSettings`/`EditorSettings`;
-  relocate the `inputCalibrationStates` XML serialization code into `UserAudioSettings` unchanged.
-- `EditorController::Services` gains `common::audio::IUserAudioSettings* user_audio_settings`;
-  `restoreAudioDeviceState()` / `persistAudioDeviceState()`
-  (editor_controller.cpp:1966–1991) and the input-calibration load/save paths switch stores;
-  last-open-project / interrupted-restore / cursor / grid / zoom stay on `m_settings`.
-- One-time migration helper `migrateEditorAudioSettings(EditorSettings&, IUserAudioSettings&)` in
-  rock-hero-editor/core (editor-specific policy stays out of common): copy device state and
-  calibration history only when the shared store lacks them; apply open question 1's answer for
-  legacy-key cleanup (recommended: clear immediately, under test).
-- rock-hero-editor/app/main.cpp constructs one `UserAudioSettings` and passes it into Services.
-- Update `NullEditorSettings` and controller test fakes; add a common-audio null/in-memory
-  `IUserAudioSettings` fake under rock-hero-common/audio/tests/include for reuse by future game
-  tests.
+- **Remove `audioDeviceState` from `IEditorSettings` / `EditorSettings`** (`i_editor_settings.h:66`);
+  the editor's device persist/restore now targets `activeDeviceRoute()` on the store (capturing
+  `serialized_state` **and** the live `currentInputDeviceIdentity()` together on persist).
+- **Keep the calibration trio on `IEditorSettings`, delegating to the store (F#4 fix).** The draft's
+  "remove the calibration trio in P2" contradicted its own coordination note and would break the
+  live call sites `m_settings.inputCalibrationFor` (`input_calibration_handlers.cpp:127`) and
+  `m_settings.saveInputCalibration` (`:151`). In P2 the calibration *data* relocates (the
+  `KeyedRecordStore<Codec>` + `InputCalibrationCodec` move into `AudioConfigStore`, error type
+  renamed to `AudioConfigError`), and `EditorSettings`' calibration methods become thin delegators to
+  the editor's `AudioConfigStore`. The `IEditorSettings` calibration methods and those call sites are
+  **removed by plan 14 P3** when it relocates the read/write into `LiveInputMonitor` — avoiding a
+  double migration and a broken build between phases.
+- `EditorController::Services` gains `common::audio::IAudioConfigStore* audio_config_store`;
+  `restoreAudioDeviceState()` / `persistAudioDeviceState()` switch to it; last-open-project /
+  interrupted-restore / cursor / grid / zoom / waveform-visible stay on `m_settings`.
+- One-shot migration helper `migrateEditorAudioSettings(EditorSettings& legacy, IAudioConfigStore&
+  editor_audio_store)` in `rock-hero-editor/core`: when the new audio-config file lacks the keys and
+  `Rock Hero Editor.settings` holds either the device-state string or the calibration XML, copy them
+  across (device-state migrates as `ActiveDeviceRoute{serialized_state, identity=nullopt}` — the
+  identity is recomputed on the next successful apply; calibration migrates as the raw XML value
+  since the codec moved unchanged) and clear the legacy keys (13-Q1 recommendation B, test-covered).
+- `rock-hero-editor/app/main.cpp` constructs one `AudioConfigStore{ editorAudioConfigApplicationName(),
+  Access::ReadWrite }` and injects it into Services.
+- Add a shared in-memory `IAudioConfigStore` fake under
+  `rock-hero-common/audio/tests/include/…/testing/` (full read **and** write, including
+  `ActiveDeviceRoute`) for reuse by plan 14, plan 32, and plan 48.
 
-Files/modules: rock-hero-editor/core settings + controller TUs, rock-hero-editor/app/main.cpp,
-rock-hero-common/audio settings sources, test fakes.
+**Coordination with plan 14 (preserved):** P2 retargets **device-route persist/restore** and
+relocates the calibration *data* while keeping the `IEditorSettings` calibration methods as
+delegators; plan 14 P3 relocates the **calibration read/write call sites** into `LiveInputMonitor`
+and then deletes the `IEditorSettings` calibration methods. The editor `useGameAudioSettings` toggle
+bool and the effective-source facade land with plan 48, not here.
 
-Public-header impact: `IEditorSettings` shrinks (methods removed); no new public headers beyond a
-testing fake header.
+Files/modules: `rock-hero-editor/core` settings + controller TUs, `rock-hero-editor/app/main.cpp`,
+`rock-hero-common/audio` settings sources, test fakes.
 
-Testing plan: new `rock-hero-editor/core/tests/test_editor_audio_settings_migration.cpp`
-(copy-when-missing, never-overwrite-existing, tolerate-missing-source, idempotent re-run);
-update test_editor_settings.cpp (drop moved cases), test_editor_controller_restore.cpp and
-test_editor_controller_input_calibration.cpp (controller reads/writes the shared port).
+Public-header impact: `IEditorSettings` drops `audioDeviceState`; the calibration trio stays until
+14 P3.
 
-Exit criteria: editor behaves identically end-to-end (device restore, calibration restore per
-route); old keys migrated; all editor-core and common-audio tests pass.
+Testing plan: new `rock-hero-editor/core/tests/test_editor_audio_config_migration.cpp`
+(copy-when-missing, never-overwrite-existing, tolerate-missing-source, idempotent re-run, legacy
+keys cleared, device-state migrates with absent identity); update `test_editor_settings.cpp` (drop
+device-state cases), `test_editor_controller_restore.cpp` (controller reads/writes the editor's own
+`IAudioConfigStore`).
+
+Exit criteria: editor behaves identically end-to-end (device restore, per-route calibration
+restore); old keys migrated and cleared; all editor-core and common-audio tests pass.
 
 Verification:
 
@@ -270,6 +325,34 @@ Verification:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -Targets all
 powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -RunTouchedTests
 ```
+
+### Plan 13 Phases 3-6 — do they still hold under per-app data?
+
+**All hold; per-app-data clarifications only, no structural rewrite.** The Phase 3-6 sections below
+carry over from the shared-store design; read them with these per-app substitutions and notes (the
+`IUserAudioSettings` name in those sections is now `IAudioConfigStore`, and its persistence lives on
+each app's own file):
+
+- **Phase 3 (latency-offset model + scoring-offset contract):** holds. The value types
+  (`OutputDeviceIdentity`, `AudioRouteIdentity`, `LatencyOffsets`), the effective-offset contract
+  plan 24 consumes, and the staleness rule are app-agnostic pure code added to `IAudioConfigStore`.
+  Clarify: offsets are per-app data; the **game's** offsets are scoring-authoritative (the editor
+  doesn't score). Per-route latency belongs on the offset record, **not** on game/core's
+  `PlayerInputConfig` (latency is per physical route). **Fan-out obligation note (F#8):** introducing
+  `latencyOffsetsFor`/`saveLatencyOffsets`/`removeLatencyOffsets` on `IAudioConfigStore` obliges
+  *every* implementor to override them — the concrete store, all test fakes, **and plan 48's
+  `EditorEffectiveAudioConfigStore`**. If plan 48 has landed, 13 P3 must update the facade in the
+  same change or the facade stops compiling; record this in plan 48's forward-dependencies.
+- **Phase 4 (headless calibration capture):** holds. The play-on-cue state machine + estimator stay
+  headless in common and write `LatencyOffsets` to the **active app's** store; the game native
+  wizard (plan 32 / plan 26 Phase 8) and any editor/dev harness drive the same code. Read
+  `IUserAudioSettings` as `IAudioConfigStore` throughout.
+- **Phase 5 (device-loss policy + backend stance):** holds. Each app handles loss on its own engine;
+  the policy shape and ASIO>WASAPI ranking are shared product policy. The "ASIO single-client —
+  independent per-app device picks can collide → surfaced as `ApplyFailed`" note is **more relevant**
+  now — keep it.
+- **Phase 6 (`deviceManager()` port narrowing):** holds — pure cleanup, app-agnostic, independently
+  revertible.
 
 ### Phase 3 — Latency-offset model and the scoring-offset contract
 
