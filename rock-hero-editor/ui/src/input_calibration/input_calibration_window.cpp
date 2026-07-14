@@ -36,6 +36,10 @@ constexpr int g_input_calibration_preferred_width{
     g_input_calibration_meter_width + (g_input_calibration_content_margin * 2)
 };
 
+// Hover text shown on the disabled calibration controls while the popup reflects the game's audio
+// configuration read-only, explaining why they cannot be operated. Cleared in the editable flow.
+constexpr const char* g_input_calibration_game_tooltip{"Derived from game settings"};
+
 [[nodiscard]] juce::String inputCalibrationTargetText()
 {
     return juce::String{"Target: "} +
@@ -175,14 +179,6 @@ public:
         m_cancel_button.onClick = [this] { m_owner.closeButtonPressed(); };
         addAndMakeVisible(m_cancel_button);
 
-        m_game_source_notice.setComponentID("input_calibration_game_notice");
-        m_game_source_notice.setText(
-            "These come from your Game audio settings.", juce::dontSendNotification);
-        m_game_source_notice.setJustificationType(juce::Justification::centredLeft);
-        m_game_source_notice.setMinimumHorizontalScale(0.6f);
-        m_game_source_notice.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
-        addChildComponent(m_game_source_notice);
-
         setSize(g_input_calibration_preferred_width, preferredHeight());
         m_calibration_controller.attachView(*this);
         applyModePresentation();
@@ -221,10 +217,9 @@ public:
         auto buttons = area.removeFromBottom(28);
         m_cancel_button.setBounds(buttons.removeFromRight(96));
         buttons.removeFromRight(8);
-        // The Calibrate button is hidden in the read-only game reflection; its freed row space
-        // carries the "these come from your game settings" notice instead.
+        // The Calibrate button always occupies its row: in the read-only game reflection it stays
+        // visible but disabled (grayed out) rather than yielding its space to a notice.
         m_calibrate_button.setBounds(buttons.removeFromRight(96));
-        m_game_source_notice.setBounds(buttons);
     }
 
     void requestDismissal()
@@ -246,16 +241,17 @@ public:
     }
 
 private:
-    // Shows or hides the measure/apply affordances for the current source mode. In the read-only
-    // game reflection the strum-to-calibrate action and manual apply are removed and the notice is
-    // shown; the gain slider stays visible but disabled so the game's calibrated value is displayed
-    // read-only rather than hidden.
+    // Applies the measure/apply affordances for the current source mode. In the read-only game
+    // reflection the Calibrate button, manual Apply button, and gain slider all stay visible but
+    // disabled (grayed out) so the game's calibrated value is displayed read-only, each carrying a
+    // "Derived from game settings" tooltip that explains why. The editable flow clears the tooltip
+    // and leaves enablement to the controller state pushed through setState().
     void applyModePresentation()
     {
-        const bool editable = !m_read_only;
-        m_calibrate_button.setVisible(editable);
-        m_manual_apply_button.setVisible(editable);
-        m_game_source_notice.setVisible(m_read_only);
+        const juce::String control_tooltip{m_read_only ? g_input_calibration_game_tooltip : ""};
+        m_calibrate_button.setTooltip(control_tooltip);
+        m_manual_apply_button.setTooltip(control_tooltip);
+        m_manual_gain_slider.setTooltip(control_tooltip);
         if (m_read_only)
         {
             m_manual_gain_slider.setEnabled(false);
@@ -297,7 +293,7 @@ private:
         m_manual_apply_button.setEnabled(state.manual_gain_controls_enabled);
         m_cancel_button.setButtonText(juce::String{state.dismiss_button_text});
         // Re-assert the read-only game reflection after every controller push so a state refresh
-        // never re-enables the measure/apply controls the game-source mode hides.
+        // never re-enables the measure/apply controls the game-source mode disables.
         applyModePresentation();
         syncPreferredSize();
     }
@@ -374,12 +370,12 @@ private:
     core::IEditorController& m_editor_controller;
     const common::audio::ILiveInput* m_live_input{};
     // True while the editor sources the game's audio configuration: the popup then reflects the
-    // game's calibration value read-only with a notice and offers no measure action.
+    // game's calibration value read-only, disabling (graying out) the measure/apply controls with an
+    // explanatory tooltip rather than hiding them.
     bool m_read_only{false};
     core::InputCalibrationController m_calibration_controller;
     AudioLevelMeter m_input_meter;
     juce::Label m_target_label;
-    juce::Label m_game_source_notice;
     std::unique_ptr<juce::Drawable> m_help_icon;
     juce::DrawableButton m_help_button{"input_calibration_help", juce::DrawableButton::ImageFitted};
     juce::Label m_manual_label;
@@ -388,6 +384,10 @@ private:
     juce::Label m_status;
     juce::TextButton m_calibrate_button;
     juce::TextButton m_cancel_button;
+
+    // One tooltip window per calibration window renders the "derived from game settings" hover text
+    // on the disabled controls. Parented to this content so its lifetime matches the window.
+    juce::TooltipWindow m_tooltip_window{this};
 };
 
 InputCalibrationWindow::InputCalibrationWindow(

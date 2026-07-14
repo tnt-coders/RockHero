@@ -24,10 +24,11 @@ using testing::findRequiredDescendant;
 
 } // namespace
 
-// Sourcing a calibrated game config shows the game value read-only: the notice appears and the
-// strum-to-calibrate action is removed so a two-hands-on-guitar player is never asked to interact.
+// Sourcing a calibrated game config shows the game value read-only: the Calibrate and Apply buttons
+// and gain slider stay visible but disabled (grayed out) with an explanatory tooltip, so a
+// two-hands-on-guitar player is never asked to interact.
 TEST_CASE(
-    "InputCalibrationWindow hides the measure action in the read-only game reflection",
+    "InputCalibrationWindow disables the measure action in the read-only game reflection",
     "[ui][input-calibration]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -36,23 +37,29 @@ TEST_CASE(
 
     InputCalibrationWindow window{controller, nullptr, prompt, nullptr, true};
 
-    const auto& calibrate =
+    auto& calibrate =
         findRequiredDescendant<juce::TextButton>(window, "input_calibration_start_button");
-    const auto& apply =
+    auto& apply =
         findRequiredDescendant<juce::TextButton>(window, "input_calibration_manual_apply_button");
-    const auto& notice =
-        findRequiredDescendant<juce::Label>(window, "input_calibration_game_notice");
+    auto& slider = findRequiredDescendant<juce::Slider>(window, "input_calibration_manual_gain");
     const auto& dismiss =
         findRequiredDescendant<juce::TextButton>(window, "input_calibration_cancel_button");
 
-    CHECK_FALSE(calibrate.isVisible());
-    CHECK_FALSE(apply.isVisible());
-    CHECK(notice.isVisible());
-    CHECK(notice.getText().contains("Game audio settings"));
+    // The controls stay visible but disabled (grayed out) rather than hidden.
+    CHECK(calibrate.isVisible());
+    CHECK_FALSE(calibrate.isEnabled());
+    CHECK(apply.isVisible());
+    CHECK_FALSE(apply.isEnabled());
+    CHECK(slider.isVisible());
+    CHECK_FALSE(slider.isEnabled());
+    // Each disabled control carries the derived-from-game tooltip explaining why.
+    CHECK(calibrate.getTooltip() == "Derived from game settings");
+    CHECK(apply.getTooltip() == "Derived from game settings");
+    CHECK(slider.getTooltip() == "Derived from game settings");
     CHECK(dismiss.isVisible());
 }
 
-// The editable flow keeps the full strum-to-calibrate controls and hides the game-source notice.
+// The editable flow keeps the full strum-to-calibrate controls and carries no game-source tooltip.
 TEST_CASE(
     "InputCalibrationWindow keeps the editable flow when sourcing the editor's own audio",
     "[ui][input-calibration]")
@@ -63,13 +70,11 @@ TEST_CASE(
 
     InputCalibrationWindow window{controller, nullptr, prompt, nullptr, false};
 
-    const auto& calibrate =
+    auto& calibrate =
         findRequiredDescendant<juce::TextButton>(window, "input_calibration_start_button");
-    const auto& notice =
-        findRequiredDescendant<juce::Label>(window, "input_calibration_game_notice");
 
     CHECK(calibrate.isVisible());
-    CHECK_FALSE(notice.isVisible());
+    CHECK(calibrate.getTooltip().isEmpty());
 }
 
 // One toggle governs both surfaces: flipping the source while the window is open re-scopes it live.
@@ -82,18 +87,21 @@ TEST_CASE(
 
     InputCalibrationWindow window{controller, nullptr, prompt, nullptr, false};
 
-    const auto& calibrate =
+    auto& calibrate =
         findRequiredDescendant<juce::TextButton>(window, "input_calibration_start_button");
-    const auto& notice =
-        findRequiredDescendant<juce::Label>(window, "input_calibration_game_notice");
+
+    // The Calibrate button stays visible in both modes; the tooltip and enablement carry the
+    // read-only state instead.
+    CHECK(calibrate.getTooltip().isEmpty());
 
     window.setReadOnlyGameReflection(true);
-    CHECK_FALSE(calibrate.isVisible());
-    CHECK(notice.isVisible());
+    CHECK(calibrate.isVisible());
+    CHECK_FALSE(calibrate.isEnabled());
+    CHECK(calibrate.getTooltip() == "Derived from game settings");
 
     window.setReadOnlyGameReflection(false);
     CHECK(calibrate.isVisible());
-    CHECK_FALSE(notice.isVisible());
+    CHECK(calibrate.getTooltip().isEmpty());
 }
 
 } // namespace rock_hero::editor::ui

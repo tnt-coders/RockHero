@@ -34,8 +34,9 @@ public:
     \param prompt Controller-derived prompt data used to seed display state.
     \param centering_component Optional component used to position the window.
     \param read_only_game_reflection True when the editor sources the game's audio configuration, so
-           the window shows the game's calibration value read-only with an explanatory notice and no
-           measure action (plan 48 P2). False runs the full editable strum-to-calibrate flow.
+           the window shows the game's calibration value read-only: the Calibrate and Apply buttons
+           and gain slider stay visible but disabled (grayed out), each carrying a "Derived from game
+           settings" tooltip (plan 48 P2). False runs the full editable strum-to-calibrate flow.
     */
     InputCalibrationWindow(
         core::IEditorController& controller, const common::audio::ILiveInput* live_input,
