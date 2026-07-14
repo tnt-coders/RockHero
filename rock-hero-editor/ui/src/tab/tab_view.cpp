@@ -41,9 +41,11 @@ constexpr float g_min_note_height_for_text{9.0f};
 constexpr float g_shape_label_height{10.0f};
 constexpr float g_shape_rail_height{3.0f};
 constexpr double g_shape_mark_brightness{1.5};
-// Stroke width of the square-bracket pair marking an arpeggio posture note, which reads as
-// "[ fret ]" and stays much lighter than the note rings it wraps.
-constexpr float g_arpeggio_bracket_thickness{1.5f};
+// Bar width in whole pixels of the square-bracket pair marking an arpeggio posture note, which
+// reads as "[ fret ]" and stays much lighter than the note rings it wraps. The brackets draw as
+// pixel-snapped rectangles — a fractional width or position antialiases into fuzzy, unsquare
+// edges.
+constexpr int g_arpeggio_bracket_thickness{2};
 
 // Thin JUCE-converting wrappers over the shared Charter-exact derivation (rock-hero-common/ui)
 // for the in-file call sites that derive from already-opaque colors.
@@ -1029,24 +1031,27 @@ void TabView::paint(juce::Graphics& g)
             const float center_y = metrics.laneY(arpeggio_note.string);
             // The note's VISIBLE top and bottom are the bright ring's edges: the head's
             // outermost layer is the near-black backing, which melts into the dark lane. The
-            // bracket verticals stop a stroke-width inside that visible edge, so even with
-            // the stroke's own extent and edge antialiasing the brackets never rise above or
-            // dip below what reads as the note.
-            const float half_height =
-                bracket_size / 2.0f - bracket_border - g_arpeggio_bracket_thickness;
-            const float serif = bracket_size / 8.0f;
+            // brackets stop a bar-width inside that visible edge, so they never rise above or
+            // dip below what reads as the note. Every rectangle snaps to whole pixels so the
+            // brackets stay perfectly square instead of antialiasing into fuzz.
+            const float half_height = bracket_size / 2.0f - bracket_border -
+                                      static_cast<float>(g_arpeggio_bracket_thickness);
+            const int bar = g_arpeggio_bracket_thickness;
+            const int serif = juce::roundToInt(bracket_size / 8.0f) + bar;
+            const int top = juce::roundToInt(center_y - half_height);
+            const int bottom = juce::roundToInt(center_y + half_height);
+            const int left =
+                juce::roundToInt(start_x - bracket_radius - static_cast<float>(bar) / 2.0f);
+            const int right =
+                juce::roundToInt(start_x + bracket_radius + static_cast<float>(bar) / 2.0f);
 
-            juce::Path brackets;
-            brackets.startNewSubPath(start_x - bracket_radius + serif, center_y - half_height);
-            brackets.lineTo(start_x - bracket_radius, center_y - half_height);
-            brackets.lineTo(start_x - bracket_radius, center_y + half_height);
-            brackets.lineTo(start_x - bracket_radius + serif, center_y + half_height);
-            brackets.startNewSubPath(start_x + bracket_radius - serif, center_y - half_height);
-            brackets.lineTo(start_x + bracket_radius, center_y - half_height);
-            brackets.lineTo(start_x + bracket_radius, center_y + half_height);
-            brackets.lineTo(start_x + bracket_radius - serif, center_y + half_height);
             g.setColour(style.inner);
-            g.strokePath(brackets, juce::PathStrokeType{g_arpeggio_bracket_thickness});
+            g.fillRect(left, top, bar, bottom - top);
+            g.fillRect(left, top, serif, bar);
+            g.fillRect(left, bottom - bar, serif, bar);
+            g.fillRect(right - bar, top, bar, bottom - top);
+            g.fillRect(right - serif, top, serif, bar);
+            g.fillRect(right - serif, bottom - bar, serif, bar);
 
             if (!arpeggio_note.sounded && metrics.draw_text)
             {
