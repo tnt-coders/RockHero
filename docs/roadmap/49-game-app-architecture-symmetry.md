@@ -1,6 +1,9 @@
 # Plan 49 — Game app architecture symmetric with the editor
 
-**Status:** Authored 2026-07-12; design signed off 2026-07-12 (see Decisions). Executing.
+**Status:** Complete 2026-07-12. Phase 1 (editor rename) @ 47947fc8; Phases 2-4 (`Game` +
+`SDL3Application` + `RockHeroGame`, `GameShell` deleted) @ 4d61b97b. Behavior-preserving; build
+-Targets all + all 7 test suites green. Public headers placed under `include/.../ui/surface/`
+mirroring `src/surface/` per the module convention.
 
 **One-line:** Split the hollow `GameShell` into the same clean layering the editor already has —
 a framework/loop base, a composition-root app object, a window object, and a content object — and
