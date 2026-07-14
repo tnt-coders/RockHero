@@ -28,7 +28,7 @@ demand before scanning; this function performs no IO.
 
 \param app_data_directory Per-user application data root (the folder that also holds settings).
 \param custom_roots User-added custom song directories, in user order.
-\return The effective scan roots: the default Songs folder followed by the deduplicated custom roots.
+\return The effective scan roots: default Songs folder followed by the deduplicated custom roots.
 */
 [[nodiscard]] std::vector<std::filesystem::path> resolveLibraryScanRoots(
     const std::filesystem::path& app_data_directory,
