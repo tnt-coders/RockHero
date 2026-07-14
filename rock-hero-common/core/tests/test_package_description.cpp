@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>
@@ -219,6 +220,35 @@ TEST_CASE("Package description rejects non-archives", "[core][package-descriptio
 
     REQUIRE_FALSE(description.has_value());
     CHECK(description.error().code == SongPackageErrorCode::CouldNotExtractPackage);
+}
+
+// Verifies an unsupported part token degrades to an absent part with a warning, never a failure.
+TEST_CASE("Package description warns on an unsupported part", "[core][package-description]")
+{
+    const TemporaryPackageDirectory directory;
+    const std::string document = std::string{R"({
+  "formatVersion": 1,
+  "metadata": { "title": "Peek Song" },
+  "audioAssets": [ { "id": "main", "path": "audio/backing.flac" } ],
+  "arrangements": [
+    { "id": ")"} + g_arrangement_id +
+                                 R"(", "part": "Keytar", "audio": "main", "chart": ")" +
+                                 g_chart_ref + R"(" }
+  ]
+})";
+    const std::filesystem::path archive =
+        buildArchive(directory, document, fixtureChartDocument(), true);
+
+    const auto description = readRockSongPackageDescription(archive);
+
+    REQUIRE(description.has_value());
+    REQUIRE(description->arrangements.size() == 1);
+    CHECK_FALSE(description->arrangements.front().part.has_value());
+    const bool warned_about_part =
+        std::ranges::any_of(description->warnings, [](const std::string& warning) {
+            return warning.find("Keytar") != std::string::npos;
+        });
+    CHECK(warned_about_part);
 }
 
 } // namespace rock_hero::common::core

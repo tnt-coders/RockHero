@@ -3,7 +3,6 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
-#include <juce_events/juce_events.h>
 #include <rock_hero/game/core/library/library_index_store.h>
 #include <string>
 
@@ -105,7 +104,6 @@ void writeIndexText(const std::filesystem::path& path, const std::string& conten
 // Verifies a saved index loads back field-for-field, including absent optionals and warnings.
 TEST_CASE("Library index round-trips through its JSON document", "[core][library]")
 {
-    const juce::ScopedJuceInitialiser_GUI juce_runtime;
     const TemporaryIndexDirectory directory;
     const LibraryIndex written = fixtureIndex();
 
@@ -156,7 +154,6 @@ TEST_CASE("Library index round-trips through its JSON document", "[core][library
 // Verifies a missing index file schedules a rebuild instead of failing (fresh install path).
 TEST_CASE("Library index load schedules a rebuild when no file exists", "[core][library]")
 {
-    const juce::ScopedJuceInitialiser_GUI juce_runtime;
     const TemporaryIndexDirectory directory;
 
     const LibraryIndexLoadResult loaded = loadLibraryIndex(directory.indexFile());
@@ -169,7 +166,6 @@ TEST_CASE("Library index load schedules a rebuild when no file exists", "[core][
 // Verifies a corrupt index file schedules a rebuild — a broken cache must never block startup.
 TEST_CASE("Library index load schedules a rebuild on corrupt content", "[core][library]")
 {
-    const juce::ScopedJuceInitialiser_GUI juce_runtime;
     const TemporaryIndexDirectory directory;
     writeIndexText(directory.indexFile(), "{ this is not json");
 
@@ -182,7 +178,6 @@ TEST_CASE("Library index load schedules a rebuild on corrupt content", "[core][l
 // Verifies an unsupported index version schedules a rebuild (no migration ladder by design).
 TEST_CASE("Library index load schedules a rebuild on a version mismatch", "[core][library]")
 {
-    const juce::ScopedJuceInitialiser_GUI juce_runtime;
     const TemporaryIndexDirectory directory;
     writeIndexText(directory.indexFile(), R"({ "indexFormatVersion": 999, "entries": [] })");
 
@@ -195,7 +190,6 @@ TEST_CASE("Library index load schedules a rebuild on a version mismatch", "[core
 // path/size/mtime the entry cannot participate in change detection.
 TEST_CASE("Library index load schedules a rebuild on entries without identity", "[core][library]")
 {
-    const juce::ScopedJuceInitialiser_GUI juce_runtime;
     const TemporaryIndexDirectory directory;
     writeIndexText(
         directory.indexFile(),
@@ -210,7 +204,6 @@ TEST_CASE("Library index load schedules a rebuild on entries without identity", 
 // Verifies saving creates missing parent directories (first save on a fresh install).
 TEST_CASE("Library index save creates its parent directories", "[core][library]")
 {
-    const juce::ScopedJuceInitialiser_GUI juce_runtime;
     const TemporaryIndexDirectory directory;
     const std::filesystem::path nested =
         directory.indexFile().parent_path() / "nested" / "index.json";
@@ -220,6 +213,27 @@ TEST_CASE("Library index save creates its parent directories", "[core][library]"
 
     CHECK_FALSE(loaded.rebuild_required);
     CHECK(loaded.index.entries.empty());
+}
+
+// Verifies a non-ASCII package path survives the JSON + platform path-bridge round trip. The
+// std::string -> juce::String::fromUTF8 -> wide-path detour in entryFromJson is exactly where a
+// Unicode path bug would hide, so pin it explicitly.
+TEST_CASE("Library index round-trips a non-ASCII package path", "[core][library]")
+{
+    const TemporaryIndexDirectory directory;
+
+    LibraryEntry entry;
+    entry.package_path = std::filesystem::path{std::u8string{u8"C:/Songs/Café Motörhead.rock"}};
+    entry.file_size_bytes = 4096;
+    entry.modification_time_milliseconds = 1720900000001;
+    const LibraryIndex written{.entries = {entry}};
+
+    REQUIRE(saveLibraryIndex(written, directory.indexFile()).has_value());
+    const LibraryIndexLoadResult loaded = loadLibraryIndex(directory.indexFile());
+
+    REQUIRE_FALSE(loaded.rebuild_required);
+    REQUIRE(loaded.index.entries.size() == 1);
+    CHECK(loaded.index.entries.front().package_path == entry.package_path);
 }
 
 } // namespace rock_hero::game::core
