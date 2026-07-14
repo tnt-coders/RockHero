@@ -219,11 +219,12 @@ TEST_CASE(
     // The locked fields carry the derived-from-game tooltip explaining why they cannot be edited.
     CHECK(input_device.getTooltip() == "Derived from game settings");
     CHECK(sample_rate.getTooltip() == "Derived from game settings");
-    // The visible-but-disabled control panel button is one of the grayed controls, so it carries
-    // the same tooltip.
+    // The control panel button stays enabled while the game source is active: it opens the audio
+    // driver's own external window, independent of Rock Hero's route lock, so it is not one of the
+    // grayed controls and carries no derived-from-game tooltip.
     CHECK(control_panel.isVisible());
-    CHECK_FALSE(control_panel.isEnabled());
-    CHECK(control_panel.getTooltip() == "Derived from game settings");
+    CHECK(control_panel.isEnabled());
+    CHECK(control_panel.getTooltip().isEmpty());
     // OK is not grayed out while locked: with the game source active it keeps the live route, so it
     // stays enabled and routes to the commit intent (not apply, not cancel/restore).
     CHECK(ok_button.isEnabled());

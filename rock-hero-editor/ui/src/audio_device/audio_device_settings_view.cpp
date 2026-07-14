@@ -474,8 +474,13 @@ void AudioDeviceSettingsView::applyStateToControls()
     // The control panel button is hidden entirely for backends that do not expose one (such as
     // WASAPI). Only ASIO drivers reliably show a per-device control panel; for non-ASIO routes
     // the button would otherwise sit there as a permanently-disabled control and look broken.
+    //
+    // Unlike the device fields, the control panel button stays enabled while the game source is
+    // active: it opens the audio driver's own external window, which is outside Rock Hero's route
+    // selection entirely, so the game-settings lock has no bearing on it. Only the apply fence and
+    // the backend's control-panel capability gate it.
     m_control_panel_button.setVisible(m_state.control_panel_enabled);
-    m_control_panel_button.setEnabled(controls_enabled && m_state.control_panel_enabled);
+    m_control_panel_button.setEnabled(!m_applying && m_state.control_panel_enabled);
     // OK stays enabled while the game source is active even though the fields are locked: there it
     // just closes the window like Cancel (there is nothing to apply), so it must not look dead.
     m_ok_button.setEnabled(!m_applying && (m_state.ok_enabled || gameSettingsLockActive()));
@@ -496,9 +501,9 @@ void AudioDeviceSettingsView::applyStateToControls()
     m_output_pair_combo.setTooltip(field_tooltip);
     m_sample_rate_combo.setTooltip(field_tooltip);
     m_buffer_size_combo.setTooltip(field_tooltip);
-    // The control panel button is visible-but-disabled while the game source is active (it is one
-    // of the grayed controls), so it carries the same explanatory tooltip as the locked fields.
-    m_control_panel_button.setTooltip(field_tooltip);
+    // The control panel button deliberately carries no "derived from game settings" tooltip: it
+    // stays enabled and opens the driver's external panel regardless of the game lock, so that
+    // explanation would be misleading here.
 
     m_error_label.setText(juce::String{m_state.error_message.c_str()}, juce::dontSendNotification);
 }
