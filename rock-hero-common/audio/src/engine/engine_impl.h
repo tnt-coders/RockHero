@@ -102,6 +102,55 @@ struct LiveRigLoadOperation
     LiveRigLoadResultCallback on_result;
 };
 
+// Per-call state for an in-flight async audible-tone chain replacement (tone-file import or undo
+// restore). Heap-held inside Engine::Impl so cooperative continuations can resume between
+// plugins, mirroring LiveRigLoadOperation. Candidates instantiate free-floating before the swap
+// so a failure never touches the existing chain.
+struct ToneChainReplaceOperation
+{
+    // One replacement plugin awaiting instantiation.
+    struct Candidate
+    {
+        // Durable identity for catalog resolution; empty optional for memento restores, whose
+        // state trees resolve directly through the plugin cache.
+        std::optional<PluginIdentity> identity;
+
+        // Serialized plugin state, already hygiene-stripped by the payload reader.
+        juce::ValueTree state;
+
+        // Display name precomputed once so progress messages stay stable across resume points.
+        std::string display_name;
+    };
+
+    // Replacement chain in playback order.
+    std::vector<Candidate> candidates;
+
+    // Plugins instantiated so far, held free-floating until the swap.
+    std::vector<tracktion::Plugin::Ptr> created;
+
+    // Missing or broken-install plugin display names, collected across the whole chain so the
+    // finalize step refuses ONCE with the complete list (same policy as LiveRigLoadOperation).
+    std::vector<std::string> missing_plugin_names;
+
+    // Output gain the replacement chain should carry.
+    Gain output_gain;
+
+    // Retained panel layout to install for the replaced chain (empty vectors for memento
+    // restores — the editor's undo entry owns and reapplies the authoritative layout).
+    std::vector<std::size_t> block_indices;
+    std::vector<std::string> display_type_overrides;
+
+    // Position of the next candidate to instantiate on the upcoming step.
+    std::size_t next_candidate{0};
+
+    // Optional progress/yield callbacks with LiveRigLoadRequest semantics.
+    LiveRigLoadProgressCallback progress_callback;
+    LiveRigLoadYieldCallback yield_callback;
+
+    // Callback fired exactly once when the replacement finishes or fails.
+    LiveRigLoadResultCallback on_result;
+};
+
 struct PluginChainMutationFailure
 {
     PluginHostError error;
@@ -216,6 +265,10 @@ private:
     // result callback may safely start a new load.
     std::unique_ptr<LiveRigLoadOperation> m_load_op;
 
+    // In-flight async audible-tone chain replacement, when one is running. Cancelled by
+    // clearLiveRig() and by a new loadLiveRig(), exactly like m_load_op.
+    std::unique_ptr<ToneChainReplaceOperation> m_replace_op;
+
     // Multi-tone rack holding every preloaded tone as an always-processing branch, plus the
     // track-hosted instance placed between the structural gain/meter slots.
     std::optional<ToneRack> m_tone_rack;
@@ -276,6 +329,36 @@ private:
     // Aborts the in-flight live rig load with the supplied error, clearing the half-built chain
     // and rebuilding the instrument monitoring graph before invoking the completion callback.
     void abortLiveRigLoad(LiveRigError error);
+
+    // Starts the cooperative audible-tone chain replacement shared by tone-file import and undo
+    // restore; the operation must already carry candidates, gain, layout, and callbacks.
+    void startToneChainReplace(std::unique_ptr<ToneChainReplaceOperation> operation);
+
+    // Instantiates the next replacement candidate (or finalizes when none remain), collecting
+    // missing plugins instead of aborting so the refusal lists every missing plugin at once.
+    void executeToneReplaceStep();
+
+    // Swaps the audible branch's chain for the instantiated candidates under the shared
+    // mutation-and-reroute discipline; refuses with the complete missing list when any candidate
+    // could not be resolved, leaving the previous chain intact.
+    void finalizeToneChainReplace();
+
+    // Swaps the audible branch's user chain for already-instantiated replacement plugins: remove
+    // old, insert new, monitor reroute with rollback, window/parameter hygiene for the outgoing
+    // chain, then gain + retained-layout bookkeeping. Shared by the async tone-file replace and
+    // the synchronous undo-memento restore.
+    [[nodiscard]] std::expected<void, LiveRigError> swapAudibleChainPlugins(
+        const std::vector<tracktion::Plugin::Ptr>& replacements, Gain output_gain,
+        const std::vector<std::size_t>& block_indices,
+        const std::vector<std::string>& display_type_overrides);
+
+    // Aborts the in-flight chain replacement, dropping free-floating candidates (mirroring the
+    // loader's abort disposal) and invoking the completion callback with the error.
+    void abortToneChainReplace(LiveRigError error);
+
+    // yieldThenContinue's counterpart for chain replacement: routes through the replace
+    // operation's yield callback when set, else a plain async post.
+    void replaceYieldThenContinue(std::function<void()> next);
 
     // Derives the current coarse transport state directly from Tracktion state.
     [[nodiscard]] TransportState currentTransportState() const noexcept;

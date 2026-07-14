@@ -808,6 +808,59 @@ struct FakeLiveRig final : public common::audio::ILiveRig
         return {};
     }
 
+    // Records the export request and returns the configured outcome.
+    [[nodiscard]] std::expected<void, common::audio::LiveRigError> exportAudibleTone(
+        const common::audio::ToneFileExportRequest& request) override
+    {
+        last_export_request = request;
+        export_call_count += 1;
+        if (next_export_error.has_value())
+        {
+            return std::unexpected{*next_export_error};
+        }
+        return {};
+    }
+
+    // Returns the configured whole-chain memento while counting capture-state calls.
+    [[nodiscard]] std::expected<common::audio::AudibleToneState, common::audio::LiveRigError>
+    captureAudibleToneState() override
+    {
+        capture_state_call_count += 1;
+        if (next_capture_state_error.has_value())
+        {
+            return std::unexpected{*next_capture_state_error};
+        }
+        return next_capture_state;
+    }
+
+    // Records the replace request and synchronously completes with the configured result.
+    void replaceAudibleToneFromFile(
+        common::audio::ToneFileReplaceRequest request,
+        common::audio::LiveRigLoadResultCallback on_result) override
+    {
+        last_replace_file_path = request.tone_file_path;
+        replace_call_count += 1;
+        if (next_replace_error.has_value())
+        {
+            on_result(std::unexpected{*next_replace_error});
+            return;
+        }
+        on_result(next_load_result);
+    }
+
+    // Records the restore memento and returns the configured result.
+    [[nodiscard]] std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>
+    restoreAudibleToneState(const common::audio::AudibleToneState& state) override
+    {
+        last_restore_state = state;
+        restore_call_count += 1;
+        if (next_restore_error.has_value())
+        {
+            return std::unexpected{*next_restore_error};
+        }
+        return next_load_result;
+    }
+
     // Snapshot returned by the next successful capture.
     common::audio::LiveRigSnapshot next_capture_snapshot{
         .plugins =
@@ -858,6 +911,42 @@ struct FakeLiveRig final : public common::audio::ILiveRig
 
     // Optional audible-tone error returned instead of success.
     std::optional<common::audio::LiveRigError> next_set_audible_tone_error{};
+
+    // Last tone-file export request observed by the fake.
+    std::optional<common::audio::ToneFileExportRequest> last_export_request{};
+
+    // Number of exportAudibleTone calls received.
+    int export_call_count{0};
+
+    // Optional export error returned instead of success.
+    std::optional<common::audio::LiveRigError> next_export_error{};
+
+    // Whole-chain memento returned by the next captureAudibleToneState call.
+    common::audio::AudibleToneState next_capture_state{};
+
+    // Number of captureAudibleToneState calls received.
+    int capture_state_call_count{0};
+
+    // Optional capture-state error returned instead of the configured memento.
+    std::optional<common::audio::LiveRigError> next_capture_state_error{};
+
+    // Last tone-file path passed to replaceAudibleToneFromFile.
+    std::optional<std::filesystem::path> last_replace_file_path{};
+
+    // Number of replaceAudibleToneFromFile calls received.
+    int replace_call_count{0};
+
+    // Optional replace error delivered instead of the configured load result.
+    std::optional<common::audio::LiveRigError> next_replace_error{};
+
+    // Last whole-chain memento passed to restoreAudibleToneState.
+    std::optional<common::audio::AudibleToneState> last_restore_state{};
+
+    // Number of restoreAudibleToneState calls received.
+    int restore_call_count{0};
+
+    // Optional restore error delivered instead of the configured load result.
+    std::optional<common::audio::LiveRigError> next_restore_error{};
 
     // Last audible tone reference observed by the fake.
     std::optional<std::string> last_audible_tone_ref{};

@@ -435,6 +435,36 @@ public:
         const std::string& tone_document_ref) override;
 
     /*!
+    \brief Exports the audible tone's rig to a standalone tone file without touching the graph.
+    \param request Output path and editor-owned audible-chain layout.
+    \return Empty success, or a typed failure.
+    */
+    [[nodiscard]] std::expected<void, LiveRigError> exportAudibleTone(
+        const ToneFileExportRequest& request) override;
+
+    /*!
+    \brief Captures the audible tone's chain into an in-memory whole-chain undo memento.
+    \return Whole-chain memento with per-plugin instance ids preserved, or a typed failure.
+    */
+    [[nodiscard]] std::expected<AudibleToneState, LiveRigError> captureAudibleToneState() override;
+
+    /*!
+    \brief Replaces the audible tone's chain from a tone file, transactionally and cooperatively.
+    \param request Tone file path and optional progress/yield callbacks.
+    \param completion Callback invoked once the operation finishes or fails.
+    */
+    void replaceAudibleToneFromFile(
+        ToneFileReplaceRequest request, LiveRigLoadResultCallback completion) override;
+
+    /*!
+    \brief Restores the audible tone's chain from a captured memento, preserving instance ids.
+    \param state Whole-chain memento captured by captureAudibleToneState().
+    \return The restored audible chain for panel rebinding, or a typed failure.
+    */
+    [[nodiscard]] std::expected<LiveRigLoadResult, LiveRigError> restoreAudibleToneState(
+        const AudibleToneState& state) override;
+
+    /*!
     \brief Reads the current input gain applied before the signal chain.
     \return Current input gain, or the default when no structural gain plugin exists.
     */
