@@ -81,7 +81,7 @@ constexpr std::size_t g_max_log_file_size_bytes = static_cast<std::size_t>(8U * 
 } // namespace
 
 // JUCE application object that owns the editor window lifecycle.
-class RockHeroEditorApplication : public juce::JUCEApplication
+class RockHeroEditor : public juce::JUCEApplication
 {
 public:
     // Provides JUCE with the generated project name used for app metadata and windows.
@@ -245,4 +245,4 @@ private:
 } // namespace rock_hero::editor::app
 
 // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-START_JUCE_APPLICATION(rock_hero::editor::app::RockHeroEditorApplication)
+START_JUCE_APPLICATION(rock_hero::editor::app::RockHeroEditor)
