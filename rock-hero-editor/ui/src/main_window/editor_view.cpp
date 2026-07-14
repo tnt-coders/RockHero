@@ -6,6 +6,7 @@
 #include "main_window/menu_look_and_feel.h"
 #include "preview/preview_window.h"
 #include "shared/editor_theme.h"
+#include "shared/themed_message_box.h"
 #include "timeline/cursor_overlay.h"
 #include "timeline/timeline_cursor.h"
 #include "timeline/track_viewport.h"
@@ -1307,16 +1308,13 @@ void EditorView::presentGameAudioUnavailablePromptIfNeeded(
 
     m_last_game_audio_unavailable_prompt = prompt;
     const juce::Component::SafePointer<EditorView> safe_this{this};
-    // The editor's themed AlertWindow rather than the OS message box, matching the app's other
+    // The editor's themed warning box rather than the OS message box, matching the app's other
     // prompts.
-    juce::AlertWindow::showAsync(
-        juce::MessageBoxOptions()
-            .withIconType(juce::MessageBoxIconType::WarningIcon)
-            .withTitle("Game audio settings unavailable")
-            .withMessage(juce::String::fromUTF8(prompt->error.message.c_str()))
-            .withButton("OK")
-            .withAssociatedComponent(this),
-        [safe_this](int) {
+    showThemedWarningBox(
+        this,
+        "Game audio settings unavailable",
+        juce::String::fromUTF8(prompt->error.message.c_str()),
+        [safe_this] {
             if (safe_this == nullptr)
             {
                 return;
