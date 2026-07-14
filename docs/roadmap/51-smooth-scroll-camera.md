@@ -156,11 +156,26 @@ witnessed user pass: sight-read a real chart during playback, manual scroll whil
   smooth scroll is the one follow mode (no-legacy rule; dead modes rot); (b) keep both behind
   the View toggle as a user preference. **R: a** — the deciding evaluation is done; a
   preference can be re-added later from git history if ever wanted.
-- **51-Q2** follow suspension gestures: (a) suspend only on explicit horizontal navigation
-  (scrollbar drag, horizontal wheel scroll, middle-drag pan if added); re-engage on seek or
-  play toggle; (b) also suspend on any canvas mouse-down (edit gestures pause the scroll).
-  **R: a** — editing mid-playback over scrolling content is its own UX question; do not couple
-  it to navigation arbitration until it is observed to be a problem.
+- **51-Q2** follow suspension gestures (moot if 51-Q3 = b): (a) suspend only on explicit
+  horizontal navigation (scrollbar drag, horizontal wheel scroll, middle-drag pan if added);
+  re-engage on seek or play toggle; (b) also suspend on any canvas mouse-down (edit gestures
+  pause the scroll). **R: a** — editing mid-playback over scrolling content is its own UX
+  question; do not couple it to navigation arbitration until it is observed to be a problem.
+- **51-Q3** cursor lock scope (user-raised 2026-07-13: "make the cursor legitimately fixed and
+  have scroll move the chart around the cursor"): (a) cursor locked to the pin **during
+  playback only**; while paused the view scrolls freely, the cursor stays put, and
+  click-to-seek moves only the cursor line; (b) cursor locked **always** — the view is a pure
+  function of cursor time, and every scroll or seek moves the content around the pinned
+  cursor. **R: a.** Honest simplification accounting for (b): it removes one state variable
+  (the independent left edge), the 51-Q2 arbitration machinery, all off-screen-cursor cases,
+  and the recenter paths — but none of Phase 2, which is identical either way. Its costs: the
+  settled editing grammar makes every empty-canvas click a seek+deselect, so under (b) every
+  such click jumps the whole canvas to re-pin the clicked point under the cursor; and
+  glancing ahead/behind without moving the playhead becomes impossible (paused browsing drags
+  the cursor; during playback it is an audible seek). No tab editor or DAW locks the view
+  while paused; rhythm games do but have no editing surface. Under the camera both options
+  are one placement-policy function, so (b) remains a cheap later switch if editing practice
+  proves the jumps harmless.
 
 ## Final acceptance bundle
 
