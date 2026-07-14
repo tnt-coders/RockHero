@@ -42,9 +42,9 @@ constexpr float g_min_note_height_for_text{9.0f};
 constexpr float g_shape_label_height{10.0f};
 constexpr float g_shape_rail_height{3.0f};
 constexpr double g_shape_mark_brightness{1.5};
-// Half-angle in radians of the openings at the top and bottom of a ghost head's hollow ring,
-// which make it read as "( fret )" rather than a sounded note.
-constexpr float g_ghost_arc_gap{0.6f};
+// Half-angle in radians of the openings at the top and bottom of the arc pair bracketing an
+// arpeggio posture note, which make the pair read as "( fret )" parentheses.
+constexpr float g_arpeggio_bracket_gap{0.6f};
 
 // Thin JUCE-converting wrappers over the shared Charter-exact derivation (rock-hero-common/ui)
 // for the in-file call sites that derive from already-opaque colors.
@@ -196,7 +196,7 @@ void drawStringLines(juce::Graphics& g, const TabLaneMetrics& metrics)
     }
 }
 
-// Charter formats bend amounts in whole steps with quarter fractions ("0", "½", "1 ¼", ...).
+// Charter formats bend amounts in whole steps with quarter fractions ("0", "Â½", "1 Â¼", ...).
 [[nodiscard]] juce::String charterBendText(double semitones)
 {
     const auto quarter_steps = static_cast<int>(std::lround(semitones * 2.0));
@@ -443,7 +443,7 @@ void drawSlideWaypointHeads(
 }
 
 // Draws Charter's bend presentation: a white two-pixel polyline stepping between bend heights
-// over the tail, then a flat run to the tail end, with a "ノ<amount>" chip at each bend point
+// over the tail, then a flat run to the tail end, with a "ãƒŽ<amount>" chip at each bend point
 // (white text on the string's lane color darkened twice).
 void drawBendLines(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
@@ -731,7 +731,7 @@ void drawNoteHead(
 }
 
 // Draws one hand-shape span as narrow rails along the lane's top and bottom edges for the
-// span's duration — blue for chord shapes, purple for arpeggios — echoing the 3D highway's
+// span's duration â€” blue for chord shapes, purple for arpeggios â€” echoing the 3D highway's
 // shape rails at the hand-window fret lines (a user-directed departure from Charter's
 // full-height tint, which read as an ugly wall of color). The template name, when present,
 // rides a small chip against the bottom rail at the span start: the bottom edge is where the
@@ -992,8 +992,8 @@ void TabView::paint(juce::Graphics& g)
     }
 
     // Arpeggio spans mark their start with the same bar in purple (their notes arrive
-    // sequentially, so the strummed-group rule above never marks them), plus ghost heads for
-    // the held posture's strings that are not struck right at the bracket start.
+    // sequentially, so the strummed-group rule above never marks them), plus RS-style
+    // "( fret )" bracket marks around every posture string at the bracket start.
     for (const core::TabShapeView& shape : m_tab->shapes)
     {
         if (!shape.arpeggio || shape.start_seconds < span_start || shape.start_seconds > span_end)
@@ -1003,23 +1003,18 @@ void TabView::paint(juce::Graphics& g)
 
         const float start_x = metrics.x(shape.start_seconds);
         drawOnsetBar(g, metrics, start_x, shapeMarkColor(true));
-        for (const core::TabGhostNoteView& ghost : shape.ghost_notes)
+        for (const core::TabArpeggioNoteView& arpeggio_note : shape.arpeggio_notes)
         {
-            // A ghost head is hollow at a real note's full brightness: a dark backing disc
-            // covers the string line and onset bar (translucent and dimmed heads both read
-            // badly), and the string-colored ring breaks at top and bottom so the head reads
-            // as an RS-style "( fret )" arpeggio bracket rather than a sounded note.
-            const StringStyle style{metrics.baseColor(ghost.string)};
-            const float center_y = metrics.laneY(ghost.string);
+            // Left and right arcs just outside where a head's ring would sit, open at top and
+            // bottom, at a real note's ring brightness. A string sounded exactly at the start
+            // keeps its full head (drawn by the note pass) inside the brackets; a string
+            // struck later in the arpeggio shows only its held fret number between them.
+            const StringStyle style{metrics.baseColor(arpeggio_note.string)};
+            const float center_y = metrics.laneY(arpeggio_note.string);
             const float size = metrics.note_height + 1.0f;
             const float border = std::max(1.0f, size / 15.0f);
+            const float radius = size / 2.0f + border * 2.0f;
 
-            g.setColour(g_note_background_color);
-            g.fillEllipse(start_x - size / 2.0f, center_y - size / 2.0f, size, size);
-
-            // The stroke centerline follows the bright ring of a filled head (fillHeadShape's
-            // middle layer), so ghost and real heads share the same silhouette and brightness.
-            const float radius = (size - 3.0f * border) / 2.0f;
             juce::Path arcs;
             arcs.addCentredArc(
                 start_x,
@@ -1027,8 +1022,8 @@ void TabView::paint(juce::Graphics& g)
                 radius,
                 radius,
                 0.0f,
-                g_ghost_arc_gap,
-                juce::MathConstants<float>::pi - g_ghost_arc_gap,
+                g_arpeggio_bracket_gap,
+                juce::MathConstants<float>::pi - g_arpeggio_bracket_gap,
                 true);
             arcs.addCentredArc(
                 start_x,
@@ -1036,8 +1031,8 @@ void TabView::paint(juce::Graphics& g)
                 radius,
                 radius,
                 0.0f,
-                juce::MathConstants<float>::pi + g_ghost_arc_gap,
-                juce::MathConstants<float>::twoPi - g_ghost_arc_gap,
+                juce::MathConstants<float>::pi + g_arpeggio_bracket_gap,
+                juce::MathConstants<float>::twoPi - g_arpeggio_bracket_gap,
                 true);
             g.setColour(style.border_inner);
             g.strokePath(
@@ -1046,13 +1041,13 @@ void TabView::paint(juce::Graphics& g)
                     border, juce::PathStrokeType::curved, juce::PathStrokeType::rounded
                 });
 
-            if (metrics.draw_text)
+            if (!arpeggio_note.sounded && metrics.draw_text)
             {
                 // The same centering box drawNoteHead uses for a plain fret number.
                 g.setColour(juce::Colours::white);
                 g.setFont(metrics.fret_font);
                 g.drawText(
-                    juce::String{ghost.fret},
+                    juce::String{arpeggio_note.fret},
                     juce::Rectangle<float>{
                         start_x - size, center_y - size, size * 2.0f, size * 2.0f
                     },

@@ -217,7 +217,10 @@ TEST_CASE("TabView draws techniques, shapes, and fret-hand positions", "[ui][tab
             .end_seconds = 12.0,
             .name = "Dm",
             .arpeggio = true,
-            .ghost_notes = {core::TabGhostNoteView{.string = 5, .fret = 8}},
+            .arpeggio_notes = {
+                core::TabArpeggioNoteView{.string = 3, .fret = 7, .sounded = true},
+                core::TabArpeggioNoteView{.string = 5, .fret = 8, .sounded = false},
+            },
         },
     };
     state.fret_hand_positions = {
@@ -259,11 +262,17 @@ TEST_CASE("TabView draws techniques, shapes, and fret-hand positions", "[ui][tab
     CHECK(image.getPixelAt(60, 110) == juce::Colour{0xff4982fa});
     CHECK(image.getPixelAt(200, 110) == juce::Colour{0xffc785ff});
 
-    // The arpeggio start also draws the held posture's hollow ghost head on string 5 (lane
-    // center y = 60): the pixel there is neither empty nor the bare bar color it would be
-    // without the head's backing disc composited on top.
-    CHECK(image.getPixelAt(200, 60).getARGB() != 0);
-    CHECK(image.getPixelAt(200, 60) != juce::Colour{0xffc785ff});
+    // The arpeggio start brackets every posture string with side arcs just outside the head
+    // ring — probed 45 degrees up the right arc (radius ~16.5 from the lane center), clear of
+    // the onset bar, string lines, and text: the unsounded string 5 (lane center y = 60) and
+    // the sounded string 3 (y = 140) both wear them.
+    CHECK(image.getPixelAt(211, 48).getARGB() != 0);
+    CHECK(image.getPixelAt(211, 128).getARGB() != 0);
+
+    // Inside the brackets the head area stays empty (no backing disc), and the sounded string
+    // draws no held fret number — its full head comes from the note pass instead.
+    CHECK(image.getPixelAt(206, 52).getARGB() == 0);
+    CHECK(image.getPixelAt(197, 136).getARGB() == 0);
 
     // The tremolo strip stays clipped to its sustain: nothing straggles past the note end.
     // String 2 lane of six in 240px: center y = 180. Note ends at 6.0s → x = 120. The probe row
