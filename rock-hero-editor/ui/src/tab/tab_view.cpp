@@ -77,7 +77,7 @@ struct StringStyle
     juce::Colour linked_inner; // linked-note fill: the fill darkened twice more
     juce::Colour tail;         // sustain fill: base x0.66
     juce::Colour tail_edge;    // sustain border: tail brightened
-    juce::Colour accent;       // accent glow: ring brightened twice
+    juce::Colour accent;       // accent glow: ring brightened, hue-preserving
 
     explicit StringStyle(juce::Colour base)
         : StringStyle(common::ui::StringLaneStyle{base.getARGB()})
