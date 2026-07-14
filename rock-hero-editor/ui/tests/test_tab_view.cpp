@@ -255,8 +255,9 @@ TEST_CASE("TabView draws techniques, shapes, and fret-hand positions", "[ui][tab
     CHECK(image.getPixelAt(220, 1) == juce::Colour{0xffc785ff});
     CHECK(image.getPixelAt(220, 238) == juce::Colour{0xffc785ff});
 
-    // The template name chip sits against the bottom rail at the span start.
-    CHECK(image.getPixelAt(50, 232).getARGB() != 0);
+    // The template name chip hangs under the top rail at the span start, probed right of the
+    // coinciding FHP marker box (which paints over the chip's left end).
+    CHECK(image.getPixelAt(56, 8).getARGB() != 0);
 
     // Onsets carry no vertical bars anymore: the columns between lanes at the strummed onset
     // (3.0s) and the arpeggio start (10.0s) stay empty.
