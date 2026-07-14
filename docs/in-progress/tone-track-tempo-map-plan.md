@@ -14,9 +14,9 @@ or full plugin-automation design.
 
 ## Dependencies and related plans
 
-This plan builds on `docs/in-progress/tempo-map-implementation-plan.md` and is sequenced after it:
-it needs the persisted `TempoMap`, the required terminal anchor, and the `"<measure>:<beat>"` anchor
-token grammar from that slice. Land tempo-map persistence first, then this.
+This plan builds on `docs/completed/tempo-map-implementation-plan.md`, a completed prerequisite: it
+relies on the persisted `TempoMap`, the required terminal anchor, and the `"<measure>:<beat>"` anchor
+token grammar that slice already shipped.
 
 Earlier parallel plans were reconciled 2026-07-05: `docs/todo/tone-track-plan.md` was removed
 (its remaining ideas contradicted the settled RackType, musical-position, and Tracktion-managed

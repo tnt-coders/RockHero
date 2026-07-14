@@ -86,7 +86,7 @@ TEST_CASE("Input calibration workflow preserves matching startup calibration", "
     const LiveInputMonitoringStatus monitoring =
         workflow.evaluateMonitoring(readyContext(identity));
     CHECK(monitoring.state == LiveInputMonitoringState::Active);
-    CHECK(monitoring.reason == MonitoringDisabledReason::None);
+    CHECK(monitoring.reason == LiveInputMonitoringDisabledReason::None);
     CHECK(workflow.backendAvailable());
 }
 
@@ -143,7 +143,7 @@ TEST_CASE(
     const LiveInputMonitoringStatus monitoring =
         workflow.evaluateMonitoring(readyContext(next_identity));
     CHECK(monitoring.state == LiveInputMonitoringState::Disabled);
-    CHECK(monitoring.reason == MonitoringDisabledReason::MissingCalibration);
+    CHECK(monitoring.reason == LiveInputMonitoringDisabledReason::MissingCalibration);
 }
 
 // Switching routes should adopt the saved calibration supplied for the new route.
@@ -225,7 +225,7 @@ TEST_CASE(
     const LiveInputMonitoringStatus monitoring =
         workflow.evaluateMonitoring(readyContext(identity));
     CHECK(monitoring.state == LiveInputMonitoringState::Disabled);
-    CHECK(monitoring.reason == MonitoringDisabledReason::AudioDeviceSettingsOpen);
+    CHECK(monitoring.reason == LiveInputMonitoringDisabledReason::AudioDeviceSettingsOpen);
 }
 
 // Temporary route loss should stop prompt/measurement state but preserve saved calibration.
@@ -257,7 +257,7 @@ TEST_CASE(
     }
     CHECK(
         workflow.evaluateMonitoring(readyContext(std::nullopt)).reason ==
-        MonitoringDisabledReason::NoInputDevice);
+        LiveInputMonitoringDisabledReason::NoInputDevice);
 
     const InputCalibrationWorkflow::Effects restored_effects =
         workflow.syncCommittedInputDeviceIdentity(identity, calibrationFor(identity, 8.0));
@@ -346,7 +346,7 @@ TEST_CASE("Input calibration workflow evaluateMonitoring branch matrix", "[audio
         const LiveInputMonitoringStatus monitoring =
             workflow.evaluateMonitoring(readyContext(identity));
         CHECK(monitoring.state == LiveInputMonitoringState::Disabled);
-        CHECK(monitoring.reason == MonitoringDisabledReason::AudioDeviceSettingsOpen);
+        CHECK(monitoring.reason == LiveInputMonitoringDisabledReason::AudioDeviceSettingsOpen);
     }
 
     SECTION("live input not ready blocks both active monitoring and calibration")
@@ -362,7 +362,7 @@ TEST_CASE("Input calibration workflow evaluateMonitoring branch matrix", "[audio
         // checks it early-outs ahead of.
         const LiveInputMonitoringStatus monitoring = workflow.evaluateMonitoring(context);
         CHECK(monitoring.state == LiveInputMonitoringState::Disabled);
-        CHECK(monitoring.reason == MonitoringDisabledReason::SessionNotReady);
+        CHECK(monitoring.reason == LiveInputMonitoringDisabledReason::SessionNotReady);
 
         // Calibration is blocked too: with no live signal to measure, the prompt refuses to open.
         CHECK(!workflow.requestPrompt(context));
@@ -380,7 +380,7 @@ TEST_CASE("Input calibration workflow evaluateMonitoring branch matrix", "[audio
         // Active processed monitoring still requires an arrangement, folded into SessionNotReady.
         CHECK(
             workflow.evaluateMonitoring(context).reason ==
-            MonitoringDisabledReason::SessionNotReady);
+            LiveInputMonitoringDisabledReason::SessionNotReady);
 
         // Calibration needs only the live input path, so the prompt opens and a raw measurement
         // can start with no arrangement loaded.
@@ -397,7 +397,7 @@ TEST_CASE("Input calibration workflow evaluateMonitoring branch matrix", "[audio
         const LiveInputMonitoringStatus monitoring =
             workflow.evaluateMonitoring(readyContext(std::nullopt));
         CHECK(monitoring.state == LiveInputMonitoringState::Disabled);
-        CHECK(monitoring.reason == MonitoringDisabledReason::NoInputDevice);
+        CHECK(monitoring.reason == LiveInputMonitoringDisabledReason::NoInputDevice);
     }
 
     SECTION("a route with no stored calibration reports missing calibration")
@@ -408,7 +408,7 @@ TEST_CASE("Input calibration workflow evaluateMonitoring branch matrix", "[audio
         const LiveInputMonitoringStatus monitoring =
             workflow.evaluateMonitoring(readyContext(identity));
         CHECK(monitoring.state == LiveInputMonitoringState::Disabled);
-        CHECK(monitoring.reason == MonitoringDisabledReason::MissingCalibration);
+        CHECK(monitoring.reason == LiveInputMonitoringDisabledReason::MissingCalibration);
     }
 
     SECTION("stored calibration for a different route reports a route mismatch")
@@ -423,7 +423,7 @@ TEST_CASE("Input calibration workflow evaluateMonitoring branch matrix", "[audio
         const LiveInputMonitoringStatus monitoring =
             workflow.evaluateMonitoring(readyContext(other_identity));
         CHECK(monitoring.state == LiveInputMonitoringState::Disabled);
-        CHECK(monitoring.reason == MonitoringDisabledReason::CalibrationRouteMismatch);
+        CHECK(monitoring.reason == LiveInputMonitoringDisabledReason::CalibrationRouteMismatch);
     }
 
     SECTION("a matching calibrated route on a ready session reports active")
@@ -435,7 +435,7 @@ TEST_CASE("Input calibration workflow evaluateMonitoring branch matrix", "[audio
         const LiveInputMonitoringStatus monitoring =
             workflow.evaluateMonitoring(readyContext(identity));
         CHECK(monitoring.state == LiveInputMonitoringState::Active);
-        CHECK(monitoring.reason == MonitoringDisabledReason::None);
+        CHECK(monitoring.reason == LiveInputMonitoringDisabledReason::None);
     }
 
     SECTION("backend unavailability does not change the active gate result")

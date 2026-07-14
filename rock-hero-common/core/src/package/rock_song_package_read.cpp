@@ -146,7 +146,6 @@ namespace
     return resolved_path;
 }
 
-// Translates song-document part names into the current core enum.
 // Reads the optional normalization record persisted on an audio asset entry. Absent, null, and
 // incomplete records produce an empty optional so the open/import flow can repair them by
 // re-running analysis before the project becomes usable.
@@ -171,7 +170,6 @@ namespace
     };
 }
 
-// Reads song audio assets into an ID map keyed only inside song package IO.
 // Reports whether a package-relative audio path names a FLAC file, RockHero's only supported package
 // audio format. Compared case-insensitively so a differently-cased extension still matches.
 [[nodiscard]] bool hasFlacExtension(const std::string& relative_path)

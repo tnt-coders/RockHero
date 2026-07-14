@@ -26,21 +26,21 @@ namespace
 // settings-open and session-ready early-outs that the gate reports first. The signal-chain status
 // keeps showing a route's calibration while device settings are open, so it must be derived from
 // this identity/calibration-only reason rather than the ordered gate result.
-[[nodiscard]] common::audio::MonitoringDisabledReason statusReasonFor(
+[[nodiscard]] common::audio::LiveInputMonitoringDisabledReason statusReasonFor(
     const common::audio::LiveInputMonitor& monitor,
     const std::optional<common::audio::InputDeviceIdentity>& identity)
 {
     if (!identity.has_value())
     {
-        return common::audio::MonitoringDisabledReason::NoInputDevice;
+        return common::audio::LiveInputMonitoringDisabledReason::NoInputDevice;
     }
 
     if (!monitor.calibrationMatchesCurrentRoute())
     {
-        return common::audio::MonitoringDisabledReason::MissingCalibration;
+        return common::audio::LiveInputMonitoringDisabledReason::MissingCalibration;
     }
 
-    return common::audio::MonitoringDisabledReason::None;
+    return common::audio::LiveInputMonitoringDisabledReason::None;
 }
 
 // Gain shown by the calibration prompt: the stored matching-route gain, else the neutral default.
@@ -59,28 +59,28 @@ namespace
 } // namespace
 
 InputCalibrationStatus inputCalibrationStatusFor(
-    common::audio::MonitoringDisabledReason reason, bool backend_available)
+    common::audio::LiveInputMonitoringDisabledReason reason, bool backend_available)
 {
     switch (reason)
     {
-        case common::audio::MonitoringDisabledReason::None:
+        case common::audio::LiveInputMonitoringDisabledReason::None:
         {
             return backend_available ? InputCalibrationStatus::Calibrated
                                      : InputCalibrationStatus::Unavailable;
         }
-        case common::audio::MonitoringDisabledReason::MissingCalibration:
-        case common::audio::MonitoringDisabledReason::CalibrationRouteMismatch:
+        case common::audio::LiveInputMonitoringDisabledReason::MissingCalibration:
+        case common::audio::LiveInputMonitoringDisabledReason::CalibrationRouteMismatch:
         {
             return InputCalibrationStatus::MissingCalibration;
         }
-        case common::audio::MonitoringDisabledReason::AudioDeviceSettingsOpen:
-        case common::audio::MonitoringDisabledReason::SessionNotReady:
-        case common::audio::MonitoringDisabledReason::NoInputDevice:
+        case common::audio::LiveInputMonitoringDisabledReason::AudioDeviceSettingsOpen:
+        case common::audio::LiveInputMonitoringDisabledReason::SessionNotReady:
+        case common::audio::LiveInputMonitoringDisabledReason::NoInputDevice:
         {
             return InputCalibrationStatus::NoActiveInputDevice;
         }
-        case common::audio::MonitoringDisabledReason::BackendUnavailable:
-        case common::audio::MonitoringDisabledReason::CalibrationStoreUnavailable:
+        case common::audio::LiveInputMonitoringDisabledReason::BackendUnavailable:
+        case common::audio::LiveInputMonitoringDisabledReason::CalibrationStoreUnavailable:
         {
             // Post-I/O outcomes the downstream service reports; the editor treats them as a
             // present-but-unusable calibration to match the backend-unavailable status.

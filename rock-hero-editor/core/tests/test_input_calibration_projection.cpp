@@ -53,33 +53,37 @@ TEST_CASE(
 {
     struct Case
     {
-        common::audio::MonitoringDisabledReason reason;
+        common::audio::LiveInputMonitoringDisabledReason reason;
         bool backend_available;
         InputCalibrationStatus expected_status;
     };
 
     const Case cases[] = {
-        {common::audio::MonitoringDisabledReason::None, true, InputCalibrationStatus::Calibrated},
-        {common::audio::MonitoringDisabledReason::None, false, InputCalibrationStatus::Unavailable},
-        {common::audio::MonitoringDisabledReason::AudioDeviceSettingsOpen,
+        {common::audio::LiveInputMonitoringDisabledReason::None,
+         true,
+         InputCalibrationStatus::Calibrated},
+        {common::audio::LiveInputMonitoringDisabledReason::None,
+         false,
+         InputCalibrationStatus::Unavailable},
+        {common::audio::LiveInputMonitoringDisabledReason::AudioDeviceSettingsOpen,
          true,
          InputCalibrationStatus::NoActiveInputDevice},
-        {common::audio::MonitoringDisabledReason::SessionNotReady,
+        {common::audio::LiveInputMonitoringDisabledReason::SessionNotReady,
          true,
          InputCalibrationStatus::NoActiveInputDevice},
-        {common::audio::MonitoringDisabledReason::NoInputDevice,
+        {common::audio::LiveInputMonitoringDisabledReason::NoInputDevice,
          true,
          InputCalibrationStatus::NoActiveInputDevice},
-        {common::audio::MonitoringDisabledReason::MissingCalibration,
+        {common::audio::LiveInputMonitoringDisabledReason::MissingCalibration,
          true,
          InputCalibrationStatus::MissingCalibration},
-        {common::audio::MonitoringDisabledReason::CalibrationRouteMismatch,
+        {common::audio::LiveInputMonitoringDisabledReason::CalibrationRouteMismatch,
          true,
          InputCalibrationStatus::MissingCalibration},
-        {common::audio::MonitoringDisabledReason::BackendUnavailable,
+        {common::audio::LiveInputMonitoringDisabledReason::BackendUnavailable,
          true,
          InputCalibrationStatus::Unavailable},
-        {common::audio::MonitoringDisabledReason::CalibrationStoreUnavailable,
+        {common::audio::LiveInputMonitoringDisabledReason::CalibrationStoreUnavailable,
          true,
          InputCalibrationStatus::Unavailable},
     };

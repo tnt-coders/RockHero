@@ -16,10 +16,9 @@ namespace rock_hero::editor::core
 /*!
 \brief Projects an arrangement's tone schedule into view state for the tone track row.
 
-Authored regions resolve their musical endpoints to seconds through the tempo map. An arrangement
-with no authored regions but a legacy tone document projects one synthesized full-length default
-region (measure 1 beat 1 through the tempo-map terminal anchor); the synthesized region is
-runtime-only presentation and is never written back to the song document.
+Authored regions resolve their musical endpoints to seconds through the tempo map, and the first
+region extends back to the timeline origin. A track with no authored regions renders nothing,
+because load normalization guarantees every arrangement reaches the editor with explicit regions.
 
 \param arrangement Arrangement whose tone schedule should be displayed.
 \param tempo_map Tempo map used to resolve musical endpoints to seconds.
