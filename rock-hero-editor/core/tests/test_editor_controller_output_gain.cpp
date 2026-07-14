@@ -269,7 +269,9 @@ TEST_CASE("Output gain resets on project close", "[core][editor-controller]")
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
     CHECK_THAT(final_state->signal_chain.output_gain_db, Catch::Matchers::WithinULP(0.0, 0));
-    CHECK_FALSE(final_state->signal_chain.output_gain_controls_enabled);
+    // Close lands in the Tone Designer resting state, whose live rig keeps the gain editable.
+    CHECK(final_state->signal_chain.output_gain_controls_enabled);
+    CHECK(final_state->tone_designer.active);
 }
 
 } // namespace rock_hero::editor::core

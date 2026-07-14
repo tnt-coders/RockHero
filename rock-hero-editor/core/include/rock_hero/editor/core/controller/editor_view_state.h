@@ -23,6 +23,7 @@
 #include <rock_hero/editor/core/timeline/arrangement_view_state.h>
 #include <rock_hero/editor/core/tone/tone_automation_view_state.h>
 #include <rock_hero/editor/core/tone/tone_track_view_state.h>
+#include <rock_hero/editor/core/tone_designer/tone_designer_view_state.h>
 #include <rock_hero/editor/core/transport/transport_view_state.h>
 #include <string>
 #include <utility>
@@ -410,6 +411,15 @@ struct EditorViewState
 
     /*! \brief Current plugin browser window state. */
     PluginBrowserViewState plugin_browser{};
+
+    /*!
+    \brief Tone Designer document state for the signal-chain panel header and button strip.
+
+    Active exactly when no project is open: the resting editor is a live rig editing a
+    file-backed tone document. The unsaved-changes and Save As prompts below serve the designer
+    document whenever this is active (the view keys tone-flavored copy off it).
+    */
+    ToneDesignerViewState tone_designer{};
 
     /*! \brief Unsaved-changes prompt to present, if the controller is awaiting a decision. */
     std::optional<UnsavedChangesPrompt> unsaved_changes_prompt{};

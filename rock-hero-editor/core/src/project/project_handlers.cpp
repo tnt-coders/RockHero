@@ -211,6 +211,10 @@ void EditorController::Impl::completeOpenProject(const std::shared_ptr<OpenTaskS
         clearInterruptedRestoreMarker();
         m_pending_restore_project_file.reset();
         const std::string message = state->result.error().message;
+        // A failed startup restore reaches here with no designer yet; make the resting rig live
+        // instead of leaving a dead editor. Opens from an existing state are unaffected (either
+        // the old project or the old designer is still intact, so this no-ops).
+        enterToneDesignerIfNoProject("open_failed");
         finishBusyOperation();
         reportError(std::string{"Could not open: "} + message);
         return;
@@ -235,6 +239,9 @@ void EditorController::Impl::completeOpenProject(const std::shared_ptr<OpenTaskS
         }
         clearInterruptedRestoreMarker();
         m_pending_restore_project_file.reset();
+        // Session-load failure never committed the project; whichever resting state existed
+        // before (old project or designer) is intact, so this only rescues the fresh-launch case.
+        enterToneDesignerIfNoProject("open_session_load_failed");
         finishBusyOperation();
         reportError(
             std::string{"Could not load audio from: "} + state->file.string() + ": " +
@@ -277,6 +284,9 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
         clearInterruptedRestoreMarker();
         m_pending_restore_project_file.reset();
         resetUndoHistory("undo.reset.open_live_rig_failed");
+        // The commit already left the designer and the teardown above ends project-less, so
+        // stand the resting rig back up rather than leaving a dead chain.
+        enterToneDesignerIfNoProject("open_live_rig_failed");
         finishBusyOperation();
         reportError(
             std::string{"Could not load live rig from: "} + state->file.string() + ": " +
@@ -414,6 +424,8 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
         m_selected_tone_region_id.clear();
         m_open_automation_lanes.clear();
         resetUndoHistory("undo.reset.import_live_rig_failed");
+        // The teardown above ends project-less; stand the resting rig back up.
+        enterToneDesignerIfNoProject("import_live_rig_failed");
         finishBusyOperation();
         reportError(
             std::string{"Could not load imported live rig from: "} + state->file.string() + ": " +
@@ -627,8 +639,15 @@ void EditorController::Impl::performActionImpl(EditorAction::ResolveUnsavedChang
         return;
     }
 
+    // In designer mode the protected document is the tone file: "needs a destination" means the
+    // document is untitled, Save runs the tone export, and Discard replays without any project
+    // teardown (the replayed action replaces or tears down the designer itself).
+    const bool designer_document = m_tone_designer.active && !m_project.has_value();
+    const bool save_requires_destination = designer_document
+                                               ? !m_tone_designer.document_path.has_value()
+                                               : m_save_requires_destination;
     std::visit(
-        [this](auto&& step) {
+        [this, designer_document](auto&& step) {
             using Step = std::decay_t<decltype(step)>;
             if constexpr (std::is_same_v<Step, DeferredProjectActionState::Refresh>)
             {
@@ -636,7 +655,19 @@ void EditorController::Impl::performActionImpl(EditorAction::ResolveUnsavedChang
             }
             else if constexpr (std::is_same_v<Step, DeferredProjectActionState::SaveThenReplay>)
             {
-                runProjectAction(EditorAction::SaveProject{});
+                if (designer_document)
+                {
+                    // SaveThenReplay is only produced when no destination is needed, so the
+                    // association exists by the deferral state machine's contract.
+                    if (m_tone_designer.document_path.has_value())
+                    {
+                        runToneDesignerSave(*m_tone_designer.document_path);
+                    }
+                }
+                else
+                {
+                    runProjectAction(EditorAction::SaveProject{});
+                }
             }
             else if constexpr (std::is_same_v<Step, DeferredProjectActionState::DiscardAndReplay>)
             {
@@ -644,7 +675,7 @@ void EditorController::Impl::performActionImpl(EditorAction::ResolveUnsavedChang
             }
         },
         m_deferred_project_action_state.resolveUnsavedChanges(
-            action.decision, m_save_requires_destination));
+            action.decision, save_requires_destination));
 }
 
 // Discards the current project's unsaved changes and replays the released deferred action now.
@@ -691,10 +722,11 @@ void EditorController::Impl::performActionImpl(EditorAction::CancelSaveAsPrompt 
 
 // Starts a project-level action or asks the view to confirm unsaved changes first. Callers pass
 // the original action; on dirty state the action itself is stashed for replay after the prompt
-// resolves.
+// resolves. The gate protects whichever document is live: project changes in project mode, the
+// Tone Designer's file-backed document otherwise.
 void EditorController::Impl::requestProjectAction(EditorAction::ProjectAction action)
 {
-    if (hasUnsavedChanges())
+    if (hasUnsavedChanges() || toneDesignerHasUnsavedChanges())
     {
         m_deferred_project_action_state.defer(std::move(action));
         updateView();
@@ -767,7 +799,8 @@ void EditorController::Impl::runProjectActionImpl(EditorAction::ExitApplication 
 {
     const std::optional<std::filesystem::path> restorable_project_file =
         restorableProjectFileForExit();
-    if (closeProject())
+    // No designer re-entry on exit: standing up a fresh rig right before shutdown is pure waste.
+    if (closeProject(false))
     {
         m_pending_restore_project_file.reset();
         clearDeferredProjectAction();
@@ -782,10 +815,14 @@ void EditorController::Impl::runProjectActionImpl(EditorAction::ExitApplication 
 // Always supersedes any in-flight busy operation so closing or exiting during background work
 // invalidates the worker's busy token; the worker's completion then sees a mismatch and
 // discards itself rather than committing on top of a now-empty session.
-bool EditorController::Impl::closeProject()
+bool EditorController::Impl::closeProject(bool reenter_tone_designer)
 {
     m_project_audio_ready = false;
     m_live_input_monitor.disableMonitoring();
+
+    // Close resets to the resting state: the designer flag drops before teardown so the tail can
+    // re-enter with a fresh clean document and passthrough rig (skipped only on app exit).
+    leaveToneDesigner("close_project");
 
     if (!m_project.has_value())
     {
@@ -805,6 +842,10 @@ bool EditorController::Impl::closeProject()
         m_session_faulted = false;
         m_plugin_catalog.hide();
         resetUndoHistory("undo.reset.close_empty_project");
+        if (reenter_tone_designer)
+        {
+            enterToneDesignerIfNoProject("close_empty_project");
+        }
         return true;
     }
 
@@ -832,6 +873,10 @@ bool EditorController::Impl::closeProject()
         m_open_automation_lanes.clear();
         m_plugin_catalog.hide();
         resetUndoHistory("undo.reset.close_project_failed");
+        if (reenter_tone_designer)
+        {
+            enterToneDesignerIfNoProject("close_project_failed");
+        }
         updateView();
         return false;
     }
@@ -848,6 +893,10 @@ bool EditorController::Impl::closeProject()
     m_open_automation_lanes.clear();
     m_plugin_catalog.hide();
     resetUndoHistory("undo.reset.close_project");
+    if (reenter_tone_designer)
+    {
+        enterToneDesignerIfNoProject("close_project");
+    }
     return true;
 }
 
@@ -1314,6 +1363,9 @@ void EditorController::Impl::restoreLastOpenProject()
         }
         else
         {
+            // The resting rig stands up behind the recovery prompt; a retry replaces it and a
+            // decline leaves the user in a live designer instead of a dead editor.
+            enterToneDesignerIfNoProject("startup_restore_interrupted");
             m_restore_interrupted_prompt_file = *interrupted_project_file;
             updateView();
             return;
@@ -1323,6 +1375,7 @@ void EditorController::Impl::restoreLastOpenProject()
     const std::optional<std::filesystem::path> project_file = m_settings.lastOpenProject();
     if (!project_file.has_value())
     {
+        enterToneDesignerIfNoProject("startup_no_last_project");
         return;
     }
 
@@ -1331,6 +1384,7 @@ void EditorController::Impl::restoreLastOpenProject()
         recordSettingsResultBestEffort(
             m_settings.setLastOpenProject(std::nullopt), "clear missing last project");
         clearInterruptedRestoreMarker();
+        enterToneDesignerIfNoProject("startup_last_project_missing");
         return;
     }
 
@@ -1459,6 +1513,8 @@ std::expected<void, common::audio::SongAudioError> EditorController::Impl::loadS
     {
         committed = m_session.loadSong(std::move(song), selected_index);
         assert(committed && "Session rejected backend-accepted project song");
+        // A project session now owns the rig and the history; the designer document is over.
+        leaveToneDesigner("project_session_committed");
         m_signal_chain.clear();
         m_output_gain_db = 0.0;
         m_output_gain_preview_before.reset();

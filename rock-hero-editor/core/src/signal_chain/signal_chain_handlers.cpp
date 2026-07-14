@@ -1,4 +1,4 @@
-#include "controller/editor_controller_impl.h"
+﻿#include "controller/editor_controller_impl.h"
 #include "signal_chain/signal_chain_edits.h"
 
 #include <algorithm>
@@ -134,7 +134,10 @@ void EditorController::Impl::pushOutputGainUndoEntry(
 // Applies output gain previews immediately, but records only committed values in undo history.
 void EditorController::Impl::applyOutputGainChange(double gain_db, OutputGainChangeIntent intent)
 {
-    if (!m_project_audio_ready || !hasLoadedArrangement() || isBusy() || m_session_faulted)
+    // Project mode additionally requires the project's audio to be ready; the designer's resting
+    // rig is ready the moment it stands up.
+    const bool project_chain_ready = m_project_audio_ready && hasLoadedArrangement();
+    if ((!project_chain_ready && !m_tone_designer.active) || isBusy() || m_session_faulted)
     {
         return;
     }
@@ -215,7 +218,7 @@ void EditorController::Impl::onPluginEditPendingChanged(bool pending)
 // Commits one settled host processor-wide state edit into product-level undo history.
 void EditorController::Impl::onPluginStateEditCompleted(common::audio::PluginStateEdit edit)
 {
-    if (!hasLoadedArrangement() || !m_signal_chain.containsInstance(edit.instance_id))
+    if (!hasActiveSignalChain() || !m_signal_chain.containsInstance(edit.instance_id))
     {
         RH_LOG_INFO(
             "editor.controller",
@@ -252,7 +255,7 @@ void EditorController::Impl::onPluginStateEditCompleted(common::audio::PluginSta
 // Makes the browser visible and refreshes the lightweight in-memory catalog.
 void EditorController::Impl::performActionImpl(EditorAction::ShowPluginBrowser /*action*/)
 {
-    if (!hasLoadedArrangement() || !m_signal_chain.hasInsertCapacity())
+    if (!hasActiveSignalChain() || !m_signal_chain.hasInsertCapacity())
     {
         return;
     }
@@ -265,7 +268,7 @@ void EditorController::Impl::performActionImpl(EditorAction::ShowPluginBrowser /
 // Makes the browser visible for a specific chain slot and refreshes the lightweight catalog.
 void EditorController::Impl::performActionImpl(EditorAction::BeginPluginInsert action)
 {
-    if (!hasLoadedArrangement())
+    if (!hasActiveSignalChain())
     {
         return;
     }
@@ -285,7 +288,7 @@ void EditorController::Impl::performActionImpl(EditorAction::BeginPluginInsert a
 // inspection can execute slow third-party code.
 void EditorController::Impl::performActionImpl(EditorAction::ScanPluginCatalog /*action*/)
 {
-    if (!hasLoadedArrangement())
+    if (!hasActiveSignalChain())
     {
         return;
     }
@@ -316,7 +319,7 @@ void EditorController::Impl::performActionImpl(EditorAction::ScanPluginCatalog /
 // metadata, while the audio boundary remains the authority for creating the runtime plugin.
 void EditorController::Impl::performActionImpl(const EditorAction::InsertSelectedPlugin& action)
 {
-    if (!hasLoadedArrangement())
+    if (!hasActiveSignalChain())
     {
         return;
     }
@@ -533,7 +536,7 @@ void EditorController::Impl::refreshKnownPluginCatalog()
 
 void EditorController::Impl::performActionImpl(const EditorAction::RemovePlugin& action)
 {
-    if (!hasLoadedArrangement())
+    if (!hasActiveSignalChain())
     {
         return;
     }
@@ -632,7 +635,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::RemovePlugin&
 // Moves a plugin through the audio boundary so backend order remains authoritative.
 void EditorController::Impl::performActionImpl(const EditorAction::MovePlugin& action)
 {
-    if (!hasLoadedArrangement())
+    if (!hasActiveSignalChain())
     {
         return;
     }
@@ -674,7 +677,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::MovePlugin& a
 // Stores a placement-only edit at the controller boundary that receives user placement intents.
 void EditorController::Impl::performActionImpl(const EditorAction::SetSignalChainPlacement& action)
 {
-    if (!hasLoadedArrangement())
+    if (!hasActiveSignalChain())
     {
         return;
     }
@@ -697,7 +700,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetSignalChai
 void EditorController::Impl::performActionImpl(
     const EditorAction::SetPluginDisplayTypeOverride& action)
 {
-    if (!hasLoadedArrangement())
+    if (!hasActiveSignalChain())
     {
         return;
     }
@@ -721,7 +724,7 @@ void EditorController::Impl::performActionImpl(
 
 void EditorController::Impl::performActionImpl(const EditorAction::OpenPlugin& action)
 {
-    if (!hasLoadedArrangement())
+    if (!hasActiveSignalChain())
     {
         return;
     }

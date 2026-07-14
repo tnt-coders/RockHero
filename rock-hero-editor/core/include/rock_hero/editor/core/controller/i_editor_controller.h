@@ -68,6 +68,24 @@ public:
     /*! \brief Handles cancellation of a controller-requested Save As destination chooser. */
     virtual void onSaveAsCancelled() = 0;
 
+    /*! \brief Handles a request to start a fresh untitled Tone Designer document. */
+    virtual void onNewToneRequested() = 0;
+
+    /*!
+    \brief Handles a request to open a tone file as the Tone Designer document.
+    \param file Tone file path selected by the user.
+    */
+    virtual void onOpenToneFileRequested(std::filesystem::path file) = 0;
+
+    /*! \brief Handles a request to save the Tone Designer document to its associated file. */
+    virtual void onSaveToneRequested() = 0;
+
+    /*!
+    \brief Handles a request to save the Tone Designer document to a chosen tone file.
+    \param file Tone file destination path selected by the user.
+    */
+    virtual void onSaveToneAsRequested(std::filesystem::path file) = 0;
+
     /*! \brief Handles a request to cancel the active cancellable busy operation. */
     virtual void onBusyCancelRequested() = 0;
 

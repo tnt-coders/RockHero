@@ -531,13 +531,59 @@ struct EditorAction
         std::vector<common::core::ToneAutomationPoint> points;
     };
 
+    /*! \brief Start a fresh untitled tone document in the Tone Designer. */
+    struct NewToneDocument
+    {
+    };
+
+    /*! \brief Open a standalone tone file as the Tone Designer document. */
+    struct OpenToneFile
+    {
+        /*!
+        \brief Creates an open-tone-file action.
+        \param file_value Tone file path selected by the user.
+        */
+        explicit OpenToneFile(std::filesystem::path file_value)
+            : file(std::move(file_value))
+        {}
+
+        /*! \brief Tone file path selected by the user. */
+        std::filesystem::path file;
+    };
+
+    /*! \brief Save the Tone Designer document to its associated tone file. */
+    struct SaveToneFile
+    {
+    };
+
+    /*! \brief Save the Tone Designer document to a chosen tone file. */
+    struct SaveToneFileAs
+    {
+        /*!
+        \brief Creates a tone Save As action.
+        \param file_value Tone file destination path.
+        */
+        explicit SaveToneFileAs(std::filesystem::path file_value)
+            : file(std::move(file_value))
+        {}
+
+        /*! \brief Tone file destination path. */
+        std::filesystem::path file;
+    };
+
     /*! \brief Variant carrying project package write actions. */
     using ProjectWriteAction = std::variant<SaveProjectAs, SaveProject, PublishProject>;
 
-    /*! \brief Variant carrying project-lifecycle actions that may be deferred by prompts. */
+    /*!
+    \brief Variant carrying lifecycle actions that may be deferred by unsaved-changes prompts.
+
+    Tone Designer document actions belong here too: opening a tone file or starting a fresh
+    document replaces the designer's file-backed document, so they defer behind the same
+    unsaved-changes gate as project-replacing actions.
+    */
     using ProjectAction = std::variant<
         OpenProject, RestoreProject, ImportSong, SaveProject, SaveProjectAs, PublishProject,
-        CloseProject, ExitApplication>;
+        CloseProject, ExitApplication, NewToneDocument, OpenToneFile>;
 
     /*! \brief Variant carrying any controller action and its payload. */
     using Action = std::variant<
@@ -547,7 +593,8 @@ struct EditorAction
         SelectArrangement, SelectToneRegion, ResizeToneRegion, CreateToneRegion, DeleteToneRegion,
         RenameTone, MoveToneBoundary, CreateNewTone, ShowPluginBrowser, BeginPluginInsert,
         ScanPluginCatalog, InsertSelectedPlugin, RemovePlugin, MovePlugin, SetSignalChainPlacement,
-        SetPluginDisplayTypeOverride, OpenPlugin, SetToneAutomationPoints>;
+        SetPluginDisplayTypeOverride, OpenPlugin, SetToneAutomationPoints, NewToneDocument,
+        OpenToneFile, SaveToneFile, SaveToneFileAs>;
 };
 
 /*!

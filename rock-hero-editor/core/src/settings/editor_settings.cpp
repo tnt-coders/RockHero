@@ -25,6 +25,7 @@ namespace
 constexpr const char* g_last_open_project_key{"lastOpenProject"};
 constexpr const char* g_interrupted_restore_project_key{"interruptedRestoreProject"};
 constexpr const char* g_waveform_visible_key{"waveformVisible"};
+constexpr const char* g_tone_file_directory_key{"toneFileDirectory"};
 constexpr const char* g_use_game_audio_settings_key{"useGameAudioSettings"};
 constexpr const char* g_suppress_game_audio_recommendation_key{"suppressGameAudioRecommendation"};
 constexpr const char* g_tab_minimum_displayed_strings_key{"tabMinimumDisplayedStrings"};
@@ -274,6 +275,35 @@ std::expected<void, EditorSettingsError> EditorSettings::setWaveformVisible(bool
 {
     m_properties.setValue(g_waveform_visible_key, visible);
     return saveIfNeeded(m_properties, "Could not save waveform visibility setting.");
+}
+
+// Reads the directory the tone-file choosers should start in.
+std::optional<std::filesystem::path> EditorSettings::toneFileDirectory() const
+{
+    const juce::String value = m_properties.getValue(g_tone_file_directory_key);
+    if (value.isEmpty())
+    {
+        return std::nullopt;
+    }
+
+    return common::core::pathFromJuceString(value);
+}
+
+// Stores the directory the tone-file choosers should start in.
+std::expected<void, EditorSettingsError> EditorSettings::setToneFileDirectory(
+    std::filesystem::path directory)
+{
+    if (!directory.empty())
+    {
+        m_properties.setValue(
+            g_tone_file_directory_key, common::core::juceStringFromPath(directory));
+    }
+    else
+    {
+        m_properties.removeValue(g_tone_file_directory_key);
+    }
+
+    return saveIfNeeded(m_properties, "Could not save tone file directory setting.");
 }
 
 // Reads whether the editor sources the game's audio configuration instead of its own. Absence is

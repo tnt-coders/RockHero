@@ -305,6 +305,24 @@ public:
     /*! \brief Handles cancellation of a controller-requested Save As chooser. */
     void onSaveAsCancelled() override;
 
+    /*! \brief Handles a request to start a fresh untitled Tone Designer document. */
+    void onNewToneRequested() override;
+
+    /*!
+    \brief Handles a request to open a tone file as the Tone Designer document.
+    \param file Tone file path selected by the user.
+    */
+    void onOpenToneFileRequested(std::filesystem::path file) override;
+
+    /*! \brief Handles a request to save the Tone Designer document to its associated file. */
+    void onSaveToneRequested() override;
+
+    /*!
+    \brief Handles a request to save the Tone Designer document to a chosen tone file.
+    \param file Tone file destination path selected by the user.
+    */
+    void onSaveToneAsRequested(std::filesystem::path file) override;
+
     /*! \brief Handles a request to cancel the active cancellable busy operation. */
     void onBusyCancelRequested() override;
 

@@ -708,6 +708,26 @@ void EditorController::onBusyCancelRequested()
     m_impl->onBusyCancelRequested();
 }
 
+void EditorController::onNewToneRequested()
+{
+    m_impl->runAction(EditorAction::NewToneDocument{});
+}
+
+void EditorController::onOpenToneFileRequested(std::filesystem::path file)
+{
+    m_impl->runAction(EditorAction::OpenToneFile{std::move(file)});
+}
+
+void EditorController::onSaveToneRequested()
+{
+    m_impl->runAction(EditorAction::SaveToneFile{});
+}
+
+void EditorController::onSaveToneAsRequested(std::filesystem::path file)
+{
+    m_impl->runAction(EditorAction::SaveToneFileAs{std::move(file)});
+}
+
 void EditorController::onUndoRequested()
 {
     m_impl->onUndoRequested();
@@ -1767,6 +1787,7 @@ void EditorController::Impl::completeUndoTransition(
 
     const EditorUndoTransitionResult commit = m_undo_history.commit(pending);
     logEditorUndoTransitionResult(is_undo ? "undo.commit" : "redo.commit", commit);
+    reconcileToneDesignerCleanMarker();
 
     // Tone-set edits reload the rig when applied, dropping branches the model no longer
     // references; undoing or redoing them can restore references to those dropped tones (reset
@@ -1814,6 +1835,7 @@ EditorEditContext EditorController::Impl::editContext() noexcept
         .live_rig = m_live_rig,
         .tone_automation = m_tone_automation,
         .output_gain_db = m_output_gain_db,
+        .tone_designer = m_tone_designer,
     };
 }
 
@@ -2004,6 +2026,7 @@ ActionConditions EditorController::Impl::currentActionConditions(
         .undo_available = m_undo_history.canUndo() || m_plugin_host.hasPendingPluginEdits(),
         .redo_available = m_undo_history.canRedo(),
         .has_loaded_arrangement = hasLoadedArrangement(),
+        .tone_designer_active = m_tone_designer.active,
         .can_stop_transport = canStopTransport(transport_state),
         .has_plugin_candidates = m_plugin_catalog.hasCandidates(),
         .has_plugin_insert_capacity = m_signal_chain.hasInsertCapacity(),
@@ -2182,14 +2205,23 @@ EditorViewState EditorController::Impl::deriveViewState() const
         .input_calibration_status = input_calibration.status,
         .input_calibrate_enabled = input_calibration.calibrate_enabled,
         .disabled_message = input_calibration.disabled_message,
-        .output_gain_controls_enabled = m_project_audio_ready &&
-                                        action_conditions.has_loaded_arrangement &&
-                                        !action_conditions.session_faulted,
+        .output_gain_controls_enabled =
+            ((m_project_audio_ready && action_conditions.has_loaded_arrangement) ||
+             m_tone_designer.active) &&
+            !action_conditions.session_faulted,
         .output_gain_db = m_output_gain_db,
     };
     state.plugin_browser = m_plugin_catalog.viewState(
         isActionAvailable(EditorAction::Id::ScanPluginCatalog, action_conditions),
         isActionAvailable(EditorAction::Id::InsertSelectedPlugin, action_conditions));
+    state.tone_designer = ToneDesignerViewState{
+        .active = m_tone_designer.active,
+        .document_name = m_tone_designer.document_path.has_value()
+                             ? m_tone_designer.document_path->stem().string()
+                             : std::string{"Untitled"},
+        .dirty = toneDesignerHasUnsavedChanges(),
+        .has_destination = m_tone_designer.document_path.has_value(),
+    };
 
     if (const auto* arrangement = session().currentArrangement(); arrangement != nullptr)
     {

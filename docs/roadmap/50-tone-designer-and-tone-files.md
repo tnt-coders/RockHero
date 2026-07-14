@@ -353,6 +353,22 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
 
 ### Phase 3 — Tone Designer mode in editor/core (headless)
 
+**Status: COMPLETE 2026-07-13.** As built, matching the design notes below: `ToneDesignerState` +
+`ToneDocumentReplaceEdit` in the new `tone_designer/` feature folder; `EditorEditContext` gained
+the designer-state hook; `hasActiveSignalChain()` replaced the eleven signal-chain gates (the
+output-gain gate keeps its stricter project-audio-ready arm); the monitoring context treats the
+designer as session-ready; one deferral machine serves both modes with designer-aware
+save-requires-destination and SaveThenReplay routing; `closeProject()` leaves-then-re-enters the
+designer (skipped on exit), `loadSessionSong()` leaves at commit, and the startup-restore plus
+all four open/import failure paths re-enter — the resting state is self-healing at every
+project-less seam. Four actions (`NewToneDocument`/`OpenToneFile`/`SaveToneFile`/`SaveToneFileAs`)
+with availability rows and public `IEditorController` entry points; `toneFileDirectory` settings
+accessor pair; `ToneDesignerViewState` slice. One addition beyond the plan text: the
+designer-enter completion cap-guards the snapshot like every other apply site. Fourteen dedicated
+harness tests cover the enter/leave matrix, dirty/save/checkpoint semantics (including
+save-A/open-B/undo→clean-on-A and redo→clean-on-B), prompt deferral for project and tone actions,
+Save As routing for untitled documents, and chooser/prompt cancellation; all suites green.
+
 **Execution design notes (settled 2026-07-13 against the code, before implementation):**
 
 - **One deferral machine.** `DeferredProjectActionState` is domain-agnostic; the designer reuses
