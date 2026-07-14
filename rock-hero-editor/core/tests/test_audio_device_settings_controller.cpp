@@ -148,7 +148,7 @@ public:
         .selected_sample_rate_id = 2,
         .buffer_sizes = {128, 256},
         .selected_buffer_size_id = 1,
-        .control_panel_enabled = true,
+        .control_panel_supported = true,
         .error_message = {},
     };
     std::optional<common::audio::AudioDeviceSettingsError> next_apply_error{};
@@ -555,7 +555,7 @@ TEST_CASE(
     "AudioDeviceSettingsController gates control panel action", "[core][audio-device-settings]")
 {
     FakeAudioDeviceSettings settings;
-    settings.current_state.control_panel_enabled = false;
+    settings.current_state.control_panel_supported = false;
     AudioDeviceSettingsController controller{settings};
     FakeAudioDeviceSettingsView view;
     controller.attachView(view);
@@ -563,6 +563,26 @@ TEST_CASE(
     controller.onControlPanelRequested();
 
     CHECK(settings.control_panel_call_count == 0);
+}
+
+// An unavailable staged device (driver init failed) also refuses the control panel intent: the
+// driver would silently show nothing, so the request never reaches the settings service.
+TEST_CASE(
+    "AudioDeviceSettingsController gates control panel on an unavailable device",
+    "[core][audio-device-settings]")
+{
+    FakeAudioDeviceSettings settings;
+    settings.current_state.staged_device_unavailable = true;
+    AudioDeviceSettingsController controller{settings};
+    FakeAudioDeviceSettingsView view;
+    controller.attachView(view);
+
+    controller.onControlPanelRequested();
+
+    CHECK(settings.control_panel_call_count == 0);
+    // The unavailability also reaches the view state so the button can gray out with its tooltip.
+    CHECK(view.last_state.control_panel_supported);
+    CHECK(view.last_state.staged_device_unavailable);
 }
 
 } // namespace rock_hero::editor::core

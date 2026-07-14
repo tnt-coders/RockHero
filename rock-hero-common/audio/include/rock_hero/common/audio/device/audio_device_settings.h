@@ -126,8 +126,23 @@ struct AudioDeviceSettingsState
     /*! \brief Selected buffer-size choice ID, or zero when none is selected. */
     int selected_buffer_size_id{};
 
-    /*! \brief True when the staged route's audio backend exposes a control panel. */
-    bool control_panel_enabled{};
+    /*!
+    \brief True when the staged route's audio backend exposes a control panel.
+
+    A capability of the backend's driver class, not a promise that the panel can open right now;
+    combine with staged_device_unavailable for actionability.
+    */
+    bool control_panel_supported{};
+
+    /*!
+    \brief True when the staged selection's driver failed to initialize.
+
+    Set when the staged preview device reports a non-empty last error from its construction-time
+    driver init (for ASIO: hardware not connected, or the device held by another application).
+    Such a driver still claims a control panel but silently shows nothing, so presentation should
+    treat the device -- and its control panel -- as unavailable until the hardware returns.
+    */
+    bool staged_device_unavailable{};
 
     /*! \brief Last operation error to display, or empty when no error is active. */
     std::string error_message{};

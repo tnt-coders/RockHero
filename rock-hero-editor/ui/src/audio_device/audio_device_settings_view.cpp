@@ -31,6 +31,13 @@ constexpr int g_toggle_box_width{28};
 // explaining why they cannot be edited. Cleared when the editor owns its own audio route.
 constexpr const char* g_game_settings_tooltip{"Derived from game settings"};
 
+// Shown when the selected device's driver failed to initialize: as the disabled control panel
+// button's tooltip, and as the standing notice in the error label (so a toggle-driven re-open that
+// lands on an unavailable device explains itself instead of finishing silently).
+constexpr const char* g_device_unavailable_text{
+    "The selected device is unavailable (not connected or in use by another application)"
+};
+
 // Returns the vertical space occupied by a visible form row set.
 [[nodiscard]] int formRowsHeight(int row_count) noexcept
 {
@@ -491,10 +498,12 @@ void AudioDeviceSettingsView::applyStateToControls()
     //
     // Unlike the device fields, the control panel button stays enabled while the game source is
     // active: it opens the audio driver's own external window, which is outside Rock Hero's route
-    // selection entirely, so the game-settings lock has no bearing on it. Only the apply fence and
-    // the backend's control-panel capability gate it.
-    m_control_panel_button.setVisible(m_state.control_panel_enabled);
-    m_control_panel_button.setEnabled(!m_applying && m_state.control_panel_enabled);
+    // selection entirely, so the game-settings lock has no bearing on it. It disables only for the
+    // apply fence and for an unavailable device (driver init failed: hardware unplugged, or held by
+    // another application), whose panel request would silently show nothing.
+    m_control_panel_button.setVisible(m_state.control_panel_supported);
+    m_control_panel_button.setEnabled(
+        !m_applying && m_state.control_panel_supported && !m_state.staged_device_unavailable);
     // OK stays enabled while the game source is active even though the fields are locked: there it
     // just closes the window like Cancel (there is nothing to apply), so it must not look dead.
     m_ok_button.setEnabled(!m_applying && (m_state.ok_enabled || gameSettingsLockActive()));
@@ -516,10 +525,23 @@ void AudioDeviceSettingsView::applyStateToControls()
     m_sample_rate_combo.setTooltip(field_tooltip);
     m_buffer_size_combo.setTooltip(field_tooltip);
     // The control panel button deliberately carries no "derived from game settings" tooltip: it
-    // stays enabled and opens the driver's external panel regardless of the game lock, so that
-    // explanation would be misleading here.
+    // opens the driver's external panel regardless of the game lock, so that explanation would be
+    // misleading here. Its only tooltip explains the unavailable-device disable.
+    m_control_panel_button.setTooltip(
+        m_state.control_panel_supported && m_state.staged_device_unavailable
+            ? g_device_unavailable_text
+            : "");
 
-    m_error_label.setText(juce::String{m_state.error_message.c_str()}, juce::dontSendNotification);
+    // The error label doubles as the standing unavailable-device notice. A transient operation
+    // error is the more specific diagnostic and takes precedence; otherwise an unavailable staged
+    // device explains itself here, so opening the window on -- or re-opening toward -- a
+    // disconnected device never finishes silently.
+    const juce::String error_text =
+        !m_state.error_message.empty()
+            ? juce::String{m_state.error_message.c_str()}
+            : (m_state.staged_device_unavailable ? juce::String{g_device_unavailable_text}
+                                                 : juce::String{});
+    m_error_label.setText(error_text, juce::dontSendNotification);
 }
 
 // Keeps the host window's resize limits matched to the current content. JUCE auto-grows the
