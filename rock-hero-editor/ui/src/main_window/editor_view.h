@@ -212,6 +212,12 @@ private:
     // Opens the asynchronous publish chooser and forwards accepted selections.
     void showPublishChooser();
 
+    // Opens the asynchronous tone-file open chooser and forwards accepted selections.
+    void showOpenToneChooser();
+
+    // Opens the asynchronous tone-file save chooser, prefilled with the current document name.
+    void showToneSaveAsChooser(SaveAsChooserPurpose purpose);
+
     // Presents an unsaved-changes prompt once per prompt request.
     void presentUnsavedChangesPromptIfNeeded(
         const std::optional<core::UnsavedChangesPrompt>& prompt);
@@ -309,6 +315,18 @@ private:
 
     // SignalChainView::Listener implementation.
     void onOutputGainChanged(double gain_db) override;
+
+    // SignalChainView::Listener implementation.
+    void onNewTonePressed() override;
+
+    // SignalChainView::Listener implementation.
+    void onOpenToneFilePressed() override;
+
+    // SignalChainView::Listener implementation.
+    void onSaveTonePressed() override;
+
+    // SignalChainView::Listener implementation.
+    void onSaveToneAsPressed() override;
 
     /*! \copydoc ToneTrackView::Listener::onToneRegionSelected */
     void onToneRegionSelected(std::string region_id) override;
