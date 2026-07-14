@@ -10,6 +10,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <vector>
 
 namespace rock_hero::editor::core
 {
@@ -749,10 +750,14 @@ TEST_CASE(
     audio_devices.restore_serialized_device_state_call_count = 0;
     const int paint_callbacks_before = view.busy_overlay_paint_callback_count;
 
-    controller.onUseGameAudioSettingsChangeRequested(true);
+    int applying_call_count = 0;
+    controller.onUseGameAudioSettingsChangeRequested(
+        true, [&applying_call_count](bool) { ++applying_call_count; });
 
     // The toggle consulted the skip-if-unchanged predicate against the now-active game route.
     CHECK(audio_devices.device_state_matches_active_call_count >= 1);
+    // An instant flip never hides the settings dialog.
+    CHECK(applying_call_count == 0);
     CHECK(
         audio_devices.last_device_state_match_query ==
         std::optional<std::string>{"game-device-state"});
@@ -816,9 +821,13 @@ TEST_CASE(
     audio_devices.restore_serialized_device_state_call_count = 0;
     const int paint_callbacks_before = view.busy_overlay_paint_callback_count;
 
-    controller.onUseGameAudioSettingsChangeRequested(true);
+    std::vector<bool> applying_calls;
+    controller.onUseGameAudioSettingsChangeRequested(
+        true, [&applying_calls](bool applying) { applying_calls.push_back(applying); });
 
     CHECK(audio_devices.device_state_matches_active_call_count >= 1);
+    // The dialog was hidden for the re-open and reshown once the busy overlay cleared.
+    CHECK(applying_calls == std::vector<bool>{true, false});
     // The re-open ran behind exactly one busy overlay paint fence.
     CHECK(view.busy_overlay_paint_callback_count == paint_callbacks_before + 1);
     CHECK(sawAudioDeviceOpenOverlay(view));
@@ -830,6 +839,65 @@ TEST_CASE(
     const EditorViewState* final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
     CHECK_FALSE(final_state->busy.has_value());
+}
+
+// With no applying presentation (the cancel-time toggle restore), a required re-open runs inline on
+// the calling path instead of entering the busy workflow, so the cancel's own staged-device rollback
+// cannot supersede its token and drop the re-open.
+TEST_CASE(
+    "EditorController game-audio toggle re-opens inline without an applying presentation",
+    "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"game_toggle_inline"};
+    const ScopedGameFile game_file{"game_toggle_inline.settings"};
+    writeCalibratedGameRoute(game_file.path(), "game-device-state");
+
+    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore own_store;
+    REQUIRE(own_store
+                .setActiveDeviceRoute(
+                    common::audio::ActiveDeviceRoute{
+                        .serialized_state = "own-device-state", .identity = std::nullopt
+                    })
+                .has_value());
+
+    EditorAudioConfigStore editor_store{own_store, game_file.path()};
+    REQUIRE(editor_store.gameSourceAvailable());
+
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    // The live device differs from the target route, so a genuine re-open is required.
+    audio_devices.device_state_matches_active = false;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, editor_store};
+
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices),
+        EditorController::Services{
+            .settings = settings,
+            .task_runner = immediateTaskRunner(),
+            .message_thread_scheduler = immediateMessageThreadScheduler(),
+            .audio_config_store = editor_store,
+            .live_input_monitor = monitor,
+            .editor_audio_config_store = &editor_store,
+        },
+        noopExitFunction()
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    audio_devices.restore_serialized_device_state_call_count = 0;
+    const int paint_callbacks_before = view.busy_overlay_paint_callback_count;
+
+    controller.onUseGameAudioSettingsChangeRequested(true, {});
+
+    // The re-open ran synchronously with no busy presentation at all.
+    CHECK(audio_devices.restore_serialized_device_state_call_count == 1);
+    CHECK(
+        audio_devices.last_restored_serialized_device_state ==
+        std::optional<std::string>{"game-device-state"});
+    CHECK(view.busy_overlay_paint_callback_count == paint_callbacks_before);
+    CHECK_FALSE(sawAudioDeviceOpenOverlay(view));
 }
 
 } // namespace rock_hero::editor::core

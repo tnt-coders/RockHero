@@ -1487,10 +1487,11 @@ void EditorView::showAudioDeviceSettingsWindow()
             .use_game_settings = m_state.use_game_audio_settings,
             .game_source_available = m_state.game_audio_source_available,
         },
-        [safe_this](bool enabled) {
+        [safe_this](bool enabled, std::function<void(bool)> set_applying) {
             if (auto* view = safe_this.getComponent())
             {
-                view->m_controller.onUseGameAudioSettingsChangeRequested(enabled);
+                view->m_controller.onUseGameAudioSettingsChangeRequested(
+                    enabled, std::move(set_applying));
             }
         });
 }

@@ -389,8 +389,10 @@ public:
     /*!
     \brief Records "use game audio settings" toggle changes emitted by the settings window.
     \param enabled Requested toggle value.
+    \param set_applying Unused; the fake performs no device work to present through it.
     */
-    void onUseGameAudioSettingsChangeRequested(bool enabled) override
+    void onUseGameAudioSettingsChangeRequested(
+        bool enabled, std::function<void(bool)> /*set_applying*/) override
     {
         last_use_game_audio_settings = enabled;
         use_game_audio_settings_change_count += 1;

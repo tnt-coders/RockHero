@@ -186,7 +186,11 @@ void AudioDeviceSettingsView::restoreOriginalGameAudioSettings()
     resized();
     if (m_on_use_game_settings_changed)
     {
-        m_on_use_game_settings_changed(m_original_use_game_settings);
+        // Cancel-time restore: the window is already closing, so no applying presentation is
+        // supplied and any device re-open runs inline. That also keeps the re-open out of the busy
+        // workflow, whose next-operation token would otherwise supersede it when the cancel's own
+        // staged-device rollback begins immediately afterwards.
+        m_on_use_game_settings_changed(m_original_use_game_settings, {});
     }
 }
 
@@ -303,7 +307,17 @@ void AudioDeviceSettingsView::configureControls()
         resized();
         if (m_on_use_game_settings_changed)
         {
-            m_on_use_game_settings_changed(m_game_settings.use_game_settings);
+            // Interactive flip: hand the host this view's applying presentation (bound to
+            // setApplying) so a flip that needs a blocking device re-open hides the dialog exactly
+            // like the OK/Cancel apply path; an instant same-device flip never invokes it.
+            const juce::Component::SafePointer<AudioDeviceSettingsView> safe_this{this};
+            m_on_use_game_settings_changed(
+                m_game_settings.use_game_settings, [safe_this](bool applying) {
+                    if (auto* view = safe_this.getComponent())
+                    {
+                        view->setApplying(applying);
+                    }
+                });
         }
     };
 

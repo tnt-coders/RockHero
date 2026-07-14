@@ -487,7 +487,8 @@ public:
     void onOpenPluginRequested(std::string instance_id) override;
 
     /*! \copydoc IEditorController::onUseGameAudioSettingsChangeRequested */
-    void onUseGameAudioSettingsChangeRequested(bool enabled) override;
+    void onUseGameAudioSettingsChangeRequested(
+        bool enabled, std::function<void(bool)> set_applying) override;
 
     /*! \brief Handles a request to manually calibrate the current input route. */
     void onInputCalibrationRequested() override;
