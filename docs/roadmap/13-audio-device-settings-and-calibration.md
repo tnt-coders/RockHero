@@ -225,7 +225,7 @@ root — reuse the editor's serialization code verbatim when it moves in Phase 2
   rather than "no calibration."
 - **Two identity constants in `common/audio`** (`settings/audio_config_identity.h`):
   `editorAudioConfigApplicationName()` ("Rock Hero Editor Audio") and
-  `gameAudioConfigApplicationName()` ("Rock Hero Audio"). They belong beside the store by
+  `gameAudioConfigApplicationName()` ("Rock Hero Game Audio"). They belong beside the store by
   feature-over-kind (they encode the audio-config *file-partition* convention); the generic product
   names stay in `common/core`. Each names a distinct file from the editor's `Rock Hero Editor.settings`
   (workflow state) and the game's `Rock Hero.settings` (profile). The game's audio config being its

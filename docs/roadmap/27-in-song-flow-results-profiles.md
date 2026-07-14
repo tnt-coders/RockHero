@@ -235,7 +235,7 @@ Mirror all three into docs/roadmap/00-roadmap.md Decisions-needed.
   25, and 26 add their own keys in their own phases; this plan does not pre-declare them.
   Reserved key names already promised by plan 21 Phase 4's session-local mix values
   (2026-07-12): `mixMasterDb`, `mixBackingDb`, `mixMonitorDb` (21-Q3: global scope).
-  Add `gameApplicationName()` ("Rock Hero") beside `editorApplicationName()` in
+  Add `gameApplicationName()` ("Rock Hero Game") beside `editorApplicationName()` in
   `application_identity.h` so the settings file lands in the standard per-user folder.
 - **Files/modules**: new `rock-hero-game/core/include/rock_hero/game/core/settings/
   {i_game_settings.h, game_settings.h, game_settings_error.h}`, new

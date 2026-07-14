@@ -38,12 +38,17 @@ namespace rock_hero::common::core
 }
 
 /*!
-\brief User-facing game application name; names the game's per-user settings file.
-\return Stable game application name text.
+\brief Names the game's per-user settings file.
+
+Distinct from productName() ("Rock Hero") so the game's settings file ("Rock Hero Game.settings")
+sits beside the editor's ("Rock Hero Editor.settings") with matching naming, rather than being the
+bare product name. The shared data folder stays productName() via applicationDataFolderName().
+
+\return Stable game settings-file application name text.
 */
 [[nodiscard]] constexpr std::string_view gameApplicationName() noexcept
 {
-    return productName();
+    return "Rock Hero Game";
 }
 
 } // namespace rock_hero::common::core
