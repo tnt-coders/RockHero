@@ -138,6 +138,19 @@ resolver needs a bundle-aware branch.
 
 ## Audio / plugin state
 
+### Play with default tones — trigger: a default-tone mechanism exists
+
+21-Q1 settled missing-plugin handling as **refuse-to-start**: the game currently refuses to start a
+song whose tones cannot load, listing the missing plugins, with no partial or substitute tones. The
+pinned future enhancement (21-Q1 close-out; dovetails with 26-Q5's starter asset) is an opt-in "play
+with default tones" path — but it stays inert until there is a standard default tone to fall back to.
+**Trigger:** a default-tone mechanism exists (per plan 26-Q5's starter asset), so a chart with
+missing or absent plugin tones could still be played with a standard default tone. **Remedy:** expose
+the opt-in "play with default tones" path on the 21-Q1 refuse-to-start point, so the player can
+choose to proceed with default tones instead of being blocked — a PINNED opt-in on the refusal,
+never an automatic substitution. (Referenced from `docs/tracking/backlog.md`'s standard-tones item
+and `docs/roadmap/00-roadmap.md`'s 21-Q1 answer.)
+
 ### Plugin-state idle churn — trigger: repeating no-intent settle log lines at idle
 
 Suspected but **never observed**: an amp-sim VST3 (Archetype Cory Wong X) re-serializing a
