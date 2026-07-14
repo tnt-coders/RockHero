@@ -20,16 +20,17 @@ item retired as resolved — see *Retired*).
 
 ## Render stack (game loop + bgfx)
 
-### GameShell is a composition point in game/ui — trigger: plan 21 implementation start
+### GameShell is a composition point in game/ui — trigger FIRED: plan 21 started 2026-07-11
 
 `GameShell::run` constructs concrete adapters, chooses the backend, composes the resources root,
 and owns the frame loop — several of architectural-principles.md § "UI Modules" move-to-app
 triggers at once. Plan 20 Phase 1 sanctioned the placement at its original size, but the shell
 has since grown by accretion (plan 20 Phase 4 diagnostics wiring, plan 25 Phase 4 texture-set
-loading). When the audio engine joins (plan 21 Phases 1+), decide deliberately rather than let
-it grow further: either inject composed dependencies from `app/`, or accept the shell as the
-game's hub object and extract the headless frame-step policy (quit/resize/frame-limit
-sequencing, transport reads) into `game/core` so loop decisions become unit-testable.
+loading). **DECIDED 2026-07-11 (user): inject composed dependencies from `app/`** — main.cpp
+composes the engine/session/renderer/resources and GameShell receives injected ports, owning
+only the frame loop and input wiring, per architectural-principles.md's move-to-app rule. The
+mechanical restructuring lands with plan 21 Phase 6 (the first phase that touches the shell);
+retire this entry when that phase completes.
 
 ### NSIS and the empty resource directories — trigger: next installer inspection
 

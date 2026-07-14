@@ -158,6 +158,18 @@ Restated from their source documents (never from conversation):
   shared; shared *audio-device* settings are a separate concern owned by
   docs/roadmap/13-audio-device-settings-and-calibration.md.
 
+Adopted 2026-07-11 with the user (shared-navigation decision, stated in
+docs/roadmap/28-practice-mode.md §7; normative for this plan):
+
+- **Performance mode's navigation capability set is {toggle-play, restart, quit} — nothing
+  else.** Seek, section jumps, loop, and speed exist only in practice mode. The flow machine
+  simply never emits out-of-set transport intents, and the shared navigation HUD renders from
+  the capability set, so the restriction is data-driven — not a forked UI.
+- **The flow machine feeds plan 24's record `integrity` fields**: pause count and total paused
+  duration accumulate across the run, and any out-of-set transport command reaching the
+  transport (possible only through non-UI paths) marks the run not clean. Integrity is evidence
+  in the record (docs/roadmap/24 §6), never trust in the client UI.
+
 ## 7. Open questions for the user
 
 Mirror all three into docs/roadmap/00-roadmap.md Decisions-needed.
@@ -202,6 +214,8 @@ Mirror all three into docs/roadmap/00-roadmap.md Decisions-needed.
   docs/roadmap/26). Document in the header the convention consumer plans follow to add keys
   (typed getter/setter pair per key, `std::optional` reads, `std::expected` writes) — plans 21,
   25, and 26 add their own keys in their own phases; this plan does not pre-declare them.
+  Reserved key names already promised by plan 21 Phase 4's session-local mix values
+  (2026-07-12): `mixMasterDb`, `mixBackingDb`, `mixMonitorDb` (21-Q3: global scope).
   Add `gameApplicationName()` ("Rock Hero") beside `editorApplicationName()` in
   `application_identity.h` so the settings file lands in the standard per-user folder.
 - **Files/modules**: new `rock-hero-game/core/include/rock_hero/game/core/settings/
@@ -277,6 +291,9 @@ Mirror all three into docs/roadmap/00-roadmap.md Decisions-needed.
   docs/design/architectural-principles.md ("Core Modules": simulation belongs in game/core).
   **Practice-mode seam** (docs/roadmap/28): the machine takes playback-rate and loop-region fields
   in its session-config struct from day one (only 1.0 / no-loop ship now).
+  **Integrity accounting** (§6, docs/roadmap/24 §6): the machine accumulates pause count and
+  total paused duration and clears the record's `integrity.cleanRun` on any out-of-capability
+  transport command, emitting all three into the plan 24 record at persist time.
 - **Files/modules**: `rock-hero-game/core/include/rock_hero/game/core/flow/in_song_flow.h`,
   `rock-hero-game/core/src/flow/in_song_flow.cpp`.
 - **Public-header impact**: one public header (state, events, intents, policy struct).
@@ -284,7 +301,8 @@ Mirror all three into docs/roadmap/00-roadmap.md Decisions-needed.
   duration honored; pause during count-in restarts count-in; pause→pre-roll→resume produces the
   measure-snapped seek intent; ghost window never emits scoring; restart resets and re-enters
   CountIn; DeviceLost pauses without touching score state; fail only fires when opted in;
-  record-persist intent is emitted before the show-results intent (crash-safety ordering).
+  record-persist intent is emitted before the show-results intent (crash-safety ordering);
+  pause/resume cycles accumulate the integrity counts while pause alone leaves `cleanRun` true.
 - **Exit criteria**: every legal transition covered by a test; illegal transitions are
   unrepresentable or rejected; policy constants injected, not hardcoded.
 - **Verification**: build + touched tests via the two standard invocations (no `-Configure`

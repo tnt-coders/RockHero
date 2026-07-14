@@ -73,6 +73,10 @@ namespace
         {
             return "Could not restore tone plugin";
         }
+        case LiveRigErrorCode::MissingPlugins:
+        {
+            return "Tone plugins are not installed on this machine";
+        }
         case LiveRigErrorCode::PluginChainLimitExceeded:
         {
             return "Tone plugin chain limit was exceeded";

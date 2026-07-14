@@ -27,7 +27,8 @@ target_sources(
             src/tone/tone_automation.cpp
             src/tone/tone_track_rules.cpp
             src/tone/tone_track_edits.cpp
-            src/tone/tone_track_normalize.cpp)
+            src/tone/tone_track_normalize.cpp
+            src/tone/tone_schedule.cpp)
 
 target_include_directories(
     rock_hero_common_core

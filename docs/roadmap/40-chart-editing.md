@@ -275,6 +275,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
   empty click seeks and deselects, empty drag marquees; Alt stays reserved for Phase 4's
   insertion quasimode. Selection and caret render as overlays in `TabView`. New shortcuts start
   the interim keybind table handed to `docs/roadmap/46-editor-keybinds.md`.
+  **Coordination with docs/roadmap/30-game-2d-tab-view.md** (30-Q2, ANSWERED 2026-07-11):
+  plan 30 Phase 2 moves the tab-lane *painting* into a shared common/ui paint core with a
+  layout manifest and runs BEFORE this phase (decided while `TabView` is still
+  interaction-free). This phase's selection/caret/ghost visuals are editor-shell overlays drawn
+  ABOVE the notation and never enter the shared core; its hit-testing consumes plan 30's layout
+  manifest instead of duplicating glyph geometry.
 - **Files**: new editor-core `src/chart/` folder (selection state, hit resolution),
   `i_editor_controller.h`, `editor_view_state.h`, `editor_action_id.h` + availability,
   `tab_view.{h,cpp}`, `cursor_overlay.cpp` (yield to glyph hits per the settled Q3 gestures).

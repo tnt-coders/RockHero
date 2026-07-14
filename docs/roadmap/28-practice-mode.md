@@ -188,6 +188,24 @@ Verified against code on 2026-07-06, refactor @ 13e82fb0.
   performs in real time. This is forced by physics (the instrument is live) and by constraint
   (g)'s same-engine-path rule; recorded here so no phase ever considers stretching the monitor
   path.
+- **Navigation is a shared, display-agnostic surface; sessions differ, the vocabulary does not**
+  (adopted 2026-07-11 with the user; this plan owns the decision statement — plans 24/27/44/47
+  cite it). A small navigation-intent vocabulary (toggle-play, restart, previous/next section,
+  loop set/clear, speed down/up) plus per-mode **capability sets** (which intents a mode
+  answers) live in `rock-hero-common/core` beside the Phase 3 section math; the gamelike
+  on-highway navigation HUD widgets live in `rock-hero-common/ui` beside the highway renderer.
+  Time, loop, and speed always have exactly one owner per process — views never own them, they
+  render a time source and dispatch intents, so view↔authority sync holds by construction.
+  Authorities: `PracticeSession` (Phase 4) answers the full set in the game; the editor 3D
+  preview answers the same set through `IEditorController` intents and the editor transport
+  (docs/roadmap/44 §7, docs/roadmap/47 §7) — same intents, math, and widgets, different
+  authority, so the editor preview "mirrors practice mode" without any editor↔game dependency
+  (constraint (a)). Performance mode answers only {toggle-play, restart}
+  (docs/roadmap/27-in-song-flow-results-profiles.md §6); richer navigation is practice-only,
+  and run integrity is enforced in the score record (docs/roadmap/24 §6), never by trusting
+  hidden UI. The surface is display-agnostic by design: a future 2D game view
+  (docs/todo/game-2d-tab-view.md) swaps only the presentation behind the same intents,
+  capability sets, and sessions.
 
 ## 8. Open questions for the user
 
@@ -305,8 +323,10 @@ Exit criteria: audible wrap on the dev machine has no glitch longer than one dev
 ### Phase 3 — Section-span math in common/core (pure)
 
 Scope: pure helpers over the chart domain, placed in `rock-hero-common/core` (chart feature
-folder) because three consumers need identical math: practice (this plan), results per-section
-rows (docs/roadmap/27 Phase 4), and section-sanity validation (docs/roadmap/42-chart-validation.md).
+folder) because four consumers need identical math: practice (this plan), results per-section
+rows (docs/roadmap/27 Phase 4), section-sanity validation (docs/roadmap/42-chart-validation.md),
+and the shared navigation surface's section jumps (§7 shared-navigation decision — game HUD and
+editor 3D preview).
 Coordinate: if docs/roadmap/27 Phase 4 lands first with game-local span math, this phase EXTRACTS
 it to common per constraint (a) rather than writing a second copy.
 

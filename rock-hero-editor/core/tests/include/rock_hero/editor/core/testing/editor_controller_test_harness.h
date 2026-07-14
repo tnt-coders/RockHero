@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <cstdlib>
+#include <expected>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -360,6 +361,58 @@ public:
         return current_position;
     }
 
+    // Mirrors the v1 speed contract: exactly 1.0 accepted, anything else fails loudly.
+    [[nodiscard]] std::expected<void, common::audio::TransportError> setPlaybackSpeed(
+        double factor) override
+    {
+        if (factor != 1.0)
+        {
+            return std::unexpected{
+                common::audio::TransportError{common::audio::TransportErrorCode::SpeedNotSupported}
+            };
+        }
+
+        playback_speed = factor;
+        return {};
+    }
+
+    // Returns the stored speed factor; 1.0 under the v1 contract.
+    [[nodiscard]] double playbackSpeed() const noexcept override
+    {
+        return playback_speed;
+    }
+
+    // Mirrors the loop contract: normalized storage, sub-minimum rejection, state untouched.
+    [[nodiscard]] std::expected<void, common::audio::TransportError> setLoopRegion(
+        common::core::TimeRange region) override
+    {
+        const common::core::TimeRange normalized{
+            .start = common::core::TimePosition{std::min(region.start.seconds, region.end.seconds)},
+            .end = common::core::TimePosition{std::max(region.start.seconds, region.end.seconds)},
+        };
+        if (normalized.duration().seconds < common::audio::g_minimum_loop_region_duration.seconds)
+        {
+            return std::unexpected{
+                common::audio::TransportError{common::audio::TransportErrorCode::LoopRegionTooShort}
+            };
+        }
+
+        loop_region = normalized;
+        return {};
+    }
+
+    // Disengages the fake's loop region.
+    void clearLoopRegion() override
+    {
+        loop_region.reset();
+    }
+
+    // Returns the engaged normalized loop region, or nullopt when looping is disengaged.
+    [[nodiscard]] std::optional<common::core::TimeRange> loopRegion() const noexcept override
+    {
+        return loop_region;
+    }
+
     // Registers a non-owning listener pointer for manual transition notifications.
     void addListener(Listener& listener) override
     {
@@ -453,6 +506,12 @@ public:
 
     // Current cursor position returned by position().
     common::core::TimePosition current_position{};
+
+    // Port-level playback speed factor; only 1.0 is storable under the v1 contract.
+    double playback_speed{1.0};
+
+    // Engaged normalized loop region; nullopt while looping is disengaged.
+    std::optional<common::core::TimeRange> loop_region{};
 
     // Non-owning listeners subscribed by the controller under test.
     std::vector<Listener*> listeners{};

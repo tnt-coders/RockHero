@@ -1,10 +1,12 @@
 #include "tone/tone_automation_lanes_view.h"
 
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cmath>
 #include <expected>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <optional>
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -178,6 +180,54 @@ struct StubTransport final : public common::audio::ITransport
         return current_position;
     }
 
+    // Contract-shaped stub: these view tests never drive speed, so only 1.0 is accepted.
+    [[nodiscard]] std::expected<void, common::audio::TransportError> setPlaybackSpeed(
+        double factor) override
+    {
+        if (factor != 1.0)
+        {
+            return std::unexpected{
+                common::audio::TransportError{common::audio::TransportErrorCode::SpeedNotSupported}
+            };
+        }
+
+        return {};
+    }
+
+    [[nodiscard]] double playbackSpeed() const noexcept override
+    {
+        return 1.0;
+    }
+
+    // Contract-shaped stub storing the normalized region; these view tests never drive loops.
+    [[nodiscard]] std::expected<void, common::audio::TransportError> setLoopRegion(
+        common::core::TimeRange region) override
+    {
+        const common::core::TimeRange normalized{
+            .start = common::core::TimePosition{std::min(region.start.seconds, region.end.seconds)},
+            .end = common::core::TimePosition{std::max(region.start.seconds, region.end.seconds)},
+        };
+        if (normalized.duration().seconds < common::audio::g_minimum_loop_region_duration.seconds)
+        {
+            return std::unexpected{
+                common::audio::TransportError{common::audio::TransportErrorCode::LoopRegionTooShort}
+            };
+        }
+
+        loop_region = normalized;
+        return {};
+    }
+
+    void clearLoopRegion() override
+    {
+        loop_region.reset();
+    }
+
+    [[nodiscard]] std::optional<common::core::TimeRange> loopRegion() const noexcept override
+    {
+        return loop_region;
+    }
+
     void addListener(Listener& /*listener*/) override
     {}
 
@@ -186,6 +236,9 @@ struct StubTransport final : public common::audio::ITransport
 
     // Position returned to the view's render-cadence sampling.
     common::core::TimePosition current_position{};
+
+    // Engaged normalized loop region; nullopt while looping is disengaged.
+    std::optional<common::core::TimeRange> loop_region{};
 };
 
 // Left-button modifiers with Alt held: the insert quasimode's click.
