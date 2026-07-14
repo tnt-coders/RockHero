@@ -211,8 +211,14 @@ public:
 
     [[nodiscard]] juce::StringArray getDeviceNames(bool want_input_names) const override
     {
-        return want_input_names ? juce::StringArray{g_input_a, g_input_b}
-                                : juce::StringArray{g_output_a, g_output_b};
+        return want_input_names ? m_input_device_names : m_output_device_names;
+    }
+
+    // Replaces the advertised device lists so tests can simulate hot-plug arrivals and removals.
+    void setDeviceNames(juce::StringArray input_names, juce::StringArray output_names)
+    {
+        m_input_device_names = std::move(input_names);
+        m_output_device_names = std::move(output_names);
     }
 
     [[nodiscard]] int getDefaultDeviceIndex(bool /*for_input*/) const override
@@ -285,6 +291,8 @@ public:
     }
 
 private:
+    juce::StringArray m_input_device_names{g_input_a, g_input_b};
+    juce::StringArray m_output_device_names{g_output_a, g_output_b};
     juce::StringArray m_failing_outputs;
     juce::StringArray m_driver_init_failing_outputs;
     juce::String m_driver_init_error_text{"Can't detect asio channels"};
@@ -754,18 +762,15 @@ TEST_CASE(
     CHECK(settings.state().error_message.empty());
 }
 
-// commit() adopts the live route as final: it clears the pending restore so destruction does not
-// reopen the route captured when the settings edit began. Contrast "restores device on
-// destruction", where the same construction reopens the device precisely because commit() did not
-// run.
-TEST_CASE(
-    "AudioDeviceSettings commit skips the destructor route restore",
-    "[audio][audio-device-settings]")
+// commit() finishes the edit on whichever route is live at commit time. When nothing opened a
+// device while the window was open, that is the captured pre-edit route construction closed for
+// staging, so commit reopens it: a plain OK on an untouched window must never leave audio dead.
+TEST_CASE("AudioDeviceSettings commit reopens the captured route", "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
     openInitialRoute(audio_devices);
-    REQUIRE(audio_devices.device_manager.getCurrentAudioDevice() != nullptr);
+    const auto initial_setup = audio_devices.device_manager.getAudioDeviceSetup();
 
     {
         AudioDeviceSettings settings{audio_devices};
@@ -774,10 +779,110 @@ TEST_CASE(
 
         const auto committed = settings.commit();
         REQUIRE(committed.has_value());
+        CHECK(audio_devices.device_manager.getCurrentAudioDevice() != nullptr);
+        CHECK(audio_devices.device_manager.getAudioDeviceSetup() == initial_setup);
     }
 
-    // With the previous route abandoned by commit(), destruction must not reopen the device.
-    CHECK(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
+    // The reopen belongs to commit(); destruction must not run a second restore or close.
+    CHECK(audio_devices.device_manager.getCurrentAudioDevice() != nullptr);
+}
+
+// commit() keeps a route opened out of band during the edit -- the editor's live "use game audio
+// settings" toggle opens the adopted device while the window is still up -- and must not restore
+// the captured pre-edit route over it.
+TEST_CASE(
+    "AudioDeviceSettings commit keeps the out-of-band route", "[audio][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    openInitialRoute(audio_devices);
+
+    AudioDeviceSettings settings{audio_devices};
+    REQUIRE(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
+
+    juce::AudioDeviceManager::AudioDeviceSetup adopted = initialRouteSetup();
+    adopted.inputDeviceName = g_input_b;
+    adopted.outputDeviceName = g_output_b;
+    REQUIRE(audio_devices.device_manager.setAudioDeviceSetup(adopted, true).isEmpty());
+
+    const auto committed = settings.commit();
+    REQUIRE(committed.has_value());
+    CHECK(audio_devices.device_manager.getCurrentAudioDevice() != nullptr);
+    CHECK(
+        audio_devices.device_manager.getAudioDeviceSetup().outputDeviceName ==
+        juce::String{g_output_b});
+}
+
+// After a failed no-fallback restore of a missing device, JUCE's live setup no longer names the
+// user's choice (the failure clears the setup's device names on its way out), so seeding the edit
+// from the live setup would snap it to the driver's default device. The user's actual choice
+// survives only in the saved state XML: the settings edit must seed from it, keep it selected
+// even though it is disconnected, and surface the standing not-found notice instead of showing a
+// different device.
+TEST_CASE(
+    "AudioDeviceSettings seeds a closed edit from the saved route",
+    "[audio][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    openInitialRoute(audio_devices);
+
+    // Restore a saved route whose device is not attached, exactly as startup does: the open fails
+    // with no fallback, the device closes, and the live setup's device names are cleared.
+    juce::XmlElement saved{"DEVICESETUP"};
+    saved.setAttribute("deviceType", g_asio_type_name);
+    saved.setAttribute("audioInputDeviceName", "Input Z");
+    saved.setAttribute("audioOutputDeviceName", "Output Z");
+    const juce::String restore_error = audio_devices.device_manager.initialise(1, 2, &saved, false);
+    REQUIRE(restore_error.isNotEmpty());
+    REQUIRE(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
+    REQUIRE(audio_devices.device_manager.getAudioDeviceSetup().inputDeviceName.isEmpty());
+
+    const AudioDeviceSettings settings{audio_devices};
+    const AudioDeviceSettingsState state = settings.state();
+
+    CHECK(state.input_devices == std::vector<std::string>{g_input_a, g_input_b, "Input Z"});
+    CHECK(state.output_devices == std::vector<std::string>{g_output_a, g_output_b, "Output Z"});
+    CHECK(state.selected_input_device_id == 3);
+    CHECK(state.selected_output_device_id == 3);
+    CHECK(
+        state.staged_device_error.value_or(std::string{}) ==
+        "Audio device not found: Input Z, Output Z");
+    CHECK_FALSE(state.control_panel_supported);
+}
+
+// A hot-plug arrival of the missing saved device clears the standing notice on the backend's
+// refresh broadcast: the kept selection resolves into the rescanned list and the preview device
+// becomes creatable again, without the selection ever having been snapped elsewhere.
+TEST_CASE(
+    "AudioDeviceSettings resolves the missing device when it reappears",
+    "[audio][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    MockAudioDeviceType& audio_type =
+        addMockAudioType(audio_devices.device_manager, g_asio_type_name);
+    REQUIRE(audio_devices.device_manager.setAudioDeviceSetup(initialRouteSetup(), true).isEmpty());
+
+    juce::XmlElement saved{"DEVICESETUP"};
+    saved.setAttribute("deviceType", g_asio_type_name);
+    saved.setAttribute("audioInputDeviceName", "Input Z");
+    saved.setAttribute("audioOutputDeviceName", "Output Z");
+    REQUIRE(audio_devices.device_manager.initialise(1, 2, &saved, false).isNotEmpty());
+
+    const AudioDeviceSettings settings{audio_devices};
+    REQUIRE(settings.state().staged_device_error.has_value());
+
+    audio_type.setDeviceNames(
+        {g_input_a, g_input_b, "Input Z"}, {g_output_a, g_output_b, "Output Z"});
+    audio_devices.notifyChanged();
+
+    const AudioDeviceSettingsState state = settings.state();
+    CHECK_FALSE(state.staged_device_error.has_value());
+    CHECK(state.input_devices == std::vector<std::string>{g_input_a, g_input_b, "Input Z"});
+    CHECK(state.selected_input_device_id == 3);
+    CHECK(state.selected_output_device_id == 3);
+    CHECK_FALSE(state.sample_rates.empty());
 }
 
 // Switching audio systems should reset format selections to their defaults so a stale staged

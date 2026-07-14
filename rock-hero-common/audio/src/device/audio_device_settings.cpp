@@ -1,5 +1,7 @@
 #include "device/audio_device_settings.h"
 
+#include "shared/device_state_xml.h"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -239,11 +241,14 @@ constexpr double g_sample_rate_match_tolerance{0.001};
            channelName(channel_names, right_channel, "Output");
 }
 
-// Keeps a requested device name when it still exists, otherwise picks the driver's default.
-[[nodiscard]] juce::String validOrDefaultDeviceName(
+// Keeps a chosen device name even while its hardware is disconnected; only an empty selection
+// falls back to the driver's default. Snapping an absent name to a different device would silently
+// misreport the user's choice -- the edit must keep showing the chosen-but-missing device alongside
+// the standing not-found notice instead.
+[[nodiscard]] juce::String nameOrDefaultWhenEmpty(
     const juce::String& requested_name, const juce::StringArray& device_names, int default_index)
 {
-    if (device_names.contains(requested_name))
+    if (requested_name.isNotEmpty())
     {
         return requested_name;
     }
@@ -254,6 +259,19 @@ constexpr double g_sample_rate_match_tolerance{0.001};
     }
 
     return device_names.isEmpty() ? juce::String{} : device_names[0];
+}
+
+// Appends a chosen-but-disconnected device to the presented choices so the selection stays
+// visible; the standing not-found notice explains why the device cannot be probed.
+[[nodiscard]] juce::StringArray withStagedName(
+    juce::StringArray device_names, const juce::String& staged_name)
+{
+    if (staged_name.isNotEmpty() && !device_names.contains(staged_name))
+    {
+        device_names.add(staged_name);
+    }
+
+    return device_names;
 }
 
 // Returns the first one-based choice ID whose text matches the selected value.
@@ -351,6 +369,28 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
         m_previous_setup = m_device_manager.getAudioDeviceSetup();
         m_previous_device_type = m_device_manager.getCurrentAudioDeviceType();
         m_restore_pending = m_device_manager.getCurrentAudioDevice() != nullptr;
+
+        // With the device closed, the manager's live setup no longer names the user's choice: a
+        // failed no-fallback restore of a missing device clears the setup's device names on its
+        // way out (verified in juce_AudioDeviceManager.cpp -- setAudioDeviceSetup fails through
+        // deleteCurrentDevice(), which clears both names, before the currentSetup assignment).
+        // Seeding from that would snap the edit to the driver's default device. The user's actual
+        // choice survives in the saved state XML, so seed the edit from it and the window opens
+        // on the chosen device -- with the standing not-found notice when it is disconnected. An
+        // open device needs no override: the engine's no-fallback policy guarantees an open
+        // device is the saved choice.
+        if (!m_restore_pending)
+        {
+            if (const std::unique_ptr<juce::XmlElement> saved = m_device_manager.createStateXml())
+            {
+                m_previous_setup = reconstructDeviceSetupFromXml(*saved);
+                if (const juce::String saved_type = saved->getStringAttribute("deviceType");
+                    saved_type.isNotEmpty())
+                {
+                    m_previous_device_type = saved_type;
+                }
+            }
+        }
 
         m_staged_setup = m_previous_setup;
         m_staged_device_type = m_previous_device_type;
@@ -564,12 +604,23 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
         return {};
     }
 
-    // Keeps the live route as final: clears the pending restore so ~Impl() does not reopen the
-    // captured previous route, then rebuilds derived state. No device work runs because the active
-    // route is already the one the user is keeping (it was opened out of band while the window was
-    // open, for example by the editor's live "use game audio settings" toggle).
+    // Keeps the live route as final. A route opened out of band while the window was open (for
+    // example by the editor's live "use game audio settings" toggle) is already the one the user
+    // is keeping and survives untouched. When nothing opened a device during the edit, the kept
+    // route is the captured one that construction closed for staging, so finishing must reopen it
+    // -- otherwise a plain OK on an untouched window would leave the device closed.
     [[nodiscard]] std::expected<void, AudioDeviceSettingsError> commit()
     {
+        if (m_device_manager.getCurrentAudioDevice() == nullptr && m_restore_pending)
+        {
+            auto restored = restorePreviousRoute();
+            if (!restored.has_value())
+            {
+                refreshState(restored.error().message);
+                return std::unexpected{std::move(restored.error())};
+            }
+        }
+
         m_restore_pending = false;
         refreshState({});
         return {};
@@ -787,11 +838,11 @@ private:
 
         if (type->hasSeparateInputsAndOutputs())
         {
-            m_staged_setup.inputDeviceName = validOrDefaultDeviceName(
+            m_staged_setup.inputDeviceName = nameOrDefaultWhenEmpty(
                 m_staged_setup.inputDeviceName,
                 type->getDeviceNames(true),
                 type->getDefaultDeviceIndex(true));
-            m_staged_setup.outputDeviceName = validOrDefaultDeviceName(
+            m_staged_setup.outputDeviceName = nameOrDefaultWhenEmpty(
                 m_staged_setup.outputDeviceName,
                 type->getDeviceNames(false),
                 type->getDefaultDeviceIndex(false));
@@ -807,7 +858,7 @@ private:
         const juce::String requested_name = m_staged_setup.outputDeviceName.isNotEmpty()
                                                 ? m_staged_setup.outputDeviceName
                                                 : m_staged_setup.inputDeviceName;
-        const juce::String device_name = validOrDefaultDeviceName(
+        const juce::String device_name = nameOrDefaultWhenEmpty(
             requested_name, device_names, type->getDefaultDeviceIndex(false));
         m_staged_setup.inputDeviceName = device_name;
         m_staged_setup.outputDeviceName = device_name;
@@ -835,8 +886,10 @@ private:
 
         if (next_state.uses_separate_input_output_devices)
         {
-            const juce::StringArray input_names = type->getDeviceNames(true);
-            const juce::StringArray output_names = type->getDeviceNames(false);
+            const juce::StringArray input_names =
+                withStagedName(type->getDeviceNames(true), m_staged_setup.inputDeviceName);
+            const juce::StringArray output_names =
+                withStagedName(type->getDeviceNames(false), m_staged_setup.outputDeviceName);
             next_state.input_devices = toStrings(input_names);
             next_state.output_devices = toStrings(output_names);
             next_state.selected_input_device_id =
@@ -855,6 +908,7 @@ private:
         const juce::String selected_device = m_staged_setup.outputDeviceName.isNotEmpty()
                                                  ? m_staged_setup.outputDeviceName
                                                  : m_staged_setup.inputDeviceName;
+        device_names = withStagedName(std::move(device_names), selected_device);
         next_state.devices = toStrings(device_names);
         next_state.selected_device_id = selectedStringId(device_names, selected_device);
     }
@@ -1022,7 +1076,42 @@ private:
     {
         next_state.control_panel_supported =
             m_staged_device != nullptr && m_staged_device->hasControlPanel();
-        next_state.staged_device_error = stagedDeviceErrorDetail(m_staged_device.get());
+        next_state.staged_device_error = m_staged_device != nullptr
+                                             ? stagedDeviceErrorDetail(m_staged_device.get())
+                                             : missingStagedDeviceDetail();
+    }
+
+    // A staged preview device that failed to construct entirely (createDevice returned null for
+    // non-empty names) means the chosen device is not in the backend's scanned list: it is
+    // disconnected. Reported through the same standing-notice channel as a failed driver init so
+    // the chosen-but-missing device stays selected and explained instead of finishing silently.
+    [[nodiscard]] std::optional<std::string> missingStagedDeviceDetail() const
+    {
+        auto* type = currentDeviceType();
+        if (type == nullptr || m_staged_setup.inputDeviceName.isEmpty() ||
+            m_staged_setup.outputDeviceName.isEmpty())
+        {
+            return std::nullopt;
+        }
+
+        juce::StringArray missing_names;
+        if (!type->getDeviceNames(true).contains(m_staged_setup.inputDeviceName))
+        {
+            missing_names.addIfNotAlreadyThere(m_staged_setup.inputDeviceName);
+        }
+        if (!type->getDeviceNames(false).contains(m_staged_setup.outputDeviceName))
+        {
+            missing_names.addIfNotAlreadyThere(m_staged_setup.outputDeviceName);
+        }
+
+        if (missing_names.isEmpty())
+        {
+            // The backend still lists the names yet refused to create the device; no clearer
+            // detail exists.
+            return std::string{"Audio device not found"};
+        }
+
+        return ("Audio device not found: " + missing_names.joinIntoString(", ")).toStdString();
     }
 
     // Clears route and format fields whose choices depend on the selected device.

@@ -1,4 +1,5 @@
 #include "engine_impl.h"
+#include "shared/device_state_xml.h"
 
 namespace rock_hero::common::audio
 {
@@ -15,36 +16,6 @@ namespace
     }
 
     return static_cast<double>(sample_count) * 1000.0 / sample_rate_hz;
-}
-
-// Reconstructs the AudioDeviceSetup encoded by a serialized device-state XML. This mirrors, field
-// for field, the reconstruction JUCE's AudioDeviceManager::initialiseFromXML performs for the same
-// blob, so two device-state XMLs compare equal (through AudioDeviceSetup::operator==) exactly when
-// a restore of one would reproduce the other. Keeping the extraction local avoids reaching into
-// JUCE's private initialiseFromXML while staying tied to the same attributes.
-[[nodiscard]] juce::AudioDeviceManager::AudioDeviceSetup reconstructDeviceSetupFromXml(
-    const juce::XmlElement& xml)
-{
-    juce::AudioDeviceManager::AudioDeviceSetup setup;
-
-    if (xml.getStringAttribute("audioDeviceName").isNotEmpty())
-    {
-        setup.inputDeviceName = setup.outputDeviceName = xml.getStringAttribute("audioDeviceName");
-    }
-    else
-    {
-        setup.inputDeviceName = xml.getStringAttribute("audioInputDeviceName");
-        setup.outputDeviceName = xml.getStringAttribute("audioOutputDeviceName");
-    }
-
-    setup.bufferSize = xml.getIntAttribute("audioDeviceBufferSize", setup.bufferSize);
-    setup.sampleRate = xml.getDoubleAttribute("audioDeviceRate", setup.sampleRate);
-    setup.inputChannels.parseString(xml.getStringAttribute("audioDeviceInChans", "11"), 2);
-    setup.outputChannels.parseString(xml.getStringAttribute("audioDeviceOutChans", "11"), 2);
-    setup.useDefaultInputChannels = !xml.hasAttribute("audioDeviceInChans");
-    setup.useDefaultOutputChannels = !xml.hasAttribute("audioDeviceOutChans");
-
-    return setup;
 }
 
 // Reports whether restoring the serialized state would reproduce the device that is already open,

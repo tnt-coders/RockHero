@@ -515,6 +515,44 @@ TEST_CASE(
     CHECK(view.close_call_count == 1);
 }
 
+// With a dispatcher supplied, commit marks the view applying first and defers commit through the
+// dispatcher rather than blocking inside onCommitRequested(): commit reopens the captured
+// pre-edit device when nothing opened a route during the edit, which blocks the message thread
+// the same way apply and cancel do.
+TEST_CASE(
+    "AudioDeviceSettingsController defers commit through dispatcher",
+    "[core][audio-device-settings]")
+{
+    FakeAudioDeviceSettings settings;
+    std::function<void()> captured_commit;
+    std::function<void()> captured_after_cleared;
+    AudioDeviceSettingsController controller{
+        settings,
+        [&captured_commit, &captured_after_cleared](
+            std::function<void()> operation, std::function<void()> after_cleared) {
+            captured_commit = std::move(operation);
+            captured_after_cleared = std::move(after_cleared);
+        }
+    };
+    FakeAudioDeviceSettingsView view;
+    controller.attachView(view);
+
+    controller.onCommitRequested();
+
+    CHECK(view.applying_transitions == std::vector<bool>{true});
+    CHECK(settings.commit_call_count == 0);
+    REQUIRE(captured_commit);
+
+    captured_commit();
+
+    CHECK(settings.commit_call_count == 1);
+    CHECK(view.close_call_count == 0);
+    REQUIRE(captured_after_cleared);
+    captured_after_cleared();
+
+    CHECK(view.close_call_count == 1);
+}
+
 // If the host closes the settings window before the paint-fenced apply runs, the deferred
 // continuation must not touch the destroyed controller or its settings backend.
 TEST_CASE(

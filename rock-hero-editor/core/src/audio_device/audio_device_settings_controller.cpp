@@ -229,102 +229,58 @@ void AudioDeviceSettingsController::onOkRequested()
         return;
     }
 
-    if (m_dispatcher)
-    {
-        // Async path: disable editing now so the user sees OK take effect immediately, run apply
-        // behind the dispatcher's busy indicator, and re-enable the view on failure so the
-        // existing in-dialog error label can display the diagnostic. On success the host closes
-        // for real via finishAndClose().
-        if (m_view != nullptr)
-        {
-            m_view->setApplying(true);
-        }
-        const auto apply_succeeded = std::make_shared<bool>(false);
-        m_dispatcher(
-            [this, alive = std::weak_ptr<bool>{m_alive}, apply_succeeded]() {
-                if (alive.expired())
-                {
-                    return;
-                }
-
-                const auto result = m_settings.apply();
-                *apply_succeeded = result.has_value();
-            },
-            [this, alive = std::weak_ptr<bool>{m_alive}, apply_succeeded]() {
-                if (alive.expired())
-                {
-                    return;
-                }
-
-                updateView();
-                if (*apply_succeeded)
-                {
-                    finishAndClose();
-                    return;
-                }
-                if (m_view != nullptr)
-                {
-                    m_view->setApplying(false);
-                }
-            });
-        return;
-    }
-
-    const auto result = m_settings.apply();
-    if (!result.has_value())
-    {
-        updateView();
-        return;
-    }
-
-    finishAndClose();
+    runFinishingOperation([this] { return m_settings.apply(); });
 }
 
 void AudioDeviceSettingsController::onCommitRequested()
 {
-    // The live "use game audio settings" toggle already opened the desired device, so there is no
-    // blocking device work to fence behind the dispatcher here: commit only clears the pending
-    // restore so the active route survives window teardown, then closes.
-    const auto committed = m_settings.commit();
-    if (!committed.has_value())
-    {
-        updateView();
-        return;
-    }
-
-    finishAndClose();
+    // Commit keeps the route that is live at commit time as final. When nothing opened a device
+    // during the edit it reopens the captured pre-edit route, which blocks the message thread the
+    // same way apply and cancel do, so it runs behind the same fence.
+    runFinishingOperation([this] { return m_settings.commit(); });
 }
 
 void AudioDeviceSettingsController::onCancelRequested()
 {
+    // Cancel reopens the previous audio device, which blocks the message thread the same way
+    // apply does.
+    runFinishingOperation([this] { return m_settings.cancel(); });
+}
+
+// The async path disables editing now so the user sees the intent take effect immediately, runs
+// the operation behind the dispatcher's busy indicator, and re-enables the view on failure so the
+// existing in-dialog error label can display the diagnostic. On success the host closes for real
+// via finishAndClose(). This is what gives every finishing intent the same dismiss-immediately,
+// busy-overlay-painted feel.
+void AudioDeviceSettingsController::runFinishingOperation(
+    std::function<std::expected<void, common::audio::AudioDeviceSettingsError>()> operation)
+{
     if (m_dispatcher)
     {
-        // Async path: cancel reopens the previous audio device, which blocks the message thread
-        // the same way apply does. Routing through the dispatcher gives Cancel the same dismiss-
-        // immediately, busy-overlay-painted feel that OK has.
         if (m_view != nullptr)
         {
             m_view->setApplying(true);
         }
-        const auto cancel_succeeded = std::make_shared<bool>(false);
+        const auto succeeded = std::make_shared<bool>(false);
         m_dispatcher(
-            [this, alive = std::weak_ptr<bool>{m_alive}, cancel_succeeded]() {
+            [alive = std::weak_ptr<bool>{m_alive},
+             owned_operation = std::move(operation),
+             succeeded]() {
                 if (alive.expired())
                 {
                     return;
                 }
 
-                const auto result = m_settings.cancel();
-                *cancel_succeeded = result.has_value();
+                *succeeded = owned_operation().has_value();
             },
-            [this, alive = std::weak_ptr<bool>{m_alive}, cancel_succeeded]() {
+            [this, alive = std::weak_ptr<bool>{m_alive}, succeeded]() {
                 if (alive.expired())
                 {
                     return;
                 }
 
                 updateView();
-                if (*cancel_succeeded)
+                if (*succeeded)
                 {
                     finishAndClose();
                     return;
@@ -337,7 +293,7 @@ void AudioDeviceSettingsController::onCancelRequested()
         return;
     }
 
-    const auto result = m_settings.cancel();
+    const auto result = operation();
     if (!result.has_value())
     {
         updateView();
