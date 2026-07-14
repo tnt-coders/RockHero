@@ -3,19 +3,25 @@
 namespace rock_hero::editor::core
 {
 
-// Startup restores persisted audio-device state through the audio-device boundary.
+// Startup restores the persisted device route from the editor's own audio-config store.
 TEST_CASE("EditorController restores serialized audio device state", "[core][editor-controller]")
 {
     const ScopedControllerFiles files{"serialized_audio_device_restore"};
     EditorSettings settings{files.settingsFile()};
-    REQUIRE(settings.setAudioDeviceState("serialized-device-state").has_value());
+    common::audio::testing::InMemoryAudioConfigStore store;
+    REQUIRE(store
+                .setActiveDeviceRoute(
+                    common::audio::ActiveDeviceRoute{
+                        .serialized_state = "serialized-device-state", .identity = std::nullopt
+                    })
+                .has_value());
     FakeTransport transport;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
 
     const EditorController controller{
         audioPorts(transport, audio, audio_devices),
-        controllerServices(settings),
+        controllerServices(settings, store),
         noopExitFunction()
     };
 
@@ -23,16 +29,24 @@ TEST_CASE("EditorController restores serialized audio device state", "[core][edi
     CHECK(
         audio_devices.last_restored_serialized_device_state ==
         std::optional<std::string>{"serialized-device-state"});
-    CHECK(settings.audioDeviceState() == std::optional<std::string>{"serialized-device-state"});
+    REQUIRE(store.activeDeviceRoute().has_value());
+    CHECK(store.activeDeviceRoute()->serialized_state == "serialized-device-state");
 }
 
-// Invalid serialized audio-device state is discarded so future launches do not retry it.
+// Invalid serialized device state is discarded from the store so future launches do not retry it.
 TEST_CASE(
     "EditorController clears invalid serialized audio device state", "[core][editor-controller]")
 {
     const ScopedControllerFiles files{"invalid_serialized_audio_device_restore"};
     EditorSettings settings{files.settingsFile()};
-    REQUIRE(settings.setAudioDeviceState("invalid-serialized-device-state").has_value());
+    common::audio::testing::InMemoryAudioConfigStore store;
+    REQUIRE(
+        store
+            .setActiveDeviceRoute(
+                common::audio::ActiveDeviceRoute{
+                    .serialized_state = "invalid-serialized-device-state", .identity = std::nullopt
+                })
+            .has_value());
     FakeTransport transport;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
@@ -44,7 +58,7 @@ TEST_CASE(
 
     const EditorController controller{
         audioPorts(transport, audio, audio_devices),
-        controllerServices(settings),
+        controllerServices(settings, store),
         noopExitFunction()
     };
 
@@ -52,54 +66,62 @@ TEST_CASE(
     CHECK(
         audio_devices.last_restored_serialized_device_state ==
         std::optional<std::string>{"invalid-serialized-device-state"});
-    CHECK_FALSE(settings.audioDeviceState().has_value());
+    CHECK_FALSE(store.activeDeviceRoute().has_value());
 }
 
-// Device-change notifications persist the serialized audio-device state from the audio boundary.
+// Device-change notifications persist the blob paired with the resolved input identity to the store.
 TEST_CASE("EditorController persists serialized audio device state", "[core][editor-controller]")
 {
     const ScopedControllerFiles files{"serialized_audio_device_persist"};
     EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     FakeTransport transport;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
     audio_devices.serialized_device_state = "updated-serialized-device-state";
+    audio_devices.current_input_identity = makeInputDeviceIdentity();
     const EditorController controller{
         audioPorts(transport, audio, audio_devices),
-        controllerServices(settings),
+        controllerServices(settings, store),
         noopExitFunction()
     };
 
     audio_devices.notifyChanged();
 
     CHECK(audio_devices.serialized_device_state_call_count == 1);
-    CHECK(
-        settings.audioDeviceState() ==
-        std::optional<std::string>{"updated-serialized-device-state"});
+    REQUIRE(store.activeDeviceRoute().has_value());
+    CHECK(store.activeDeviceRoute()->serialized_state == "updated-serialized-device-state");
+    CHECK(store.activeDeviceRoute()->identity == std::optional{makeInputDeviceIdentity()});
 }
 
-// Empty capture results clear audio-device state instead of preserving stale settings.
+// Empty capture results clear the stored route instead of preserving stale device state.
 TEST_CASE(
     "EditorController clears serialized audio device state when capture is empty",
     "[core][editor-controller]")
 {
     const ScopedControllerFiles files{"empty_serialized_audio_device_persist"};
     EditorSettings settings{files.settingsFile()};
-    REQUIRE(settings.setAudioDeviceState("old-serialized-device-state").has_value());
+    common::audio::testing::InMemoryAudioConfigStore store;
+    REQUIRE(store
+                .setActiveDeviceRoute(
+                    common::audio::ActiveDeviceRoute{
+                        .serialized_state = "old-serialized-device-state", .identity = std::nullopt
+                    })
+                .has_value());
     FakeTransport transport;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
     audio_devices.serialized_device_state = std::nullopt;
     const EditorController controller{
         audioPorts(transport, audio, audio_devices),
-        controllerServices(settings),
+        controllerServices(settings, store),
         noopExitFunction()
     };
 
     audio_devices.notifyChanged();
 
     CHECK(audio_devices.serialized_device_state_call_count == 1);
-    CHECK_FALSE(settings.audioDeviceState().has_value());
+    CHECK_FALSE(store.activeDeviceRoute().has_value());
 }
 
 // Missing restore paths are cleared without asking project IO to open anything.

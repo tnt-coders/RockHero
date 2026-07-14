@@ -50,6 +50,7 @@ Editor::Editor(
               .settings = services.settings,
               .task_runner = services.task_runner,
               .message_thread_scheduler = services.message_thread_scheduler,
+              .audio_config_store = services.audio_config_store,
           },
           std::move(exit_function), controllerProjectOperationsFrom(std::move(project_operations)))
     , m_view(
