@@ -41,10 +41,8 @@ constexpr float g_min_note_height_for_text{9.0f};
 constexpr float g_shape_label_height{10.0f};
 constexpr float g_shape_rail_height{3.0f};
 constexpr double g_shape_mark_brightness{1.5};
-// Half-angle in radians of the openings at the top and bottom of the arc pair bracketing an
-// arpeggio posture note, which make the pair read as "( fret )" parentheses, and the hairline
-// stroke width that keeps the brackets much lighter than the note rings they wrap.
-constexpr float g_arpeggio_bracket_gap{0.6f};
+// Hairline stroke width of the side-arc pair bracketing an arpeggio posture note, which reads
+// as "( fret )" parentheses and stays much lighter than the note rings it wraps.
 constexpr float g_arpeggio_bracket_thickness{1.0f};
 
 // Thin JUCE-converting wrappers over the shared Charter-exact derivation (rock-hero-common/ui)
@@ -972,15 +970,18 @@ void TabView::paint(juce::Graphics& g)
         const float start_x = metrics.x(shape.start_seconds);
         for (const core::TabArpeggioNoteView& arpeggio_note : shape.arpeggio_notes)
         {
-            // Left and right arcs just outside where a head's ring would sit, open at top and
-            // bottom, at a real note's ring brightness. A string sounded exactly at the start
-            // keeps its full head (drawn by the note pass) inside the brackets; a string
-            // struck later in the arpeggio shows only its held fret number between them.
+            // Left and right arcs hugging the head's ring, at a real note's ring brightness.
+            // A string sounded exactly at the start keeps its full head (drawn by the note
+            // pass) inside the brackets; a string struck later in the arpeggio shows only its
+            // held fret number between them.
             const StringStyle style{metrics.baseColor(arpeggio_note.string)};
             const float center_y = metrics.laneY(arpeggio_note.string);
             const float size = metrics.note_height + 1.0f;
             const float border = std::max(1.0f, size / 15.0f);
-            const float radius = size / 2.0f + border * 2.0f;
+            const float radius = size / 2.0f + border;
+            // The opening angle terminates the arcs level with the head's top and bottom
+            // edges, so the brackets never rise above or dip below the note they wrap.
+            const float gap = std::acos(size / (2.0f * radius));
 
             juce::Path arcs;
             arcs.addCentredArc(
@@ -989,8 +990,8 @@ void TabView::paint(juce::Graphics& g)
                 radius,
                 radius,
                 0.0f,
-                g_arpeggio_bracket_gap,
-                juce::MathConstants<float>::pi - g_arpeggio_bracket_gap,
+                gap,
+                juce::MathConstants<float>::pi - gap,
                 true);
             arcs.addCentredArc(
                 start_x,
@@ -998,8 +999,8 @@ void TabView::paint(juce::Graphics& g)
                 radius,
                 radius,
                 0.0f,
-                juce::MathConstants<float>::pi + g_arpeggio_bracket_gap,
-                juce::MathConstants<float>::twoPi - g_arpeggio_bracket_gap,
+                juce::MathConstants<float>::pi + gap,
+                juce::MathConstants<float>::twoPi - gap,
                 true);
             g.setColour(style.border_inner);
             g.strokePath(
