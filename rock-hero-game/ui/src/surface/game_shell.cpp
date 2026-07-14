@@ -22,6 +22,7 @@
 #include <rock_hero/game/core/diagnostics/diagnostics.h>
 #include <rock_hero/game/core/frame_clock/frame_clock.h>
 #include <rock_hero/game/core/resources/game_resources.h>
+#include <rock_hero/game/core/session/gameplay_session.h>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -120,6 +121,7 @@ std::optional<core::FramePacingSummary> logFrameInstrumentation(
 struct DiagnosticsIntentExecutor
 {
     std::optional<DevSession>& dev_session;
+    core::GameplaySession* gameplay_session;
     common::ui::HighwayRenderer& renderer;
     std::chrono::nanoseconds now;
 
@@ -137,27 +139,43 @@ struct DiagnosticsIntentExecutor
 
     void operator()(const core::SeekToSectionIntent& intent) const
     {
-        if (dev_session.has_value())
+        if (!dev_session.has_value())
         {
-            dev_session->seekToSection(intent.section_index, now);
+            return;
         }
+
+        // With a live gameplay session the engine transport owns song time, so a section seek
+        // moves the transport; the stand-in clock re-anchor covers clock-only dev runs.
+        if (gameplay_session != nullptr)
+        {
+            const std::optional<double> target =
+                dev_session->sectionStartSeconds(intent.section_index);
+            if (target.has_value())
+            {
+                if (const auto sought = gameplay_session->seek(common::core::TimePosition{*target});
+                    !sought.has_value())
+                {
+                    RH_LOG_WARNING(
+                        "game.session", "section seek refused: {}", sought.error().message);
+                }
+            }
+            return;
+        }
+
+        dev_session->seekToSection(intent.section_index, now);
     }
 };
 
 } // namespace
 
-// Composes the L2 loop. Declaration order is the teardown contract, in reverse: the JUCE runtime
-// outlives the window and device (JUCE shutdown must come last, after every JUCE-dependent
-// object is gone), and the device dies before the window it renders into. When the audio engine
-// joins this shell (plan 21), it must be stopped, its live rig cleared, and the engine destroyed
-// before the device/window teardown below — a live plugin editor window must never be destroyed
-// after the windowing/GPU stack is gone.
+// Composes the L2 loop. Declaration order is the teardown contract, in reverse: the device dies
+// before the window it renders into. The JUCE runtime and the audio engine/session are owned by
+// main.cpp (the decided GameShell watch item: composition in app/), so both outlive this whole
+// function — safe because the game never opens plugin editor windows (the only engine surface
+// that would need the windowing stack alive); main closes the session and destroys the engine
+// after run() returns, before its JUCE guard dies.
 int GameShell::run(const GameShellOptions& options)
 {
-    // Binds this thread as the JUCE message thread for the process lifetime; everything JUCE
-    // (Tracktion timers, async callbacks, plugin windows) is serviced by the per-frame drain.
-    const juce::ScopedJuceInitialiser_GUI juce_runtime;
-
     std::expected<GameWindow, GameWindowError> window = GameWindow::create(
         "Rock Hero", PixelSize{.width = g_initial_window_width, .height = g_initial_window_height});
     if (!window.has_value())
@@ -242,8 +260,9 @@ int GameShell::run(const GameShellOptions& options)
     // runtime flag; every mutation is gated inside the controller.
     core::DiagnosticsController diagnostics{options.dev_mode};
 
-    // Dev fixture path: load the requested package's first charted arrangement and scroll it
-    // against the session's stand-in clock (plan 21's engine replaces both).
+    // Dev fixture path: load the requested package's first charted arrangement for the highway
+    // display, sections, and hot-reload. With a gameplay session injected, the fixture's
+    // stand-in clock goes unused — the engine's real playback clock drives song time instead.
     std::optional<DevSession> dev_session;
     if (options.dev_package.has_value())
     {
@@ -259,6 +278,36 @@ int GameShell::run(const GameShellOptions& options)
             {
                 renderer->setViewState(std::move(*dev_state));
             }
+        }
+    }
+
+    // Milestone-0 audio path (plan 21 Phase 6): the app-composed session loads the same package
+    // for real playback — backing track, live tone rig, scheduled tone switching. A load failure
+    // is reported and the shell keeps rendering (the chart still displays); the missing-plugin
+    // refusal (21-Q1) surfaces here with its full install list.
+    core::GameplaySession* const session = options.gameplay_session;
+    if (session != nullptr && options.dev_package.has_value())
+    {
+        const auto started = session->start(
+            core::GameplaySessionRequest{
+                .package_path = *options.dev_package,
+                // The audible rig must belong to the arrangement on screen; empty falls back to the
+                // song's first arrangement when the fixture found no charted one.
+                .arrangement_id =
+                    dev_session.has_value() ? dev_session->chosenArrangementId() : std::string{},
+                .workspace_directory = options.session_workspace_directory,
+            });
+        if (!started.has_value())
+        {
+            RH_LOG_WARNING("game.session", "session start failed: {}", started.error().message);
+            std::println(stderr, "rock-hero: {}", started.error().message);
+        }
+        else
+        {
+            RH_LOG_INFO(
+                "game.session",
+                "session loading package={:?} (space starts playback once ready)",
+                options.dev_package->string());
         }
     }
 
@@ -326,6 +375,36 @@ int GameShell::run(const GameShellOptions& options)
                     }
                     break;
                 }
+                case GameKey::TogglePlayPause:
+                {
+                    if (session != nullptr)
+                    {
+                        // Play covers Ready, Paused, and Finished (restart); pause covers
+                        // Playing. Out-of-stage presses (still loading, failed) are refused by
+                        // the session and logged rather than crashing or silently retrying.
+                        const bool playing =
+                            session->stage() == core::GameplaySessionStage::Playing;
+                        const auto toggled = playing ? session->pause() : session->play();
+                        if (!toggled.has_value())
+                        {
+                            RH_LOG_WARNING(
+                                "game.session", "play/pause refused: {}", toggled.error().message);
+                        }
+                    }
+                    break;
+                }
+                case GameKey::RestartSong:
+                {
+                    if (session != nullptr)
+                    {
+                        if (const auto restarted = session->restart(); !restarted.has_value())
+                        {
+                            RH_LOG_WARNING(
+                                "game.session", "restart refused: {}", restarted.error().message);
+                        }
+                    }
+                    break;
+                }
             }
         }
 
@@ -333,9 +412,9 @@ int GameShell::run(const GameShellOptions& options)
 
         // One steady-clock stamp at the start of frame building anchors everything this frame
         // draws, and the clock snapshot is read once so every drawable shares one coherent song
-        // time. No engine lives in the game process yet — plan 21 (G21-TRACKTION-GO, closed)
-        // composes the real IPlaybackClock — so the loop consumes either an unpublished snapshot
-        // or, in dev-package mode, the session's stand-in. The sanctioned song-time path stays
+        // time. With a gameplay session the engine's real IPlaybackClock publishes the snapshot
+        // (plan 21 Phase 6); without one, dev-package mode falls back to the fixture's stand-in
+        // clock. The sanctioned song-time path stays
         // live end to end; song time never comes from wall clock or frame counts inside the loop
         // (architecture.md "Timing and Latency").
         const std::chrono::nanoseconds frame_sample_time =
@@ -347,7 +426,10 @@ int GameShell::run(const GameShellOptions& options)
         {
             std::visit(
                 DiagnosticsIntentExecutor{
-                    .dev_session = dev_session, .renderer = *renderer, .now = frame_sample_time
+                    .dev_session = dev_session,
+                    .gameplay_session = session,
+                    .renderer = *renderer,
+                    .now = frame_sample_time,
                 },
                 intent);
         }
@@ -365,7 +447,11 @@ int GameShell::run(const GameShellOptions& options)
         }
 
         common::audio::PlaybackClockSnapshot snapshot{};
-        if (dev_session.has_value())
+        if (session != nullptr)
+        {
+            snapshot = session->clock().snapshot();
+        }
+        else if (dev_session.has_value())
         {
             snapshot = dev_session->clockSnapshotAt(frame_sample_time);
         }

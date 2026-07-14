@@ -181,7 +181,24 @@ std::optional<std::size_t> DevSession::sectionBefore(const double seconds) const
     return best;
 }
 
-std::optional<common::core::HighwayViewState> DevSession::loadViewState() const
+// Exposes the target seconds so gameplay-session runs seek the engine transport rather than the
+// stand-in clock.
+std::optional<double> DevSession::sectionStartSeconds(const std::size_t section_index) const
+{
+    if (section_index >= m_sections.size())
+    {
+        return std::nullopt;
+    }
+    return m_sections[section_index].seconds;
+}
+
+// Exposes which arrangement the display chose so the gameplay session loads the same one.
+const std::string& DevSession::chosenArrangementId() const noexcept
+{
+    return m_chosen_arrangement_id;
+}
+
+std::optional<common::core::HighwayViewState> DevSession::loadViewState()
 {
     const std::expected<common::core::Song, common::core::SongPackageError> song =
         readPackage(m_package_path);
@@ -208,6 +225,9 @@ std::optional<common::core::HighwayViewState> DevSession::loadViewState() const
     }
     if (chosen != nullptr)
     {
+        // Recorded so the gameplay session loads the same arrangement the display shows.
+        m_chosen_arrangement_id = chosen->id;
+
         // Lowest-pitched string on top is the 3D notation's default (user decision 2026-07-11,
         // recorded in plan 25); the shared projection's invert flag realizes it, and plans 26/27
         // surface the per-player setting later.

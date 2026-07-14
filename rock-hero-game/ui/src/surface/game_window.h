@@ -86,6 +86,12 @@ enum class GameKey : std::uint8_t
 
     /*! \brief Page Down — seek to the next chart section. */
     SeekNextSection,
+
+    /*! \brief Space — start or pause playback when a gameplay session is active. */
+    TogglePlayPause,
+
+    /*! \brief R — instant restart from the top when a gameplay session is active. */
+    RestartSong,
 };
 
 /*! \brief Frame-relevant events observed by one \ref GameWindow::pollEvents call. */

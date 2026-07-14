@@ -12,6 +12,7 @@
 #include <rock_hero/common/audio/clock/playback_clock_snapshot.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/game/core/diagnostics/diagnostics.h>
+#include <string>
 #include <vector>
 
 namespace rock_hero::game::ui
@@ -97,11 +98,34 @@ public:
     */
     [[nodiscard]] std::optional<std::size_t> sectionBefore(double seconds) const;
 
+    /*!
+    \brief Absolute start time of one loaded section, for driving a real transport seek.
+
+    The stand-in clock's own seekToSection covers clock-only dev runs; gameplay-session runs
+    seek the engine transport instead and need the target seconds.
+
+    \param section_index Index into the loaded chart's section list.
+    \return Section start in seconds, or empty when the index is out of range.
+    */
+    [[nodiscard]] std::optional<double> sectionStartSeconds(std::size_t section_index) const;
+
+    /*!
+    \brief Id of the arrangement the fixture chose for display.
+
+    The gameplay session must load the SAME arrangement so the audible tone rig matches the
+    chart on screen (the fixture prefers a charted guitar part; sessions default to the first
+    arrangement otherwise).
+
+    \return Chosen arrangement id, or empty before a successful load.
+    */
+    [[nodiscard]] const std::string& chosenArrangementId() const noexcept;
+
 private:
     DevSession(std::filesystem::path package_path, bool lefty);
 
-    // Reads the package and projects its first charted arrangement.
-    [[nodiscard]] std::optional<common::core::HighwayViewState> loadViewState() const;
+    // Reads the package and projects its first charted arrangement; records the chosen
+    // arrangement id (non-const for exactly that reason).
+    [[nodiscard]] std::optional<common::core::HighwayViewState> loadViewState();
 
     // Rebuilds the watched-source list (directory packages watch song.json plus every chart).
     void refreshWatchedFiles();
@@ -111,6 +135,9 @@ private:
 
     std::filesystem::path m_package_path;
     bool m_lefty{false};
+
+    // Arrangement id the display projection chose; the session loads the same arrangement.
+    std::string m_chosen_arrangement_id;
 
     std::vector<std::filesystem::path> m_watched_files;
     std::vector<common::core::HighwaySectionView> m_sections;
