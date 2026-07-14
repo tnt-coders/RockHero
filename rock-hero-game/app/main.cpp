@@ -9,11 +9,21 @@
 #include <print>
 #include <rock_hero/common/audio/engine/engine.h>
 #include <rock_hero/common/core/shared/application_identity.h>
+#include <rock_hero/common/core/shared/cancellation_token.h>
+#include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/shared/logger.h>
+#include <rock_hero/game/core/library/filesystem_directory_lister.h>
+#include <rock_hero/game/core/library/library_index.h>
+#include <rock_hero/game/core/library/library_scan.h>
+#include <rock_hero/game/core/library/library_scan_roots.h>
+#include <rock_hero/game/core/library/null_album_art_generator.h>
+#include <rock_hero/game/core/library/rock_song_package_describer.h>
 #include <rock_hero/game/core/session/gameplay_session.h>
+#include <rock_hero/game/core/settings/game_settings.h>
 #include <rock_hero/game/ui/surface/game_shell.h>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace rock_hero::game::app
 {
@@ -121,6 +131,37 @@ namespace
     return std::filesystem::path{workspace_root.getFullPathName().toStdString()};
 }
 
+// Scans the song library at startup for the shell's menu: the per-user default Songs folder
+// (created on demand) plus any custom roots from settings. A fresh scan each launch is cheap
+// because the peek reader never extracts (plan 26 Phase 1); an index cache is a later optimization.
+[[nodiscard]] rock_hero::game::core::LibraryIndex scanSongLibrary()
+{
+    namespace core = rock_hero::game::core;
+    namespace common_core = rock_hero::common::core;
+
+    const std::string_view folder_name = common_core::applicationDataFolderName();
+    const std::filesystem::path app_data_directory = common_core::pathFromJuceFile(
+        juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+            .getChildFile(juce::String{folder_name.data(), folder_name.size()}));
+
+    core::GameSettings settings;
+    const std::vector<std::filesystem::path> custom_roots = settings.customScanRoots();
+    const std::vector<std::filesystem::path> roots =
+        core::resolveLibraryScanRoots(app_data_directory, custom_roots);
+
+    // Create the default Songs folder so the player has somewhere to drop packages.
+    if (!roots.empty())
+    {
+        common_core::juceFileFromPath(roots.front()).createDirectory();
+    }
+
+    core::FilesystemDirectoryLister lister;
+    core::RockSongPackageDescriber describer;
+    core::NullAlbumArtGenerator album_art_generator;
+    const common_core::CancellationToken token;
+    return core::scanLibrary(roots, lister, describer, album_art_generator, token);
+}
+
 } // namespace
 } // namespace rock_hero::game::app
 
@@ -186,6 +227,15 @@ try
     options.dev_mode = dev_mode;
     options.gameplay_session = &gameplay_session;
     options.session_workspace_directory = rock_hero::game::app::makeSessionWorkspaceDirectory();
+
+    // Normal launch scans the library and opens the song-selection menu; --dev-package keeps the
+    // direct-load development path (no menu, auto-plays the given package).
+    if (!options.dev_package.has_value())
+    {
+        options.library = rock_hero::game::app::scanSongLibrary();
+        RH_LOG_INFO("game.app", "library scan found {} songs", options.library->entries.size());
+    }
+
     const int exit_code = rock_hero::game::ui::GameShell{}.run(options);
     gameplay_session.close();
 
