@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <compare>
 #include <cstddef>
 #include <iterator>
 #include <limits>
@@ -43,8 +42,10 @@ constexpr float g_shape_label_height{10.0f};
 constexpr float g_shape_rail_height{3.0f};
 constexpr double g_shape_mark_brightness{1.5};
 // Half-angle in radians of the openings at the top and bottom of the arc pair bracketing an
-// arpeggio posture note, which make the pair read as "( fret )" parentheses.
+// arpeggio posture note, which make the pair read as "( fret )" parentheses, and the hairline
+// stroke width that keeps the brackets much lighter than the note rings they wrap.
 constexpr float g_arpeggio_bracket_gap{0.6f};
+constexpr float g_arpeggio_bracket_thickness{1.0f};
 
 // Thin JUCE-converting wrappers over the shared Charter-exact derivation (rock-hero-common/ui)
 // for the in-file call sites that derive from already-opaque colors.
@@ -773,21 +774,6 @@ void drawShapeSpan(
     }
 }
 
-// Draws a narrow vertical bar spanning the lane height at an onset, rail-width and solid so it
-// reads as one family with the horizontal span rails (a user-directed restyle of Charter's
-// wider translucent teal chord box): blue at strummed chord onsets, purple at arpeggio starts.
-void drawOnsetBar(juce::Graphics& g, const TabLaneMetrics& metrics, float x, juce::Colour color)
-{
-    g.setColour(color);
-    g.fillRect(
-        juce::Rectangle<float>{
-            x - g_shape_rail_height / 2.0f,
-            static_cast<float>(metrics.bounds.getY()),
-            g_shape_rail_height,
-            static_cast<float>(metrics.bounds.getHeight())
-        });
-}
-
 // Draws one fret-hand-position marker: a small boxed fret number along the lane's top edge.
 // This presentation is ours, not Charter's (Charter shows FHPs in a separate strip above the
 // lanes, which this single-row lane does not have); it stays deliberately unobtrusive until the
@@ -973,27 +959,9 @@ void TabView::paint(juce::Graphics& g)
         drawBendLines(g, metrics, style, note, onset_x, center_y, bend_chips);
     }
 
-    // Onset bars at strummed chord onsets: two or more notes sharing one start (Charter draws
-    // these under the heads).
-    for (std::size_t index = first; index < last; ++index)
-    {
-        const core::TabNoteView& note = m_tab->notes[index];
-        // Exact equality via is_eq/is_neq keeps -Wfloat-equal builds clean: same-onset notes
-        // carry bit-identical seconds because the projection resolves one grid position once.
-        const bool starts_group =
-            index + 1 < m_tab->notes.size() &&
-            std::is_eq(m_tab->notes[index + 1].start_seconds <=> note.start_seconds) &&
-            (index == 0 ||
-             std::is_neq(m_tab->notes[index - 1].start_seconds <=> note.start_seconds));
-        if (starts_group)
-        {
-            drawOnsetBar(g, metrics, metrics.x(note.start_seconds), shapeMarkColor(false));
-        }
-    }
-
-    // Arpeggio spans mark their start with the same bar in purple (their notes arrive
-    // sequentially, so the strummed-group rule above never marks them), plus RS-style
-    // "( fret )" bracket marks around every posture string at the bracket start.
+    // Arpeggio spans draw RS-style "( fret )" bracket marks around every posture string at the
+    // bracket start. Onsets carry no vertical bars — the heads themselves already mark them, so
+    // the span rails and these brackets are the only shape furniture (user-directed).
     for (const core::TabShapeView& shape : m_tab->shapes)
     {
         if (!shape.arpeggio || shape.start_seconds < span_start || shape.start_seconds > span_end)
@@ -1002,7 +970,6 @@ void TabView::paint(juce::Graphics& g)
         }
 
         const float start_x = metrics.x(shape.start_seconds);
-        drawOnsetBar(g, metrics, start_x, shapeMarkColor(true));
         for (const core::TabArpeggioNoteView& arpeggio_note : shape.arpeggio_notes)
         {
             // Left and right arcs just outside where a head's ring would sit, open at top and
@@ -1038,7 +1005,9 @@ void TabView::paint(juce::Graphics& g)
             g.strokePath(
                 arcs,
                 juce::PathStrokeType{
-                    border, juce::PathStrokeType::curved, juce::PathStrokeType::rounded
+                    g_arpeggio_bracket_thickness,
+                    juce::PathStrokeType::curved,
+                    juce::PathStrokeType::rounded
                 });
 
             if (!arpeggio_note.sounded && metrics.draw_text)
