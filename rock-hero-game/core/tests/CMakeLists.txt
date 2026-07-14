@@ -3,13 +3,19 @@
 find_package(Catch2 3 REQUIRED)
 include(Catch)
 
-add_executable(rock_hero_game_core_tests test_diagnostics.cpp test_frame_clock.cpp
-                                         test_game_resources.cpp test_gameplay_session.cpp)
+add_executable(
+    rock_hero_game_core_tests test_diagnostics.cpp test_frame_clock.cpp test_game_resources.cpp
+                              test_game_settings.cpp test_gameplay_session.cpp)
+
+# Shared test fakes (the null settings port) live under tests/include, mirroring editor/core.
+target_include_directories(rock_hero_game_core_tests PRIVATE include)
 
 # Tests consume the resolver through its public include form; the library under test carries the
-# public include path.
-target_link_libraries(rock_hero_game_core_tests
-                      PRIVATE rock_hero::game::core rock_hero::build_policy Catch2::Catch2WithMain)
+# public include path. juce_events supplies the ScopedJuceInitialiser_GUI guard the
+# PropertiesFile-backed settings tests need.
+target_link_libraries(
+    rock_hero_game_core_tests PRIVATE rock_hero::game::core rock_hero::build_policy
+                                      rock_hero::juce_events Catch2::Catch2WithMain)
 
 # Register the discovered Catch2 cases with CTest and forward Catch tags as CTest labels.
 catch_discover_tests(rock_hero_game_core_tests ADD_TAGS_AS_LABELS)
