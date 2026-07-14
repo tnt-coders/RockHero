@@ -14,6 +14,7 @@
 #include <rock_hero/common/core/tone/tone_automation.h>
 #include <rock_hero/common/core/tone/tone_track.h>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -29,6 +30,26 @@ enum class Part : std::uint8_t
     /*! \brief Bass guitar part. */
     Bass
 };
+
+/*!
+\brief Returns the stable song-document token for a guitar part.
+
+The one canonical wire spelling of \ref Part, shared by song.json read and write and the game
+library index so every persisted surface speaks an identical vocabulary. A new enumerator is
+encoded here once and every serializer follows, instead of each site hand-maintaining its own
+token table.
+
+\param part Guitar part to encode.
+\return The part's persisted token: `"Lead"`, `"Rhythm"`, or `"Bass"`.
+*/
+[[nodiscard]] std::string_view partToken(Part part) noexcept;
+
+/*!
+\brief Parses a song-document part token back into a \ref Part.
+\param token Persisted part token.
+\return The decoded part, or std::nullopt for an unrecognized token.
+*/
+[[nodiscard]] std::optional<Part> parsePartToken(std::string_view token) noexcept;
 
 /*!
 \brief One playable route, identified by part and numeric difficulty.

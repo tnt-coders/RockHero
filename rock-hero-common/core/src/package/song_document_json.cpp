@@ -37,25 +37,4 @@ SongMetadata readSongDocumentMetadata(const juce::var& song_document)
     };
 }
 
-// The persisted part vocabulary; unsupported tokens surface to each caller's own policy.
-std::optional<Part> parseSongDocumentPart(const std::string& text)
-{
-    if (text == "Lead")
-    {
-        return Part::Lead;
-    }
-
-    if (text == "Rhythm")
-    {
-        return Part::Rhythm;
-    }
-
-    if (text == "Bass")
-    {
-        return Part::Bass;
-    }
-
-    return std::nullopt;
-}
-
 } // namespace rock_hero::common::core

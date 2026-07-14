@@ -66,7 +66,7 @@ void describeArrangement(
 
     const std::string part_text =
         Json::tryReadString(arrangement_json, "part").value_or(std::string{});
-    arrangement.part = parseSongDocumentPart(part_text);
+    arrangement.part = parsePartToken(part_text);
     if (!arrangement.part.has_value())
     {
         description.warnings.emplace_back(

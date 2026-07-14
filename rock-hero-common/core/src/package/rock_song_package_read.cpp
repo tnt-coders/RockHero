@@ -718,7 +718,7 @@ readToneAutomation(const juce::var& arrangement_json, const TempoMap& tempo_map)
             }};
         }
 
-        const auto part = parseSongDocumentPart(*part_text);
+        const auto part = parsePartToken(*part_text);
         if (!part.has_value())
         {
             return std::unexpected{SongPackageError{

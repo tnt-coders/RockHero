@@ -11,10 +11,8 @@ so the shared walks live here instead of diverging copies.
 
 #include <expected>
 #include <juce_core/juce_core.h>
-#include <optional>
 #include <rock_hero/common/core/package/song_package_error.h>
 #include <rock_hero/common/core/song/song.h>
-#include <string>
 
 namespace rock_hero::common::core
 {
@@ -37,12 +35,5 @@ tolerance/migration ladder; no other call site may test the version.
 \return Parsed metadata; blank fields when the metadata object is absent.
 */
 [[nodiscard]] SongMetadata readSongDocumentMetadata(const juce::var& song_document);
-
-/*!
-\brief Parses an arrangement part token from song.json.
-\param text Persisted part token.
-\return The part, or empty for an unsupported token.
-*/
-[[nodiscard]] std::optional<Part> parseSongDocumentPart(const std::string& text);
 
 } // namespace rock_hero::common::core
