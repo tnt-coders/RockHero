@@ -36,8 +36,9 @@ enum class PlaybackFollowStyle
 
     /*!
     \brief Fixed-cursor smooth scrolling: the cursor pins at a fraction of the view and the
-    content scrolls continuously past it, rhythm-game style. Spike mode for the deferred
-    evaluation in docs/todo/smooth-scroll-follow-evaluation.md.
+    content scrolls continuously past it, rhythm-game style. Adopted mode, currently the
+    integer-pixel spike; docs/roadmap/51-smooth-scroll-camera.md replaces it with the
+    time-space camera implementation.
     */
     SmoothScroll,
 };

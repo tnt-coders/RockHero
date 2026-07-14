@@ -960,8 +960,9 @@ juce::PopupMenu EditorView::getMenuForIndex(int top_level_menu_index, const juce
             m_state.waveform_visible);
         menu.addItem(
             g_show_undo_history_command, "Undo History", true, m_undo_history_overlay.isVisible());
-        // Unpersisted evaluation spike (docs/todo/smooth-scroll-follow-evaluation.md): pins the
-        // playback cursor and scrolls the content instead of the shifted-window follow.
+        // Unpersisted toggle for the adopted smooth-scroll follow, spike-grade until
+        // docs/roadmap/51-smooth-scroll-camera.md lands: pins the playback cursor and scrolls
+        // the content instead of the shifted-window follow.
         menu.addItem(
             g_smooth_follow_command,
             "Smooth Scroll Follow",
