@@ -46,6 +46,19 @@ public:
     /*! \brief Called when the settings window reaches a final close path. */
     using ClosedCallback = std::function<void()>;
 
+    /*! \brief Called with the requested value when the "use game audio settings" toggle changes. */
+    using GameAudioSettingsChangedCallback = std::function<void(bool)>;
+
+    /*! \brief Resolved "use game audio settings" toggle and game-availability state at open. */
+    struct GameAudioSettings final
+    {
+        /*! \brief True when the toggle is on and the panel opens read-only. */
+        bool use_game_settings{false};
+
+        /*! \brief True when a calibrated game audio configuration exists to reflect. */
+        bool game_source_available{false};
+    };
+
     /*!
     \brief Opens the modal window around the top-level component that owns the launcher.
     \param audio_devices Audio-device configuration backend; must outlive the window.
@@ -53,11 +66,15 @@ public:
     \param dispatcher Optional operation hook supplied by the editor composition layer; receives
            device-manager work plus a post-clear continuation.
     \param closed_callback Called when the window reaches a final close path.
+    \param game_settings Resolved "use game audio settings" toggle/availability state at open.
+    \param on_game_settings_changed Called when the user changes the toggle inside the window.
     \return The opened window. The caller owns it and should clear it from the close callback.
     */
     [[nodiscard]] static std::unique_ptr<juce::DocumentWindow> show(
         common::audio::IAudioDeviceConfiguration& audio_devices, juce::Component& anchor,
-        Dispatcher dispatcher = {}, ClosedCallback closed_callback = {});
+        Dispatcher dispatcher = {}, ClosedCallback closed_callback = {},
+        GameAudioSettings game_settings = {},
+        GameAudioSettingsChangedCallback on_game_settings_changed = {});
 
 private:
     AudioDeviceSettingsWindow() = default;

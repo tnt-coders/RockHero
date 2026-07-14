@@ -261,6 +261,25 @@ struct EditorViewState
     bool audio_device_settings_enabled{true};
 
     /*!
+    \brief True when the editor sources the game's audio configuration (resolved toggle).
+
+    Resolves the persisted "use game settings" toggle through its first-run default, so it reads the
+    ON default until the user first flips it. When true both the device settings window and the
+    calibration window render as read-only reflections of the game's configuration.
+    */
+    bool use_game_audio_settings{true};
+
+    /*!
+    \brief True when a calibrated game audio configuration exists to be adopted.
+
+    Calibration-aware, not device-presence: false whenever the game has no saved audio setup or its
+    recorded route has no matching calibration. When \ref use_game_audio_settings is true but this is
+    false the editor stays on its own route and the UI surfaces the unconfigured-game guidance with a
+    one-action opt-out instead of an inert read-only panel.
+    */
+    bool game_audio_source_available{false};
+
+    /*!
     \brief Visible timeline range used to map cursor position and waveform content to pixels.
     */
     common::core::TimeRange visible_timeline{};

@@ -33,13 +33,27 @@ public:
     \param live_input Optional live input meter source sampled while the popup is open.
     \param prompt Controller-derived prompt data used to seed display state.
     \param centering_component Optional component used to position the window.
+    \param read_only_game_reflection True when the editor sources the game's audio configuration, so
+           the window shows the game's calibration value read-only with an explanatory notice and no
+           measure action (plan 48 P2). False runs the full editable strum-to-calibrate flow.
     */
     InputCalibrationWindow(
         core::IEditorController& controller, const common::audio::ILiveInput* live_input,
-        const core::InputCalibrationPrompt& prompt, juce::Component* centering_component);
+        const core::InputCalibrationPrompt& prompt, juce::Component* centering_component,
+        bool read_only_game_reflection);
 
     /*! \brief Forwards the close request to the controller and hides the window. */
     void closeButtonPressed() override;
+
+    /*!
+    \brief Re-scopes the window between the editable flow and the read-only game reflection.
+
+    Lets one toggle govern both surfaces: when the "use game audio settings" toggle flips while this
+    window is open, the editor re-scopes it live to match the device settings window.
+
+    \param read_only_game_reflection True for the read-only game reflection, false for editing.
+    */
+    void setReadOnlyGameReflection(bool read_only_game_reflection);
 
 private:
     // Popup content is private to the implementation file.

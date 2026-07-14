@@ -7,7 +7,7 @@
 #include "editor_action_availability.h"
 #include "editor_controller_impl.h"
 #include "editor_undo_history.h"
-#include "input_calibration/input_calibration_text.h"
+#include "input_calibration/input_calibration_projection.h"
 #include "project/gp_song_importer.h"
 #include "project/project_io.h"
 #include "project/rock_song_importer.h"
@@ -895,6 +895,11 @@ void EditorController::onOpenPluginRequested(std::string instance_id)
     m_impl->onOpenPluginRequested(std::move(instance_id));
 }
 
+void EditorController::onUseGameAudioSettingsChangeRequested(bool enabled)
+{
+    m_impl->onUseGameAudioSettingsChangeRequested(enabled);
+}
+
 void EditorController::onInputCalibrationRequested()
 {
     m_impl->onInputCalibrationRequested();
@@ -989,6 +994,7 @@ EditorController::Impl::Impl(
           exit_function ? std::move(exit_function) : EditorController::ExitFunction{defaultExit})
     , m_settings(services.settings)
     , m_audio_config_store(services.audio_config_store)
+    , m_effective_audio_source(services.effective_audio_source)
     , m_live_input_monitor(services.live_input_monitor)
     , m_busy(services.message_thread_scheduler, [this] { updateView(); })
     , m_task_runner(services.task_runner)
@@ -1051,6 +1057,7 @@ EditorController::Impl::Impl(
         common::audio::IAudioDeviceConfiguration,
         common::audio::IAudioDeviceConfiguration::Listener>>(m_audio_devices, self_as_listener);
     static_cast<void>(m_live_input_monitor.refresh(monitoringContext()));
+    refreshGameSourceAvailability();
     m_last_state = deriveViewState();
 }
 
@@ -1443,6 +1450,9 @@ bool EditorController::Impl::onAudioDeviceSettingsOpenRequested()
     }
 
     m_live_input_monitor.openAudioDeviceSettings();
+    // Refresh availability so the panel that is about to open distinguishes the read-only game
+    // reflection from the unconfigured-game guidance against the game's current file state.
+    refreshGameSourceAvailability();
     updateView();
     return true;
 }
@@ -1451,6 +1461,40 @@ bool EditorController::Impl::onAudioDeviceSettingsOpenRequested()
 void EditorController::Impl::onAudioDeviceSettingsClosed()
 {
     static_cast<void>(m_live_input_monitor.closeAudioDeviceSettings(monitoringContext()));
+    updateView();
+}
+
+// Persists the "use game audio settings" toggle, then re-selects the effective read source and
+// re-applies the resulting route to the editor engine. This is the toggle side-effect the plan 48
+// "Separate State From Side Effects" split keeps in the controller: the facade flip and the
+// write-routing are pure state on the facade; adopting the game's (on) or restoring the editor's own
+// (off) serialized device state is the message-thread side effect that lives here. Enabling with no
+// calibrated game configuration still persists the choice but leaves the editor on its own route so
+// the user is never stranded on a dead source. persistAudioDeviceState stays suppressed while the
+// game source is active because the facade's route setter no-ops in that state.
+void EditorController::Impl::refreshGameSourceAvailability()
+{
+    m_game_source_available =
+        m_effective_audio_source != nullptr && m_effective_audio_source->gameSourceAvailable();
+}
+
+void EditorController::Impl::onUseGameAudioSettingsChangeRequested(bool enabled)
+{
+    recordSettingsResultBestEffort(
+        m_settings.setUseGameAudioSettings(enabled), "persist use-game-audio-settings toggle");
+
+    if (m_effective_audio_source != nullptr)
+    {
+        refreshGameSourceAvailability();
+        const bool source_game = enabled && m_game_source_available;
+        m_effective_audio_source->useGameSource(source_game);
+        // restoreAudioDeviceState reads the active route through the facade, so it now applies the
+        // game's route (on) or the editor's own route (off) to the engine, keeping the live device
+        // and the selected source in agreement in both directions.
+        restoreAudioDeviceState();
+        static_cast<void>(m_live_input_monitor.refresh(monitoringContext()));
+    }
+
     updateView();
 }
 
@@ -1798,15 +1842,15 @@ void EditorController::Impl::performActionImpl(EditorAction::SetGridNoteValue ac
 // Collects availability inputs using fresh controller snapshots for immediate action gates.
 ActionConditions EditorController::Impl::currentActionConditions() const
 {
-    const InputCalibrationViewSlice input_calibration =
-        makeInputCalibrationViewState(m_live_input_monitor, monitoringContext());
+    const InputCalibrationProjection input_calibration =
+        makeInputCalibrationProjection(m_live_input_monitor, monitoringContext());
 
     return currentActionConditions(input_calibration, m_transport.state());
 }
 
 // Reuses already-sampled view projection state so enabled flags share one availability snapshot.
 ActionConditions EditorController::Impl::currentActionConditions(
-    const InputCalibrationViewSlice& input_calibration,
+    const InputCalibrationProjection& input_calibration,
     const common::audio::TransportState& transport_state) const
 {
     const std::optional<BusyViewState> busy = m_busy.viewState();
@@ -1945,8 +1989,8 @@ EditorViewState EditorController::Impl::deriveViewState() const
 {
     const common::audio::TransportState transport_state = m_transport.state();
     const common::core::TimeRange timeline_range = session().timeline();
-    const InputCalibrationViewSlice input_calibration =
-        makeInputCalibrationViewState(m_live_input_monitor, monitoringContext());
+    const InputCalibrationProjection input_calibration =
+        makeInputCalibrationProjection(m_live_input_monitor, monitoringContext());
     const ActionConditions action_conditions =
         currentActionConditions(input_calibration, transport_state);
 
@@ -1984,6 +2028,8 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.audio_devices_available = true;
     state.audio_device_settings_enabled = input_calibration.audio_device_settings_enabled;
     state.audio_device_status_text = audioDeviceStatusText(m_audio_devices.currentDeviceStatus());
+    state.use_game_audio_settings = useGameAudioSettingsOrDefault(m_settings);
+    state.game_audio_source_available = m_game_source_available;
     state.visible_timeline = timeline_range;
     state.tempo_map = session().song().tempo_map;
     state.grid_note_value = m_grid_note_value;

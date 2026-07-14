@@ -167,6 +167,7 @@ public:
                 .message_thread_scheduler = *m_message_thread_scheduler,
                 .audio_config_store = *m_effective_audio_config_store,
                 .live_input_monitor = *m_live_input_monitor,
+                .effective_audio_source = m_effective_audio_config_store.get(),
             },
             &juce::JUCEApplicationBase::quit);
 
