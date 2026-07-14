@@ -526,17 +526,16 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
 
         m_device_manager.closeAudioDevice();
         m_restore_pending = false;
-        // JUCE's raw setup error for an uninitialized driver is backend text (for ASIO literally
-        // "Driver failed to initialise"), which would present the unavailable condition with a
-        // second wording -- and a non-American spelling -- right next to the standing unavailable
-        // notice. When the staged preview device confirms the failed driver init, report the one
-        // canonical message instead; every other apply failure keeps JUCE's specific diagnostic.
-        const bool staged_device_unavailable =
-            m_staged_device != nullptr && m_staged_device->getLastError().isNotEmpty();
+        // When the staged preview device confirms the failed driver init, report the composed
+        // canonical message (base text plus the backend's own detail) so the OK failure reads
+        // identically to the window's standing unavailable notice. Every other apply failure keeps
+        // JUCE's raw setup diagnostic, where the specific text is genuinely more informative.
+        const std::optional<std::string> staged_device_error =
+            stagedDeviceErrorDetail(m_staged_device.get());
         AudioDeviceSettingsError error{
             AudioDeviceSettingsErrorCode::ApplyFailed,
-            staged_device_unavailable ? std::string{g_device_unavailable_message}
-                                      : error_text.toStdString()
+            staged_device_error.has_value() ? deviceUnavailableMessage(staged_device_error)
+                                            : error_text.toStdString()
         };
         refreshState(error.message);
         return std::unexpected{std::move(error)};
@@ -576,10 +575,10 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
     // has already loaded the driver to populate the staged device's capability set.
     [[nodiscard]] std::expected<void, AudioDeviceSettingsError> openControlPanel()
     {
-        // staged_device_unavailable joins the guard because a failed-init driver's
-        // showControlPanel() is a silent no-op; erroring here keeps a raced click (state refresh
-        // pending) from doing visibly nothing.
-        if (!m_state.control_panel_supported || m_state.staged_device_unavailable ||
+        // staged_device_error joins the guard because a failed-init driver's showControlPanel()
+        // is a silent no-op; erroring here keeps a raced click (state refresh pending) from doing
+        // visibly nothing.
+        if (!m_state.control_panel_supported || m_state.staged_device_error.has_value() ||
             m_staged_device == nullptr)
         {
             AudioDeviceSettingsError error{AudioDeviceSettingsErrorCode::ControlPanelUnavailable};
@@ -971,6 +970,35 @@ private:
                                           : device->getCurrentBufferSizeSamples());
     }
 
+    // Maps the staged preview device's construction-time error into the state's unavailable
+    // detail. ASIO exposes no structured failure cause -- init() returns a bare bool, and the only
+    // detail is the vendor-authored getErrorMessage() text -- so the backend's own words are the
+    // truest cause available. JUCE substitutes the placeholder "Driver failed to initialise" when
+    // a failed init supplies no vendor message (juce_ASIO_windows.cpp initDriver); the placeholder
+    // carries no information beyond the failure itself, so it maps to engaged-but-empty detail and
+    // the composed message stays at its base form.
+    [[nodiscard]] static std::optional<std::string> stagedDeviceErrorDetail(
+        juce::AudioIODevice* staged_device)
+    {
+        if (staged_device == nullptr)
+        {
+            return std::nullopt;
+        }
+
+        const juce::String last_error = staged_device->getLastError();
+        if (last_error.isEmpty())
+        {
+            return std::nullopt;
+        }
+
+        if (last_error == "Driver failed to initialise")
+        {
+            return std::string{};
+        }
+
+        return last_error.toStdString();
+    }
+
     // Derives capability flags from the staged preview device. The settings edit keeps the
     // active device closed, so capability gating is based on what the staged device (the loaded
     // driver object behind the user's current selection) reports, not on the now-closed active
@@ -983,13 +1011,12 @@ private:
     // hasControlPanel() is unconditionally true, showControlPanel() checks asioObject, and a
     // failed constructor-time openDevice() leaves getLastError() non-empty). The staged preview
     // device is never stream-opened, so a non-empty last error means exactly that failed init;
-    // it is surfaced as staged_device_unavailable so the control panel can gray out honestly.
+    // it is surfaced as staged_device_error so the control panel can gray out honestly.
     void refreshCapabilities(AudioDeviceSettingsState& next_state) const
     {
         next_state.control_panel_supported =
             m_staged_device != nullptr && m_staged_device->hasControlPanel();
-        next_state.staged_device_unavailable =
-            m_staged_device != nullptr && m_staged_device->getLastError().isNotEmpty();
+        next_state.staged_device_error = stagedDeviceErrorDetail(m_staged_device.get());
     }
 
     // Clears route and format fields whose choices depend on the selected device.

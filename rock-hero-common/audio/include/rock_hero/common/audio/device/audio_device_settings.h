@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <expected>
 #include <memory>
+#include <optional>
 #include <rock_hero/common/audio/device/i_audio_device_configuration.h>
 #include <string>
 #include <string_view>
@@ -17,15 +18,35 @@ namespace rock_hero::common::audio
 {
 
 /*!
-\brief User-facing message for a staged device whose driver failed to initialize.
+\brief User-facing base message for a staged device whose driver failed to initialize.
 
 The single source for every surface that reports the condition -- the settings window's standing
 notice, the apply-failure diagnostic, and the disabled control panel tooltip -- so the same fact
-never appears with two different wordings (or with a backend's non-American spelling).
+never appears with two different wordings. Compose the full message with
+deviceUnavailableMessage(), which appends the backend's own detail when one exists.
 */
 inline constexpr std::string_view g_device_unavailable_message{
-    "The selected device is unavailable (not connected or in use by another application)"
+    "The selected audio device is unavailable"
 };
+
+/*!
+\brief Composes the user-facing unavailable-device message.
+
+\param backend_detail Backend-reported detail from AudioDeviceSettingsState::staged_device_error.
+\return The base message, extended with ": <detail>" when the backend supplied usable detail.
+*/
+[[nodiscard]] inline std::string deviceUnavailableMessage(
+    const std::optional<std::string>& backend_detail)
+{
+    std::string message{g_device_unavailable_message};
+    if (backend_detail.has_value() && !backend_detail->empty())
+    {
+        message += ": ";
+        message += *backend_detail;
+    }
+
+    return message;
+}
 
 /*! \brief Stable failure codes for audio-device settings operations. */
 enum class AudioDeviceSettingsErrorCode : std::uint8_t
@@ -147,14 +168,16 @@ struct AudioDeviceSettingsState
     bool control_panel_supported{};
 
     /*!
-    \brief True when the staged selection's driver failed to initialize.
+    \brief The staged selection's driver-init failure, absent while the device is available.
 
-    Set when the staged preview device reports a non-empty last error from its construction-time
-    driver init (for ASIO: hardware not connected, or the device held by another application).
-    Such a driver still claims a control panel but silently shows nothing, so presentation should
-    treat the device -- and its control panel -- as unavailable until the hardware returns.
+    Engaged when the staged preview device reports a non-empty last error from its
+    construction-time driver init (for ASIO: hardware not connected, or the device held by another
+    application). Such a driver still claims a control panel but silently shows nothing, so
+    presentation should treat the device -- and its control panel -- as unavailable until the
+    hardware returns. Holds the backend's own error text for deviceUnavailableMessage(), or an
+    empty string when the backend supplied no usable detail.
     */
-    bool staged_device_unavailable{};
+    std::optional<std::string> staged_device_error{};
 
     /*! \brief Last operation error to display, or empty when no error is active. */
     std::string error_message{};

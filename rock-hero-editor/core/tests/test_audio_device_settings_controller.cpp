@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <optional>
 #include <rock_hero/editor/core/audio_device/audio_device_settings_controller.h>
+#include <string>
 #include <vector>
 
 namespace rock_hero::editor::core
@@ -572,7 +573,7 @@ TEST_CASE(
     "[core][audio-device-settings]")
 {
     FakeAudioDeviceSettings settings;
-    settings.current_state.staged_device_unavailable = true;
+    settings.current_state.staged_device_error = std::string{};
     AudioDeviceSettingsController controller{settings};
     FakeAudioDeviceSettingsView view;
     controller.attachView(view);
@@ -582,7 +583,7 @@ TEST_CASE(
     CHECK(settings.control_panel_call_count == 0);
     // The unavailability also reaches the view state so the button can gray out with its tooltip.
     CHECK(view.last_state.control_panel_supported);
-    CHECK(view.last_state.staged_device_unavailable);
+    CHECK(view.last_state.staged_device_error.has_value());
 }
 
 } // namespace rock_hero::editor::core

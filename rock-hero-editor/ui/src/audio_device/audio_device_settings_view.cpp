@@ -1,7 +1,9 @@
 #include "audio_device_settings_view.h"
 
 #include <algorithm>
+#include <optional>
 #include <rock_hero/common/audio/device/audio_device_settings.h>
+#include <string>
 #include <utility>
 
 namespace rock_hero::editor::ui
@@ -34,14 +36,12 @@ constexpr const char* g_game_settings_tooltip{"Derived from game settings"};
 
 // Shown when the selected device's driver failed to initialize: as the disabled control panel
 // button's tooltip, and as the standing notice in the error label (so a toggle-driven re-open that
-// lands on an unavailable device explains itself instead of finishing silently). The text is the
-// shared canonical message so it matches the apply-failure diagnostic word for word.
-[[nodiscard]] juce::String deviceUnavailableText()
+// lands on an unavailable device explains itself instead of finishing silently). Composed through
+// the shared canonical helper so it matches the apply-failure diagnostic word for word, including
+// the backend's own detail when one exists.
+[[nodiscard]] juce::String deviceUnavailableText(const std::optional<std::string>& backend_detail)
 {
-    return juce::String{
-        common::audio::g_device_unavailable_message.data(),
-        common::audio::g_device_unavailable_message.size()
-    };
+    return juce::String{common::audio::deviceUnavailableMessage(backend_detail).c_str()};
 }
 
 // Returns the vertical space occupied by a visible form row set.
@@ -352,6 +352,9 @@ void AudioDeviceSettingsView::configureControls()
     m_sample_rate_combo.setComponentID("audio_settings_sample_rate");
     m_buffer_size_combo.setComponentID("audio_settings_buffer_size");
     m_error_label.setComponentID("audio_settings_error");
+    // Backend detail can make the unavailable notice long; truncate with an ellipsis rather than
+    // letting the label compress the glyphs to fit.
+    m_error_label.setMinimumHorizontalScale(1.0F);
     m_control_panel_button.setComponentID("audio_settings_control_panel_button");
     m_ok_button.setComponentID("audio_settings_ok_button");
     m_cancel_button.setComponentID("audio_settings_cancel_button");
@@ -509,7 +512,7 @@ void AudioDeviceSettingsView::applyStateToControls()
     // another application), whose panel request would silently show nothing.
     m_control_panel_button.setVisible(m_state.control_panel_supported);
     m_control_panel_button.setEnabled(
-        !m_applying && m_state.control_panel_supported && !m_state.staged_device_unavailable);
+        !m_applying && m_state.control_panel_supported && !m_state.staged_device_error.has_value());
     // OK stays enabled while the game source is active even though the fields are locked: there it
     // just closes the window like Cancel (there is nothing to apply), so it must not look dead.
     m_ok_button.setEnabled(!m_applying && (m_state.ok_enabled || gameSettingsLockActive()));
@@ -534,18 +537,19 @@ void AudioDeviceSettingsView::applyStateToControls()
     // opens the driver's external panel regardless of the game lock, so that explanation would be
     // misleading here. Its only tooltip explains the unavailable-device disable.
     m_control_panel_button.setTooltip(
-        m_state.control_panel_supported && m_state.staged_device_unavailable
-            ? deviceUnavailableText()
+        m_state.control_panel_supported && m_state.staged_device_error.has_value()
+            ? deviceUnavailableText(m_state.staged_device_error)
             : juce::String{});
 
     // The error label doubles as the standing unavailable-device notice. A transient operation
     // error is the more specific diagnostic and takes precedence; otherwise an unavailable staged
     // device explains itself here, so opening the window on -- or re-opening toward -- a
     // disconnected device never finishes silently.
-    const juce::String error_text =
-        !m_state.error_message.empty()
-            ? juce::String{m_state.error_message.c_str()}
-            : (m_state.staged_device_unavailable ? deviceUnavailableText() : juce::String{});
+    const juce::String error_text = !m_state.error_message.empty()
+                                        ? juce::String{m_state.error_message.c_str()}
+                                    : m_state.staged_device_error.has_value()
+                                        ? deviceUnavailableText(m_state.staged_device_error)
+                                        : juce::String{};
     m_error_label.setText(error_text, juce::dontSendNotification);
 }
 
