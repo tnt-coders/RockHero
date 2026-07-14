@@ -1,24 +1,23 @@
-#include "input_calibration/input_calibration_workflow.h"
-
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <optional>
+#include <rock_hero/common/audio/input/input_calibration_workflow.h>
 #include <string>
 #include <utility>
 
-namespace rock_hero::editor::core
+namespace rock_hero::common::audio
 {
 
 namespace
 {
 
 // Builds a physical input identity with defaults that represent one stable ASIO route.
-[[nodiscard]] common::audio::InputDeviceIdentity makeIdentity(
+[[nodiscard]] InputDeviceIdentity makeIdentity(
     std::string backend_name = "ASIO", std::string input_device_name = "Interface A",
     int input_channel_index = 0, std::string input_channel_name = "Input 1")
 {
-    return common::audio::InputDeviceIdentity{
+    return InputDeviceIdentity{
         .backend_name = std::move(backend_name),
         .input_device_name = std::move(input_device_name),
         .input_channel_index = input_channel_index,
@@ -28,7 +27,7 @@ namespace
 
 // Builds controller context where arrangement audio is loaded and live input may be calibrated.
 [[nodiscard]] InputCalibrationWorkflow::Context readyContext(
-    std::optional<common::audio::InputDeviceIdentity> identity)
+    std::optional<InputDeviceIdentity> identity)
 {
     return InputCalibrationWorkflow::Context{
         .project_audio_ready = true,
@@ -38,11 +37,11 @@ namespace
 }
 
 // Builds a saved calibration state for route-matching workflow tests.
-[[nodiscard]] common::audio::InputCalibrationState calibrationFor(
-    const common::audio::InputDeviceIdentity& identity, double gain_db = 4.0)
+[[nodiscard]] InputCalibrationState calibrationFor(
+    const InputDeviceIdentity& identity, double gain_db = 4.0)
 {
-    return common::audio::InputCalibrationState{
-        .calibration_gain = common::audio::Gain{gain_db},
+    return InputCalibrationState{
+        .calibration_gain = Gain{gain_db},
         .input_device_identity = identity,
     };
 }
@@ -57,15 +56,15 @@ namespace
 } // namespace
 
 // Invalid persisted calibration should not attach to a newly detected input route.
-TEST_CASE("Input calibration workflow ignores invalid saved identity", "[core][workflow]")
+TEST_CASE("Input calibration workflow ignores invalid saved identity", "[audio][workflow]")
 {
     InputCalibrationWorkflow workflow;
-    const common::audio::InputDeviceIdentity identity = makeIdentity();
+    const InputDeviceIdentity identity = makeIdentity();
 
     const InputCalibrationWorkflow::Effects effects = workflow.syncCommittedInputDeviceIdentity(
         identity,
-        common::audio::InputCalibrationState{
-            .calibration_gain = common::audio::Gain{3.0},
+        InputCalibrationState{
+            .calibration_gain = Gain{3.0},
             .input_device_identity = {},
         });
 
@@ -74,28 +73,29 @@ TEST_CASE("Input calibration workflow ignores invalid saved identity", "[core][w
 }
 
 // Startup restore should make a matching saved calibration immediately available.
-TEST_CASE("Input calibration workflow preserves matching startup calibration", "[core][workflow]")
+TEST_CASE("Input calibration workflow preserves matching startup calibration", "[audio][workflow]")
 {
     InputCalibrationWorkflow workflow;
-    const common::audio::InputDeviceIdentity identity = makeIdentity();
+    const InputDeviceIdentity identity = makeIdentity();
 
     const InputCalibrationWorkflow::Effects effects =
         workflow.syncCommittedInputDeviceIdentity(identity, calibrationFor(identity, 5.0));
 
     CHECK(effects.empty());
     CHECK(workflow.calibrationMatches(identity));
-    const InputCalibrationWorkflow::Snapshot snapshot = workflow.snapshot(readyContext(identity));
-    CHECK(snapshot.status == InputCalibrationStatus::Calibrated);
-    CHECK(snapshot.live_input_audition_available);
+    const LiveInputMonitoringStatus monitoring =
+        workflow.evaluateMonitoring(readyContext(identity));
+    CHECK(monitoring.state == LiveInputMonitoringState::Active);
+    CHECK(monitoring.reason == MonitoringDisabledReason::None);
+    CHECK(workflow.backendAvailable());
 }
 
 // Physical channels may be renamed by the OS while still representing the same input route.
-TEST_CASE("Input calibration workflow accepts renamed physical channel", "[core][workflow]")
+TEST_CASE("Input calibration workflow accepts renamed physical channel", "[audio][workflow]")
 {
     InputCalibrationWorkflow workflow;
-    const common::audio::InputDeviceIdentity saved_identity =
-        makeIdentity("ASIO", "Interface A", 0, "Input 1");
-    const common::audio::InputDeviceIdentity current_identity =
+    const InputDeviceIdentity saved_identity = makeIdentity("ASIO", "Interface A", 0, "Input 1");
+    const InputDeviceIdentity current_identity =
         makeIdentity("ASIO", "Interface A", 0, "Mic/Inst 1");
 
     REQUIRE(
@@ -118,12 +118,11 @@ TEST_CASE("Input calibration workflow accepts renamed physical channel", "[core]
 
 // Switching to a different unsaved route clears prompt and measurement state together.
 TEST_CASE(
-    "Input calibration workflow clears active state on unsaved route change", "[core][workflow]")
+    "Input calibration workflow clears active state on unsaved route change", "[audio][workflow]")
 {
     InputCalibrationWorkflow workflow;
-    const common::audio::InputDeviceIdentity initial_identity = makeIdentity();
-    const common::audio::InputDeviceIdentity next_identity =
-        makeIdentity("Windows Audio", "Interface B");
+    const InputDeviceIdentity initial_identity = makeIdentity();
+    const InputDeviceIdentity next_identity = makeIdentity("Windows Audio", "Interface B");
     REQUIRE(workflow
                 .syncCommittedInputDeviceIdentity(
                     initial_identity, calibrationFor(initial_identity, 4.0))
@@ -141,18 +140,18 @@ TEST_CASE(
     CHECK_FALSE(workflow.activeCalibrationState().has_value());
     CHECK_FALSE(workflow.promptVisible());
     CHECK_FALSE(workflow.hasActiveMeasurement());
-    CHECK(
-        workflow.snapshot(readyContext(next_identity)).status ==
-        InputCalibrationStatus::MissingCalibration);
+    const LiveInputMonitoringStatus monitoring =
+        workflow.evaluateMonitoring(readyContext(next_identity));
+    CHECK(monitoring.state == LiveInputMonitoringState::Disabled);
+    CHECK(monitoring.reason == MonitoringDisabledReason::MissingCalibration);
 }
 
 // Switching routes should adopt the saved calibration supplied for the new route.
-TEST_CASE("Input calibration workflow selects saved state on route change", "[core][workflow]")
+TEST_CASE("Input calibration workflow selects saved state on route change", "[audio][workflow]")
 {
     InputCalibrationWorkflow workflow;
-    const common::audio::InputDeviceIdentity initial_identity = makeIdentity();
-    const common::audio::InputDeviceIdentity next_identity =
-        makeIdentity("Windows Audio", "Interface B");
+    const InputDeviceIdentity initial_identity = makeIdentity();
+    const InputDeviceIdentity next_identity = makeIdentity("Windows Audio", "Interface B");
     REQUIRE(workflow
                 .syncCommittedInputDeviceIdentity(
                     initial_identity, calibrationFor(initial_identity, 4.0))
@@ -174,12 +173,11 @@ TEST_CASE("Input calibration workflow selects saved state on route change", "[co
 
 // Returning to a route should restore its matching saved calibration.
 TEST_CASE(
-    "Input calibration workflow restores saved state when returning to route", "[core][workflow]")
+    "Input calibration workflow restores saved state when returning to route", "[audio][workflow]")
 {
     InputCalibrationWorkflow workflow;
-    const common::audio::InputDeviceIdentity initial_identity = makeIdentity();
-    const common::audio::InputDeviceIdentity next_identity =
-        makeIdentity("Windows Audio", "Interface B");
+    const InputDeviceIdentity initial_identity = makeIdentity();
+    const InputDeviceIdentity next_identity = makeIdentity("Windows Audio", "Interface B");
     REQUIRE(workflow
                 .syncCommittedInputDeviceIdentity(
                     initial_identity, calibrationFor(initial_identity, 4.0))
@@ -204,10 +202,11 @@ TEST_CASE(
 }
 
 // Settings dialogs may briefly report no route; that should not erase current calibration.
-TEST_CASE("Input calibration workflow ignores transient null route in settings", "[core][workflow]")
+TEST_CASE(
+    "Input calibration workflow ignores transient null route in settings", "[audio][workflow]")
 {
     InputCalibrationWorkflow workflow;
-    const common::audio::InputDeviceIdentity identity = makeIdentity();
+    const InputDeviceIdentity identity = makeIdentity();
     REQUIRE(
         workflow.syncCommittedInputDeviceIdentity(identity, calibrationFor(identity, 4.0)).empty());
 
@@ -220,17 +219,21 @@ TEST_CASE("Input calibration workflow ignores transient null route in settings",
         open_effects, InputCalibrationWorkflow::Effect::DisableCalibrationInputMonitoring));
     CHECK(effects.empty());
     CHECK(workflow.calibrationMatches(identity));
-    const InputCalibrationWorkflow::Snapshot snapshot = workflow.snapshot(readyContext(identity));
-    CHECK(snapshot.status == InputCalibrationStatus::Calibrated);
-    CHECK_FALSE(snapshot.live_input_audition_available);
-    CHECK_FALSE(snapshot.audio_device_settings_enabled);
+    CHECK(workflow.audioDeviceSettingsOpen());
+    // With settings open the ordered gate stops at the settings early-out even though the route
+    // stays calibrated.
+    const LiveInputMonitoringStatus monitoring =
+        workflow.evaluateMonitoring(readyContext(identity));
+    CHECK(monitoring.state == LiveInputMonitoringState::Disabled);
+    CHECK(monitoring.reason == MonitoringDisabledReason::AudioDeviceSettingsOpen);
 }
 
 // Temporary route loss should stop prompt/measurement state but preserve saved calibration.
-TEST_CASE("Input calibration workflow preserves calibration through route loss", "[core][workflow]")
+TEST_CASE(
+    "Input calibration workflow preserves calibration through route loss", "[audio][workflow]")
 {
     InputCalibrationWorkflow workflow;
-    const common::audio::InputDeviceIdentity identity = makeIdentity();
+    const InputDeviceIdentity identity = makeIdentity();
     REQUIRE(
         workflow.syncCommittedInputDeviceIdentity(identity, calibrationFor(identity, 4.0)).empty());
     REQUIRE(workflow.requestPrompt(readyContext(identity)));
@@ -253,35 +256,32 @@ TEST_CASE("Input calibration workflow preserves calibration through route loss",
         CHECK_THAT(calibration_state->calibration_gain.db, Catch::Matchers::WithinULP(4.0, 0));
     }
     CHECK(
-        workflow.snapshot(readyContext(std::nullopt)).status ==
-        InputCalibrationStatus::NoActiveInputDevice);
+        workflow.evaluateMonitoring(readyContext(std::nullopt)).reason ==
+        MonitoringDisabledReason::NoInputDevice);
 
     const InputCalibrationWorkflow::Effects restored_effects =
         workflow.syncCommittedInputDeviceIdentity(identity, calibrationFor(identity, 8.0));
 
     CHECK(restored_effects.empty());
     CHECK(workflow.calibrationMatches(identity));
-    const InputCalibrationWorkflow::Snapshot restored_snapshot =
-        workflow.snapshot(readyContext(identity));
-    CHECK(restored_snapshot.status == InputCalibrationStatus::Calibrated);
-    CHECK(restored_snapshot.live_input_audition_available);
+    CHECK(
+        workflow.evaluateMonitoring(readyContext(identity)).state ==
+        LiveInputMonitoringState::Active);
 }
 
 // Backend failure should hide the prompt while preserving the last usable calibration value.
-TEST_CASE("Input calibration workflow closes prompt on backend unavailable", "[core][workflow]")
+TEST_CASE("Input calibration workflow closes prompt on backend unavailable", "[audio][workflow]")
 {
     InputCalibrationWorkflow workflow;
-    const common::audio::InputDeviceIdentity identity = makeIdentity();
+    const InputDeviceIdentity identity = makeIdentity();
     REQUIRE(
         workflow.syncCommittedInputDeviceIdentity(identity, calibrationFor(identity, 4.0)).empty());
     REQUIRE(workflow.requestPrompt(readyContext(identity)));
 
     workflow.markBackendUnavailable();
 
-    const InputCalibrationWorkflow::Snapshot snapshot = workflow.snapshot(readyContext(identity));
-    CHECK(snapshot.status == InputCalibrationStatus::Unavailable);
-    CHECK_FALSE(snapshot.live_input_audition_available);
-    CHECK_FALSE(snapshot.prompt.has_value());
+    CHECK_FALSE(workflow.backendAvailable());
+    CHECK_FALSE(workflow.promptVisible());
     const auto calibration_state = workflow.activeCalibrationState();
     REQUIRE(calibration_state.has_value());
     if (calibration_state.has_value())
@@ -291,24 +291,24 @@ TEST_CASE("Input calibration workflow closes prompt on backend unavailable", "[c
 }
 
 // Measurement start is rejected when no calibration state has been selected for the route.
-TEST_CASE("Input calibration workflow rejects stale measurement start", "[core][workflow]")
+TEST_CASE("Input calibration workflow rejects stale measurement start", "[audio][workflow]")
 {
     const InputCalibrationWorkflow workflow;
-    const common::audio::InputDeviceIdentity identity = makeIdentity();
+    const InputDeviceIdentity identity = makeIdentity();
 
     const auto measurement = workflow.prepareMeasurementStart(readyContext(identity));
 
     REQUIRE_FALSE(measurement.has_value());
-    CHECK(measurement.error().code == common::audio::LiveInputErrorCode::InputRouteUnavailable);
+    CHECK(measurement.error().code == LiveInputErrorCode::InputRouteUnavailable);
 }
 
 // Commit failure should restore the prior calibration and mark live audition unavailable.
 TEST_CASE(
     "Input calibration workflow preserves previous calibration on commit failure",
-    "[core][workflow]")
+    "[audio][workflow]")
 {
     InputCalibrationWorkflow workflow;
-    const common::audio::InputDeviceIdentity identity = makeIdentity();
+    const InputDeviceIdentity identity = makeIdentity();
     REQUIRE(
         workflow.syncCommittedInputDeviceIdentity(identity, calibrationFor(identity, 4.0)).empty());
     REQUIRE(workflow.requestPrompt(readyContext(identity)));
@@ -321,9 +321,8 @@ TEST_CASE(
     workflow.preservePreviousCalibrationAfterCommitFailure(
         commit_plan->previous_calibration_state, identity);
 
-    const InputCalibrationWorkflow::Snapshot snapshot = workflow.snapshot(readyContext(identity));
-    CHECK(snapshot.status == InputCalibrationStatus::Unavailable);
-    CHECK_FALSE(snapshot.prompt.has_value());
+    CHECK_FALSE(workflow.backendAvailable());
+    CHECK_FALSE(workflow.promptVisible());
     const auto calibration_state = workflow.activeCalibrationState();
     REQUIRE(calibration_state.has_value());
     if (calibration_state.has_value())
@@ -332,4 +331,114 @@ TEST_CASE(
     }
 }
 
-} // namespace rock_hero::editor::core
+// The monitoring gate reports each disabling reason in the same order as the controller's gate.
+TEST_CASE("Input calibration workflow evaluateMonitoring branch matrix", "[audio][workflow]")
+{
+    const InputDeviceIdentity identity = makeIdentity();
+
+    SECTION("open audio-device settings win over every other reason")
+    {
+        InputCalibrationWorkflow workflow;
+        REQUIRE(workflow.syncCommittedInputDeviceIdentity(identity, calibrationFor(identity, 4.0))
+                    .empty());
+        static_cast<void>(workflow.openAudioDeviceSettings());
+
+        const LiveInputMonitoringStatus monitoring =
+            workflow.evaluateMonitoring(readyContext(identity));
+        CHECK(monitoring.state == LiveInputMonitoringState::Disabled);
+        CHECK(monitoring.reason == MonitoringDisabledReason::AudioDeviceSettingsOpen);
+    }
+
+    SECTION("an unready session reports before route and calibration checks")
+    {
+        InputCalibrationWorkflow workflow;
+        REQUIRE(workflow.syncCommittedInputDeviceIdentity(identity, calibrationFor(identity, 4.0))
+                    .empty());
+
+        InputCalibrationWorkflow::Context context = readyContext(identity);
+        context.project_audio_ready = false;
+        const LiveInputMonitoringStatus monitoring = workflow.evaluateMonitoring(context);
+        CHECK(monitoring.state == LiveInputMonitoringState::Disabled);
+        CHECK(monitoring.reason == MonitoringDisabledReason::SessionNotReady);
+    }
+
+    SECTION("an unloaded arrangement reports as an unready session")
+    {
+        InputCalibrationWorkflow workflow;
+        REQUIRE(workflow.syncCommittedInputDeviceIdentity(identity, calibrationFor(identity, 4.0))
+                    .empty());
+
+        InputCalibrationWorkflow::Context context = readyContext(identity);
+        context.arrangement_loaded = false;
+        CHECK(
+            workflow.evaluateMonitoring(context).reason ==
+            MonitoringDisabledReason::SessionNotReady);
+    }
+
+    SECTION("a ready session without a route reports no input device")
+    {
+        InputCalibrationWorkflow workflow;
+        REQUIRE(workflow.syncCommittedInputDeviceIdentity(identity, calibrationFor(identity, 4.0))
+                    .empty());
+
+        const LiveInputMonitoringStatus monitoring =
+            workflow.evaluateMonitoring(readyContext(std::nullopt));
+        CHECK(monitoring.state == LiveInputMonitoringState::Disabled);
+        CHECK(monitoring.reason == MonitoringDisabledReason::NoInputDevice);
+    }
+
+    SECTION("a route with no stored calibration reports missing calibration")
+    {
+        InputCalibrationWorkflow workflow;
+        REQUIRE(workflow.syncCommittedInputDeviceIdentity(identity, std::nullopt).empty());
+
+        const LiveInputMonitoringStatus monitoring =
+            workflow.evaluateMonitoring(readyContext(identity));
+        CHECK(monitoring.state == LiveInputMonitoringState::Disabled);
+        CHECK(monitoring.reason == MonitoringDisabledReason::MissingCalibration);
+    }
+
+    SECTION("stored calibration for a different route reports a route mismatch")
+    {
+        InputCalibrationWorkflow workflow;
+        const InputDeviceIdentity other_identity = makeIdentity("Windows Audio", "Interface B");
+        REQUIRE(workflow.syncCommittedInputDeviceIdentity(identity, calibrationFor(identity, 4.0))
+                    .empty());
+
+        // The stored calibration stays attached to the original route while the context reports a
+        // different physical route, so the gate falls through to the mismatch branch.
+        const LiveInputMonitoringStatus monitoring =
+            workflow.evaluateMonitoring(readyContext(other_identity));
+        CHECK(monitoring.state == LiveInputMonitoringState::Disabled);
+        CHECK(monitoring.reason == MonitoringDisabledReason::CalibrationRouteMismatch);
+    }
+
+    SECTION("a matching calibrated route on a ready session reports active")
+    {
+        InputCalibrationWorkflow workflow;
+        REQUIRE(workflow.syncCommittedInputDeviceIdentity(identity, calibrationFor(identity, 4.0))
+                    .empty());
+
+        const LiveInputMonitoringStatus monitoring =
+            workflow.evaluateMonitoring(readyContext(identity));
+        CHECK(monitoring.state == LiveInputMonitoringState::Active);
+        CHECK(monitoring.reason == MonitoringDisabledReason::None);
+    }
+
+    SECTION("backend unavailability does not change the active gate result")
+    {
+        InputCalibrationWorkflow workflow;
+        REQUIRE(workflow.syncCommittedInputDeviceIdentity(identity, calibrationFor(identity, 4.0))
+                    .empty());
+        workflow.markBackendUnavailable();
+
+        // evaluateMonitoring deliberately ignores backend availability: that is a post-I/O fact the
+        // downstream service layers on, not a decision the pure gate makes.
+        CHECK(
+            workflow.evaluateMonitoring(readyContext(identity)).state ==
+            LiveInputMonitoringState::Active);
+        CHECK_FALSE(workflow.backendAvailable());
+    }
+}
+
+} // namespace rock_hero::common::audio

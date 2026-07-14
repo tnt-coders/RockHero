@@ -7,7 +7,7 @@
 #include "editor_action_availability.h"
 #include "editor_controller_impl.h"
 #include "editor_undo_history.h"
-#include "input_calibration/input_calibration_workflow.h"
+#include "input_calibration/input_calibration_text.h"
 #include "project/gp_song_importer.h"
 #include "project/project_io.h"
 #include "project/rock_song_importer.h"
@@ -1802,15 +1802,15 @@ void EditorController::Impl::performActionImpl(EditorAction::SetGridNoteValue ac
 // Collects availability inputs using fresh controller snapshots for immediate action gates.
 ActionConditions EditorController::Impl::currentActionConditions() const
 {
-    const InputCalibrationWorkflow::Snapshot input_calibration =
-        m_input_calibration.snapshot(inputCalibrationContext());
+    const InputCalibrationViewSlice input_calibration =
+        makeInputCalibrationViewState(m_input_calibration, inputCalibrationContext());
 
     return currentActionConditions(input_calibration, m_transport.state());
 }
 
 // Reuses already-sampled view projection state so enabled flags share one availability snapshot.
 ActionConditions EditorController::Impl::currentActionConditions(
-    const InputCalibrationWorkflow::Snapshot& input_calibration,
+    const InputCalibrationViewSlice& input_calibration,
     const common::audio::TransportState& transport_state) const
 {
     const std::optional<BusyViewState> busy = m_busy.viewState();
@@ -1949,8 +1949,8 @@ EditorViewState EditorController::Impl::deriveViewState() const
 {
     const common::audio::TransportState transport_state = m_transport.state();
     const common::core::TimeRange timeline_range = session().timeline();
-    const InputCalibrationWorkflow::Snapshot input_calibration =
-        m_input_calibration.snapshot(inputCalibrationContext());
+    const InputCalibrationViewSlice input_calibration =
+        makeInputCalibrationViewState(m_input_calibration, inputCalibrationContext());
     const ActionConditions action_conditions =
         currentActionConditions(input_calibration, transport_state);
 
