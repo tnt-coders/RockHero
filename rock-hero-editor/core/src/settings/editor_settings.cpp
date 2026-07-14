@@ -24,12 +24,9 @@ namespace
 
 constexpr const char* g_last_open_project_key{"lastOpenProject"};
 constexpr const char* g_interrupted_restore_project_key{"interruptedRestoreProject"};
-constexpr const char* g_audio_device_state_key{"audioDeviceState"};
 constexpr const char* g_waveform_visible_key{"waveformVisible"};
 constexpr const char* g_use_game_audio_settings_key{"useGameAudioSettings"};
 constexpr const char* g_tab_minimum_displayed_strings_key{"tabMinimumDisplayedStrings"};
-constexpr int g_settings_xml_format_version{1};
-constexpr const char* g_format_version_property{"formatVersion"};
 
 // Builds the per-user settings file options used by the editor app.
 [[nodiscard]] juce::PropertiesFile::Options editorSettingsOptions()
@@ -48,33 +45,6 @@ constexpr const char* g_format_version_property{"formatVersion"};
     options.storageFormat = juce::PropertiesFile::storeAsXML;
     options.processLock = nullptr;
     return options;
-}
-
-// Reads an XML attribute as an integer without accepting JUCE's permissive partial parsing.
-[[nodiscard]] std::optional<int> parseIntAttribute(
-    const juce::XmlElement& element, const char* attribute_name)
-{
-    if (!element.hasAttribute(attribute_name))
-    {
-        return std::nullopt;
-    }
-
-    const std::string text = element.getStringAttribute(attribute_name).toStdString();
-    if (text.empty())
-    {
-        return std::nullopt;
-    }
-
-    int value{};
-    const char* const begin = text.data();
-    const char* const end = begin + text.size();
-    const auto [parsed_to, error] = std::from_chars(begin, end, value);
-    if (error != std::errc{} || parsed_to != end)
-    {
-        return std::nullopt;
-    }
-
-    return value;
 }
 
 // Parses text as a finite double, rejecting empty, malformed, or non-finite input so a corrupt
@@ -98,38 +68,6 @@ constexpr const char* g_format_version_property{"formatVersion"};
     }
 
     return value;
-}
-
-// Reads an XML attribute as a finite double without accepting malformed numeric text.
-[[nodiscard]] std::optional<double> parseDoubleAttribute(
-    const juce::XmlElement& element, const char* attribute_name)
-{
-    if (!element.hasAttribute(attribute_name))
-    {
-        return std::nullopt;
-    }
-
-    return parseFiniteDouble(element.getStringAttribute(attribute_name));
-}
-
-// Reads a required XML string attribute while allowing the caller to validate emptiness.
-[[nodiscard]] std::optional<std::string> readStringAttribute(
-    const juce::XmlElement& element, const char* attribute_name)
-{
-    if (!element.hasAttribute(attribute_name))
-    {
-        return std::nullopt;
-    }
-
-    return element.getStringAttribute(attribute_name).toStdString();
-}
-
-// Validates the root element shared by app-local XML history values.
-[[nodiscard]] bool hasCurrentXmlFormat(const juce::XmlElement& xml, const char* root_tag)
-{
-    const std::optional<int> format_version = parseIntAttribute(xml, g_format_version_property);
-    return xml.hasTagName(root_tag) && format_version.has_value() &&
-           *format_version == g_settings_xml_format_version;
 }
 
 // Converts project paths into stable app-settings keys without requiring callers to pre-normalize
@@ -212,50 +150,6 @@ constexpr std::string_view g_project_selected_arrangement_family{"projectSelecte
     }
 
     return common::core::Fraction{*numerator, *denominator};
-}
-
-// Legacy calibration XML names shared with the pre-migration on-disk schema. The active calibration
-// codec now lives in AudioConfigStore; only this read-side view survives so the one-shot migration
-// can decode the obsolete history and re-save it through the store.
-constexpr const char* g_input_calibration_states_key{"inputCalibrationStates"};
-constexpr const char* g_input_calibrations_tag{"INPUT_CALIBRATIONS"};
-constexpr const char* g_input_calibration_item_tag{"CALIBRATION"};
-constexpr const char* g_gain_db_property{"gainDb"};
-constexpr const char* g_backend_name_property{"backendName"};
-constexpr const char* g_input_device_name_property{"inputDeviceName"};
-constexpr const char* g_input_channel_index_property{"inputChannelIndex"};
-constexpr const char* g_input_channel_name_property{"inputChannelName"};
-
-// Decodes one legacy calibration XML item into a record, dropping incomplete entries. Gain is left
-// raw; AudioConfigStore::saveInputCalibration clamps it when the record is re-saved.
-[[nodiscard]] std::optional<common::audio::InputCalibrationState> legacyCalibrationFromXml(
-    const juce::XmlElement& element)
-{
-    const std::optional<double> gain_db = parseDoubleAttribute(element, g_gain_db_property);
-    const std::optional<std::string> backend_name =
-        readStringAttribute(element, g_backend_name_property);
-    const std::optional<std::string> input_device_name =
-        readStringAttribute(element, g_input_device_name_property);
-    const std::optional<int> input_channel_index =
-        parseIntAttribute(element, g_input_channel_index_property);
-    const std::optional<std::string> input_channel_name =
-        readStringAttribute(element, g_input_channel_name_property);
-    if (!gain_db.has_value() || !backend_name.has_value() || !input_device_name.has_value() ||
-        !input_channel_index.has_value() || !input_channel_name.has_value() ||
-        *input_channel_index < 0)
-    {
-        return std::nullopt;
-    }
-
-    return common::audio::InputCalibrationState{
-        .calibration_gain = common::audio::Gain{*gain_db},
-        .input_device_identity = common::audio::InputDeviceIdentity{
-            .backend_name = *backend_name,
-            .input_device_name = *input_device_name,
-            .input_channel_index = *input_channel_index,
-            .input_channel_name = *input_channel_name,
-        },
-    };
 }
 
 // Saves pending changes and translates JUCE persistence failure into the settings domain.
@@ -572,65 +466,6 @@ std::expected<void, EditorSettingsError> EditorSettings::saveProjectSelectedArra
 common::audio::IAudioConfigStore& EditorSettings::audioConfigStore() noexcept
 {
     return m_audio_config_store;
-}
-
-// Reads the obsolete serialized audio-device state so the one-shot migration can move it.
-std::optional<std::string> EditorSettings::readLegacyAudioDeviceState() const
-{
-    const juce::String value = m_properties.getValue(g_audio_device_state_key);
-    if (value.isEmpty())
-    {
-        return std::nullopt;
-    }
-
-    return value.toStdString();
-}
-
-// Removes the obsolete serialized audio-device state key after a successful migration.
-void EditorSettings::clearLegacyAudioDeviceState()
-{
-    if (m_properties.containsKey(g_audio_device_state_key))
-    {
-        m_properties.removeValue(g_audio_device_state_key);
-        m_properties.saveIfNeeded();
-    }
-}
-
-// Decodes the obsolete calibration history so the one-shot migration can re-save each record.
-std::vector<common::audio::InputCalibrationState> EditorSettings::readLegacyInputCalibrations()
-    const
-{
-    std::vector<common::audio::InputCalibrationState> records;
-    const std::unique_ptr<juce::XmlElement> xml =
-        m_properties.getXmlValue(g_input_calibration_states_key);
-    if (xml == nullptr || !hasCurrentXmlFormat(*xml, g_input_calibrations_tag))
-    {
-        return records;
-    }
-
-    records.reserve(static_cast<std::size_t>(xml->getNumChildElements()));
-    for (const juce::XmlElement* const item :
-         xml->getChildWithTagNameIterator(g_input_calibration_item_tag))
-    {
-        if (std::optional<common::audio::InputCalibrationState> state =
-                legacyCalibrationFromXml(*item);
-            state.has_value())
-        {
-            records.push_back(std::move(*state));
-        }
-    }
-
-    return records;
-}
-
-// Removes the obsolete calibration history key after a successful migration.
-void EditorSettings::clearLegacyInputCalibrations()
-{
-    if (m_properties.containsKey(g_input_calibration_states_key))
-    {
-        m_properties.removeValue(g_input_calibration_states_key);
-        m_properties.saveIfNeeded();
-    }
 }
 
 // Derives the sibling audio-config file for an explicit settings path, mirroring the production

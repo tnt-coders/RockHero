@@ -161,10 +161,13 @@ Downstream consumers (recorded in both directions in docs/roadmap/00-roadmap.md)
 
 Mirrored into docs/roadmap/00-roadmap.md "Decisions needed".
 
-1. **Legacy editor-key cleanup after migration.** Options: (A) keep the old `EditorSettings` keys
+1. **Legacy editor-key cleanup after migration.** ~~Options: (A) keep the old `EditorSettings` keys
    for one release after copying them into the shared store; (B) clear them immediately once the
-   migration is test-covered. **Recommendation: B** — single-developer project, migration is
-   covered by tests in Phase 2, and leaving two copies invites drift-and-debug sessions.
+   migration is test-covered.~~ **WITHDRAWN / moot** — per the "no legacy/back-compat/migration
+   code at this stage" directive, Phase 2 no longer migrates anything: the editor simply writes its
+   device route and calibration to its own `AudioConfigStore`, and the old `EditorSettings` audio
+   keys are neither read nor copied. There is no migration to clean up after, so this question no
+   longer applies.
 2. **Video-offset storage granularity.** Options: (A) one machine-global video offset at v1, with
    the active display name recorded as advisory metadata; (B) key video offsets per monitor
    identity now. **Recommendation: A** — monitor identity APIs are brittle, the wizard remeasures
@@ -268,8 +271,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
 ### Phase 2 — Editor moves its device route onto its own per-app file
 
 Scope: move the **device-route** value out of `EditorSettings` into the **editor's own**
-`AudioConfigStore` instance, add a one-shot same-schema migration, and re-point (but do **not** yet
-delete) the calibration accessors so the build stays green until plan 14 P3 relocates them.
+`AudioConfigStore` instance and re-point (but do **not** yet delete) the calibration accessors so
+the build stays green until plan 14 P3 relocates them. **No migration, no legacy read** — per the
+"no legacy/back-compat/migration code at this stage" directive the format simply changes: the
+editor writes its device route and calibration to its own store, and the old `EditorSettings` audio
+keys are never read or copied.
 
 - **Remove `audioDeviceState` from `IEditorSettings` / `EditorSettings`** (`i_editor_settings.h:66`);
   the editor's device persist/restore now targets `activeDeviceRoute()` on the store (capturing
@@ -286,12 +292,10 @@ delete) the calibration accessors so the build stays green until plan 14 P3 relo
 - `EditorController::Services` gains `common::audio::IAudioConfigStore* audio_config_store`;
   `restoreAudioDeviceState()` / `persistAudioDeviceState()` switch to it; last-open-project /
   interrupted-restore / cursor / grid / zoom / waveform-visible stay on `m_settings`.
-- One-shot migration helper `migrateEditorAudioSettings(EditorSettings& legacy, IAudioConfigStore&
-  editor_audio_store)` in `rock-hero-editor/core`: when the new audio-config file lacks the keys and
-  `Rock Hero Editor.settings` holds either the device-state string or the calibration XML, copy them
-  across (device-state migrates as `ActiveDeviceRoute{serialized_state, identity=nullopt}` — the
-  identity is recomputed on the next successful apply; calibration migrates as the raw XML value
-  since the codec moved unchanged) and clear the legacy keys (13-Q1 recommendation B, test-covered).
+- **No migration helper.** The format changes outright: the editor writes its device route and
+  calibration to its own `AudioConfigStore`, and the old `EditorSettings` `audioDeviceState` /
+  `inputCalibrationStates` keys are neither read nor cleared. A user with a pre-existing settings
+  file simply reselects the device and recalibrates once. (13-Q1 is withdrawn — see Open questions.)
 - `rock-hero-editor/app/main.cpp` constructs one `AudioConfigStore{ editorAudioConfigApplicationName(),
   Access::ReadWrite }` and injects it into Services.
 - Add a shared in-memory `IAudioConfigStore` fake under
@@ -310,14 +314,13 @@ Files/modules: `rock-hero-editor/core` settings + controller TUs, `rock-hero-edi
 Public-header impact: `IEditorSettings` drops `audioDeviceState`; the calibration trio stays until
 14 P3.
 
-Testing plan: new `rock-hero-editor/core/tests/test_editor_audio_config_migration.cpp`
-(copy-when-missing, never-overwrite-existing, tolerate-missing-source, idempotent re-run, legacy
-keys cleared, device-state migrates with absent identity); update `test_editor_settings.cpp` (drop
-device-state cases), `test_editor_controller_restore.cpp` (controller reads/writes the editor's own
-`IAudioConfigStore`).
+Testing plan: no migration test (there is no migration). Update `test_editor_settings.cpp` (drop
+device-state cases) and `test_editor_controller_restore.cpp` (controller reads/writes the editor's
+own `IAudioConfigStore`).
 
-Exit criteria: editor behaves identically end-to-end (device restore, per-route calibration
-restore); old keys migrated and cleared; all editor-core and common-audio tests pass.
+Exit criteria: the editor persists and restores its device route and per-route calibration through
+its own `AudioConfigStore`; the old `EditorSettings` audio keys are no longer read; all editor-core
+and common-audio tests pass.
 
 Verification:
 
@@ -572,10 +575,11 @@ device loss is non-destructive; no public port exposes JUCE device-manager types
 
 ## Rollback/abort notes
 
-- **Phase 2 is the risky one** (live user settings move). The migration is copy-not-move until
-  the cleanup step; reverting the commit restores the editor store as authority with no data
-  loss, because the shared store was only ever written from it. If open question 1 resolves to
-  immediate clearing, keep the clearing in a separate commit from the copy.
+- **Phase 2 changes where the editor reads and writes its device route** (from `EditorSettings`
+  to the editor's own `AudioConfigStore`). There is no migration: the old keys are neither read
+  nor cleared, so a revert simply points the editor back at the old keys. Any device route or
+  calibration written to the new store after the switch is not reflected in the old keys; a user
+  who reverts reselects the device and recalibrates once.
 - **Phase 4's cue-scheduling seam** may prove inaccurate through the Tracktion transport (the
   juce-tracktion-expert checkpoint decides). Abort path: the state machine and estimator are
   seam-independent; only the cue adapter is replaced (e.g. direct output-callback click render).
