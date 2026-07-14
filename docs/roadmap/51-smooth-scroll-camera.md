@@ -24,7 +24,7 @@ Make fixed-cursor smooth scrolling the editor timeline's playback follow, implem
   (docs/todo/smooth-scroll-follow-evaluation.md, now superseded by this plan).
 - 2026-07-13: spike re-landed behind View → Smooth Scroll Follow (`55f49476`); the user ran the
   deciding sight-reading test with real tablature and adopted smooth scrolling ("I'm sold"),
-  tuning the pin fraction 1/3 → 0.05 → 0.2 → **0.15** (`2f6cbb48`). The known spike artifacts —
+  tuning the pin fraction 1/3 → 0.05 → 0.2 → 0.15 → **0.1**. The known spike artifacts —
   integer-pixel ticking and block-quantized velocity shimmer — were called out and accepted as
   exactly what this plan removes.
 
@@ -67,7 +67,7 @@ Applicable subset of the roadmap's non-negotiable constraints plus design-doc an
     `(window, content_width, view_x)`.
   - `juce::VBlankAttachment` already pumps `updatePlaybackFollow()` + `updateRulerCursor()`.
   - Follow modes: `followCursorWithWindowShifts` (shifted window, default) and
-    `followCursorSmoothly` (spike, `g_smooth_follow_pin_fraction{0.15}`), toggled by
+    `followCursorSmoothly` (spike, `g_smooth_follow_pin_fraction{0.1}`), toggled by
     `PlaybackFollowStyle` via View → Smooth Scroll Follow (id 204 in
     `rock-hero-editor/ui/src/main_window/editor_view.cpp`, unpersisted).
   - Grid economy: `refreshTimelineGridForViewChange()` skips the tempo-map scan when the
