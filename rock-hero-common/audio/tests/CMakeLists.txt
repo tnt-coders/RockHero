@@ -22,6 +22,7 @@ target_link_libraries(
 add_executable(
     rock_hero_common_audio_tests
     test_song_audio.cpp
+    test_audio_config_store.cpp
     test_audio_device_settings.cpp
     test_audio_normalization.cpp
     test_audio_transcode.cpp
@@ -54,9 +55,11 @@ target_link_libraries(
     PRIVATE rock_hero::common::audio rock_hero::common::audio_testing rock_hero::build_policy
             rock_hero::tracktion_engine Catch2::Catch2WithMain)
 
-# Point integration tests at the copied fixture instead of the source-tree file.
-target_compile_definitions(rock_hero_common_audio_tests
-                           PRIVATE TEST_DATA_DIR="${CMAKE_CURRENT_BINARY_DIR}/test-data")
+# Point integration tests at the copied fixture instead of the source-tree file, and keep any
+# persisted settings files the store tests write inside the build tree.
+target_compile_definitions(
+    rock_hero_common_audio_tests PRIVATE TEST_DATA_DIR="${CMAKE_CURRENT_BINARY_DIR}/test-data"
+                                         TEST_SETTINGS_DIR="${CMAKE_CURRENT_BINARY_DIR}")
 
 # Register the discovered Catch2 cases with CTest and forward Catch tags as CTest labels.
 catch_discover_tests(rock_hero_common_audio_tests ADD_TAGS_AS_LABELS)
