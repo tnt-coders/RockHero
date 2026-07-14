@@ -10,10 +10,22 @@
 #include <memory>
 #include <rock_hero/common/audio/device/i_audio_device_configuration.h>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace rock_hero::common::audio
 {
+
+/*!
+\brief User-facing message for a staged device whose driver failed to initialize.
+
+The single source for every surface that reports the condition -- the settings window's standing
+notice, the apply-failure diagnostic, and the disabled control panel tooltip -- so the same fact
+never appears with two different wordings (or with a backend's non-American spelling).
+*/
+inline constexpr std::string_view g_device_unavailable_message{
+    "The selected device is unavailable (not connected or in use by another application)"
+};
 
 /*! \brief Stable failure codes for audio-device settings operations. */
 enum class AudioDeviceSettingsErrorCode : std::uint8_t

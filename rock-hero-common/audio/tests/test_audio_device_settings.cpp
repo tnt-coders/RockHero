@@ -679,6 +679,35 @@ TEST_CASE(
     CHECK(audio_type.controlPanelCallCount() == 0);
 }
 
+// Applying a route whose driver init failed reports the one canonical unavailable message rather
+// than the backend's raw setup text (for ASIO literally "Driver failed to initialise"), so the OK
+// failure reads identically to the window's standing unavailable notice. Other apply failures keep
+// the backend's specific diagnostic.
+TEST_CASE(
+    "AudioDeviceSettings apply reports the canonical message for an unavailable device",
+    "[audio][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    addMockAudioType(
+        audio_devices.device_manager,
+        g_asio_type_name,
+        juce::StringArray{},
+        true,
+        true,
+        juce::StringArray{g_output_a});
+
+    AudioDeviceSettings settings{audio_devices};
+    REQUIRE(settings.state().staged_device_unavailable);
+
+    const auto applied = settings.apply();
+
+    REQUIRE_FALSE(applied.has_value());
+    CHECK(applied.error().code == AudioDeviceSettingsErrorCode::ApplyFailed);
+    CHECK(applied.error().message == g_device_unavailable_message);
+    CHECK(settings.state().error_message == g_device_unavailable_message);
+}
+
 // commit() adopts the live route as final: it clears the pending restore so destruction does not
 // reopen the route captured when the settings edit began. Contrast "restores device on
 // destruction", where the same construction reopens the device precisely because commit() did not

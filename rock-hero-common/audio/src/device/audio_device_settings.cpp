@@ -526,8 +526,17 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
 
         m_device_manager.closeAudioDevice();
         m_restore_pending = false;
+        // JUCE's raw setup error for an uninitialized driver is backend text (for ASIO literally
+        // "Driver failed to initialise"), which would present the unavailable condition with a
+        // second wording -- and a non-American spelling -- right next to the standing unavailable
+        // notice. When the staged preview device confirms the failed driver init, report the one
+        // canonical message instead; every other apply failure keeps JUCE's specific diagnostic.
+        const bool staged_device_unavailable =
+            m_staged_device != nullptr && m_staged_device->getLastError().isNotEmpty();
         AudioDeviceSettingsError error{
-            AudioDeviceSettingsErrorCode::ApplyFailed, error_text.toStdString()
+            AudioDeviceSettingsErrorCode::ApplyFailed,
+            staged_device_unavailable ? std::string{g_device_unavailable_message}
+                                      : error_text.toStdString()
         };
         refreshState(error.message);
         return std::unexpected{std::move(error)};

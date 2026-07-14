@@ -1,6 +1,7 @@
 #include "audio_device_settings_view.h"
 
 #include <algorithm>
+#include <rock_hero/common/audio/device/audio_device_settings.h>
 #include <utility>
 
 namespace rock_hero::editor::ui
@@ -33,10 +34,15 @@ constexpr const char* g_game_settings_tooltip{"Derived from game settings"};
 
 // Shown when the selected device's driver failed to initialize: as the disabled control panel
 // button's tooltip, and as the standing notice in the error label (so a toggle-driven re-open that
-// lands on an unavailable device explains itself instead of finishing silently).
-constexpr const char* g_device_unavailable_text{
-    "The selected device is unavailable (not connected or in use by another application)"
-};
+// lands on an unavailable device explains itself instead of finishing silently). The text is the
+// shared canonical message so it matches the apply-failure diagnostic word for word.
+[[nodiscard]] juce::String deviceUnavailableText()
+{
+    return juce::String{
+        common::audio::g_device_unavailable_message.data(),
+        common::audio::g_device_unavailable_message.size()
+    };
+}
 
 // Returns the vertical space occupied by a visible form row set.
 [[nodiscard]] int formRowsHeight(int row_count) noexcept
@@ -529,8 +535,8 @@ void AudioDeviceSettingsView::applyStateToControls()
     // misleading here. Its only tooltip explains the unavailable-device disable.
     m_control_panel_button.setTooltip(
         m_state.control_panel_supported && m_state.staged_device_unavailable
-            ? g_device_unavailable_text
-            : "");
+            ? deviceUnavailableText()
+            : juce::String{});
 
     // The error label doubles as the standing unavailable-device notice. A transient operation
     // error is the more specific diagnostic and takes precedence; otherwise an unavailable staged
@@ -539,8 +545,7 @@ void AudioDeviceSettingsView::applyStateToControls()
     const juce::String error_text =
         !m_state.error_message.empty()
             ? juce::String{m_state.error_message.c_str()}
-            : (m_state.staged_device_unavailable ? juce::String{g_device_unavailable_text}
-                                                 : juce::String{});
+            : (m_state.staged_device_unavailable ? deviceUnavailableText() : juce::String{});
     m_error_label.setText(error_text, juce::dontSendNotification);
 }
 
