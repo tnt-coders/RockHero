@@ -28,6 +28,7 @@ graph TD
         P11[11 derived difficulty calculator]
         P12[12 playback clock]
         P13[13 audio device settings + calibration]
+        P14[14 shared live-input monitoring]
     end
     subgraph Game
         P20[20 game architecture + render stack GATE]
@@ -38,6 +39,7 @@ graph TD
         P25[25 note highway 3D]
         P26[26 startup / menus / library]
         P27[27 in-song flow / results / profiles]
+        P32[32 game native audio config]
     end
     subgraph Editor
         P40[40 chart editing]
@@ -48,10 +50,12 @@ graph TD
         P45[45 editor theme + string colors]
         P46[46 editor keybinds]
         P47[47 editor loop selection]
+        P48[48 editor audio setup]
     end
     subgraph Deferred
         P28[28 practice mode]
         P29[29 online leaderboards]
+        P31[31 integrated game/editor workflow]
     end
 
     P10 --> P43
@@ -94,6 +98,16 @@ graph TD
     P26 --> P27
     P27 --> P26
     P27 --> P28
+    P13 --> P14
+    P13 --> P32
+    P14 --> P32
+    P32 --> P26
+    P13 --> P48
+    P14 --> P48
+    P13 --> P31
+    P26 --> P31
+    P14 --> P31
+    P32 --> P31
     P41 --> P40
     P42 --> P40
     P42 --> P26
@@ -198,7 +212,8 @@ Phases 1–2 and plan 10 Phase 0 (G10-DECISIONS answers), both Stage 1 items alr
 
 **Stage 5 — Game shell**
 17. docs/roadmap/27-in-song-flow-results-profiles.md Phase 1 (IGameSettings — must precede 26 Phase 4), then Phases 2–4.
-18. docs/roadmap/26-game-startup-menus-library.md Phases 1–4 (peek reader, library index, scan, settings), then 5–8 after G20-RENDER (menus, startup, Quick Play, onboarding); Phase 9 (previews) after 43.
+18. docs/roadmap/26-game-startup-menus-library.md Phases 1–4 (peek reader, library index, scan, settings), then 5–8 after G20-RENDER (menus, startup, Quick Play, onboarding); Phase 9 (previews) after 43. Phase 8's device/calibration wizard is SDL presentation over plan 32's headless drivers.
+18a. docs/roadmap/32-game-native-audio-config.md Phases 1–2 (game native device + calibration; headless, **ungated by G20-RENDER**) — the per-app "game guitar audible, calibrate-first" milestone lands at **32 P2**; depends on plan 13 P1 + plan 14 P3/P4. Phases 3–4 (latency, startup restore) trail off the audible path. Critical path to the milestone: `13 P1 → 14 P1 → 14 P2 → 14 P3 (needs 13 P2) → 14 P4 → 32 P1 → 32 P2`.
 19. docs/roadmap/27-in-song-flow-results-profiles.md Phases 5–6 (session integration, pause/fail/results UI).
 20. docs/roadmap/11-derived-difficulty-calculator.md Phases 1–5 (any time after 10 Phase 3; calibration checkpoint is a user sign-off).
 21. docs/roadmap/42-chart-validation.md Phases 1–6 (arithmetic/pitch utilities early — 40 and 22 reuse them; corpus calibration STOP at Phase 5).
@@ -211,11 +226,13 @@ Phases 1–2 and plan 10 Phase 0 (G10-DECISIONS answers), both Stage 1 items alr
 26. docs/roadmap/45-editor-theme-and-string-colors.md Phases 2–4 (presets, selection, colorblind-safe); Phase 5 behind G45-STRINGS; Phase 6 stretch.
 27. docs/roadmap/44-editor-3d-preview.md Phases 1–5 (after G20-RENDER + 25 Phases 1–2 + 12 + 45 Phase 1).
 28. docs/roadmap/47-editor-loop-selection.md Phases 2–4 (editor loop-selection state and persistence, ruler drag surface with grid snap, engagement/wrap semantics; no game gates — Phase 1 already runs as Stage 1 item 5, and docs/roadmap/28-practice-mode.md Phase 2 consumes the landed backend, reducing to test extension).
+28a. docs/roadmap/48-editor-audio-setup.md Phases 1–2 (effective-source facade + use-game-settings toggle defaulting on at first run; toggle-aware **separate** device + calibration windows, no consolidation) — depends on plan 14 P3 + plan 13 P1; off the game critical path.
 29. docs/roadmap/30-game-2d-tab-view.md Phase 1 (scene-model promotion — dependency-free), Phase 2 (shared notation paint core + manifest; 30-Q1 amendment landed, runs before item 24's plan 40 Phase 3 per 30-Q2), Phases 3–5 (game strip renderer, three-way game display modes incl. simultaneous 2D+3D, editor preview display selector); Phase 6 (feedback overlays) after 24's event feed + 25 Phase 5's reduction.
 
 **Stage 7 — Deferred**
 30. docs/roadmap/28-practice-mode.md (G28-STRETCH spike first; its one NOW requirement — speed factor + loop-seek in the interfaces — is already delegated to 21 Phase 1 / 47 Phase 1 (whichever executes first) and 12).
 31. docs/roadmap/29-online-leaderboards.md (G29-STABILITY + hosting/identity/licensing sign-off).
+32. docs/roadmap/31-integrated-game-editor-workflow.md (Deferred; revisit when the game is audible on the per-app audio foundation and an installer/distribution story exists — the concrete driver for the `IDeviceOwnershipArbiter` device handoff).
 
 ---
 
@@ -282,7 +299,7 @@ All additive; veto any of them and the surface adjusts cheaply.**
 
 - **13-Q1** legacy editor settings keys after migration: (A) keep one release; (B) clear immediately (migration test-covered). **R: B**.
 - **13-Q2** video-offset storage: (A) one machine-global value, display name advisory; (B) per-monitor keying now. **R: A** — wizard remeasures in under a minute; schema field reserved.
-- **13-Q3** per-product buffer-size override: (A) one shared device configuration for both products; (B) per-product override layer now. **R: A**.
+- **13-Q3** ~~per-product buffer-size override~~ **SUPERSEDED 2026-07-12** — per-app **independent** audio config chosen (each app owns its own device configuration + calibration over its own file); the shared-configuration premise is withdrawn. The editor optionally mirrors the game read-only (plan 48). See the plan 13 rework, plans 14/32/48, and RM-4.
 - **13-Q4** WASAPI-Shared during gameplay: (A) allow with visible high-latency warning above ~15 ms; (B) allow scoring, force monitoring off; (C) refuse shared mode. **R: A** — calibration keeps scoring correct; (C) locks out users without ASIO.
 - **13-Q5** device-loss recovery: (A) auto-pause + non-destructive state + explicit re-setup prompt, never silently switching hardware; (B) silent re-open of default device. **R: A**.
 
@@ -430,6 +447,7 @@ plan's Gate record.**
 - **RM-1** Licensing audit thread: AGPLv3 network-source obligations (29-Q3), SoundTouch licensing-table row (28-Q1), CC0 fixture tree (23-Q1) — treat as one licensing pass when 28/29 activate.
 - **RM-2** Reserved sub-plan names per 40-Q4: docs/roadmap/40a-chord-template-and-shape-editor.md, docs/roadmap/40b-curve-payload-editors.md — create only if a phase exceeds a session.
 - **RM-3** Design-doc updates queued behind user confirmation: 10-D1 (bump policy + juce_cryptography permission), 20's architecture.md render-stack update at gate close, 28's licensing-table row, 29's Licensing section amendment.
+- **RM-4** Audio-device coexistence + per-app audio config stance (decided 2026-07-12): **single active client** — one app holds the ASIO device; the other surfaces a typed "device busy". A separate "Rock Hero Audio Control Panel" tray/audio-server process was evaluated and **rejected** (ASIO is in-process single-client; an IPC audio server would blow the 1.5–5.8 ms latency budget). Audio settings are **per-app independent** (the editor optionally mirrors the game read-only via an explicit "use game settings" toggle — never a shared read/write store). Concurrent same-device use, if ever justified (docs/roadmap/31-integrated-game-editor-workflow.md's "Launch Editor" handoff), escalates to an **in-process device lease behind an `IDeviceOwnershipArbiter` port** — never a bespoke broker; if true multi-client is ever required, integrate an existing audio server (FlexASIO/JACK). Full detail: docs/roadmap/13 (per-app `IAudioConfigStore`/`ActiveDeviceRoute`, Phases 1–2 reworked), docs/roadmap/14 (shared `LiveInputMonitor` gate over each app's own store), docs/roadmap/32 (game native calibrate-first setup — the "game audible" milestone at 32 P2), docs/roadmap/48 (editor "use game settings" read-only mirror, default-on, toggle-aware windows).
 
 ---
 
@@ -481,7 +499,8 @@ One line per plan; update the right-hand cell as phases complete.
 | docs/roadmap/10-format-versioning-and-chart-identity.md | Decision-gated (G10-DECISIONS) | formatVersion policy, migration ladder, semantic chart-identity hash (RHCI-1), atomic package replace | Not started |
 | docs/roadmap/11-derived-difficulty-calculator.md | Ready | Versioned pure difficulty calculator, corpus calibration, additive persistence, game-side degraded contract | Not started |
 | docs/roadmap/12-playback-clock.md | **Phases 1–5 complete** | IPlaybackClock atomic mirror of audio-derived time + consumer-side extrapolation policy | Done 2026-07-10 @ c5950abf (12-Q1: A, 12-Q2: B, 12-Q3: A adopted); final acceptance bundle pending user-triggered clang-tidy |
-| docs/roadmap/13-audio-device-settings-and-calibration.md | Ready | Shared per-device settings store, latency-offset model, calibration capture, device-loss policy | Not started |
+| docs/roadmap/13-audio-device-settings-and-calibration.md | Ready | **Per-app** audio-config store (shared type, independent files), latency-offset model, calibration capture, device-loss policy | Not started — reworked to per-app 2026-07-12 (IAudioConfigStore/ActiveDeviceRoute, no InterProcessLock; 13-Q3 superseded) |
+| docs/roadmap/14-shared-live-input-monitoring.md | Ready | Shared calibrate-first live-input monitoring gate (`common::audio::LiveInputMonitor`); editor thin driver; game wiring over the app's own store | Not started — authored 2026-07-12; per-app calibration source; gate logic unchanged |
 | docs/roadmap/20-game-architecture-and-render-stack.md | **G20-RENDER CLOSED; Phases 1–4 complete (Phase 4: 2026-07-11)** — final acceptance bundle pending | Platform scope, SDL3+bgfx spike, renderer-sharing seam, window/loop, resources, threading, dev diagnostics | Gate closed: SDL3+bgfx, loop L2, seam Option 1 (amended 2026-07-11: highway renderer shared in common/ui behind a bgfx-free pimpl seam — user promotion decision); Phases 1–3 as recorded in the plan; Phase 4: dev-diagnostics layer (DiagnosticsState/intents/ChartSourceWatcher in game/core with tests, frame-time-graph overlay, chart hot-reload, autoplay stub, --dev flag + F1/F2/F5/PgUp/PgDn toggles, runtime log level, bgfx debug wiring) |
 | docs/roadmap/21-game-audio-engine-and-session.md | Gate closed (G21-TRACKTION-GO: embed Engine, 2026-07-10); **Phases 1–3 complete 2026-07-11** | GameplaySession spine, tone switching, mix, latency stance, milestone-0 audio soak | Phase 1: speed + loop on ITransport/Engine (plan 47 Phase 1's full loop surface, whichever-executes-first). Phase 2: GameplaySession in game/core (11 fake-driven tests). Phase 3: scheduled tone switching — envelope math in common/core, IToneTimelinePlayer implemented on Engine (bake-once branch-gain curves), 3d missing-plugin aggregate-and-refuse per 21-Q1(A) with session mapping. Phase 4 (2026-07-12): IMixControls port + Engine master/backing gains over expert-verified surfaces; session single-owner volume forwarding. Phase 5 (2026-07-12): PDC off at edit construction (both products, recorded stance), per-tone summed latency surfaced on the load result, dry-tap contract on ILiveInput. Phase 6 (2026-07-12): session wired into the SDL shell (inject-from-app per the decided watch item; Space/R/PgUp-PgDn drive the session; real clock drives the highway); scripted smoke green (Loading→Playing, 144 fps, ~7 ms mirror, clean exit) — **witnessed soak checklist awaits the user**. clang-tidy pending user trigger |
 | docs/roadmap/22-note-detection.md | Decision-gated (GATE-A, GATE-B) | Detection contract + latency budget, dry tap, algorithm survey, pipeline, v1 detectors, tuner, tuning gate | Not started |
@@ -493,6 +512,8 @@ One line per plan; update the right-hand cell as phases complete.
 | docs/roadmap/28-practice-mode.md | Deferred (G28-STRETCH) | Section looping, pitch-preserved slow-down, per-section accuracy; NOW requirement delegated to 21/12 | Not started |
 | docs/roadmap/29-online-leaderboards.md | Deferred + Decision-gated (G29-STABILITY) | Friends-scale boards, unchanged score-record upload, server-side re-scoring, AGPL-aware hosting | Not started |
 | docs/roadmap/30-game-2d-tab-view.md | Ready (Phases 1–5; Phase 6 behind 24 + 25 Phase 5) | Game 2D tab display via the shared JUCE notation paint core + tile strips; layout manifest; three-way display modes (3D/2D/both); editor preview display selector | Not started — architecture decided + 30-Q1..Q3 answered 2026-07-11 (Q3 user-amended: simultaneous 2D+3D mode); design-doc amendment landed |
+| docs/roadmap/31-integrated-game-editor-workflow.md | Deferred (someday) | "Launch Editor" from the game + in-process ASIO device handoff (IDeviceOwnershipArbiter); per-app audio, no shared server | Not started — captured 2026-07-12; revisit when the game is audible on the per-app audio foundation + an installer/distribution story exists |
+| docs/roadmap/32-game-native-audio-config.md | Ready | Game native audio config (device + calibration, multi-input-aware `GameAudioConfig`/`PlayerInputConfig`); **P2 = "game guitar audible" milestone** (native calibrate-first) | Not started — authored 2026-07-12 |
 | docs/roadmap/40-chart-editing.md | Ready | Full chart authorability: selection, notes, techniques, curves, templates/shapes/FHPs/sections, bulk edit | Not started |
 | docs/roadmap/41-tempo-map-authoring.md | Ready (Phase 6 behind G41-TS) | Anchor place/drag, tap tempo, onset-assisted snapping, TS editing within the warp-anchor model | Not started |
 | docs/roadmap/42-chart-validation.md | Ready | Advisory lint engine + rule set v1 in common/core, corpus-calibrated severities, editor report | Not started |
@@ -501,6 +522,7 @@ One line per plan; update the right-hand cell as phases complete.
 | docs/roadmap/45-editor-theme-and-string-colors.md | Phase 1 complete; rest Ready (Phase 5 behind G45-STRINGS) | Shared string palette in common/ui, theme presets, colorblind-safe preset, string-cap raise gate | Phase 1 done 2026-07-10 @ 050f884e (palette in common/ui, editor byte-identical; 45-Q2 working: A) |
 | docs/roadmap/46-editor-keybinds.md | Decision-gated (G46-KEYMAP) | JUCE command-manager keybinds, config UI, diff persistence, plugin-window shortcut injection seam | Not started |
 | docs/roadmap/47-editor-loop-selection.md | Ready (47-Q1..Q3 carry recommendations; Phase 1 coordinated with 21 Phase 1 by whichever-executes-first) | Shared loop-region port + Tracktion adapter; editor ruler-drag loop selection, auto-engagement, app-local persistence | Not started |
+| docs/roadmap/48-editor-audio-setup.md | Ready | Editor toggle-aware device + calibration surfaces; "use game settings" read-only mirror of the game (default-on first run); no consolidation | Not started — authored 2026-07-12 |
 
 Milestone 0: **not reached** — exit = docs/roadmap/21-game-audio-engine-and-session.md Phase 6 soak
 checklist + docs/roadmap/25-note-highway-3d.md Phase 3 exit criteria witnessed on the same build.
