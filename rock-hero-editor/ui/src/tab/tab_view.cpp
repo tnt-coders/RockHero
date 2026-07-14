@@ -979,9 +979,10 @@ void TabView::paint(juce::Graphics& g)
             const float size = metrics.note_height + 1.0f;
             const float border = std::max(1.0f, size / 15.0f);
             const float radius = size / 2.0f + border;
-            // The opening angle terminates the arcs level with the head's top and bottom
-            // edges, so the brackets never rise above or dip below the note they wrap.
-            const float gap = std::acos(size / (2.0f * radius));
+            // The opening angle terminates the arc centerlines a stroke-width inside the
+            // head's top and bottom edges, so even with the stroke's own extent and edge
+            // antialiasing the brackets never rise above or dip below the note they wrap.
+            const float gap = std::acos((size / 2.0f - g_arpeggio_bracket_thickness) / radius);
 
             juce::Path arcs;
             arcs.addCentredArc(
@@ -1002,14 +1003,11 @@ void TabView::paint(juce::Graphics& g)
                 juce::MathConstants<float>::pi + gap,
                 juce::MathConstants<float>::twoPi - gap,
                 true);
+            // Default mitered joints and butt caps: JUCE flattens the arc into segments
+            // shorter than the stroke width, where curved joints and rounded caps lump the
+            // outline instead of keeping it smooth (and the caps overshoot the ends).
             g.setColour(style.border_inner);
-            g.strokePath(
-                arcs,
-                juce::PathStrokeType{
-                    g_arpeggio_bracket_thickness,
-                    juce::PathStrokeType::curved,
-                    juce::PathStrokeType::rounded
-                });
+            g.strokePath(arcs, juce::PathStrokeType{g_arpeggio_bracket_thickness});
 
             if (!arpeggio_note.sounded && metrics.draw_text)
             {
