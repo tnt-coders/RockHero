@@ -9,7 +9,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <rock_hero/common/core/chart/chart_rules.h>
-#include <span>
 #include <string_view>
 
 namespace rock_hero::common::ui
@@ -29,12 +28,6 @@ struct StringColorPalette
 {
     /*! \brief Stable identifier persisted by product settings; never renamed once shipped. */
     std::string_view id{};
-
-    /*! \brief Human-readable preset name for pickers. */
-    std::string_view display_name{};
-
-    /*! \brief True when the preset is validated for common color-vision deficiencies. */
-    bool colorblind_safe{false};
 
     /*! \brief Six-string-window base colors, lowest lane of the window first. */
     std::array<ArgbColor, 6> standard{};
@@ -126,14 +119,8 @@ struct StringLaneStyle
 };
 
 /*!
-\brief Returns every built-in string-color preset.
-\return Stable-ordered registry; the first entry is the default preset.
-*/
-[[nodiscard]] std::span<const StringColorPalette> stringColorPalettes();
-
-/*!
 \brief Returns the Charter Classic preset, the default palette both products start with.
-\return The registry's Charter Classic entry.
+\return The Charter Classic palette data the render stack consumes.
 */
 [[nodiscard]] const StringColorPalette& charterClassicPalette();
 

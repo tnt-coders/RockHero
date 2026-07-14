@@ -1,7 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
 #include <rock_hero/common/ui/string_colors/string_color_palette.h>
-#include <set>
-#include <string_view>
 
 namespace rock_hero::common::ui
 {
@@ -58,23 +56,6 @@ TEST_CASE("Palette style derivation matches the Charter chain for red", "[ui][st
     CHECK(style.tail == 0xff9c0000);         // 237 * 0.66 == 156
     CHECK(style.tail_edge == 0xffde0000);    // 156 / 0.7 == 222
     CHECK(style.accent == 0xffff0000);       // saturated red stays saturated
-}
-
-// Registry hygiene: ids are the persisted contract, so they must be unique and non-empty, and
-// the default preset must be the Charter Classic entry.
-TEST_CASE("Palette registry ids are unique and non-empty", "[ui][string-colors]")
-{
-    std::set<std::string_view> ids;
-    for (const StringColorPalette& palette : stringColorPalettes())
-    {
-        CHECK_FALSE(palette.id.empty());
-        CHECK_FALSE(palette.display_name.empty());
-        CHECK(ids.insert(palette.id).second);
-    }
-
-    REQUIRE_FALSE(stringColorPalettes().empty());
-    CHECK(stringColorPalettes().front().id == charterClassicPalette().id);
-    CHECK(charterClassicPalette().id == "charter-classic");
 }
 
 } // namespace rock_hero::common::ui
