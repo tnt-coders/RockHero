@@ -10,7 +10,7 @@
 #include <filesystem>
 #include <functional>
 #include <optional>
-#include <rock_hero/common/audio/input/live_input_error.h>
+#include <rock_hero/common/audio/input/live_input_monitor_error.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/common/core/tone/tone_automation.h>
@@ -340,7 +340,7 @@ public:
     \brief Prepares the live input route for raw input calibration measurement.
     \return Empty success, or a typed live-input failure.
     */
-    [[nodiscard]] virtual std::expected<void, common::audio::LiveInputError>
+    [[nodiscard]] virtual std::expected<void, common::audio::LiveInputMonitorError>
     onInputCalibrationMeasurementStarted() = 0;
 
     /*! \brief Stops an active calibration measurement while leaving the prompt open. */
@@ -351,7 +351,7 @@ public:
     \param gain_db Calibrated input gain in decibels.
     \return Empty success, or a typed live-input failure.
     */
-    [[nodiscard]] virtual std::expected<void, common::audio::LiveInputError>
+    [[nodiscard]] virtual std::expected<void, common::audio::LiveInputMonitorError>
     onInputCalibrationSucceeded(double gain_db) = 0;
 
     /*!
@@ -359,7 +359,7 @@ public:
     \param gain_db Input gain in decibels.
     \return Empty success, or a typed live-input failure.
     */
-    [[nodiscard]] virtual std::expected<void, common::audio::LiveInputError>
+    [[nodiscard]] virtual std::expected<void, common::audio::LiveInputMonitorError>
     onInputCalibrationManuallySet(double gain_db) = 0;
 
     /*! \brief Handles the calibration prompt closing without a new successful calibration. */

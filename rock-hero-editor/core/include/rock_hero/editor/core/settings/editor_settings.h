@@ -27,9 +27,10 @@ composition. Scalar values and XML-valued histories are stored in the app proper
 settings are per-user application state, not `.rhp` project data and not `.rock` package data.
 
 The editor's audio configuration (active device route and input calibration) lives on a separate
-per-app AudioConfigStore that EditorSettings owns, so it partitions cleanly from workflow state.
-The calibration accessors delegate to that store; app composition injects the same store into the
-controller for device-route persist/restore via audioConfigStore().
+per-app AudioConfigStore that EditorSettings owns, so it partitions cleanly from workflow state. App
+composition injects that store, via audioConfigStore(), into the controller for device-route
+persist/restore and into the shared LiveInputMonitor for calibration read/write; EditorSettings no
+longer exposes calibration accessors of its own.
 */
 class EditorSettings final : public IEditorSettings
 {
@@ -186,31 +187,6 @@ public:
     */
     [[nodiscard]] std::expected<void, EditorSettingsError> saveProjectSelectedArrangement(
         const std::filesystem::path& project_file, std::string arrangement_id) override;
-
-    /*!
-    \brief Reads app-local input calibration for one physical input route.
-    \param identity Physical input route to look up.
-    \return Calibration state, absence, or a typed settings failure.
-    */
-    [[nodiscard]] std::expected<
-        std::optional<common::audio::InputCalibrationState>, EditorSettingsError>
-    inputCalibrationFor(const common::audio::InputDeviceIdentity& identity) const override;
-
-    /*!
-    \brief Stores or replaces app-local input calibration for its physical route.
-    \param calibration_state Calibration state to save.
-    \return Empty success, or a typed settings failure.
-    */
-    [[nodiscard]] std::expected<void, EditorSettingsError> saveInputCalibration(
-        common::audio::InputCalibrationState calibration_state) override;
-
-    /*!
-    \brief Removes app-local input calibration for one physical input route.
-    \param identity Physical input route to remove.
-    \return Empty success, or a typed settings failure.
-    */
-    [[nodiscard]] std::expected<void, EditorSettingsError> removeInputCalibration(
-        const common::audio::InputDeviceIdentity& identity) override;
 
     /*!
     \brief Returns the editor's owned audio-config store for device-route persist/restore.

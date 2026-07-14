@@ -9,7 +9,7 @@
 #include <expected>
 #include <rock_hero/common/audio/input/audio_meter_snapshot.h>
 #include <rock_hero/common/audio/input/input_calibration.h>
-#include <rock_hero/common/audio/input/live_input_error.h>
+#include <rock_hero/common/audio/input/live_input_monitor_error.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <rock_hero/editor/core/input_calibration/i_input_calibration_view.h>
 #include <rock_hero/editor/core/input_calibration/input_calibration_view_state.h>
@@ -39,7 +39,7 @@ public:
         \brief Prepares the current live-input route for automatic measurement.
         \return Empty success, or a typed live-input failure.
         */
-        [[nodiscard]] virtual std::expected<void, common::audio::LiveInputError>
+        [[nodiscard]] virtual std::expected<void, common::audio::LiveInputMonitorError>
         startInputCalibrationMeasurement() = 0;
 
         /*! \brief Cancels a measurement and restores editor-owned live-input state. */
@@ -50,7 +50,7 @@ public:
         \param gain_db Gain in decibels.
         \return Empty success, or a typed live-input failure.
         */
-        [[nodiscard]] virtual std::expected<void, common::audio::LiveInputError>
+        [[nodiscard]] virtual std::expected<void, common::audio::LiveInputMonitorError>
         applyAutomaticInputCalibration(double gain_db) = 0;
 
         /*!
@@ -58,7 +58,7 @@ public:
         \param gain_db Gain in decibels.
         \return Empty success, or a typed live-input failure.
         */
-        [[nodiscard]] virtual std::expected<void, common::audio::LiveInputError>
+        [[nodiscard]] virtual std::expected<void, common::audio::LiveInputMonitorError>
         applyManualInputCalibration(double gain_db) = 0;
 
         /*! \brief Dismisses the input calibration popup. */

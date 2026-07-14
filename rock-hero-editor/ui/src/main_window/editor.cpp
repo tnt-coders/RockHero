@@ -44,13 +44,13 @@ Editor::Editor(
               .plugin_host = audio_ports.plugin_host,
               .live_rig = audio_ports.live_rig,
               .tone_automation = audio_ports.tone_automation,
-              .live_input = audio_ports.live_input,
           },
           core::EditorController::Services{
               .settings = services.settings,
               .task_runner = services.task_runner,
               .message_thread_scheduler = services.message_thread_scheduler,
               .audio_config_store = services.audio_config_store,
+              .live_input_monitor = services.live_input_monitor,
           },
           std::move(exit_function), controllerProjectOperationsFrom(std::move(project_operations)))
     , m_view(

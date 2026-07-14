@@ -254,7 +254,7 @@ private:
         syncPreferredSize();
     }
 
-    [[nodiscard]] std::expected<void, common::audio::LiveInputError>
+    [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
     startInputCalibrationMeasurement() override
     {
         return m_editor_controller.onInputCalibrationMeasurementStarted();
@@ -265,14 +265,14 @@ private:
         m_editor_controller.onInputCalibrationMeasurementCancelled();
     }
 
-    [[nodiscard]] std::expected<void, common::audio::LiveInputError> applyAutomaticInputCalibration(
-        double gain_db) override
+    [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
+    applyAutomaticInputCalibration(double gain_db) override
     {
         return m_editor_controller.onInputCalibrationSucceeded(gain_db);
     }
 
-    [[nodiscard]] std::expected<void, common::audio::LiveInputError> applyManualInputCalibration(
-        double gain_db) override
+    [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
+    applyManualInputCalibration(double gain_db) override
     {
         return m_editor_controller.onInputCalibrationManuallySet(gain_db);
     }

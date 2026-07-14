@@ -28,6 +28,8 @@ target_sources(
             src/input/input_calibration.cpp
             src/input/input_calibration_workflow.cpp
             src/input/live_input_error.cpp
+            src/input/live_input_monitor.cpp
+            src/input/live_input_monitor_error.cpp
             src/live_rig/live_rig_error.cpp
             src/live_rig/tone_document.cpp
             src/live_rig/tone_document.h

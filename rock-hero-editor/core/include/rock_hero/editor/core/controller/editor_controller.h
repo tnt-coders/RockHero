@@ -26,12 +26,12 @@ namespace rock_hero::common::audio
 {
 class IAudioConfigStore;
 class IAudioDeviceConfiguration;
-class ILiveInput;
 class ILiveRig;
 class IPluginHost;
 class ISongAudio;
 class IToneAutomation;
 class ITransport;
+class LiveInputMonitor;
 } // namespace rock_hero::common::audio
 
 namespace rock_hero::editor::core
@@ -142,6 +142,9 @@ public:
 
         /*! \brief Per-app audio-config store used for device-route persist and restore. */
         common::audio::IAudioConfigStore& audio_config_store;
+
+        /*! \brief Shared calibrate-first live-input monitoring service driven by the controller. */
+        common::audio::LiveInputMonitor& live_input_monitor;
     };
 
     /*!
@@ -170,9 +173,6 @@ public:
 
         /*! \brief Tone parameter automation port used to read and edit tone-chain plugin curves. */
         common::audio::IToneAutomation& tone_automation;
-
-        /*! \brief Live-input port used for monitoring and calibration. */
-        common::audio::ILiveInput& live_input;
     };
 
     /*!
@@ -482,7 +482,7 @@ public:
     \brief Prepares the live input route for raw input calibration measurement.
     \return Empty success, or a typed live-input failure.
     */
-    [[nodiscard]] std::expected<void, common::audio::LiveInputError>
+    [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
     onInputCalibrationMeasurementStarted() override;
 
     /*! \brief Stops an active calibration measurement while leaving the prompt open. */
@@ -491,18 +491,18 @@ public:
     /*!
     \brief Applies and stores a completed input calibration gain.
     \param gain_db Calibrated input gain in decibels.
-    \return Empty success, or a typed live-input failure.
+    \return Empty success, or a typed monitoring failure.
     */
-    [[nodiscard]] std::expected<void, common::audio::LiveInputError> onInputCalibrationSucceeded(
-        double gain_db) override;
+    [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
+    onInputCalibrationSucceeded(double gain_db) override;
 
     /*!
     \brief Applies and stores a manually entered input calibration gain.
     \param gain_db Input gain in decibels.
-    \return Empty success, or a typed live-input failure.
+    \return Empty success, or a typed monitoring failure.
     */
-    [[nodiscard]] std::expected<void, common::audio::LiveInputError> onInputCalibrationManuallySet(
-        double gain_db) override;
+    [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
+    onInputCalibrationManuallySet(double gain_db) override;
 
     /*! \brief Handles the calibration prompt closing without a new successful calibration. */
     void onInputCalibrationDismissed() override;

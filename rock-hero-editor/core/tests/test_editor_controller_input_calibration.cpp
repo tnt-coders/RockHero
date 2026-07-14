@@ -9,22 +9,24 @@ namespace rock_hero::editor::core
 namespace
 {
 
-// Reads calibration through the typed settings contract and returns the optional payload.
+// Reads calibration through the app's audio-config store and returns the optional payload.
 [[nodiscard]] std::optional<common::audio::InputCalibrationState> inputCalibrationFor(
-    const EditorSettings& settings, const common::audio::InputDeviceIdentity& identity)
+    const common::audio::testing::InMemoryAudioConfigStore& store,
+    const common::audio::InputDeviceIdentity& identity)
 {
-    auto result = settings.inputCalibrationFor(identity);
+    auto result = store.inputCalibrationFor(identity);
     REQUIRE(result.has_value());
     return std::move(*result);
 }
 
-// Stores calibration through the typed settings contract.
+// Stores calibration through the app's audio-config store.
 void requireSaveInputCalibration(
-    EditorSettings& settings, common::audio::InputCalibrationState calibration)
+    common::audio::testing::InMemoryAudioConfigStore& store,
+    common::audio::InputCalibrationState calibration)
 {
     // Move outside the assertion macro: REQUIRE re-mentions its expression textually, which
     // bugprone-use-after-move reads as a use of the moved-from calibration.
-    const auto saved = settings.saveInputCalibration(std::move(calibration));
+    const auto saved = store.saveInputCalibration(std::move(calibration));
     REQUIRE(saved.has_value());
 }
 
@@ -41,9 +43,11 @@ TEST_CASE(
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -79,9 +83,11 @@ TEST_CASE(
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -131,8 +137,7 @@ TEST_CASE(
     "Input calibration success stores app-local gain and enables monitoring",
     "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"input_calibration_success"};
-    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     FakeTransport transport;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
@@ -141,9 +146,10 @@ TEST_CASE(
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        controllerServices(settings),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -176,7 +182,7 @@ TEST_CASE(
 
     REQUIRE(audio_devices.current_input_identity.has_value());
     const auto stored_calibration =
-        inputCalibrationFor(settings, *audio_devices.current_input_identity);
+        inputCalibrationFor(store, *audio_devices.current_input_identity);
     REQUIRE(stored_calibration.has_value());
     if (stored_calibration.has_value())
     {
@@ -189,8 +195,7 @@ TEST_CASE(
 TEST_CASE(
     "Input calibration retry resets committed gain before measuring", "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"input_calibration_retry_reset"};
-    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     FakeTransport transport;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
@@ -199,9 +204,10 @@ TEST_CASE(
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        controllerServices(settings),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -242,8 +248,7 @@ TEST_CASE(
 // Verifies calibration setup failure while resetting gain restores the previous input route.
 TEST_CASE("Input calibration start restores route on gain failure", "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"input_calibration_gain_failure"};
-    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     FakeTransport transport;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
@@ -252,9 +257,10 @@ TEST_CASE("Input calibration start restores route on gain failure", "[core][edit
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        controllerServices(settings),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -278,7 +284,7 @@ TEST_CASE("Input calibration start restores route on gain failure", "[core][edit
     REQUIRE_FALSE(measurement_started.has_value());
     CHECK(
         measurement_started.error().code ==
-        common::audio::LiveInputErrorCode::CouldNotSetInputGain);
+        common::audio::LiveInputMonitorErrorCode::BackendRejected);
     CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(4.0, 0));
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
@@ -287,8 +293,7 @@ TEST_CASE("Input calibration start restores route on gain failure", "[core][edit
 // Verifies calibration setup failure while enabling monitor restores the previous input route.
 TEST_CASE("Input calibration start restores route on monitor failure", "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"input_calibration_monitor_failure"};
-    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     FakeTransport transport;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
@@ -297,9 +302,10 @@ TEST_CASE("Input calibration start restores route on monitor failure", "[core][e
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        controllerServices(settings),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -323,7 +329,7 @@ TEST_CASE("Input calibration start restores route on monitor failure", "[core][e
     REQUIRE_FALSE(measurement_started.has_value());
     CHECK(
         measurement_started.error().code ==
-        common::audio::LiveInputErrorCode::CouldNotSetMonitoring);
+        common::audio::LiveInputMonitorErrorCode::BackendRejected);
     CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(4.0, 0));
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
@@ -333,8 +339,7 @@ TEST_CASE("Input calibration start restores route on monitor failure", "[core][e
 TEST_CASE(
     "Manual input calibration stores gain and enables monitoring", "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"input_calibration_manual_set"};
-    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     FakeTransport transport;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
@@ -343,9 +348,10 @@ TEST_CASE(
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        controllerServices(settings),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -369,7 +375,7 @@ TEST_CASE(
 
     REQUIRE(audio_devices.current_input_identity.has_value());
     const auto stored_calibration =
-        inputCalibrationFor(settings, *audio_devices.current_input_identity);
+        inputCalibrationFor(store, *audio_devices.current_input_identity);
     REQUIRE(stored_calibration.has_value());
     if (stored_calibration.has_value())
     {
@@ -381,8 +387,7 @@ TEST_CASE(
 // Verifies settings editing releases the calibrated route before JUCE closes the active device.
 TEST_CASE("Audio settings open releases calibrated input route", "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"input_calibration_settings_route_release"};
-    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     FakeTransport transport;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
@@ -396,9 +401,10 @@ TEST_CASE("Audio settings open releases calibrated input route", "[core][editor-
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        controllerServices(settings),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -422,7 +428,7 @@ TEST_CASE("Audio settings open releases calibrated input route", "[core][editor-
 
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
-    CHECK(inputCalibrationFor(settings, *audio_devices.current_input_identity).has_value());
+    CHECK(inputCalibrationFor(store, *audio_devices.current_input_identity).has_value());
     const auto* const settings_open_state = stateOrNull(view.last_state);
     REQUIRE(settings_open_state != nullptr);
     CHECK(
@@ -447,11 +453,10 @@ TEST_CASE("Audio settings open releases calibrated input route", "[core][editor-
 // Verifies settings close does not treat JUCE's temporary closed route as a device change.
 TEST_CASE("Audio settings close waits for settled input route", "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"input_calibration_settings_close_settle"};
-    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
-        settings,
+        store,
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{5.0},
             .input_device_identity = identity,
@@ -465,9 +470,10 @@ TEST_CASE("Audio settings close waits for settled input route", "[core][editor-c
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        controllerServices(settings),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -482,7 +488,7 @@ TEST_CASE("Audio settings close waits for settled input route", "[core][editor-c
     audio_devices.current_input_identity = std::nullopt;
     controller.onAudioDeviceSettingsClosed();
 
-    CHECK(inputCalibrationFor(settings, identity).has_value());
+    CHECK(inputCalibrationFor(store, identity).has_value());
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     const auto* const no_device_state = stateOrNull(view.last_state);
     REQUIRE(no_device_state != nullptr);
@@ -493,7 +499,7 @@ TEST_CASE("Audio settings close waits for settled input route", "[core][editor-c
     audio_devices.current_input_identity = identity;
     audio_devices.notifyChanged();
 
-    CHECK(inputCalibrationFor(settings, identity).has_value());
+    CHECK(inputCalibrationFor(store, identity).has_value());
     CHECK(transport.live_input_monitoring_enabled);
     const auto* const reconnected_state = stateOrNull(view.last_state);
     REQUIRE(reconnected_state != nullptr);
@@ -505,11 +511,10 @@ TEST_CASE("Audio settings close waits for settled input route", "[core][editor-c
 // Verifies startup with a disconnected calibrated device keeps calibration for reconnect.
 TEST_CASE("Stored input calibration waits for disconnected device", "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"input_calibration_startup_disconnected"};
-    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
-        settings,
+        store,
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{5.0},
             .input_device_identity = identity,
@@ -522,9 +527,10 @@ TEST_CASE("Stored input calibration waits for disconnected device", "[core][edit
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        controllerServices(settings),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -535,7 +541,7 @@ TEST_CASE("Stored input calibration waits for disconnected device", "[core][edit
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
 
     CHECK_FALSE(transport.live_input_monitoring_enabled);
-    CHECK(inputCalibrationFor(settings, identity).has_value());
+    CHECK(inputCalibrationFor(store, identity).has_value());
     const auto* const disconnected_state = stateOrNull(view.last_state);
     REQUIRE(disconnected_state != nullptr);
     CHECK(
@@ -547,7 +553,7 @@ TEST_CASE("Stored input calibration waits for disconnected device", "[core][edit
 
     CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(5.0, 0));
     CHECK(transport.live_input_monitoring_enabled);
-    REQUIRE(inputCalibrationFor(settings, identity).has_value());
+    REQUIRE(inputCalibrationFor(store, identity).has_value());
     const auto* const restored_state = stateOrNull(view.last_state);
     REQUIRE(restored_state != nullptr);
     CHECK(
@@ -560,11 +566,10 @@ TEST_CASE(
     "Stored input calibration stays disabled until live rig load completes",
     "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"input_calibration_startup_gate"};
-    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
-        settings,
+        store,
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{5.0},
             .input_device_identity = identity,
@@ -579,9 +584,10 @@ TEST_CASE(
     live_rig.defer_load_completion = true;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        controllerServices(settings),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -607,11 +613,10 @@ TEST_CASE(
 // Verifies backend arming failure does not erase calibration for the unchanged input route.
 TEST_CASE("Input calibration reports backend unavailable", "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"input_calibration_backend_unavailable"};
-    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
-        settings,
+        store,
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{5.0},
             .input_device_identity = identity,
@@ -625,9 +630,10 @@ TEST_CASE("Input calibration reports backend unavailable", "[core][editor-contro
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        controllerServices(settings),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -648,7 +654,7 @@ TEST_CASE("Input calibration reports backend unavailable", "[core][editor-contro
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
     CHECK_FALSE(transport.live_input_monitoring_enabled);
-    CHECK(inputCalibrationFor(settings, identity).has_value());
+    CHECK(inputCalibrationFor(store, identity).has_value());
     CHECK(
         final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Unavailable);
     CHECK(
@@ -659,11 +665,10 @@ TEST_CASE("Input calibration reports backend unavailable", "[core][editor-contro
 // Verifies temporary input route loss keeps calibration for a matching reconnect.
 TEST_CASE("Input disconnect preserves calibration for same reconnect", "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"input_calibration_disconnect_reconnect"};
-    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
-        settings,
+        store,
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{5.0},
             .input_device_identity = identity,
@@ -677,9 +682,10 @@ TEST_CASE("Input disconnect preserves calibration for same reconnect", "[core][e
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        controllerServices(settings),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -694,7 +700,7 @@ TEST_CASE("Input disconnect preserves calibration for same reconnect", "[core][e
     audio_devices.notifyChanged();
 
     CHECK_FALSE(transport.live_input_monitoring_enabled);
-    CHECK(inputCalibrationFor(settings, identity).has_value());
+    CHECK(inputCalibrationFor(store, identity).has_value());
     const auto* const disconnected_state = stateOrNull(view.last_state);
     REQUIRE(disconnected_state != nullptr);
     CHECK(
@@ -706,7 +712,7 @@ TEST_CASE("Input disconnect preserves calibration for same reconnect", "[core][e
 
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(5.0, 0));
-    const auto preserved_calibration = inputCalibrationFor(settings, identity);
+    const auto preserved_calibration = inputCalibrationFor(store, identity);
     REQUIRE(preserved_calibration.has_value());
     if (preserved_calibration.has_value())
     {
@@ -722,11 +728,10 @@ TEST_CASE("Input disconnect preserves calibration for same reconnect", "[core][e
 // Verifies route changes preserve prior calibration history while gating an unsaved route.
 TEST_CASE("Input route change preserves previous calibration history", "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"input_calibration_route_change"};
-    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity initial_identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
-        settings,
+        store,
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{5.0},
             .input_device_identity = initial_identity,
@@ -740,9 +745,10 @@ TEST_CASE("Input route change preserves previous calibration history", "[core][e
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        controllerServices(settings),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -761,12 +767,11 @@ TEST_CASE("Input route change preserves previous calibration history", "[core][e
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
-    CHECK(inputCalibrationFor(settings, initial_identity).has_value());
+    CHECK(inputCalibrationFor(store, initial_identity).has_value());
     REQUIRE(audio_devices.current_input_identity.has_value());
     if (audio_devices.current_input_identity.has_value())
     {
-        CHECK_FALSE(
-            inputCalibrationFor(settings, *audio_devices.current_input_identity).has_value());
+        CHECK_FALSE(inputCalibrationFor(store, *audio_devices.current_input_identity).has_value());
     }
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK_FALSE(final_state->input_calibration_prompt.has_value());
@@ -781,18 +786,17 @@ TEST_CASE("Input route change preserves previous calibration history", "[core][e
 // Verifies a saved calibration for the new physical route is applied after a route switch.
 TEST_CASE("Input route change applies saved route calibration", "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"input_calibration_saved_route_switch"};
-    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity initial_identity = makeInputDeviceIdentity();
     const common::audio::InputDeviceIdentity next_identity = makeInputDeviceIdentity("Interface B");
     requireSaveInputCalibration(
-        settings,
+        store,
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{5.0},
             .input_device_identity = initial_identity,
         });
     requireSaveInputCalibration(
-        settings,
+        store,
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{8.0},
             .input_device_identity = next_identity,
@@ -806,9 +810,10 @@ TEST_CASE("Input route change applies saved route calibration", "[core][editor-c
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        controllerServices(settings),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -825,20 +830,19 @@ TEST_CASE("Input route change applies saved route calibration", "[core][editor-c
     REQUIRE(final_state != nullptr);
     CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(8.0, 0));
     CHECK(transport.live_input_monitoring_enabled);
-    CHECK(inputCalibrationFor(settings, initial_identity).has_value());
-    CHECK(inputCalibrationFor(settings, next_identity).has_value());
+    CHECK(inputCalibrationFor(store, initial_identity).has_value());
+    CHECK(inputCalibrationFor(store, next_identity).has_value());
     CHECK(final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Calibrated);
 }
 
 // Verifies switching away and back restores the original physical-route calibration.
 TEST_CASE("Input route change restores saved calibration on return", "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"input_calibration_saved_route_return"};
-    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity initial_identity = makeInputDeviceIdentity();
     const common::audio::InputDeviceIdentity next_identity = makeInputDeviceIdentity("Interface B");
     requireSaveInputCalibration(
-        settings,
+        store,
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{5.0},
             .input_device_identity = initial_identity,
@@ -852,9 +856,10 @@ TEST_CASE("Input route change restores saved calibration on return", "[core][edi
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        controllerServices(settings),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -875,22 +880,21 @@ TEST_CASE("Input route change restores saved calibration on return", "[core][edi
     REQUIRE(final_state != nullptr);
     CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(5.0, 0));
     CHECK(transport.live_input_monitoring_enabled);
-    REQUIRE(inputCalibrationFor(settings, initial_identity).has_value());
+    REQUIRE(inputCalibrationFor(store, initial_identity).has_value());
     CHECK(final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Calibrated);
 }
 
 // Verifies channel-name drift does not hide a saved physical-route calibration.
 TEST_CASE("Input route return restores renamed physical channel", "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"input_calibration_renamed_channel_return"};
-    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity initial_identity =
         makeInputDeviceIdentity("Interface A", 0, "Input 1");
     const common::audio::InputDeviceIdentity renamed_identity =
         makeInputDeviceIdentity("Interface A", 0, "Mic/Inst 1");
     const common::audio::InputDeviceIdentity next_identity = makeInputDeviceIdentity("Interface B");
     requireSaveInputCalibration(
-        settings,
+        store,
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{5.0},
             .input_device_identity = initial_identity,
@@ -904,9 +908,10 @@ TEST_CASE("Input route return restores renamed physical channel", "[core][editor
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        controllerServices(settings),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -927,21 +932,20 @@ TEST_CASE("Input route return restores renamed physical channel", "[core][editor
     REQUIRE(final_state != nullptr);
     CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(5.0, 0));
     CHECK(transport.live_input_monitoring_enabled);
-    REQUIRE(inputCalibrationFor(settings, renamed_identity).has_value());
+    REQUIRE(inputCalibrationFor(store, renamed_identity).has_value());
     CHECK(final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Calibrated);
 }
 
 // Verifies a different physical input channel is treated as a different route.
 TEST_CASE("Input route channel change requires its own calibration", "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"input_calibration_channel_route"};
-    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity channel_one =
         makeInputDeviceIdentity("Interface A", 0);
     const common::audio::InputDeviceIdentity channel_three =
         makeInputDeviceIdentity("Interface A", 2);
     requireSaveInputCalibration(
-        settings,
+        store,
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{5.0},
             .input_device_identity = channel_one,
@@ -955,9 +959,10 @@ TEST_CASE("Input route channel change requires its own calibration", "[core][edi
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        controllerServices(settings),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -972,8 +977,8 @@ TEST_CASE("Input route channel change requires its own calibration", "[core][edi
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
-    CHECK(inputCalibrationFor(settings, channel_one).has_value());
-    CHECK_FALSE(inputCalibrationFor(settings, channel_three).has_value());
+    CHECK(inputCalibrationFor(store, channel_one).has_value());
+    CHECK_FALSE(inputCalibrationFor(store, channel_three).has_value());
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK(
         final_state->signal_chain.input_calibration_status ==
@@ -983,18 +988,17 @@ TEST_CASE("Input route channel change requires its own calibration", "[core][edi
 // Verifies settings close selects a newly chosen concrete route even while the window was open.
 TEST_CASE("Audio settings close applies saved replacement route", "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"input_calibration_settings_replacement_route"};
-    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity initial_identity = makeInputDeviceIdentity();
     const common::audio::InputDeviceIdentity next_identity = makeInputDeviceIdentity("Interface B");
     requireSaveInputCalibration(
-        settings,
+        store,
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{5.0},
             .input_device_identity = initial_identity,
         });
     requireSaveInputCalibration(
-        settings,
+        store,
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{8.0},
             .input_device_identity = next_identity,
@@ -1008,9 +1012,10 @@ TEST_CASE("Audio settings close applies saved replacement route", "[core][editor
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        controllerServices(settings),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1034,8 +1039,7 @@ TEST_CASE("Audio settings close applies saved replacement route", "[core][editor
 // Verifies a route change during measurement closes the prompt and leaves monitoring disabled.
 TEST_CASE("Input route change during calibration closes prompt", "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"input_calibration_active_route_change"};
-    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     FakeTransport transport;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
@@ -1044,9 +1048,10 @@ TEST_CASE("Input route change during calibration closes prompt", "[core][editor-
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        controllerServices(settings),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1073,8 +1078,7 @@ TEST_CASE("Input route change during calibration closes prompt", "[core][editor-
     REQUIRE(audio_devices.current_input_identity.has_value());
     if (audio_devices.current_input_identity.has_value())
     {
-        CHECK_FALSE(
-            inputCalibrationFor(settings, *audio_devices.current_input_identity).has_value());
+        CHECK_FALSE(inputCalibrationFor(store, *audio_devices.current_input_identity).has_value());
     }
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
@@ -1091,11 +1095,10 @@ TEST_CASE(
     "Manual input recalibration dismissal restores previous calibration",
     "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"input_calibration_manual_restore"};
-    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
-        settings,
+        store,
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{4.0},
             .input_device_identity = identity,
@@ -1109,9 +1112,10 @@ TEST_CASE(
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        controllerServices(settings),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1144,7 +1148,7 @@ TEST_CASE(
     CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(4.0, 0));
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
-    const auto restored_calibration = inputCalibrationFor(settings, identity);
+    const auto restored_calibration = inputCalibrationFor(store, identity);
     REQUIRE(restored_calibration.has_value());
     if (restored_calibration.has_value())
     {
@@ -1157,11 +1161,10 @@ TEST_CASE(
     "Manual input recalibration cancellation restores previous calibration",
     "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"input_calibration_manual_cancel"};
-    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
-        settings,
+        store,
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{4.0},
             .input_device_identity = identity,
@@ -1175,9 +1178,10 @@ TEST_CASE(
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        controllerServices(settings),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1200,7 +1204,7 @@ TEST_CASE(
     CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(4.0, 0));
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
-    const auto restored_calibration = inputCalibrationFor(settings, identity);
+    const auto restored_calibration = inputCalibrationFor(store, identity);
     REQUIRE(restored_calibration.has_value());
     if (restored_calibration.has_value())
     {
@@ -1213,11 +1217,10 @@ TEST_CASE(
     "Input recalibration cancel preserves calibration on backend failure",
     "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"input_calibration_manual_cancel_backend_unavailable"};
-    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
-        settings,
+        store,
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{4.0},
             .input_device_identity = identity,
@@ -1231,9 +1234,10 @@ TEST_CASE(
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        controllerServices(settings),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1264,7 +1268,7 @@ TEST_CASE(
     CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(4.0, 0));
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
-    const auto preserved_calibration = inputCalibrationFor(settings, identity);
+    const auto preserved_calibration = inputCalibrationFor(store, identity);
     REQUIRE(preserved_calibration.has_value());
     if (preserved_calibration.has_value())
     {
@@ -1277,11 +1281,10 @@ TEST_CASE(
     "Input recalibration commit preserves calibration on backend failure",
     "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"input_calibration_auto_commit_backend_unavailable"};
-    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
-        settings,
+        store,
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{4.0},
             .input_device_identity = identity,
@@ -1295,9 +1298,10 @@ TEST_CASE(
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        controllerServices(settings),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1331,7 +1335,7 @@ TEST_CASE(
     CHECK_THAT(transport.current_input_gain.db, Catch::Matchers::WithinULP(4.0, 0));
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
-    const auto preserved_calibration = inputCalibrationFor(settings, identity);
+    const auto preserved_calibration = inputCalibrationFor(store, identity);
     REQUIRE(preserved_calibration.has_value());
     if (preserved_calibration.has_value())
     {
@@ -1348,14 +1352,13 @@ using common::audio::testing::setCalibrationInputMonitoringCall;
 using common::audio::testing::setInputGainCall;
 using common::audio::testing::setLiveInputMonitoringCall;
 
-// Routes the live-input port to a distinct ordered-recording fake while keeping the transport fake
-// as the transport port, so the exact ILiveInput setter trace is observable at the controller
-// boundary. The stock audioPorts() overloads wire live_input to the transport fake, which records
-// no cross-setter ordering.
-[[nodiscard]] EditorController::AudioPorts audioPortsWithLiveInput(
+// Builds a controller audio-port bundle with a specific live rig (the stock five-arg overload also
+// needs a plugin host, which these live-input trace tests do not). The live-input port the gate
+// drives is no longer an audio port: the tests inject an ordered-recording FakeLiveInput through
+// their own LiveInputMonitor so the exact ILiveInput setter trace stays observable.
+[[nodiscard]] EditorController::AudioPorts audioPortsForLiveInputTrace(
     FakeTransport& transport, ConfigurableSongAudio& song_audio,
-    ConfigurableAudioDeviceConfiguration& audio_devices, FakeLiveRig& live_rig,
-    common::audio::ILiveInput& live_input)
+    ConfigurableAudioDeviceConfiguration& audio_devices, FakeLiveRig& live_rig)
 {
     return EditorController::AudioPorts{
         .transport = transport,
@@ -1364,7 +1367,6 @@ using common::audio::testing::setLiveInputMonitoringCall;
         .plugin_host = defaultPluginHost(),
         .live_rig = live_rig,
         .tone_automation = defaultToneAutomation(),
-        .live_input = live_input,
     };
 }
 
@@ -1421,9 +1423,11 @@ TEST_CASE("Live input golden trace spans calibration arc", "[core][editor-contro
     FakeLiveInput live_input;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{live_input, audio_devices, store};
     EditorController controller{
-        audioPortsWithLiveInput(transport, audio, audio_devices, live_rig, live_input),
-        defaultControllerServices(),
+        audioPortsForLiveInputTrace(transport, audio, audio_devices, live_rig),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1489,11 +1493,10 @@ TEST_CASE("Live input golden trace spans calibration arc", "[core][editor-contro
 // then gain, then live monitoring on. Captured over the project-lifecycle gate (no store re-read).
 TEST_CASE("Live input gate arms matching route in order", "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"live_input_arm_on_match"};
-    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
-        settings,
+        store,
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{5.0},
             .input_device_identity = identity,
@@ -1508,9 +1511,10 @@ TEST_CASE("Live input gate arms matching route in order", "[core][editor-control
     FakeLiveInput live_input;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{live_input, audio_devices, store};
     EditorController controller{
-        audioPortsWithLiveInput(transport, audio, audio_devices, live_rig, live_input),
-        controllerServices(settings),
+        audioPortsForLiveInputTrace(transport, audio, audio_devices, live_rig),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1570,9 +1574,11 @@ TEST_CASE("Live input start rollback on disable failure", "[core][editor-control
     FakeLiveInput live_input;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{live_input, audio_devices, store};
     EditorController controller{
-        audioPortsWithLiveInput(transport, audio, audio_devices, live_rig, live_input),
-        defaultControllerServices(),
+        audioPortsForLiveInputTrace(transport, audio, audio_devices, live_rig),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1623,9 +1629,11 @@ TEST_CASE("Live input start rollback on gain failure", "[core][editor-controller
     FakeLiveInput live_input;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{live_input, audio_devices, store};
     EditorController controller{
-        audioPortsWithLiveInput(transport, audio, audio_devices, live_rig, live_input),
-        defaultControllerServices(),
+        audioPortsForLiveInputTrace(transport, audio, audio_devices, live_rig),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1671,9 +1679,11 @@ TEST_CASE("Live input start rollback on audition failure", "[core][editor-contro
     FakeLiveInput live_input;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{live_input, audio_devices, store};
     EditorController controller{
-        audioPortsWithLiveInput(transport, audio, audio_devices, live_rig, live_input),
-        defaultControllerServices(),
+        audioPortsForLiveInputTrace(transport, audio, audio_devices, live_rig),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1712,11 +1722,10 @@ TEST_CASE("Live input start rollback on audition failure", "[core][editor-contro
 // disables calibration audition, attempts the gain, then disables monitoring.
 TEST_CASE("Live input commit rollback on gain failure", "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"live_input_commit_gain_failure"};
-    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
-        settings,
+        store,
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{4.0},
             .input_device_identity = identity,
@@ -1730,9 +1739,10 @@ TEST_CASE("Live input commit rollback on gain failure", "[core][editor-controlle
     FakeLiveInput live_input;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{live_input, audio_devices, store};
     EditorController controller{
-        audioPortsWithLiveInput(transport, audio, audio_devices, live_rig, live_input),
-        controllerServices(settings),
+        audioPortsForLiveInputTrace(transport, audio, audio_devices, live_rig),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1773,11 +1783,10 @@ TEST_CASE("Live input commit rollback on gain failure", "[core][editor-controlle
 // preserved calibration's gain is restored before monitoring is disabled.
 TEST_CASE("Live input commit rollback on enable failure", "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"live_input_commit_enable_failure"};
-    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
-        settings,
+        store,
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{4.0},
             .input_device_identity = identity,
@@ -1791,9 +1800,10 @@ TEST_CASE("Live input commit rollback on enable failure", "[core][editor-control
     FakeLiveInput live_input;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{live_input, audio_devices, store};
     EditorController controller{
-        audioPortsWithLiveInput(transport, audio, audio_devices, live_rig, live_input),
-        controllerServices(settings),
+        audioPortsForLiveInputTrace(transport, audio, audio_devices, live_rig),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1837,11 +1847,10 @@ TEST_CASE("Live input commit rollback on enable failure", "[core][editor-control
 // calibration (audition off, gain, monitoring on) and keeps the prompt open.
 TEST_CASE("Live input cancel restores previous calibration", "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"live_input_cancel_restore"};
-    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
-        settings,
+        store,
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{4.0},
             .input_device_identity = identity,
@@ -1855,9 +1864,10 @@ TEST_CASE("Live input cancel restores previous calibration", "[core][editor-cont
     FakeLiveInput live_input;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{live_input, audio_devices, store};
     EditorController controller{
-        audioPortsWithLiveInput(transport, audio, audio_devices, live_rig, live_input),
-        controllerServices(settings),
+        audioPortsForLiveInputTrace(transport, audio, audio_devices, live_rig),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1892,11 +1902,10 @@ TEST_CASE("Live input cancel restores previous calibration", "[core][editor-cont
 // both disable, and the controller pushes the settled no-device view-state.
 TEST_CASE("Live input device change to none re-gates view", "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"live_input_device_change_none"};
-    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
-        settings,
+        store,
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{5.0},
             .input_device_identity = identity,
@@ -1910,9 +1919,10 @@ TEST_CASE("Live input device change to none re-gates view", "[core][editor-contr
     FakeLiveInput live_input;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{live_input, audio_devices, store};
     EditorController controller{
-        audioPortsWithLiveInput(transport, audio, audio_devices, live_rig, live_input),
-        controllerServices(settings),
+        audioPortsForLiveInputTrace(transport, audio, audio_devices, live_rig),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1952,11 +1962,10 @@ TEST_CASE("Live input device change to none re-gates view", "[core][editor-contr
 // case, but the settled state distinguishes it as missing calibration.
 TEST_CASE("Live input device change to uncalibrated re-gates", "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"live_input_device_change_uncalibrated"};
-    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
-        settings,
+        store,
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{5.0},
             .input_device_identity = identity,
@@ -1970,9 +1979,10 @@ TEST_CASE("Live input device change to uncalibrated re-gates", "[core][editor-co
     FakeLiveInput live_input;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{live_input, audio_devices, store};
     EditorController controller{
-        audioPortsWithLiveInput(transport, audio, audio_devices, live_rig, live_input),
-        controllerServices(settings),
+        audioPortsForLiveInputTrace(transport, audio, audio_devices, live_rig),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -2008,11 +2018,10 @@ TEST_CASE("Live input device change to uncalibrated re-gates", "[core][editor-co
 // window is open disables monitoring but leaves the calibrated status intact with an empty message.
 TEST_CASE("Live input gate disables while settings open", "[core][editor-controller]")
 {
-    const ScopedControllerFiles files{"live_input_gate_settings_open"};
-    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore store;
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
     requireSaveInputCalibration(
-        settings,
+        store,
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{5.0},
             .input_device_identity = identity,
@@ -2026,9 +2035,10 @@ TEST_CASE("Live input gate disables while settings open", "[core][editor-control
     FakeLiveInput live_input;
     FakeProjectServices project_services;
     FakeEditorView view;
+    common::audio::LiveInputMonitor monitor{live_input, audio_devices, store};
     EditorController controller{
-        audioPortsWithLiveInput(transport, audio, audio_devices, live_rig, live_input),
-        controllerServices(settings),
+        audioPortsForLiveInputTrace(transport, audio, audio_devices, live_rig),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),

@@ -155,7 +155,7 @@ void EditorController::Impl::openProject(
     const std::filesystem::path& file, bool clear_last_open_project_on_failure)
 {
     m_project_audio_ready = false;
-    applyLiveInputGate();
+    m_live_input_monitor.disableMonitoring();
 
     auto state = std::make_shared<OpenTaskState>();
     state->file = file;
@@ -312,7 +312,7 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
     {
         clearInterruptedRestoreMarker();
     }
-    applyLiveInputGate();
+    static_cast<void>(m_live_input_monitor.applyGate(monitoringContext()));
 
     // Marks a completed load so the view can recenter on the restored cursor; the transport has
     // already been seeked above, so the state pushed by finishBusyOperation() carries both.
@@ -328,7 +328,7 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
 void EditorController::Impl::importSongSource(const std::filesystem::path& file)
 {
     m_project_audio_ready = false;
-    applyLiveInputGate();
+    m_live_input_monitor.disableMonitoring();
 
     auto state = std::make_shared<ImportTaskState>();
     state->file = file;
@@ -438,7 +438,7 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
     m_project_audio_ready = true;
     resetUndoHistory("undo.reset.import_project");
     markUndoHistoryClean("undo.mark_clean.import_project");
-    applyLiveInputGate();
+    static_cast<void>(m_live_input_monitor.applyGate(monitoringContext()));
 
     // Imports have no persisted editor cursor, so establish an explicit start position before the
     // view observes the new project load id and recenters the timeline.
@@ -538,7 +538,7 @@ void EditorController::Impl::startLiveRigLoadStage(
                 // instead of the backend default. A future tempo-editing flow must re-mirror
                 // after every tempo-map change alongside rebuildToneAutomationCurves().
                 m_song_audio.mirrorTempoMap(session().song().tempo_map);
-                applyLiveInputGate();
+                static_cast<void>(m_live_input_monitor.applyGate(monitoringContext()));
                 if (!report_progress)
                 {
                     captured_stage.finish({});
@@ -785,7 +785,7 @@ void EditorController::Impl::runProjectActionImpl(EditorAction::ExitApplication 
 bool EditorController::Impl::closeProject()
 {
     m_project_audio_ready = false;
-    applyLiveInputGate();
+    m_live_input_monitor.disableMonitoring();
 
     if (!m_project.has_value())
     {

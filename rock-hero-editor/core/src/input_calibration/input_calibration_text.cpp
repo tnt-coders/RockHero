@@ -11,17 +11,17 @@ namespace
 {
 
 [[nodiscard]] bool contextReadyForCalibration(
-    const common::audio::InputCalibrationWorkflow::Context& context) noexcept
+    common::audio::LiveInputMonitoringContext context) noexcept
 {
-    return context.project_audio_ready && context.arrangement_loaded;
+    return context.session_audio_ready && context.arrangement_loaded;
 }
 
 // Reason reflecting only route identity and calibration match, deliberately ignoring the
-// settings-open and session-ready early-outs that evaluateMonitoring reports first. The
-// signal-chain status keeps showing a route's calibration while device settings are open, so it
-// must be derived from this identity/calibration-only reason rather than the ordered gate result.
+// settings-open and session-ready early-outs that the gate reports first. The signal-chain status
+// keeps showing a route's calibration while device settings are open, so it must be derived from
+// this identity/calibration-only reason rather than the ordered gate result.
 [[nodiscard]] common::audio::MonitoringDisabledReason statusReasonFor(
-    const common::audio::InputCalibrationWorkflow& workflow,
+    const common::audio::LiveInputMonitor& monitor,
     const std::optional<common::audio::InputDeviceIdentity>& identity)
 {
     if (!identity.has_value())
@@ -29,7 +29,7 @@ namespace
         return common::audio::MonitoringDisabledReason::NoInputDevice;
     }
 
-    if (!workflow.calibrationMatches(identity))
+    if (!monitor.calibrationMatchesCurrentRoute())
     {
         return common::audio::MonitoringDisabledReason::MissingCalibration;
     }
@@ -38,13 +38,11 @@ namespace
 }
 
 // Gain shown by the calibration prompt: the stored matching-route gain, else the neutral default.
-[[nodiscard]] double promptGainDb(
-    const common::audio::InputCalibrationWorkflow& workflow,
-    const std::optional<common::audio::InputDeviceIdentity>& identity)
+[[nodiscard]] double promptGainDb(const common::audio::LiveInputMonitor& monitor)
 {
     const std::optional<common::audio::InputCalibrationState> calibration =
-        workflow.activeCalibrationState();
-    if (!workflow.calibrationMatches(identity) || !calibration.has_value())
+        monitor.activeCalibrationState();
+    if (!monitor.calibrationMatchesCurrentRoute() || !calibration.has_value())
     {
         return common::audio::defaultGainDb();
     }
@@ -113,20 +111,20 @@ std::string inputCalibrationDisabledMessageFor(InputCalibrationStatus status)
 }
 
 InputCalibrationViewSlice makeInputCalibrationViewState(
-    const common::audio::InputCalibrationWorkflow& workflow,
-    const common::audio::InputCalibrationWorkflow::Context& context)
+    const common::audio::LiveInputMonitor& monitor,
+    common::audio::LiveInputMonitoringContext context)
 {
-    const std::optional<common::audio::InputDeviceIdentity>& identity =
-        context.current_input_device_identity;
+    const std::optional<common::audio::InputDeviceIdentity> identity =
+        monitor.currentInputDeviceIdentity();
     const bool ready = contextReadyForCalibration(context);
-    const bool settings_open = workflow.audioDeviceSettingsOpen();
-    const bool prompt_visible = workflow.promptVisible();
-    const bool backend_available = workflow.backendAvailable();
-    const bool audition_available = ready && workflow.calibrationMatches(identity) &&
+    const bool settings_open = monitor.audioDeviceSettingsOpen();
+    const bool prompt_visible = monitor.promptVisible();
+    const bool backend_available = monitor.backendAvailable();
+    const bool audition_available = ready && monitor.calibrationMatchesCurrentRoute() &&
                                     backend_available && !prompt_visible && !settings_open;
 
     const InputCalibrationStatus status =
-        inputCalibrationStatusFor(statusReasonFor(workflow, identity), backend_available);
+        inputCalibrationStatusFor(statusReasonFor(monitor, identity), backend_available);
     const std::string disabled_message = inputCalibrationDisabledMessageFor(status);
 
     InputCalibrationViewSlice slice{
@@ -142,7 +140,7 @@ InputCalibrationViewSlice makeInputCalibrationViewState(
     {
         slice.prompt = InputCalibrationPrompt{
             .message = disabled_message,
-            .input_gain_db = promptGainDb(workflow, identity),
+            .input_gain_db = promptGainDb(monitor),
         };
     }
 

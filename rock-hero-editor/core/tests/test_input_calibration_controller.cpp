@@ -35,7 +35,7 @@ public:
 class RecordingInputCalibrationHost final : public InputCalibrationController::Host
 {
 public:
-    [[nodiscard]] std::expected<void, common::audio::LiveInputError>
+    [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
     startInputCalibrationMeasurement() override
     {
         start_count += 1;
@@ -47,16 +47,16 @@ public:
         cancel_count += 1;
     }
 
-    [[nodiscard]] std::expected<void, common::audio::LiveInputError> applyAutomaticInputCalibration(
-        double gain_db) override
+    [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
+    applyAutomaticInputCalibration(double gain_db) override
     {
         automatic_apply_count += 1;
         last_automatic_gain_db = gain_db;
         return automatic_apply_result;
     }
 
-    [[nodiscard]] std::expected<void, common::audio::LiveInputError> applyManualInputCalibration(
-        double gain_db) override
+    [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
+    applyManualInputCalibration(double gain_db) override
     {
         manual_apply_count += 1;
         last_manual_gain_db = gain_db;
@@ -68,9 +68,9 @@ public:
         dismiss_count += 1;
     }
 
-    std::expected<void, common::audio::LiveInputError> start_result{};
-    std::expected<void, common::audio::LiveInputError> automatic_apply_result{};
-    std::expected<void, common::audio::LiveInputError> manual_apply_result{};
+    std::expected<void, common::audio::LiveInputMonitorError> start_result{};
+    std::expected<void, common::audio::LiveInputMonitorError> automatic_apply_result{};
+    std::expected<void, common::audio::LiveInputMonitorError> manual_apply_result{};
     std::optional<double> last_automatic_gain_db{};
     std::optional<double> last_manual_gain_db{};
     int start_count{0};
@@ -105,10 +105,10 @@ public:
     };
 }
 
-[[nodiscard]] common::audio::LiveInputError routeError(std::string message)
+[[nodiscard]] common::audio::LiveInputMonitorError routeError(std::string message)
 {
-    return common::audio::LiveInputError{
-        common::audio::LiveInputErrorCode::InputRouteUnavailable,
+    return common::audio::LiveInputMonitorError{
+        common::audio::LiveInputMonitorErrorCode::BackendRejected,
         std::move(message),
     };
 }
