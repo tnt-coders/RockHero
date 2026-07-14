@@ -152,9 +152,9 @@ juce::AudioDeviceManager& Engine::deviceManager() noexcept
     return m_impl->m_engine->getDeviceManager().deviceManager;
 }
 
-// Restores the JUCE device manager state captured by a previous editor session.
-std::expected<void, AudioDeviceConfigurationError> Engine::restoreSerializedDeviceState(
-    const std::string& serialized_state)
+// Applies the JUCE device route captured by a previous session, without device fallback.
+std::expected<DeviceRestoreOutcome, AudioDeviceConfigurationError> Engine::
+    restoreSerializedDeviceState(const std::string& serialized_state)
 {
     if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
     {
@@ -181,15 +181,24 @@ std::expected<void, AudioDeviceConfigurationError> Engine::restoreSerializedDevi
     // editor's own route) costs nothing.
     if (activeDeviceMatchesSerializedState(device_manager, *xml))
     {
-        return {};
+        return DeviceRestoreOutcome::Opened;
     }
 
-    const juce::String error_text = device_manager.initialise(1, 2, xml.get(), true);
+    // No fallback: a missing or unopenable saved device must close, never silently switch the user
+    // to a different device. The false suppresses JUCE's select-default-on-failure, so the saved
+    // route stays in lastExplicitSettings and serializedDeviceState() still returns the user's
+    // choice on the next launch. First-run auto-detection is unaffected: it runs through the bare
+    // initialise(1, 2) in the Engine constructor, and this restore path is only reached when a
+    // non-empty saved route exists.
+    const juce::String error_text = device_manager.initialise(1, 2, xml.get(), false);
     if (error_text.isNotEmpty())
     {
-        return std::unexpected{AudioDeviceConfigurationError{
-            AudioDeviceConfigurationErrorCode::RestoreFailed, error_text.toStdString()
-        }};
+        // The route was applied but the device stayed closed -- the designed no-fallback outcome,
+        // reported in the value channel rather than as an error so callers keep the saved choice.
+        // The failed initialise() already posted a device-change message, which drives the same
+        // async monitoring teardown a mid-session disconnect does, so the synchronous monitoring
+        // rebuild below is correctly skipped on this branch.
+        return DeviceRestoreOutcome::DeviceUnavailable;
     }
 
     auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
@@ -200,7 +209,7 @@ std::expected<void, AudioDeviceConfigurationError> Engine::restoreSerializedDevi
         }};
     }
 
-    return {};
+    return DeviceRestoreOutcome::Opened;
 }
 
 // Captures the JUCE device manager state as an opaque string for editor settings.

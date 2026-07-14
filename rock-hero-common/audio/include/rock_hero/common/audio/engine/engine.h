@@ -623,12 +623,13 @@ public:
     [[nodiscard]] juce::AudioDeviceManager& deviceManager() noexcept override;
 
     /*!
-    \brief Restores an opaque serialized audio-device state on the message thread.
+    \brief Applies an opaque serialized audio-device route on the message thread (no fallback).
     \param serialized_state State string previously returned by serializedDeviceState().
-    \return Empty success when the state was decoded and restored, or a typed failure.
+    \return DeviceRestoreOutcome::Opened, DeviceRestoreOutcome::DeviceUnavailable (device left
+            closed, saved choice retained), or a typed failure when the route could not be applied.
     */
-    [[nodiscard]] std::expected<void, AudioDeviceConfigurationError> restoreSerializedDeviceState(
-        const std::string& serialized_state) override;
+    [[nodiscard]] std::expected<DeviceRestoreOutcome, AudioDeviceConfigurationError>
+    restoreSerializedDeviceState(const std::string& serialized_state) override;
 
     /*!
     \brief Captures the current audio-device route as an opaque serialized state string.

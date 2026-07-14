@@ -434,8 +434,14 @@ TEST_CASE("Engine rejects invalid serialized audio-device state", "[audio][engin
     CHECK(restored.error().code == AudioDeviceConfigurationErrorCode::InvalidSerializedState);
 }
 
-// Serialized device restore reports backend route rejection separately from parse failure.
-TEST_CASE("Engine reports rejected serialized audio-device state", "[audio][engine][integration]")
+// A saved device that cannot be opened closes gracefully instead of falling back to another
+// device. With only the rejecting type installed there is no device to fall back to, so a
+// successful restore that leaves the device closed proves no fallback occurred. Reporting the
+// DeviceUnavailable outcome (not RestoreFailed) is what stops the editor caller from clearing the
+// user's saved route.
+TEST_CASE(
+    "Engine closes an unopenable serialized audio-device route without fallback",
+    "[audio][engine][integration]")
 {
     EngineTestHarness harness;
     IAudioDeviceConfiguration& audio_devices = harness.engine;
@@ -445,9 +451,9 @@ TEST_CASE("Engine reports rejected serialized audio-device state", "[audio][engi
         R"(<DEVICESETUP deviceType="Rejected Audio" audioInputDeviceName="Rejected Input" )"
         R"(audioOutputDeviceName="Rejected Output"/>)");
 
-    REQUIRE_FALSE(restored.has_value());
-    CHECK(restored.error().code == AudioDeviceConfigurationErrorCode::RestoreFailed);
-    CHECK_FALSE(restored.error().message.empty());
+    REQUIRE(restored.has_value());
+    CHECK(*restored == DeviceRestoreOutcome::DeviceUnavailable);
+    CHECK_FALSE(audio_devices.currentDeviceStatus().open);
 }
 
 // Verifies meter reads are safe before the playback graph has produced any audio.
