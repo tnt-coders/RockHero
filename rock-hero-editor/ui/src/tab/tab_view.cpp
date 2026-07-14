@@ -42,7 +42,7 @@ constexpr float g_min_note_height_for_text{9.0f};
 constexpr float g_shape_label_height{10.0f};
 constexpr float g_shape_rail_height{3.0f};
 constexpr double g_shape_mark_brightness{1.5};
-constexpr float g_ghost_note_alpha{0.4f};
+constexpr float g_ghost_note_alpha{0.2f};
 
 // Thin JUCE-converting wrappers over the shared Charter-exact derivation (rock-hero-common/ui)
 // for the in-file call sites that derive from already-opaque colors.
