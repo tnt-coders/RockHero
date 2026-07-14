@@ -30,6 +30,7 @@ const juce::Colour g_hand_shape_arpeggio_color{0xff8559b7}; // HAND_SHAPE_ARPEGG
 const juce::Colour g_vibrato_sine_color{0xffb6b6b6};        // java Color.GRAY.brighter()
 const juce::Colour g_mute_border_color{0xff808080};         // java Color.GRAY
 const juce::Colour g_full_mute_text_border{0xffc0c0c0};     // java Color.LIGHT_GRAY
+const juce::Colour g_palm_mute_inner_color{0xff050505};     // palm-mute X fill
 
 // Charter's default noteHeight; lanes big enough to fit it render at exactly Charter's scale.
 constexpr float g_charter_note_height{25.0f};
@@ -580,7 +581,7 @@ void drawMuteIcon(
     x_shape.closeSubPath();
 
     const juce::Colour inner =
-        mute == common::core::NoteMute::Full ? juce::Colours::white : juce::Colour{0xff050505};
+        mute == common::core::NoteMute::Full ? juce::Colours::white : g_palm_mute_inner_color;
     g.setColour(inner);
     g.fillPath(x_shape);
     g.setColour(g_mute_border_color);
@@ -721,9 +722,12 @@ void drawNoteHead(
     if (metrics.draw_text)
     {
         const juce::String fret_text{note.fret};
-        if (note.mute == common::core::NoteMute::Full)
+        if (note.mute != common::core::NoteMute::None)
         {
-            // Charter boxes the fret number on full mutes so it stays readable over the X.
+            // Charter boxes the fret number on full mutes so it stays readable over the X;
+            // palm mutes need the same plate (user-flagged: the X's crossing strokes cut
+            // through the digits), in the palm X's own colors so it reads as the X's center.
+            const bool full_mute = note.mute == common::core::NoteMute::Full;
             const auto text_width = static_cast<float>(textWidth(metrics.fret_font, fret_text));
             const juce::Rectangle<float> box{
                 onset_x - text_width / 2.0f - 2.0f,
@@ -731,9 +735,9 @@ void drawNoteHead(
                 text_width + 4.0f,
                 metrics.fret_font.getHeight() + 2.0f
             };
-            g.setColour(g_mute_border_color);
+            g.setColour(full_mute ? g_mute_border_color : g_palm_mute_inner_color);
             g.fillRect(box);
-            g.setColour(g_full_mute_text_border);
+            g.setColour(full_mute ? g_full_mute_text_border : g_mute_border_color);
             g.drawRect(box, 1.0f);
         }
         g.setColour(juce::Colours::white);
