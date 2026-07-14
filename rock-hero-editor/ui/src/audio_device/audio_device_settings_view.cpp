@@ -34,10 +34,9 @@ constexpr int g_toggle_box_width{28};
 // explaining why they cannot be edited. Cleared when the editor owns its own audio route.
 constexpr const char* g_game_settings_tooltip{"Derived from game settings"};
 
-// Shown when the selected device's driver failed to initialize: as the disabled control panel
-// button's tooltip, and as the standing notice in the error label (so a toggle-driven re-open that
-// lands on an unavailable device explains itself instead of finishing silently). Composed through
-// the shared canonical helper so it matches the apply-failure diagnostic word for word, including
+// Shown as the standing notice in the error label when the selected device's driver failed to
+// initialize, so opening the window on -- or re-opening toward -- an unavailable device explains
+// itself instead of finishing silently. Composed through the shared canonical helper, including
 // the backend's own detail when one exists.
 [[nodiscard]] juce::String deviceUnavailableText(const std::optional<std::string>& backend_detail)
 {
@@ -533,13 +532,9 @@ void AudioDeviceSettingsView::applyStateToControls()
     m_output_pair_combo.setTooltip(field_tooltip);
     m_sample_rate_combo.setTooltip(field_tooltip);
     m_buffer_size_combo.setTooltip(field_tooltip);
-    // The control panel button deliberately carries no "derived from game settings" tooltip: it
-    // opens the driver's external panel regardless of the game lock, so that explanation would be
-    // misleading here. Its only tooltip explains the unavailable-device disable.
-    m_control_panel_button.setTooltip(
-        m_state.control_panel_supported && m_state.staged_device_error.has_value()
-            ? deviceUnavailableText(m_state.staged_device_error)
-            : juce::String{});
+    // The control panel button carries no tooltip at all: the game lock does not apply to it (it
+    // opens the driver's external panel regardless), and the unavailable-device disable is already
+    // explained by the standing notice in the error label below, so a hover repeat is redundant.
 
     // The error label doubles as the standing unavailable-device notice. A transient operation
     // error is the more specific diagnostic and takes precedence; otherwise an unavailable staged
