@@ -24,9 +24,10 @@
 #include <rock_hero/game/core/library/rock_song_package_describer.h>
 #include <rock_hero/game/core/session/gameplay_session.h>
 #include <rock_hero/game/core/settings/game_settings.h>
-#include <rock_hero/game/ui/surface/game_shell.h>
+#include <rock_hero/game/ui/surface/rock_hero_game.h>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace rock_hero::game::app
@@ -170,9 +171,9 @@ namespace
 } // namespace rock_hero::game::app
 
 // SDL owns the process entry point under loop model L2: a plain portable main() (the game window
-// marks SDL's entry-point handling as app-provided) that composes and runs the game shell. JUCE
-// runs as a library inside the shell — there is no JUCEApplication in this process. Logging is
-// composed here, before the shell, so the frame loop's timing instrumentation (plan 20 Phase 3)
+// marks SDL's entry-point handling as app-provided) that composes and runs the game. JUCE runs as
+// a library inside the frame loop — there is no JUCEApplication in this process. Logging is
+// composed here, before the game, so the frame loop's timing instrumentation (plan 20 Phase 3)
 // has a live backend for its whole run; a logging failure is reported and never blocks the game.
 // The catch-all keeps exceptions from escaping main (path/format machinery can throw): an
 // unhandled escape would terminate without the nonzero exit code automation relies on.
@@ -213,10 +214,10 @@ try
             logging_result.error().message);
     }
 
-    // Composition per the decided GameShell watch item (inject from app/): main owns the JUCE
-    // runtime, the audio engine, and the gameplay session; the shell receives non-owning
-    // pointers and only drives them. Teardown order is the reverse: run() returns (window and
-    // GPU device die), the session closes (stops audio, releases the arrangement, deletes its
+    // Composition stays in app/ (inject from main): main owns the JUCE runtime, the audio engine,
+    // and the gameplay session; RockHeroGame receives non-owning pointers and only drives them.
+    // Teardown order is the reverse: run() returns (RockHeroGame's onShutdown tears down the window
+    // and GPU device), the session closes (stops audio, releases the arrangement, deletes its
     // scratch workspace), the engine destructs, and the JUCE guard goes last.
     const juce::ScopedJuceInitialiser_GUI juce_runtime;
     rock_hero::common::audio::Engine audio_engine;
@@ -260,23 +261,24 @@ try
         live_input_monitor
     };
 
-    rock_hero::game::ui::GameShellOptions options{};
-    options.frame_limit = rock_hero::game::app::smokeFrameLimit(argc, argv);
-    options.dev_package = rock_hero::game::app::devPackagePath(argc, argv);
-    options.lefty = rock_hero::game::app::hasFlag("--lefty", argc, argv);
-    options.dev_mode = dev_mode;
-    options.gameplay_session = &gameplay_session;
-    options.session_workspace_directory = rock_hero::game::app::makeSessionWorkspaceDirectory();
+    rock_hero::game::ui::RockHeroGame::Config config{};
+    config.frame_limit = rock_hero::game::app::smokeFrameLimit(argc, argv);
+    config.dev_package = rock_hero::game::app::devPackagePath(argc, argv);
+    config.lefty = rock_hero::game::app::hasFlag("--lefty", argc, argv);
+    config.dev_mode = dev_mode;
+    config.gameplay_session = &gameplay_session;
+    config.session_workspace_directory = rock_hero::game::app::makeSessionWorkspaceDirectory();
 
     // Normal launch scans the library and opens the song-selection menu; --dev-package keeps the
     // direct-load development path (no menu, auto-plays the given package).
-    if (!options.dev_package.has_value())
+    if (!config.dev_package.has_value())
     {
-        options.library = rock_hero::game::app::scanSongLibrary();
-        RH_LOG_INFO("game.app", "library scan found {} songs", options.library->entries.size());
+        config.library = rock_hero::game::app::scanSongLibrary();
+        RH_LOG_INFO("game.app", "library scan found {} songs", config.library->entries.size());
     }
 
-    const int exit_code = rock_hero::game::ui::GameShell{}.run(options);
+    rock_hero::game::ui::RockHeroGame game{std::move(config)};
+    const int exit_code = game.run();
     gameplay_session.close();
 
     if (logging_result.has_value())

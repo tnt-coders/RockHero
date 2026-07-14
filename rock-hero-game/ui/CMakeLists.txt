@@ -1,16 +1,23 @@
 add_library(rock_hero_game_ui STATIC)
 add_library(rock_hero::game::ui ALIAS rock_hero_game_ui)
 
-# Game surface feature: the SDL window, the bgfx render device, and the L2 frame loop composition
-# point (plan 20 gate outcome: SDL owns main; JUCE's queue is drained per frame). The highway
-# renderer itself is shared (rock-hero-common/ui highway feature); this library composes it with
-# the game's resources. Dev feature + overlay: the --dev-package fixture session and the
+# Game surface feature: the SDL window, the bgfx render device, and the L2 frame loop. SDL3Application
+# is the framework base owning the loop, the per-frame JUCE-queue drain, and the vsync pacing (plan
+# 20 gate outcome: SDL owns main; JUCE's queue is drained per frame); RockHeroGame is the composition
+# root that owns the window/device/resources and the Game content and fills the loop's hooks. The
+# highway renderer itself is shared (rock-hero-common/ui highway feature); this library composes it
+# with the game's resources. Dev feature + overlay: the --dev-package fixture session and the
 # diagnostics overlay content (plan 20 Phase 4).
 target_sources(
     rock_hero_game_ui
-    PRIVATE src/dev/dev_session.cpp src/overlay/diagnostics_overlay.cpp src/surface/game_shell.cpp
-            src/surface/game_window.cpp src/surface/highway_shader_loader.cpp
-            src/surface/juce_message_pump.cpp)
+    PRIVATE src/dev/dev_session.cpp
+            src/game/game.cpp
+            src/overlay/diagnostics_overlay.cpp
+            src/surface/game_window.cpp
+            src/surface/highway_shader_loader.cpp
+            src/surface/juce_message_pump.cpp
+            src/surface/rock_hero_game.cpp
+            src/surface/sdl3_application.cpp)
 
 # The src include path lets sibling translation units reach private feature headers with the
 # quoted feature-qualified form ("surface/render_device.h").
