@@ -130,6 +130,9 @@ TEST_CASE("Manual calibration stays editable after saving", "[ui][editor-view]")
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     core::EditorViewState state;
+    // The manual-calibration flow is editable only when the editor uses its own audio; with the
+    // "use game audio settings" toggle on (its default) the popup is a read-only game reflection.
+    state.use_game_audio_settings = false;
     state.input_calibration_prompt = core::InputCalibrationPrompt{
         .message = "Live input disabled: input calibration required.",
         .input_gain_db = 2.0,

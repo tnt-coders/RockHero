@@ -32,10 +32,10 @@ public:
     /*!
     \brief Host callback fired when the user changes the "use game audio settings" toggle.
 
-    Fires with the requested toggle value from the toggle switch and from the unconfigured-game
-    opt-out (which requests false). The host forwards it to the editor controller, which owns the
-    source switch and engine adoption; the view updates its own read-only presentation immediately so
-    the panel reflects the change without waiting for a controller round-trip.
+    Fires with the requested toggle value from the toggle switch. The host forwards it to the editor
+    controller, which owns the source switch and engine adoption; the view updates its own read-only
+    presentation immediately so the panel reflects the change without waiting for a controller
+    round-trip.
     */
     using GameAudioSettingsChangedCallback = std::function<void(bool)>;
 
@@ -121,8 +121,8 @@ public:
 
     When the toggle is on the device fields render read-only, reflecting the game's route, with an
     explanatory notice; when on but no calibrated game configuration exists, the notice explains the
-    unconfigured game and an opt-out button offers the editable editor-own flow. When off the panel is
-    the full editable device flow.
+    unconfigured game and points the user at unchecking the toggle. When off the panel is the full
+    editable device flow.
 
     \param state Resolved toggle and game-availability state.
     */
@@ -147,11 +147,12 @@ private:
     // Populates every control from the current view state.
     void applyStateToControls();
 
-    // Applies the toggle switch value, notice text, opt-out visibility, and read-only field state.
+    // Applies the toggle switch value, notice text, and read-only field state.
     void applyGameAudioSettingsPresentation();
 
     // True while the toggle is on, which renders the device fields read-only regardless of source
-    // availability (an unconfigured game still locks the fields and steers the user to the opt-out).
+    // availability (an unconfigured game still locks the fields and steers the user to uncheck the
+    // toggle).
     [[nodiscard]] bool gameSettingsLockActive() const noexcept;
 
     // Resizes the view and host window to match the current form rows.
@@ -183,7 +184,6 @@ private:
 
     juce::ToggleButton m_use_game_settings_toggle;
     juce::Label m_game_settings_notice;
-    juce::TextButton m_use_editor_audio_button;
     juce::Label m_device_type_label;
     juce::ComboBox m_device_type_combo;
     juce::Label m_device_label;
