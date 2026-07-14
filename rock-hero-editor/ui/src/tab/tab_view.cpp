@@ -41,6 +41,7 @@ constexpr float g_min_note_height_for_text{9.0f};
 
 // Height of the hand-shape label bar and its bold name text (Charter chartTextHeight).
 constexpr float g_shape_label_height{10.0f};
+constexpr float g_shape_rail_height{3.0f};
 
 // Thin JUCE-converting wrappers over the shared Charter-exact derivation (rock-hero-common/ui)
 // for the in-file call sites that derive from already-opaque colors.
@@ -718,8 +719,12 @@ void drawNoteHead(
     drawAttackIcon(g, metrics, note, onset_x, center_y);
 }
 
-// Draws one hand-shape span like Charter: a faint full-height tint (blue for chords, purple for
-// arpeggios) with a solid label bar along the bottom edge carrying the template name.
+// Draws one hand-shape span as narrow rails along the lane's top and bottom edges for the
+// span's duration — blue for chord shapes, purple for arpeggios — echoing the 3D highway's
+// shape rails at the hand-window fret lines (a user-directed departure from Charter's
+// full-height tint, which read as an ugly wall of color). The template name, when present,
+// rides a small chip against the bottom rail at the span start: the bottom edge is where the
+// name has always lived, and the top edge belongs to the FHP markers.
 void drawShapeSpan(
     juce::Graphics& g, const TabLaneMetrics& metrics, const core::TabShapeView& shape)
 {
@@ -731,29 +736,29 @@ void drawShapeSpan(
     }
 
     const juce::Colour color = shape.arpeggio ? g_hand_shape_arpeggio_color : g_hand_shape_color;
-    g.setColour(color.withAlpha(static_cast<juce::uint8>(32)));
+    const float width = end_x - start_x;
+    const float bottom_rail_y =
+        static_cast<float>(metrics.bounds.getBottom()) - g_shape_rail_height;
+    g.setColour(color);
     g.fillRect(
         juce::Rectangle<float>{
-            start_x,
-            static_cast<float>(metrics.bounds.getY()),
-            end_x - start_x,
-            static_cast<float>(metrics.bounds.getHeight())
+            start_x, static_cast<float>(metrics.bounds.getY()), width, g_shape_rail_height
         });
-
-    const float bar_y = static_cast<float>(metrics.bounds.getBottom()) - g_shape_label_height;
-    g.setColour(color);
-    g.fillRect(juce::Rectangle<float>{start_x, bar_y, end_x - start_x, g_shape_label_height});
+    g.fillRect(juce::Rectangle<float>{start_x, bottom_rail_y, width, g_shape_rail_height});
 
     if (metrics.draw_text && !shape.name.empty())
     {
+        const juce::String name{shape.name};
+        const float chip_width = static_cast<float>(textWidth(metrics.label_font, name)) + 6.0f;
+        const float chip_height = g_shape_label_height + 2.0f;
+        const juce::Rectangle<float> chip{
+            start_x, bottom_rail_y - chip_height, chip_width, chip_height
+        };
+        g.setColour(color);
+        g.fillRoundedRectangle(chip, 2.0f);
         g.setColour(juce::Colours::white);
         g.setFont(metrics.label_font);
-        g.drawText(
-            juce::String{shape.name},
-            juce::Rectangle<float>{
-                start_x + 2.0f, bar_y, std::max(24.0f, end_x - start_x), g_shape_label_height
-            },
-            juce::Justification::centredLeft);
+        g.drawText(name, chip, juce::Justification::centred);
     }
 }
 

@@ -233,9 +233,21 @@ TEST_CASE("TabView draws techniques, shapes, and fret-hand positions", "[ui][tab
     juce::Graphics graphics{image};
     view.paint(graphics);
 
-    // The strummed A5 span tints the background inside its range and not outside it.
-    CHECK(image.getPixelAt(60, 5).getARGB() != 0);
-    CHECK(image.getPixelAt(150, 5).getARGB() == 0);
+    // The strummed A5 span rails the lane's top and bottom edges in the hand-shape blue inside
+    // its range and not outside it, and no longer tints the lane interior. The probe column
+    // sits at 4.5s, clear of the chord-box pill over the 3.0s onsets.
+    CHECK(image.getPixelAt(90, 1) == juce::Colour{0xff3157a7});
+    CHECK(image.getPixelAt(90, 238) == juce::Colour{0xff3157a7});
+    CHECK(image.getPixelAt(90, 5).getARGB() == 0);
+    CHECK(image.getPixelAt(150, 1).getARGB() == 0);
+    CHECK(image.getPixelAt(150, 238).getARGB() == 0);
+
+    // The arpeggio span's rails are purple.
+    CHECK(image.getPixelAt(220, 1) == juce::Colour{0xff8559b7});
+    CHECK(image.getPixelAt(220, 238) == juce::Colour{0xff8559b7});
+
+    // The template name chip sits against the bottom rail at the span start.
+    CHECK(image.getPixelAt(50, 232).getARGB() != 0);
 
     // The tremolo strip stays clipped to its sustain: nothing straggles past the note end.
     // String 2 lane of six in 240px: center y = 180. Note ends at 6.0s → x = 120. The probe row
