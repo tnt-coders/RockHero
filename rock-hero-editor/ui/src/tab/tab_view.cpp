@@ -779,13 +779,18 @@ void drawShapeSpan(
         });
     g.fillRect(juce::Rectangle<float>{start_x, bottom_rail_y, width, g_shape_rail_height});
 
+    // The name chip hangs just under the top rail (user-directed move from the bottom rail);
+    // FHP markers share that edge and draw later, so a coinciding marker paints over the chip.
     if (metrics.draw_text && !shape.name.empty())
     {
         const juce::String name{shape.name};
         const float chip_width = static_cast<float>(textWidth(metrics.label_font, name)) + 6.0f;
         const float chip_height = g_shape_label_height + 2.0f;
         const juce::Rectangle<float> chip{
-            start_x, bottom_rail_y - chip_height, chip_width, chip_height
+            start_x,
+            static_cast<float>(metrics.bounds.getY()) + g_shape_rail_height,
+            chip_width,
+            chip_height
         };
         g.setColour(color);
         g.fillRoundedRectangle(chip, 2.0f);
