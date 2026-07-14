@@ -23,13 +23,17 @@ target_sources(
             src/frame_clock/frame_clock.cpp
             src/input/menu_bindings.cpp
             src/library/album_art_error.cpp
+            src/library/filesystem_directory_lister.cpp
             src/library/library_index_store.cpp
             src/library/library_index_store_error.cpp
             src/library/library_entry_projection.cpp
+            src/library/library_scan.cpp
             src/library/library_scan_engine.cpp
             src/library/library_scan_plan.cpp
             src/library/library_scan_roots.cpp
             src/library/null_album_art_generator.cpp
+            src/library/rock_song_package_describer.cpp
+            src/menu/song_select_menu.cpp
             src/resources/game_resources.cpp
             src/session/gameplay_session.cpp
             src/session/gameplay_session_error.cpp
