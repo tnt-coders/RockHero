@@ -7,6 +7,7 @@
 
 #include <compare>
 #include <cstdint>
+#include <type_traits>
 
 namespace rock_hero::game::core
 {
@@ -42,19 +43,17 @@ struct MenuInputTrigger
 
     /*!
     \brief Orders two triggers by device and code so they can key a binding map.
+
+    The defaulted three-way comparison also yields equality, which the map keying and callers use.
+
     \param lhs Left-hand trigger.
     \param rhs Right-hand trigger.
     \return The three-way ordering of the two triggers.
     */
     friend auto operator<=>(const MenuInputTrigger& lhs, const MenuInputTrigger& rhs) = default;
-
-    /*!
-    \brief Compares two triggers by device and code.
-    \param lhs Left-hand trigger.
-    \param rhs Right-hand trigger.
-    \return True when both the device and code match.
-    */
-    friend bool operator==(const MenuInputTrigger& lhs, const MenuInputTrigger& rhs) = default;
 };
+
+// A small trivially-copyable value type, so the binding API takes it by value (coding conventions).
+static_assert(sizeof(MenuInputTrigger) <= 16 && std::is_trivially_copyable_v<MenuInputTrigger>);
 
 } // namespace rock_hero::game::core
