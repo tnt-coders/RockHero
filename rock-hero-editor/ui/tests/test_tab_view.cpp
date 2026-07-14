@@ -213,7 +213,11 @@ TEST_CASE("TabView draws techniques, shapes, and fret-hand positions", "[ui][tab
             .start_seconds = 2.0, .end_seconds = 6.0, .name = "A5", .arpeggio = false
         },
         core::TabShapeView{
-            .start_seconds = 10.0, .end_seconds = 12.0, .name = "Dm", .arpeggio = true
+            .start_seconds = 10.0,
+            .end_seconds = 12.0,
+            .name = "Dm",
+            .arpeggio = true,
+            .ghost_notes = {core::TabGhostNoteView{.string = 5, .fret = 8}},
         },
     };
     state.fret_hand_positions = {
@@ -254,6 +258,12 @@ TEST_CASE("TabView draws techniques, shapes, and fret-hand positions", "[ui][tab
     // after the software renderer's premultiply round-trip, probed clear of lanes and heads.
     CHECK(image.getPixelAt(60, 110) == juce::Colour{0x802f55a5});
     CHECK(image.getPixelAt(200, 110) == juce::Colour{0x808357b5});
+
+    // The arpeggio start also draws the held posture's ghost head on string 5 (lane center
+    // y = 60): the pixel there is neither empty nor the bare pill color it would be without
+    // the faded head composited on top.
+    CHECK(image.getPixelAt(200, 60).getARGB() != 0);
+    CHECK(image.getPixelAt(200, 60) != juce::Colour{0x808357b5});
 
     // The tremolo strip stays clipped to its sustain: nothing straggles past the note end.
     // String 2 lane of six in 240px: center y = 180. Note ends at 6.0s → x = 120. The probe row

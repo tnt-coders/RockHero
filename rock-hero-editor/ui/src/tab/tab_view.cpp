@@ -41,6 +41,7 @@ constexpr float g_min_note_height_for_text{9.0f};
 // Height of the hand-shape label bar and its bold name text (Charter chartTextHeight).
 constexpr float g_shape_label_height{10.0f};
 constexpr float g_shape_rail_height{3.0f};
+constexpr float g_ghost_note_alpha{0.4f};
 
 // Thin JUCE-converting wrappers over the shared Charter-exact derivation (rock-hero-common/ui)
 // for the in-file call sites that derive from already-opaque colors.
@@ -982,13 +983,34 @@ void TabView::paint(juce::Graphics& g)
         }
     }
 
-    // Arpeggio spans mark their start with the same pill in purple: their notes arrive
-    // sequentially, so the strummed-group rule above never marks them.
+    // Arpeggio spans mark their start with the same pill in purple (their notes arrive
+    // sequentially, so the strummed-group rule above never marks them), plus ghost heads for
+    // the held posture's strings that are not struck right at the bracket start.
     for (const core::TabShapeView& shape : m_tab->shapes)
     {
-        if (shape.arpeggio && shape.start_seconds >= span_start && shape.start_seconds <= span_end)
+        if (!shape.arpeggio || shape.start_seconds < span_start || shape.start_seconds > span_end)
         {
-            drawOnsetPill(g, metrics, metrics.x(shape.start_seconds), g_hand_shape_arpeggio_color);
+            continue;
+        }
+
+        const float start_x = metrics.x(shape.start_seconds);
+        drawOnsetPill(g, metrics, start_x, g_hand_shape_arpeggio_color);
+        for (const core::TabGhostNoteView& ghost : shape.ghost_notes)
+        {
+            // A ghost is the plain head stack faded as one unit, fret number included; the
+            // default-constructed view adds no technique glyphs (Pick attack draws nothing).
+            core::TabNoteView ghost_note;
+            ghost_note.string = ghost.string;
+            ghost_note.fret = ghost.fret;
+            g.beginTransparencyLayer(g_ghost_note_alpha);
+            drawNoteHead(
+                g,
+                metrics,
+                StringStyle{metrics.baseColor(ghost.string)},
+                ghost_note,
+                start_x,
+                metrics.laneY(ghost.string));
+            g.endTransparencyLayer();
         }
     }
 
