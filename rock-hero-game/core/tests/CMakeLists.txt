@@ -8,6 +8,7 @@ add_executable(
     test_diagnostics.cpp
     test_frame_clock.cpp
     test_game_audio_config.cpp
+    test_native_audio_setup.cpp
     test_game_resources.cpp
     test_game_settings.cpp
     test_gameplay_session.cpp
