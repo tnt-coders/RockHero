@@ -106,6 +106,20 @@ public:
         bool visible) override;
 
     /*!
+    \brief Reads whether the editor sources the game's audio configuration instead of its own.
+    \return Stored choice, or empty when the user has never set it.
+    */
+    [[nodiscard]] std::optional<bool> useGameAudioSettings() const override;
+
+    /*!
+    \brief Stores whether the editor sources the game's audio configuration instead of its own.
+    \param enabled True to source the game's audio configuration, false to source the editor's own.
+    \return Empty success, or a typed settings failure.
+    */
+    [[nodiscard]] std::expected<void, EditorSettingsError> setUseGameAudioSettings(
+        bool enabled) override;
+
+    /*!
     \brief Reads the app-wide minimum number of tablature string lanes to display.
     \return Stored minimum, or empty when the user has never chosen one.
     */

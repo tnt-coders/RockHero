@@ -74,6 +74,25 @@ public:
         bool visible) = 0;
 
     /*!
+    \brief Reads whether the editor sources the game's audio configuration instead of its own.
+
+    Editor workflow state, not audio config: it selects a read source and never affects the game.
+    Absence means the user has never chosen; the composition root resolves an absent value to the
+    first-run default (on) via useGameAudioSettingsOrDefault, then honors the stored choice.
+
+    \return Stored choice, or empty when the user has never set it.
+    */
+    [[nodiscard]] virtual std::optional<bool> useGameAudioSettings() const = 0;
+
+    /*!
+    \brief Stores whether the editor sources the game's audio configuration instead of its own.
+    \param enabled True to source the game's audio configuration, false to source the editor's own.
+    \return Empty success, or a typed settings failure.
+    */
+    [[nodiscard]] virtual std::expected<void, EditorSettingsError> setUseGameAudioSettings(
+        bool enabled) = 0;
+
+    /*!
     \brief Reads the app-wide minimum number of tablature string lanes to display.
     \return Stored minimum, or empty when the user has never chosen one.
     */
