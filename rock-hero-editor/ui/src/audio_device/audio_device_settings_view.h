@@ -119,10 +119,9 @@ public:
     /*!
     \brief Applies the "use game audio settings" toggle state and re-scopes the panel.
 
-    When the toggle is on the device fields render read-only, reflecting the game's route, with an
-    explanatory notice; when on but no calibrated game configuration exists, the notice explains the
-    unconfigured game and points the user at unchecking the toggle. When off the panel is the full
-    editable device flow.
+    When the toggle is on the device fields render read-only, reflecting the game's route, and carry
+    a "Derived from game settings" tooltip that explains why they cannot be edited. When off the
+    panel is the full editable device flow and the tooltip is cleared.
 
     \param state Resolved toggle and game-availability state.
     */
@@ -147,7 +146,8 @@ private:
     // Populates every control from the current view state.
     void applyStateToControls();
 
-    // Applies the toggle switch value, notice text, and read-only field state.
+    // Applies the toggle switch value; the read-only field enablement and the derived-from-game
+    // tooltip are applied alongside the other control state in applyStateToControls().
     void applyGameAudioSettingsPresentation();
 
     // True while the toggle is on, which renders the device fields read-only regardless of source
@@ -183,7 +183,6 @@ private:
     GameAudioSettingsState m_game_settings{};
 
     juce::ToggleButton m_use_game_settings_toggle;
-    juce::Label m_game_settings_notice;
     juce::Label m_device_type_label;
     juce::ComboBox m_device_type_combo;
     juce::Label m_device_label;

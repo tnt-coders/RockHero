@@ -21,13 +21,10 @@ constexpr int g_min_control_rows{6};
 constexpr int g_max_window_width{1000};
 constexpr int g_max_window_height{760};
 constexpr int g_toggle_row_height{26};
-constexpr int g_notice_height{38};
 
-constexpr const char* g_game_settings_available_notice{"These come from your Game audio settings."};
-constexpr const char* g_game_settings_unconfigured_notice{
-    "Your game has no saved audio setup yet. Set it up in the game for a consistent experience "
-    "across both apps, or uncheck \"Use game audio settings\" to use the editor's own audio."
-};
+// Hover text shown on the read-only device fields while the "use game audio settings" toggle is on,
+// explaining why they cannot be edited. Cleared when the editor owns its own audio route.
+constexpr const char* g_game_settings_tooltip{"Derived from game settings"};
 
 // Returns the vertical space occupied by a visible form row set.
 [[nodiscard]] int formRowsHeight(int row_count) noexcept
@@ -103,18 +100,13 @@ int AudioDeviceSettingsView::preferredWidth() noexcept
 }
 
 // Returns a derived height from the rows visible for the currently selected audio system, plus the
-// "use game audio settings" toggle row and, while the toggle is on, the notice (and unconfigured
-// opt-out) block that governs the fields below.
+// "use game audio settings" toggle row. The read-only game reflection reuses the same device rows
+// (locked, with an explanatory tooltip) so it needs no extra vertical allowance.
 int AudioDeviceSettingsView::preferredContentHeight() const noexcept
 {
     const int visible_rows =
         g_min_control_rows + (m_state.uses_separate_input_output_devices ? 1 : 0);
-    int height = windowHeightForRows(visible_rows) + g_toggle_row_height + g_row_gap;
-    if (m_game_settings.use_game_settings)
-    {
-        height += g_notice_height + g_row_gap;
-    }
-    return height;
+    return windowHeightForRows(visible_rows) + g_toggle_row_height + g_row_gap;
 }
 
 // Keeps the route selectors usable without requiring the initial window to be very wide.
@@ -170,18 +162,12 @@ bool AudioDeviceSettingsView::gameSettingsLockActive() const noexcept
     return m_game_settings.use_game_settings;
 }
 
-// Reflects the toggle value and derives the notice text plus opt-out visibility from whether a
-// calibrated game configuration exists.
+// Reflects the toggle value; the read-only field enablement and the derived-from-game tooltip are
+// applied alongside the other control state in applyStateToControls().
 void AudioDeviceSettingsView::applyGameAudioSettingsPresentation()
 {
     m_use_game_settings_toggle.setToggleState(
         m_game_settings.use_game_settings, juce::dontSendNotification);
-
-    m_game_settings_notice.setText(
-        m_game_settings.game_source_available ? g_game_settings_available_notice
-                                              : g_game_settings_unconfigured_notice,
-        juce::dontSendNotification);
-    m_game_settings_notice.setVisible(m_game_settings.use_game_settings);
 }
 
 // Requests modal shutdown from the host DialogWindow.
@@ -239,16 +225,10 @@ void AudioDeviceSettingsView::resized()
     m_error_label.setBounds(area.removeFromBottom(std::min(g_error_height, area.getHeight())));
     area.removeFromBottom(std::min(g_row_gap, area.getHeight()));
 
-    // The toggle and its game-source notice sit above the device rows so the read-only effect of the
-    // toggle on the fields below is visually obvious (open question 3: top-of-panel placement).
+    // The toggle sits above the device rows so the read-only effect of the toggle on the fields
+    // below is visually obvious (open question 3: top-of-panel placement).
     m_use_game_settings_toggle.setBounds(area.removeFromTop(g_toggle_row_height));
     area.removeFromTop(std::min(g_row_gap, area.getHeight()));
-    if (m_game_settings_notice.isVisible())
-    {
-        m_game_settings_notice.setBounds(
-            area.removeFromTop(std::min(g_notice_height, area.getHeight())));
-        area.removeFromTop(std::min(g_row_gap, area.getHeight()));
-    }
 
     layoutRow(m_device_type_label, m_device_type_combo, area);
     layoutRow(m_device_label, m_device_combo, area);
@@ -280,12 +260,6 @@ void AudioDeviceSettingsView::configureControls()
             m_on_use_game_settings_changed(m_game_settings.use_game_settings);
         }
     };
-
-    m_game_settings_notice.setComponentID("audio_settings_game_notice");
-    m_game_settings_notice.setJustificationType(juce::Justification::centredLeft);
-    m_game_settings_notice.setMinimumHorizontalScale(0.6F);
-    m_game_settings_notice.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
-    m_game_settings_notice.setVisible(false);
 
     m_device_type_label.setText("Audio system", juce::dontSendNotification);
     m_device_label.setText("Device", juce::dontSendNotification);
@@ -358,7 +332,6 @@ void AudioDeviceSettingsView::configureControls()
     m_cancel_button.onClick = [this] { m_controller.onCancelRequested(); };
 
     addAndMakeVisible(m_use_game_settings_toggle);
-    addChildComponent(m_game_settings_notice);
     addAndMakeVisible(m_device_type_label);
     addAndMakeVisible(m_device_type_combo);
     addAndMakeVisible(m_device_label);
@@ -458,6 +431,18 @@ void AudioDeviceSettingsView::applyStateToControls()
     // switch back to the editor's own audio.
     m_cancel_button.setEnabled(!m_applying);
     m_use_game_settings_toggle.setEnabled(!m_applying);
+
+    // While the game source is active the locked device fields carry a hover tooltip explaining why
+    // they cannot be edited; the tooltip is cleared when the editor owns its own audio route.
+    const juce::String field_tooltip{gameSettingsLockActive() ? g_game_settings_tooltip : ""};
+    m_device_type_combo.setTooltip(field_tooltip);
+    m_device_combo.setTooltip(field_tooltip);
+    m_input_device_combo.setTooltip(field_tooltip);
+    m_output_device_combo.setTooltip(field_tooltip);
+    m_input_channel_combo.setTooltip(field_tooltip);
+    m_output_pair_combo.setTooltip(field_tooltip);
+    m_sample_rate_combo.setTooltip(field_tooltip);
+    m_buffer_size_combo.setTooltip(field_tooltip);
 
     m_error_label.setText(juce::String{m_state.error_message.c_str()}, juce::dontSendNotification);
 }

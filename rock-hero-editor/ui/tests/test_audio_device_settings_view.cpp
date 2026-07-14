@@ -181,8 +181,8 @@ TEST_CASE("AudioDeviceSettingsView emits button intents", "[ui][audio-device-set
     CHECK(controller.cancel_call_count == 1);
 }
 
-// Toggle ON with an available game config renders the device fields read-only with the notice and
-// no opt-out.
+// Toggle ON with an available game config renders the device fields read-only, disabled, and
+// tagged with the derived-from-game tooltip.
 TEST_CASE(
     "AudioDeviceSettingsView locks fields read-only when sourcing the game",
     "[ui][audio-device-settings]")
@@ -198,23 +198,22 @@ TEST_CASE(
             .game_source_available = true,
         });
 
-    const auto& input_device =
+    auto& input_device =
         findRequiredDirectChild<juce::ComboBox>(view, "audio_settings_input_device");
-    const auto& sample_rate =
-        findRequiredDirectChild<juce::ComboBox>(view, "audio_settings_sample_rate");
+    auto& sample_rate = findRequiredDirectChild<juce::ComboBox>(view, "audio_settings_sample_rate");
     auto& ok_button = findRequiredDirectChild<juce::TextButton>(view, "audio_settings_ok_button");
     const auto& toggle =
         findRequiredDirectChild<juce::ToggleButton>(view, "audio_settings_use_game_toggle");
-    const auto& notice = findRequiredDirectChild<juce::Label>(view, "audio_settings_game_notice");
 
     CHECK(toggle.getToggleState());
     CHECK_FALSE(input_device.isEnabled());
     CHECK_FALSE(sample_rate.isEnabled());
+    // The locked fields carry the derived-from-game tooltip explaining why they cannot be edited.
+    CHECK(input_device.getTooltip() == "Derived from game settings");
+    CHECK(sample_rate.getTooltip() == "Derived from game settings");
     // OK is not grayed out while locked: with the game source active it simply closes the window
     // like Cancel, so it stays enabled and routes to the cancel intent (nothing to apply).
     CHECK(ok_button.isEnabled());
-    CHECK(notice.isVisible());
-    CHECK(notice.getText().contains("Game audio settings"));
 
     REQUIRE(ok_button.onClick);
     ok_button.onClick();
@@ -222,11 +221,10 @@ TEST_CASE(
     CHECK(controller.cancel_call_count == 1);
 }
 
-// Toggle ON with an unconfigured game locks the fields and shows the unconfigured notice. There is
-// no separate opt-out button: unchecking the toggle is the one way back to the editor's own audio.
+// Toggle ON with an unconfigured game still locks the fields; unchecking the toggle is the one way
+// back to the editor's own audio and re-enables the fields and clears the tooltip.
 TEST_CASE(
-    "AudioDeviceSettingsView locks fields with an unconfigured-game notice",
-    "[ui][audio-device-settings]")
+    "AudioDeviceSettingsView locks fields with an unconfigured game", "[ui][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeAudioDeviceSettingsController controller;
@@ -239,15 +237,13 @@ TEST_CASE(
             .game_source_available = false,
         });
 
-    const auto& input_device =
+    auto& input_device =
         findRequiredDirectChild<juce::ComboBox>(view, "audio_settings_input_device");
-    const auto& notice = findRequiredDirectChild<juce::Label>(view, "audio_settings_game_notice");
     auto& toggle =
         findRequiredDirectChild<juce::ToggleButton>(view, "audio_settings_use_game_toggle");
 
     CHECK_FALSE(input_device.isEnabled());
-    CHECK(notice.isVisible());
-    CHECK(notice.getText().contains("no saved audio setup"));
+    CHECK(input_device.getTooltip() == "Derived from game settings");
     // The toggle stays usable so the user can uncheck it -- the only opt-out, no separate button.
     CHECK(toggle.isEnabled());
 
@@ -263,7 +259,7 @@ TEST_CASE(
     REQUIRE(requested.has_value());
     CHECK_FALSE(requested.value());
     CHECK(input_device.isEnabled());
-    CHECK_FALSE(notice.isVisible());
+    CHECK(input_device.getTooltip().isEmpty());
 }
 
 // Toggle OFF keeps the full editable device flow and emits the toggle change to the host.
