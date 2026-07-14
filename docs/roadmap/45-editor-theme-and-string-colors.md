@@ -1,11 +1,22 @@
 # Plan 45 — Editor Theme and String Colors
 
-**Status**: Phase 1 complete (2026-07-10, `work-in-progress @ 050f884e`): shared palette +
+**Status**: Phase 1 complete (2026-07-10, `work-in-progress @ 050f884e`): shared palette DATA +
 Charter-exact derivation extracted to rock-hero-common/ui with tests; editor re-pointed with
 byte-identical output (untouched editor test pins green); stale tab_view.h/editor_theme.h docs
-fixed. 45-Q2 taken as A for the shipped tier (gray 8th preserved; chartreuse/indigo enter with
-the Phase 5 cap raise). Phases 2–3 executable now; Phase 4 after open question 1; Phase 5
-decision-gated. Original date 2026-07-06; baseline `refactor @ 13e82fb0`.
+fixed. As shipped, P1 delivers only the Charter Classic palette DATA plus the derivation math —
+the multi-preset registry is deferred to Phases 2–4 (see collapse note below). 45-Q2 taken as A
+for the shipped tier (gray 8th preserved; chartreuse/indigo enter with the Phase 5 cap raise).
+Phases 2–3 executable now; Phase 4 after open question 1; Phase 5 decision-gated. Original date
+2026-07-06; baseline `refactor @ 13e82fb0`.
+
+**Registry collapse (post-P1 cleanup).** Phase 1 as first written (commit 050f884e) also shipped
+multi-palette registry scaffolding — `stringColorPalettes()` (a single-entry registry list) and
+the per-palette `display_name` / `colorblind_safe` metadata — but rendering only ever calls
+`charterClassicPalette()`, so that scaffolding had no production consumer. It was collapsed back
+to just the Charter Classic palette data (the `standard`/`extended` colors plus the `id`) pending
+the picker; the registry test cases and the `<span>` dependency were trimmed with it. Phases 2–4
+(preset selection / colorblind-safe) restore and fully wire the registry and its metadata when a
+second preset and the picker actually exist.
 
 ## Goal
 
