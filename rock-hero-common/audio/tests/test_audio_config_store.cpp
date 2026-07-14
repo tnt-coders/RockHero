@@ -396,7 +396,7 @@ TEST_CASE("AudioConfigStore read-only rejects every setter", "[audio][config-sto
 TEST_CASE("AudioConfigStore identity constants name distinct files", "[audio][config-store]")
 {
     CHECK(editorAudioConfigApplicationName() == "Rock Hero Editor Audio");
-    CHECK(gameAudioConfigApplicationName() == "Rock Hero Audio");
+    CHECK(gameAudioConfigApplicationName() == "Rock Hero Game Audio");
     CHECK(editorAudioConfigApplicationName() != gameAudioConfigApplicationName());
 }
 
