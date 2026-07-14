@@ -23,8 +23,16 @@ it's done — git history is the record.
 - Audit the project for position types that duplicate logic. (ToneGridPosition — the specific
   case that prompted this — is already removed from the code; only stale doc mentions remain.)
 - Consider a plan for a basic suite of drop-in "standard tones" built only from plugins we ship
-  with the project (so every user has them). Also consider making a standard-tone fallback
-  mandatory on every tone change, used when the embedded tone fails to load (missing plugin, etc.).
+  with the project (so every user has them). Note (2026-07-11, supersedes the old "mandatory
+  fallback" clause): 21-Q1 settled missing-plugin handling as refuse-to-start; standard tones
+  would back the PINNED opt-in "play with default tones" option on that refusal (watch item in
+  watch-items.md), never an automatic substitution.
+- Editor: warn on export/publish to `.rock` when any tone's summed reported plugin latency is
+  high (~10 ms+), so a charter cannot ship an unintentionally high-latency tone (21-Q2
+  refinement: the game stays silent; the guard lives at authoring time). Data source: plan 21
+  Phase 5's per-tone latency surfacing on the rig-load result. DEFERRED follow-on, recorded so
+  it is not lost: a save-file flag marking high-latency tones so players could be alerted — a
+  format change routed through plan 10 if ever adopted.
 - Inlay UV half-texel bleed — the fretboard-skin inlay quads skip the half-texel inset the atlas
   layout applies to note/glyph cells, so linear filtering can bleed a sliver of the neighboring
   cell at a marker edge (cosmetic).

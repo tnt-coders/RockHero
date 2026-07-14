@@ -7,6 +7,7 @@
 
 #include "main_window/editor_view.h"
 
+#include <algorithm>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
@@ -107,6 +108,57 @@ public:
         return current_position;
     }
 
+    // Contract-shaped stub: EditorView never drives speed, so only the v1-legal 1.0 is accepted.
+    [[nodiscard]] std::expected<void, common::audio::TransportError> setPlaybackSpeed(
+        double factor) override
+    {
+        if (factor != 1.0)
+        {
+            return std::unexpected{
+                common::audio::TransportError{common::audio::TransportErrorCode::SpeedNotSupported}
+            };
+        }
+
+        return {};
+    }
+
+    // Always the v1 speed factor; these tests never change it.
+    [[nodiscard]] double playbackSpeed() const noexcept override
+    {
+        return 1.0;
+    }
+
+    // Contract-shaped stub storing the normalized region; view tests do not drive loops today.
+    [[nodiscard]] std::expected<void, common::audio::TransportError> setLoopRegion(
+        common::core::TimeRange region) override
+    {
+        const common::core::TimeRange normalized{
+            .start = common::core::TimePosition{std::min(region.start.seconds, region.end.seconds)},
+            .end = common::core::TimePosition{std::max(region.start.seconds, region.end.seconds)},
+        };
+        if (normalized.duration().seconds < common::audio::g_minimum_loop_region_duration.seconds)
+        {
+            return std::unexpected{
+                common::audio::TransportError{common::audio::TransportErrorCode::LoopRegionTooShort}
+            };
+        }
+
+        loop_region = normalized;
+        return {};
+    }
+
+    // Disengages the stub's loop region.
+    void clearLoopRegion() override
+    {
+        loop_region.reset();
+    }
+
+    // Returns the engaged loop region, or nullopt when looping is disengaged.
+    [[nodiscard]] std::optional<common::core::TimeRange> loopRegion() const noexcept override
+    {
+        return loop_region;
+    }
+
     // No-op because these tests do not exercise transport listener wiring.
     void addListener(Listener& /*listener*/) override
     {}
@@ -114,6 +166,9 @@ public:
     // No-op because these tests do not exercise transport listener wiring.
     void removeListener(Listener& /*listener*/) override
     {}
+
+    // Engaged normalized loop region; nullopt while looping is disengaged.
+    std::optional<common::core::TimeRange> loop_region{};
 
     // Coarse transport state returned by state().
     common::audio::TransportState current_state{};

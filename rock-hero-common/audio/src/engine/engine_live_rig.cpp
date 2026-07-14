@@ -1074,6 +1074,25 @@ void Engine::Impl::finalizeLiveRigLoad()
         return;
     }
 
+    // Gameplay policy 21-Q1(A): a load that hit uninstalled plugins refuses AFTER the full scan
+    // so the message lists every missing plugin in one pass, instead of the install-one,
+    // discover-the-next loop an abort-at-first-failure would create.
+    if (!m_load_op->missing_plugin_names.empty())
+    {
+        std::string missing_list;
+        for (const std::string& name : m_load_op->missing_plugin_names)
+        {
+            if (!missing_list.empty())
+            {
+                missing_list += "; ";
+            }
+            missing_list += name;
+        }
+        abortLiveRigLoad(
+            LiveRigError{LiveRigErrorCode::MissingPlugins, "Missing plugins: " + missing_list});
+        return;
+    }
+
     std::vector<ToneRackBranchRequest> branch_requests;
     branch_requests.reserve(m_load_op->tones.size());
     for (LiveRigLoadOperation::ToneLoad& tone : m_load_op->tones)
@@ -1229,6 +1248,32 @@ void Engine::Impl::executePluginStep()
     auto plugin_known = ensureKnownPluginForIdentity(plugin.identity);
     if (!plugin_known.has_value())
     {
+        // A plugin that simply is not installed is collected instead of aborting: the load
+        // keeps scanning so the finalize step refuses ONCE with the complete missing list
+        // (gameplay policy 21-Q1(A)). Any other resolution failure still aborts immediately.
+        if (plugin_known.error().code == LiveRigErrorCode::PluginNotFound)
+        {
+            m_load_op->missing_plugin_names.push_back(
+                display_name + " (" + tone.tone_document_ref + ")");
+            m_load_op->next_plugin = plugin_index + 1;
+            ++m_load_op->completed_plugins;
+            reportLiveRigLoadProgress(
+                m_load_op->request,
+                m_load_op->completed_plugins,
+                m_load_op->total_plugins,
+                m_load_op->completed_plugins - 1,
+                display_name);
+            std::weak_ptr<bool> skip_alive_source = m_alive;
+            yieldThenContinue([this, load_alive = std::move(skip_alive_source)] {
+                if (load_alive.expired())
+                {
+                    return;
+                }
+                beginNextPluginStep();
+            });
+            return;
+        }
+
         abortLiveRigLoad(std::move(plugin_known.error()));
         return;
     }
@@ -1278,8 +1323,27 @@ void Engine::Impl::executePluginStep()
     const juce::String load_error = external_plugin->getLoadError();
     if (load_error.isNotEmpty())
     {
-        abortLiveRigLoad(
-            LiveRigError{LiveRigErrorCode::PluginRestoreFailed, load_error.toStdString()});
+        // Same collect-and-continue treatment as an unresolvable identity: a plugin that exists
+        // in the catalog but fails to load on THIS machine is a missing/broken install, and the
+        // finalize step refuses once with the complete list (gameplay policy 21-Q1(A)).
+        m_load_op->missing_plugin_names.push_back(
+            display_name + " (" + tone.tone_document_ref + ")");
+        m_load_op->next_plugin = plugin_index + 1;
+        ++m_load_op->completed_plugins;
+        reportLiveRigLoadProgress(
+            m_load_op->request,
+            m_load_op->completed_plugins,
+            m_load_op->total_plugins,
+            m_load_op->completed_plugins - 1,
+            display_name);
+        std::weak_ptr<bool> skip_alive_source = m_alive;
+        yieldThenContinue([this, load_alive = std::move(skip_alive_source)] {
+            if (load_alive.expired())
+            {
+                return;
+            }
+            beginNextPluginStep();
+        });
         return;
     }
 

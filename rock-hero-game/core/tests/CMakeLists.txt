@@ -4,7 +4,7 @@ find_package(Catch2 3 REQUIRED)
 include(Catch)
 
 add_executable(rock_hero_game_core_tests test_diagnostics.cpp test_frame_clock.cpp
-                                         test_game_resources.cpp)
+                                         test_game_resources.cpp test_gameplay_session.cpp)
 
 # Tests consume the resolver through its public include form; the library under test carries the
 # public include path.

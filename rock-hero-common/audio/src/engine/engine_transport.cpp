@@ -94,6 +94,17 @@ void Engine::Impl::stopTransport()
     publishClockBoundary(common::core::TimePosition{});
 }
 
+void Engine::Impl::disengageLoop()
+{
+    // Flag and stored points clear together: loop state persists in the edit's TRANSPORT tree
+    // (no engine path ever resets it), so a flag-only clear would leave a stale region that
+    // resurrects on a later engage or leaks into the next arrangement. Disengaging mid-play is
+    // continuous — the backend poll preserves the current position when looping turns off.
+    auto& transport = m_edit->getTransport();
+    transport.looping = false;
+    transport.setLoopRange({});
+}
+
 // Registers a project-owned transport listener that observes the message-thread snapshot.
 void Engine::addListener(ITransport::Listener& listener)
 {
@@ -148,6 +159,85 @@ void Engine::seek(common::core::TimePosition position)
     m_impl->m_edit->getTransport().setPosition(
         tracktion::TimePosition::fromSeconds(clamped_seconds));
     m_impl->publishClockBoundary(common::core::TimePosition{clamped_seconds});
+}
+
+// v1 accepts exactly 1.0: real speed control arrives with practice mode's time-stretch work over
+// the proxy-off backing clip. Rejecting loudly here (instead of silently ignoring the factor)
+// keeps early consumers from shipping code that believes speed changes worked.
+std::expected<void, TransportError> Engine::setPlaybackSpeed(double factor)
+{
+    if (factor != 1.0)
+    {
+        return std::unexpected{TransportError{
+            TransportErrorCode::SpeedNotSupported,
+            "Playback speed other than 1.0 is not supported yet",
+        }};
+    }
+
+    m_impl->m_playback_speed = factor;
+    return {};
+}
+
+// Reports the port-level speed factor; always 1.0 until practice-speed support lands.
+double Engine::playbackSpeed() const noexcept
+{
+    return m_impl->m_playback_speed;
+}
+
+// Engages Tracktion transport looping over the normalized, content-clamped region. Range is
+// written before the looping flag so the flag's first playhead push already carries the new
+// region; position is deliberately untouched (performPlay snaps into the region on the next
+// play, and a mid-play engage clamps within one ~200 ms backend poll).
+std::expected<void, TransportError> Engine::setLoopRegion(common::core::TimeRange region)
+{
+    // Normalize before validating so a reversed drag is a usable region, never an error.
+    const double normalized_start = std::min(region.start.seconds, region.end.seconds);
+    const double normalized_end = std::max(region.start.seconds, region.end.seconds);
+
+    // Clamp into the loaded content: Tracktion accepts loop points far beyond the audio, but the
+    // engine's end-of-content auto-stop fires before such a loop end could ever be reached.
+    const double clamped_start = m_impl->clampToLoadedRange(normalized_start);
+    const double clamped_end = m_impl->clampToLoadedRange(normalized_end);
+
+    // The 0.1 s port minimum keeps every scattered backend minimum unreachable: the 0.01 s play
+    // refusal (which pops a stock warning bubble and transiently reports isPlaying() == true),
+    // the 1 ms poll clamp, and the playhead's 50-sample floor.
+    if (clamped_end - clamped_start < g_minimum_loop_region_duration.seconds)
+    {
+        return std::unexpected{TransportError{TransportErrorCode::LoopRegionTooShort}};
+    }
+
+    auto& transport = m_impl->m_edit->getTransport();
+    transport.setLoopRange(
+        {tracktion::TimePosition::fromSeconds(clamped_start),
+         tracktion::TimePosition::fromSeconds(clamped_end)});
+    transport.looping = true;
+    return {};
+}
+
+// Disengages looping without touching position or play state. Delegates to the shared helper so
+// the stored backend loop points can never outlive the flag.
+void Engine::clearLoopRegion()
+{
+    m_impl->disengageLoop();
+}
+
+// Reads back through Tracktion's getLoopRange() (never the raw loop points) because only the
+// getter normalizes point order. Disengaged looping reports no region even if stale points
+// linger in the edit state.
+std::optional<common::core::TimeRange> Engine::loopRegion() const noexcept
+{
+    auto& transport = m_impl->m_edit->getTransport();
+    if (!transport.looping)
+    {
+        return std::nullopt;
+    }
+
+    const auto loop_range = transport.getLoopRange();
+    return common::core::TimeRange{
+        .start = common::core::TimePosition{loop_range.getStart().inSeconds()},
+        .end = common::core::TimePosition{loop_range.getEnd().inSeconds()},
+    };
 }
 
 // Returns the current project-owned state directly from the Tracktion adapter state.

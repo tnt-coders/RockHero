@@ -139,6 +139,17 @@ They should contain:
 editor-specific JUCE presentation. `rock-hero-game/ui` owns game-specific presentation and
 rendering.
 
+`rock-hero-common/ui` links its rendering frameworks (JUCE graphics, bgfx) privately and keeps
+them out of public headers by default, so shared UI contracts stay framework-free — the highway
+renderer's bgfx-free pimpl seam is the exemplar. One narrow, deliberate exception exists,
+mirroring how `rock-hero-common/core` earned its `juce_core` grant: a **designated** public
+header may expose `juce_graphics` types when the header's purpose is shared presentation code
+that both products execute directly (the tab notation paint core's `juce::Graphics&` signature
+is the exemplar — one rasterizer defining a look both products render; approved 2026-07-11,
+docs/roadmap/30-game-2d-tab-view.md 30-Q1). Each such exposure is a recorded decision, never a
+default, and consumers of that header take on the `juce_graphics` wrapper link explicitly. bgfx
+types never appear in public headers.
+
 UI modules should not own scoring rules, chart semantics, persistence policy, transport semantics,
 or business decisions that can be expressed outside presentation code. The right bias is: if a UI
 component is getting smart, move the intelligence out.

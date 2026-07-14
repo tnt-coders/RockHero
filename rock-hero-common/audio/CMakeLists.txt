@@ -19,15 +19,18 @@ target_sources(
             src/engine/engine_impl.h
             src/engine/engine_live_input.cpp
             src/engine/engine_live_rig.cpp
+            src/engine/engine_mix.cpp
             src/engine/engine_plugin_host.cpp
             src/engine/engine_song_audio.cpp
             src/engine/engine_tone_automation.cpp
+            src/engine/engine_tone_timeline.cpp
             src/engine/engine_transport.cpp
             src/input/input_calibration.cpp
             src/input/live_input_error.cpp
             src/live_rig/live_rig_error.cpp
             src/live_rig/tone_document.cpp
             src/live_rig/tone_document.h
+            src/mix/mix_controls_error.cpp
             src/plugin/plugin_host_error.cpp
             src/plugin/plugin_scan.cpp
             src/plugin/plugin_scan.h
@@ -60,7 +63,8 @@ target_sources(
             src/tracktion/tracktion_instrument_wave_device_mapping.cpp
             src/tracktion/tracktion_instrument_wave_device_mapping.h
             src/tracktion/tracktion_thumbnail.cpp
-            src/tracktion/tracktion_thumbnail.h)
+            src/tracktion/tracktion_thumbnail.h
+            src/transport/transport_error.cpp)
 
 target_include_directories(
     rock_hero_common_audio

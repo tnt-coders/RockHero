@@ -167,7 +167,11 @@ std::expected<void, SongAudioError> Engine::setActiveArrangement(
     }
 
     m_impl->m_loaded_length_seconds = arrangement.audio_duration.seconds;
-    transport.looping = false;
+
+    // Arrangement activation clears any engaged loop through the shared helper so the looping
+    // flag and the stored loop points can never diverge; callers that want a loop across a load
+    // re-apply it through the transport port afterwards.
+    m_impl->disengageLoop();
     transport.setPosition(tracktion::TimePosition{});
     auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
     if (!route_result.has_value())

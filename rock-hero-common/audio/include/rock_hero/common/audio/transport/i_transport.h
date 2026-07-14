@@ -5,11 +5,23 @@
 
 #pragma once
 
+#include <expected>
+#include <optional>
+#include <rock_hero/common/audio/transport/transport_error.h>
 #include <rock_hero/common/audio/transport/transport_state.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 
 namespace rock_hero::common::audio
 {
+
+/*!
+\brief Shortest loop region the transport contract accepts, in seconds.
+
+Enforced by every implementation before any backend call, so backend-specific minimum-length
+quirks are never reachable and loop rejection always surfaces as the same typed error. Shared
+publicly so fakes and tests enforce the identical contract.
+*/
+inline constexpr common::core::TimeDuration g_minimum_loop_region_duration{0.1};
 
 /*!
 \brief Project-owned transport control boundary.
@@ -78,6 +90,60 @@ public:
     \param position The target playback position.
     */
     virtual void seek(common::core::TimePosition position) = 0;
+
+    /*!
+    \brief Requests a playback speed factor for the backing content.
+
+    The live instrument path is never speed-affected — speed applies to backing playback only.
+    Current implementations accept exactly 1.0; any other factor returns
+    TransportErrorCode::SpeedNotSupported and leaves playback unchanged. Practice-speed support
+    (docs/roadmap/28-practice-mode.md) widens the accepted range behind this same signature.
+
+    \param factor Requested playback speed multiplier, where 1.0 is normal speed.
+    \return Nothing on success, or a typed transport error when the factor is unsupported.
+    */
+    [[nodiscard]] virtual std::expected<void, TransportError> setPlaybackSpeed(double factor) = 0;
+
+    /*!
+    \brief Reads the playback speed factor currently applied to backing playback.
+
+    Message-thread-only like the rest of the port.
+
+    \return Current playback speed multiplier; 1.0 until practice-speed support lands.
+    */
+    [[nodiscard]] virtual double playbackSpeed() const noexcept = 0;
+
+    /*!
+    \brief Engages loop playback over a region of the edit timeline.
+
+    Endpoints are normalized (a reversed range is swapped, never rejected) before the minimum
+    length check. Regions shorter than g_minimum_loop_region_duration return
+    TransportErrorCode::LoopRegionTooShort and leave any previously engaged loop untouched. Loop
+    wrap behaves like a seek: automation and parameter streams resync automatically after the
+    jump. Loading a different arrangement clears the engaged loop; callers that want the loop to
+    survive a load must re-apply it afterwards.
+
+    \param region Loop region in edit-timeline seconds; endpoints may arrive in either order.
+    \return Nothing on success, or a typed transport error when the region is too short.
+    */
+    [[nodiscard]] virtual std::expected<void, TransportError> setLoopRegion(
+        common::core::TimeRange region) = 0;
+
+    /*!
+    \brief Disengages loop playback, leaving position and play state untouched.
+
+    Clearing when no loop is engaged is a no-op.
+    */
+    virtual void clearLoopRegion() = 0;
+
+    /*!
+    \brief Reads the currently engaged loop region.
+
+    Message-thread-only like the rest of the port.
+
+    \return Normalized engaged loop region, or std::nullopt when looping is disengaged.
+    */
+    [[nodiscard]] virtual std::optional<common::core::TimeRange> loopRegion() const noexcept = 0;
 
     /*!
     \brief Reads the current coarse transport state.

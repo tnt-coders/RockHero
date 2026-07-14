@@ -181,6 +181,17 @@ Not first pass:
 
 ## Runtime Audio Direction
 
+> **COORDINATION (2026-07-11, plan 21 Phases 2–3):** the boundary sketched below now EXISTS —
+> `IToneTimelinePlayer` landed in
+> rock-hero-common/audio/include/rock_hero/common/audio/tone_timeline/i_tone_timeline_player.h
+> (adopted shape; `ToneSwitchRegion` lives in common/core because core cannot depend on audio),
+> implemented on `Engine` in src/engine/engine_tone_timeline.cpp over the branch-gain curves,
+> with the pure conversion + crossfade-envelope math in
+> rock-hero-common/core tone/tone_schedule.{h,cpp} (`makeToneSchedule`, `makeToneGainEnvelope`,
+> unit-tested). Slice 5c should CONSUME these — do not re-declare the port or re-derive the
+> conversion; editor-side work reduces to calling makeToneSchedule + prepareToneTimeline at the
+> right lifecycle points (plan 21 Phase 3a's whichever-first rule, executed game-first).
+
 The current `ILiveRig::loadLiveRig()` API loads one active tone document and is not sufficient for
 timeline switching. Add a separate audio boundary when runtime tone switching is implemented.
 

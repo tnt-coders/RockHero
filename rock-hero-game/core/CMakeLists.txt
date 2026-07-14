@@ -5,9 +5,13 @@ add_library(rock_hero::game::core ALIAS rock_hero_game_core)
 # (plan 20 Phase 2's resource-pack convention). Frame-clock feature: pure per-frame playback
 # clock consumption and pacing stats for the game loop (plan 20 Phase 3). Diagnostics feature:
 # headless dev-diagnostics state, intents, and the chart-source change detector (plan 20 Phase 4).
+# Session feature: the headless GameplaySession orchestration that loads a package, preloads the
+# tone rig, and drives playback through the shared audio ports (plan 21 Phase 2).
 target_sources(
-    rock_hero_game_core PRIVATE src/diagnostics/diagnostics.cpp src/frame_clock/frame_clock.cpp
-                                src/resources/game_resources.cpp)
+    rock_hero_game_core
+    PRIVATE src/diagnostics/diagnostics.cpp src/frame_clock/frame_clock.cpp
+            src/resources/game_resources.cpp src/session/gameplay_session.cpp
+            src/session/gameplay_session_error.cpp)
 
 target_include_directories(
     rock_hero_game_core
