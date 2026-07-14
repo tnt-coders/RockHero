@@ -59,8 +59,8 @@ constexpr float g_arpeggio_bracket_thickness{1.0f};
     return juce::Colour{common::ui::multiplyColor(color.getARGB(), multiplier)};
 }
 
-// Hand-shape mark color: the Charter base brightened so the narrow rails, onset bars, and name
-// chips read clearly against the dark lane (user-directed brightness bump).
+// Hand-shape mark color: the Charter base brightened so the narrow rails and name chips read
+// clearly against the dark lane (user-directed brightness bump).
 [[nodiscard]] juce::Colour shapeMarkColor(bool arpeggio)
 {
     return charterMultiply(
