@@ -2,9 +2,17 @@
 
 ## 1. Status
 
-Ready — Phases 1–4 are executable now (headless core work); Phases 5–9 are blocked on
-docs/roadmap/20-game-architecture-and-render-stack.md Phase 0 sign-off. Date: 2026-07-06.
-Baseline: `refactor @ 3c7febe0`.
+**Phase 1 COMPLETE (2026-07-12, overnight/game-shell):** `readRockSongPackageDescription` in
+common/core package/ — streams song.json + chart entries straight from the ZIP (no extraction,
+no workspace); lenient past the structural gate (corrupt chart / unsupported part / missing
+audio entry = typed warnings, never a hard failure); the `formatVersion == 1` check now lives in
+exactly ONE named helper (`requireSupportedSongDocumentVersion`, src/package/song_document_json)
+shared with the full reader — plan 10 replaces that single site; `readMetadata`/`parsePart`
+promoted to the same shared TU so both read paths speak identical field vocabulary. Six tests
+(happy fields incl. tuning peek, corrupt-chart warning, missing-audio warning, non-package ZIP,
+wrong version, non-archive). G20-RENDER closed 2026-07-10, so Phases 5–9's former gate is open.
+Original: Ready — Phases 1–4 executable (headless core); date 2026-07-06; baseline
+`refactor @ 3c7febe0`.
 
 ## 2. Goal
 
@@ -303,10 +311,14 @@ Depends on the `IGameSettings` port phase of docs/roadmap/27-in-song-flow-result
 forward and record it in both plans).
 
 - **Scope**: settings fields this plan owns — `first_run_completed`; library scan roots (list of
-  directories; default DECIDED by the user 2026-07-12: `%APPDATA%/Rock Hero/Songs` — the
-  game-owned app-data root, cleanest single home beside settings/logs/sessions; discoverability
-  is solved by an "Open songs folder" affordance in the library screen (Phase 7 carries it),
-  created on demand); video
+  directories; defaults DECIDED by the user 2026-07-12 after two refinement rounds:
+  (1) PRIMARY `%APPDATA%/Rock Hero/Songs` — per-user, always writable, created on demand, and
+  crucially SURVIVES uninstall/reinstall/update cycles (uninstallers remove the install dir, not
+  per-user app data); (2) SECONDARY: an exe-relative `songs/` folder is auto-scanned whenever it
+  exists — RS-style drop-in muscle memory and portable installs work with zero configuration,
+  accepted as wipeable on uninstall since it is never the library's canonical home; plus
+  user-added roots through settings. Discoverability of the primary is solved by an "Open songs
+  folder" affordance in the library screen — Phase 7 carries it); video
   settings model {display mode fullscreen/windowed/borderless, monitor identifier, resolution,
   vsync mode} whose semantics follow the frame-pacing policy recorded in
   docs/roadmap/20-game-architecture-and-render-stack.md (this plan persists and displays; 20's

@@ -28,7 +28,10 @@ target_sources(
             src/tone/tone_track_rules.cpp
             src/tone/tone_track_edits.cpp
             src/tone/tone_track_normalize.cpp
-            src/tone/tone_schedule.cpp)
+            src/tone/tone_schedule.cpp
+            src/package/package_description.cpp
+            src/package/song_document_json.cpp
+            src/package/song_document_json.h)
 
 target_include_directories(
     rock_hero_common_core
