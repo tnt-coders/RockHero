@@ -2,6 +2,21 @@
 
 ## 1. Status
 
+**Phase 3 COMPLETE (2026-07-12, overnight/game-shell):** the headless scan orchestration —
+`LibraryScanEngine`, a synchronous `step()`-driven state machine that lists roots, plans against
+the cached index, and executes the plan one package at a time through three injected ports
+(`ILibraryDirectoryLister`, `ILibraryPackageDescriber`, `IAlbumArtGenerator`). Persistence-free by
+an adversarial-review decision: it exposes the working index and signals a `commit_checkpoint`
+after each package, and a future game/app runner performs the save — the DiagnosticsController
+"record a signal, the shell performs the effect" split, not a store port the engine calls.
+Malformed packages become Warning entries (the pure `makeLibraryEntry` projection keeps identity
+facts on a read failure); cooperative cancellation via `CancellationToken` leaves a loadable
+partial index. The album-art port ships a `NullAlbumArtGenerator` default until plan 43's JUCE
+decoder. Two independent reviews ran (adversarial boundary design, then post-implementation); their
+findings landed here — the `Idle` empty-vector guard, the extracted projection unit, and the added
+Rescan/progress-sequence/multi-root tests. Per user, album-art naming was scrubbed off "thumbnail"
+(reserved for the audio waveform) across this plan and plan 43. Eight new engine tests.
+
 **Phase 2 COMPLETE (2026-07-12, overnight/game-shell):** the first game library code —
 `LibraryIndex` value model, versioned JSON store (atomic `replaceWithText` saves,
 rebuild-on-any-doubt loads: missing file, parse failure, version mismatch, and identity-stripped
@@ -161,7 +176,7 @@ inventory above, which predates the Stage A game work:
   consumes it. The roadmap should order that single phase ahead of Phase 4 here.
 - docs/roadmap/42-chart-validation.md — richer content-validation reasons surfaced in the library
   warning view (soft dependency; Phase 7 shows package-level errors regardless).
-- docs/roadmap/43-song-information-and-art.md — sort fields, album art (Phase 3 thumbnails, Phase 7
+- docs/roadmap/43-song-information-and-art.md — sort fields, album art (Phase 3 album-art images, Phase 7
   columns), preview start/length (Phase 9).
 - docs/roadmap/21-game-audio-engine-and-session.md — preview snippet playback path (Phase 9).
 
@@ -200,7 +215,7 @@ Mirror each into docs/roadmap/00-roadmap.md "Decisions needed".
    extract to common when BOTH products need it; today only the game does, and Phase 1 already
    puts the reusable package-reading part in common.
 2. **Index storage format**: (a) one versioned JSON document (via the already-permitted
-   `juce_core` JSON facilities) plus thumbnail image files in a sibling folder, written
+   `juce_core` JSON facilities) plus album-art image files in a sibling folder, written
    atomically; (b) `juce::PropertiesFile`; (c) SQLite (new dependency). **Recommendation: (a)** —
    human-inspectable, testable, no new dependency; PropertiesFile is wrong-shaped for thousands
    of structured entries; SQLite is unjustified at friends-scale library sizes.
@@ -264,8 +279,8 @@ Assumes open question 1 = (a) and 2 = (a); relabel per the user's answers.
 - **Scope**: the first real game code. `LibraryIndex` value model: entries keyed by absolute
   package path, each storing {path, file size, mtime, optional package hash (populated once
   docs/roadmap/10-format-versioning-and-chart-identity.md lands — enables move detection and stable
-  thumbnail identity), `SongMetadata`, per-arrangement {part, tuning summary, intensity
-  {value, calculatorVersion} — absent means the "Unknown" bucket}, thumbnail file name (empty
+  album-art identity), `SongMetadata`, per-arrangement {part, tuning summary, intensity
+  {value, calculatorVersion} — absent means the "Unknown" bucket}, album-art image file name (empty
   until docs/roadmap/43-song-information-and-art.md adds art), scan status (Ok | Warning with typed
   reason text)}. Versioned index document (`indexFormatVersion`), serialized to one JSON file in
   per-user app data under `applicationDataFolderName()`
@@ -296,12 +311,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -RunTouchedTests
 ```
 
-### Phase 3 — Scan orchestration, thumbnails port, warning capture
+### Phase 3 — Scan orchestration, album-art port, warning capture
 
 - **Scope**: a background/incremental scan engine in game/core: consumes a scan plan, executes it
   entry by entry via injected ports — `ILibraryDirectoryLister` (produces file facts for the
   configured scan roots), a package describer (Phase 1 API behind a small port so tests fake it),
-  and `IArtThumbnailGenerator` (decodes art bytes → small cached image file; returns typed
+  and `IAlbumArtGenerator` (decodes album art → small cached image file; returns typed
   failure). Progress reporting (scanned/total, current package), cooperative cancellation via
   `common::core::CancellationToken`, and incremental index commits so an interrupted scan loses
   at most the in-flight entry. Malformed packages become Warning entries with the typed reason —
@@ -309,10 +324,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
   `step()`-style state machine; a thin runner (game/app) pumps it on a dedicated thread
   (docs/design/architectural-principles.md "Keep Threading at the Boundary").
 - **Files**: `rock-hero-game/core/{include,src}/.../library/` additions (`library_scan_engine.h`,
-  ports); JUCE-backed thumbnail adapter deferred to when art exists (43) — until then the port
+  ports); JUCE-backed album-art adapter deferred to when art exists (43) — until then the port
   ships with a no-art null implementation. Carry an explicit checkpoint: **verify JUCE image
   decode formats and headless (software image) rendering constraints with juce-tracktion-expert
-  before implementing the thumbnail adapter** (shared with plan 43's art work).
+  before implementing the album-art adapter** (shared with plan 43's art work).
 - **Public-header impact**: game/core headers only.
 - **Testing**: fake lister/describer drive the engine deterministically — mixed plans (adds,
   rescans, removals, one malformed package) produce correct final index, progress sequence, and
@@ -338,7 +353,7 @@ forward and record it in both plans).
   requirement, created on demand, and inherently survives uninstall/reinstall/update cycles —
   PLUS user-added custom song directories through settings (anyone wanting a shared or
   install-dir library just adds it as a custom root). All per-user data (settings, the library
-  index cache, thumbnails, songs) therefore lives under the same app-data root. An eventual
+  index cache, album-art images, songs) therefore lives under the same app-data root. An eventual
   uninstaller may offer an opt-in "remove all files including songs" purge of that root for a
   clean wipe; nothing else about the installer is constrained. Discoverability is solved by an
   "Open songs folder" affordance in the library screen — Phase 7 carries it); video
@@ -410,7 +425,7 @@ forward and record it in both plans).
   values, constraint (d)). Malformed packages show a non-fatal warning badge with the stored
   typed reason (richer content reasons arrive with docs/roadmap/42-chart-validation.md). Manual
   rescan action reuses Phase 3 with visible progress. Song detail pane: arrangements, parts,
-  tunings, art thumbnail when available.
+  tunings, album-art image when available.
 - **Files**: song-list view model (filtering/sorting/selection as pure logic) in
   `rock-hero-game/core/.../library/`; presentation in `rock-hero-game/ui/` per 20's stack;
   fonts/menu SFX through 20's resource-pack conventions — no new loading paths invented here.

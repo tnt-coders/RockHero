@@ -74,7 +74,7 @@ void writeIndexText(const std::filesystem::path& path, const std::string& conten
     full.modification_time_milliseconds = 1720900000000;
     full.package_hash = "abc123";
     full.metadata = {.title = "Peek Song", .artist = "Peek Artist", .album = "Peeks", .year = 2026};
-    full.thumbnail_file_name = "abc123.png";
+    full.album_art_file_name = "abc123.png";
     full.warnings = {"arrangement 2 backing audio entry is missing"};
 
     LibraryArrangementSummary lead;
@@ -122,7 +122,7 @@ TEST_CASE("Library index round-trips through its JSON document", "[core][library
     CHECK(full.metadata.artist == "Peek Artist");
     CHECK(full.metadata.album == "Peeks");
     CHECK(full.metadata.year == 2026);
-    CHECK(full.thumbnail_file_name == "abc123.png");
+    CHECK(full.album_art_file_name == "abc123.png");
     CHECK(full.hasWarnings());
     REQUIRE(full.warnings.size() == 1);
 
@@ -146,7 +146,7 @@ TEST_CASE("Library index round-trips through its JSON document", "[core][library
 
     const LibraryEntry& minimal = loaded.index.entries.back();
     CHECK(minimal.package_hash.empty());
-    CHECK(minimal.thumbnail_file_name.empty());
+    CHECK(minimal.album_art_file_name.empty());
     CHECK_FALSE(minimal.hasWarnings());
     CHECK(minimal.arrangements.empty());
 }

@@ -27,7 +27,7 @@ established save==publish / normalize-don't-reject invariant (Open question Q1).
 - No formatVersion machinery — `docs/roadmap/10-format-versioning-and-chart-identity.md` owns the
   bump rules and migration ladder; this plan ships the first *consumer* of that ladder.
 - No game-side rendering of art, sort columns, or preview playback —
-  `docs/roadmap/26-game-startup-menus-library.md` (its Phase 3 thumbnail adapter consumes the JUCE
+  `docs/roadmap/26-game-startup-menus-library.md` (its Phase 3 album-art adapter consumes the JUCE
   facts verified here).
 - No arrangement `part` editing UI and no authored or serialized difficulty — difficulty stays
   derived (`docs/roadmap/11-derived-difficulty-calculator.md`); its editor display can join this
@@ -175,7 +175,7 @@ Upstream (blocking):
 
 Downstream (consumers; recorded in their Dependencies sections too):
 
-- `docs/roadmap/26-game-startup-menus-library.md` — Phase 3 (art thumbnails; shares this plan's
+- `docs/roadmap/26-game-startup-menus-library.md` — Phase 3 (album-art images; shares this plan's
   JUCE image findings and Phase 3 codec), Phase 7 (sort columns), Phase 9 (preview snippet).
 - `docs/roadmap/11-derived-difficulty-calculator.md` — editor display of the derived rating rides
   with this dialog later (that plan's non-goals).
@@ -255,7 +255,7 @@ Mirrored into `docs/roadmap/00-roadmap.md` Decisions-needed. Phase 0 presents th
   (A) *`rock-hero-common/ui`, feature folder `art/`* (recommended): the codec needs
   `juce_graphics`, which is beyond `common/core`'s narrow `juce_core` permission
   (`docs/design/architecture.md` "JUCE utility dependency in core modules"), and both products
-  need it (editor import-time processing now, plan 26's thumbnail adapter next) — the placement
+  need it (editor import-time processing now, plan 26's album-art adapter next) — the placement
   procedure (`docs/design/architectural-principles.md` "Placement Procedure for New Files")
   lands exactly here, and the library's README reserves it for this moment. This turns the
   placeholder library real and adds `rock_hero::juce_graphics` to the shared build graph.
@@ -347,7 +347,7 @@ Phase 2 have landed.
   4. Controller intents on `IEditorController`: `onSongInformationRequested()` (opens the dialog
      via view state), `onSongInformationSubmitted(SongInformationDraft draft)`,
      `onSongInformationDismissed()`. View state gains an `std::optional<SongInformationViewState>`
-     (current values + art thumbnail file path + publish-blocker summary once Phase 5 lands),
+     (current values + album-art image file path + publish-blocker summary once Phase 5 lands),
      following the prompt-struct pattern (`editor_view_state.h:59-108`). Handlers live in a new
      `song_information_handlers.cpp` per the multi-TU controller convention.
   5. Art file staging (byte-level only; no image decoding in core):
@@ -392,7 +392,7 @@ Phase 2 have landed.
 - **Editor consumption**: the Song Information dialog (Phase 4) calls the codec on the chooser
   result and passes canonical JPEG bytes to `onAlbumArtSelected` — media conversion stays in UI,
   policy (file placement, undo) stays in core (`docs/design/architectural-principles.md`,
-  "Humble Object, But With the Right Scope"). Plan 26's `IArtThumbnailGenerator` adapter is the
+  "Humble Object, But With the Right Scope"). Plan 26's `IAlbumArtGenerator` adapter is the
   codec's second consumer (its "verify JUCE image decode formats" checkpoint is discharged by
   this plan's verified findings).
 - **Public-header impact**: first public header of `rock-hero-common/ui`
@@ -494,7 +494,7 @@ metadata and art intact); and the Q1/Q2 outcomes recorded in `docs/roadmap/00-ro
 - **Phase 3** turns the placeholder `rock-hero-common/ui` library real and adds
   `rock_hero::juce_graphics` to the shared graph; keep it an isolated commit so a revert restores
   the placeholder exactly (re-adding `.gitkeep` per the library README). If the codec proves
-  wrong-shaped for plan 26's thumbnail adapter, fix it here — plan 26 must not fork a second
+  wrong-shaped for plan 26's album-art adapter, fix it here — plan 26 must not fork a second
   image path.
 - **Phase 5** is independently revertible: removing the gate returns publish to today's ungated
   behavior without touching the format or the dialog. Do not weaken it by auto-filling

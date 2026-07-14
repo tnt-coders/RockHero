@@ -67,7 +67,7 @@ struct LibraryEntry
     /*!
     \brief Package identity hash; empty until
            docs/roadmap/10-format-versioning-and-chart-identity.md lands (enables move detection
-           and stable thumbnail identity).
+           and stable album-art identity).
     */
     std::string package_hash;
 
@@ -78,10 +78,10 @@ struct LibraryEntry
     std::vector<LibraryArrangementSummary> arrangements;
 
     /*!
-    \brief Cached thumbnail file name beside the index; empty until
+    \brief Cached album-art image file name beside the index; empty until
            docs/roadmap/43-song-information-and-art.md adds album art.
     */
-    std::string thumbnail_file_name;
+    std::string album_art_file_name;
 
     /*! \brief Non-fatal scan warnings; a non-empty list marks the entry's Warning scan status. */
     std::vector<std::string> warnings;
