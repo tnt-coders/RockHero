@@ -37,4 +37,13 @@ namespace rock_hero::common::core
     return "Rock Hero Editor";
 }
 
+/*!
+\brief User-facing game application name; names the game's per-user settings file.
+\return Stable game application name text.
+*/
+[[nodiscard]] constexpr std::string_view gameApplicationName() noexcept
+{
+    return productName();
+}
+
 } // namespace rock_hero::common::core
