@@ -9,9 +9,12 @@
 #include <juce_data_structures/juce_data_structures.h>
 #include <optional>
 #include <rock_hero/common/audio/input/input_calibration_state.h>
+#include <rock_hero/common/audio/settings/audio_config_store.h>
+#include <rock_hero/common/audio/settings/i_audio_config_store.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/editor/core/settings/i_editor_settings.h>
 #include <string>
+#include <vector>
 
 namespace rock_hero::editor::core
 {
@@ -22,6 +25,11 @@ namespace rock_hero::editor::core
 EditorSettings is the JUCE-backed implementation of IEditorSettings used by production app
 composition. Scalar values and XML-valued histories are stored in the app properties file. These
 settings are per-user application state, not `.rhp` project data and not `.rock` package data.
+
+The editor's audio configuration (active device route and input calibration) lives on a separate
+per-app AudioConfigStore that EditorSettings owns, so it partitions cleanly from workflow state.
+The calibration accessors delegate to that store; app composition injects the same store into the
+controller for device-route persist/restore via audioConfigStore().
 */
 class EditorSettings final : public IEditorSettings
 {
@@ -31,6 +39,10 @@ public:
 
     /*!
     \brief Opens editor settings at an explicit native path.
+
+    The owned audio-config store opens at a sibling of the settings file (see audioConfigFileFor)
+    so lifecycle behavior can be exercised in isolation without a shared writer.
+
     \param settings_file Settings file path used for persisted editor state.
     */
     explicit EditorSettings(const std::filesystem::path& settings_file);
@@ -77,20 +89,6 @@ public:
     */
     [[nodiscard]] std::expected<void, EditorSettingsError> setInterruptedRestoreProject(
         std::optional<std::filesystem::path> project_file) override;
-
-    /*!
-    \brief Reads the opaque serialized audio-device state stored by a previous editor session.
-    \return Stored state, or empty when no audio-device state should be restored.
-    */
-    [[nodiscard]] std::optional<std::string> audioDeviceState() const override;
-
-    /*!
-    \brief Stores or clears the opaque serialized audio-device state.
-    \param serialized_state Serialized state to restore on next launch, or empty to clear it.
-    \return Empty success, or a typed settings failure.
-    */
-    [[nodiscard]] std::expected<void, EditorSettingsError> setAudioDeviceState(
-        std::optional<std::string> serialized_state) override;
 
     /*!
     \brief Reads the app-wide waveform visibility preference for the timeline's tablature lane.
@@ -214,8 +212,57 @@ public:
     [[nodiscard]] std::expected<void, EditorSettingsError> removeInputCalibration(
         const common::audio::InputDeviceIdentity& identity) override;
 
+    /*!
+    \brief Returns the editor's owned audio-config store for device-route persist/restore.
+
+    App composition injects this into the controller so the device route and this settings object's
+    delegated calibration share one file with exactly one writer.
+
+    \return Audio-config store backing this editor's device route and input calibration.
+    */
+    [[nodiscard]] common::audio::IAudioConfigStore& audioConfigStore() noexcept;
+
+    /*!
+    \brief Reads the legacy serialized audio-device state from the pre-migration settings file.
+
+    Migration-only accessor: reads the obsolete `audioDeviceState` key so the one-shot migration can
+    move it onto the audio-config store. Not part of the persistence contract.
+
+    \return Stored legacy device state, or empty when none is present.
+    */
+    [[nodiscard]] std::optional<std::string> readLegacyAudioDeviceState() const;
+
+    /*! \brief Clears the legacy serialized audio-device state key after a successful migration. */
+    void clearLegacyAudioDeviceState();
+
+    /*!
+    \brief Reads legacy input calibration records from the pre-migration settings file.
+
+    Migration-only accessor: decodes the obsolete calibration history so the one-shot migration can
+    re-save each record through the audio-config store. Malformed or incomplete records are dropped.
+
+    \return Decoded legacy calibration records, or empty when none are present.
+    */
+    [[nodiscard]] std::vector<common::audio::InputCalibrationState> readLegacyInputCalibrations()
+        const;
+
+    /*! \brief Clears the legacy input calibration history key after a successful migration. */
+    void clearLegacyInputCalibrations();
+
+    /*!
+    \brief Derives the audio-config file path a settings file's owned store opens.
+    \param settings_file Editor settings file path.
+    \return Sibling audio-config file path used by the owned AudioConfigStore.
+    */
+    [[nodiscard]] static std::filesystem::path audioConfigFileFor(
+        const std::filesystem::path& settings_file);
+
 private:
     juce::PropertiesFile m_properties;
+
+    // Owned per-app audio-config store holding this editor's device route and input calibration.
+    // Constructed after m_properties so both files open before any delegated access occurs.
+    common::audio::AudioConfigStore m_audio_config_store;
 };
 
 } // namespace rock_hero::editor::core

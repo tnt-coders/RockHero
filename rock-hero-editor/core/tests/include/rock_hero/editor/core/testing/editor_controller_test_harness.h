@@ -22,9 +22,11 @@
 #include <rock_hero/common/audio/input/input_device_identity.h>
 #include <rock_hero/common/audio/live_rig/i_live_rig.h>
 #include <rock_hero/common/audio/plugin/i_plugin_host.h>
+#include <rock_hero/common/audio/settings/i_audio_config_store.h>
 #include <rock_hero/common/audio/song/i_song_audio.h>
 #include <rock_hero/common/audio/testing/configurable_audio_device_configuration.h>
 #include <rock_hero/common/audio/testing/configurable_song_audio.h>
+#include <rock_hero/common/audio/testing/in_memory_audio_config_store.h>
 #include <rock_hero/common/audio/testing/recording_plugin_host.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/audio/transport/transport_state.h>
@@ -208,6 +210,38 @@ immediateMessageThreadScheduler() noexcept
 }
 
 /*!
+\brief Returns the shared in-memory audio-config store for tests that do not observe the device route.
+\return Process-lifetime in-memory audio-config store fake.
+*/
+[[nodiscard]] inline common::audio::testing::InMemoryAudioConfigStore&
+defaultAudioConfigStore() noexcept
+{
+    static common::audio::testing::InMemoryAudioConfigStore g_audio_config_store;
+    return g_audio_config_store;
+}
+
+/*!
+\brief Builds the required service bundle, choosing which audio-config store the controller uses.
+\param settings Settings port used by the controller under test.
+\param task_runner Task runner used by the controller under test.
+\param message_thread_scheduler Message-thread scheduler used by the controller under test.
+\param audio_config_store Audio-config store used by the controller under test.
+\return Controller service bundle.
+*/
+[[nodiscard]] inline EditorController::Services controllerServices(
+    IEditorSettings& settings, IEditorTaskRunner& task_runner,
+    IMessageThreadScheduler& message_thread_scheduler,
+    common::audio::IAudioConfigStore& audio_config_store) noexcept
+{
+    return EditorController::Services{
+        .settings = settings,
+        .task_runner = task_runner,
+        .message_thread_scheduler = message_thread_scheduler,
+        .audio_config_store = audio_config_store,
+    };
+}
+
+/*!
 \brief Builds the required service bundle from test-owned or shared fake services.
 \param settings Settings port used by the controller under test.
 \param task_runner Task runner used by the controller under test.
@@ -218,11 +252,8 @@ immediateMessageThreadScheduler() noexcept
     IEditorSettings& settings, IEditorTaskRunner& task_runner,
     IMessageThreadScheduler& message_thread_scheduler) noexcept
 {
-    return EditorController::Services{
-        .settings = settings,
-        .task_runner = task_runner,
-        .message_thread_scheduler = message_thread_scheduler,
-    };
+    return controllerServices(
+        settings, task_runner, message_thread_scheduler, defaultAudioConfigStore());
 }
 
 /*!
@@ -255,6 +286,19 @@ immediateMessageThreadScheduler() noexcept
     IEditorSettings& settings) noexcept
 {
     return controllerServices(settings, immediateTaskRunner());
+}
+
+/*!
+\brief Uses specific settings and a specific audio-config store while keeping work synchronous.
+\param settings Settings port used by the controller under test.
+\param audio_config_store Audio-config store observed by the controller under test.
+\return Controller service bundle.
+*/
+[[nodiscard]] inline EditorController::Services controllerServices(
+    IEditorSettings& settings, common::audio::IAudioConfigStore& audio_config_store) noexcept
+{
+    return controllerServices(
+        settings, immediateTaskRunner(), immediateMessageThreadScheduler(), audio_config_store);
 }
 
 /*!
@@ -1462,12 +1506,14 @@ public:
     }
 
 private:
-    // Removes both fixture files on a best-effort basis.
+    // Removes every fixture file on a best-effort basis, including the sibling audio-config file
+    // the owned EditorSettings store opens, so calibration state cannot leak between runs.
     void removeFiles() const
     {
         std::error_code error;
         std::filesystem::remove(m_settings_file, error);
         std::filesystem::remove(m_project_file, error);
+        std::filesystem::remove(EditorSettings::audioConfigFileFor(m_settings_file), error);
     }
 
     // Build-local settings file used by restore and exit persistence tests.

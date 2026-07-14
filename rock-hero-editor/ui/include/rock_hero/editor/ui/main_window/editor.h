@@ -15,6 +15,7 @@
 
 namespace rock_hero::common::audio
 {
+class IAudioConfigStore;
 class IAudioDeviceConfiguration;
 class IAudioMeterSource;
 class ILiveInput;
@@ -96,6 +97,9 @@ public:
 
         /*! \brief Message-thread scheduler used for busy-presentation ordering. */
         core::IMessageThreadScheduler& message_thread_scheduler;
+
+        /*! \brief Per-app audio-config store used for device-route persist and restore. */
+        common::audio::IAudioConfigStore& audio_config_store;
     };
 
     /*! \brief Optional project IO operations used by the composed editor workflow. */

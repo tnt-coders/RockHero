@@ -36,7 +36,6 @@ constexpr const char* g_project_cursor_positions_key{"projectCursorPositions"};
 constexpr const char* g_project_grid_note_values_key{"projectGridNoteValues"};
 constexpr const char* g_retired_grid_spacings_key{"projectGridSpacings"};
 constexpr const char* g_input_calibration_states_key{"inputCalibrationStates"};
-constexpr const char* g_input_calibrations_tag{"INPUT_CALIBRATIONS"};
 
 // Owns one build-local settings file so each test starts with clean persisted state.
 class ScopedSettingsFile final
@@ -67,11 +66,13 @@ public:
     }
 
 private:
-    // Removes the settings file on a best-effort basis.
+    // Removes the settings file and the sibling audio-config file the owned store opens, on a
+    // best-effort basis, so calibration state cannot leak between runs.
     void removeFile() const
     {
         std::error_code error;
         std::filesystem::remove(m_path, error);
+        std::filesystem::remove(EditorSettings::audioConfigFileFor(m_path), error);
     }
 
     // Build-local settings path owned by this fixture.
@@ -115,16 +116,6 @@ void writeRawSetting(
         common::core::juceFileFromPath(settings_file), testSettingsOptions()
     };
     return properties.containsKey(key);
-}
-
-// Reads one XML-valued setting from the same JUCE storage path production uses.
-[[nodiscard]] std::unique_ptr<juce::XmlElement> xmlSettingFor(
-    const std::filesystem::path& settings_file, const char* key)
-{
-    const juce::PropertiesFile properties{
-        common::core::juceFileFromPath(settings_file), testSettingsOptions()
-    };
-    return properties.getXmlValue(key);
 }
 
 // Builds a stable route identity for settings history tests.
@@ -217,7 +208,6 @@ TEST_CASE("EditorSettings starts without a last open project", "[core][settings]
 
     CHECK_FALSE(settings.lastOpenProject().has_value());
     CHECK_FALSE(settings.interruptedRestoreProject().has_value());
-    CHECK_FALSE(settings.audioDeviceState().has_value());
     CHECK_FALSE(inputCalibrationFor(settings, makeIdentity()).has_value());
 }
 
@@ -289,41 +279,6 @@ TEST_CASE("EditorSettings clears interrupted restore project", "[core][settings]
     const EditorSettings reloaded_settings{settings_file.path()};
 
     CHECK_FALSE(reloaded_settings.interruptedRestoreProject().has_value());
-}
-
-// The settings file preserves opaque serialized audio-device state across launches.
-TEST_CASE("EditorSettings persists the audio device state", "[core][settings]")
-{
-    const ScopedSettingsFile settings_file{"persists_audio_device.settings"};
-    const std::string serialized_state{
-        R"(<DEVICESETUP deviceType="ASIO" audioOutputDeviceName="ASIO Interface"/>)"
-    };
-
-    {
-        EditorSettings settings{settings_file.path()};
-        REQUIRE(settings.setAudioDeviceState(serialized_state).has_value());
-    }
-
-    const EditorSettings reloaded_settings{settings_file.path()};
-
-    CHECK(reloaded_settings.audioDeviceState() == std::optional{serialized_state});
-}
-
-// Clearing audio state removes the persisted serialized state from the settings file.
-TEST_CASE("EditorSettings clears the audio device state", "[core][settings]")
-{
-    const ScopedSettingsFile settings_file{"clears_audio_device.settings"};
-    const std::string serialized_state{"<DEVICESETUP deviceType=\"ASIO\"/>"};
-
-    {
-        EditorSettings settings{settings_file.path()};
-        REQUIRE(settings.setAudioDeviceState(serialized_state).has_value());
-        REQUIRE(settings.setAudioDeviceState(std::nullopt).has_value());
-    }
-
-    const EditorSettings reloaded_settings{settings_file.path()};
-
-    CHECK_FALSE(reloaded_settings.audioDeviceState().has_value());
 }
 
 // Project cursor history persists app-local resume state without storing it in project packages.
@@ -535,7 +490,8 @@ TEST_CASE("EditorSettings round-trips a unicode project path", "[core][settings]
         std::optional<std::string>{"arr-unicode"});
 }
 
-// Calibration history persists one physical input route and ignores unrelated routes.
+// Calibration delegated to the owned store round-trips across reloads and ignores unrelated routes.
+// The store's own tests own the XML-format assertions; this proves the EditorSettings delegation.
 TEST_CASE("EditorSettings persists physical input calibration", "[core][settings]")
 {
     const ScopedSettingsFile settings_file{"persists_input_calibration.settings"};
@@ -557,12 +513,6 @@ TEST_CASE("EditorSettings persists physical input calibration", "[core][settings
         CHECK(stored_calibration->input_device_identity == identity);
     }
     CHECK_FALSE(inputCalibrationFor(reloaded_settings, other_identity).has_value());
-
-    const std::unique_ptr<juce::XmlElement> calibration_xml =
-        xmlSettingFor(settings_file.path(), g_input_calibration_states_key);
-    REQUIRE(calibration_xml != nullptr);
-    CHECK(calibration_xml->hasTagName(g_input_calibrations_tag));
-    CHECK(calibration_xml->getNumChildElements() == 1);
 }
 
 // Saving the same physical route again replaces only that route's gain.
@@ -662,40 +612,15 @@ TEST_CASE("EditorSettings removes one physical calibration", "[core][settings]")
     }
 }
 
-// Duplicate XML records collapse to the last valid record for a physical route.
-TEST_CASE("EditorSettings collapses duplicate calibration history", "[core][settings]")
-{
-    const ScopedSettingsFile settings_file{"duplicates_input_calibration.settings"};
-    const common::audio::InputDeviceIdentity identity = makeIdentity();
-    writeRawSetting(
-        settings_file.path(),
-        g_input_calibration_states_key,
-        juce::String{
-            R"(<INPUT_CALIBRATIONS formatVersion="1">)"
-            R"(<CALIBRATION gainDb="2.0" backendName="ASIO" inputDeviceName="Interface A" )"
-            R"(inputChannelIndex="0" inputChannelName="Input 1"/>)"
-            R"(<CALIBRATION gainDb="7.0" backendName="ASIO" inputDeviceName="Interface A" )"
-            R"(inputChannelIndex="0" inputChannelName="Mic/Inst 1"/>)"
-            R"(</INPUT_CALIBRATIONS>)"
-        });
-
-    const EditorSettings settings{settings_file.path()};
-
-    const auto stored_calibration = inputCalibrationFor(settings, identity);
-    REQUIRE(stored_calibration.has_value());
-    if (stored_calibration.has_value())
-    {
-        CHECK_THAT(stored_calibration->calibration_gain.db, Catch::Matchers::WithinULP(7.0, 0));
-        CHECK(stored_calibration->input_device_identity == identity);
-    }
-}
-
-// Malformed calibration XML blocks lookup and removal without overwriting unknown state.
+// A malformed store history surfaces through the delegation as the translated settings error code,
+// and neither lookup nor removal overwrites the unreadable state.
 TEST_CASE("EditorSettings preserves malformed calibration history", "[core][settings]")
 {
     const ScopedSettingsFile settings_file{"malformed_input_calibration.settings"};
+    const std::filesystem::path audio_file =
+        EditorSettings::audioConfigFileFor(settings_file.path());
     const common::audio::InputDeviceIdentity identity = makeIdentity();
-    writeRawSetting(settings_file.path(), g_input_calibration_states_key, juce::String{"[not-xml"});
+    writeRawSetting(audio_file, g_input_calibration_states_key, juce::String{"[not-xml"});
 
     EditorSettings settings{settings_file.path()};
 
@@ -706,7 +631,7 @@ TEST_CASE("EditorSettings preserves malformed calibration history", "[core][sett
     const auto removed = settings.removeInputCalibration(identity);
     REQUIRE_FALSE(removed.has_value());
     CHECK(removed.error().code == EditorSettingsErrorCode::InvalidInputCalibrationHistory);
-    CHECK(rawSettingExists(settings_file.path(), g_input_calibration_states_key));
+    CHECK(rawSettingExists(audio_file, g_input_calibration_states_key));
 }
 
 // Obsolete flat calibration keys are ignored rather than migrated into the current history.
@@ -734,18 +659,20 @@ TEST_CASE("EditorSettings ignores obsolete flat calibration", "[core][settings]"
     CHECK_FALSE(inputCalibrationFor(reloaded_settings, obsolete_identity).has_value());
 }
 
-// Saving refuses to overwrite malformed current-format calibration history.
+// Saving through the delegation refuses to overwrite malformed current-format calibration history.
 TEST_CASE("EditorSettings blocks saving over malformed calibration", "[core][settings]")
 {
     const ScopedSettingsFile settings_file{"malformed_save_input_calibration.settings"};
+    const std::filesystem::path audio_file =
+        EditorSettings::audioConfigFileFor(settings_file.path());
     const common::audio::InputDeviceIdentity new_identity = makeIdentity("Interface B");
-    writeRawSetting(settings_file.path(), g_input_calibration_states_key, juce::String{"[not-xml"});
+    writeRawSetting(audio_file, g_input_calibration_states_key, juce::String{"[not-xml"});
 
     EditorSettings settings{settings_file.path()};
     const auto saved = settings.saveInputCalibration(calibrationFor(new_identity, 7.0));
     REQUIRE_FALSE(saved.has_value());
     CHECK(saved.error().code == EditorSettingsErrorCode::InvalidInputCalibrationHistory);
-    CHECK(rawSettingExists(settings_file.path(), g_input_calibration_states_key));
+    CHECK(rawSettingExists(audio_file, g_input_calibration_states_key));
 
     const EditorSettings reloaded_settings{settings_file.path()};
     const auto loaded = reloaded_settings.inputCalibrationFor(new_identity);

@@ -20,9 +20,10 @@ namespace rock_hero::editor::core
 /*!
 \brief Stores editor settings that live outside project packages.
 
-This port represents app-local editor state such as startup restore paths, serialized audio-device
-state, and input calibration. Production code persists it through EditorSettings; tests can use an
-in-memory implementation when they only need controller settings behavior.
+This port represents app-local editor state such as startup restore paths and input calibration.
+The active audio-device route lives on the editor's per-app AudioConfigStore, not here. Production
+code persists it through EditorSettings; tests can use an in-memory implementation when they only
+need controller settings behavior.
 */
 class IEditorSettings
 {
@@ -58,20 +59,6 @@ public:
     */
     [[nodiscard]] virtual std::expected<void, EditorSettingsError> setInterruptedRestoreProject(
         std::optional<std::filesystem::path> project_file) = 0;
-
-    /*!
-    \brief Reads the opaque serialized audio-device state stored by a previous editor session.
-    \return Stored state, or empty when no audio-device state should be restored.
-    */
-    [[nodiscard]] virtual std::optional<std::string> audioDeviceState() const = 0;
-
-    /*!
-    \brief Stores or clears the opaque serialized audio-device state.
-    \param serialized_state Serialized state to restore on next launch, or empty to clear it.
-    \return Empty success, or a typed settings failure.
-    */
-    [[nodiscard]] virtual std::expected<void, EditorSettingsError> setAudioDeviceState(
-        std::optional<std::string> serialized_state) = 0;
 
     /*!
     \brief Reads the app-wide waveform visibility preference for the timeline's tablature lane.

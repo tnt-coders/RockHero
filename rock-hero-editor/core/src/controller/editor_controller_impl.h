@@ -36,6 +36,7 @@ definitions, no state added just to make a translation-unit split work.
 #include <rock_hero/common/audio/input/input_calibration_workflow.h>
 #include <rock_hero/common/audio/live_rig/i_live_rig.h>
 #include <rock_hero/common/audio/plugin/i_plugin_host.h>
+#include <rock_hero/common/audio/settings/i_audio_config_store.h>
 #include <rock_hero/common/audio/shared/gain.h>
 #include <rock_hero/common/audio/shared/scoped_listener.h>
 #include <rock_hero/common/audio/song/i_song_audio.h>
@@ -362,6 +363,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void saveActiveInputCalibration();
     void recordSettingsResultBestEffort(
         std::expected<void, EditorSettingsError> result, std::string_view context);
+    void recordAudioConfigResultBestEffort(
+        std::expected<void, common::audio::AudioConfigError> result, std::string_view context);
     void executeInputCalibrationEffects(
         const common::audio::InputCalibrationWorkflow::Effects& effects);
     [[nodiscard]] common::audio::InputCalibrationWorkflow::Context inputCalibrationContext() const;
@@ -472,6 +475,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // App-local settings used to restore startup state and persist exit state.
     IEditorSettings& m_settings;
+
+    // Per-app audio-config store used to persist and restore the active device route.
+    common::audio::IAudioConfigStore& m_audio_config_store;
 
     // Non-owning view binding installed by attachView(); null before the first attachment.
     // updateView() and reportError() tolerate the null window because the constructor's

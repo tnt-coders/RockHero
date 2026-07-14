@@ -4,8 +4,13 @@
 #include <charconv>
 #include <cmath>
 #include <cstdint>
+#include <memory>
+#include <optional>
+#include <rock_hero/common/audio/settings/audio_config_error.h>
+#include <rock_hero/common/audio/settings/audio_config_identity.h>
 #include <rock_hero/common/core/shared/application_identity.h>
 #include <rock_hero/common/core/shared/juce_path.h>
+#include <string>
 #include <string_view>
 #include <system_error>
 #include <utility>
@@ -145,95 +150,6 @@ constexpr const char* g_format_version_property{"formatVersion"};
     return project_file.lexically_normal();
 }
 
-// One XML-valued settings property holding a list of keyed records. Project cursors, project
-// grid note values, and input calibrations all share this lifecycle: load the whole list (deduping
-// by key while loading so corrupt duplicates cannot make lookup ambiguous), replace-by-key on
-// save, and write the whole list back under a format-versioned root, distinguishing a missing
-// property from unreadable XML so callers surface corruption instead of silently clobbering it.
-// The codec supplies everything family-specific — property/tag names, the malformed-history
-// error code, record normalization and validity, key equality, and the attribute conversions —
-// so a new record family is one codec instead of another copy of these functions.
-template <typename Codec> struct KeyedRecordStore
-{
-    using State = typename Codec::State;
-
-    // Replaces any existing record sharing the new record's key with the newest value, dropping
-    // records the codec cannot store.
-    static void replace(std::vector<State>& history, State state)
-    {
-        state = Codec::normalized(std::move(state));
-        if (!Codec::isValid(state))
-        {
-            return;
-        }
-
-        std::erase_if(
-            history, [&state](const State& existing) { return Codec::sameKey(existing, state); });
-        history.push_back(std::move(state));
-    }
-
-    // Loads the family's records, or the codec's malformed-history error when the stored value
-    // exists but is not valid current-format XML. The message is per-operation so lookups and
-    // saves can report what they were attempting.
-    [[nodiscard]] static std::expected<std::vector<State>, EditorSettingsError> readOrError(
-        const juce::PropertiesFile& properties, std::string malformed_message)
-    {
-        const std::unique_ptr<juce::XmlElement> xml = properties.getXmlValue(Codec::g_list_key);
-        if (xml == nullptr)
-        {
-            if (properties.containsKey(Codec::g_list_key))
-            {
-                return malformedHistory(std::move(malformed_message));
-            }
-
-            return std::vector<State>{};
-        }
-
-        if (!hasCurrentXmlFormat(*xml, Codec::g_list_tag))
-        {
-            return malformedHistory(std::move(malformed_message));
-        }
-
-        std::vector<State> states;
-        states.reserve(static_cast<std::size_t>(xml->getNumChildElements()));
-        for (const juce::XmlElement* const item :
-             xml->getChildWithTagNameIterator(Codec::g_item_tag))
-        {
-            if (std::optional<State> state = Codec::fromXml(*item); state.has_value())
-            {
-                replace(states, std::move(*state));
-            }
-        }
-
-        return states;
-    }
-
-    // Writes a complete replacement history as one XML-valued settings property.
-    static void write(juce::PropertiesFile& properties, const std::vector<State>& history)
-    {
-        juce::XmlElement history_xml{Codec::g_list_tag};
-        history_xml.setAttribute(g_format_version_property, g_settings_xml_format_version);
-        for (const State& state : history)
-        {
-            if (Codec::isValid(state))
-            {
-                Codec::toXml(*history_xml.createNewChildElement(Codec::g_item_tag), state);
-            }
-        }
-
-        properties.setValue(Codec::g_list_key, &history_xml);
-    }
-
-private:
-    // Builds the family's malformed-history error from the codec's error code.
-    [[nodiscard]] static std::unexpected<EditorSettingsError> malformedHistory(std::string message)
-    {
-        return std::unexpected{
-            EditorSettingsError{Codec::g_malformed_history_code, std::move(message)}
-        };
-    }
-};
-
 // One flat settings property per (family, project): key = "<family>:" + normalized project path,
 // value = one string. Each project's value is independent, so a corrupt or missing entry resets
 // only that value rather than a shared list. Family names double as the stored key prefix.
@@ -297,95 +213,72 @@ constexpr std::string_view g_project_selected_arrangement_family{"projectSelecte
     return common::core::Fraction{*numerator, *denominator};
 }
 
-// Calibration records remember per-physical-route input gain across device changes.
-struct InputCalibrationCodec
+// Legacy calibration XML names shared with the pre-migration on-disk schema. The active calibration
+// codec now lives in AudioConfigStore; only this read-side view survives so the one-shot migration
+// can decode the obsolete history and re-save it through the store. Removed with the calibration
+// methods by plan 14 P3.
+constexpr const char* g_input_calibration_states_key{"inputCalibrationStates"};
+constexpr const char* g_input_calibrations_tag{"INPUT_CALIBRATIONS"};
+constexpr const char* g_input_calibration_item_tag{"CALIBRATION"};
+constexpr const char* g_gain_db_property{"gainDb"};
+constexpr const char* g_backend_name_property{"backendName"};
+constexpr const char* g_input_device_name_property{"inputDeviceName"};
+constexpr const char* g_input_channel_index_property{"inputChannelIndex"};
+constexpr const char* g_input_channel_name_property{"inputChannelName"};
+
+// Decodes one legacy calibration XML item into a record, dropping incomplete entries. Gain is left
+// raw; AudioConfigStore::saveInputCalibration clamps it when the record is re-saved.
+[[nodiscard]] std::optional<common::audio::InputCalibrationState> legacyCalibrationFromXml(
+    const juce::XmlElement& element)
 {
-    using State = common::audio::InputCalibrationState;
+    const std::optional<double> gain_db = parseDoubleAttribute(element, g_gain_db_property);
+    const std::optional<std::string> backend_name =
+        readStringAttribute(element, g_backend_name_property);
+    const std::optional<std::string> input_device_name =
+        readStringAttribute(element, g_input_device_name_property);
+    const std::optional<int> input_channel_index =
+        parseIntAttribute(element, g_input_channel_index_property);
+    const std::optional<std::string> input_channel_name =
+        readStringAttribute(element, g_input_channel_name_property);
+    if (!gain_db.has_value() || !backend_name.has_value() || !input_device_name.has_value() ||
+        !input_channel_index.has_value() || !input_channel_name.has_value() ||
+        *input_channel_index < 0)
+    {
+        return std::nullopt;
+    }
 
-    static constexpr const char* g_list_key{"inputCalibrationStates"};
-    static constexpr const char* g_list_tag{"INPUT_CALIBRATIONS"};
-    static constexpr const char* g_item_tag{"CALIBRATION"};
-    static constexpr const char* g_gain_db_property{"gainDb"};
-    static constexpr const char* g_backend_name_property{"backendName"};
-    static constexpr const char* g_input_device_name_property{"inputDeviceName"};
-    static constexpr const char* g_input_channel_index_property{"inputChannelIndex"};
-    static constexpr const char* g_input_channel_name_property{"inputChannelName"};
-    static constexpr EditorSettingsErrorCode g_malformed_history_code{
-        EditorSettingsErrorCode::InvalidInputCalibrationHistory
+    return common::audio::InputCalibrationState{
+        .calibration_gain = common::audio::Gain{*gain_db},
+        .input_device_identity = common::audio::InputDeviceIdentity{
+            .backend_name = *backend_name,
+            .input_device_name = *input_device_name,
+            .input_channel_index = *input_channel_index,
+            .input_channel_name = *input_channel_name,
+        },
     };
+}
 
-    // Every gain is clamped on the way into the store, so out-of-range persisted or caller
-    // values cannot escape the supported calibration range.
-    [[nodiscard]] static State normalized(State state)
+// Maps a store error code onto the matching settings error code so the delegated calibration
+// accessors keep the IEditorSettings error type at their boundary. The two enums are the same three
+// members in the same order; the translation carries the diagnostic message through unchanged.
+[[nodiscard]] EditorSettingsError toEditorSettingsError(common::audio::AudioConfigError error)
+{
+    EditorSettingsErrorCode code = EditorSettingsErrorCode::CouldNotSave;
+    switch (error.code)
     {
-        state.calibration_gain = common::audio::clampGain(state.calibration_gain);
-        return state;
+        case common::audio::AudioConfigErrorCode::InvalidSettingValue:
+            code = EditorSettingsErrorCode::InvalidSettingValue;
+            break;
+        case common::audio::AudioConfigErrorCode::InvalidInputCalibrationHistory:
+            code = EditorSettingsErrorCode::InvalidInputCalibrationHistory;
+            break;
+        case common::audio::AudioConfigErrorCode::CouldNotSave:
+            code = EditorSettingsErrorCode::CouldNotSave;
+            break;
     }
 
-    // A storable record names a complete physical input route.
-    [[nodiscard]] static bool isValid(const State& state)
-    {
-        return common::audio::isValidInputDeviceIdentity(state.input_device_identity);
-    }
-
-    // Records address the same route when their identities match physically, so renamed
-    // channels replace their old records instead of accumulating.
-    [[nodiscard]] static bool sameKey(const State& lhs, const State& rhs)
-    {
-        return common::audio::samePhysicalInputRoute(
-            lhs.input_device_identity, rhs.input_device_identity);
-    }
-
-    // Converts one XML item into a validated record, dropping incomplete entries. The gain is
-    // stored raw here; normalized() clamps it when the record enters the store.
-    [[nodiscard]] static std::optional<State> fromXml(const juce::XmlElement& element)
-    {
-        const std::optional<double> gain_db = parseDoubleAttribute(element, g_gain_db_property);
-        const std::optional<std::string> backend_name =
-            readStringAttribute(element, g_backend_name_property);
-        const std::optional<std::string> input_device_name =
-            readStringAttribute(element, g_input_device_name_property);
-        const std::optional<int> input_channel_index =
-            parseIntAttribute(element, g_input_channel_index_property);
-        const std::optional<std::string> input_channel_name =
-            readStringAttribute(element, g_input_channel_name_property);
-        if (!gain_db.has_value() || !backend_name.has_value() || !input_device_name.has_value() ||
-            !input_channel_index.has_value() || !input_channel_name.has_value() ||
-            *input_channel_index < 0)
-        {
-            return std::nullopt;
-        }
-
-        return State{
-            .calibration_gain = common::audio::Gain{*gain_db},
-            .input_device_identity = common::audio::InputDeviceIdentity{
-                .backend_name = *backend_name,
-                .input_device_name = *input_device_name,
-                .input_channel_index = *input_channel_index,
-                .input_channel_name = *input_channel_name,
-            },
-        };
-    }
-
-    // Writes one record's attributes onto its XML item.
-    static void toXml(juce::XmlElement& element, const State& state)
-    {
-        element.setAttribute(g_gain_db_property, state.calibration_gain.db);
-        element.setAttribute(
-            g_backend_name_property,
-            juce::String::fromUTF8(state.input_device_identity.backend_name.c_str()));
-        element.setAttribute(
-            g_input_device_name_property,
-            juce::String::fromUTF8(state.input_device_identity.input_device_name.c_str()));
-        element.setAttribute(
-            g_input_channel_index_property, state.input_device_identity.input_channel_index);
-        element.setAttribute(
-            g_input_channel_name_property,
-            juce::String::fromUTF8(state.input_device_identity.input_channel_name.c_str()));
-    }
-};
-
-using InputCalibrationStore = KeyedRecordStore<InputCalibrationCodec>;
+    return EditorSettingsError{code, std::move(error.message)};
+}
 
 // Saves pending changes and translates JUCE persistence failure into the settings domain.
 [[nodiscard]] std::expected<void, EditorSettingsError> saveIfNeeded(
@@ -417,14 +310,21 @@ using InputCalibrationStore = KeyedRecordStore<InputCalibrationCodec>;
 
 } // namespace
 
-// Opens the JUCE properties file that backs app-local editor settings.
+// Opens the JUCE properties file plus the owned per-app audio-config store. The store uses the
+// editor audio-config application name so it partitions from the workflow-state file.
 EditorSettings::EditorSettings()
     : m_properties(editorSettingsOptions())
+    , m_audio_config_store(
+          common::audio::editorAudioConfigApplicationName(),
+          common::audio::AudioConfigStore::Access::ReadWrite)
 {}
 
-// Opens an explicit settings file so lifecycle behavior can be exercised in isolation.
+// Opens an explicit settings file so lifecycle behavior can be exercised in isolation. The owned
+// store opens at a sibling path so the two files never share a writer.
 EditorSettings::EditorSettings(const std::filesystem::path& settings_file)
     : m_properties(common::core::juceFileFromPath(settings_file), editorSettingsOptions())
+    , m_audio_config_store(
+          audioConfigFileFor(settings_file), common::audio::AudioConfigStore::Access::ReadWrite)
 {}
 
 // Reads the last editor project path stored by a previous allowed editor exit.
@@ -483,34 +383,6 @@ std::expected<void, EditorSettingsError> EditorSettings::setInterruptedRestorePr
     }
 
     return saveIfNeeded(m_properties, "Could not save interrupted project restore setting.");
-}
-
-// Reads the opaque serialized audio-device state stored by a previous editor session.
-std::optional<std::string> EditorSettings::audioDeviceState() const
-{
-    const juce::String value = m_properties.getValue(g_audio_device_state_key);
-    if (value.isEmpty())
-    {
-        return std::nullopt;
-    }
-
-    return value.toStdString();
-}
-
-// Stores or clears the opaque serialized audio-device state.
-std::expected<void, EditorSettingsError> EditorSettings::setAudioDeviceState(
-    std::optional<std::string> serialized_state)
-{
-    if (serialized_state.has_value() && !serialized_state->empty())
-    {
-        m_properties.setValue(g_audio_device_state_key, juce::String{serialized_state->c_str()});
-    }
-    else
-    {
-        m_properties.removeValue(g_audio_device_state_key);
-    }
-
-    return saveIfNeeded(m_properties, "Could not save audio device state setting.");
 }
 
 // Reads the app-wide waveform visibility preference for the timeline's tablature lane.
@@ -699,96 +571,105 @@ std::expected<void, EditorSettingsError> EditorSettings::saveProjectSelectedArra
     return saveNow(m_properties, "Could not save project selected-arrangement setting.");
 }
 
-// Reads the calibration history without mutating settings or compacting invalid persisted records.
+// Delegates the calibration lookup to the owned audio-config store, translating the store error
+// type back onto the settings error type at the boundary. Removed with the store's calibration
+// codec by plan 14 P3, which relocates these call sites into LiveInputMonitor.
 std::expected<std::optional<common::audio::InputCalibrationState>, EditorSettingsError>
 EditorSettings::inputCalibrationFor(const common::audio::InputDeviceIdentity& identity) const
 {
-    if (!common::audio::isValidInputDeviceIdentity(identity))
-    {
-        return std::nullopt;
-    }
-
-    auto states = InputCalibrationStore::readOrError(
-        m_properties, "Saved input calibration history is not valid XML.");
-    if (!states.has_value())
-    {
-        return std::unexpected{std::move(states.error())};
-    }
-
-    const auto found = std::ranges::find_if(
-        *states, [&identity](const common::audio::InputCalibrationState& state) {
-            return common::audio::inputCalibrationMatchesPhysicalRoute(state, identity);
-        });
-    if (found == states->end())
-    {
-        return std::nullopt;
-    }
-
-    common::audio::InputCalibrationState calibration = *found;
-    calibration.input_device_identity = identity;
-    return calibration;
+    return m_audio_config_store.inputCalibrationFor(identity).transform_error(
+        toEditorSettingsError);
 }
 
-// Saves one physical-route calibration in the XML-valued route history.
+// Delegates the calibration save to the owned audio-config store.
 std::expected<void, EditorSettingsError> EditorSettings::saveInputCalibration(
     common::audio::InputCalibrationState calibration_state)
 {
-    if (!common::audio::isValidInputDeviceIdentity(calibration_state.input_device_identity))
-    {
-        return std::unexpected{EditorSettingsError{
-            EditorSettingsErrorCode::InvalidSettingValue,
-            "Cannot save input calibration for an invalid input route."
-        }};
-    }
-
-    auto states = InputCalibrationStore::readOrError(
-        m_properties,
-        "Cannot save input calibration because saved calibration history is invalid.");
-    if (!states.has_value())
-    {
-        return std::unexpected{std::move(states.error())};
-    }
-
-    InputCalibrationStore::replace(*states, std::move(calibration_state));
-    InputCalibrationStore::write(m_properties, *states);
-    return saveNow(m_properties, "Could not save input calibration setting.");
+    return m_audio_config_store.saveInputCalibration(std::move(calibration_state))
+        .transform_error(toEditorSettingsError);
 }
 
-// Removes one physical-route calibration without touching unrelated saved routes.
+// Delegates the calibration removal to the owned audio-config store.
 std::expected<void, EditorSettingsError> EditorSettings::removeInputCalibration(
     const common::audio::InputDeviceIdentity& identity)
 {
-    if (!common::audio::isValidInputDeviceIdentity(identity))
+    return m_audio_config_store.removeInputCalibration(identity).transform_error(
+        toEditorSettingsError);
+}
+
+// Exposes the owned store so app composition can inject it into the controller's device-route path.
+common::audio::IAudioConfigStore& EditorSettings::audioConfigStore() noexcept
+{
+    return m_audio_config_store;
+}
+
+// Reads the obsolete serialized audio-device state so the one-shot migration can move it.
+std::optional<std::string> EditorSettings::readLegacyAudioDeviceState() const
+{
+    const juce::String value = m_properties.getValue(g_audio_device_state_key);
+    if (value.isEmpty())
     {
-        return std::unexpected{EditorSettingsError{
-            EditorSettingsErrorCode::InvalidSettingValue,
-            "Cannot remove input calibration for an invalid input route."
-        }};
+        return std::nullopt;
     }
 
-    auto states = InputCalibrationStore::readOrError(
-        m_properties,
-        "Cannot remove input calibration because saved calibration history is invalid.");
-    if (!states.has_value())
+    return value.toStdString();
+}
+
+// Removes the obsolete serialized audio-device state key after a successful migration.
+void EditorSettings::clearLegacyAudioDeviceState()
+{
+    if (m_properties.containsKey(g_audio_device_state_key))
     {
-        return std::unexpected{std::move(states.error())};
+        m_properties.removeValue(g_audio_device_state_key);
+        m_properties.saveIfNeeded();
+    }
+}
+
+// Decodes the obsolete calibration history so the one-shot migration can re-save each record.
+std::vector<common::audio::InputCalibrationState> EditorSettings::readLegacyInputCalibrations()
+    const
+{
+    std::vector<common::audio::InputCalibrationState> records;
+    const std::unique_ptr<juce::XmlElement> xml =
+        m_properties.getXmlValue(g_input_calibration_states_key);
+    if (xml == nullptr || !hasCurrentXmlFormat(*xml, g_input_calibrations_tag))
+    {
+        return records;
     }
 
-    const std::size_t original_size = states->size();
-    std::erase_if(*states, [&identity](const common::audio::InputCalibrationState& state) {
-        return common::audio::inputCalibrationMatchesPhysicalRoute(state, identity);
-    });
-    if (states->size() != original_size)
+    records.reserve(static_cast<std::size_t>(xml->getNumChildElements()));
+    for (const juce::XmlElement* const item :
+         xml->getChildWithTagNameIterator(g_input_calibration_item_tag))
     {
-        InputCalibrationStore::write(m_properties, *states);
-        auto saved = saveNow(m_properties, "Could not save input calibration removal.");
-        if (!saved.has_value())
+        if (std::optional<common::audio::InputCalibrationState> state =
+                legacyCalibrationFromXml(*item);
+            state.has_value())
         {
-            return std::unexpected{std::move(saved.error())};
+            records.push_back(std::move(*state));
         }
     }
 
-    return {};
+    return records;
+}
+
+// Removes the obsolete calibration history key after a successful migration.
+void EditorSettings::clearLegacyInputCalibrations()
+{
+    if (m_properties.containsKey(g_input_calibration_states_key))
+    {
+        m_properties.removeValue(g_input_calibration_states_key);
+        m_properties.saveIfNeeded();
+    }
+}
+
+// Derives the sibling audio-config file for an explicit settings path, mirroring the production
+// "Rock Hero Editor" -> "Rock Hero Editor Audio" partition so the two files never share a writer.
+std::filesystem::path EditorSettings::audioConfigFileFor(const std::filesystem::path& settings_file)
+{
+    std::filesystem::path file_name = settings_file.stem();
+    file_name += " Audio";
+    file_name += settings_file.extension();
+    return settings_file.parent_path() / file_name;
 }
 
 } // namespace rock_hero::editor::core
