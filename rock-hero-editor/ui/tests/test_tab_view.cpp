@@ -225,6 +225,8 @@ TEST_CASE("TabView draws techniques, shapes, and fret-hand positions", "[ui][tab
     };
     state.fret_hand_positions = {
         core::TabFhpView{.seconds = 2.0, .fret = 5, .width = 4},
+        // Wider than the standard four-fret hand: the marker spells out the inclusive range.
+        core::TabFhpView{.seconds = 14.0, .fret = 3, .width = 5},
     };
 
     TabView view;
@@ -294,6 +296,10 @@ TEST_CASE("TabView draws techniques, shapes, and fret-hand positions", "[ui][tab
 
     // The vibrato-and-slide note still anchors its head at the onset on the bottom lane.
     CHECK(image.getPixelAt(33, 220).getARGB() != 0);
+
+    // The five-fret-wide FHP at 14.0s (x = 280) draws its "3-7" range marker box along the top
+    // edge; the probe sits inside the box fill, left of the centered text.
+    CHECK(image.getPixelAt(282, 7) == juce::Colour{0xff2a2f36});
 }
 
 // A null projection draws nothing and never dereferences missing chart data.
