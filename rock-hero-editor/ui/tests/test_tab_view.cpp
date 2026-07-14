@@ -242,7 +242,7 @@ TEST_CASE("TabView draws techniques, shapes, and fret-hand positions", "[ui][tab
 
     // The strummed A5 span rails the lane's top and bottom edges in the brightened hand-shape
     // blue (base x1.5) inside its range and not outside it, and no longer tints the lane
-    // interior. The probe column sits at 4.5s, clear of the onset bar over the 3.0s onsets.
+    // interior. The probe column sits at 4.5s, inside the span.
     CHECK(image.getPixelAt(90, 1) == juce::Colour{0xff4982fa});
     CHECK(image.getPixelAt(90, 238) == juce::Colour{0xff4982fa});
     CHECK(image.getPixelAt(90, 5).getARGB() == 0);
@@ -256,16 +256,15 @@ TEST_CASE("TabView draws techniques, shapes, and fret-hand positions", "[ui][tab
     // The template name chip sits against the bottom rail at the span start.
     CHECK(image.getPixelAt(50, 232).getARGB() != 0);
 
-    // The strummed onset at 3.0s wears the solid rail-width blue bar and the arpeggio start at
-    // 10.0s the purple one, both in the same brightened colors as the rails, probed clear of
-    // lanes and heads.
-    CHECK(image.getPixelAt(60, 110) == juce::Colour{0xff4982fa});
-    CHECK(image.getPixelAt(200, 110) == juce::Colour{0xffc785ff});
+    // Onsets carry no vertical bars anymore: the columns between lanes at the strummed onset
+    // (3.0s) and the arpeggio start (10.0s) stay empty.
+    CHECK(image.getPixelAt(60, 110).getARGB() == 0);
+    CHECK(image.getPixelAt(200, 110).getARGB() == 0);
 
     // The arpeggio start brackets every posture string with side arcs just outside the head
     // ring — probed 45 degrees up the right arc (radius ~16.5 from the lane center), clear of
-    // the onset bar, string lines, and text: the unsounded string 5 (lane center y = 60) and
-    // the sounded string 3 (y = 140) both wear them.
+    // string lines and text: the unsounded string 5 (lane center y = 60) and the sounded
+    // string 3 (y = 140) both wear them.
     CHECK(image.getPixelAt(211, 48).getARGB() != 0);
     CHECK(image.getPixelAt(211, 128).getARGB() != 0);
 
@@ -276,15 +275,14 @@ TEST_CASE("TabView draws techniques, shapes, and fret-hand positions", "[ui][tab
 
     // The tremolo strip stays clipped to its sustain: nothing straggles past the note end.
     // String 2 lane of six in 240px: center y = 180. Note ends at 6.0s → x = 120. The probe row
-    // sits above the string line (which now runs the full width) but inside the tremolo band,
-    // and the sweep stops short of the arpeggio's rail-width onset bar around x = 200.
+    // sits above the string line (which now runs the full width) but inside the tremolo band.
     bool tremolo_inside = false;
     for (int x = 62; x < 118; ++x)
     {
         tremolo_inside = tremolo_inside || image.getPixelAt(x, 174).getARGB() != 0;
     }
     CHECK(tremolo_inside);
-    for (int x = 123; x < 198; ++x)
+    for (int x = 123; x < 240; ++x)
     {
         CHECK(image.getPixelAt(x, 174).getARGB() == 0);
     }
