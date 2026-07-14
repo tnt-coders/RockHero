@@ -103,7 +103,7 @@ using common::core::partToken;
     return arrangement;
 }
 
-// Serializes one library entry; empty hash/thumbnail/warnings are omitted.
+// Serializes one library entry; empty hash/album-art/warnings are omitted.
 [[nodiscard]] juce::var entryToJson(const LibraryEntry& entry)
 {
     juce::var arrangements = Json::makeArray();
@@ -132,10 +132,10 @@ using common::core::partToken;
             Json::identifier("packageHash"), Json::makeString(entry.package_hash));
     }
 
-    if (!entry.thumbnail_file_name.empty())
+    if (!entry.album_art_file_name.empty())
     {
         json.getDynamicObject()->setProperty(
-            Json::identifier("thumbnail"), Json::makeString(entry.thumbnail_file_name));
+            Json::identifier("albumArt"), Json::makeString(entry.album_art_file_name));
     }
 
     if (!entry.warnings.empty())
@@ -175,7 +175,7 @@ using common::core::partToken;
     entry.file_size_bytes = *size_bytes;
     entry.modification_time_milliseconds = *modified_milliseconds;
     entry.package_hash = Json::readOptionalString(json, "packageHash");
-    entry.thumbnail_file_name = Json::readOptionalString(json, "thumbnail");
+    entry.album_art_file_name = Json::readOptionalString(json, "albumArt");
 
     const juce::var& metadata_json = Json::value(json, "metadata");
     entry.metadata = common::core::SongMetadata{
