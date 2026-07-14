@@ -233,6 +233,32 @@ SignalChainView::SignalChainView(Listener& listener)
     m_input_calibrate_button.onClick = [this] { m_listener.onInputCalibrationPressed(); };
     addAndMakeVisible(m_input_calibrate_button);
 
+    // The designer file strip stays hidden until setToneDesignerState reports the designer
+    // active, so project mode keeps its plain header (addChildComponent, not addAndMakeVisible).
+    const auto configure_tone_button = [this](
+                                           juce::TextButton& button,
+                                           const char* component_id,
+                                           const char* text,
+                                           std::function<void()>
+                                               on_click) {
+        button.setComponentID(component_id);
+        button.setButtonText(text);
+        button.setWantsKeyboardFocus(false);
+        button.setMouseClickGrabsKeyboardFocus(false);
+        button.onClick = std::move(on_click);
+        addChildComponent(button);
+    };
+    configure_tone_button(
+        m_tone_new_button, "tone_new_button", "New", [this] { m_listener.onNewTonePressed(); });
+    configure_tone_button(m_tone_open_button, "tone_open_button", "Open...", [this] {
+        m_listener.onOpenToneFilePressed();
+    });
+    configure_tone_button(
+        m_tone_save_button, "tone_save_button", "Save", [this] { m_listener.onSaveTonePressed(); });
+    configure_tone_button(m_tone_save_as_button, "tone_save_as_button", "Save As...", [this] {
+        m_listener.onSaveToneAsPressed();
+    });
+
     configureGainSlider(m_output_gain_slider, "output_gain_slider");
     m_output_gain_slider.setLookAndFeel(m_output_gain_slider_look_and_feel.get());
     m_output_gain_slider.onDragStart = [this] { m_output_gain_dragging = true; };
@@ -294,6 +320,23 @@ void SignalChainView::setToneName(std::string tone_name)
     repaint();
 }
 
+// Applies the Tone Designer document state: header title, dirty marker, and the file strip.
+void SignalChainView::setToneDesignerState(const core::ToneDesignerViewState& state)
+{
+    if (m_tone_designer == state)
+    {
+        return;
+    }
+
+    m_tone_designer = state;
+    m_tone_new_button.setVisible(state.active);
+    m_tone_open_button.setVisible(state.active);
+    m_tone_save_button.setVisible(state.active);
+    m_tone_save_as_button.setVisible(state.active);
+    resized();
+    repaint();
+}
+
 void SignalChainView::setState(const core::SignalChainViewState& state)
 {
     m_block_layout.applyPlugins(state.plugins);
@@ -347,9 +390,14 @@ void SignalChainView::paint(juce::Graphics& g)
     g.fillRect(header);
     g.setColour(juce::Colours::white);
     g.setFont(juce::FontOptions{16.0f, juce::Font::bold});
+    // The designer header names the file-backed tone document (with its dirty marker) instead of
+    // a project catalog tone; the file strip occupies the header's right side while active.
     const juce::String header_title =
-        m_tone_name.empty() ? juce::String{"Signal Chain"}
-                            : juce::String{"Signal Chain - "} + juce::String{m_tone_name};
+        m_tone_designer.active
+            ? juce::String{"Tone Designer - "} + juce::String{m_tone_designer.document_name} +
+                  juce::String{m_tone_designer.dirty ? "*" : ""}
+            : (m_tone_name.empty() ? juce::String{"Signal Chain"}
+                                   : juce::String{"Signal Chain - "} + juce::String{m_tone_name});
     g.drawFittedText(header_title, header.reduced(8, 0), juce::Justification::centredLeft, 1);
 
     area.removeFromTop(g_panel_inset);
@@ -405,7 +453,19 @@ void SignalChainView::resized()
     area.removeFromLeft(g_panel_inset);
     area.removeFromRight(g_panel_inset);
 
-    area.removeFromTop(g_header_height);
+    // The designer file strip sits right-aligned in the same header band paint() titles.
+    auto header = area.removeFromTop(g_header_height);
+    auto strip = header.reduced(0, 3);
+    constexpr int tone_button_gap = 6;
+    const auto place_tone_button = [&strip](juce::TextButton& button, int width) {
+        button.setBounds(strip.removeFromRight(width));
+        strip.removeFromRight(tone_button_gap);
+    };
+    place_tone_button(m_tone_save_as_button, 78);
+    place_tone_button(m_tone_save_button, 56);
+    place_tone_button(m_tone_open_button, 68);
+    place_tone_button(m_tone_new_button, 52);
+
     area.removeFromTop(g_panel_inset);
     m_chain_viewport.setBounds(area);
     const int content_height = std::max(0, m_chain_viewport.getMaximumVisibleHeight());

@@ -16,6 +16,7 @@
 #include <rock_hero/common/audio/input/audio_meter_snapshot.h>
 #include <rock_hero/editor/core/signal_chain/plugin_block_assignment.h>
 #include <rock_hero/editor/core/signal_chain/signal_chain_view_state.h>
+#include <rock_hero/editor/core/tone_designer/tone_designer_view_state.h>
 #include <string>
 #include <vector>
 
@@ -98,6 +99,18 @@ public:
         */
         virtual void onOutputGainChanged(double gain_db) = 0;
 
+        /*! \brief Called when the user starts a fresh untitled Tone Designer document. */
+        virtual void onNewTonePressed() = 0;
+
+        /*! \brief Called when the user asks to open a tone file as the designer document. */
+        virtual void onOpenToneFilePressed() = 0;
+
+        /*! \brief Called when the user saves the designer document to its associated file. */
+        virtual void onSaveTonePressed() = 0;
+
+        /*! \brief Called when the user saves the designer document to a chosen tone file. */
+        virtual void onSaveToneAsPressed() = 0;
+
     protected:
         /*! \brief Creates the listener interface. */
         Listener() = default;
@@ -153,6 +166,16 @@ public:
     \param tone_name Selected tone's user-facing name, or empty for the bare title.
     */
     void setToneName(std::string tone_name);
+
+    /*!
+    \brief Applies the Tone Designer document state.
+
+    While active, the header shows "Tone Designer - <document>" with a dirty marker and the
+    New/Open/Save/Save As strip replaces the project tone title.
+
+    \param state Designer document state derived by the editor controller.
+    */
+    void setToneDesignerState(const core::ToneDesignerViewState& state);
 
     /*!
     \brief Applies live-rig post-fader meter levels.
@@ -224,11 +247,20 @@ private:
     // Selected tone's name shown in the header title; empty paints the bare title.
     std::string m_tone_name{};
 
+    // Tone Designer document state; while active it owns the header title and the file strip.
+    core::ToneDesignerViewState m_tone_designer{};
+
     // Raw or calibrated input peak meter positioned on the left side of the plugin chain.
     AudioLevelMeter m_input_meter;
 
     // Button that opens the input calibration workflow.
     juce::TextButton m_input_calibrate_button;
+
+    // Tone Designer file commands, visible only while the designer owns the live rig.
+    juce::TextButton m_tone_new_button;
+    juce::TextButton m_tone_open_button;
+    juce::TextButton m_tone_save_button;
+    juce::TextButton m_tone_save_as_button;
 
     // Slider look-and-feel that keeps the default textbox while compacting the track.
     std::unique_ptr<juce::LookAndFeel> m_output_gain_slider_look_and_feel;

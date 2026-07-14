@@ -2221,6 +2221,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
                              : std::string{"Untitled"},
         .dirty = toneDesignerHasUnsavedChanges(),
         .has_destination = m_tone_designer.document_path.has_value(),
+        .chooser_directory = m_settings.toneFileDirectory().value_or(std::filesystem::path{}),
     };
 
     if (const auto* arrangement = session().currentArrangement(); arrangement != nullptr)

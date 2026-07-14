@@ -25,6 +25,12 @@ void SignalChainPanel::setToneName(std::string tone_name)
     m_signal_chain_view.setToneName(std::move(tone_name));
 }
 
+// Forwards the Tone Designer document state to the hosted view.
+void SignalChainPanel::setToneDesignerState(const core::ToneDesignerViewState& state)
+{
+    m_signal_chain_view.setToneDesignerState(state);
+}
+
 // Delegates continuously sampled live-rig meters to the hosted view.
 void SignalChainPanel::setMeterLevels(
     common::audio::AudioMeterLevel input_level, common::audio::AudioMeterLevel output_level)

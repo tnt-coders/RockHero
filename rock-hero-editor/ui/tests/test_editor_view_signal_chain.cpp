@@ -106,6 +106,31 @@ public:
     void onOutputGainChanged(double /*gain_db*/) override
     {}
 
+    void onNewTonePressed() override
+    {
+        new_tone_press_count += 1;
+    }
+
+    void onOpenToneFilePressed() override
+    {
+        open_tone_press_count += 1;
+    }
+
+    void onSaveTonePressed() override
+    {
+        save_tone_press_count += 1;
+    }
+
+    void onSaveToneAsPressed() override
+    {
+        save_tone_as_press_count += 1;
+    }
+
+    int new_tone_press_count{0};
+    int open_tone_press_count{0};
+    int save_tone_press_count{0};
+    int save_tone_as_press_count{0};
+
     std::optional<std::size_t> last_insert_index{};
     std::optional<std::size_t> last_insert_block{};
     std::optional<std::string> last_moved_instance_id{};
@@ -197,6 +222,52 @@ TEST_CASE("EditorView creates audio meter components", "[ui][editor-view]")
 }
 
 // Verifies the signal-chain meters use the intended input and output control layout.
+// Verifies the Tone Designer file strip appears only in designer mode and routes its intents.
+TEST_CASE("Tone designer strip shows in designer mode and emits intents", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    auto& new_button = findRequiredDescendant<juce::TextButton>(view, "tone_new_button");
+    auto& open_button = findRequiredDescendant<juce::TextButton>(view, "tone_open_button");
+    auto& save_button = findRequiredDescendant<juce::TextButton>(view, "tone_save_button");
+    auto& save_as_button = findRequiredDescendant<juce::TextButton>(view, "tone_save_as_button");
+    CHECK_FALSE(new_button.isVisible());
+    CHECK_FALSE(open_button.isVisible());
+    CHECK_FALSE(save_button.isVisible());
+    CHECK_FALSE(save_as_button.isVisible());
+
+    core::EditorViewState state;
+    state.tone_designer = core::ToneDesignerViewState{
+        .active = true,
+        .document_name = "Crunch",
+        .dirty = true,
+        .has_destination = true,
+        .chooser_directory = {},
+    };
+    view.setState(state);
+
+    CHECK(new_button.isVisible());
+    CHECK(open_button.isVisible());
+    CHECK(save_button.isVisible());
+    CHECK(save_as_button.isVisible());
+
+    // Direct onClick invocation keeps the test synchronous (Button::triggerClick posts async).
+    new_button.onClick();
+    CHECK(controller.new_tone_request_count == 1);
+    // With an association, Save routes straight to the controller rather than a chooser.
+    save_button.onClick();
+    CHECK(controller.save_tone_request_count == 1);
+
+    state.tone_designer = core::ToneDesignerViewState{};
+    view.setState(state);
+    CHECK_FALSE(new_button.isVisible());
+    CHECK_FALSE(save_button.isVisible());
+}
+
 TEST_CASE("Signal chain meters sit with their controls", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
