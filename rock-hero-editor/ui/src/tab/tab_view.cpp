@@ -41,6 +41,7 @@ constexpr float g_min_note_height_for_text{9.0f};
 // Height of the hand-shape label bar and its bold name text (Charter chartTextHeight).
 constexpr float g_shape_label_height{10.0f};
 constexpr float g_shape_rail_height{3.0f};
+constexpr double g_shape_mark_brightness{1.5};
 constexpr float g_ghost_note_alpha{0.4f};
 
 // Thin JUCE-converting wrappers over the shared Charter-exact derivation (rock-hero-common/ui)
@@ -53,6 +54,14 @@ constexpr float g_ghost_note_alpha{0.4f};
 [[nodiscard]] juce::Colour charterMultiply(juce::Colour color, double multiplier)
 {
     return juce::Colour{common::ui::multiplyColor(color.getARGB(), multiplier)};
+}
+
+// Hand-shape mark color: the Charter base brightened so the narrow rails, onset bars, and name
+// chips read clearly against the dark lane (user-directed brightness bump).
+[[nodiscard]] juce::Colour shapeMarkColor(bool arpeggio)
+{
+    return charterMultiply(
+        arpeggio ? g_hand_shape_arpeggio_color : g_hand_shape_color, g_shape_mark_brightness);
 }
 
 // Bridges the shared Charter-exact style derivation (rock-hero-common/ui) to JUCE colors at
@@ -735,7 +744,7 @@ void drawShapeSpan(
         return;
     }
 
-    const juce::Colour color = shape.arpeggio ? g_hand_shape_arpeggio_color : g_hand_shape_color;
+    const juce::Colour color = shapeMarkColor(shape.arpeggio);
     const float width = end_x - start_x;
     const float bottom_rail_y =
         static_cast<float>(metrics.bounds.getBottom()) - g_shape_rail_height;
@@ -762,22 +771,19 @@ void drawShapeSpan(
     }
 }
 
-// Draws a narrow translucent vertical pill spanning the lane height at an onset, in the
-// hand-shape color of what it marks: blue at strummed chord onsets (a user-directed recolor of
-// Charter's teal chord box, tying the pill to the rail palette) and purple at arpeggio starts.
-void drawOnsetPill(
-    juce::Graphics& g, const TabLaneMetrics& metrics, float x, const juce::Colour& color)
+// Draws a narrow vertical bar spanning the lane height at an onset, rail-width and solid so it
+// reads as one family with the horizontal span rails (a user-directed restyle of Charter's
+// wider translucent teal chord box): blue at strummed chord onsets, purple at arpeggio starts.
+void drawOnsetBar(juce::Graphics& g, const TabLaneMetrics& metrics, float x, juce::Colour color)
 {
-    const float radius = std::max(2.0f, metrics.note_height / 6.0f);
-    g.setColour(color.withAlpha(static_cast<juce::uint8>(128)));
-    g.fillRoundedRectangle(
+    g.setColour(color);
+    g.fillRect(
         juce::Rectangle<float>{
-            x - radius,
+            x - g_shape_rail_height / 2.0f,
             static_cast<float>(metrics.bounds.getY()),
-            radius * 2.0f,
+            g_shape_rail_height,
             static_cast<float>(metrics.bounds.getHeight())
-        },
-        radius * 2.0f);
+        });
 }
 
 // Draws one fret-hand-position marker: a small boxed fret number along the lane's top edge.
@@ -965,7 +971,7 @@ void TabView::paint(juce::Graphics& g)
         drawBendLines(g, metrics, style, note, onset_x, center_y, bend_chips);
     }
 
-    // Onset pills at strummed chord onsets: two or more notes sharing one start (Charter draws
+    // Onset bars at strummed chord onsets: two or more notes sharing one start (Charter draws
     // these under the heads).
     for (std::size_t index = first; index < last; ++index)
     {
@@ -979,11 +985,11 @@ void TabView::paint(juce::Graphics& g)
              std::is_neq(m_tab->notes[index - 1].start_seconds <=> note.start_seconds));
         if (starts_group)
         {
-            drawOnsetPill(g, metrics, metrics.x(note.start_seconds), g_hand_shape_color);
+            drawOnsetBar(g, metrics, metrics.x(note.start_seconds), shapeMarkColor(false));
         }
     }
 
-    // Arpeggio spans mark their start with the same pill in purple (their notes arrive
+    // Arpeggio spans mark their start with the same bar in purple (their notes arrive
     // sequentially, so the strummed-group rule above never marks them), plus ghost heads for
     // the held posture's strings that are not struck right at the bracket start.
     for (const core::TabShapeView& shape : m_tab->shapes)
@@ -994,7 +1000,7 @@ void TabView::paint(juce::Graphics& g)
         }
 
         const float start_x = metrics.x(shape.start_seconds);
-        drawOnsetPill(g, metrics, start_x, g_hand_shape_arpeggio_color);
+        drawOnsetBar(g, metrics, start_x, shapeMarkColor(true));
         for (const core::TabGhostNoteView& ghost : shape.ghost_notes)
         {
             // A ghost is the plain head stack faded as one unit, fret number included; the
