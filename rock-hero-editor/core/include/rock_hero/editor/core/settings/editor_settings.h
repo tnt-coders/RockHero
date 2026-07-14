@@ -118,6 +118,20 @@ public:
         bool enabled) override;
 
     /*!
+    \brief Reads whether the startup game-audio recommendation prompt is suppressed.
+    \return Stored suppression, or empty when the user has never suppressed the prompt.
+    */
+    [[nodiscard]] std::optional<bool> suppressGameAudioRecommendation() const override;
+
+    /*!
+    \brief Stores whether the startup game-audio recommendation prompt is suppressed.
+    \param suppressed True to stop showing the startup recommendation prompt.
+    \return Empty success, or a typed settings failure.
+    */
+    [[nodiscard]] std::expected<void, EditorSettingsError> setSuppressGameAudioRecommendation(
+        bool suppressed) override;
+
+    /*!
     \brief Reads the app-wide minimum number of tablature string lanes to display.
     \return Stored minimum, or empty when the user has never chosen one.
     */

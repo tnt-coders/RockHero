@@ -308,9 +308,9 @@ TEST_CASE("EditorSettings persists tab display preferences", "[core][settings]")
     CHECK(reloaded_settings.tabMinimumDisplayedStrings() == std::optional{8});
 }
 
-// The use-game-audio-settings toggle is editor workflow state: absent until first written, then the
-// stored choice is authoritative. An absent value resolves to the first-run default (on); a written
-// value wins on reload.
+// The use-game-audio-settings toggle is editor workflow state: absent until first written, then
+// the stored choice is authoritative. An absent value resolves to the off default (adoption always
+// reflects an explicit choice); a written value wins on reload.
 TEST_CASE(
     "EditorSettings resolves and persists the use-game-audio-settings toggle", "[core][settings]")
 {
@@ -319,15 +319,33 @@ TEST_CASE(
     {
         EditorSettings settings{settings_file.path()};
         CHECK_FALSE(settings.useGameAudioSettings().has_value());
-        CHECK(useGameAudioSettingsOrDefault(settings));
-        REQUIRE(settings.setUseGameAudioSettings(false).has_value());
-        CHECK(settings.useGameAudioSettings() == std::optional{false});
         CHECK_FALSE(useGameAudioSettingsOrDefault(settings));
+        REQUIRE(settings.setUseGameAudioSettings(true).has_value());
+        CHECK(settings.useGameAudioSettings() == std::optional{true});
+        CHECK(useGameAudioSettingsOrDefault(settings));
     }
 
     const EditorSettings reloaded_settings{settings_file.path()};
-    CHECK(reloaded_settings.useGameAudioSettings() == std::optional{false});
-    CHECK_FALSE(useGameAudioSettingsOrDefault(reloaded_settings));
+    CHECK(reloaded_settings.useGameAudioSettings() == std::optional{true});
+    CHECK(useGameAudioSettingsOrDefault(reloaded_settings));
+}
+
+// The recommendation-suppression flag is absent until the user first checks "don't show this
+// message again"; a written value survives reload and never affects the toggle itself.
+TEST_CASE("EditorSettings persists the game-audio recommendation suppression", "[core][settings]")
+{
+    const ScopedSettingsFile settings_file{"persists_game_audio_recommendation.settings"};
+
+    {
+        EditorSettings settings{settings_file.path()};
+        CHECK_FALSE(settings.suppressGameAudioRecommendation().has_value());
+        REQUIRE(settings.setSuppressGameAudioRecommendation(true).has_value());
+        CHECK(settings.suppressGameAudioRecommendation() == std::optional{true});
+        CHECK_FALSE(settings.useGameAudioSettings().has_value());
+    }
+
+    const EditorSettings reloaded_settings{settings_file.path()};
+    CHECK(reloaded_settings.suppressGameAudioRecommendation() == std::optional{true});
 }
 
 TEST_CASE("EditorSettings overwrites the project grid note value", "[core][settings]")

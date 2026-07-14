@@ -1,6 +1,68 @@
 # Plan 48 — Editor Audio Setup: toggle-aware device + calibration surfaces
 
-Status: Ready | 2026-07-12 | baseline `refactor @ 75cc26dd`
+Status: In progress — amended 2026-07-13 (final startup ruleset below) | baseline `refactor @ 75cc26dd`
+
+## Amendment (2026-07-13) — final startup ruleset
+
+User-directed redesign of the toggle's default, the unavailable-game handling, and the startup
+prompts. This section is authoritative wherever it conflicts with the original "Decisions already
+made" bullets or phase text below; the superseded bullets are marked in place.
+
+**State model.** Game-source availability is a three-state
+`GameAudioSourceState { NotConfigured, Uncalibrated, Available }` (replacing the bool):
+`NotConfigured` = game audio-config file missing/unreadable or no stored route; `Uncalibrated` =
+route stored but no matching input calibration for that exact route; `Available` = route +
+calibration. Two persisted editor-settings values govern behavior: the `useGameAudioSettings`
+toggle, now **defaulting OFF** (`value_or(false)` — the absent state no longer means ON and needs
+no special casing), and a `suppressGameAudioRecommendation` bool (default false).
+
+**Invariant: a persisted ON means adoption actually succeeded.** Whenever ON cannot be honored,
+the editor says so clearly, writes OFF, and falls back to its own settings. `ON + broken` is
+therefore never a standing state — it can only be entered by the game's config regressing after a
+successful adoption, and it self-heals to OFF with an error popup on the next startup. The
+checkbox never shows ON while the editor is actually running on its own settings.
+
+**Startup decision tree** (at most one popup can fire per launch, keyed on the toggle):
+
+1. **ON + Available** → adopt the game route silently. A merely unplugged/in-use device is the
+   existing route-kept-closed `DeviceUnavailable` notice, not a config regression — stays ON.
+2. **ON + Uncalibrated / NotConfigured** → state-specific error popup, write OFF, stay on the
+   editor's own route, and open the audio device settings window after dismissal.
+3. **OFF (or never written) + Available + not suppressed** → recommendation popup: "Use game audio
+   settings (recommended)" / "Use custom audio settings" plus a "Don't show this message again"
+   checkbox that persists the suppression flag on any close. The recommended button always
+   succeeds because the popup is gated on `Available`. "Use custom" writes OFF and dismisses (no
+   settings window — the user declined guidance). Esc/close writes nothing and re-asks next launch.
+4. **Otherwise** → the editor's own settings, silently. This silence is correct: the editor is
+   doing exactly what the toggle says.
+
+**Checkbox (device settings window).** When no game configuration exists at window open
+(`NotConfigured`, from a fresh `IEditorController::gameAudioSourceState()` read), the checkbox is
+**disabled** with the tooltip "Game audio settings unavailable" — there is nothing a click could
+adopt or usefully explain. Otherwise it stays clickable, and enabling routes through the attempt
+logic: `Available` → adopt + persist ON; `Uncalibrated` (or a mid-dialog regression) → a clear
+state-specific error dialog, the checkbox reverts, and **nothing is persisted** — the popup is
+reserved for the case where the user can act (calibrate in the game). Canonical error copy lives
+in editor-core
+(`GameAudioSourceError` with fixed per-code messages) so the startup popup and the checkbox dialog
+share one text: `Uncalibrated` → "Game audio settings cannot be used until input calibration has
+been completed in the game."; `NotConfigured` → no game audio settings were found, set up audio in
+the game first.
+
+**Consequences for the original plan text:**
+
+- "First-run default: the toggle is ON" is **superseded**: the default is OFF, and the
+  recommendation popup (not a silent default) is the encouragement mechanism.
+- "Enabling with no calibrated game configuration still persists the choice" is **superseded**:
+  a failed enable persists nothing and reverts.
+- The "genuinely-unconfigured dismissible prompt / notice bar" (original open questions 1–2) is
+  **superseded** by the startup error popup + settings-window open; no standing in-window
+  unconfigured-game guidance is needed because `ON + broken` is no longer a standing state.
+- The cached availability bool on the controller and its `EditorViewState` field are **removed**;
+  availability is read fresh at the decision points (startup, checkbox click, recommendation
+  accept) and surfaced only through the transient prompts.
+- Open question 3 (toggle placement) remains as originally answered by the implementation
+  (top-of-panel row).
 
 ## Goal
 
@@ -175,13 +237,15 @@ with a calibrated active route does not exist.
 - **The toggle bool is editor workflow state, not audio config.** It does not affect the game and is
   not in the shared schema, so it lives on `IEditorSettings` beside `waveformVisible()`
   (`i_editor_settings.h:80`), persisted to the editor's profile file.
-- **First-run default: the toggle is ON (user directive — the editor startup default).** At first
+- **[Superseded by the 2026-07-13 amendment — the default is now OFF and the recommendation popup
+  replaces the silent default.]** ~~First-run default: the toggle is ON.~~ At first
   run the editor defaults "use game settings" ON. Thereafter the persisted bool is authoritative:
   honor the user's stored choice on every subsequent launch; never reset it to ON. Concretely,
   `useGameAudioSettings()` returns `std::optional<bool>` and an **absent** value (never written)
   resolves to the ON default; once the user flips it, the written value wins.
-- **Genuinely-unconfigured game → a dismissible prompt offering both paths as equals (user
-  directive).** When the toggle defaults ON but the game is unconfigured (`gameSourceAvailable()`
+- **[Superseded by the 2026-07-13 amendment — replaced by the startup error popup + write-OFF
+  fallback and the Available-gated recommendation popup.]** ~~Genuinely-unconfigured game → a
+  dismissible prompt offering both paths as equals.~~ When the toggle defaults ON but the game is unconfigured (`gameSourceAvailable()`
   false), show a **dismissible** prompt — not a recurring hard modal — recommending the user
   configure audio in the Game for a consistent cross-app experience, and offering **both** paths as
   equals: set it up in the Game, **or** configure the editor's own audio here. The editor-own path is
@@ -212,6 +276,9 @@ with a calibrated active route does not exist.
   is open. No predicate rescoping is needed.
 
 ## Open questions for the user
+
+Questions 1 and 2 are resolved by the 2026-07-13 amendment (startup error popup + write-OFF
+fallback; Available-gated recommendation popup). Question 3 stands as implemented (top-of-panel).
 
 1. **Prompt copy and channel.** The genuinely-unconfigured prompt is described as "dismissible, both
    paths as equals, frictionless opt-out." Is a non-modal in-view notice bar (dismiss + two action
