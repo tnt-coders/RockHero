@@ -37,11 +37,6 @@ constexpr double g_follow_shift_trigger_fraction{0.8};
 constexpr double g_follow_shift_pin_fraction{0.05};
 constexpr double g_follow_shift_duration_seconds{0.3};
 
-// Fixed-cursor smooth scrolling pins the cursor a little inside the left edge: most of the
-// screen is road ahead, with enough recent context behind the cursor to stay oriented (user
-// tuned 1/3 -> 0.05 -> 0.2 -> 0.15 -> 0.1).
-constexpr double g_smooth_follow_pin_fraction{0.1};
-
 // Treats tiny wheel deltas as absent so zoom input stays stable across platforms.
 [[nodiscard]] bool hasMouseWheelDelta(float delta) noexcept
 {
@@ -625,40 +620,7 @@ void TrackViewport::updatePlaybackFollow()
         return;
     }
 
-    if (m_follow_style == PlaybackFollowStyle::SmoothScroll)
-    {
-        followCursorSmoothly(*cursor_x);
-        return;
-    }
-
     followCursorWithWindowShifts(*cursor_x);
-}
-
-// Stores the follow mode and abandons any in-flight shifted-window glide so the new mode takes
-// over from the current view instead of finishing the old animation.
-void TrackViewport::setPlaybackFollowStyle(PlaybackFollowStyle style)
-{
-    m_follow_style = style;
-    m_window_shift.reset();
-}
-
-// Reports the active follow mode so the menu can tick the spike toggle.
-PlaybackFollowStyle TrackViewport::playbackFollowStyle() const noexcept
-{
-    return m_follow_style;
-}
-
-// Fixed-cursor smooth scroll (adopted mode, spike-grade implementation): every vblank repins
-// the window so the cursor stays at the pin fraction while the content flows past it,
-// rhythm-game style. Known spike limits: integer viewport positions make low zoom tick instead
-// of glide, and Tracktion's block-quantized audible time shimmers the scroll velocity — both
-// removed by the time-space camera in docs/roadmap/51-smooth-scroll-camera.md.
-void TrackViewport::followCursorSmoothly(float cursor_x)
-{
-    setViewportLeft(
-        static_cast<int>(std::round(
-            static_cast<double>(cursor_x) -
-            static_cast<double>(m_viewport.getViewWidth()) * g_smooth_follow_pin_fraction)));
 }
 
 // Returns the viewport left edge that places the cursor at the shifted-window pin fraction.

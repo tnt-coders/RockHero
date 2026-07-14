@@ -28,21 +28,6 @@ class TabView;
 class ToneAutomationLanesView;
 class ToneTrackView;
 
-/*! \brief Playback-follow mode used by the timeline viewport while the transport plays. */
-enum class PlaybackFollowStyle
-{
-    /*! \brief Guitar Pro-style stationary window with forward glides (the shipped default). */
-    ShiftedWindow,
-
-    /*!
-    \brief Fixed-cursor smooth scrolling: the cursor pins at a fraction of the view and the
-    content scrolls continuously past it, rhythm-game style. Adopted mode, currently the
-    integer-pixel spike; docs/roadmap/51-smooth-scroll-camera.md replaces it with the
-    time-space camera implementation.
-    */
-    SmoothScroll,
-};
-
 /*!
 \brief Hosts zoomable track content inside a JUCE viewport for future multi-track scrolling.
 
@@ -202,22 +187,6 @@ public:
     void requestCursorFocus();
 
     /*!
-    \brief Switches how the viewport follows the cursor during playback.
-
-    Evaluation toggle, not persisted: switching modes mid-glide abandons any in-flight
-    shifted-window animation so the new mode starts from the current view.
-
-    \param style Follow mode used while the transport plays.
-    */
-    void setPlaybackFollowStyle(PlaybackFollowStyle style);
-
-    /*!
-    \brief Reports the active playback-follow mode.
-    \return The follow style currently applied during playback.
-    */
-    [[nodiscard]] PlaybackFollowStyle playbackFollowStyle() const noexcept;
-
-    /*!
     \brief Installs the callback that reports user-driven zoom changes for persistence.
     \param on_zoom_changed Callback receiving the new pixels-per-second scale.
     */
@@ -295,9 +264,6 @@ private:
 
     // Shifted-window playback follow; see the implementation comment for the full behavior.
     void followCursorWithWindowShifts(float cursor_x);
-
-    // Fixed-cursor smooth-scroll follow; see the implementation comment for the spike limits.
-    void followCursorSmoothly(float cursor_x);
 
     // Moves the horizontal viewport position while preserving the current vertical scroll. Ruler
     // and grid updates happen through the viewport's visible-area callback when the position
@@ -394,9 +360,6 @@ private:
 
     // Coarse playing flag from core::EditorViewState, used to avoid vblank state polling.
     bool m_playback_active{false};
-
-    // Playback-follow mode; the smooth-scroll value is an unpersisted evaluation spike.
-    PlaybackFollowStyle m_follow_style{PlaybackFollowStyle::ShiftedWindow};
 
     // In-flight shifted-window glide, present only while the window is animating forward.
     struct WindowShift
