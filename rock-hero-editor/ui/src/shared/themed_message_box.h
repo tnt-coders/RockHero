@@ -1,33 +1,98 @@
 /*!
 \file themed_message_box.h
-\brief The editor's compact themed one-button message box.
+\brief The editor's standard themed message boxes and shared modal dialog launcher.
 */
 
 #pragma once
 
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <memory>
 
 namespace rock_hero::editor::ui
 {
 
 /*!
-\brief Shows the editor's themed warning box with a single OK button.
+\brief Launches an already-built alert window as a self-deleting modal dialog.
 
-Constructs the juce::AlertWindow directly — the same pattern as the editor's other in-app prompts —
-instead of going through AlertWindow::showAsync, whose LookAndFeel_V4::createAlertWindow factory
-pads the content-derived bounds by a hard-coded 50 px and shifts the buttons 40 px down, leaving a
-band of empty space under short messages. The window deletes itself when dismissed; Return, Escape,
-and the OK button all dismiss it.
+This is the single owner of the editor's modal-dialog pattern. Dialogs are constructed directly —
+never through AlertWindow::showAsync, whose LookAndFeel_V4::createAlertWindow factory pads the
+content-derived bounds by a hard-coded 50 px and shifts the buttons 40 px down, leaving a band of
+empty space under short messages — and delete themselves once dismissed. The message boxes below
+cover the fixed-shape dialogs; a dialog that needs custom content subclasses juce::AlertWindow to
+own its extra components (see GameAudioRecommendationDialog) and launches through this function.
+
+\param window The fully populated alert window; ownership transfers to the modal system.
+\param on_result Called exactly once with the window's modal result: the return value passed to
+       addButton() for the pressed button, or 0 when the window is dismissed with Escape. Runs
+       before the window is destroyed, so captured window pointers may still read its state. May
+       be empty.
+*/
+void showThemedDialogModally(
+    std::unique_ptr<juce::AlertWindow> window, std::function<void(int)> on_result);
+
+/*!
+\brief Shows the editor's themed warning box with a single OK button.
 
 \param associated_component Component whose top-level window the box is positioned over; may be
        null for a screen-centered box.
 \param title Window title naming what went wrong.
 \param message Canonical user-facing text to display.
-\param on_dismissed Called exactly once when the box is dismissed through any path; may be empty.
+\param on_dismissed Called exactly once when the box is dismissed through any path (the OK button,
+       Return, or Escape); may be empty.
 */
 void showThemedWarningBox(
     juce::Component* associated_component, const juce::String& title, const juce::String& message,
     std::function<void()> on_dismissed = {});
+
+/*!
+\brief Shows the editor's themed informational box with a single OK button.
+
+\param associated_component Component whose top-level window the box is positioned over; may be
+       null for a screen-centered box.
+\param title Window title naming what is being reported.
+\param message Canonical user-facing text to display.
+\param on_dismissed Called exactly once when the box is dismissed through any path (the OK button,
+       Return, or Escape); may be empty.
+*/
+void showThemedInfoBox(
+    juce::Component* associated_component, const juce::String& title, const juce::String& message,
+    std::function<void()> on_dismissed = {});
+
+/*!
+\brief Shows the editor's themed multiple-choice question box.
+
+Buttons appear in the given order, with the keyboard rules fixed here for every question box:
+Return activates the first button and Escape reports the last one. Callers therefore list the
+primary action first and the cancel/dismiss outcome last.
+
+\param associated_component Component whose top-level window the box is positioned over; may be
+       null for a screen-centered box.
+\param title Window title naming the decision.
+\param message Canonical user-facing text to display.
+\param buttons Button labels in display order; must not be empty.
+\param on_choice Called exactly once with the zero-based index of the chosen button (Escape
+       reports the last index); may be empty.
+*/
+void showThemedQuestionBox(
+    juce::Component* associated_component, const juce::String& title, const juce::String& message,
+    const juce::StringArray& buttons, std::function<void(int)> on_choice);
+
+/*!
+\brief Shows the editor's themed single-field text prompt.
+
+\param associated_component Component whose top-level window the prompt is positioned over; may be
+       null for a screen-centered prompt.
+\param title Window title naming what the text is for.
+\param message Canonical user-facing text shown above the field.
+\param initial_value Text pre-filled into the field.
+\param accept_label Label of the accepting button; Return also accepts.
+\param on_accept Called with the entered text only when the prompt is accepted; cancelling
+       (the Cancel button or Escape) invokes nothing.
+*/
+void showThemedTextPrompt(
+    juce::Component* associated_component, const juce::String& title, const juce::String& message,
+    const juce::String& initial_value, const juce::String& accept_label,
+    std::function<void(const juce::String&)> on_accept);
 
 } // namespace rock_hero::editor::ui
