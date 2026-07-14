@@ -168,7 +168,7 @@ Known tensions from the planning mandate, and where each is resolved (none paper
 6. Keybind centralization crossing into common → 46 Phase 4's injected-binding-data seam (common stays editor-free).
 7. Game never rewrites user packages → 11 Phase 5 contract: game recomputes only into 26's library cache.
 8. AGPL + hosted leaderboards → 29-Q3 licensing decision + architecture.md amendment (part of G29 sign-off).
-9. Smooth-scroll follow evaluation → **DECIDED 2026-07-13**: the user ran the sight-reading test with real tabs and adopted fixed-cursor smooth scrolling; docs/roadmap/51-smooth-scroll-camera.md owns the time-space camera adoption (the todo doc is now a pointer). Plan references to the "pending decision" predate this and read historically.
+9. Smooth-scroll follow evaluation → **RESOLVED 2026-07-14**: evaluated live with real tabs (adopted 2026-07-13, reversed the next day — moving tablature is harder to sight-read, as the evaluation doc predicted). The shifted window stands; docs/roadmap/51-smooth-scroll-camera.md is Parked holding the full decision trail plus the designed-but-unbuilt cursor-locked posture display; scrolling tab play-along belongs to the game (plan 30). Plan references to the "pending decision" read historically.
 10. Intensity sorting before the calculator lands → 26 ships the "Unknown" bucket (sorts last) per 11 Phase 5; never authored values.
 
 ---
@@ -235,11 +235,6 @@ Phases 1–2 and plan 10 Phase 0 (G10-DECISIONS answers), both Stage 1 items alr
      gate-free; all decisions user-settled 2026-07-13. Coordination note: plan 50 Phase 3 edits
      the monitoring-context gate flag in `input_calibration_handlers.cpp` that plan 14 P3
      relocates into `LiveInputMonitor` — whichever lands second adapts the other's seam).
-28c. docs/roadmap/51-smooth-scroll-camera.md Phases 1–5 (time-space camera + clock-driven
-     smooth-scroll follow; depends only on plan 12, complete — user-adopted 2026-07-13, so it
-     outranks other unstarted editor items when timeline work resumes). Coordination: plan 47's
-     ruler-band loop drag and plan 40 Phase 3's tab-lane interaction both hit-test through the
-     viewport — whichever lands after plan 51 maps through the camera's visible window.
 29. docs/roadmap/30-game-2d-tab-view.md Phase 1 (scene-model promotion — dependency-free), Phase 2 (shared notation paint core + manifest; 30-Q1 amendment landed, runs before item 24's plan 40 Phase 3 per 30-Q2), Phases 3–5 (game strip renderer, three-way game display modes incl. simultaneous 2D+3D, editor preview display selector); Phase 6 (feedback overlays) after 24's event feed + 25 Phase 5's reduction.
 
 **Stage 7 — Deferred**
@@ -478,7 +473,7 @@ CLAUDE.md). docs/in-progress/ docs are active work — referenced by plans, neve
 | thread-safe-transport-readback.md | ABSORBED into docs/roadmap/12-playback-clock.md | delete | Fully promoted; stale steps (audible-time read, TransportState) corrected against code |
 | shared-user-audio-settings-plan.md | ABSORBED into docs/roadmap/13-audio-device-settings-and-calibration.md | delete | Fully promoted; feature-folder placement and already-shipped narrowing corrected |
 | audio-device-settings-extraction-followups.md | PARTIALLY ABSORBED into docs/roadmap/13-audio-device-settings-and-calibration.md Phase 6 | edit: strip the absorbed ChangeListener smoke-test item, keep editor-UI follow-ups (view split, window caps) with a pointer to plan 13 | Only the re-derivation smoke test was absorbed; editor-UI follow-ups remain valid deferred work outside the roadmap plan set |
-| smooth-scroll-follow-evaluation.md | SUPERSEDED by docs/roadmap/51-smooth-scroll-camera.md | body replaced with pointer (2026-07-13) | Decision made: smooth scroll adopted with real tabs on screen; adoption costs absorbed into plan 51 (known tension 9 resolved) |
+| smooth-scroll-follow-evaluation.md | SUPERSEDED by docs/roadmap/51-smooth-scroll-camera.md | body replaced with pointer (2026-07-13) | Evaluation run both ways 2026-07-13/14: adopted, then reversed on sight-reading; shifted window stands, plan 51 Parked with the full record (known tension 9 resolved) |
 | gp-track-part-mapping.md | UNTOUCHED | none | GP-import workflow stopgap outside the roadmap plan set; still accurate as a deferred plan |
 | tone-rack-plan.md | SUPERSEDED by docs/in-progress/tone-track-tempo-map-plan.md (slice 5) | replace body with pointer | Largely subsumed by the in-flight tone work; keeping the stale body invites re-implementation of retired surfaces |
 | tone-automation-track-plan.md | UNTOUCHED | none | Deferred tone-parameter automation; no plan in this set covers it |
@@ -538,7 +533,7 @@ One line per plan; update the right-hand cell as phases complete.
 | docs/roadmap/48-editor-audio-setup.md | Ready | Editor toggle-aware device + calibration surfaces; "use game settings" read-only mirror of the game (default-on first run); no consolidation | Not started — authored 2026-07-12 |
 | docs/roadmap/49-game-app-architecture-symmetry.md | **Complete 2026-07-12** | Split GameShell into SDL3Application base + RockHeroGame app + Game content (editor-symmetric layering); renamed RockHeroEditorApplication -> RockHeroEditor | Done 2026-07-12 @ 47947fc8 (editor rename) + 4d61b97b (game restructure); build + 7 suites green |
 | docs/roadmap/50-tone-designer-and-tone-files.md | **Phases 1–5 complete 2026-07-13** — final acceptance bundle pending user-triggered clang-tidy + witnessed manual checklist | Tone Designer idle rig mode (no-project = live signal chain) + portable `.tone` files; designer New/Open/Save/Save As document semantics, project Import/Export copy semantics, undoable opens/imports, automation-drop confirm | All five phases landed 2026-07-13 (container; ILiveRig surface; designer mode core; panel UI + choosers + prompts; project Import/Export with automation confirm and whole-chain undo); build + all 7 suites green |
-| docs/roadmap/51-smooth-scroll-camera.md | Ready (51-Q1/51-Q2 carry recommendations) | Time-space camera for the editor timeline (subpixel horizontal axis, camera-owned scrollbar) + clock-driven fixed-cursor smooth-scroll playback follow (pin 0.1) via plan 12's IPlaybackClock/extrapolator | Not started — authored 2026-07-13 after the user adopted smooth scroll from the spike (`55f49476`, pin tuned to 0.1); spike ships in-tree behind View → Smooth Scroll Follow until Phase 3 replaces it |
+| docs/roadmap/51-smooth-scroll-camera.md | **Parked 2026-07-14** | Time-space camera + clock-driven fixed-cursor smooth-scroll follow for the editor timeline | Adoption reversed after live sight-reading (moving tabs harder to read, as predicted); spike removed, shifted window stands; plan retains the decision trail + the designed-but-unbuilt cursor-locked posture display; re-verify inventory before any future execution |
 
 Milestone 0: **not reached** — exit = docs/roadmap/21-game-audio-engine-and-session.md Phase 6 soak
 checklist + docs/roadmap/25-note-highway-3d.md Phase 3 exit criteria witnessed on the same build.

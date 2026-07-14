@@ -1,7 +1,9 @@
 # Plan 51 — Time-space camera and smooth-scroll playback follow
 
-Status: **Ready** (51-Q1/51-Q2 carry recommendations) | authored 2026-07-13, decision record
-user-settled the same day | baseline `work-in-progress @ 7e0a52ee`
+Status: **Parked 2026-07-14** — the live evaluation reversed the adoption (see Decision
+record); the shifted window stands and the spike was removed. Execute only if a driver for
+smooth scrolling in the *editor* returns; re-verify the inventory first. | authored 2026-07-13
+| baseline `work-in-progress @ 7e0a52ee`
 
 ## Goal
 
@@ -24,9 +26,21 @@ Make fixed-cursor smooth scrolling the editor timeline's playback follow, implem
   (docs/todo/smooth-scroll-follow-evaluation.md, now superseded by this plan).
 - 2026-07-13: spike re-landed behind View → Smooth Scroll Follow (`55f49476`); the user ran the
   deciding sight-reading test with real tablature and adopted smooth scrolling ("I'm sold"),
-  tuning the pin fraction 1/3 → 0.05 → 0.2 → 0.15 → **0.1**. The known spike artifacts —
+  tuning the pin fraction 1/3 → 0.05 → 0.2 → 0.15 → 0.1. The known spike artifacts —
   integer-pixel ticking and block-quantized velocity shimmer — were called out and accepted as
   exactly what this plan removes.
+- 2026-07-14: **adoption reversed after further live use** — smooth-scrolling tablature proved
+  harder to sight-read, exactly the reading-vs-timing tradeoff the original evaluation
+  predicted (fixations need stationary symbols; part of the difficulty was spike jitter the
+  camera would fix, but not the physiology). The desire that had been driving the fixed-cursor
+  preference turned out to be a separate feature: a **cursor-locked chord/arpeggio posture
+  display** (span identity + held frets traveling with the playhead for the span's duration —
+  note heads never move; a held note's presence at the cursor is its sustain tail, RS-style).
+  That feature is follow-mode-independent, designed but deliberately **not built** (user chose
+  to return to a clean baseline first); the design is recorded in this entry for whenever it is
+  picked up. The spike (PlaybackFollowStyle, followCursorSmoothly, the View toggle) was deleted
+  and the shifted window stands as the editor's follow. Scrolling-tab play-along remains the
+  game's territory (docs/roadmap/30-game-2d-tab-view.md).
 
 ## Non-goals
 
