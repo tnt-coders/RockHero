@@ -1,10 +1,60 @@
-﻿#include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
+﻿#include <algorithm>
+#include <optional>
+#include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
+#include <vector>
 
 namespace rock_hero::editor::core
 {
 
 namespace
 {
+
+// Two named plugin entries so busy-progress assertions can watch per-plugin messages.
+[[nodiscard]] std::vector<common::audio::PluginChainEntry> twoNamedPluginEntries()
+{
+    return {
+        common::audio::PluginChainEntry{
+            .instance_id = "amp-instance",
+            .plugin_id = "amp-plugin",
+            .name = "Amp Sim",
+            .manufacturer = "Example Audio",
+            .format_name = "VST3",
+            .category = {},
+            .chain_index = 0,
+            .display_type_override = {},
+        },
+        common::audio::PluginChainEntry{
+            .instance_id = "cab-instance",
+            .plugin_id = "cab-plugin",
+            .name = "Cab IR",
+            .manufacturer = "Example Audio",
+            .format_name = "VST3",
+            .category = {},
+            .chain_index = 1,
+            .display_type_override = {},
+        },
+    };
+}
+
+// Asserts the determinate per-plugin busy sequence a two-plugin tone replace must render.
+void checkTwoPluginReplaceProgress(const FakeEditorView& view)
+{
+    const std::vector<BusyViewState> progress_states = liveRigBusyStates(view);
+    REQUIRE_FALSE(progress_states.empty());
+    CHECK(std::ranges::any_of(progress_states, [](const BusyViewState& state) {
+        return state.indicator == BusyIndicator::DeterminateProgress &&
+               state.message == "Loading live rig..." &&
+               state.progress == std::optional<double>{0.0};
+    }));
+    CHECK(std::ranges::any_of(progress_states, [](const BusyViewState& state) {
+        return state.message == "Loading plugin (1/2)...\nAmp Sim" &&
+               state.progress == std::optional<double>{0.5};
+    }));
+    CHECK(std::ranges::any_of(progress_states, [](const BusyViewState& state) {
+        return state.message == "Loading plugin (2/2)...\nCab IR" &&
+               state.progress == std::optional<double>{1.0};
+    }));
+}
 
 // Builds the standard designer-mode harness controller and enters the resting state through the
 // startup path (no last project stored in the null settings).
@@ -246,6 +296,18 @@ TEST_CASE("Tone designer open failure leaves the document intact", "[core][edito
     CHECK(harness.view.shown_errors.back() == "Could not open tone file: File is not a tone file");
 }
 
+// Opening a multi-plugin tone file drives determinate per-plugin progress on the busy overlay.
+TEST_CASE("Tone designer open shows per-plugin load progress", "[core][editor-controller]")
+{
+    ToneDesignerHarness harness;
+    harness.live_rig.next_load_result.plugins = twoNamedPluginEntries();
+    harness.view.pushed_states.clear();
+
+    harness.controller.onOpenToneFileRequested(std::filesystem::path{"riffs/Lead.tone"});
+
+    checkTwoPluginReplaceProgress(harness.view);
+}
+
 // New resets to an untitled document as one undoable entry.
 TEST_CASE("Tone designer new resets to untitled undoably", "[core][editor-controller]")
 {
@@ -421,6 +483,25 @@ TEST_CASE("Project tone import without automation skips the prompt", "[core][edi
 
     harness.controller.onUndoRequested();
     CHECK(harness.live_rig.restore_call_count == 1);
+}
+
+// Importing a multi-plugin tone file drives the same per-plugin busy progress as the designer
+// open.
+TEST_CASE("Project tone import shows per-plugin load progress", "[core][editor-controller]")
+{
+    CalibratedProjectHarness harness;
+    REQUIRE(loadCalibratedArrangement(
+        harness.controller,
+        harness.project_services,
+        harness.audio,
+        harness.audio_devices,
+        std::filesystem::path{"song.wav"}));
+    harness.live_rig.next_load_result.plugins = twoNamedPluginEntries();
+    harness.view.pushed_states.clear();
+
+    harness.controller.onImportToneFileRequested(std::filesystem::path{"riffs/Lead.tone"});
+
+    checkTwoPluginReplaceProgress(harness.view);
 }
 
 // Importing over a tone with automation confirms first; Cancel leaves everything untouched and
