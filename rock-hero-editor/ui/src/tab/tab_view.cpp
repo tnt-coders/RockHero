@@ -779,8 +779,9 @@ void drawShapeSpan(
         });
     g.fillRect(juce::Rectangle<float>{start_x, bottom_rail_y, width, g_shape_rail_height});
 
-    // The name chip hangs just under the top rail (user-directed move from the bottom rail);
-    // FHP markers share that edge and draw later, so a coinciding marker paints over the chip.
+    // The name chip rides in the reserved label strip directly above the lane area's top rail
+    // (and under the pinned ruler), so names never compete with lane content or the FHP
+    // markers on the lane's own top edge.
     if (metrics.draw_text && !shape.name.empty())
     {
         const juce::String name{shape.name};
@@ -788,7 +789,7 @@ void drawShapeSpan(
         const float chip_height = g_shape_label_height + 2.0f;
         const juce::Rectangle<float> chip{
             start_x,
-            static_cast<float>(metrics.bounds.getY()) + g_shape_rail_height,
+            static_cast<float>(metrics.bounds.getY()) - chip_height,
             chip_width,
             chip_height
         };
@@ -931,7 +932,11 @@ void TabView::paint(juce::Graphics& g)
         return;
     }
 
-    const juce::Rectangle<int> bounds = getLocalBounds();
+    // The lane area sits below the reserved shape-label strip: the hosting row added the strip
+    // on top of the density-derived lane height, so trimming it here keeps the reference
+    // per-lane spacing intact while chord/arpeggio name chips get the strip to themselves.
+    const juce::Rectangle<int> bounds =
+        getLocalBounds().withTrimmedTop(g_tab_shape_label_strip_height);
     const double duration = m_visible_timeline.duration().seconds;
     if (bounds.isEmpty() || duration <= 0.0)
     {
