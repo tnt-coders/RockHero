@@ -325,11 +325,6 @@ private:
     /*! \brief Prompts for a name and asks the controller to create a new tone at the marker. */
     void promptForNewTone(common::core::GridPosition position);
 
-    /*! \brief Shows a modal single-field text prompt, invoking on_accept with the entered text. */
-    void promptForText(
-        const juce::String& title, const juce::String& message, const juce::String& initial_value,
-        const juce::String& accept_label, std::function<void(const juce::String&)> on_accept);
-
     /*! \copydoc ToneTrackView::Listener::onToneBoundaryMoveRequested */
     void onToneBoundaryMoveRequested(
         std::string right_region_id, common::core::GridPosition position) override;

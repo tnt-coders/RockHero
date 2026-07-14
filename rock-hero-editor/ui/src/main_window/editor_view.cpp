@@ -536,13 +536,8 @@ void EditorView::setState(const core::EditorViewState& state)
 // Presents controller-reported workflow failures as one-shot dialogs.
 void EditorView::showError(const std::string& message)
 {
-    juce::NativeMessageBox::showAsync(
-        juce::MessageBoxOptions()
-            .withIconType(juce::MessageBoxIconType::WarningIcon)
-            .withTitle("Could not complete request")
-            .withMessage(juce::String{message.c_str()})
-            .withButton("OK"),
-        nullptr);
+    showThemedWarningBox(
+        this, "Could not complete request", juce::String::fromUTF8(message.c_str()));
 }
 
 // Defers message-thread-only work until BusyOverlay has actually rendered the busy state.
@@ -1192,15 +1187,11 @@ void EditorView::presentUnsavedChangesPromptIfNeeded(
 
     m_last_presented_unsaved_changes_prompt = prompt;
     const juce::Component::SafePointer<EditorView> safe_this{this};
-    juce::NativeMessageBox::showAsync(
-        juce::MessageBoxOptions()
-            .withIconType(juce::MessageBoxIconType::QuestionIcon)
-            .withTitle("Unsaved changes")
-            .withMessage(unsavedChangesPromptMessage(prompt->prompted_action))
-            .withButton("Save")
-            .withButton("Discard")
-            .withButton("Cancel")
-            .withAssociatedComponent(this),
+    showThemedQuestionBox(
+        this,
+        "Unsaved changes",
+        unsavedChangesPromptMessage(prompt->prompted_action),
+        {"Save", "Discard", "Cancel"},
         [safe_this](int button_index) {
             if (safe_this == nullptr)
             {
@@ -1266,17 +1257,12 @@ void EditorView::presentRestoreInterruptedPromptIfNeeded(
 
     m_last_presented_restore_interrupted_prompt = prompt;
     const juce::Component::SafePointer<EditorView> safe_this{this};
-    juce::NativeMessageBox::showAsync(
-        juce::MessageBoxOptions()
-            .withIconType(juce::MessageBoxIconType::QuestionIcon)
-            .withTitle("Project did not finish opening")
-            .withMessage(
-                juce::String{"The previous project did not finish opening:\n\n"} +
-                common::core::juceStringFromPath(prompt->project_file) +
-                "\n\nTry opening it again?")
-            .withButton("OK")
-            .withButton("Cancel")
-            .withAssociatedComponent(this),
+    showThemedQuestionBox(
+        this,
+        "Project did not finish opening",
+        juce::String{"The previous project did not finish opening:\n\n"} +
+            common::core::juceStringFromPath(prompt->project_file) + "\n\nTry opening it again?",
+        {"OK", "Cancel"},
         [safe_this](int button_index) {
             if (safe_this == nullptr)
             {
@@ -1308,8 +1294,6 @@ void EditorView::presentGameAudioUnavailablePromptIfNeeded(
 
     m_last_game_audio_unavailable_prompt = prompt;
     const juce::Component::SafePointer<EditorView> safe_this{this};
-    // The editor's themed warning box rather than the OS message box, matching the app's other
-    // prompts.
     showThemedWarningBox(
         this,
         "Game audio settings unavailable",
@@ -1889,37 +1873,12 @@ void EditorView::createToneMarkerAt(common::core::GridPosition position)
         });
 }
 
-// Shows a modal single-field text prompt and invokes on_accept with the entered text when confirmed.
-// The heap window frees itself once the modal prompt is dismissed.
-void EditorView::promptForText(
-    const juce::String& title, const juce::String& message, const juce::String& initial_value,
-    const juce::String& accept_label, std::function<void(const juce::String&)> on_accept)
-{
-    auto window =
-        std::make_unique<juce::AlertWindow>(title, message, juce::MessageBoxIconType::QuestionIcon);
-    window->addTextEditor("value", initial_value);
-    window->addButton(accept_label, 1, juce::KeyPress{juce::KeyPress::returnKey});
-    window->addButton("Cancel", 0, juce::KeyPress{juce::KeyPress::escapeKey});
-
-    juce::AlertWindow* const window_ptr = window.release();
-    window_ptr->enterModalState(
-        true,
-        // Distinct capture name: clang's -Wshadow-uncaptured-local flags `x = std::move(x)`.
-        juce::ModalCallbackFunction::create(
-            [window_ptr, owned_on_accept = std::move(on_accept)](int result) {
-                if (result == 1 && owned_on_accept)
-                {
-                    owned_on_accept(window_ptr->getTextEditorContents("value"));
-                }
-            }),
-        true);
-}
-
 // Prompts for a new tone name (defaulting to "New Tone") and asks the controller to mint it at the
 // marker; editor-core rejects and reports a duplicate name.
 void EditorView::promptForNewTone(common::core::GridPosition position)
 {
-    promptForText(
+    showThemedTextPrompt(
+        this,
         "New Tone",
         "Enter a name for the new tone:",
         "New Tone",
@@ -1935,7 +1894,8 @@ void EditorView::promptForNewTone(common::core::GridPosition position)
 void EditorView::onToneRenamePromptRequested(
     std::string tone_document_ref, std::string current_name)
 {
-    promptForText(
+    showThemedTextPrompt(
+        this,
         "Rename Tone",
         "Enter a new name for this tone:",
         current_name,

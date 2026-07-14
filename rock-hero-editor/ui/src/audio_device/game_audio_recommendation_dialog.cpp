@@ -1,5 +1,7 @@
 #include "audio_device/game_audio_recommendation_dialog.h"
 
+#include "shared/themed_message_box.h"
+
 #include <memory>
 #include <utility>
 
@@ -51,31 +53,28 @@ private:
 
 } // namespace
 
-// Launches the self-deleting standard alert, following the editor's promptForText() modal pattern.
-// Every dismissal path reaches the modal callback exactly once: the two buttons report their
-// decisions and Escape reports Dismissed (AlertWindow exits modal state with 0 on Escape).
+// Launches the custom-content dialog through the editor's shared modal launcher. Every dismissal
+// path reaches the callback exactly once: the two buttons report their decisions and Escape
+// reports Dismissed (modal result 0).
 void GameAudioRecommendationDialog::show(juce::Component& anchor, DecisionCallback on_decision)
 {
     auto window = std::make_unique<RecommendationAlertWindow>(anchor.getTopLevelComponent());
-    RecommendationAlertWindow* const window_ptr = window.release();
-    window_ptr->enterModalState(
-        true,
-        juce::ModalCallbackFunction::create(
-            [window_ptr, owned_on_decision = std::move(on_decision)](int result) {
-                if (!owned_on_decision)
-                {
-                    return;
-                }
+    RecommendationAlertWindow* const window_ptr = window.get();
+    showThemedDialogModally(
+        std::move(window), [window_ptr, owned_on_decision = std::move(on_decision)](int result) {
+            if (!owned_on_decision)
+            {
+                return;
+            }
 
-                const core::GameAudioRecommendationDecision decision =
-                    result == g_use_game_result
-                        ? core::GameAudioRecommendationDecision::UseGameSettings
-                        : (result == g_use_custom_result
-                               ? core::GameAudioRecommendationDecision::UseCustomSettings
-                               : core::GameAudioRecommendationDecision::Dismissed);
-                owned_on_decision(decision, window_ptr->suppressChecked());
-            }),
-        true);
+            const core::GameAudioRecommendationDecision decision =
+                result == g_use_game_result
+                    ? core::GameAudioRecommendationDecision::UseGameSettings
+                    : (result == g_use_custom_result
+                           ? core::GameAudioRecommendationDecision::UseCustomSettings
+                           : core::GameAudioRecommendationDecision::Dismissed);
+            owned_on_decision(decision, window_ptr->suppressChecked());
+        });
 }
 
 } // namespace rock_hero::editor::ui
