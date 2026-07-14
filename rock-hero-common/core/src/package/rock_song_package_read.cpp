@@ -1,5 +1,6 @@
 ﻿#include "package/rock_song_package.h"
 #include "rock_song_package_format.h"
+#include "song_document_json.h"
 
 #include <algorithm>
 #include <array>
@@ -146,43 +147,6 @@ namespace
 }
 
 // Translates song-document part names into the current core enum.
-[[nodiscard]] std::optional<Part> parsePart(const std::string& text)
-{
-    if (text == "Lead")
-    {
-        return Part::Lead;
-    }
-
-    if (text == "Rhythm")
-    {
-        return Part::Rhythm;
-    }
-
-    if (text == "Bass")
-    {
-        return Part::Bass;
-    }
-
-    return std::nullopt;
-}
-
-// Reads song metadata while treating missing descriptive fields as blank draft values.
-[[nodiscard]] SongMetadata readMetadata(const juce::var& song_document)
-{
-    const juce::var& metadata = Json::value(song_document, "metadata");
-    if (!metadata.isObject())
-    {
-        return {};
-    }
-
-    return SongMetadata{
-        .title = Json::readOptionalString(metadata, "title"),
-        .artist = Json::readOptionalString(metadata, "artist"),
-        .album = Json::readOptionalString(metadata, "album"),
-        .year = Json::readOptionalInt(metadata, "year", 0),
-    };
-}
-
 // Reads the optional normalization record persisted on an audio asset entry. Absent, null, and
 // incomplete records produce an empty optional so the open/import flow can repair them by
 // re-running analysis before the project becomes usable.
@@ -754,7 +718,7 @@ readToneAutomation(const juce::var& arrangement_json, const TempoMap& tempo_map)
             }};
         }
 
-        const auto part = parsePart(*part_text);
+        const auto part = parseSongDocumentPart(*part_text);
         if (!part.has_value())
         {
             return std::unexpected{SongPackageError{
@@ -1046,13 +1010,10 @@ std::expected<Song, SongPackageError> readRockSongPackageDirectory(
     }
 
     const juce::var song_document = std::move(*parsed_document);
-    const auto format_version = Json::readOptionalInt(song_document, "formatVersion", 0);
-    if (!song_document.isObject() || format_version != 1)
+    if (auto version_ok = requireSupportedSongDocumentVersion(song_document);
+        !version_ok.has_value())
     {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidSongDocument,
-            "Unsupported song.json formatVersion",
-        }};
+        return std::unexpected{std::move(version_ok.error())};
     }
 
     const auto audio_assets = readAudioAssets(directory, song_document);
@@ -1074,7 +1035,7 @@ std::expected<Song, SongPackageError> readRockSongPackageDirectory(
     }
 
     Song song;
-    song.metadata = readMetadata(song_document);
+    song.metadata = readSongDocumentMetadata(song_document);
     song.tempo_map = std::move(*tempo_map);
     song.arrangements = std::move(*arrangements);
 
