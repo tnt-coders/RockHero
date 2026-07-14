@@ -14,6 +14,7 @@
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
+#include <rock_hero/editor/core/audio/game_audio_source_error.h>
 #include <rock_hero/editor/core/busy/busy_view_state.h>
 #include <rock_hero/editor/core/controller/editor_action_id.h>
 #include <rock_hero/editor/core/signal_chain/plugin_browser_view_state.h>
@@ -51,6 +52,19 @@ enum class RestoreInterruptedDecision : std::uint8_t
 
     /*! \brief Skip restoring the interrupted project and clear the recovery marker. */
     Cancel,
+};
+
+/*! \brief User choice returned from the startup game-audio recommendation prompt. */
+enum class GameAudioRecommendationDecision : std::uint8_t
+{
+    /*! \brief Adopt the game's audio configuration (the recommended path). */
+    UseGameSettings,
+
+    /*! \brief Keep the editor's own audio settings. */
+    UseCustomSettings,
+
+    /*! \brief The prompt was closed without choosing; nothing is persisted and it may re-ask. */
+    Dismissed,
 };
 
 /*!
@@ -138,6 +152,45 @@ struct RestoreInterruptedPrompt
     */
     friend bool operator==(
         const RestoreInterruptedPrompt& lhs, const RestoreInterruptedPrompt& rhs) = default;
+};
+
+/*!
+\brief Startup notice that the game's audio settings were requested but cannot be used.
+
+Raised only when the persisted "use game audio settings" toggle is on but the game's configuration
+regressed (file gone, route gone, or calibration gone): the controller has already written the
+toggle off and fallen back to the editor's own settings, so this prompt reports why. The view
+presents the carried canonical message once and opens the audio device settings window on
+dismissal.
+*/
+struct GameAudioUnavailablePrompt
+{
+    /*!
+    \brief Creates an unavailable-game prompt request.
+    \param error_value Typed reason with the canonical user-facing message to display.
+    */
+    explicit GameAudioUnavailablePrompt(GameAudioSourceError error_value)
+        : error(std::move(error_value))
+    {}
+
+    /*! \brief Typed reason the game's audio settings cannot be used, with canonical message. */
+    GameAudioSourceError error;
+
+    /*!
+    \brief Compares two unavailable-game prompt requests by their stable reason codes.
+
+    Message text is diagnostic payload, not identity: the view's present-once tracking only needs
+    to distinguish prompts that report different reasons.
+
+    \param lhs Left-hand prompt request.
+    \param rhs Right-hand prompt request.
+    \return True when both prompt requests carry the same reason code.
+    */
+    friend bool operator==(
+        const GameAudioUnavailablePrompt& lhs, const GameAudioUnavailablePrompt& rhs)
+    {
+        return lhs.error.code == rhs.error.code;
+    }
 };
 
 /*! \brief Describes an active input calibration prompt requested by the controller. */
@@ -263,21 +316,30 @@ struct EditorViewState
     /*!
     \brief True when the editor sources the game's audio configuration (resolved toggle).
 
-    Resolves the persisted "use game settings" toggle through its first-run default, so it reads the
-    ON default until the user first flips it. When true both the device settings window and the
-    calibration window render as read-only reflections of the game's configuration.
+    Resolves the persisted "use game settings" toggle through its off default. A true value means
+    adoption actually succeeded — the controller never leaves the toggle on while running on the
+    editor's own settings — so when true both the device settings window and the calibration window
+    render as read-only reflections of the game's configuration.
     */
-    bool use_game_audio_settings{true};
+    bool use_game_audio_settings{false};
 
     /*!
-    \brief True when a calibrated game audio configuration exists to be adopted.
+    \brief Startup notice that the requested game audio settings cannot be used, when raised.
 
-    Calibration-aware, not device-presence: false whenever the game has no saved audio setup or its
-    recorded route has no matching calibration. When \ref use_game_audio_settings is true but this is
-    false the editor stays on its own route and the UI surfaces the unconfigured-game guidance with a
-    one-action opt-out instead of an inert read-only panel.
+    Present only after a startup that found the toggle on but the game's configuration unusable;
+    the toggle has already been written off and the editor runs on its own settings. The view shows
+    the carried message once and opens the audio device settings window on dismissal.
     */
-    bool game_audio_source_available{false};
+    std::optional<GameAudioUnavailablePrompt> game_audio_unavailable_prompt{};
+
+    /*!
+    \brief True while the startup game-audio recommendation prompt should be shown.
+
+    Raised only when the toggle is off, a calibrated game configuration exists to adopt, and the
+    user has not suppressed the recommendation — so accepting it always succeeds. The view answers
+    through IEditorController::onGameAudioRecommendationDecision.
+    */
+    bool game_audio_recommendation_prompt{false};
 
     /*!
     \brief Visible timeline range used to map cursor position and waveform content to pixels.

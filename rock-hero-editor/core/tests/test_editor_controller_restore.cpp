@@ -74,6 +74,20 @@ void writeCalibratedGameRoute(const std::filesystem::path& game_file, const std:
                 .has_value());
 }
 
+// Persists a game route with no matching calibration so the game source reads as uncalibrated.
+void writeUncalibratedGameRoute(const std::filesystem::path& game_file, const std::string& blob)
+{
+    common::audio::AudioConfigStore game_store{
+        game_file, common::audio::AudioConfigStore::Access::ReadWrite
+    };
+    REQUIRE(game_store
+                .setActiveDeviceRoute(
+                    common::audio::ActiveDeviceRoute{
+                        .serialized_state = blob, .identity = makeInputDeviceIdentity()
+                    })
+                .has_value());
+}
+
 } // namespace
 
 // Startup restores the persisted device route from the editor's own audio-config store.
@@ -602,9 +616,9 @@ TEST_CASE(
     };
     REQUIRE(own_store.setActiveDeviceRoute(editor_route).has_value());
 
+    // The persisted toggle drives startup adoption; the controller selects the game source itself.
+    REQUIRE(settings.setUseGameAudioSettings(true).has_value());
     EditorAudioConfigStore editor_store{own_store, game_file.path()};
-    REQUIRE(editor_store.gameSourceAvailable());
-    editor_store.useGameSource(true);
 
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -650,9 +664,9 @@ TEST_CASE(
     };
     REQUIRE(own_store.setActiveDeviceRoute(editor_route).has_value());
 
+    // The persisted toggle drives startup adoption; the controller selects the game source itself.
+    REQUIRE(settings.setUseGameAudioSettings(true).has_value());
     EditorAudioConfigStore editor_store{own_store, game_file.path()};
-    REQUIRE(editor_store.gameSourceAvailable());
-    editor_store.useGameSource(true);
 
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -722,7 +736,7 @@ TEST_CASE(
                 .has_value());
 
     EditorAudioConfigStore editor_store{own_store, game_file.path()};
-    REQUIRE(editor_store.gameSourceAvailable());
+    REQUIRE(editor_store.gameSourceState() == GameAudioSourceState::Available);
 
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -751,8 +765,10 @@ TEST_CASE(
     const int paint_callbacks_before = view.busy_overlay_paint_callback_count;
 
     int applying_call_count = 0;
-    controller.onUseGameAudioSettingsChangeRequested(
-        true, [&applying_call_count](bool) { ++applying_call_count; });
+    REQUIRE(controller
+                .onUseGameAudioSettingsChangeRequested(
+                    true, [&applying_call_count](bool) { ++applying_call_count; })
+                .has_value());
 
     // The toggle consulted the skip-if-unchanged predicate against the now-active game route.
     CHECK(audio_devices.device_state_matches_active_call_count >= 1);
@@ -794,7 +810,7 @@ TEST_CASE(
                 .has_value());
 
     EditorAudioConfigStore editor_store{own_store, game_file.path()};
-    REQUIRE(editor_store.gameSourceAvailable());
+    REQUIRE(editor_store.gameSourceState() == GameAudioSourceState::Available);
 
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -822,8 +838,10 @@ TEST_CASE(
     const int paint_callbacks_before = view.busy_overlay_paint_callback_count;
 
     std::vector<bool> applying_calls;
-    controller.onUseGameAudioSettingsChangeRequested(
-        true, [&applying_calls](bool applying) { applying_calls.push_back(applying); });
+    REQUIRE(controller
+                .onUseGameAudioSettingsChangeRequested(
+                    true, [&applying_calls](bool applying) { applying_calls.push_back(applying); })
+                .has_value());
 
     CHECK(audio_devices.device_state_matches_active_call_count >= 1);
     // The dialog was hidden for the re-open and reshown once the busy overlay cleared.
@@ -862,7 +880,7 @@ TEST_CASE(
                 .has_value());
 
     EditorAudioConfigStore editor_store{own_store, game_file.path()};
-    REQUIRE(editor_store.gameSourceAvailable());
+    REQUIRE(editor_store.gameSourceState() == GameAudioSourceState::Available);
 
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -889,7 +907,7 @@ TEST_CASE(
     audio_devices.restore_serialized_device_state_call_count = 0;
     const int paint_callbacks_before = view.busy_overlay_paint_callback_count;
 
-    controller.onUseGameAudioSettingsChangeRequested(true, {});
+    REQUIRE(controller.onUseGameAudioSettingsChangeRequested(true, {}).has_value());
 
     // The re-open ran synchronously with no busy presentation at all.
     CHECK(audio_devices.restore_serialized_device_state_call_count == 1);
@@ -898,6 +916,240 @@ TEST_CASE(
         std::optional<std::string>{"game-device-state"});
     CHECK(view.busy_overlay_paint_callback_count == paint_callbacks_before);
     CHECK_FALSE(sawAudioDeviceOpenOverlay(view));
+}
+
+// Startup with the toggle on but a broken game configuration fails loudly once and falls back:
+// the toggle is written off, the editor restores its own route, and the unavailable notice is
+// staged with the state-specific reason. Dismissal clears the notice.
+TEST_CASE(
+    "EditorController startup with a broken game source falls back and warns",
+    "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"game_startup_broken"};
+    const ScopedGameFile game_file{"game_startup_broken.settings"};
+
+    GameAudioSourceErrorCode expected_code{};
+    SECTION("an uncalibrated game route reports the calibrate-in-game reason")
+    {
+        writeUncalibratedGameRoute(game_file.path(), "game-device-state");
+        expected_code = GameAudioSourceErrorCode::Uncalibrated;
+    }
+    SECTION("a missing game configuration reports the not-configured reason")
+    {
+        expected_code = GameAudioSourceErrorCode::NotConfigured;
+    }
+
+    EditorSettings settings{files.settingsFile()};
+    REQUIRE(settings.setUseGameAudioSettings(true).has_value());
+    common::audio::testing::InMemoryAudioConfigStore own_store;
+    REQUIRE(own_store
+                .setActiveDeviceRoute(
+                    common::audio::ActiveDeviceRoute{
+                        .serialized_state = "own-device-state", .identity = std::nullopt
+                    })
+                .has_value());
+
+    EditorAudioConfigStore editor_store{own_store, game_file.path()};
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, editor_store};
+
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices),
+        EditorController::Services{
+            .settings = settings,
+            .task_runner = immediateTaskRunner(),
+            .message_thread_scheduler = immediateMessageThreadScheduler(),
+            .audio_config_store = editor_store,
+            .live_input_monitor = monitor,
+            .editor_audio_config_store = &editor_store,
+        },
+        noopExitFunction()
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    // The toggle was written off and the editor restored its own route, not the game's.
+    CHECK(settings.useGameAudioSettings() == std::optional{false});
+    CHECK_FALSE(editor_store.usingGameSource());
+    CHECK(
+        audio_devices.last_restored_serialized_device_state ==
+        std::optional<std::string>{"own-device-state"});
+
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK_FALSE(state->use_game_audio_settings);
+    CHECK_FALSE(state->game_audio_recommendation_prompt);
+    REQUIRE(state->game_audio_unavailable_prompt.has_value());
+    CHECK(state->game_audio_unavailable_prompt->error.code == expected_code);
+    CHECK_FALSE(state->game_audio_unavailable_prompt->error.message.empty());
+
+    controller.onGameAudioUnavailablePromptDismissed();
+    const EditorViewState* dismissed_state = stateOrNull(view.last_state);
+    REQUIRE(dismissed_state != nullptr);
+    CHECK_FALSE(dismissed_state->game_audio_unavailable_prompt.has_value());
+}
+
+// Startup with the toggle off and an adoptable game configuration stages the recommendation
+// prompt; each decision path persists exactly what it promises.
+TEST_CASE(
+    "EditorController startup recommends an adoptable game source", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"game_startup_recommend"};
+    const ScopedGameFile game_file{"game_startup_recommend.settings"};
+    writeCalibratedGameRoute(game_file.path(), "game-device-state");
+
+    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore own_store;
+    EditorAudioConfigStore editor_store{own_store, game_file.path()};
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    // Same-device adoption keeps the accept path inline (no busy overlay in this test).
+    audio_devices.device_state_matches_active = true;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, editor_store};
+
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices),
+        EditorController::Services{
+            .settings = settings,
+            .task_runner = immediateTaskRunner(),
+            .message_thread_scheduler = immediateMessageThreadScheduler(),
+            .audio_config_store = editor_store,
+            .live_input_monitor = monitor,
+            .editor_audio_config_store = &editor_store,
+        },
+        noopExitFunction()
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    // The unwritten toggle resolves off: the editor stays on its own settings and recommends.
+    CHECK_FALSE(editor_store.usingGameSource());
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK(state->game_audio_recommendation_prompt);
+    CHECK_FALSE(state->game_audio_unavailable_prompt.has_value());
+
+    SECTION("use-game adopts the game source and persists the toggle on")
+    {
+        controller.onGameAudioRecommendationDecision(
+            GameAudioRecommendationDecision::UseGameSettings, false);
+        CHECK(settings.useGameAudioSettings() == std::optional{true});
+        CHECK(editor_store.usingGameSource());
+    }
+
+    SECTION("use-custom persists the toggle off and stays on the editor's settings")
+    {
+        controller.onGameAudioRecommendationDecision(
+            GameAudioRecommendationDecision::UseCustomSettings, false);
+        CHECK(settings.useGameAudioSettings() == std::optional{false});
+        CHECK_FALSE(editor_store.usingGameSource());
+    }
+
+    SECTION("dismissal persists nothing so the prompt may re-ask next launch")
+    {
+        controller.onGameAudioRecommendationDecision(
+            GameAudioRecommendationDecision::Dismissed, false);
+        CHECK_FALSE(settings.useGameAudioSettings().has_value());
+        CHECK_FALSE(settings.suppressGameAudioRecommendation().has_value());
+    }
+
+    SECTION("the suppression checkbox is honored on every close path")
+    {
+        controller.onGameAudioRecommendationDecision(
+            GameAudioRecommendationDecision::Dismissed, true);
+        CHECK(settings.suppressGameAudioRecommendation() == std::optional{true});
+        CHECK_FALSE(settings.useGameAudioSettings().has_value());
+    }
+
+    // Every decision clears the prompt.
+    const EditorViewState* decided_state = stateOrNull(view.last_state);
+    REQUIRE(decided_state != nullptr);
+    CHECK_FALSE(decided_state->game_audio_recommendation_prompt);
+}
+
+// A stored suppression keeps the startup recommendation from firing at all.
+TEST_CASE(
+    "EditorController startup honors the recommendation suppression", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"game_startup_suppressed"};
+    const ScopedGameFile game_file{"game_startup_suppressed.settings"};
+    writeCalibratedGameRoute(game_file.path(), "game-device-state");
+
+    EditorSettings settings{files.settingsFile()};
+    REQUIRE(settings.setSuppressGameAudioRecommendation(true).has_value());
+    common::audio::testing::InMemoryAudioConfigStore own_store;
+    EditorAudioConfigStore editor_store{own_store, game_file.path()};
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, editor_store};
+
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices),
+        EditorController::Services{
+            .settings = settings,
+            .task_runner = immediateTaskRunner(),
+            .message_thread_scheduler = immediateMessageThreadScheduler(),
+            .audio_config_store = editor_store,
+            .live_input_monitor = monitor,
+            .editor_audio_config_store = &editor_store,
+        },
+        noopExitFunction()
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK_FALSE(state->game_audio_recommendation_prompt);
+    CHECK_FALSE(state->game_audio_unavailable_prompt.has_value());
+}
+
+// Enabling the toggle against a broken game configuration is declined with the typed reason and
+// persists nothing: the checkbox reverts and a persisted on still always means adoption succeeded.
+TEST_CASE("EditorController declines enabling a broken game source", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"game_toggle_declined"};
+    const ScopedGameFile game_file{"game_toggle_declined.settings"};
+    writeUncalibratedGameRoute(game_file.path(), "game-device-state");
+
+    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore own_store;
+    EditorAudioConfigStore editor_store{own_store, game_file.path()};
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, editor_store};
+
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices),
+        EditorController::Services{
+            .settings = settings,
+            .task_runner = immediateTaskRunner(),
+            .message_thread_scheduler = immediateMessageThreadScheduler(),
+            .audio_config_store = editor_store,
+            .live_input_monitor = monitor,
+            .editor_audio_config_store = &editor_store,
+        },
+        noopExitFunction()
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    audio_devices.restore_serialized_device_state_call_count = 0;
+    const std::expected<void, GameAudioSourceError> declined =
+        controller.onUseGameAudioSettingsChangeRequested(true, {});
+
+    REQUIRE_FALSE(declined.has_value());
+    CHECK(declined.error().code == GameAudioSourceErrorCode::Uncalibrated);
+    CHECK_FALSE(declined.error().message.empty());
+    // Nothing was persisted, switched, or reopened.
+    CHECK_FALSE(settings.useGameAudioSettings().has_value());
+    CHECK_FALSE(editor_store.usingGameSource());
+    CHECK(audio_devices.restore_serialized_device_state_call_count == 0);
 }
 
 } // namespace rock_hero::editor::core

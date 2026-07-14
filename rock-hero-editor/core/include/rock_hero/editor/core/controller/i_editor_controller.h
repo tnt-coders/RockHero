@@ -15,6 +15,8 @@
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/common/core/tone/tone_automation.h>
 #include <rock_hero/common/core/tone/tone_track.h>
+#include <rock_hero/editor/core/audio/game_audio_source_error.h>
+#include <rock_hero/editor/core/audio/game_audio_source_state.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <rock_hero/editor/core/signal_chain/plugin_block_assignment.h>
 #include <rock_hero/editor/core/signal_chain/plugin_display_type.h>
@@ -336,10 +338,13 @@ public:
     /*!
     \brief Handles a change to the "use game audio settings" toggle.
 
-    Persists the workflow toggle, then (message thread) re-selects the store's active source and
-    re-applies the selected route to the editor engine: enabling adopts the game's route when a
-    calibrated game configuration exists, disabling restores the editor's own route. Enabling with no
-    calibrated game configuration persists the choice but leaves the editor on its own route.
+    Enabling first re-reads the game's configuration fresh; when it is not adoptable (missing or
+    uncalibrated) the request is declined with the state-specific reason and **nothing** is
+    persisted or changed — the caller reverts its checkbox and shows the carried canonical message.
+    Otherwise the toggle is persisted, then (message thread) the store's active source is
+    re-selected and the selected route re-applied to the editor engine: enabling adopts the game's
+    route, disabling restores the editor's own route. A persisted on therefore always means
+    adoption succeeded.
 
     When the flip resolves to a route that differs from the open device, the blocking re-open runs
     behind the editor's busy overlay, bracketed by \p set_applying (true before, false after it
@@ -352,9 +357,47 @@ public:
     \param enabled True to source the game's audio configuration, false to source the editor's own.
     \param set_applying Applying presentation bracketing a genuine device re-open, or empty to run
            any re-open inline.
+    \return Empty success when the request was applied, or the typed reason the game's audio
+            configuration cannot be used (enable requests only; disabling always succeeds).
     */
-    virtual void onUseGameAudioSettingsChangeRequested(
-        bool enabled, std::function<void(bool)> set_applying) = 0;
+    [[nodiscard]] virtual std::expected<void, GameAudioSourceError>
+    onUseGameAudioSettingsChangeRequested(bool enabled, std::function<void(bool)> set_applying) = 0;
+
+    /*!
+    \brief Reads the adoption-readiness of the game's audio configuration, freshly.
+
+    A one-shot read of the game's audio-config file at the moment of the call — the same freshness
+    pattern every other decision point uses. The settings window queries this at open time so it
+    can disable the "use game audio settings" checkbox when no game configuration exists
+    (NotConfigured); Uncalibrated keeps the checkbox clickable so the click can report the
+    calibrate-in-game reason.
+
+    \return Adoption-readiness of the game's audio configuration.
+    */
+    [[nodiscard]] virtual GameAudioSourceState gameAudioSourceState() const = 0;
+
+    /*!
+    \brief Handles dismissal of the startup unavailable-game-audio notice.
+
+    Clears the prompt from the view state. The view opens the audio device settings window after
+    calling this, so the user lands directly in the editable editor-own flow the fallback selected.
+    */
+    virtual void onGameAudioUnavailablePromptDismissed() = 0;
+
+    /*!
+    \brief Handles the user's response to the startup game-audio recommendation prompt.
+
+    UseGameSettings adopts the game's configuration through the same attempt logic as the settings
+    checkbox (the prompt is only raised when adoption can succeed, but a mid-prompt regression
+    falls back to the unavailable-game notice). UseCustomSettings persists the toggle off.
+    Dismissed persists nothing, so the prompt may re-ask on a later launch.
+
+    \param decision Decision selected by the user.
+    \param suppress_future True when "don't show this message again" was checked; persists the
+           suppression flag regardless of the decision.
+    */
+    virtual void onGameAudioRecommendationDecision(
+        GameAudioRecommendationDecision decision, bool suppress_future) = 0;
 
     /*! \brief Handles a request to manually calibrate the current input route. */
     virtual void onInputCalibrationRequested() = 0;

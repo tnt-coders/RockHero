@@ -487,8 +487,18 @@ public:
     void onOpenPluginRequested(std::string instance_id) override;
 
     /*! \copydoc IEditorController::onUseGameAudioSettingsChangeRequested */
-    void onUseGameAudioSettingsChangeRequested(
+    [[nodiscard]] std::expected<void, GameAudioSourceError> onUseGameAudioSettingsChangeRequested(
         bool enabled, std::function<void(bool)> set_applying) override;
+
+    /*! \copydoc IEditorController::gameAudioSourceState */
+    [[nodiscard]] GameAudioSourceState gameAudioSourceState() const override;
+
+    /*! \copydoc IEditorController::onGameAudioUnavailablePromptDismissed */
+    void onGameAudioUnavailablePromptDismissed() override;
+
+    /*! \copydoc IEditorController::onGameAudioRecommendationDecision */
+    void onGameAudioRecommendationDecision(
+        GameAudioRecommendationDecision decision, bool suppress_future) override;
 
     /*! \brief Handles a request to manually calibrate the current input route. */
     void onInputCalibrationRequested() override;

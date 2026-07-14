@@ -26,6 +26,7 @@ constexpr const char* g_last_open_project_key{"lastOpenProject"};
 constexpr const char* g_interrupted_restore_project_key{"interruptedRestoreProject"};
 constexpr const char* g_waveform_visible_key{"waveformVisible"};
 constexpr const char* g_use_game_audio_settings_key{"useGameAudioSettings"};
+constexpr const char* g_suppress_game_audio_recommendation_key{"suppressGameAudioRecommendation"};
 constexpr const char* g_tab_minimum_displayed_strings_key{"tabMinimumDisplayedStrings"};
 
 // Builds the per-user settings file options used by the editor app.
@@ -276,7 +277,7 @@ std::expected<void, EditorSettingsError> EditorSettings::setWaveformVisible(bool
 }
 
 // Reads whether the editor sources the game's audio configuration instead of its own. Absence is
-// preserved so the composition root can apply the first-run default rather than a stored value.
+// preserved so useGameAudioSettingsOrDefault can apply the off default rather than a stored value.
 std::optional<bool> EditorSettings::useGameAudioSettings() const
 {
     if (!m_properties.containsKey(g_use_game_audio_settings_key))
@@ -292,6 +293,26 @@ std::expected<void, EditorSettingsError> EditorSettings::setUseGameAudioSettings
 {
     m_properties.setValue(g_use_game_audio_settings_key, enabled);
     return saveIfNeeded(m_properties, "Could not save use-game-audio-settings preference.");
+}
+
+// Reads whether the startup game-audio recommendation prompt is suppressed.
+std::optional<bool> EditorSettings::suppressGameAudioRecommendation() const
+{
+    if (!m_properties.containsKey(g_suppress_game_audio_recommendation_key))
+    {
+        return std::nullopt;
+    }
+
+    return m_properties.getBoolValue(g_suppress_game_audio_recommendation_key);
+}
+
+// Stores whether the startup game-audio recommendation prompt is suppressed.
+std::expected<void, EditorSettingsError> EditorSettings::setSuppressGameAudioRecommendation(
+    bool suppressed)
+{
+    m_properties.setValue(g_suppress_game_audio_recommendation_key, suppressed);
+    return saveIfNeeded(
+        m_properties, "Could not save game-audio recommendation suppression preference.");
 }
 
 // Reads the app-wide minimum number of tablature string lanes to display.

@@ -31,20 +31,21 @@ bool EditorAudioConfigStore::usingGameSource() const noexcept
     return m_game_store != nullptr;
 }
 
-bool EditorAudioConfigStore::gameSourceAvailable() const
+GameAudioSourceState EditorAudioConfigStore::gameSourceState() const
 {
     const std::unique_ptr<common::audio::AudioConfigStore> game_view = openGameView();
     const std::optional<common::audio::ActiveDeviceRoute> route = game_view->activeDeviceRoute();
     if (!route.has_value() || !route->identity.has_value())
     {
-        return false;
+        return GameAudioSourceState::NotConfigured;
     }
 
     const std::expected<
         std::optional<common::audio::InputCalibrationState>,
         common::audio::AudioConfigError>
         calibration = game_view->inputCalibrationFor(*route->identity);
-    return calibration.has_value() && calibration->has_value();
+    return calibration.has_value() && calibration->has_value() ? GameAudioSourceState::Available
+                                                               : GameAudioSourceState::Uncalibrated;
 }
 
 const common::audio::IAudioConfigStore& EditorAudioConfigStore::active() const noexcept

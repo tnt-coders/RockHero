@@ -145,14 +145,9 @@ public:
             std::make_unique<rock_hero::editor::core::EditorAudioConfigStore>(
                 m_editor_settings->audioConfigStore(), gameAudioConfigFile());
 
-        // First-run default is on: source the game's audio configuration when the toggle is on and a
-        // calibrated game route exists. Pre-selecting the source before the editor is constructed
-        // lets the controller's existing startup device-route restore adopt the game's route.
-        if (rock_hero::editor::core::useGameAudioSettingsOrDefault(*m_editor_settings) &&
-            m_editor_audio_config_store->gameSourceAvailable())
-        {
-            m_editor_audio_config_store->useGameSource(true);
-        }
+        // The controller resolves the "use game audio settings" toggle itself at startup
+        // (selecting the game source, or staging the unavailable/recommendation prompts) before it
+        // restores the device route, so composition only builds and injects the store.
 
         // The engine implements both ILiveInput and IAudioDeviceConfiguration; the store is the
         // swappable IAudioConfigStore& the shared monitor and the controller both read through.

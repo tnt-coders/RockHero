@@ -1,6 +1,7 @@
 #include "audio_device/audio_device_settings_view.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <expected>
 #include <functional>
 #include <optional>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
@@ -236,7 +237,7 @@ TEST_CASE(
     view.setGameAudioSettings(
         AudioDeviceSettingsView::GameAudioSettingsState{
             .use_game_settings = true,
-            .game_source_available = true,
+            .source_state = core::GameAudioSourceState::Available,
         });
 
     auto& input_device =
@@ -308,12 +309,16 @@ TEST_CASE(
     view.setGameAudioSettings(
         AudioDeviceSettingsView::GameAudioSettingsState{
             .use_game_settings = true,
-            .game_source_available = true,
+            .source_state = core::GameAudioSourceState::Available,
         });
 
     std::optional<bool> requested;
     view.setGameAudioSettingsChangedCallback(
-        [&](bool enabled, std::function<void(bool)>) { requested = enabled; });
+        [&](bool enabled,
+            std::function<void(bool)>) -> std::expected<void, core::GameAudioSourceError> {
+            requested = enabled;
+            return {};
+        });
 
     auto& toggle =
         findRequiredDirectChild<juce::ToggleButton>(view, "audio_settings_use_game_toggle");
@@ -346,12 +351,16 @@ TEST_CASE(
     view.setGameAudioSettings(
         AudioDeviceSettingsView::GameAudioSettingsState{
             .use_game_settings = false,
-            .game_source_available = true,
+            .source_state = core::GameAudioSourceState::Available,
         });
 
     std::optional<bool> requested;
     view.setGameAudioSettingsChangedCallback(
-        [&](bool enabled, std::function<void(bool)>) { requested = enabled; });
+        [&](bool enabled,
+            std::function<void(bool)>) -> std::expected<void, core::GameAudioSourceError> {
+            requested = enabled;
+            return {};
+        });
 
     auto& toggle =
         findRequiredDirectChild<juce::ToggleButton>(view, "audio_settings_use_game_toggle");
@@ -384,12 +393,16 @@ TEST_CASE(
     view.setGameAudioSettings(
         AudioDeviceSettingsView::GameAudioSettingsState{
             .use_game_settings = false,
-            .game_source_available = true,
+            .source_state = core::GameAudioSourceState::Available,
         });
 
     std::optional<bool> requested;
     view.setGameAudioSettingsChangedCallback(
-        [&](bool enabled, std::function<void(bool)>) { requested = enabled; });
+        [&](bool enabled,
+            std::function<void(bool)>) -> std::expected<void, core::GameAudioSourceError> {
+            requested = enabled;
+            return {};
+        });
 
     clickTextButton(view, "audio_settings_cancel_button");
 
@@ -397,10 +410,11 @@ TEST_CASE(
     CHECK_FALSE(requested.has_value());
 }
 
-// Toggle ON with an unconfigured game still locks the fields; unchecking the toggle is the one way
-// back to the editor's own audio and re-enables the fields and clears the tooltip.
+// Unchecking the toggle is the way back to the editor's own audio: it re-enables the fields and
+// clears the derived-from-game tooltip.
 TEST_CASE(
-    "AudioDeviceSettingsView locks fields with an unconfigured game", "[ui][audio-device-settings]")
+    "AudioDeviceSettingsView unlocks fields when the toggle is unchecked",
+    "[ui][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeAudioDeviceSettingsController controller;
@@ -410,7 +424,7 @@ TEST_CASE(
     view.setGameAudioSettings(
         AudioDeviceSettingsView::GameAudioSettingsState{
             .use_game_settings = true,
-            .game_source_available = false,
+            .source_state = core::GameAudioSourceState::Available,
         });
 
     auto& input_device =
@@ -425,7 +439,11 @@ TEST_CASE(
 
     std::optional<bool> requested;
     view.setGameAudioSettingsChangedCallback(
-        [&](bool enabled, std::function<void(bool)>) { requested = enabled; });
+        [&](bool enabled,
+            std::function<void(bool)>) -> std::expected<void, core::GameAudioSourceError> {
+            requested = enabled;
+            return {};
+        });
 
     // Unchecking the toggle drops locally into the editable device flow before the controller
     // round-trip and asks the host to restore the editor's own audio.
@@ -437,6 +455,38 @@ TEST_CASE(
     CHECK_FALSE(requested.value());
     CHECK(input_device.isEnabled());
     CHECK(input_device.getTooltip().isEmpty());
+}
+
+// With no game configuration at all the toggle disables with an explanatory tooltip — there is
+// nothing a click could adopt. An uncalibrated game keeps it clickable so the click can raise the
+// calibrate-in-game error instead.
+TEST_CASE(
+    "AudioDeviceSettingsView disables the toggle when no game settings exist",
+    "[ui][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeAudioDeviceSettingsController controller;
+    AudioDeviceSettingsView view{controller};
+    view.setState(splitDeviceState());
+
+    auto& toggle =
+        findRequiredDirectChild<juce::ToggleButton>(view, "audio_settings_use_game_toggle");
+
+    view.setGameAudioSettings(
+        AudioDeviceSettingsView::GameAudioSettingsState{
+            .use_game_settings = false,
+            .source_state = core::GameAudioSourceState::NotConfigured,
+        });
+    CHECK_FALSE(toggle.isEnabled());
+    CHECK(toggle.getTooltip() == "Game audio settings unavailable");
+
+    view.setGameAudioSettings(
+        AudioDeviceSettingsView::GameAudioSettingsState{
+            .use_game_settings = false,
+            .source_state = core::GameAudioSourceState::Uncalibrated,
+        });
+    CHECK(toggle.isEnabled());
+    CHECK(toggle.getTooltip().isEmpty());
 }
 
 // Toggle OFF keeps the full editable device flow and emits the toggle change to the host.
@@ -451,7 +501,7 @@ TEST_CASE(
     view.setGameAudioSettings(
         AudioDeviceSettingsView::GameAudioSettingsState{
             .use_game_settings = false,
-            .game_source_available = true,
+            .source_state = core::GameAudioSourceState::Available,
         });
 
     const auto& input_device =
@@ -460,7 +510,11 @@ TEST_CASE(
 
     std::optional<bool> requested;
     view.setGameAudioSettingsChangedCallback(
-        [&](bool enabled, std::function<void(bool)>) { requested = enabled; });
+        [&](bool enabled,
+            std::function<void(bool)>) -> std::expected<void, core::GameAudioSourceError> {
+            requested = enabled;
+            return {};
+        });
 
     // Drive the toggle deterministically: set the state, then invoke its handler as a real click
     // would, matching the file's direct-onClick pattern for buttons.

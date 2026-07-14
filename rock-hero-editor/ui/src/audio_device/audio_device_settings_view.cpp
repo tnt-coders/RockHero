@@ -1,6 +1,7 @@
 #include "audio_device_settings_view.h"
 
 #include <algorithm>
+#include <expected>
 #include <utility>
 
 namespace rock_hero::editor::ui
@@ -30,6 +31,9 @@ constexpr int g_toggle_box_width{28};
 // Hover text shown on the read-only device fields while the "use game audio settings" toggle is on,
 // explaining why they cannot be edited. Cleared when the editor owns its own audio route.
 constexpr const char* g_game_settings_tooltip{"Derived from game settings"};
+
+// Hover text on the disabled "use game audio settings" toggle when no game configuration exists.
+constexpr const char* g_game_unavailable_tooltip{"Game audio settings unavailable"};
 
 // Returns the vertical space occupied by a visible form row set.
 [[nodiscard]] int formRowsHeight(int row_count) noexcept
@@ -148,8 +152,8 @@ void AudioDeviceSettingsView::setGameAudioSettingsChangedCallback(
     m_on_use_game_settings_changed = std::move(callback);
 }
 
-// Applies the resolved toggle/availability state and re-scopes the panel between the read-only
-// game reflection and the editable editor-own device flow.
+// Applies the resolved toggle state and re-scopes the panel between the read-only game reflection
+// and the editable editor-own device flow.
 void AudioDeviceSettingsView::setGameAudioSettings(GameAudioSettingsState state)
 {
     // Capture the open-time toggle value once. The bridge pushes the initial state exactly once
@@ -177,26 +181,34 @@ void AudioDeviceSettingsView::restoreOriginalGameAudioSettings()
         return;
     }
 
-    // Mirror the toggle onClick local-update block, then notify the host so the source switch,
-    // persistence, and device re-open run through the same editor path the live toggle uses.
+    // Notify the host first so the source switch, persistence, and device re-open run through the
+    // same editor path the live toggle uses, then mirror the accepted value locally.
     m_game_settings.use_game_settings = m_original_use_game_settings;
-    applyGameAudioSettingsPresentation();
-    applyStateToControls();
-    syncWindowHeightToContent();
-    resized();
     if (m_on_use_game_settings_changed)
     {
         // Cancel-time restore: the window is already closing, so no applying presentation is
         // supplied and any device re-open runs inline. That also keeps the re-open out of the busy
         // workflow, whose next-operation token would otherwise supersede it when the cancel's own
         // staged-device rollback begins immediately afterwards.
-        m_on_use_game_settings_changed(m_original_use_game_settings, {});
+        const std::expected<void, core::GameAudioSourceError> restored =
+            m_on_use_game_settings_changed(m_original_use_game_settings, {});
+        if (!restored.has_value())
+        {
+            // The game's configuration regressed while the window was open, so the pre-open
+            // adopted state no longer exists to restore. Nothing was persisted on, so the editor
+            // stays truthfully on its own settings and the toggle lands off.
+            m_game_settings.use_game_settings = false;
+        }
     }
+    applyGameAudioSettingsPresentation();
+    applyStateToControls();
+    syncWindowHeightToContent();
+    resized();
 }
 
-// The toggle being on renders the device fields read-only whether or not a game config exists: an
-// unconfigured game still locks the fields and points the user at the opt-out rather than letting
-// them edit a route the toggle claims the game owns.
+// The toggle being on renders the device fields read-only. It can only be on while the game's
+// configuration is adopted — a declined enable never flips it — so the locked fields always
+// reflect a real game route.
 bool AudioDeviceSettingsView::gameSettingsLockActive() const noexcept
 {
     return m_game_settings.use_game_settings;
@@ -298,27 +310,44 @@ void AudioDeviceSettingsView::configureControls()
     // The label is presentation only; let clicks on the text fall through so they never toggle.
     m_use_game_settings_label.setInterceptsMouseClicks(false, false);
     m_use_game_settings_toggle.onClick = [this] {
-        // Update the local read-only presentation immediately so the panel reflects the flip without
-        // waiting for the controller round-trip, then notify the host to drive the source switch.
-        m_game_settings.use_game_settings = m_use_game_settings_toggle.getToggleState();
-        applyGameAudioSettingsPresentation();
-        applyStateToControls();
-        syncWindowHeightToContent();
-        resized();
+        const bool requested = m_use_game_settings_toggle.getToggleState();
         if (m_on_use_game_settings_changed)
         {
             // Interactive flip: hand the host this view's applying presentation (bound to
             // setApplying) so a flip that needs a blocking device re-open hides the dialog exactly
             // like the OK/Cancel apply path; an instant same-device flip never invokes it.
             const juce::Component::SafePointer<AudioDeviceSettingsView> safe_this{this};
-            m_on_use_game_settings_changed(
-                m_game_settings.use_game_settings, [safe_this](bool applying) {
+            const std::expected<void, core::GameAudioSourceError> applied =
+                m_on_use_game_settings_changed(requested, [safe_this](bool applying) {
                     if (auto* view = safe_this.getComponent())
                     {
                         view->setApplying(applying);
                     }
                 });
+            if (!applied.has_value())
+            {
+                // Declined enable: nothing was persisted or switched, so the checkbox snaps back
+                // and the canonical reason is reported right at the gesture.
+                m_use_game_settings_toggle.setToggleState(false, juce::dontSendNotification);
+                juce::NativeMessageBox::showAsync(
+                    juce::MessageBoxOptions()
+                        .withIconType(juce::MessageBoxIconType::WarningIcon)
+                        .withTitle("Game audio settings unavailable")
+                        .withMessage(juce::String::fromUTF8(applied.error().message.c_str()))
+                        .withButton("OK")
+                        .withAssociatedComponent(this),
+                    nullptr);
+                return;
+            }
         }
+
+        // Mirror the accepted flip locally so the panel re-scopes without waiting for a controller
+        // round-trip.
+        m_game_settings.use_game_settings = requested;
+        applyGameAudioSettingsPresentation();
+        applyStateToControls();
+        syncWindowHeightToContent();
+        resized();
     };
 
     m_device_type_label.setText("Audio system", juce::dontSendNotification);
@@ -505,9 +534,16 @@ void AudioDeviceSettingsView::applyStateToControls()
     m_ok_button.setEnabled(!m_applying && (m_state.ok_enabled || gameSettingsLockActive()));
     // Cancel closes the window in either source mode, so it follows only the apply fence, not the
     // read-only game lock. The toggle stays usable while locked so the user can always uncheck it to
-    // switch back to the editor's own audio.
+    // switch back to the editor's own audio. With no game configuration at all (NotConfigured, read
+    // fresh at window open) the toggle disables with an explanatory tooltip instead — there is
+    // nothing a click could adopt; an uncalibrated game keeps it clickable so the click can report
+    // the calibrate-in-game reason.
     m_cancel_button.setEnabled(!m_applying);
-    m_use_game_settings_toggle.setEnabled(!m_applying);
+    const bool game_source_configured =
+        m_game_settings.source_state != core::GameAudioSourceState::NotConfigured;
+    m_use_game_settings_toggle.setEnabled(!m_applying && game_source_configured);
+    m_use_game_settings_toggle.setTooltip(
+        game_source_configured ? juce::String{} : g_game_unavailable_tooltip);
 
     // While the game source is active the locked device fields carry a hover tooltip explaining why
     // they cannot be edited; the tooltip is cleared when the editor owns its own audio route.

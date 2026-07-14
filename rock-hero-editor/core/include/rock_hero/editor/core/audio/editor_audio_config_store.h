@@ -15,6 +15,7 @@
 #include <rock_hero/common/audio/settings/audio_config_error.h>
 #include <rock_hero/common/audio/settings/audio_config_store.h>
 #include <rock_hero/common/audio/settings/i_audio_config_store.h>
+#include <rock_hero/editor/core/audio/game_audio_source_state.h>
 #include <rock_hero/editor/core/settings/i_editor_settings.h>
 
 namespace rock_hero::editor::core
@@ -31,7 +32,7 @@ tried to persist while the UI should be treating the game's configuration as rea
 
 Freshness is real, not nominal: juce::PropertiesFile parses its file once at construction and serves
 getters from memory, so the store reconstructs the read-only game view on each useGameSource(true)
-and each gameSourceAvailable() check. This is a one-shot fresh read at those moments, deliberately
+and each gameSourceState() check. This is a one-shot fresh read at those moments, deliberately
 not a live file watch.
 */
 class EditorAudioConfigStore final : public common::audio::IAudioConfigStore
@@ -79,14 +80,15 @@ public:
     /*!
     \brief Reports whether the game's config can be adopted, from a freshly read game view.
 
-    Availability is calibration-aware, not device-presence: it requires the game's stored active
-    route to name a resolved input identity AND a matching calibration to exist for exactly that
-    route, so a game that recorded a device but never calibrated it does not arm a silent, locked,
-    dead source.
+    Availability is calibration-aware, not device-presence: Available requires the game's stored
+    active route to name a resolved input identity AND a matching calibration to exist for exactly
+    that route, so a game that recorded a device but never calibrated it does not arm a silent,
+    locked, dead source. The two non-Available states are distinct so callers can tell the user
+    whether to set up audio in the game (NotConfigured) or calibrate there (Uncalibrated).
 
-    \return True when the game's active route has a resolved identity with a matching calibration.
+    \return Adoption-readiness of the game's audio configuration.
     */
-    [[nodiscard]] bool gameSourceAvailable() const;
+    [[nodiscard]] GameAudioSourceState gameSourceState() const;
 
     /*!
     \brief Reads the active device route from the active source.
@@ -162,18 +164,20 @@ private:
 };
 
 /*!
-\brief Resolves the "use game audio settings" toggle, defaulting to on at first run.
+\brief Resolves the "use game audio settings" toggle, defaulting to off.
 
-The persisted toggle is absent until the user first flips it; an absent value resolves to on so a
-fresh editor adopts the game's audio configuration by default, while a written value (on or off) is
-authoritative on every later launch.
+The persisted toggle is absent until the user first chooses; an absent value resolves to off, so
+adopting the game's audio configuration always reflects an explicit choice (the startup
+recommendation prompt or the settings-window checkbox). A persisted on means adoption actually
+succeeded: whenever on cannot be honored the editor reports why, writes off, and falls back to its
+own settings, so on-but-broken is never a standing state.
 
 \param settings Editor settings holding the persisted toggle.
 \return True when the editor should source the game's audio configuration.
 */
 [[nodiscard]] inline bool useGameAudioSettingsOrDefault(const IEditorSettings& settings)
 {
-    return settings.useGameAudioSettings().value_or(true);
+    return settings.useGameAudioSettings().value_or(false);
 }
 
 } // namespace rock_hero::editor::core

@@ -105,31 +105,31 @@ void writeGameConfig(
 } // namespace
 
 TEST_CASE(
-    "EditorAudioConfigStore reports availability from a calibrated game route",
+    "EditorAudioConfigStore reports the three-state readiness of the game source",
     "[core][audio][editor-config-store]")
 {
     const ScopedGameFile game_file{"editor_config_available.settings"};
     common::audio::testing::InMemoryAudioConfigStore own_store;
     EditorAudioConfigStore store{own_store, game_file.path()};
 
-    SECTION("no game file is unavailable")
+    SECTION("no game file reads as not configured")
     {
-        CHECK_FALSE(store.gameSourceAvailable());
+        CHECK(store.gameSourceState() == GameAudioSourceState::NotConfigured);
     }
 
-    SECTION("a route without a matching calibration is unavailable")
+    SECTION("a route without a matching calibration reads as uncalibrated")
     {
         writeGameConfig(game_file.path(), routeFor("game-blob", guitarIdentity()), false);
-        CHECK_FALSE(store.gameSourceAvailable());
+        CHECK(store.gameSourceState() == GameAudioSourceState::Uncalibrated);
     }
 
     SECTION("a calibrated route is available")
     {
         writeGameConfig(game_file.path(), routeFor("game-blob", guitarIdentity()), true);
-        CHECK(store.gameSourceAvailable());
+        CHECK(store.gameSourceState() == GameAudioSourceState::Available);
     }
 
-    // Availability checks read through a throwaway view, so they must not flip the active source.
+    // Readiness checks read through a throwaway view, so they must not flip the active source.
     CHECK_FALSE(store.usingGameSource());
 }
 

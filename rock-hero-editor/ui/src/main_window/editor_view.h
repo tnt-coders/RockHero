@@ -223,6 +223,14 @@ private:
     void presentRestoreInterruptedPromptIfNeeded(
         const std::optional<core::RestoreInterruptedPrompt>& prompt);
 
+    // Presents the startup unavailable-game-audio notice once per prompt request, opening the
+    // audio device settings window on dismissal.
+    void presentGameAudioUnavailablePromptIfNeeded(
+        const std::optional<core::GameAudioUnavailablePrompt>& prompt);
+
+    // Opens or releases the startup game-audio recommendation dialog from controller state.
+    void presentGameAudioRecommendationIfNeeded(bool prompt_requested);
+
     // Presents or closes the input calibration prompt from controller state.
     void presentInputCalibrationPromptIfNeeded(
         const std::optional<core::InputCalibrationPrompt>& prompt);
@@ -494,6 +502,12 @@ private:
 
     // Last restore-interrupted prompt shown to avoid re-opening dialogs on repeated pushes.
     std::optional<core::RestoreInterruptedPrompt> m_last_presented_restore_interrupted_prompt{};
+
+    // Last unavailable-game-audio notice shown to avoid re-opening dialogs on repeated pushes.
+    std::optional<core::GameAudioUnavailablePrompt> m_last_game_audio_unavailable_prompt{};
+
+    // Startup game-audio recommendation dialog; open exactly while the controller requests it.
+    std::unique_ptr<juce::DocumentWindow> m_game_audio_recommendation_window;
 
     // True after the editor has made its one startup focus request.
     bool m_has_requested_initial_keyboard_focus{false};

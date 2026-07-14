@@ -390,12 +390,47 @@ public:
     \brief Records "use game audio settings" toggle changes emitted by the settings window.
     \param enabled Requested toggle value.
     \param set_applying Unused; the fake performs no device work to present through it.
+    \return Success, or the scripted decline installed via use_game_audio_settings_error.
     */
-    void onUseGameAudioSettingsChangeRequested(
+    [[nodiscard]] std::expected<void, GameAudioSourceError> onUseGameAudioSettingsChangeRequested(
         bool enabled, std::function<void(bool)> /*set_applying*/) override
     {
         last_use_game_audio_settings = enabled;
         use_game_audio_settings_change_count += 1;
+        if (enabled && use_game_audio_settings_error.has_value())
+        {
+            return std::unexpected{GameAudioSourceError{*use_game_audio_settings_error}};
+        }
+
+        return {};
+    }
+
+    /*!
+    \brief Reports the scripted game-audio source state.
+    \return Value of game_audio_source_state, defaulting to Available so toggle tests stay live.
+    */
+    [[nodiscard]] GameAudioSourceState gameAudioSourceState() const override
+    {
+        return game_audio_source_state;
+    }
+
+    /*! \brief Counts dismissals of the startup unavailable-game-audio notice. */
+    void onGameAudioUnavailablePromptDismissed() override
+    {
+        game_audio_unavailable_prompt_dismissed_count += 1;
+    }
+
+    /*!
+    \brief Records decisions emitted by the startup game-audio recommendation dialog.
+    \param decision User-selected recommendation decision.
+    \param suppress_future Checkbox value reported with the decision.
+    */
+    void onGameAudioRecommendationDecision(
+        GameAudioRecommendationDecision decision, bool suppress_future) override
+    {
+        last_game_audio_recommendation_decision = decision;
+        last_game_audio_recommendation_suppress = suppress_future;
+        game_audio_recommendation_decision_count += 1;
     }
 
     /*! \brief Counts manual input calibration requests emitted by the signal-chain panel. */
@@ -745,6 +780,24 @@ public:
 
     /*! \brief Number of use-game-audio-settings toggle changes received. */
     int use_game_audio_settings_change_count{0};
+
+    /*! \brief When set, enable requests are declined with this reason (disable always succeeds). */
+    std::optional<GameAudioSourceErrorCode> use_game_audio_settings_error{};
+
+    /*! \brief Game-audio source state reported to the settings window at open. */
+    GameAudioSourceState game_audio_source_state{GameAudioSourceState::Available};
+
+    /*! \brief Number of unavailable-game-audio notice dismissals received. */
+    int game_audio_unavailable_prompt_dismissed_count{0};
+
+    /*! \brief Last decision received from the game-audio recommendation dialog. */
+    std::optional<GameAudioRecommendationDecision> last_game_audio_recommendation_decision{};
+
+    /*! \brief Last suppress-future checkbox value received with a recommendation decision. */
+    std::optional<bool> last_game_audio_recommendation_suppress{};
+
+    /*! \brief Number of recommendation decisions received. */
+    int game_audio_recommendation_decision_count{0};
 
     /*! \brief Number of input calibration intents received. */
     int input_calibration_request_count{0};

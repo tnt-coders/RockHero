@@ -896,10 +896,26 @@ void EditorController::onOpenPluginRequested(std::string instance_id)
     m_impl->onOpenPluginRequested(std::move(instance_id));
 }
 
-void EditorController::onUseGameAudioSettingsChangeRequested(
+std::expected<void, GameAudioSourceError> EditorController::onUseGameAudioSettingsChangeRequested(
     bool enabled, std::function<void(bool)> set_applying)
 {
-    m_impl->onUseGameAudioSettingsChangeRequested(enabled, std::move(set_applying));
+    return m_impl->onUseGameAudioSettingsChangeRequested(enabled, std::move(set_applying));
+}
+
+GameAudioSourceState EditorController::gameAudioSourceState() const
+{
+    return m_impl->gameAudioSourceState();
+}
+
+void EditorController::onGameAudioUnavailablePromptDismissed()
+{
+    m_impl->onGameAudioUnavailablePromptDismissed();
+}
+
+void EditorController::onGameAudioRecommendationDecision(
+    GameAudioRecommendationDecision decision, bool suppress_future)
+{
+    m_impl->onGameAudioRecommendationDecision(decision, suppress_future);
 }
 
 void EditorController::onInputCalibrationRequested()
@@ -1050,6 +1066,7 @@ EditorController::Impl::Impl(
                 onPluginStateEditCompleted(std::move(edit));
             },
         });
+    resolveGameAudioSourceAtStartup();
     restoreAudioDeviceState();
     m_waveform_visible = m_settings.waveformVisible().value_or(true);
     m_tab_minimum_displayed_strings = std::clamp(
@@ -1059,7 +1076,6 @@ EditorController::Impl::Impl(
         common::audio::IAudioDeviceConfiguration,
         common::audio::IAudioDeviceConfiguration::Listener>>(m_audio_devices, self_as_listener);
     static_cast<void>(m_live_input_monitor.refresh(monitoringContext()));
-    refreshGameSourceAvailability();
     m_last_state = deriveViewState();
 }
 
@@ -1452,9 +1468,6 @@ bool EditorController::Impl::onAudioDeviceSettingsOpenRequested()
     }
 
     m_live_input_monitor.openAudioDeviceSettings();
-    // Refresh availability so the panel that is about to open distinguishes the read-only game
-    // reflection from the unconfigured-game guidance against the game's current file state.
-    refreshGameSourceAvailability();
     updateView();
     return true;
 }
@@ -1466,31 +1479,50 @@ void EditorController::Impl::onAudioDeviceSettingsClosed()
     updateView();
 }
 
-// Persists the "use game audio settings" toggle, then re-selects the store's active source and
-// re-applies the resulting route to the editor engine. This is the toggle side-effect the plan 48
-// "Separate State From Side Effects" split keeps in the controller: the source flip is pure state on
-// the store; adopting the game's (on) or restoring the editor's own (off) serialized device state is
-// the message-thread side effect that lives here. Enabling with no calibrated game configuration
-// still persists the choice but leaves the editor on its own route so the user is never stranded on
-// a dead source. While the game source is active its store view is read-only, so any device-route
-// persist attempt fails loudly rather than silently landing in the editor's own store.
-void EditorController::Impl::refreshGameSourceAvailability()
+namespace
 {
-    m_game_source_available = m_editor_audio_config_store != nullptr &&
-                              m_editor_audio_config_store->gameSourceAvailable();
+
+// Maps a non-adoptable game-audio source state onto its typed error carrying the canonical
+// user-facing message every reporting surface shares.
+[[nodiscard]] GameAudioSourceError gameAudioSourceErrorFor(GameAudioSourceState state)
+{
+    return GameAudioSourceError{
+        state == GameAudioSourceState::Uncalibrated ? GameAudioSourceErrorCode::Uncalibrated
+                                                    : GameAudioSourceErrorCode::NotConfigured
+    };
 }
 
-void EditorController::Impl::onUseGameAudioSettingsChangeRequested(
-    bool enabled, std::function<void(bool)> set_applying)
+} // namespace
+
+// Applies a "use game audio settings" toggle change, then re-applies the resulting route to the
+// editor engine. This is the toggle side-effect the plan 48 "Separate State From Side Effects"
+// split keeps in the controller: the source flip is pure state on the store; adopting the game's
+// (on) or restoring the editor's own (off) serialized device state is the message-thread side
+// effect that lives here. Enabling is gated on a fresh read of the game's configuration: when it is
+// not adoptable the request is declined with the typed reason and nothing is persisted or flipped,
+// so a persisted on always means adoption succeeded. While the game source is active its store view
+// is read-only, so any device-route persist attempt fails loudly rather than silently landing in
+// the editor's own store.
+std::expected<void, GameAudioSourceError> EditorController::Impl::
+    onUseGameAudioSettingsChangeRequested(bool enabled, std::function<void(bool)> set_applying)
 {
+    if (enabled)
+    {
+        const GameAudioSourceState source_state =
+            m_editor_audio_config_store != nullptr ? m_editor_audio_config_store->gameSourceState()
+                                                   : GameAudioSourceState::NotConfigured;
+        if (source_state != GameAudioSourceState::Available)
+        {
+            return std::unexpected{gameAudioSourceErrorFor(source_state)};
+        }
+    }
+
     recordSettingsResultBestEffort(
         m_settings.setUseGameAudioSettings(enabled), "persist use-game-audio-settings toggle");
 
     if (m_editor_audio_config_store != nullptr)
     {
-        refreshGameSourceAvailability();
-        const bool source_game = enabled && m_game_source_available;
-        m_editor_audio_config_store->useGameSource(source_game);
+        m_editor_audio_config_store->useGameSource(enabled);
 
         // Decide instant-vs-overlay before touching the device, using the now-active route. When the
         // resolved route already matches the open device (e.g. the game route was imported from this
@@ -1519,7 +1551,7 @@ void EditorController::Impl::onUseGameAudioSettingsChangeRequested(
                     static_cast<void>(m_live_input_monitor.refresh(monitoringContext()));
                 },
                 [set_applying] { set_applying(false); });
-            return;
+            return {};
         }
 
         // Same-device flips apply instantly. A required re-open with no applying presentation (the
@@ -1528,6 +1560,74 @@ void EditorController::Impl::onUseGameAudioSettingsChangeRequested(
         // token and drop the re-open.
         restoreAudioDeviceState();
         static_cast<void>(m_live_input_monitor.refresh(monitoringContext()));
+    }
+
+    updateView();
+    return {};
+}
+
+// Fresh one-shot read of the game's adoption-readiness, queried by the settings window at open so
+// it can disable the toggle when no game configuration exists. Degenerate no-store compositions
+// (tests without the toggle wired) read as not configured, matching the toggle handler's decline.
+GameAudioSourceState EditorController::Impl::gameAudioSourceState() const
+{
+    return m_editor_audio_config_store != nullptr ? m_editor_audio_config_store->gameSourceState()
+                                                  : GameAudioSourceState::NotConfigured;
+}
+
+// Clears the startup unavailable-game notice once the view has shown it. The view follows the
+// dismissal by opening the audio device settings window, landing the user directly in the editable
+// editor-own flow the fallback selected.
+void EditorController::Impl::onGameAudioUnavailablePromptDismissed()
+{
+    m_game_audio_unavailable_prompt.reset();
+    updateView();
+}
+
+// Applies the user's answer to the startup game-audio recommendation prompt. The suppression
+// checkbox is honored on every close path — including Dismissed — because suppressing future
+// recommendations is meaningful regardless of today's answer.
+void EditorController::Impl::onGameAudioRecommendationDecision(
+    GameAudioRecommendationDecision decision, bool suppress_future)
+{
+    m_game_audio_recommendation_prompt = false;
+    if (suppress_future)
+    {
+        recordSettingsResultBestEffort(
+            m_settings.setSuppressGameAudioRecommendation(true),
+            "persist game-audio recommendation suppression");
+    }
+
+    switch (decision)
+    {
+        case GameAudioRecommendationDecision::UseGameSettings:
+        {
+            // Same attempt logic as the settings-window checkbox. The prompt is only staged when
+            // adoption can succeed, but the game's file may have changed while the prompt was up;
+            // a mid-prompt regression falls back to the unavailable-game notice rather than
+            // failing silently. The no-op applying presentation routes a genuine device re-open
+            // through the busy overlay so the blocking open paints "Opening audio device..."
+            // first.
+            std::expected<void, GameAudioSourceError> adopted =
+                onUseGameAudioSettingsChangeRequested(true, [](bool) {});
+            if (!adopted.has_value())
+            {
+                m_game_audio_unavailable_prompt =
+                    GameAudioUnavailablePrompt{std::move(adopted.error())};
+            }
+            break;
+        }
+        case GameAudioRecommendationDecision::UseCustomSettings:
+        {
+            recordSettingsResultBestEffort(
+                m_settings.setUseGameAudioSettings(false),
+                "persist use-game-audio-settings toggle");
+            break;
+        }
+        case GameAudioRecommendationDecision::Dismissed:
+        {
+            break;
+        }
     }
 
     updateView();
@@ -2064,7 +2164,8 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.audio_device_settings_enabled = input_calibration.audio_device_settings_enabled;
     state.audio_device_status_text = audioDeviceStatusText(m_audio_devices.currentDeviceStatus());
     state.use_game_audio_settings = useGameAudioSettingsOrDefault(m_settings);
-    state.game_audio_source_available = m_game_source_available;
+    state.game_audio_unavailable_prompt = m_game_audio_unavailable_prompt;
+    state.game_audio_recommendation_prompt = m_game_audio_recommendation_prompt;
     state.visible_timeline = timeline_range;
     state.tempo_map = session().song().tempo_map;
     state.grid_note_value = m_grid_note_value;
@@ -2159,6 +2260,52 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.busy = m_busy.viewState();
 
     return state;
+}
+
+// Resolves the "use game audio settings" toggle at startup, before the device-route restore reads
+// through the store (plan 48 amended ruleset). Every branch works off a fresh read of the game's
+// file at this moment; at most one startup prompt can be staged because the branches are keyed on
+// the toggle.
+void EditorController::Impl::resolveGameAudioSourceAtStartup()
+{
+    if (m_editor_audio_config_store == nullptr)
+    {
+        return;
+    }
+
+    if (useGameAudioSettingsOrDefault(m_settings))
+    {
+        const GameAudioSourceState source_state = m_editor_audio_config_store->gameSourceState();
+        if (source_state == GameAudioSourceState::Available)
+        {
+            // Select the game source now so the constructor's restoreAudioDeviceState() adopts
+            // the game's route.
+            m_editor_audio_config_store->useGameSource(true);
+            return;
+        }
+
+        // The game's configuration regressed after a successful adoption (a persisted on is only
+        // ever written when adoption succeeded). Fail loudly once and fall back: write the toggle
+        // off, stay on the editor's own route, and stage the notice the view presents and follows
+        // with the device settings window.
+        recordSettingsResultBestEffort(
+            m_settings.setUseGameAudioSettings(false), "persist use-game-audio-settings toggle");
+        m_game_audio_unavailable_prompt =
+            GameAudioUnavailablePrompt{gameAudioSourceErrorFor(source_state)};
+        return;
+    }
+
+    // Suppression is checked before the availability read so a suppressed recommendation never
+    // reopens the game's settings file at startup.
+    if (m_settings.suppressGameAudioRecommendation().value_or(false))
+    {
+        return;
+    }
+
+    if (m_editor_audio_config_store->gameSourceState() == GameAudioSourceState::Available)
+    {
+        m_game_audio_recommendation_prompt = true;
+    }
 }
 
 // Applies the active device route stored by a previous editor session, if any. The route's resolved
