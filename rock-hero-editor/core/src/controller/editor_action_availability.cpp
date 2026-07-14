@@ -31,6 +31,11 @@ namespace
         case EditorAction::Id::CreateNewTone:
         case EditorAction::Id::SetToneAutomationPoints:
         case EditorAction::Id::SelectArrangement:
+        // Tone-document actions replace or persist the signal chain the calibration prompt owns.
+        case EditorAction::Id::NewToneDocument:
+        case EditorAction::Id::OpenToneFile:
+        case EditorAction::Id::SaveToneFile:
+        case EditorAction::Id::SaveToneFileAs:
         {
             return true;
         }
@@ -109,6 +114,11 @@ namespace
             case EditorAction::Id::SetSignalChainPlacement:
             case EditorAction::Id::SetPluginDisplayTypeOverride:
             case EditorAction::Id::OpenPlugin:
+            // A faulted session implies a project; the designer is never active alongside one.
+            case EditorAction::Id::NewToneDocument:
+            case EditorAction::Id::OpenToneFile:
+            case EditorAction::Id::SaveToneFile:
+            case EditorAction::Id::SaveToneFileAs:
             {
                 return false;
             }
@@ -153,11 +163,14 @@ namespace
         }
         case EditorAction::Id::Undo:
         {
-            return conditions.has_project && conditions.undo_available;
+            // The designer session owns its own history, so undo works there like in a project.
+            return (conditions.has_project || conditions.tone_designer_active) &&
+                   conditions.undo_available;
         }
         case EditorAction::Id::Redo:
         {
-            return conditions.has_project && conditions.redo_available;
+            return (conditions.has_project || conditions.tone_designer_active) &&
+                   conditions.redo_available;
         }
         case EditorAction::Id::PlayPause:
         case EditorAction::Id::SeekTimeline:
@@ -181,17 +194,20 @@ namespace
         case EditorAction::Id::ShowPluginBrowser:
         case EditorAction::Id::BeginPluginInsert:
         {
-            return conditions.has_loaded_arrangement && conditions.live_input_audition_available &&
+            return (conditions.has_loaded_arrangement || conditions.tone_designer_active) &&
+                   conditions.live_input_audition_available &&
                    conditions.has_plugin_insert_capacity;
         }
         case EditorAction::Id::ScanPluginCatalog:
         {
-            return conditions.has_loaded_arrangement && conditions.live_input_audition_available;
+            return (conditions.has_loaded_arrangement || conditions.tone_designer_active) &&
+                   conditions.live_input_audition_available;
         }
         case EditorAction::Id::InsertSelectedPlugin:
         {
-            return conditions.has_loaded_arrangement && conditions.live_input_audition_available &&
-                   conditions.has_plugin_candidates && conditions.has_plugin_insert_capacity;
+            return (conditions.has_loaded_arrangement || conditions.tone_designer_active) &&
+                   conditions.live_input_audition_available && conditions.has_plugin_candidates &&
+                   conditions.has_plugin_insert_capacity;
         }
         case EditorAction::Id::RemovePlugin:
         case EditorAction::Id::MovePlugin:
@@ -199,8 +215,15 @@ namespace
         case EditorAction::Id::SetPluginDisplayTypeOverride:
         case EditorAction::Id::OpenPlugin:
         {
-            return conditions.has_loaded_arrangement && conditions.live_input_audition_available &&
-                   conditions.has_loaded_plugins;
+            return (conditions.has_loaded_arrangement || conditions.tone_designer_active) &&
+                   conditions.live_input_audition_available && conditions.has_loaded_plugins;
+        }
+        case EditorAction::Id::NewToneDocument:
+        case EditorAction::Id::OpenToneFile:
+        case EditorAction::Id::SaveToneFile:
+        case EditorAction::Id::SaveToneFileAs:
+        {
+            return conditions.tone_designer_active;
         }
     }
 
@@ -252,6 +275,10 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::SetSignalChainPlacement:
         case EditorAction::Id::SetPluginDisplayTypeOverride:
         case EditorAction::Id::OpenPlugin:
+        case EditorAction::Id::NewToneDocument:
+        case EditorAction::Id::OpenToneFile:
+        case EditorAction::Id::SaveToneFile:
+        case EditorAction::Id::SaveToneFileAs:
         {
             return false;
         }

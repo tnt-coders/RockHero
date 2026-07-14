@@ -84,6 +84,32 @@ public:
         save_as_cancel_count += 1;
     }
 
+    /*! \brief Counts New Tone command dispatches. */
+    void onNewToneRequested() override
+    {
+        new_tone_request_count += 1;
+    }
+
+    /*! \brief Captures the tone file selected by the Open Tone command. */
+    void onOpenToneFileRequested(std::filesystem::path file) override
+    {
+        last_open_tone_file = std::move(file);
+        open_tone_request_count += 1;
+    }
+
+    /*! \brief Counts Save Tone command dispatches. */
+    void onSaveToneRequested() override
+    {
+        save_tone_request_count += 1;
+    }
+
+    /*! \brief Captures the destination selected by the Save Tone As command. */
+    void onSaveToneAsRequested(std::filesystem::path file) override
+    {
+        last_save_tone_as_file = std::move(file);
+        save_tone_as_request_count += 1;
+    }
+
     /*! \brief Counts busy-operation cancellation notifications. */
     void onBusyCancelRequested() override
     {
@@ -699,6 +725,24 @@ public:
 
     /*! \brief Number of Save As cancellation intents received. */
     int save_as_cancel_count{0};
+
+    /*! \brief Number of New Tone intents received. */
+    int new_tone_request_count{0};
+
+    /*! \brief Last tone file requested to open. */
+    std::filesystem::path last_open_tone_file{};
+
+    /*! \brief Number of Open Tone intents received. */
+    int open_tone_request_count{0};
+
+    /*! \brief Number of Save Tone intents received. */
+    int save_tone_request_count{0};
+
+    /*! \brief Last tone file destination requested by Save Tone As. */
+    std::filesystem::path last_save_tone_as_file{};
+
+    /*! \brief Number of Save Tone As intents received. */
+    int save_tone_as_request_count{0};
 
     /*! \brief Number of busy-operation cancellation intents received. */
     int busy_cancel_request_count{0};

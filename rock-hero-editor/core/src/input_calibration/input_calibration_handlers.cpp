@@ -18,7 +18,10 @@ common::audio::LiveInputMonitoringContext EditorController::Impl::monitoringCont
 {
     return common::audio::LiveInputMonitoringContext{
         .live_input_ready = m_audio_devices.currentInputDeviceIdentity().has_value(),
-        .arrangement_loaded = m_project_audio_ready && hasLoadedArrangement(),
+        // The Tone Designer's resting rig is session-ready the moment it stands up: monitoring
+        // through it is the designer's whole purpose, and no project audio needs preparing.
+        .arrangement_loaded =
+            (m_project_audio_ready && hasLoadedArrangement()) || m_tone_designer.active,
     };
 }
 
