@@ -4,6 +4,7 @@
 #include <functional>
 #include <optional>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
+#include <string>
 
 namespace rock_hero::editor::ui
 {
@@ -199,7 +200,7 @@ TEST_CASE("AudioDeviceSettingsView presents an unavailable device", "[ui][audio-
     AudioDeviceSettingsView view{controller};
 
     auto state = splitDeviceState();
-    state.staged_device_unavailable = true;
+    state.staged_device_error = std::string{"Can't detect asio channels"};
     view.setState(state);
 
     auto& control_panel =
@@ -210,17 +211,23 @@ TEST_CASE("AudioDeviceSettingsView presents an unavailable device", "[ui][audio-
     CHECK_FALSE(control_panel.isEnabled());
     CHECK(
         control_panel.getTooltip() ==
-        "The selected device is unavailable (not connected or in use by another application)");
+        "The selected audio device is unavailable: Can't detect asio channels");
     // A transient operation error is the more specific diagnostic and wins the label.
     CHECK(error_label.getText() == "Could not open Output B");
 
     state.error_message.clear();
     view.setState(state);
 
-    // With no operation error active, the label carries the standing unavailable notice.
+    // With no operation error active, the label carries the standing unavailable notice, composed
+    // from the base text plus the backend's own detail.
     CHECK(
         error_label.getText() ==
-        "The selected device is unavailable (not connected or in use by another application)");
+        "The selected audio device is unavailable: Can't detect asio channels");
+
+    // A backend that supplied no usable detail presents the base message alone.
+    state.staged_device_error = std::string{};
+    view.setState(state);
+    CHECK(error_label.getText() == "The selected audio device is unavailable");
 }
 
 // Toggle ON with an available game config renders the device fields read-only, disabled, and
