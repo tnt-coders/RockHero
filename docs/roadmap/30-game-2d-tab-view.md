@@ -29,6 +29,13 @@ gains a display-mode selector mirroring the game's three modes.
 - No replacement of the editor timeline's tab lane: `TabView` stays a live JUCE component inside
   the composited timeline (its paint delegates to the shared core; its hosting, compositing, and
   API do not move).
+- No waveform in the shared core or the game view (user-confirmed 2026-07-12): the waveform is an
+  editor-only timeline layer that the editor composites *behind* the tab notation. The Phase 2
+  extraction moves only `tab_view.cpp`'s notation drawers into the shared paint core; waveform
+  rendering stays in `editor/ui` and never enters `common/ui`, so the game 2D view is
+  notation-only. This is a natural simplification, not a constraint to engineer around — the
+  waveform already lives in a separate editor layer, so excluding it is the default, and it keeps
+  the shared core free of any audio-thumbnail dependency the game would otherwise carry.
 - No navigation, session, or run-integrity changes — the shared-navigation decision
   (docs/roadmap/28-practice-mode.md §7) already makes those display-agnostic; this plan swaps
   presentation only.
