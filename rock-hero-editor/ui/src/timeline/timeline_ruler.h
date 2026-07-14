@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <compare>
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <optional>
@@ -27,12 +28,47 @@ those band constants.
 inline constexpr int g_timeline_ruler_height{53};
 
 /*!
+\brief One chord or arpeggio hand-shape name shown at the shape's span start.
+
+Tab-projection data, not ruler data: the tablature lane's shape spans own the names, and the
+ruler merely renders them in its bottom band — exactly as the tempo and signature bands render
+tempo-map data — because that band is the only pinned surface directly above the lane's rails.
+*/
+struct RulerShapeLabel
+{
+    /*! \brief Absolute timeline second of the span start the chip anchors to. */
+    double seconds{0.0};
+
+    /*! \brief Template display name; never empty (unnamed shapes get no chip). */
+    juce::String name;
+
+    /*! \brief True for arpeggio spans (purple chip); false for chord spans (blue chip). */
+    bool arpeggio{false};
+
+    /*!
+    \brief Compares two shape labels by their stored values.
+    \param lhs Left-hand label.
+    \param rhs Right-hand label.
+    \return True when both labels store equal values.
+    */
+    friend bool operator==(const RulerShapeLabel& lhs, const RulerShapeLabel& rhs)
+    {
+        // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on
+        // the floating member. Exact equality is intended; the ordering query expresses it
+        // warning-free with identical semantics (NaN compares unequal either way).
+        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.name == rhs.name &&
+               lhs.arpeggio == rhs.arpeggio;
+    }
+};
+
+/*!
 \brief Draws the pinned bars-and-beats ruler above the scrollable timeline content.
 
 The ruler stays fixed while the timeline content scrolls under it: callers push the current view
 geometry and the shared visible-span grid lines, and the ruler renders measure numbers, beat and
-subdivision ticks, and the tempo/signature header bands from that one scan result. Clicks convert
-into the same snapped cursor-placement intent as timeline-content clicks.
+subdivision ticks, the tempo/signature header bands, and the tab-fed chord/arpeggio name chips
+from that one scan result. Clicks convert into the same snapped cursor-placement intent as
+timeline-content clicks.
 */
 class TimelineRuler final : public juce::Component
 {
@@ -96,6 +132,17 @@ public:
     void setCursorPlacementCallback(CursorPlacementCallback callback);
 
     /*!
+    \brief Stores the tab-derived chord/arpeggio name chips drawn in the bottom tick band.
+
+    The chips sit flush with the ruler's bottom edge, directly above the tablature lane's top
+    rail, overlapping only ticks — the measure-number row above stays clear. An unchanged list
+    returns early because every controller state push repeats it.
+
+    \param labels Named shape spans in ascending start order; empty clears the chips.
+    */
+    void setShapeLabels(std::vector<RulerShapeLabel> labels);
+
+    /*!
     \brief Paints the tempo and signature bands, the measure-number row, and the tick band.
     \param g Graphics context used for drawing.
     */
@@ -146,6 +193,9 @@ private:
 
     // Draws the same transport cursor through the ruler for vertical alignment.
     void drawCursor(juce::Graphics& g);
+
+    // Draws the tab-derived chord/arpeggio name chips along the ruler's bottom edge.
+    void drawShapeChips(juce::Graphics& g);
 
     // Full timeline range represented by the zoomed content width.
     common::core::TimeRange m_timeline_range{};
@@ -202,6 +252,10 @@ private:
     // tempo of the span each visible anchor starts, with band-wide overlap suppression; cached
     // for the same text-measurement reason as m_measure_labels.
     std::vector<RulerLabel> m_tempo_labels{};
+
+    // Tab-derived chord/arpeggio name chips for the bottom tick band, pushed by the owning view
+    // whenever the displayed chart changes; chip x positions map per paint via localXForSeconds.
+    std::vector<RulerShapeLabel> m_shape_labels{};
 };
 
 } // namespace rock_hero::editor::ui
