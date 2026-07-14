@@ -6,9 +6,12 @@
 #pragma once
 
 #include <expected>
+#include <filesystem>
 #include <optional>
 #include <rock_hero/game/core/settings/i_game_settings.h>
+#include <span>
 #include <string>
+#include <vector>
 
 namespace rock_hero::game::core::testing
 {
@@ -67,6 +70,26 @@ public:
     */
     [[nodiscard]] std::expected<void, GameSettingsError> setFirstRunCompleted(
         bool /*completed*/) override
+    {
+        return {};
+    }
+
+    /*!
+    \brief Reports no custom song directories.
+    \return Always empty.
+    */
+    [[nodiscard]] std::vector<std::filesystem::path> customScanRoots() const override
+    {
+        return {};
+    }
+
+    /*!
+    \brief Accepts the custom song directories without storing them.
+    \param roots Ignored.
+    \return Always success.
+    */
+    [[nodiscard]] std::expected<void, GameSettingsError> setCustomScanRoots(
+        std::span<const std::filesystem::path> /*roots*/) override
     {
         return {};
     }
