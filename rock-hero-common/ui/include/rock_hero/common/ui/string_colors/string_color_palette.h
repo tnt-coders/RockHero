@@ -84,9 +84,11 @@ defensively past its end.
 /*!
 \brief The seven per-string surfaces Charter derives from one base string color.
 
-The derivation chain is bit-identical to Charter's fixed multiply/brighten/darken sequence, so
-the editor tab lane, the editor 3D preview, and the game highway render identical string styles
-from one authority.
+The derivation chain is bit-identical to Charter's fixed multiply/brighten/darken sequence, with
+one deliberate divergence: the accent color brightens hue-preservingly instead of with Charter's
+per-channel double brighten, which bleaches saturated hues toward yellow (an orange or green
+accent glow rendered yellow — user-flagged bug). All consumers — the editor tab lane, the editor
+3D preview, and the game highway — render identical string styles from this one authority.
 */
 struct StringLaneStyle
 {
@@ -108,7 +110,11 @@ struct StringLaneStyle
     /*! \brief Sustain border: the tail color brightened. */
     ArgbColor tail_edge;
 
-    /*! \brief Accent glow: the ring brightened twice. */
+    /*!
+    \brief Accent glow: the ring brightened toward Charter's double-brighter gain, but scaled
+    uniformly across channels so the hue never shifts, stopping where the hottest channel
+    saturates.
+    */
     ArgbColor accent;
 
     /*!
