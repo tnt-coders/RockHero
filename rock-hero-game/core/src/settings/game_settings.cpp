@@ -28,13 +28,12 @@ constexpr const char* g_default_profile_display_name = "Player";
 
 // Custom scan roots persist as a JSON array of native path strings in the single property value,
 // so any path characters survive round-trip (the same path bridge the library index store uses).
-[[nodiscard]] juce::String encodeScanRoots(const std::span<const std::filesystem::path> roots)
+[[nodiscard]] juce::String encodeScanRoots(std::span<const std::filesystem::path> roots)
 {
     juce::var array = common::core::Json::makeArray();
     for (const std::filesystem::path& root : roots)
     {
-        array.append(
-            common::core::Json::makeString(common::core::juceStringFromPath(root).toStdString()));
+        array.append(juce::var{common::core::juceStringFromPath(root)});
     }
     return juce::JSON::toString(array);
 }
@@ -174,7 +173,7 @@ std::vector<std::filesystem::path> GameSettings::customScanRoots() const
 }
 
 std::expected<void, GameSettingsError> GameSettings::setCustomScanRoots(
-    const std::span<const std::filesystem::path> roots)
+    std::span<const std::filesystem::path> roots)
 {
     m_properties.setValue(g_custom_scan_roots_key, encodeScanRoots(roots));
     return saveIfNeeded(m_properties, "Could not save custom scan roots.");
