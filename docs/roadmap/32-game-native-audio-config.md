@@ -93,7 +93,7 @@ Verified paths and behavior on the baseline tree:
 - **Per-app app-data folder naming lives in common.**
   rock-hero-common/core/include/rock_hero/common/core/shared/application_identity.h provides
   `applicationDataFolderName()` ("Rock Hero"); the audio-config `applicationName` constants
-  (`gameAudioConfigApplicationName()` = "Rock Hero Audio") land beside the store in
+  (`gameAudioConfigApplicationName()` = "Rock Hero Game Audio") land beside the store in
   `common/audio/settings/` at plan 13 Phase 1.
 - **The shared audio-config store and `LiveInputMonitor` are prerequisites, not yet present.**
   `common::audio::AudioConfigStore` / `IAudioConfigStore` / `ActiveDeviceRoute` /
@@ -142,7 +142,7 @@ Downstream consumers (recorded in both directions in docs/roadmap/00-roadmap.md)
 
 - **Per-app, calibrate-first, no editor import.** The game calibrates natively and never imports
   from the editor. Device-state, gain calibration, and latency offsets persist to the game's **own**
-  `AudioConfigStore` instance over its own file (`Rock Hero Audio.settings`); the editor is a
+  `AudioConfigStore` instance over its own file (`Rock Hero Game Audio.settings`); the editor is a
   read-only consumer, never a source (that direction is plan 48).
 - **Multi-input-aware model in game/core, not common.** `GameAudioConfig` /
   `PlayerInputConfig` live in a `game/core` `audio/` feature folder because the editor has no

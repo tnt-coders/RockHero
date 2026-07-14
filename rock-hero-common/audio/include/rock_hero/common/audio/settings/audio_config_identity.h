@@ -26,14 +26,16 @@ config is partitioned from last-open-project, cursor, grid, and zoom state.
 /*!
 \brief Application name for the game's audio-config file.
 
-Names a file distinct from the game's profile/library file ("Rock Hero"), so the editor can read the
-game's audio config read-only without touching the game's profile or library data.
+Names a file distinct from the game's profile/library file ("Rock Hero Game"), so the editor can
+read the game's audio config read-only without touching the game's profile or library data. The
+partition is what keeps that read-only mirror cheap: the editor opens this dedicated audio file, not
+the game's whole settings file.
 
 \return Stable game audio-config application name text.
 */
 [[nodiscard]] constexpr std::string_view gameAudioConfigApplicationName() noexcept
 {
-    return "Rock Hero Audio";
+    return "Rock Hero Game Audio";
 }
 
 } // namespace rock_hero::common::audio
