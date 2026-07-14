@@ -73,6 +73,18 @@ public:
     }
 
     /*!
+    \brief Records a match query and returns the configured skip-if-unchanged answer.
+    \param serialized_state Serialized audio-device state passed by the object under test.
+    \return Configured device_state_matches_active value.
+    */
+    [[nodiscard]] bool deviceStateMatchesActive(const std::string& serialized_state) const override
+    {
+        last_device_state_match_query = serialized_state;
+        device_state_matches_active_call_count += 1;
+        return device_state_matches_active;
+    }
+
+    /*!
     \brief Returns the configured current device status snapshot.
     \return Current fake device status.
     */
@@ -139,6 +151,12 @@ public:
     /*! \brief Last serialized state passed to restoreSerializedDeviceState(). */
     std::optional<std::string> last_restored_serialized_device_state{};
 
+    /*! \brief Answer returned by deviceStateMatchesActive(). */
+    bool device_state_matches_active{false};
+
+    /*! \brief Last serialized state passed to deviceStateMatchesActive(). */
+    mutable std::optional<std::string> last_device_state_match_query{};
+
     /*! \brief Non-owning listeners registered by the object under test. */
     std::vector<IAudioDeviceConfiguration::Listener*> listeners{};
 
@@ -150,6 +168,9 @@ public:
 
     /*! \brief Number of serialized capture requests received. */
     mutable int serialized_device_state_call_count{0};
+
+    /*! \brief Number of deviceStateMatchesActive() queries received. */
+    mutable int device_state_matches_active_call_count{0};
 };
 
 } // namespace rock_hero::common::audio::testing

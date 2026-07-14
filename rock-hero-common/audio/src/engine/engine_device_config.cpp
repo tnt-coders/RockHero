@@ -17,6 +17,66 @@ namespace
     return static_cast<double>(sample_count) * 1000.0 / sample_rate_hz;
 }
 
+// Reconstructs the AudioDeviceSetup encoded by a serialized device-state XML. This mirrors, field
+// for field, the reconstruction JUCE's AudioDeviceManager::initialiseFromXML performs for the same
+// blob, so two device-state XMLs compare equal (through AudioDeviceSetup::operator==) exactly when
+// a restore of one would reproduce the other. Keeping the extraction local avoids reaching into
+// JUCE's private initialiseFromXML while staying tied to the same attributes.
+[[nodiscard]] juce::AudioDeviceManager::AudioDeviceSetup reconstructDeviceSetupFromXml(
+    const juce::XmlElement& xml)
+{
+    juce::AudioDeviceManager::AudioDeviceSetup setup;
+
+    if (xml.getStringAttribute("audioDeviceName").isNotEmpty())
+    {
+        setup.inputDeviceName = setup.outputDeviceName = xml.getStringAttribute("audioDeviceName");
+    }
+    else
+    {
+        setup.inputDeviceName = xml.getStringAttribute("audioInputDeviceName");
+        setup.outputDeviceName = xml.getStringAttribute("audioOutputDeviceName");
+    }
+
+    setup.bufferSize = xml.getIntAttribute("audioDeviceBufferSize", setup.bufferSize);
+    setup.sampleRate = xml.getDoubleAttribute("audioDeviceRate", setup.sampleRate);
+    setup.inputChannels.parseString(xml.getStringAttribute("audioDeviceInChans", "11"), 2);
+    setup.outputChannels.parseString(xml.getStringAttribute("audioDeviceOutChans", "11"), 2);
+    setup.useDefaultInputChannels = !xml.hasAttribute("audioDeviceInChans");
+    setup.useDefaultOutputChannels = !xml.hasAttribute("audioDeviceOutChans");
+
+    return setup;
+}
+
+// Reports whether restoring the serialized state would reproduce the device that is already open,
+// so the restore's re-open and monitoring-graph rebuild would be pure cost. A closed or absent
+// device is never a match, so callers only ever skip work against an equal, already-live route.
+//
+// The current state is taken from the device manager's own createStateXml() rather than
+// getAudioDeviceSetup(), and both XMLs are reconstructed the same way before comparing. This keeps
+// the comparison symmetric: JUCE's updateXml() omits the channel mask for a "use default channels"
+// setup, so an XML round-trip parses the "11" default, whereas getAudioDeviceSetup() reports the
+// hardware's actual active channel mask (verified in juce_AudioDeviceManager.cpp updateCurrentSetup,
+// updateXml). Comparing against getAudioDeviceSetup() directly would therefore spuriously differ for
+// every default-channel route and defeat the skip. Reconstructing both sides compares the persisted
+// forms that restore actually reproduces, so equal persisted forms mean an equal restore outcome.
+[[nodiscard]] bool activeDeviceMatchesSerializedState(
+    juce::AudioDeviceManager& device_manager, const juce::XmlElement& xml)
+{
+    juce::AudioIODevice* const current_device = device_manager.getCurrentAudioDevice();
+    if (current_device == nullptr || !current_device->isOpen())
+    {
+        return false;
+    }
+
+    const std::unique_ptr<juce::XmlElement> current_xml = device_manager.createStateXml();
+    if (current_xml == nullptr)
+    {
+        return false;
+    }
+
+    return reconstructDeviceSetupFromXml(xml) == reconstructDeviceSetupFromXml(*current_xml);
+}
+
 } // namespace
 
 void Engine::Impl::scheduleAudioDeviceConfigurationRefresh()
@@ -112,8 +172,19 @@ std::expected<void, AudioDeviceConfigurationError> Engine::restoreSerializedDevi
         };
     }
 
-    const juce::String error_text =
-        m_impl->m_engine->getDeviceManager().deviceManager.initialise(1, 2, xml.get(), true);
+    juce::AudioDeviceManager& device_manager = m_impl->m_engine->getDeviceManager().deviceManager;
+
+    // Skip-if-unchanged: when the target route already matches the open device, the initialise()
+    // call would re-enumerate MIDI around JUCE's own no-op device open, and the unconditional
+    // monitoring-graph rebuild below would allocate a fresh Tracktion playback context for nothing.
+    // Returning here elides both, so a same-device restore (e.g. a game route imported from this
+    // editor's own route) costs nothing.
+    if (activeDeviceMatchesSerializedState(device_manager, *xml))
+    {
+        return {};
+    }
+
+    const juce::String error_text = device_manager.initialise(1, 2, xml.get(), true);
     if (error_text.isNotEmpty())
     {
         return std::unexpected{AudioDeviceConfigurationError{
@@ -143,6 +214,22 @@ std::optional<std::string> Engine::serializedDeviceState() const
     }
 
     return xml->toString().toStdString();
+}
+
+// Reports whether restoring the given serialized route would be a no-op against the open device.
+// Shares the parse-and-compare helper the restore path uses, so the pre-check the editor makes to
+// choose an instant vs. behind-the-overlay toggle can never disagree with what the restore does.
+bool Engine::deviceStateMatchesActive(const std::string& serialized_state) const
+{
+    const std::unique_ptr<juce::XmlElement> xml =
+        juce::parseXML(juce::String{serialized_state.c_str()});
+    if (xml == nullptr)
+    {
+        return false;
+    }
+
+    return activeDeviceMatchesSerializedState(
+        m_impl->m_engine->getDeviceManager().deviceManager, *xml);
 }
 
 // Captures open-device timing and route details through the JUCE device manager.

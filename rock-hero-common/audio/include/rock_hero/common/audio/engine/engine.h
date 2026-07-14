@@ -638,6 +638,13 @@ public:
     [[nodiscard]] std::optional<std::string> serializedDeviceState() const override;
 
     /*!
+    \brief Reports whether a serialized route already matches the open audio device.
+    \param serialized_state State string previously returned by serializedDeviceState().
+    \return True when a device is open and its setup equals the serialized route's setup.
+    */
+    [[nodiscard]] bool deviceStateMatchesActive(const std::string& serialized_state) const override;
+
+    /*!
     \brief Returns the currently open audio-device route and hardware timing details.
     \return Current device status, or a closed status when no device is open.
     */

@@ -89,6 +89,21 @@ public:
     [[nodiscard]] virtual std::optional<std::string> serializedDeviceState() const = 0;
 
     /*!
+    \brief Reports whether a serialized route already matches the open audio device.
+
+    Lets callers skip a redundant restoreSerializedDeviceState(): when the target route is already
+    live, the restore's device re-open and monitoring-graph rebuild are pure cost. The comparison
+    reconstructs the device-setup fields JUCE ties for equality and requires a device to be open, so
+    it can never report a match while the live route actually differs.
+
+    \param serialized_state State string previously returned by serializedDeviceState().
+    \return True when a device is open and its setup equals the serialized route's setup.
+    \note Must be called on the message thread.
+    */
+    [[nodiscard]] virtual bool deviceStateMatchesActive(
+        const std::string& serialized_state) const = 0;
+
+    /*!
     \brief Returns a project-owned snapshot of the current audio-device route.
     \return Current device status, or a closed status when no device is open.
     */
