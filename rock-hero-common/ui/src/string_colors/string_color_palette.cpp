@@ -36,10 +36,8 @@ constexpr ArgbColor g_opaque_alpha = 0xff000000U;
 // Charter Classic: Charter's default six string colors (ChartPanelColors STRING_0..5) ordered
 // from the sixth-highest displayed lane upward, plus the shipped extended tier — our RYB teal
 // 7th and Charter's near-white gray 8th (STRING_7).
-constexpr std::array<StringColorPalette, 1> g_string_color_palettes{StringColorPalette{
+constexpr StringColorPalette g_charter_classic_palette{
     .id = "charter-classic",
-    .display_name = "Charter Classic",
-    .colorblind_safe = false,
     .standard =
         {
             0xffed0000, // red (lowest string of a standard six)
@@ -53,7 +51,7 @@ constexpr std::array<StringColorPalette, 1> g_string_color_palettes{StringColorP
         0xff00b5a0, // teal (7th string)
         0xffb6b6b6, // near-white gray (8th string, Charter STRING_7)
     },
-}};
+};
 
 } // namespace
 
@@ -126,16 +124,9 @@ StringLaneStyle::StringLaneStyle(ArgbColor base)
     , accent(brighterColor(brighterColor(border_inner)))
 {}
 
-// Span keeps callers away from the registry's storage type; order is stable and the first entry
-// is the default preset.
-std::span<const StringColorPalette> stringColorPalettes()
-{
-    return g_string_color_palettes;
-}
-
 const StringColorPalette& charterClassicPalette()
 {
-    return g_string_color_palettes.front();
+    return g_charter_classic_palette;
 }
 
 } // namespace rock_hero::common::ui
