@@ -42,7 +42,7 @@ constexpr float g_min_note_height_for_text{9.0f};
 constexpr float g_shape_label_height{10.0f};
 constexpr float g_shape_rail_height{3.0f};
 constexpr double g_shape_mark_brightness{1.5};
-constexpr float g_ghost_note_alpha{0.1f};
+constexpr double g_ghost_note_darkness{0.35};
 
 // Thin JUCE-converting wrappers over the shared Charter-exact derivation (rock-hero-common/ui)
 // for the in-file call sites that derive from already-opaque colors.
@@ -1003,30 +1003,25 @@ void TabView::paint(juce::Graphics& g)
         drawOnsetBar(g, metrics, start_x, shapeMarkColor(true));
         for (const core::TabGhostNoteView& ghost : shape.ghost_notes)
         {
-            // A ghost keeps its fret number fully opaque so the posture stays readable, over a
-            // very dim head shape; the default-constructed view adds no technique glyphs (Pick
-            // attack draws nothing), and the text-suppressed metrics copy keeps the fret number
-            // out of the faded layer.
-            core::TabNoteView ghost_note;
-            ghost_note.string = ghost.string;
-            ghost_note.fret = ghost.fret;
+            // A ghost head is opaque but pulled hard toward the background — dark enough to
+            // read as "held, not sounded here" while still covering the string line (earlier
+            // translucent ghosts let the line cut through the head, which read badly) — and
+            // its fret number stays at full strength so the posture remains readable.
+            const StringStyle style{metrics.baseColor(ghost.string)};
             const float center_y = metrics.laneY(ghost.string);
-            TabLaneMetrics head_only = metrics;
-            head_only.draw_text = false;
-            g.beginTransparencyLayer(g_ghost_note_alpha);
-            drawNoteHead(
+            const float size = metrics.note_height + 1.0f;
+            fillHeadShape(
                 g,
-                head_only,
-                StringStyle{metrics.baseColor(ghost.string)},
-                ghost_note,
+                charterMultiply(style.border_inner, g_ghost_note_darkness),
+                charterMultiply(style.inner, g_ghost_note_darkness),
                 start_x,
-                center_y);
-            g.endTransparencyLayer();
+                center_y,
+                size,
+                false);
 
             if (metrics.draw_text)
             {
                 // The same centering box drawNoteHead uses for a plain fret number.
-                const float size = metrics.note_height + 1.0f;
                 g.setColour(juce::Colours::white);
                 g.setFont(metrics.fret_font);
                 g.drawText(
