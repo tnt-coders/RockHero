@@ -109,7 +109,7 @@ public:
         .selected_sample_rate_id = 2,
         .buffer_sizes = {{.id = 1, .label = "128 samples"}},
         .selected_buffer_size_id = 1,
-        .control_panel_enabled = true,
+        .control_panel_supported = true,
         .ok_enabled = true,
         .error_message = "Could not open Output B",
     };
@@ -186,6 +186,41 @@ TEST_CASE("AudioDeviceSettingsView emits button intents", "[ui][audio-device-set
     CHECK(controller.control_panel_call_count == 1);
     CHECK(controller.ok_call_count == 1);
     CHECK(controller.cancel_call_count == 1);
+}
+
+// A supported control panel whose device driver failed to initialize renders visible but disabled,
+// with a tooltip explaining the unavailability instead of an enabled button that silently no-ops.
+// The error label doubles as the standing unavailable notice once no more-specific operation error
+// is active, so a re-open that lands on a disconnected device never finishes silently.
+TEST_CASE("AudioDeviceSettingsView presents an unavailable device", "[ui][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeAudioDeviceSettingsController controller;
+    AudioDeviceSettingsView view{controller};
+
+    auto state = splitDeviceState();
+    state.staged_device_unavailable = true;
+    view.setState(state);
+
+    auto& control_panel =
+        findRequiredDirectChild<juce::TextButton>(view, "audio_settings_control_panel_button");
+    const auto& error_label = findRequiredDirectChild<juce::Label>(view, "audio_settings_error");
+
+    CHECK(control_panel.isVisible());
+    CHECK_FALSE(control_panel.isEnabled());
+    CHECK(
+        control_panel.getTooltip() ==
+        "The selected device is unavailable (not connected or in use by another application)");
+    // A transient operation error is the more specific diagnostic and wins the label.
+    CHECK(error_label.getText() == "Could not open Output B");
+
+    state.error_message.clear();
+    view.setState(state);
+
+    // With no operation error active, the label carries the standing unavailable notice.
+    CHECK(
+        error_label.getText() ==
+        "The selected device is unavailable (not connected or in use by another application)");
 }
 
 // Toggle ON with an available game config renders the device fields read-only, disabled, and

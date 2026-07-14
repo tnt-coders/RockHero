@@ -27,12 +27,16 @@ public:
     MockAudioDevice(
         const juce::String& type_name, const juce::String& output_name,
         const juce::String& input_name, juce::String open_error, bool has_control_panel,
-        bool show_control_panel_result, int* control_panel_call_count)
+        bool show_control_panel_result, int* control_panel_call_count,
+        juce::String driver_init_error = {})
         : juce::AudioIODevice(output_name.isNotEmpty() ? output_name : input_name, type_name)
         , m_open_error(std::move(open_error))
         , m_has_control_panel(has_control_panel)
         , m_show_control_panel_result(show_control_panel_result)
         , m_control_panel_call_count(control_panel_call_count)
+        // Mirrors ASIO's construction-time driver init: a failed init (hardware unplugged, or the
+        // device held by another application) leaves getLastError() non-empty from birth.
+        , m_last_error(std::move(driver_init_error))
     {}
 
     [[nodiscard]] juce::StringArray getInputChannelNames() override
@@ -190,9 +194,11 @@ class MockAudioDeviceType final : public juce::AudioIODeviceType
 public:
     explicit MockAudioDeviceType(
         const juce::String& type_name, juce::StringArray failing_outputs = {},
-        bool has_control_panel = false, bool show_control_panel_result = true)
+        bool has_control_panel = false, bool show_control_panel_result = true,
+        juce::StringArray driver_init_failing_outputs = {})
         : juce::AudioIODeviceType(type_name)
         , m_failing_outputs(std::move(failing_outputs))
+        , m_driver_init_failing_outputs(std::move(driver_init_failing_outputs))
         , m_has_control_panel(has_control_panel)
         , m_show_control_panel_result(show_control_panel_result)
     {}
@@ -241,6 +247,10 @@ public:
         const juce::String open_error = m_failing_outputs.contains(output_device_name)
                                             ? juce::String{g_open_output_b_error}
                                             : juce::String{};
+        const juce::String driver_init_error =
+            m_driver_init_failing_outputs.contains(output_device_name)
+                ? juce::String{"Can't detect asio channels"}
+                : juce::String{};
         auto device = std::make_unique<MockAudioDevice>(
             getTypeName(),
             output_device_name,
@@ -248,7 +258,8 @@ public:
             open_error,
             m_has_control_panel,
             m_show_control_panel_result,
-            &m_control_panel_call_count);
+            &m_control_panel_call_count,
+            driver_init_error);
 
         // JUCE's AudioIODeviceType factory transfers ownership through the raw pointer return.
         return device.release(); // NOLINT(cppcoreguidelines-owning-memory)
@@ -268,6 +279,7 @@ public:
 
 private:
     juce::StringArray m_failing_outputs;
+    juce::StringArray m_driver_init_failing_outputs;
     bool m_has_control_panel{false};
     bool m_show_control_panel_result{false};
     int m_scan_call_count{};
@@ -304,10 +316,14 @@ public:
 MockAudioDeviceType& addMockAudioType(
     juce::AudioDeviceManager& manager, const juce::String& type_name,
     juce::StringArray failing_outputs = {}, bool has_control_panel = false,
-    bool show_control_panel_result = true)
+    bool show_control_panel_result = true, juce::StringArray driver_init_failing_outputs = {})
 {
     auto device_type = std::make_unique<MockAudioDeviceType>(
-        type_name, std::move(failing_outputs), has_control_panel, show_control_panel_result);
+        type_name,
+        std::move(failing_outputs),
+        has_control_panel,
+        show_control_panel_result,
+        std::move(driver_init_failing_outputs));
     auto& result = *device_type;
     manager.addAudioDeviceType(std::move(device_type));
     return result;
@@ -600,7 +616,8 @@ TEST_CASE(
         audio_devices.device_manager, g_asio_type_name, juce::StringArray{}, true, false);
 
     AudioDeviceSettings settings{audio_devices};
-    REQUIRE(settings.state().control_panel_enabled);
+    REQUIRE(settings.state().control_panel_supported);
+    REQUIRE_FALSE(settings.state().staged_device_unavailable);
 
     const auto opened = settings.openControlPanel();
 
@@ -621,7 +638,38 @@ TEST_CASE(
         audio_devices.device_manager, g_asio_type_name, juce::StringArray{}, false);
 
     AudioDeviceSettings settings{audio_devices};
-    REQUIRE_FALSE(settings.state().control_panel_enabled);
+    REQUIRE_FALSE(settings.state().control_panel_supported);
+
+    const auto opened = settings.openControlPanel();
+
+    REQUIRE_FALSE(opened.has_value());
+    CHECK(opened.error().code == AudioDeviceSettingsErrorCode::ControlPanelUnavailable);
+    CHECK(settings.state().error_message == opened.error().message);
+    CHECK(audio_type.controlPanelCallCount() == 0);
+}
+
+// A driver whose construction-time init failed (hardware unplugged, or the device held by another
+// application) still claims a control panel, but showing it would silently do nothing (verified
+// against JUCE's ASIO backend: showControlPanel() no-ops without an initialized driver object).
+// The staged device therefore reports unavailable, and the panel request errors instead of
+// dispatching a no-op to the driver.
+TEST_CASE(
+    "AudioDeviceSettings reports control panel unavailable when the driver init failed",
+    "[audio][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    const auto& audio_type = addMockAudioType(
+        audio_devices.device_manager,
+        g_asio_type_name,
+        juce::StringArray{},
+        true,
+        true,
+        juce::StringArray{g_output_a});
+
+    AudioDeviceSettings settings{audio_devices};
+    REQUIRE(settings.state().control_panel_supported);
+    REQUIRE(settings.state().staged_device_unavailable);
 
     const auto opened = settings.openControlPanel();
 

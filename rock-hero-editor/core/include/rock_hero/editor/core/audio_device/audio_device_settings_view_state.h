@@ -75,8 +75,17 @@ struct AudioDeviceSettingsViewState
     /*! \brief Selected buffer-size choice ID, or zero when none is selected. */
     int selected_buffer_size_id{};
 
-    /*! \brief True when the backend control panel can be opened for the staged route. */
-    bool control_panel_enabled{};
+    /*! \brief True when the staged route's audio backend exposes a control panel. */
+    bool control_panel_supported{};
+
+    /*!
+    \brief True when the staged selection's driver failed to initialize.
+
+    The driver still claims a control panel but showing it silently does nothing (for ASIO:
+    hardware not connected, or the device held by another application), so the control panel
+    button renders disabled with an explanatory tooltip instead of enabled-but-inert.
+    */
+    bool staged_device_unavailable{};
 
     /*! \brief True when OK should attempt to apply the staged route. */
     bool ok_enabled{};
