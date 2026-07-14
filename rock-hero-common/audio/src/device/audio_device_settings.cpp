@@ -567,7 +567,11 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
     // has already loaded the driver to populate the staged device's capability set.
     [[nodiscard]] std::expected<void, AudioDeviceSettingsError> openControlPanel()
     {
-        if (!m_state.control_panel_enabled || m_staged_device == nullptr)
+        // staged_device_unavailable joins the guard because a failed-init driver's
+        // showControlPanel() is a silent no-op; erroring here keeps a raced click (state refresh
+        // pending) from doing visibly nothing.
+        if (!m_state.control_panel_supported || m_state.staged_device_unavailable ||
+            m_staged_device == nullptr)
         {
             AudioDeviceSettingsError error{AudioDeviceSettingsErrorCode::ControlPanelUnavailable};
             refreshState(error.message);
@@ -578,9 +582,9 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
         // unconditionally (via the driver's controlPanel() call) and returns true only when the
         // user dwelt in the panel long enough (>300ms) to justify reloading preferred buffer
         // sizes; a quick open/close, or a non-blocking driver, returns false even though the panel
-        // opened. hasControlPanel() (already checked via control_panel_enabled above) is the only
-        // reliable capability signal, so the return value is discarded rather than treated as a
-        // failure.
+        // opened. hasControlPanel() (already checked via control_panel_supported above) is the
+        // only reliable capability signal, so the return value is discarded rather than treated as
+        // a failure.
         m_staged_device->showControlPanel();
 
         refreshState({});
@@ -962,10 +966,21 @@ private:
     // active device closed, so capability gating is based on what the staged device (the loaded
     // driver object behind the user's current selection) reports, not on the now-closed active
     // device.
+    //
+    // hasControlPanel() is a driver-class capability, not actionability: an ASIO driver whose
+    // construction-time init failed (hardware unplugged, or the device held by another
+    // application) still returns true, but its showControlPanel() silently no-ops because JUCE
+    // guards the driver call on the initialized driver object (verified in juce_ASIO_windows.cpp:
+    // hasControlPanel() is unconditionally true, showControlPanel() checks asioObject, and a
+    // failed constructor-time openDevice() leaves getLastError() non-empty). The staged preview
+    // device is never stream-opened, so a non-empty last error means exactly that failed init;
+    // it is surfaced as staged_device_unavailable so the control panel can gray out honestly.
     void refreshCapabilities(AudioDeviceSettingsState& next_state) const
     {
-        next_state.control_panel_enabled =
+        next_state.control_panel_supported =
             m_staged_device != nullptr && m_staged_device->hasControlPanel();
+        next_state.staged_device_unavailable =
+            m_staged_device != nullptr && m_staged_device->getLastError().isNotEmpty();
     }
 
     // Clears route and format fields whose choices depend on the selected device.
