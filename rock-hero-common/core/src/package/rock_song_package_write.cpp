@@ -43,28 +43,6 @@ namespace
 
 constexpr int g_zip_compression_level = 9;
 
-// Converts arrangement parts into the stable song-document spelling.
-[[nodiscard]] std::string partName(Part part)
-{
-    switch (part)
-    {
-        case Part::Lead:
-        {
-            return "Lead";
-        }
-        case Part::Rhythm:
-        {
-            return "Rhythm";
-        }
-        case Part::Bass:
-        {
-            return "Bass";
-        }
-    }
-
-    return "Lead";
-}
-
 // Returns true when a relative path tries to escape its base.
 [[nodiscard]] bool startsWithParentTraversal(const std::filesystem::path& path)
 {
@@ -721,7 +699,7 @@ struct SongDocumentForSave
         arrangements.push_back(
             ArrangementDocumentEntry{
                 .id = *arrangement_id,
-                .part = partName(arrangement.part),
+                .part = std::string{partToken(arrangement.part)},
                 .audio = audio_id->second,
                 .tones = std::move(tones),
                 .tone_changes = std::move(tone_changes),

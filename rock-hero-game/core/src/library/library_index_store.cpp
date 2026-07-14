@@ -4,6 +4,7 @@
 #include <optional>
 #include <rock_hero/common/core/shared/json.h>
 #include <rock_hero/common/core/shared/juce_path.h>
+#include <rock_hero/common/core/song/arrangement.h>
 #include <utility>
 #include <vector>
 
@@ -15,43 +16,10 @@ namespace
 
 using common::core::Json;
 
-// The index speaks the same part-token vocabulary as song.json so cached entries read exactly
-// like their source packages; the tokens are duplicated here because the package reader's parse
-// helpers are private to common/core by design.
-[[nodiscard]] const char* partToken(const common::core::Part part)
-{
-    switch (part)
-    {
-        case common::core::Part::Lead:
-            return "Lead";
-        case common::core::Part::Rhythm:
-            return "Rhythm";
-        case common::core::Part::Bass:
-            return "Bass";
-    }
-    return "";
-}
-
-// Unsupported tokens read as an absent part, mirroring the peek reader's lenient policy.
-[[nodiscard]] std::optional<common::core::Part> parsePartToken(const std::string& text)
-{
-    if (text == "Lead")
-    {
-        return common::core::Part::Lead;
-    }
-
-    if (text == "Rhythm")
-    {
-        return common::core::Part::Rhythm;
-    }
-
-    if (text == "Bass")
-    {
-        return common::core::Part::Bass;
-    }
-
-    return std::nullopt;
-}
+// The index speaks song.json's exact part vocabulary through the shared common/core codec, so a
+// cached entry reads identically to its source package and a new Part enumerator is encoded once.
+using common::core::parsePartToken;
+using common::core::partToken;
 
 // Serializes one arrangement summary; absent optionals are omitted rather than written blank.
 [[nodiscard]] juce::var arrangementToJson(const LibraryArrangementSummary& arrangement)
@@ -63,7 +31,7 @@ using common::core::Json;
     if (arrangement.part.has_value())
     {
         json.getDynamicObject()->setProperty(
-            Json::identifier("part"), Json::makeString(partToken(*arrangement.part)));
+            Json::identifier("part"), Json::makeString(std::string{partToken(*arrangement.part)}));
     }
 
     if (arrangement.tuning.has_value())
@@ -313,8 +281,12 @@ std::expected<void, LibraryIndexStoreError> saveLibraryIndex(
         }};
     }
 
-    // replaceWithText stages the document in a temporary file and swaps it in, so an interrupted
-    // save leaves the previous index readable (same pattern as the chart document writer).
+    // replaceWithText writes the document to a sibling temp file in the same directory, then
+    // replaces the target with it (Windows ReplaceFile / POSIX rename). A process or power
+    // interruption therefore leaves either the previous index or the fully written new one in
+    // place, never a half-written target, on a journaling filesystem. A mid-write I/O error can
+    // still swap in a partial temp, but the loader treats any unparseable index as
+    // rebuild-required, so the cache self-heals (same pattern as the chart document writer).
     if (!index_file.replaceWithText(juce::JSON::toString(document)))
     {
         return std::unexpected{LibraryIndexStoreError{
