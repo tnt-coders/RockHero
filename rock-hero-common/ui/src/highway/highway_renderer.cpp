@@ -1477,6 +1477,13 @@ void HighwayRenderer::Impl::draw(
         }
     }
 
+    // Top of the board face's fret lines: with lanes centered on half-string offsets
+    // (highwayLaneToY) this leaves an equal half-string margin above the top lane and below the
+    // bottom one. Shared by the fret-line pass below and everything that must not rise past the
+    // fret grid.
+    const double face_top_y =
+        static_cast<double>(std::max(state.string_count, 1)) * metrics.string_distance;
+
     // --- Chord and arpeggio boxes: the reference's translucent panels at chord onsets, plus an
     // arpeggio-styled box (the same panel with the fretboard bracket notation overlaid) at each
     // arpeggio shape's start. Drawn far-to-near BEFORE the notes so nearer content composites
@@ -1489,8 +1496,9 @@ void HighwayRenderer::Impl::draw(
         std::vector<std::uint16_t> box_indices;
         std::vector<PosColorUvVertex> bracket_vertices;
         std::vector<std::uint16_t> bracket_indices;
-        const double full_height_y1 =
-            (static_cast<double>(state.string_count) + 0.5) * metrics.string_distance;
+        // Boxes rise exactly to the fret-line top: any higher and the panel visibly pokes past
+        // the fret grid (user-flagged bug; the old top added half a string distance).
+        const double full_height_y1 = face_top_y;
 
         // Overlays one arpeggio shape's posture brackets (the fretboard notation) at a box's z:
         // a bracket per fretted string, or the window-end brackets for an open string.
@@ -2154,12 +2162,8 @@ void HighwayRenderer::Impl::draw(
 
     // --- Board face: dynamic fret lines with the reference's three states (inactive, active
     // within current and upcoming hand windows, and the sqrt-decay hit-flash that thickens up
-    // to 4x — a large part of the alive feel), drawn over passing content. ---
-    // Fret lines run from the board (y = 0) to here; with lanes centered on half-string offsets
-    // (highwayLaneToY) this leaves an equal half-string margin above the top lane and below the
-    // bottom one.
-    const double face_top_y =
-        static_cast<double>(std::max(state.string_count, 1)) * metrics.string_distance;
+    // to 4x — a large part of the alive feel), drawn over passing content. Fret lines run from
+    // the board (y = 0) to face_top_y, defined above the chord-box pass that shares it. ---
     {
         // Active fret lines: the current hand range plus every window arriving soon.
         std::array<bool, g_face_fret_count + 1> active{};
