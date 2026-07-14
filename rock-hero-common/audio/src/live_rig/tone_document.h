@@ -144,6 +144,20 @@ struct ToneDocument
 [[nodiscard]] juce::var makeToneDocumentJson(const ToneDocument& document);
 
 /*!
+\brief Parses the v1 tone document JSON and validates sidecar refs against a state directory.
+
+Validates structure and reference shape only. Callers own checking that each referenced sidecar
+actually exists in their container — the song workspace for package tones, the archive entry list
+for standalone tone files.
+
+\param document_json Parsed tone document JSON root.
+\param expected_state_directory Canonical state directory every sidecar ref must resolve inside.
+\return Parsed tone document, or the load failure to report.
+*/
+[[nodiscard]] std::expected<ToneDocument, LiveRigError> parseToneDocumentJson(
+    const juce::var& document_json, const std::filesystem::path& expected_state_directory);
+
+/*!
 \brief Reads the v1 tone document subset and validates all sidecar paths.
 \param song_directory Song workspace root.
 \param tone_document_ref Package-relative tone document reference.
@@ -168,6 +182,15 @@ struct ToneDocument
 */
 [[nodiscard]] std::expected<juce::ValueTree, LiveRigError> readPluginStateTree(
     const std::filesystem::path& plugin_state_path);
+
+/*!
+\brief Parses Tracktion plugin-state XML text into a ValueTree.
+\param xml_text Sidecar XML text, for example from a tone-file archive entry.
+\param state_ref Sidecar reference used only for failure messages.
+\return Parsed plugin state tree, or the load failure to report.
+*/
+[[nodiscard]] std::expected<juce::ValueTree, LiveRigError> pluginStateTreeFromXmlText(
+    const std::string& xml_text, const std::string& state_ref);
 
 /*!
 \brief Serializes a plugin ValueTree exactly enough for Tracktion to recreate it.

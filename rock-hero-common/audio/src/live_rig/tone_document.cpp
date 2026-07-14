@@ -191,47 +191,10 @@ constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
     });
 }
 
-// Reads the v1 tone document subset and validates all package-relative sidecar paths.
-[[nodiscard]] std::expected<ToneDocument, LiveRigError> readToneDocument(
-    const std::filesystem::path& song_directory, const std::string& tone_document_ref)
+// Parses the v1 tone document JSON, validating structure and sidecar-reference shape only.
+[[nodiscard]] std::expected<ToneDocument, LiveRigError> parseToneDocumentJson(
+    const juce::var& document_json, const std::filesystem::path& expected_state_directory)
 {
-    if (!core::isCanonicalToneDocumentRef(tone_document_ref))
-    {
-        return std::unexpected{LiveRigError{
-            LiveRigErrorCode::InvalidToneDocument,
-            "Tone document path must be tones/<uuid>/tone.json: " + tone_document_ref
-        }};
-    }
-
-    const auto tone_document_path = resolvePackageFile(song_directory, tone_document_ref);
-    if (!tone_document_path.has_value())
-    {
-        return std::unexpected{LiveRigError{
-            LiveRigErrorCode::MissingToneDocument,
-            "Tone document is missing or unsafe: " + tone_document_ref
-        }};
-    }
-
-    juce::FileInputStream tone_document_file{common::core::juceFileFromPath(*tone_document_path)};
-    if (tone_document_file.failedToOpen())
-    {
-        return std::unexpected{LiveRigError{
-            LiveRigErrorCode::CouldNotReadToneDocument,
-            "Could not open tone document: " +
-                tone_document_file.getStatus().getErrorMessage().toStdString()
-        }};
-    }
-
-    auto parsed_document = core::Json::parseDocument(tone_document_file.readEntireStreamAsString());
-    if (!parsed_document.has_value())
-    {
-        return std::unexpected{LiveRigError{
-            LiveRigErrorCode::CouldNotReadToneDocument,
-            "Could not parse tone document: " + parsed_document.error().message
-        }};
-    }
-
-    const juce::var document_json = std::move(*parsed_document);
     if (!document_json.isObject() ||
         core::Json::readOptionalInt(document_json, "formatVersion", 0) != 1)
     {
@@ -273,8 +236,6 @@ constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
         }};
     }
 
-    const std::filesystem::path expected_state_directory =
-        toneDocumentStateDirectory(std::filesystem::path{tone_document_ref});
     ToneDocument document;
     document.chain.reserve(plugin_count);
     for (int index = 0; index < chain_json.size(); ++index)
@@ -307,14 +268,6 @@ constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
             }};
         }
 
-        if (!resolvePackageFile(song_directory, *tracktion_state).has_value())
-        {
-            return std::unexpected{LiveRigError{
-                LiveRigErrorCode::MissingPluginState,
-                "Tone plugin state is missing or unsafe: " + *tracktion_state
-            }};
-        }
-
         const juce::var& identity_json = core::Json::value(plugin_json, "identity");
         // Block placement is editor-owned metadata; carry the raw value through opaquely and leave
         // interpretation (validity, gap rules, fallback) to the editor. Absent or negative values
@@ -344,6 +297,69 @@ constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
     return document;
 }
 
+// Reads the v1 tone document subset and validates all package-relative sidecar paths.
+[[nodiscard]] std::expected<ToneDocument, LiveRigError> readToneDocument(
+    const std::filesystem::path& song_directory, const std::string& tone_document_ref)
+{
+    if (!core::isCanonicalToneDocumentRef(tone_document_ref))
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::InvalidToneDocument,
+            "Tone document path must be tones/<uuid>/tone.json: " + tone_document_ref
+        }};
+    }
+
+    const auto tone_document_path = resolvePackageFile(song_directory, tone_document_ref);
+    if (!tone_document_path.has_value())
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::MissingToneDocument,
+            "Tone document is missing or unsafe: " + tone_document_ref
+        }};
+    }
+
+    juce::FileInputStream tone_document_file{common::core::juceFileFromPath(*tone_document_path)};
+    if (tone_document_file.failedToOpen())
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::CouldNotReadToneDocument,
+            "Could not open tone document: " +
+                tone_document_file.getStatus().getErrorMessage().toStdString()
+        }};
+    }
+
+    auto parsed_document = core::Json::parseDocument(tone_document_file.readEntireStreamAsString());
+    if (!parsed_document.has_value())
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::CouldNotReadToneDocument,
+            "Could not parse tone document: " + parsed_document.error().message
+        }};
+    }
+
+    auto document = parseToneDocumentJson(
+        *parsed_document, toneDocumentStateDirectory(std::filesystem::path{tone_document_ref}));
+    if (!document.has_value())
+    {
+        return std::unexpected{std::move(document.error())};
+    }
+
+    // Sidecar existence is a workspace concern, so it stays out of the shared JSON parse: the
+    // tone-file reader checks the same references against its archive entry list instead.
+    for (const PluginRecord& plugin : document->chain)
+    {
+        if (!resolvePackageFile(song_directory, plugin.tracktion_state_ref).has_value())
+        {
+            return std::unexpected{LiveRigError{
+                LiveRigErrorCode::MissingPluginState,
+                "Tone plugin state is missing or unsafe: " + plugin.tracktion_state_ref
+            }};
+        }
+    }
+
+    return document;
+}
+
 // Writes the v1 tone document JSON file.
 [[nodiscard]] std::expected<void, LiveRigError> writeToneDocument(
     const std::filesystem::path& tone_document_path, const ToneDocument& document)
@@ -353,17 +369,19 @@ constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
         tone_document_path, json.toStdString() + '\n', LiveRigErrorCode::CouldNotWriteToneDocument);
 }
 
-// Reads a Tracktion plugin-state sidecar into a ValueTree.
-[[nodiscard]] std::expected<juce::ValueTree, LiveRigError> readPluginStateTree(
-    const std::filesystem::path& plugin_state_path)
+namespace
 {
-    const std::unique_ptr<juce::XmlElement> xml =
-        juce::parseXML(common::core::juceFileFromPath(plugin_state_path));
+
+// Shared validation tail for plugin-state XML parsed from a sidecar file or archive entry text.
+// Strips the live item id so a restored tree can never collide with an existing instance.
+[[nodiscard]] std::expected<juce::ValueTree, LiveRigError> pluginStateTreeFromParsedXml(
+    const juce::XmlElement* xml, const std::string& state_ref)
+{
     if (xml == nullptr)
     {
         return std::unexpected{LiveRigError{
             LiveRigErrorCode::CouldNotReadPluginState,
-            "Could not parse tone plugin state: " + plugin_state_path.string()
+            "Could not parse tone plugin state: " + state_ref
         }};
     }
 
@@ -372,12 +390,32 @@ constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
     {
         return std::unexpected{LiveRigError{
             LiveRigErrorCode::CouldNotReadPluginState,
-            "Tone plugin state is not a valid ValueTree: " + plugin_state_path.string()
+            "Tone plugin state is not a valid ValueTree: " + state_ref
         }};
     }
 
     tree.removeProperty(tracktion::IDs::id, nullptr);
     return tree;
+}
+
+} // namespace
+
+// Reads a Tracktion plugin-state sidecar into a ValueTree.
+[[nodiscard]] std::expected<juce::ValueTree, LiveRigError> readPluginStateTree(
+    const std::filesystem::path& plugin_state_path)
+{
+    const std::unique_ptr<juce::XmlElement> xml =
+        juce::parseXML(common::core::juceFileFromPath(plugin_state_path));
+    return pluginStateTreeFromParsedXml(xml.get(), plugin_state_path.string());
+}
+
+// Parses Tracktion plugin-state XML text into a ValueTree.
+[[nodiscard]] std::expected<juce::ValueTree, LiveRigError> pluginStateTreeFromXmlText(
+    const std::string& xml_text, const std::string& state_ref)
+{
+    const std::unique_ptr<juce::XmlElement> xml =
+        juce::parseXML(juce::String::fromUTF8(xml_text.c_str()));
+    return pluginStateTreeFromParsedXml(xml.get(), state_ref);
 }
 
 // Serializes a Tracktion plugin ValueTree exactly enough for Tracktion to recreate the plugin.
