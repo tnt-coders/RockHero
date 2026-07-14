@@ -154,18 +154,18 @@ void EditorController::Impl::saveActiveInputCalibration()
 
 // Executes workflow-requested side effects against root-owned ports and settings.
 void EditorController::Impl::executeInputCalibrationEffects(
-    const InputCalibrationWorkflow::Effects& effects)
+    const common::audio::InputCalibrationWorkflow::Effects& effects)
 {
-    for (const InputCalibrationWorkflow::Effect effect : effects)
+    for (const common::audio::InputCalibrationWorkflow::Effect effect : effects)
     {
         switch (effect)
         {
-            case InputCalibrationWorkflow::Effect::DisableLiveInputMonitoring:
+            case common::audio::InputCalibrationWorkflow::Effect::DisableLiveInputMonitoring:
             {
                 setLiveInputMonitoringBestEffort(false, "workflow disable live input monitoring");
                 break;
             }
-            case InputCalibrationWorkflow::Effect::DisableCalibrationInputMonitoring:
+            case common::audio::InputCalibrationWorkflow::Effect::DisableCalibrationInputMonitoring:
             {
                 setCalibrationInputMonitoringBestEffort(
                     false, "workflow disable calibration monitoring");
@@ -176,9 +176,10 @@ void EditorController::Impl::executeInputCalibrationEffects(
 }
 
 // Captures the root-owned context the calibration workflow needs to project state.
-InputCalibrationWorkflow::Context EditorController::Impl::inputCalibrationContext() const
+common::audio::InputCalibrationWorkflow::Context EditorController::Impl::inputCalibrationContext()
+    const
 {
-    return InputCalibrationWorkflow::Context{
+    return common::audio::InputCalibrationWorkflow::Context{
         .project_audio_ready = m_project_audio_ready,
         .arrangement_loaded = hasLoadedArrangement(),
         .current_input_device_identity = currentInputDeviceIdentity(),
@@ -196,7 +197,7 @@ void EditorController::Impl::applyLiveInputGate()
         return;
     }
 
-    const InputCalibrationWorkflow::Context context = inputCalibrationContext();
+    const common::audio::InputCalibrationWorkflow::Context context = inputCalibrationContext();
     if (!context.project_audio_ready || !context.arrangement_loaded)
     {
         setLiveInputMonitoringBestEffort(false, "project-audio gate disable");
@@ -316,7 +317,7 @@ bool EditorController::Impl::setInputGainBestEffort(
 std::expected<void, common::audio::LiveInputError> EditorController::Impl::commitInputCalibration(
     double gain_db, const std::optional<common::audio::InputDeviceIdentity>& expected_identity)
 {
-    const InputCalibrationWorkflow::Context context = inputCalibrationContext();
+    const common::audio::InputCalibrationWorkflow::Context context = inputCalibrationContext();
     const auto plan_result =
         expected_identity.has_value()
             ? m_input_calibration.prepareCommit(gain_db, expected_identity, context)
@@ -328,7 +329,7 @@ std::expected<void, common::audio::LiveInputError> EditorController::Impl::commi
         return std::unexpected{plan_result.error()};
     }
 
-    const InputCalibrationWorkflow::CommitPlan& plan = *plan_result;
+    const common::audio::InputCalibrationWorkflow::CommitPlan& plan = *plan_result;
     auto calibration_monitoring_disabled = m_live_input.setCalibrationInputMonitoringEnabled(false);
     if (!calibration_monitoring_disabled.has_value())
     {
@@ -387,9 +388,9 @@ std::expected<void, common::audio::LiveInputError> EditorController::Impl::commi
 std::expected<void, common::audio::LiveInputError> EditorController::Impl::
     restoreCalibrationMeasurementState()
 {
-    using MeasurementRestore = InputCalibrationWorkflow::MeasurementRestore;
+    using MeasurementRestore = common::audio::InputCalibrationWorkflow::MeasurementRestore;
 
-    const InputCalibrationWorkflow::MeasurementRestorePlan plan =
+    const common::audio::InputCalibrationWorkflow::MeasurementRestorePlan plan =
         m_input_calibration.prepareMeasurementRestore(inputCalibrationContext());
     if (std::holds_alternative<MeasurementRestore::NoRestore>(plan))
     {

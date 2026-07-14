@@ -17,7 +17,7 @@ definitions, no state added just to make a translation-unit split work.
 #include "editor_action.h"
 #include "editor_action_availability.h"
 #include "editor_undo_history.h"
-#include "input_calibration/input_calibration_workflow.h"
+#include "input_calibration/input_calibration_text.h"
 #include "project/project_io.h"
 #include "signal_chain/plugin_catalog_workflow.h"
 #include "signal_chain/signal_chain_workflow.h"
@@ -33,6 +33,7 @@ definitions, no state added just to make a translation-unit split work.
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <rock_hero/common/audio/device/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/input/i_live_input.h>
+#include <rock_hero/common/audio/input/input_calibration_workflow.h>
 #include <rock_hero/common/audio/live_rig/i_live_rig.h>
 #include <rock_hero/common/audio/plugin/i_plugin_host.h>
 #include <rock_hero/common/audio/shared/gain.h>
@@ -267,7 +268,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onPluginStateEditCompleted(common::audio::PluginStateEdit edit);
     [[nodiscard]] ActionConditions currentActionConditions() const;
     [[nodiscard]] ActionConditions currentActionConditions(
-        const InputCalibrationWorkflow::Snapshot& input_calibration,
+        const InputCalibrationViewSlice& input_calibration,
         const common::audio::TransportState& transport_state) const;
 
     void requestProjectAction(EditorAction::ProjectAction action);
@@ -361,8 +362,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void saveActiveInputCalibration();
     void recordSettingsResultBestEffort(
         std::expected<void, EditorSettingsError> result, std::string_view context);
-    void executeInputCalibrationEffects(const InputCalibrationWorkflow::Effects& effects);
-    [[nodiscard]] InputCalibrationWorkflow::Context inputCalibrationContext() const;
+    void executeInputCalibrationEffects(
+        const common::audio::InputCalibrationWorkflow::Effects& effects);
+    [[nodiscard]] common::audio::InputCalibrationWorkflow::Context inputCalibrationContext() const;
     [[nodiscard]] std::optional<common::audio::InputDeviceIdentity> currentInputDeviceIdentity()
         const;
     void applyLiveInputGate();
@@ -566,7 +568,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // Headless calibration workflow. The controller executes ports, but calibration decisions and
     // view projection live here.
-    InputCalibrationWorkflow m_input_calibration;
+    common::audio::InputCalibrationWorkflow m_input_calibration;
 
     // Browser catalog and selection state for adding known plugins.
     PluginCatalogWorkflow m_plugin_catalog;
