@@ -59,6 +59,12 @@ struct SignalChainViewState
     /*! \brief Current output gain in decibels, after the signal chain. */
     double output_gain_db{0.0};
 
+    /*! \brief Enables the project-mode Import Tone command (copies a tone file's rig in). */
+    bool tone_import_enabled{false};
+
+    /*! \brief Enables the project-mode Export Tone command (writes the active rig out). */
+    bool tone_export_enabled{false};
+
     /*!
     \brief Compares two signal-chain view states by their stored values.
     \param lhs Left-hand signal-chain view state.

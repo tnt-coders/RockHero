@@ -571,6 +571,51 @@ struct EditorAction
         std::filesystem::path file;
     };
 
+    /*! \brief Replace the active project tone's rig with a tone file's contents. */
+    struct ImportToneFile
+    {
+        /*!
+        \brief Creates an import-tone-file action.
+        \param file_value Tone file path selected by the user.
+        */
+        explicit ImportToneFile(std::filesystem::path file_value)
+            : file(std::move(file_value))
+        {}
+
+        /*! \brief Tone file path selected by the user. */
+        std::filesystem::path file;
+    };
+
+    /*! \brief Export the active project tone's rig to a tone file. */
+    struct ExportToneFile
+    {
+        /*!
+        \brief Creates an export-tone-file action.
+        \param file_value Tone file destination path selected by the user.
+        */
+        explicit ExportToneFile(std::filesystem::path file_value)
+            : file(std::move(file_value))
+        {}
+
+        /*! \brief Tone file destination path selected by the user. */
+        std::filesystem::path file;
+    };
+
+    /*! \brief Resolve the tone-import automation-drop confirmation. */
+    struct ResolveToneImportPrompt
+    {
+        /*!
+        \brief Creates a tone-import prompt resolution.
+        \param decision_value User-selected import decision.
+        */
+        explicit ResolveToneImportPrompt(ToneImportDecision decision_value) noexcept
+            : decision(decision_value)
+        {}
+
+        /*! \brief User-selected import decision. */
+        ToneImportDecision decision;
+    };
+
     /*! \brief Variant carrying project package write actions. */
     using ProjectWriteAction = std::variant<SaveProjectAs, SaveProject, PublishProject>;
 
@@ -594,7 +639,8 @@ struct EditorAction
         RenameTone, MoveToneBoundary, CreateNewTone, ShowPluginBrowser, BeginPluginInsert,
         ScanPluginCatalog, InsertSelectedPlugin, RemovePlugin, MovePlugin, SetSignalChainPlacement,
         SetPluginDisplayTypeOverride, OpenPlugin, SetToneAutomationPoints, NewToneDocument,
-        OpenToneFile, SaveToneFile, SaveToneFileAs>;
+        OpenToneFile, SaveToneFile, SaveToneFileAs, ImportToneFile, ExportToneFile,
+        ResolveToneImportPrompt>;
 };
 
 /*!

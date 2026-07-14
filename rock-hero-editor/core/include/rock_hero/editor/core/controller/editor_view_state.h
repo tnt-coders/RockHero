@@ -45,6 +45,16 @@ enum class UnsavedChangesDecision : std::uint8_t
     Cancel,
 };
 
+/*! \brief User choice returned from the tone-import automation-drop confirmation. */
+enum class ToneImportDecision : std::uint8_t
+{
+    /*! \brief Replace the active tone's rig and drop its automation. */
+    Import,
+
+    /*! \brief Keep the active tone unchanged. */
+    Cancel,
+};
+
 /*! \brief User choice returned from the interrupted-restore recovery prompt. */
 enum class RestoreInterruptedDecision : std::uint8_t
 {
@@ -124,6 +134,35 @@ struct SaveAsPrompt
     \return True when both Save As prompt requests store equal values.
     */
     friend bool operator==(const SaveAsPrompt& lhs, const SaveAsPrompt& rhs) = default;
+};
+
+/*!
+\brief Confirms that importing a tone file will drop the active tone's automation.
+
+Automation curves may live in tone regions far from the visible timeline, so their destruction
+is confirmed rather than merely undoable — the user might not notice the loss until long after
+the undo window of attention. Import over an automation-free tone never prompts.
+*/
+struct ToneImportPrompt
+{
+    /*!
+    \brief Creates a tone-import confirmation request.
+    \param automation_parameter_count_value Automated parameter count the import would drop.
+    */
+    explicit constexpr ToneImportPrompt(std::size_t automation_parameter_count_value) noexcept
+        : automation_parameter_count(automation_parameter_count_value)
+    {}
+
+    /*! \brief Number of automated parameters the import would remove. */
+    std::size_t automation_parameter_count;
+
+    /*!
+    \brief Compares two tone-import prompts by their stored values.
+    \param lhs Left-hand prompt request.
+    \param rhs Right-hand prompt request.
+    \return True when both prompt requests store equal values.
+    */
+    friend bool operator==(const ToneImportPrompt& lhs, const ToneImportPrompt& rhs) = default;
 };
 
 /*!
@@ -420,6 +459,9 @@ struct EditorViewState
     document whenever this is active (the view keys tone-flavored copy off it).
     */
     ToneDesignerViewState tone_designer{};
+
+    /*! \brief Tone-import confirmation to present, if an import would drop automation. */
+    std::optional<ToneImportPrompt> tone_import_prompt{};
 
     /*! \brief Unsaved-changes prompt to present, if the controller is awaiting a decision. */
     std::optional<UnsavedChangesPrompt> unsaved_changes_prompt{};

@@ -171,6 +171,18 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::SaveToneFileAs;
     }
+    else if constexpr (std::is_same_v<A, EditorAction::ImportToneFile>)
+    {
+        return EditorAction::Id::ImportToneFile;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::ExportToneFile>)
+    {
+        return EditorAction::Id::ExportToneFile;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::ResolveToneImportPrompt>)
+    {
+        return EditorAction::Id::ResolveToneImportPrompt;
+    }
     else
     {
         static_assert(g_dependent_false<A>, "Unhandled editor action alternative");

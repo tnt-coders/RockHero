@@ -314,6 +314,17 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         ToneDesignerDocumentSnapshot before, std::optional<std::filesystem::path> opened_file,
         std::string operation_label, const common::audio::LiveRigLoadResult& result);
     void replayDeferredActionAfterToneSave();
+    [[nodiscard]] std::vector<PluginVisualEditState> currentChainVisualStates() const;
+    [[nodiscard]] std::vector<std::string> activeChainDurablePluginIds() const;
+    [[nodiscard]] std::size_t activeToneAutomationEntryCount() const;
+    void performActionImpl(EditorAction::ImportToneFile action);
+    void performActionImpl(EditorAction::ResolveToneImportPrompt action);
+    void performActionImpl(EditorAction::ExportToneFile action);
+    void runToneImport(std::filesystem::path file);
+    void finishToneImport(
+        ToneChainSnapshot before, std::vector<std::pair<std::string, std::string>> prior_ids,
+        const std::string& tone_ref, const std::string& tone_name,
+        const std::filesystem::path& import_file, const common::audio::LiveRigLoadResult& result);
     void openProject(const std::filesystem::path& file, bool clear_last_open_project_on_failure);
     void completeOpenProject(const std::shared_ptr<OpenTaskState>& state);
     void finishOpenProjectAfterLiveRigLoad(
@@ -646,6 +657,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Tone Designer mode and document state; active exactly when no project is open and the
     // editor's resting live rig is the editing surface.
     ToneDesignerState m_tone_designer{};
+
+    // Tone file waiting on the import automation-drop confirmation, plus the entry count the
+    // prompt displays. The prompt only carries facts; the import re-derives everything fresh
+    // when the user accepts.
+    std::optional<std::filesystem::path> m_pending_tone_import{};
+    std::size_t m_pending_tone_import_automation_count{0};
 
     // Busy operation workflow used by async callbacks to reject stale work and order UI work after
     // the overlay presentation has had a chance to paint.

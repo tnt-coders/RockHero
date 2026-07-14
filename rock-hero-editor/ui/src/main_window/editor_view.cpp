@@ -282,6 +282,9 @@ constexpr int g_track_viewport_min_height{80};
         case core::EditorActionId::OpenToneFile:
         case core::EditorActionId::SaveToneFile:
         case core::EditorActionId::SaveToneFileAs:
+        case core::EditorActionId::ImportToneFile:
+        case core::EditorActionId::ExportToneFile:
+        case core::EditorActionId::ResolveToneImportPrompt:
         {
             return "Save changes before continuing?";
         }
@@ -579,6 +582,7 @@ void EditorView::setState(const core::EditorViewState& state)
     m_cursor_overlay->setGridNoteValue(m_state.grid_note_value);
     presentUnsavedChangesPromptIfNeeded(m_state.unsaved_changes_prompt);
     presentSaveAsPromptIfNeeded(m_state.save_as_prompt);
+    presentToneImportPromptIfNeeded(m_state.tone_import_prompt);
     presentRestoreInterruptedPromptIfNeeded(m_state.restore_interrupted_prompt);
     presentGameAudioUnavailablePromptIfNeeded(m_state.game_audio_unavailable_prompt);
     presentGameAudioRecommendationIfNeeded(m_state.game_audio_recommendation_prompt);
@@ -1331,6 +1335,121 @@ void EditorView::onSaveTonePressed()
 void EditorView::onSaveToneAsPressed()
 {
     showToneSaveAsChooser(SaveAsChooserPurpose::UserSaveAs);
+}
+
+// Opens the import chooser; the controller confirms any automation drop before mutating.
+void EditorView::onImportTonePressed()
+{
+    showImportToneChooser();
+}
+
+// Opens the export chooser prefilled with the active tone's catalog name.
+void EditorView::onExportTonePressed()
+{
+    showExportToneChooser();
+}
+
+// Opens an asynchronous tone-file chooser and forwards accepted import selections.
+void EditorView::showImportToneChooser()
+{
+    m_file_chooser = std::make_unique<juce::FileChooser>(
+        "Import Tone", toneChooserDirectory(m_state.tone_designer), "*.rocktone");
+
+    const juce::Component::SafePointer<EditorView> safe_this{this};
+    m_file_chooser->launchAsync(
+        juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+        [safe_this](const juce::FileChooser& chooser) {
+            if (safe_this == nullptr)
+            {
+                return;
+            }
+
+            const auto file = chooser.getResult();
+            if (!file.existsAsFile())
+            {
+                return;
+            }
+
+            safe_this->m_controller.onImportToneFileRequested(common::core::pathFromJuceFile(file));
+        });
+}
+
+// Opens an asynchronous tone-file save chooser prefilled with the active tone's name and
+// forwards accepted export destinations.
+void EditorView::showExportToneChooser()
+{
+    // The active (audible) tone is what exports; prefill the chooser with its catalog name.
+    juce::String active_tone_name;
+    for (const core::ToneRegionViewState& region : m_state.tone_track.regions)
+    {
+        if (region.active)
+        {
+            active_tone_name = juce::String{region.name};
+            break;
+        }
+    }
+    if (active_tone_name.isEmpty())
+    {
+        active_tone_name = "Tone";
+    }
+
+    const juce::File initial_file =
+        toneChooserDirectory(m_state.tone_designer).getChildFile(active_tone_name + ".rocktone");
+    m_file_chooser = std::make_unique<juce::FileChooser>("Export Tone", initial_file, "*.rocktone");
+
+    const juce::Component::SafePointer<EditorView> safe_this{this};
+    m_file_chooser->launchAsync(
+        juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles |
+            juce::FileBrowserComponent::warnAboutOverwriting,
+        [safe_this](const juce::FileChooser& chooser) {
+            if (safe_this == nullptr)
+            {
+                return;
+            }
+
+            const auto file = chooser.getResult();
+            if (file.getFullPathName().isEmpty())
+            {
+                return;
+            }
+
+            safe_this->m_controller.onExportToneFileRequested(pathWithRocktoneExtension(file));
+        });
+}
+
+// Shows each distinct tone-import confirmation once and reports the selected decision.
+void EditorView::presentToneImportPromptIfNeeded(
+    const std::optional<core::ToneImportPrompt>& prompt)
+{
+    if (!prompt.has_value())
+    {
+        m_last_presented_tone_import_prompt.reset();
+        return;
+    }
+
+    if (m_last_presented_tone_import_prompt == prompt)
+    {
+        return;
+    }
+
+    m_last_presented_tone_import_prompt = prompt;
+    const juce::String parameter_count{static_cast<juce::int64>(
+        prompt->automation_parameter_count)};
+    const juce::String message =
+        "Importing replaces this tone's rig and removes automation on " + parameter_count +
+        (prompt->automation_parameter_count == 1 ? " parameter." : " parameters.");
+    const juce::Component::SafePointer<EditorView> safe_this{this};
+    showThemedQuestionBox(
+        this, "Import Tone", message, {"Import", "Cancel"}, [safe_this](int button_index) {
+            if (safe_this == nullptr)
+            {
+                return;
+            }
+
+            safe_this->m_controller.onToneImportDecision(
+                button_index == 0 ? core::ToneImportDecision::Import
+                                  : core::ToneImportDecision::Cancel);
+        });
 }
 
 // Shows each distinct unsaved-changes prompt once and reports the selected decision.

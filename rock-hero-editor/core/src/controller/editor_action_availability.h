@@ -40,6 +40,9 @@ struct ActionConditions
     /*! \brief True when an unsaved-changes prompt is active. */
     bool has_unsaved_changes_prompt{false};
 
+    /*! \brief True when a tone-import confirmation prompt is active. */
+    bool has_tone_import_prompt{false};
+
     /*! \brief True when a Save As destination prompt is active. */
     bool has_save_as_prompt{false};
 

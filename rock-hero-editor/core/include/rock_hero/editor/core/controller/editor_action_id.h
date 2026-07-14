@@ -134,6 +134,15 @@ enum class EditorActionId : std::uint8_t
 
     /*! \brief Save the Tone Designer document to a chosen tone file. */
     SaveToneFileAs,
+
+    /*! \brief Replace the active project tone's rig with a tone file's contents. */
+    ImportToneFile,
+
+    /*! \brief Export the active project tone's rig to a tone file. */
+    ExportToneFile,
+
+    /*! \brief Resolve the tone-import automation-drop confirmation. */
+    ResolveToneImportPrompt,
 };
 
 } // namespace rock_hero::editor::core

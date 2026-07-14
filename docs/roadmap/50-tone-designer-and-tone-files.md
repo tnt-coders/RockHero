@@ -513,6 +513,23 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
 
 ### Phase 5 — Project-mode Import / Export
 
+**Status: COMPLETE 2026-07-13.** As built: `ImportToneFile` / `ExportToneFile` /
+`ResolveToneImportPrompt` actions (Import shares the chain-mutation gates; Export is a pure read
+gated on the arrangement only); the automation-drop confirm rides a `ToneImportPrompt` view-state
+slice + pending-import controller state (cleared at project close), with the count derived from
+the active chain's durable ids at request time and everything re-derived fresh on accept;
+`ToneImportEdit` generalizes the `PluginRemoveEdit` recipe to a whole chain — engine chain
+mementos on both sides (shared `ToneChainSnapshot` with the designer edit), extracted automation
+entries carrying their pre-import instance ids for the undo-side derived-curve rebuild, model
+restore via `applyToneAutomationModel` + `rewriteDerivedToneCurve`. Identity maps stay
+upsert-only: import mints fresh durable ids for the new chain and never erases the old entries,
+so undo's revived instance ids find their associations intact. Catalog ref, tone name, and
+regions never change. UI: Import Tone…/Export Tone… in the panel header (project mode only,
+never alongside the designer strip), `*.rocktone` choosers (export prefilled with the active
+tone's catalog name), themed Import/Cancel confirmation naming the dropped parameter count.
+Three controller tests (pure-read export; promptless automation-free import + undo; confirm
+flow with Cancel and Import over a calibrated project harness); all suites green.
+
 Scope: the copy-semantics pair over the active tone, with the automation confirm and a
 whole-delta undo edit.
 

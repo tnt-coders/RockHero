@@ -111,6 +111,12 @@ public:
         /*! \brief Called when the user saves the designer document to a chosen tone file. */
         virtual void onSaveToneAsPressed() = 0;
 
+        /*! \brief Called when the user asks to import a tone file into the active project tone. */
+        virtual void onImportTonePressed() = 0;
+
+        /*! \brief Called when the user asks to export the active project tone to a tone file. */
+        virtual void onExportTonePressed() = 0;
+
     protected:
         /*! \brief Creates the listener interface. */
         Listener() = default;
@@ -261,6 +267,11 @@ private:
     juce::TextButton m_tone_open_button;
     juce::TextButton m_tone_save_button;
     juce::TextButton m_tone_save_as_button;
+
+    // Project-mode tone-file commands (copy semantics), never visible alongside the designer
+    // strip: the two button sets share the header's right side across the two modes.
+    juce::TextButton m_tone_import_button;
+    juce::TextButton m_tone_export_button;
 
     // Slider look-and-feel that keeps the default textbox while compacting the track.
     std::unique_ptr<juce::LookAndFeel> m_output_gain_slider_look_and_feel;
