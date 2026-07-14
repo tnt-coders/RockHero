@@ -6,7 +6,7 @@
 #pragma once
 
 #include <optional>
-#include <rock_hero/common/audio/input/input_calibration_workflow.h>
+#include <rock_hero/common/audio/input/live_input_monitor.h>
 #include <rock_hero/common/audio/input/live_input_monitoring_status.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <rock_hero/editor/core/signal_chain/signal_chain_view_state.h>
@@ -58,13 +58,13 @@ Restores the backend-availability distinction the pure workflow drops: an active
 [[nodiscard]] std::string inputCalibrationDisabledMessageFor(InputCalibrationStatus status);
 
 /*!
-\brief Builds the editor calibration view slice from the workflow's pure getters.
-\param workflow Shared input-calibration workflow owned by the controller.
-\param context Current controller facts used to project availability.
+\brief Builds the editor calibration view slice from the shared live-input monitor's read surface.
+\param monitor Shared live-input monitoring service driven by the controller.
+\param context Current session facts used to project availability.
 \return View slice consumed by the signal-chain panel and action-condition gate.
 */
 [[nodiscard]] InputCalibrationViewSlice makeInputCalibrationViewState(
-    const common::audio::InputCalibrationWorkflow& workflow,
-    const common::audio::InputCalibrationWorkflow::Context& context);
+    const common::audio::LiveInputMonitor& monitor,
+    common::audio::LiveInputMonitoringContext context);
 
 } // namespace rock_hero::editor::core

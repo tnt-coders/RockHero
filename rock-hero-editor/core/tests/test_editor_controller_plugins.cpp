@@ -154,9 +154,11 @@ TEST_CASE("EditorController enables plugin add after load", "[core][editor-contr
     ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -194,9 +196,11 @@ TEST_CASE("EditorController disables plugin insertion at limit", "[core][editor-
     ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -235,9 +239,11 @@ TEST_CASE("EditorController opens plugin browser catalog", "[core][editor-contro
     ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -282,9 +288,11 @@ TEST_CASE("EditorController rescans plugin browser catalog", "[core][editor-cont
             .file_path = std::filesystem::path{"known-amp.vst3"},
         },
     };
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -341,9 +349,11 @@ TEST_CASE("EditorController reports plugin catalog scan progress", "[core][edito
             .active_plugin_path = std::filesystem::path{"Cab.vst3"},
         },
     };
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -401,9 +411,11 @@ TEST_CASE("EditorController cancel scan keeps known plugins", "[core][editor-con
             .file_path = std::filesystem::path{"scanned-delay.vst3"},
         },
     };
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        controllerServices(runner),
+        controllerServices(runner, store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -491,9 +503,11 @@ TEST_CASE("EditorController cancel scan stops the scan worker", "[core][editor-c
             .active_plugin_path = std::filesystem::path{"scanned-delay.vst3"},
         },
     };
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        controllerServices(runner),
+        controllerServices(runner, store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -547,9 +561,11 @@ TEST_CASE("EditorController adds a browser plugin", "[core][editor-controller]")
     ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -597,9 +613,11 @@ TEST_CASE("EditorController keeps plugin browser open after add error", "[core][
     ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -641,9 +659,11 @@ TEST_CASE("EditorController rolls back insert when undo prep fails", "[core][edi
     FakeLiveRig live_rig;
     live_rig.next_load_result.plugins.clear();
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -695,9 +715,11 @@ TEST_CASE("EditorController clears undo when insert rollback fails", "[core][edi
     FakeLiveRig live_rig;
     live_rig.next_load_result.plugins.clear();
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -750,9 +772,11 @@ TEST_CASE("EditorController faults when insert rollback breaks", "[core][editor-
     FakeLiveRig live_rig;
     live_rig.next_load_result.plugins.clear();
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -800,9 +824,11 @@ TEST_CASE("EditorController inserts browser plugin at a gap", "[core][editor-con
     ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -849,9 +875,11 @@ TEST_CASE("EditorController undoes plugin inserts", "[core][editor-controller]")
     ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -920,9 +948,11 @@ TEST_CASE("EditorController fences plugin recreate behind loading", "[core][edit
     ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -995,9 +1025,11 @@ TEST_CASE("EditorController aborts stale plugin recreate before close", "[core][
     ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1060,9 +1092,11 @@ TEST_CASE("EditorController preserves failed insert target", "[core][editor-cont
     ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1106,9 +1140,11 @@ TEST_CASE("EditorController closes plugin browser", "[core][editor-controller]")
     ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1137,9 +1173,11 @@ TEST_CASE("EditorController reports plugin catalog scan errors", "[core][editor-
     ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1397,9 +1435,11 @@ TEST_CASE("EditorController mints the tone baseline at load", "[core][editor-con
     FakeLiveRig live_rig;
     live_rig.next_load_result.plugins.clear();
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1433,9 +1473,11 @@ TEST_CASE("EditorController captures live rig before save", "[core][editor-contr
     FakeLiveRig live_rig;
     live_rig.next_load_result.plugins.clear();
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1482,9 +1524,11 @@ TEST_CASE("EditorController captures signal-chain placement", "[core][editor-con
     FakeLiveRig live_rig;
     live_rig.next_load_result.plugins.front().block_index = 1;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1518,9 +1562,11 @@ TEST_CASE(
     FakeLiveRig live_rig;
     live_rig.next_load_result.plugins.front().category = "Fx|Delay";
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1565,9 +1611,11 @@ TEST_CASE("EditorController plugin add marks tone dirty", "[core][editor-control
     FakeLiveRig live_rig;
     live_rig.next_load_result.plugins.clear();
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1603,9 +1651,11 @@ TEST_CASE("EditorController save as clears plugin dirty state", "[core][editor-c
     live_rig.next_load_result.plugins.clear();
     FakeProjectServices project_services;
     int exit_call_count = 0;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         [&exit_call_count] { ++exit_call_count; },
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1646,9 +1696,11 @@ TEST_CASE("EditorController placement edit marks tone dirty", "[core][editor-con
     FakeLiveRig live_rig;
     live_rig.next_load_result.plugins.front().block_index = 1;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1698,9 +1750,11 @@ TEST_CASE("EditorController undoes signal-chain placement", "[core][editor-contr
     FakeLiveRig live_rig;
     live_rig.next_load_result.plugins.front().block_index = 1;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1759,9 +1813,11 @@ TEST_CASE("EditorController redo makes clean placement dirty", "[core][editor-co
     FakeLiveRig live_rig;
     live_rig.next_load_result.plugins.front().block_index = 1;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1801,9 +1857,11 @@ TEST_CASE("EditorController forked redo branch stays dirty", "[core][editor-cont
     live_rig.next_load_result.plugins.front().block_index = 1;
     live_rig.next_capture_snapshot.plugins = {pluginEntry("loaded-instance", 0, 3)};
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1845,9 +1903,11 @@ TEST_CASE("EditorController evicted clean marker stays dirty", "[core][editor-co
     FakeLiveRig live_rig;
     live_rig.next_load_result.plugins.front().block_index = 0;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1894,9 +1954,11 @@ TEST_CASE("EditorController undoes display type override", "[core][editor-contro
     FakeLiveRig live_rig;
     live_rig.next_load_result.plugins.front().category = "Fx|Delay";
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1950,9 +2012,11 @@ TEST_CASE("EditorController offers undo for a pending plugin edit", "[core][edit
     ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -1988,9 +2052,11 @@ TEST_CASE("EditorController undoes plugin state edits", "[core][editor-controlle
     ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -2050,9 +2116,11 @@ TEST_CASE("EditorController flushes plugin edits before undo", "[core][editor-co
     ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -2097,9 +2165,11 @@ TEST_CASE("EditorController routes plugin window undo", "[core][editor-controlle
     ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -2143,9 +2213,11 @@ TEST_CASE("EditorController keeps placement undo after output gain", "[core][edi
     FakeLiveRig live_rig;
     live_rig.next_load_result.plugins.front().block_index = 1;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -2188,9 +2260,11 @@ TEST_CASE("EditorController removes a plugin", "[core][editor-controller]")
     ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -2227,9 +2301,11 @@ TEST_CASE("EditorController undoes plugin removals", "[core][editor-controller]"
     ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -2295,9 +2371,11 @@ TEST_CASE("EditorController faults after rollback violation", "[core][editor-con
     ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -2355,9 +2433,11 @@ TEST_CASE("EditorController moves plugins", "[core][editor-controller]")
     ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -2420,9 +2500,11 @@ TEST_CASE("EditorController undoes plugin moves", "[core][editor-controller]")
     FakeLiveRig live_rig;
     live_rig.next_load_result.plugins = loaded_plugins;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -2500,9 +2582,11 @@ TEST_CASE("EditorController ignores same-index plugin moves", "[core][editor-con
     ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -2536,9 +2620,11 @@ TEST_CASE("EditorController ignores stale plugin moves", "[core][editor-controll
     ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -2568,9 +2654,11 @@ TEST_CASE("EditorController ignores stale plugin removal", "[core][editor-contro
     ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -2600,9 +2688,11 @@ TEST_CASE("EditorController opens plugin windows", "[core][editor-controller]")
     ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -2629,9 +2719,11 @@ TEST_CASE("EditorController ignores stale plugin window requests", "[core][edito
     ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -2657,9 +2749,11 @@ TEST_CASE("EditorController reports plugin window errors", "[core][editor-contro
     ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -2690,9 +2784,11 @@ TEST_CASE("EditorController reports plugin remove errors", "[core][editor-contro
     ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -2727,9 +2823,11 @@ TEST_CASE("EditorController reports plugin move errors", "[core][editor-controll
     ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{transport, audio_devices, store};
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        defaultControllerServices(),
+        controllerServices(nullEditorSettings(), store, monitor),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),

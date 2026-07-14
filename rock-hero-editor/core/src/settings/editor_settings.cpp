@@ -215,8 +215,7 @@ constexpr std::string_view g_project_selected_arrangement_family{"projectSelecte
 
 // Legacy calibration XML names shared with the pre-migration on-disk schema. The active calibration
 // codec now lives in AudioConfigStore; only this read-side view survives so the one-shot migration
-// can decode the obsolete history and re-save it through the store. Removed with the calibration
-// methods by plan 14 P3.
+// can decode the obsolete history and re-save it through the store.
 constexpr const char* g_input_calibration_states_key{"inputCalibrationStates"};
 constexpr const char* g_input_calibrations_tag{"INPUT_CALIBRATIONS"};
 constexpr const char* g_input_calibration_item_tag{"CALIBRATION"};
@@ -256,28 +255,6 @@ constexpr const char* g_input_channel_name_property{"inputChannelName"};
             .input_channel_name = *input_channel_name,
         },
     };
-}
-
-// Maps a store error code onto the matching settings error code so the delegated calibration
-// accessors keep the IEditorSettings error type at their boundary. The two enums are the same three
-// members in the same order; the translation carries the diagnostic message through unchanged.
-[[nodiscard]] EditorSettingsError toEditorSettingsError(common::audio::AudioConfigError error)
-{
-    EditorSettingsErrorCode code = EditorSettingsErrorCode::CouldNotSave;
-    switch (error.code)
-    {
-        case common::audio::AudioConfigErrorCode::InvalidSettingValue:
-            code = EditorSettingsErrorCode::InvalidSettingValue;
-            break;
-        case common::audio::AudioConfigErrorCode::InvalidInputCalibrationHistory:
-            code = EditorSettingsErrorCode::InvalidInputCalibrationHistory;
-            break;
-        case common::audio::AudioConfigErrorCode::CouldNotSave:
-            code = EditorSettingsErrorCode::CouldNotSave;
-            break;
-    }
-
-    return EditorSettingsError{code, std::move(error.message)};
 }
 
 // Saves pending changes and translates JUCE persistence failure into the settings domain.
@@ -569,32 +546,6 @@ std::expected<void, EditorSettingsError> EditorSettings::saveProjectSelectedArra
 
     m_properties.setValue(key, juce::String::fromUTF8(arrangement_id.c_str()));
     return saveNow(m_properties, "Could not save project selected-arrangement setting.");
-}
-
-// Delegates the calibration lookup to the owned audio-config store, translating the store error
-// type back onto the settings error type at the boundary. Removed with the store's calibration
-// codec by plan 14 P3, which relocates these call sites into LiveInputMonitor.
-std::expected<std::optional<common::audio::InputCalibrationState>, EditorSettingsError>
-EditorSettings::inputCalibrationFor(const common::audio::InputDeviceIdentity& identity) const
-{
-    return m_audio_config_store.inputCalibrationFor(identity).transform_error(
-        toEditorSettingsError);
-}
-
-// Delegates the calibration save to the owned audio-config store.
-std::expected<void, EditorSettingsError> EditorSettings::saveInputCalibration(
-    common::audio::InputCalibrationState calibration_state)
-{
-    return m_audio_config_store.saveInputCalibration(std::move(calibration_state))
-        .transform_error(toEditorSettingsError);
-}
-
-// Delegates the calibration removal to the owned audio-config store.
-std::expected<void, EditorSettingsError> EditorSettings::removeInputCalibration(
-    const common::audio::InputDeviceIdentity& identity)
-{
-    return m_audio_config_store.removeInputCalibration(identity).transform_error(
-        toEditorSettingsError);
 }
 
 // Exposes the owned store so app composition can inject it into the controller's device-route path.

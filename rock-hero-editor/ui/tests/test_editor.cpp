@@ -15,6 +15,7 @@
 #include <rock_hero/common/audio/input/i_audio_meter_source.h>
 #include <rock_hero/common/audio/input/i_live_input.h>
 #include <rock_hero/common/audio/input/input_calibration_state.h>
+#include <rock_hero/common/audio/input/live_input_monitor.h>
 #include <rock_hero/common/audio/live_rig/i_live_rig.h>
 #include <rock_hero/common/audio/plugin/i_plugin_host.h>
 #include <rock_hero/common/audio/song/i_song_audio.h>
@@ -437,6 +438,9 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor]")
     core::testing::ImmediateEditorTaskRunner task_runner;
     core::testing::ImmediateMessageThreadScheduler message_thread_scheduler;
     common::audio::testing::InMemoryAudioConfigStore audio_config_store;
+    common::audio::LiveInputMonitor live_input_monitor{
+        audio_ports, audio_ports, audio_config_store
+    };
 
     Editor editor{
         Editor::AudioPorts{
@@ -456,6 +460,7 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor]")
             .task_runner = task_runner,
             .message_thread_scheduler = message_thread_scheduler,
             .audio_config_store = audio_config_store,
+            .live_input_monitor = live_input_monitor,
         },
         [] {}
     };

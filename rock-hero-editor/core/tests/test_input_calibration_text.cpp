@@ -3,6 +3,10 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <optional>
+#include <rock_hero/common/audio/input/live_input_monitor.h>
+#include <rock_hero/common/audio/testing/configurable_audio_device_configuration.h>
+#include <rock_hero/common/audio/testing/fake_live_input.h>
+#include <rock_hero/common/audio/testing/in_memory_audio_config_store.h>
 #include <string>
 #include <utility>
 
@@ -35,16 +39,10 @@ namespace
     };
 }
 
-// Builds controller context where arrangement audio is loaded and live input may be calibrated.
-[[nodiscard]] common::audio::InputCalibrationWorkflow::Context readyContext(
-    std::optional<common::audio::InputDeviceIdentity> identity)
-{
-    return common::audio::InputCalibrationWorkflow::Context{
-        .project_audio_ready = true,
-        .arrangement_loaded = true,
-        .current_input_device_identity = std::move(identity),
-    };
-}
+// Session context where arrangement audio is loaded and live input may be calibrated.
+constexpr common::audio::LiveInputMonitoringContext g_ready{
+    .session_audio_ready = true, .arrangement_loaded = true
+};
 
 } // namespace
 
@@ -117,13 +115,16 @@ TEST_CASE(
 // A calibrated matching route on a ready session projects an auditionable, calibrated slice.
 TEST_CASE("Input calibration text builds an active calibrated slice", "[core][text]")
 {
-    common::audio::InputCalibrationWorkflow workflow;
     const common::audio::InputDeviceIdentity identity = makeIdentity();
-    REQUIRE(
-        workflow.syncCommittedInputDeviceIdentity(identity, calibrationFor(identity, 5.0)).empty());
+    common::audio::testing::FakeLiveInput live_input;
+    common::audio::testing::ConfigurableAudioDeviceConfiguration devices;
+    devices.current_input_identity = identity;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    REQUIRE(store.saveInputCalibration(calibrationFor(identity, 5.0)).has_value());
+    common::audio::LiveInputMonitor monitor{live_input, devices, store};
+    static_cast<void>(monitor.refresh(g_ready));
 
-    const InputCalibrationViewSlice slice =
-        makeInputCalibrationViewState(workflow, readyContext(identity));
+    const InputCalibrationViewSlice slice = makeInputCalibrationViewState(monitor, g_ready);
 
     CHECK(slice.status == InputCalibrationStatus::Calibrated);
     CHECK(slice.calibrate_enabled);
@@ -133,18 +134,21 @@ TEST_CASE("Input calibration text builds an active calibrated slice", "[core][te
     CHECK_FALSE(slice.prompt.has_value());
 }
 
-// Opening audio-device settings still shows a matching route as calibrated, matching the
-// pre-Phase-2 workflow status() that ignored the settings-open early-out.
+// Opening audio-device settings still shows a matching route as calibrated, matching the status
+// projection that ignores the settings-open early-out the ordered gate reports first.
 TEST_CASE("Input calibration text keeps calibrated status while settings are open", "[core][text]")
 {
-    common::audio::InputCalibrationWorkflow workflow;
     const common::audio::InputDeviceIdentity identity = makeIdentity();
-    REQUIRE(
-        workflow.syncCommittedInputDeviceIdentity(identity, calibrationFor(identity, 5.0)).empty());
-    static_cast<void>(workflow.openAudioDeviceSettings());
+    common::audio::testing::FakeLiveInput live_input;
+    common::audio::testing::ConfigurableAudioDeviceConfiguration devices;
+    devices.current_input_identity = identity;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    REQUIRE(store.saveInputCalibration(calibrationFor(identity, 5.0)).has_value());
+    common::audio::LiveInputMonitor monitor{live_input, devices, store};
+    static_cast<void>(monitor.refresh(g_ready));
+    monitor.openAudioDeviceSettings();
 
-    const InputCalibrationViewSlice slice =
-        makeInputCalibrationViewState(workflow, readyContext(identity));
+    const InputCalibrationViewSlice slice = makeInputCalibrationViewState(monitor, g_ready);
 
     CHECK(slice.status == InputCalibrationStatus::Calibrated);
     CHECK_FALSE(slice.live_input_audition_available);
@@ -155,13 +159,16 @@ TEST_CASE("Input calibration text keeps calibrated status while settings are ope
 // A visible prompt carries the matching stored gain and the disabled message for the route.
 TEST_CASE("Input calibration text projects the prompt with the stored gain", "[core][text]")
 {
-    common::audio::InputCalibrationWorkflow workflow;
     const common::audio::InputDeviceIdentity identity = makeIdentity();
-    REQUIRE(workflow.syncCommittedInputDeviceIdentity(identity, std::nullopt).empty());
-    REQUIRE(workflow.requestPrompt(readyContext(identity)));
+    common::audio::testing::FakeLiveInput live_input;
+    common::audio::testing::ConfigurableAudioDeviceConfiguration devices;
+    devices.current_input_identity = identity;
+    common::audio::testing::InMemoryAudioConfigStore store;
+    common::audio::LiveInputMonitor monitor{live_input, devices, store};
+    static_cast<void>(monitor.refresh(g_ready));
+    REQUIRE(monitor.requestPrompt(g_ready));
 
-    const InputCalibrationViewSlice slice =
-        makeInputCalibrationViewState(workflow, readyContext(identity));
+    const InputCalibrationViewSlice slice = makeInputCalibrationViewState(monitor, g_ready);
 
     REQUIRE(slice.prompt.has_value());
     if (slice.prompt.has_value())

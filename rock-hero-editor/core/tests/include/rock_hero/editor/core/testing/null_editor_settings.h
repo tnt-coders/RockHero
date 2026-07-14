@@ -7,7 +7,6 @@
 
 #include <filesystem>
 #include <optional>
-#include <rock_hero/common/audio/input/input_calibration_state.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/editor/core/settings/i_editor_settings.h>
 #include <string>
@@ -176,37 +175,6 @@ public:
     */
     [[nodiscard]] std::expected<void, EditorSettingsError> saveProjectSelectedArrangement(
         const std::filesystem::path&, std::string) override
-    {
-        return {};
-    }
-
-    /*!
-    \brief Reports that no calibration is stored for the supplied input route.
-    \return Always empty optional success.
-    */
-    [[nodiscard]] std::expected<
-        std::optional<common::audio::InputCalibrationState>, EditorSettingsError>
-    inputCalibrationFor(const common::audio::InputDeviceIdentity&) const override
-    {
-        return std::nullopt;
-    }
-
-    /*!
-    \brief Ignores input calibration writes.
-    \return Always empty success.
-    */
-    [[nodiscard]] std::expected<void, EditorSettingsError> saveInputCalibration(
-        common::audio::InputCalibrationState) override
-    {
-        return {};
-    }
-
-    /*!
-    \brief Ignores input calibration removal requests.
-    \return Always empty success.
-    */
-    [[nodiscard]] std::expected<void, EditorSettingsError> removeInputCalibration(
-        const common::audio::InputDeviceIdentity&) override
     {
         return {};
     }

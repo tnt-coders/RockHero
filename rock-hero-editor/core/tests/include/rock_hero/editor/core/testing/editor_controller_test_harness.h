@@ -20,12 +20,14 @@
 #include <rock_hero/common/audio/input/i_live_input.h>
 #include <rock_hero/common/audio/input/input_calibration_state.h>
 #include <rock_hero/common/audio/input/input_device_identity.h>
+#include <rock_hero/common/audio/input/live_input_monitor.h>
 #include <rock_hero/common/audio/live_rig/i_live_rig.h>
 #include <rock_hero/common/audio/plugin/i_plugin_host.h>
 #include <rock_hero/common/audio/settings/i_audio_config_store.h>
 #include <rock_hero/common/audio/song/i_song_audio.h>
 #include <rock_hero/common/audio/testing/configurable_audio_device_configuration.h>
 #include <rock_hero/common/audio/testing/configurable_song_audio.h>
+#include <rock_hero/common/audio/testing/fake_live_input.h>
 #include <rock_hero/common/audio/testing/in_memory_audio_config_store.h>
 #include <rock_hero/common/audio/testing/recording_plugin_host.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
@@ -221,24 +223,75 @@ defaultAudioConfigStore() noexcept
 }
 
 /*!
-\brief Builds the required service bundle, choosing which audio-config store the controller uses.
+\brief Returns the shared live-input monitor for controller tests that never drive calibration.
+
+Composed over a process-lifetime live-input fake, the shared default device configuration, and the
+shared default audio-config store. Tests that assert live-input behavior, seed calibration, or set
+an input identity build their OWN LiveInputMonitor over their own fakes and inject it instead.
+\return Process-lifetime shared live-input monitor over the default fakes.
+*/
+[[nodiscard]] common::audio::LiveInputMonitor& defaultLiveInputMonitor() noexcept;
+
+/*!
+\brief Builds the required service bundle, choosing which store and monitor the controller uses.
 \param settings Settings port used by the controller under test.
 \param task_runner Task runner used by the controller under test.
 \param message_thread_scheduler Message-thread scheduler used by the controller under test.
 \param audio_config_store Audio-config store used by the controller under test.
+\param live_input_monitor Live-input monitor injected into the controller under test.
 \return Controller service bundle.
 */
 [[nodiscard]] inline EditorController::Services controllerServices(
     IEditorSettings& settings, IEditorTaskRunner& task_runner,
     IMessageThreadScheduler& message_thread_scheduler,
-    common::audio::IAudioConfigStore& audio_config_store) noexcept
+    common::audio::IAudioConfigStore& audio_config_store,
+    common::audio::LiveInputMonitor& live_input_monitor = defaultLiveInputMonitor()) noexcept
 {
     return EditorController::Services{
         .settings = settings,
         .task_runner = task_runner,
         .message_thread_scheduler = message_thread_scheduler,
         .audio_config_store = audio_config_store,
+        .live_input_monitor = live_input_monitor,
     };
+}
+
+/*!
+\brief Builds a service bundle over an explicit store and live-input monitor, synchronous by default.
+\param settings Settings port used by the controller under test.
+\param audio_config_store Audio-config store used by the controller and monitor under test.
+\param live_input_monitor Live-input monitor injected into the controller under test.
+\return Controller service bundle.
+*/
+[[nodiscard]] inline EditorController::Services controllerServices(
+    IEditorSettings& settings, common::audio::IAudioConfigStore& audio_config_store,
+    common::audio::LiveInputMonitor& live_input_monitor) noexcept
+{
+    return controllerServices(
+        settings,
+        immediateTaskRunner(),
+        immediateMessageThreadScheduler(),
+        audio_config_store,
+        live_input_monitor);
+}
+
+/*!
+\brief Builds a service bundle over an explicit task runner, store, and live-input monitor.
+\param task_runner Task runner used by the controller under test.
+\param audio_config_store Audio-config store used by the controller and monitor under test.
+\param live_input_monitor Live-input monitor injected into the controller under test.
+\return Controller service bundle.
+*/
+[[nodiscard]] inline EditorController::Services controllerServices(
+    IEditorTaskRunner& task_runner, common::audio::IAudioConfigStore& audio_config_store,
+    common::audio::LiveInputMonitor& live_input_monitor) noexcept
+{
+    return controllerServices(
+        nullEditorSettings(),
+        task_runner,
+        immediateMessageThreadScheduler(),
+        audio_config_store,
+        live_input_monitor);
 }
 
 /*!
@@ -878,6 +931,18 @@ struct FakeLiveRig final : public common::audio::ILiveRig
     return g_audio_devices;
 }
 
+// Defined out of line so it can reference the default device configuration and audio-config store
+// declared above; the forward declaration near defaultAudioConfigStore() lets controllerServices()
+// name it as a default argument.
+inline common::audio::LiveInputMonitor& defaultLiveInputMonitor() noexcept
+{
+    static common::audio::testing::FakeLiveInput g_live_input;
+    static common::audio::LiveInputMonitor g_monitor{
+        g_live_input, defaultAudioDevices(), defaultAudioConfigStore()
+    };
+    return g_monitor;
+}
+
 /*!
 \brief Supplies a default plugin-host port for tests that do not care about plugin behavior.
 \return Process-lifetime recording plugin-host fake.
@@ -1048,7 +1113,6 @@ keeping construction explicit.
         .plugin_host = defaultPluginHost(),
         .live_rig = defaultLiveRig(),
         .tone_automation = defaultToneAutomation(),
-        .live_input = transport,
     };
 }
 
@@ -1070,7 +1134,6 @@ keeping construction explicit.
         .plugin_host = defaultPluginHost(),
         .live_rig = defaultLiveRig(),
         .tone_automation = defaultToneAutomation(),
-        .live_input = transport,
     };
 }
 
@@ -1091,7 +1154,6 @@ keeping construction explicit.
         .plugin_host = plugin_host,
         .live_rig = defaultLiveRig(),
         .tone_automation = defaultToneAutomation(),
-        .live_input = transport,
     };
 }
 
@@ -1114,7 +1176,6 @@ keeping construction explicit.
         .plugin_host = plugin_host,
         .live_rig = live_rig,
         .tone_automation = defaultToneAutomation(),
-        .live_input = transport,
     };
 }
 
@@ -1138,7 +1199,6 @@ keeping construction explicit.
         .plugin_host = plugin_host,
         .live_rig = live_rig,
         .tone_automation = tone_automation,
-        .live_input = transport,
     };
 }
 
@@ -1161,7 +1221,6 @@ keeping construction explicit.
         .plugin_host = plugin_host,
         .live_rig = defaultLiveRig(),
         .tone_automation = defaultToneAutomation(),
-        .live_input = transport,
     };
 }
 
@@ -1186,7 +1245,6 @@ keeping construction explicit.
         .plugin_host = plugin_host,
         .live_rig = live_rig,
         .tone_automation = defaultToneAutomation(),
-        .live_input = transport,
     };
 }
 
@@ -1217,7 +1275,6 @@ together.
         .plugin_host = plugin_host,
         .live_rig = live_rig,
         .tone_automation = tone_automation,
-        .live_input = transport,
     };
 }
 

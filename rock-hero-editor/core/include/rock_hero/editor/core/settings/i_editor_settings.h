@@ -8,7 +8,6 @@
 #include <expected>
 #include <filesystem>
 #include <optional>
-#include <rock_hero/common/audio/input/input_calibration_state.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/editor/core/settings/editor_settings_error.h>
@@ -155,31 +154,6 @@ public:
     */
     [[nodiscard]] virtual std::expected<void, EditorSettingsError> saveProjectSelectedArrangement(
         const std::filesystem::path& project_file, std::string arrangement_id) = 0;
-
-    /*!
-    \brief Reads app-local input calibration for one physical input route.
-    \param identity Physical input route to look up.
-    \return Calibration state, absence, or a typed settings failure.
-    */
-    [[nodiscard]] virtual std::expected<
-        std::optional<common::audio::InputCalibrationState>, EditorSettingsError>
-    inputCalibrationFor(const common::audio::InputDeviceIdentity& identity) const = 0;
-
-    /*!
-    \brief Stores or replaces app-local input calibration for its physical route.
-    \param calibration_state Calibration state to save.
-    \return Empty success, or a typed settings failure.
-    */
-    [[nodiscard]] virtual std::expected<void, EditorSettingsError> saveInputCalibration(
-        common::audio::InputCalibrationState calibration_state) = 0;
-
-    /*!
-    \brief Removes app-local input calibration for one physical input route.
-    \param identity Physical input route to remove.
-    \return Empty success, or a typed settings failure.
-    */
-    [[nodiscard]] virtual std::expected<void, EditorSettingsError> removeInputCalibration(
-        const common::audio::InputDeviceIdentity& identity) = 0;
 
 protected:
     /*! \brief Creates the editor-settings interface. */

@@ -25,6 +25,7 @@ class ISongAudio;
 class IThumbnailFactory;
 class IToneAutomation;
 class ITransport;
+class LiveInputMonitor;
 } // namespace rock_hero::common::audio
 
 namespace rock_hero::editor::ui
@@ -100,6 +101,9 @@ public:
 
         /*! \brief Per-app audio-config store used for device-route persist and restore. */
         common::audio::IAudioConfigStore& audio_config_store;
+
+        /*! \brief Shared calibrate-first live-input monitoring service driven by the controller. */
+        common::audio::LiveInputMonitor& live_input_monitor;
     };
 
     /*! \brief Optional project IO operations used by the composed editor workflow. */
