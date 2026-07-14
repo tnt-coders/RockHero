@@ -322,10 +322,11 @@ of broader internal generated documentation becomes genuinely uncertain.
 
 ## Testing
 
-There are no root application tests registered yet, so `ctest` is mainly a guard for future
-coverage. For tooling changes under `project-config/cmake-conan/`, run the pytest suite from that
-directory with `pytest -rA`. Add new tests close to the code they validate and follow existing
-`test_*.py` naming for Python tests.
+`ctest --preset debug` runs the per-library Catch2 unit suites (common core/audio/ui, game core,
+editor core/ui), each registered with `catch_discover_tests`. There are no whole-application
+end-to-end tests yet. Separately, for tooling changes under `project-config/cmake-conan/`, run the
+pytest suite from that directory with `pytest -rA`. Add new tests close to the code they validate,
+following existing Catch2 `test_*.cpp` naming for C++ tests and `test_*.py` naming for Python tests.
 
 ## Commit & Pull Request Guidelines
 

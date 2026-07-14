@@ -75,8 +75,8 @@ struct ToneRegion
 \brief Authored tone schedule for one arrangement.
 
 Regions are kept sorted by start position and never overlap. Gaps are allowed; playback holds the
-previous region's tone through a gap. An empty track means the arrangement's legacy tone document
-reference is the sole tone source.
+previous region's tone through a gap. An empty track means no scheduled tone regions; load
+normalization mints a default tone plus a whole-song region before the editor sees the arrangement.
 */
 struct ToneTrack
 {

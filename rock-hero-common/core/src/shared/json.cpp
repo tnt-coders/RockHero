@@ -34,27 +34,6 @@ const juce::var& Json::value(const juce::var& object, std::string_view property_
     return object[identifier(property_name)];
 }
 
-// Supports imported formats that vary JSON property capitalization across versions.
-const juce::var* Json::findValue(
-    const juce::var& object, std::initializer_list<std::string_view> property_names)
-{
-    if (!object.isObject())
-    {
-        return nullptr;
-    }
-
-    for (const std::string_view property_name : property_names)
-    {
-        const juce::Identifier property_identifier = identifier(property_name);
-        if (object.hasProperty(property_identifier))
-        {
-            return &object[property_identifier];
-        }
-    }
-
-    return nullptr;
-}
-
 // Converts project-owned UTF-8 strings into JUCE string values before serialization.
 juce::var Json::makeString(const std::string& text)
 {

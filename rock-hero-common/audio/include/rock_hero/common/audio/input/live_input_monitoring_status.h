@@ -21,7 +21,7 @@ enum class LiveInputMonitoringState : std::uint8_t
 };
 
 /*! \brief Ordered reason a live-input monitoring request is disabled. */
-enum class MonitoringDisabledReason : std::uint8_t
+enum class LiveInputMonitoringDisabledReason : std::uint8_t
 {
     /*! \brief Monitoring is active; no disabling reason applies. */
     None,
@@ -65,7 +65,7 @@ struct LiveInputMonitoringStatus
     LiveInputMonitoringState state{LiveInputMonitoringState::Disabled};
 
     /*! \brief The reason monitoring is disabled, or None while active. */
-    MonitoringDisabledReason reason{MonitoringDisabledReason::None};
+    LiveInputMonitoringDisabledReason reason{LiveInputMonitoringDisabledReason::None};
 
     /*!
     \brief Compares two monitoring-status values by their stored fields.

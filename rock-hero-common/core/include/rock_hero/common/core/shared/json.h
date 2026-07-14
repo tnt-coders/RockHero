@@ -92,15 +92,6 @@ struct Json
         const juce::var& object, std::string_view property_name);
 
     /*!
-    \brief Finds the first present property from a set of equivalent JSON names.
-    \param object Object to read from.
-    \param property_names Candidate property names in priority order.
-    \return Pointer to the first present value, or null when none exists.
-    */
-    [[nodiscard]] static const juce::var* findValue(
-        const juce::var& object, std::initializer_list<std::string_view> property_names);
-
-    /*!
     \brief Stores a UTF-8 string in a JUCE JSON value.
     \param text Text to store.
     \return JUCE string value.

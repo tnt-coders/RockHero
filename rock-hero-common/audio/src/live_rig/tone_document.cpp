@@ -337,8 +337,7 @@ constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
             });
     }
 
-    // Gain fields are additive; older tones without them default to 0.0 dB. Legacy inputGainDb
-    // is intentionally ignored because input calibration is app-local.
+    // outputGainDb is optional and defaults to 0.0 dB when absent.
     document.output_gain = clampGain(
         Gain{core::Json::readOptionalDouble(default_slot_json, "outputGainDb", defaultGainDb())});
 

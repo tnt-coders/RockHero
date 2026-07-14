@@ -62,7 +62,9 @@ void LiveInputMonitor::disableMonitoring()
 {
     setCalibrationInputMonitoringBestEffort(false, "live-input disable calibration monitoring");
     setLiveInputMonitoringBestEffort(false, "live-input disable monitoring");
-    m_status = {LiveInputMonitoringState::Disabled, MonitoringDisabledReason::SessionNotReady};
+    m_status = {
+        LiveInputMonitoringState::Disabled, LiveInputMonitoringDisabledReason::SessionNotReady
+    };
 }
 
 LiveInputMonitoringStatus LiveInputMonitor::status() const noexcept
@@ -221,7 +223,8 @@ LiveInputMonitoringStatus LiveInputMonitor::applyGateInternal(
     {
         setLiveInputMonitoringBestEffort(false, "audio-device settings gate disable");
         m_status = {
-            LiveInputMonitoringState::Disabled, MonitoringDisabledReason::AudioDeviceSettingsOpen
+            LiveInputMonitoringState::Disabled,
+            LiveInputMonitoringDisabledReason::AudioDeviceSettingsOpen
         };
         return m_status;
     }
@@ -229,14 +232,18 @@ LiveInputMonitoringStatus LiveInputMonitor::applyGateInternal(
     if (!context.live_input_ready || !context.arrangement_loaded)
     {
         setLiveInputMonitoringBestEffort(false, "live-input gate disable");
-        m_status = {LiveInputMonitoringState::Disabled, MonitoringDisabledReason::SessionNotReady};
+        m_status = {
+            LiveInputMonitoringState::Disabled, LiveInputMonitoringDisabledReason::SessionNotReady
+        };
         return m_status;
     }
 
     if (!context.current_input_device_identity.has_value())
     {
         setLiveInputMonitoringBestEffort(false, "missing-input-route gate disable");
-        m_status = {LiveInputMonitoringState::Disabled, MonitoringDisabledReason::NoInputDevice};
+        m_status = {
+            LiveInputMonitoringState::Disabled, LiveInputMonitoringDisabledReason::NoInputDevice
+        };
         return m_status;
     }
 
@@ -245,7 +252,8 @@ LiveInputMonitoringStatus LiveInputMonitor::applyGateInternal(
     {
         setLiveInputMonitoringBestEffort(false, "missing-calibration gate disable");
         m_status = {
-            LiveInputMonitoringState::Disabled, MonitoringDisabledReason::MissingCalibration
+            LiveInputMonitoringState::Disabled,
+            LiveInputMonitoringDisabledReason::MissingCalibration
         };
         return m_status;
     }
@@ -254,7 +262,8 @@ LiveInputMonitoringStatus LiveInputMonitor::applyGateInternal(
     {
         setLiveInputMonitoringBestEffort(false, "mismatched-calibration gate disable");
         m_status = {
-            LiveInputMonitoringState::Disabled, MonitoringDisabledReason::CalibrationRouteMismatch
+            LiveInputMonitoringState::Disabled,
+            LiveInputMonitoringDisabledReason::CalibrationRouteMismatch
         };
         return m_status;
     }
@@ -265,7 +274,8 @@ LiveInputMonitoringStatus LiveInputMonitor::applyGateInternal(
         m_workflow.markBackendUnavailable();
         setLiveInputMonitoringBestEffort(false, "live-input gate gain failure disable");
         m_status = {
-            LiveInputMonitoringState::Disabled, MonitoringDisabledReason::BackendUnavailable
+            LiveInputMonitoringState::Disabled,
+            LiveInputMonitoringDisabledReason::BackendUnavailable
         };
         return m_status;
     }
@@ -276,13 +286,14 @@ LiveInputMonitoringStatus LiveInputMonitor::applyGateInternal(
         m_workflow.markBackendUnavailable();
         setLiveInputMonitoringBestEffort(false, "live-input gate enable failure disable");
         m_status = {
-            LiveInputMonitoringState::Disabled, MonitoringDisabledReason::BackendUnavailable
+            LiveInputMonitoringState::Disabled,
+            LiveInputMonitoringDisabledReason::BackendUnavailable
         };
         return m_status;
     }
 
     m_workflow.markBackendAvailable();
-    m_status = {LiveInputMonitoringState::Active, MonitoringDisabledReason::None};
+    m_status = {LiveInputMonitoringState::Active, LiveInputMonitoringDisabledReason::None};
     return m_status;
 }
 
@@ -299,7 +310,7 @@ std::expected<void, LiveInputMonitorError> LiveInputMonitor::reselectCalibration
         {
             m_status = {
                 LiveInputMonitoringState::Disabled,
-                MonitoringDisabledReason::CalibrationStoreUnavailable,
+                LiveInputMonitoringDisabledReason::CalibrationStoreUnavailable,
             };
             RH_LOG_WARNING(
                 "audio.live_input_monitor",

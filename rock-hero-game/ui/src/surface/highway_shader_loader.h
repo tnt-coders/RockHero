@@ -13,7 +13,7 @@ namespace rock_hero::game::ui
 {
 
 /*!
-\brief Reads the four highway programs' compiled stage binaries from the resource pack.
+\brief Reads the five highway programs' compiled stage binaries from the resource pack.
 
 The shared renderer never touches the filesystem (its shader-set seam); this is the game's half
 of that contract — the editor preview has its own loader over its deployed resources.
