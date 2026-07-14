@@ -9,6 +9,7 @@
 #include <optional>
 #include <rock_hero/common/audio/device/audio_device_configuration_error.h>
 #include <rock_hero/common/audio/device/audio_device_status.h>
+#include <rock_hero/common/audio/device/device_restore_outcome.h>
 #include <rock_hero/common/audio/input/input_device_identity.h>
 #include <string>
 
@@ -73,12 +74,17 @@ public:
     [[nodiscard]] virtual juce::AudioDeviceManager& deviceManager() noexcept = 0;
 
     /*!
-    \brief Restores an opaque serialized audio-device state on the message thread.
+    \brief Applies an opaque serialized audio-device route on the message thread (no fallback).
     \param serialized_state State string previously returned by serializedDeviceState().
-    \return Empty success when the state was decoded and restored, or a typed failure.
+    \return Which designed outcome the applied route produced: DeviceRestoreOutcome::Opened when the
+            saved device opened, or DeviceRestoreOutcome::DeviceUnavailable when the saved device is
+            absent or could not be opened, so the device was left closed with the saved choice
+            retained (the no-fallback policy never substitutes a different device). A typed failure
+            is returned only when the route could not be applied at all (unparseable state, wrong
+            thread).
     \note Must be called on the message thread.
     */
-    [[nodiscard]] virtual std::expected<void, AudioDeviceConfigurationError>
+    [[nodiscard]] virtual std::expected<DeviceRestoreOutcome, AudioDeviceConfigurationError>
     restoreSerializedDeviceState(const std::string& serialized_state) = 0;
 
     /*!

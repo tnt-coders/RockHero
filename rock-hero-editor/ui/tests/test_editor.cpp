@@ -222,10 +222,11 @@ public:
         return m_device_manager;
     }
 
-    [[nodiscard]] std::expected<void, common::audio::AudioDeviceConfigurationError>
+    [[nodiscard]] std::expected<
+        common::audio::DeviceRestoreOutcome, common::audio::AudioDeviceConfigurationError>
     restoreSerializedDeviceState(const std::string&) override
     {
-        return {};
+        return common::audio::DeviceRestoreOutcome::Opened;
     }
 
     [[nodiscard]] std::optional<std::string> serializedDeviceState() const override

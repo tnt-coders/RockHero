@@ -7,6 +7,7 @@
 #include <juce_events/juce_events.h>
 #include <optional>
 #include <print>
+#include <rock_hero/common/audio/device/device_restore_outcome.h>
 #include <rock_hero/common/audio/engine/engine.h>
 #include <rock_hero/common/audio/input/live_input_monitor.h>
 #include <rock_hero/common/audio/settings/active_device_route.h>
@@ -295,14 +296,22 @@ try
             game_audio_config_store.activeDeviceRoute();
         active_device_route.has_value() && !active_device_route->serialized_state.empty())
     {
-        if (const auto restored =
-                audio_engine.restoreSerializedDeviceState(active_device_route->serialized_state);
-            !restored.has_value())
+        const auto restored =
+            audio_engine.restoreSerializedDeviceState(active_device_route->serialized_state);
+        if (!restored.has_value())
         {
             RH_LOG_WARNING(
                 "game.app",
-                "Stored audio device route could not be restored; using defaults: {}",
+                "Stored audio device route could not be restored: {}",
                 restored.error().message);
+        }
+        else if (*restored == rock_hero::common::audio::DeviceRestoreOutcome::DeviceUnavailable)
+        {
+            // Designed no-fallback outcome: the saved device is absent or in use, so the game
+            // starts with the audio device closed and the saved choice retained.
+            RH_LOG_WARNING(
+                "game.app",
+                "Saved audio device is unavailable; starting with the audio device closed.");
         }
     }
 

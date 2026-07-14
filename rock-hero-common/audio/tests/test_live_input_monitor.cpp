@@ -61,10 +61,10 @@ public:
         return device_manager;
     }
 
-    [[nodiscard]] std::expected<void, AudioDeviceConfigurationError> restoreSerializedDeviceState(
-        const std::string&) override
+    [[nodiscard]] std::expected<DeviceRestoreOutcome, AudioDeviceConfigurationError>
+    restoreSerializedDeviceState(const std::string&) override
     {
-        return {};
+        return DeviceRestoreOutcome::Opened;
     }
 
     [[nodiscard]] std::optional<std::string> serializedDeviceState() const override
