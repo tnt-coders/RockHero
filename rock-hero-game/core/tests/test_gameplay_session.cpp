@@ -6,10 +6,17 @@
 #include <functional>
 #include <optional>
 #include <rock_hero/common/audio/clock/i_playback_clock.h>
+#include <rock_hero/common/audio/input/input_calibration_state.h>
+#include <rock_hero/common/audio/input/input_device_identity.h>
+#include <rock_hero/common/audio/input/live_input_monitor.h>
 #include <rock_hero/common/audio/live_rig/i_live_rig.h>
 #include <rock_hero/common/audio/mix/i_mix_controls.h>
+#include <rock_hero/common/audio/settings/audio_config_error.h>
 #include <rock_hero/common/audio/shared/gain.h>
 #include <rock_hero/common/audio/song/i_song_audio.h>
+#include <rock_hero/common/audio/testing/configurable_audio_device_configuration.h>
+#include <rock_hero/common/audio/testing/fake_live_input.h>
+#include <rock_hero/common/audio/testing/in_memory_audio_config_store.h>
 #include <rock_hero/common/audio/tone_timeline/i_tone_timeline_player.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/core/package/rock_song_package.h>
@@ -27,10 +34,39 @@ namespace rock_hero::game::core
 namespace
 {
 
+using common::audio::testing::ConfigurableAudioDeviceConfiguration;
+using common::audio::testing::FakeLiveInput;
+using common::audio::testing::InMemoryAudioConfigStore;
+using common::audio::testing::LiveInputSetterCall;
+using common::audio::testing::setCalibrationInputMonitoringCall;
+using common::audio::testing::setInputGainCall;
+using common::audio::testing::setLiveInputMonitoringCall;
+
 // Arrangement ids are canonical UUIDs (package validation rejects anything else); these two are
 // the fixture's "lead" and "bass" arrangements in that order.
 constexpr std::string_view g_first_arrangement_id{"4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4"};
 constexpr std::string_view g_second_arrangement_id{"7b2d9e10-3c4f-45a8-9d21-e5f6a7b8c9d0"};
+
+// A stable physical input route the monitoring tests calibrate against.
+[[nodiscard]] common::audio::InputDeviceIdentity makeIdentity(std::string device = "Interface A")
+{
+    return common::audio::InputDeviceIdentity{
+        .backend_name = "ASIO",
+        .input_device_name = std::move(device),
+        .input_channel_index = 0,
+        .input_channel_name = "Input 1",
+    };
+}
+
+// A calibration record bound to one physical route at the given gain.
+[[nodiscard]] common::audio::InputCalibrationState makeCalibration(
+    const common::audio::InputDeviceIdentity& identity, double gain_db)
+{
+    return common::audio::InputCalibrationState{
+        .calibration_gain = common::audio::Gain{gain_db},
+        .input_device_identity = identity,
+    };
+}
 
 // Test-local temp directory that owns the packages and workspaces one test case creates.
 class TemporarySessionDirectory final
@@ -552,7 +588,26 @@ struct SessionHarness
     FakeToneTimeline tone_timeline{};
     FakeMixControls mix_controls{};
     FakePlaybackClock clock{};
-    GameplaySession session{song_audio, transport, live_rig, tone_timeline, mix_controls, clock};
+
+    // Shared live-input monitoring collaborators. The device configuration and store default to no
+    // route and no calibration, so the wired gate stays silent until a test seeds a match.
+    FakeLiveInput live_input{};
+    ConfigurableAudioDeviceConfiguration devices{};
+    InMemoryAudioConfigStore config_store{};
+    common::audio::LiveInputMonitor live_input_monitor{live_input, devices, config_store};
+
+    GameplaySession session{
+        song_audio, transport, live_rig, tone_timeline, mix_controls, clock, live_input_monitor
+    };
+
+    // Points the device configuration at a fixed route and seeds a matching calibration, so
+    // reaching Ready arms monitoring for that route.
+    void seedMatchingCalibration(double gain_db)
+    {
+        const common::audio::InputDeviceIdentity identity = makeIdentity();
+        devices.current_input_identity = identity;
+        REQUIRE(config_store.saveInputCalibration(makeCalibration(identity, gain_db)).has_value());
+    }
 
     // Starts the session over a freshly written fixture package.
     [[nodiscard]] std::expected<void, GameplaySessionError> startFixture(
@@ -809,6 +864,121 @@ TEST_CASE("Gameplay session forwards speed and loop to the transport", "[core][s
 
     harness.session.clearLoopRegion();
     CHECK_FALSE(harness.transport.loop_region.has_value());
+}
+
+// Verifies the wired-but-silent gate arms at Ready when the game's own store holds a calibration
+// matching the active input route: the rig completion (a message-thread edge) drives the shared
+// monitor, which sets the calibrated gain and enables processed monitoring in the pinned order.
+TEST_CASE("Gameplay session arms live-input monitoring at Ready", "[core][session][live-input]")
+{
+    SessionHarness harness;
+    harness.seedMatchingCalibration(5.0);
+    REQUIRE(harness.startFixture().has_value());
+
+    harness.live_rig.completeSuccessfully();
+
+    REQUIRE(harness.session.stage() == GameplaySessionStage::Ready);
+    CHECK(
+        harness.live_input.calls == std::vector<LiveInputSetterCall>{
+                                        setCalibrationInputMonitoringCall(false),
+                                        setInputGainCall(5.0),
+                                        setLiveInputMonitoringCall(true),
+                                    });
+    CHECK(harness.live_input.live_input_monitoring_enabled);
+    CHECK(harness.live_input.current_input_gain.db == 5.0);
+}
+
+// Verifies the gate stays silent (never arms processed monitoring, never applies a calibrated gain)
+// when the store holds no calibration for the active route -- the wired-but-silent default until a
+// game-side calibration exists. Reaching Ready is unaffected: disabled monitoring is non-fatal.
+TEST_CASE(
+    "Gameplay session leaves monitoring silent without calibration", "[core][session][live-input]")
+{
+    SessionHarness harness;
+    harness.devices.current_input_identity = makeIdentity();
+    REQUIRE(harness.startFixture().has_value());
+
+    harness.live_rig.completeSuccessfully();
+
+    REQUIRE(harness.session.stage() == GameplaySessionStage::Ready);
+    CHECK_FALSE(harness.live_input.live_input_monitoring_enabled);
+    CHECK(harness.live_input.set_input_gain_call_count == 0);
+}
+
+// Verifies a calibration bound to a different physical route does not arm the active route: the
+// store read for the current identity finds no match, so the gate stays silent.
+TEST_CASE(
+    "Gameplay session leaves monitoring silent for a mismatched route",
+    "[core][session][live-input]")
+{
+    SessionHarness harness;
+    harness.devices.current_input_identity = makeIdentity("Interface A");
+    REQUIRE(
+        harness.config_store.saveInputCalibration(makeCalibration(makeIdentity("Interface B"), 4.0))
+            .has_value());
+    REQUIRE(harness.startFixture().has_value());
+
+    harness.live_rig.completeSuccessfully();
+
+    REQUIRE(harness.session.stage() == GameplaySessionStage::Ready);
+    CHECK_FALSE(harness.live_input.live_input_monitoring_enabled);
+    CHECK(harness.live_input.set_input_gain_call_count == 0);
+}
+
+// Verifies a corrupt store read is non-fatal: the session still reaches Ready and monitoring is
+// left disabled rather than armed on an unverified route.
+TEST_CASE(
+    "Gameplay session tolerates a corrupt calibration store at Ready",
+    "[core][session][live-input]")
+{
+    SessionHarness harness;
+    harness.devices.current_input_identity = makeIdentity();
+    harness.config_store.next_input_calibration_for_error = common::audio::AudioConfigError{
+        common::audio::AudioConfigErrorCode::InvalidInputCalibrationHistory,
+        "fake store read failure"
+    };
+    REQUIRE(harness.startFixture().has_value());
+
+    harness.live_rig.completeSuccessfully();
+
+    REQUIRE(harness.session.stage() == GameplaySessionStage::Ready);
+    CHECK_FALSE(harness.live_input.live_input_monitoring_enabled);
+}
+
+// Verifies close() disables the gate the Ready edge armed, so monitoring never outlives the session.
+TEST_CASE("Gameplay session disables monitoring on close", "[core][session][live-input]")
+{
+    SessionHarness harness;
+    harness.seedMatchingCalibration(5.0);
+    REQUIRE(harness.startFixture().has_value());
+    harness.live_rig.completeSuccessfully();
+    REQUIRE(harness.live_input.live_input_monitoring_enabled);
+
+    harness.session.close();
+
+    CHECK_FALSE(harness.live_input.live_input_monitoring_enabled);
+}
+
+// Verifies replay does no rig work, so monitoring armed at Ready stays armed across
+// play/pause/restart and the auto-stop to Finished -- only close() tears it down.
+TEST_CASE("Gameplay session keeps monitoring armed across replay", "[core][session][live-input]")
+{
+    SessionHarness harness;
+    harness.seedMatchingCalibration(5.0);
+    REQUIRE(harness.startFixture().has_value());
+    harness.live_rig.completeSuccessfully();
+    REQUIRE(harness.live_input.live_input_monitoring_enabled);
+
+    REQUIRE(harness.session.play().has_value());
+    REQUIRE(harness.session.pause().has_value());
+    REQUIRE(harness.session.play().has_value());
+    REQUIRE(harness.session.restart().has_value());
+    harness.transport.simulateAutoStop();
+    REQUIRE(harness.session.stage() == GameplaySessionStage::Finished);
+
+    // No rig reload happened, so the gate was never re-driven and monitoring stayed enabled.
+    CHECK(harness.live_rig.load_call_count == 1);
+    CHECK(harness.live_input.live_input_monitoring_enabled);
 }
 
 } // namespace rock_hero::game::core

@@ -1,9 +1,11 @@
 #include "rock_hero/game/core/settings/game_settings.h"
 
 #include <filesystem>
+#include <rock_hero/common/audio/input/input_device_identity.h>
 #include <rock_hero/common/core/shared/application_identity.h>
 #include <rock_hero/common/core/shared/json.h>
 #include <rock_hero/common/core/shared/juce_path.h>
+#include <rock_hero/game/core/audio/game_audio_config.h>
 #include <span>
 #include <string>
 #include <string_view>
@@ -22,6 +24,15 @@ constexpr const char* g_profile_id_key = "profileId";
 constexpr const char* g_profile_display_name_key = "profileDisplayName";
 constexpr const char* g_first_run_completed_key = "firstRunCompleted";
 constexpr const char* g_custom_scan_roots_key = "customScanRoots";
+constexpr const char* g_game_audio_config_key = "gameAudioConfig";
+
+// Per-player JSON property names. The route fields reuse the shared audio-config store's spelling
+// (audio_config_store.cpp) so one physical route reads the same in either file.
+constexpr const char* g_player_slot_property = "playerSlot";
+constexpr const char* g_backend_name_property = "backendName";
+constexpr const char* g_input_device_name_property = "inputDeviceName";
+constexpr const char* g_input_channel_index_property = "inputChannelIndex";
+constexpr const char* g_input_channel_name_property = "inputChannelName";
 
 // Display name shown before the user ever sets one.
 constexpr const char* g_default_profile_display_name = "Player";
@@ -60,6 +71,65 @@ constexpr const char* g_default_profile_display_name = "Player";
         }
     }
     return roots;
+}
+
+// The game audio config persists as a JSON array of player objects in the single property value.
+// v1 writes exactly one slot-0 entry, so the multi-input schema is genuinely round-tripped rather
+// than a hollow symmetry type.
+[[nodiscard]] juce::String encodeGameAudioConfig(const GameAudioConfig& config)
+{
+    juce::var array = common::core::Json::makeArray();
+    for (const PlayerInputConfig& player : config.players)
+    {
+        array.append(
+            common::core::Json::makeObject({
+                {g_player_slot_property, player.player_slot},
+                {g_backend_name_property,
+                 common::core::Json::makeString(player.route.backend_name)},
+                {g_input_device_name_property,
+                 common::core::Json::makeString(player.route.input_device_name)},
+                {g_input_channel_index_property, player.route.input_channel_index},
+                {g_input_channel_name_property,
+                 common::core::Json::makeString(player.route.input_channel_name)},
+            }));
+    }
+    return juce::JSON::toString(array);
+}
+
+// A corrupt or non-array value reads as an empty config, matching the scan-roots tolerance: a
+// broken settings value must never crash startup.
+[[nodiscard]] GameAudioConfig decodeGameAudioConfig(const juce::String& encoded)
+{
+    GameAudioConfig config;
+    const auto parsed = common::core::Json::parseDocument(encoded);
+    if (!parsed.has_value())
+    {
+        return config;
+    }
+    const juce::Array<juce::var>* const array = parsed->getArray();
+    if (array == nullptr)
+    {
+        return config;
+    }
+    for (const juce::var& entry : *array)
+    {
+        config.players.push_back(
+            PlayerInputConfig{
+                .player_slot =
+                    common::core::Json::readOptionalInt(entry, g_player_slot_property, 0),
+                .route = common::audio::InputDeviceIdentity{
+                    .backend_name =
+                        common::core::Json::readOptionalString(entry, g_backend_name_property),
+                    .input_device_name =
+                        common::core::Json::readOptionalString(entry, g_input_device_name_property),
+                    .input_channel_index = common::core::Json::readOptionalInt(
+                        entry, g_input_channel_index_property, -1),
+                    .input_channel_name = common::core::Json::readOptionalString(
+                        entry, g_input_channel_name_property),
+                },
+            });
+    }
+    return config;
 }
 
 // Mirrors the editor's settings location policy: per-user application data, shared "Rock Hero"
@@ -177,6 +247,23 @@ std::expected<void, GameSettingsError> GameSettings::setCustomScanRoots(
 {
     m_properties.setValue(g_custom_scan_roots_key, encodeScanRoots(roots));
     return saveIfNeeded(m_properties, "Could not save custom scan roots.");
+}
+
+// Absence reads as an empty config; the game is simply unconfigured until the player picks a route.
+GameAudioConfig GameSettings::gameAudioConfig() const
+{
+    if (!m_properties.containsKey(g_game_audio_config_key))
+    {
+        return {};
+    }
+    return decodeGameAudioConfig(m_properties.getValue(g_game_audio_config_key));
+}
+
+std::expected<void, GameSettingsError> GameSettings::setGameAudioConfig(
+    const GameAudioConfig& config)
+{
+    m_properties.setValue(g_game_audio_config_key, encodeGameAudioConfig(config));
+    return saveIfNeeded(m_properties, "Could not save game audio config.");
 }
 
 } // namespace rock_hero::game::core
