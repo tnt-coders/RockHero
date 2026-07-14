@@ -2,6 +2,20 @@
 
 ## 1. Status
 
+**Phase 4 PARTIAL — scan roots + first run COMPLETE (2026-07-12, overnight/game-shell):** the
+settings this plan needs for the library-to-play path. `IGameSettings` gained
+`customScanRoots()` / `setCustomScanRoots()` (a JSON array of native paths in one property value,
+non-ASCII round-trip pinned), coordinated into plan 27's owner section. The pure
+`resolveLibraryScanRoots(app_data_directory, custom_roots)` composes the effective roots — the
+per-user default `Songs` folder (derived, not stored) first, then the deduplicated custom roots —
+so the caller creates the default folder on demand and feeds the roots to Phase 3's lister.
+`first_run_completed` already shipped in plan 27 Phase 1. **Deliberately deferred to their
+consuming phases** (a deferral, not a drop): the video-settings model to the window layer that
+applies it (docs/roadmap/20), and the menu binding map to Phase 5, which defines the action
+vocabulary the map keys — persisting either now would mean guessing a shape with no consumer. Six
+new tests (custom-roots round-trip incl. non-ASCII and wholesale-replace, resolver default-leads /
+empty / dedup).
+
 **Phase 3 COMPLETE (2026-07-12, overnight/game-shell):** the headless scan orchestration —
 `LibraryScanEngine`, a synchronous `step()`-driven state machine that lists roots, plans against
 the cached index, and executes the plan one package at a time through three injected ports

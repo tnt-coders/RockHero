@@ -12,7 +12,9 @@ add_library(rock_hero::game::core ALIAS rock_hero_game_core)
 # song-library index (versioned JSON, atomic writes, rebuild-on-doubt loads), the pure scan
 # planner that diffs it against on-disk package facts (plan 26 Phase 2), and the step-driven scan
 # engine that executes a plan through injected lister/describer/album-art ports, signalling commit
-# checkpoints instead of persisting itself (plan 26 Phase 3).
+# checkpoints instead of persisting itself (plan 26 Phase 3), and the pure scan-root resolver that
+# composes the default per-user Songs folder with the user's custom roots from settings
+# (plan 26 Phase 4).
 target_sources(
     rock_hero_game_core
     PRIVATE src/diagnostics/diagnostics.cpp
@@ -23,6 +25,7 @@ target_sources(
             src/library/library_entry_projection.cpp
             src/library/library_scan_engine.cpp
             src/library/library_scan_plan.cpp
+            src/library/library_scan_roots.cpp
             src/library/null_album_art_generator.cpp
             src/resources/game_resources.cpp
             src/session/gameplay_session.cpp

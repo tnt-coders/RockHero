@@ -6,7 +6,10 @@
 profileId (UUID, get-or-create, stable across reopen — tested), profileDisplayName ("Player"
 default, empty rejected), firstRunCompleted (absence = first run); `gameApplicationName()` added
 to application_identity.h; key-addition convention + reserved mix keys documented in the port
-header. Verified `-Configure -Targets all` + `-RunTouchedTests` green; clang-tidy pending user
+header. **Extended 2026-07-12 by docs/roadmap/26 Phase 4** (coordinated header change, this plan
+owns the surface): `customScanRoots()` / `setCustomScanRoots(span<path>)` under key
+`customScanRoots` (JSON array of native paths in one property value), plus the matching
+`NullGameSettings` overrides. Verified `-Configure -Targets all` + `-RunTouchedTests` green; clang-tidy pending user
 trigger. Original: Ready — 2026-07-06 — baseline `refactor @ 3c7febe0`.
 Phases 2–4 are executable now (headless game/core). Phase 5 is gated on
 docs/roadmap/21-game-audio-engine-and-session.md and docs/roadmap/24-scoring-star-power-failure.md;

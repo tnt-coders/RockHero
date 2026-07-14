@@ -2,9 +2,13 @@
 
 #include <filesystem>
 #include <rock_hero/common/core/shared/application_identity.h>
+#include <rock_hero/common/core/shared/json.h>
 #include <rock_hero/common/core/shared/juce_path.h>
+#include <span>
+#include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 namespace rock_hero::game::core
 {
@@ -17,9 +21,47 @@ namespace
 constexpr const char* g_profile_id_key = "profileId";
 constexpr const char* g_profile_display_name_key = "profileDisplayName";
 constexpr const char* g_first_run_completed_key = "firstRunCompleted";
+constexpr const char* g_custom_scan_roots_key = "customScanRoots";
 
 // Display name shown before the user ever sets one.
 constexpr const char* g_default_profile_display_name = "Player";
+
+// Custom scan roots persist as a JSON array of native path strings in the single property value,
+// so any path characters survive round-trip (the same path bridge the library index store uses).
+[[nodiscard]] juce::String encodeScanRoots(const std::span<const std::filesystem::path> roots)
+{
+    juce::var array = common::core::Json::makeArray();
+    for (const std::filesystem::path& root : roots)
+    {
+        array.append(
+            common::core::Json::makeString(common::core::juceStringFromPath(root).toStdString()));
+    }
+    return juce::JSON::toString(array);
+}
+
+// A corrupt or non-array value reads as no custom roots, mirroring the store's rebuild-on-doubt
+// tolerance: a broken settings value must never crash startup.
+[[nodiscard]] std::vector<std::filesystem::path> decodeScanRoots(const juce::String& encoded)
+{
+    std::vector<std::filesystem::path> roots;
+    const auto parsed = common::core::Json::parseDocument(encoded);
+    if (!parsed.has_value())
+    {
+        return roots;
+    }
+    if (const juce::Array<juce::var>* const array = parsed->getArray())
+    {
+        for (const juce::var& entry : *array)
+        {
+            const juce::String text = entry.toString();
+            if (text.isNotEmpty())
+            {
+                roots.push_back(common::core::pathFromJuceString(text));
+            }
+        }
+    }
+    return roots;
+}
 
 // Mirrors the editor's settings location policy: per-user application data, shared "Rock Hero"
 // folder, XML storage, named by the game application identity.
@@ -119,6 +161,23 @@ std::expected<void, GameSettingsError> GameSettings::setFirstRunCompleted(const 
 {
     m_properties.setValue(g_first_run_completed_key, completed);
     return saveIfNeeded(m_properties, "Could not save first-run completion flag.");
+}
+
+// Absence reads as no custom roots; the default Songs folder is derived, not stored.
+std::vector<std::filesystem::path> GameSettings::customScanRoots() const
+{
+    if (!m_properties.containsKey(g_custom_scan_roots_key))
+    {
+        return {};
+    }
+    return decodeScanRoots(m_properties.getValue(g_custom_scan_roots_key));
+}
+
+std::expected<void, GameSettingsError> GameSettings::setCustomScanRoots(
+    const std::span<const std::filesystem::path> roots)
+{
+    m_properties.setValue(g_custom_scan_roots_key, encodeScanRoots(roots));
+    return saveIfNeeded(m_properties, "Could not save custom scan roots.");
 }
 
 } // namespace rock_hero::game::core

@@ -6,9 +6,12 @@
 #pragma once
 
 #include <expected>
+#include <filesystem>
 #include <optional>
 #include <rock_hero/game/core/settings/game_settings_error.h>
+#include <span>
 #include <string>
+#include <vector>
 
 namespace rock_hero::game::core
 {
@@ -67,6 +70,25 @@ public:
     */
     [[nodiscard]] virtual std::expected<void, GameSettingsError> setFirstRunCompleted(
         bool completed) = 0;
+
+    /*!
+    \brief Reads the user-added custom song directories.
+
+    Extra library scan roots beyond the always-present per-user default Songs folder;
+    resolveLibraryScanRoots composes the effective roots as the default folder followed by these.
+    Empty until the user adds a folder. Persisted under the reserved key `customScanRoots`.
+
+    \return The custom song directories in the order the user added them.
+    */
+    [[nodiscard]] virtual std::vector<std::filesystem::path> customScanRoots() const = 0;
+
+    /*!
+    \brief Stores the user-added custom song directories, replacing any previous set.
+    \param roots Custom song directories to persist.
+    \return Empty success, or a typed settings failure.
+    */
+    [[nodiscard]] virtual std::expected<void, GameSettingsError> setCustomScanRoots(
+        std::span<const std::filesystem::path> roots) = 0;
 
 protected:
     /*! \brief Creates the game-settings interface. */
