@@ -47,6 +47,7 @@ constexpr int g_redo_command{102};
 constexpr int g_show_waveform_command{201};
 constexpr int g_show_undo_history_command{202};
 constexpr int g_show_preview_command{203};
+constexpr int g_smooth_follow_command{204};
 // Tablature lane-count menu ids encode the requested minimum as an offset from this base, with
 // the base itself meaning "match the chart" (a zero minimum).
 constexpr int g_tab_strings_command_base{210};
@@ -959,6 +960,13 @@ juce::PopupMenu EditorView::getMenuForIndex(int top_level_menu_index, const juce
             m_state.waveform_visible);
         menu.addItem(
             g_show_undo_history_command, "Undo History", true, m_undo_history_overlay.isVisible());
+        // Unpersisted evaluation spike (docs/todo/smooth-scroll-follow-evaluation.md): pins the
+        // playback cursor and scrolls the content instead of the shifted-window follow.
+        menu.addItem(
+            g_smooth_follow_command,
+            "Smooth Scroll Follow",
+            true,
+            m_track_viewport->playbackFollowStyle() == PlaybackFollowStyle::SmoothScroll);
         {
             const bool preview_open = m_preview_window != nullptr && m_preview_window->isVisible();
             juce::PopupMenu::Item preview_item{"3D Preview"};
@@ -1011,6 +1019,14 @@ void EditorView::menuItemSelected(int menu_item_id, int /*top_level_menu_index*/
         case g_show_undo_history_command:
         {
             toggleUndoHistoryPanel();
+            break;
+        }
+        case g_smooth_follow_command:
+        {
+            m_track_viewport->setPlaybackFollowStyle(
+                m_track_viewport->playbackFollowStyle() == PlaybackFollowStyle::SmoothScroll
+                    ? PlaybackFollowStyle::ShiftedWindow
+                    : PlaybackFollowStyle::SmoothScroll);
             break;
         }
         case g_show_preview_command:
