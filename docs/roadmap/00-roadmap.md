@@ -523,6 +523,7 @@ One line per plan; update the right-hand cell as phases complete.
 | docs/roadmap/46-editor-keybinds.md | Decision-gated (G46-KEYMAP) | JUCE command-manager keybinds, config UI, diff persistence, plugin-window shortcut injection seam | Not started |
 | docs/roadmap/47-editor-loop-selection.md | Ready (47-Q1..Q3 carry recommendations; Phase 1 coordinated with 21 Phase 1 by whichever-executes-first) | Shared loop-region port + Tracktion adapter; editor ruler-drag loop selection, auto-engagement, app-local persistence | Not started |
 | docs/roadmap/48-editor-audio-setup.md | Ready | Editor toggle-aware device + calibration surfaces; "use game settings" read-only mirror of the game (default-on first run); no consolidation | Not started — authored 2026-07-12 |
+| docs/roadmap/49-game-app-architecture-symmetry.md | Executing (signed off 2026-07-12) | Split GameShell into SDL3Application base + RockHeroGame app + Game content (editor-symmetric layering); rename RockHeroEditorApplication -> RockHeroEditor | In progress 2026-07-12 |
 
 Milestone 0: **not reached** — exit = docs/roadmap/21-game-audio-engine-and-session.md Phase 6 soak
 checklist + docs/roadmap/25-note-highway-3d.md Phase 3 exit criteria witnessed on the same build.
