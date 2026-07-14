@@ -220,13 +220,10 @@ void NativeAudioSetup::cancelGainCalibration()
 
 common::audio::LiveInputMonitoringContext NativeAudioSetup::calibrationContext() const noexcept
 {
-    // The shared calibrate-first gate was authored for the editor's in-session calibration and
-    // will not start a measurement unless both readiness flags are set. Native setup calibrates
-    // from a menu with no arrangement loaded; a successfully applied device is exactly the audio
-    // readiness the gate checks for, so both flags are asserted here by construction.
-    return common::audio::LiveInputMonitoringContext{
-        .session_audio_ready = true, .arrangement_loaded = true
-    };
+    // Calibration only needs the live input path up, which an applied device provides. The setup
+    // menu has no arrangement, so arrangement_loaded stays false honestly -- it gates active
+    // processed monitoring, not the raw measurement calibration performs here.
+    return common::audio::LiveInputMonitoringContext{.live_input_ready = true};
 }
 
 std::expected<void, NativeAudioSetupError> NativeAudioSetup::commitMeasuredGain(double gain_db)

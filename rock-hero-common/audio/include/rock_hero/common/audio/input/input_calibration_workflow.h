@@ -30,8 +30,8 @@ public:
     /*! \brief Owner-supplied context used to project input calibration state. */
     struct Context
     {
-        /*! \brief True after arrangement audio and live rig restore have committed. */
-        bool project_audio_ready{false};
+        /*! \brief True when the live input path is up so a raw signal can be measured or monitored. */
+        bool live_input_ready{false};
 
         /*! \brief True when the editor session has a current arrangement. */
         bool arrangement_loaded{false};
@@ -86,7 +86,7 @@ public:
         {
         };
 
-        /*! \brief Disable live input because project audio is unavailable. */
+        /*! \brief Disable live input because the live input path is unavailable. */
         struct DisableLiveInput
         {
         };
@@ -191,7 +191,7 @@ public:
             };
         }
 
-        if (!context.project_audio_ready || !context.arrangement_loaded)
+        if (!context.live_input_ready || !context.arrangement_loaded)
         {
             return {LiveInputMonitoringState::Disabled, MonitoringDisabledReason::SessionNotReady};
         }

@@ -12,7 +12,7 @@ namespace rock_hero::editor::core
 common::audio::LiveInputMonitoringContext EditorController::Impl::monitoringContext() const
 {
     return common::audio::LiveInputMonitoringContext{
-        .session_audio_ready = m_project_audio_ready,
+        .live_input_ready = m_project_audio_ready,
         .arrangement_loaded = hasLoadedArrangement(),
     };
 }

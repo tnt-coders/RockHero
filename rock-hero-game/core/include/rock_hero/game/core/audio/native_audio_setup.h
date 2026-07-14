@@ -293,7 +293,8 @@ public:
     void cancelGainCalibration();
 
 private:
-    // Builds the monitoring context the shared calibrate-first gate requires to start a measurement.
+    // Builds the calibration monitoring context: only the live input path needs to be up, which an
+    // applied device provides.
     [[nodiscard]] common::audio::LiveInputMonitoringContext calibrationContext() const noexcept;
 
     // Commits a measured gain through the monitor (persisting it) and advances to Ready.

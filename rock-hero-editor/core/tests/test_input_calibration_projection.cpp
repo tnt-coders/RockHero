@@ -41,7 +41,7 @@ namespace
 
 // Session context where arrangement audio is loaded and live input may be calibrated.
 constexpr common::audio::LiveInputMonitoringContext g_ready{
-    .session_audio_ready = true, .arrangement_loaded = true
+    .live_input_ready = true, .arrangement_loaded = true
 };
 
 } // namespace
