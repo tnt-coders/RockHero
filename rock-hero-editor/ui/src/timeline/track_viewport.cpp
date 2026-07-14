@@ -32,13 +32,15 @@ constexpr int g_tempo_grid_dot_gap{1};
 // trigger fraction of the view width before the window glides forward far enough to drop it
 // back at the pin fraction; the glide runs for the shift duration with a cubic ease-out. The
 // cursor keeps playing during the glide, so it lands slightly right of the pin fraction —
-// intended, since the shift target is captured when the glide starts. A continuous fixed-cursor
-// smooth scroll was also evaluated (recover from git) and is deferred until tablature rendering
-// makes the reading-versus-timing comparison honest; see
-// docs/todo/smooth-scroll-follow-evaluation.md.
+// intended, since the shift target is captured when the glide starts.
 constexpr double g_follow_shift_trigger_fraction{0.8};
 constexpr double g_follow_shift_pin_fraction{0.05};
 constexpr double g_follow_shift_duration_seconds{0.3};
+
+// Fixed-cursor smooth scrolling pins the cursor a third of the view from the left — enough
+// road ahead to sight-read while keeping recent context visible (the value the 2026-07-03
+// spike was judged on); see docs/todo/smooth-scroll-follow-evaluation.md.
+constexpr double g_smooth_follow_pin_fraction{1.0 / 3.0};
 
 // Treats tiny wheel deltas as absent so zoom input stays stable across platforms.
 [[nodiscard]] bool hasMouseWheelDelta(float delta) noexcept
@@ -623,7 +625,41 @@ void TrackViewport::updatePlaybackFollow()
         return;
     }
 
+    if (m_follow_style == PlaybackFollowStyle::SmoothScroll)
+    {
+        followCursorSmoothly(*cursor_x);
+        return;
+    }
+
     followCursorWithWindowShifts(*cursor_x);
+}
+
+// Stores the follow mode and abandons any in-flight shifted-window glide so the new mode takes
+// over from the current view instead of finishing the old animation.
+void TrackViewport::setPlaybackFollowStyle(PlaybackFollowStyle style)
+{
+    m_follow_style = style;
+    m_window_shift.reset();
+}
+
+// Reports the active follow mode so the menu can tick the spike toggle.
+PlaybackFollowStyle TrackViewport::playbackFollowStyle() const noexcept
+{
+    return m_follow_style;
+}
+
+// Fixed-cursor smooth scroll (evaluation spike): every vblank repins the window so the cursor
+// stays at the pin fraction while the content flows past it, rhythm-game style. Known spike
+// limits, accepted for evaluation only: integer viewport positions make low zoom tick instead
+// of glide, and Tracktion's block-quantized audible time shimmers the scroll velocity — the
+// honest implementation is the time-space camera in
+// docs/todo/smooth-scroll-follow-evaluation.md.
+void TrackViewport::followCursorSmoothly(float cursor_x)
+{
+    setViewportLeft(
+        static_cast<int>(std::round(
+            static_cast<double>(cursor_x) -
+            static_cast<double>(m_viewport.getViewWidth()) * g_smooth_follow_pin_fraction)));
 }
 
 // Returns the viewport left edge that places the cursor at the shifted-window pin fraction.
