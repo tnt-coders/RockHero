@@ -26,6 +26,7 @@ constexpr const char* g_last_open_project_key{"lastOpenProject"};
 constexpr const char* g_interrupted_restore_project_key{"interruptedRestoreProject"};
 constexpr const char* g_audio_device_state_key{"audioDeviceState"};
 constexpr const char* g_waveform_visible_key{"waveformVisible"};
+constexpr const char* g_use_game_audio_settings_key{"useGameAudioSettings"};
 constexpr const char* g_tab_minimum_displayed_strings_key{"tabMinimumDisplayedStrings"};
 constexpr int g_settings_xml_format_version{1};
 constexpr const char* g_format_version_property{"formatVersion"};
@@ -378,6 +379,25 @@ std::expected<void, EditorSettingsError> EditorSettings::setWaveformVisible(bool
 {
     m_properties.setValue(g_waveform_visible_key, visible);
     return saveIfNeeded(m_properties, "Could not save waveform visibility setting.");
+}
+
+// Reads whether the editor sources the game's audio configuration instead of its own. Absence is
+// preserved so the composition root can apply the first-run default rather than a stored value.
+std::optional<bool> EditorSettings::useGameAudioSettings() const
+{
+    if (!m_properties.containsKey(g_use_game_audio_settings_key))
+    {
+        return std::nullopt;
+    }
+
+    return m_properties.getBoolValue(g_use_game_audio_settings_key);
+}
+
+// Stores whether the editor sources the game's audio configuration instead of its own.
+std::expected<void, EditorSettingsError> EditorSettings::setUseGameAudioSettings(bool enabled)
+{
+    m_properties.setValue(g_use_game_audio_settings_key, enabled);
+    return saveIfNeeded(m_properties, "Could not save use-game-audio-settings preference.");
 }
 
 // Reads the app-wide minimum number of tablature string lanes to display.
