@@ -45,6 +45,8 @@ target_sources(
             src/settings/audio_config_store.cpp
             src/shared/audio_path_util.cpp
             src/shared/audio_path_util.h
+            src/shared/device_state_xml.cpp
+            src/shared/device_state_xml.h
             src/shared/meter_reader.h
             src/song/audio_normalization.cpp
             src/song/audio_transcode.cpp

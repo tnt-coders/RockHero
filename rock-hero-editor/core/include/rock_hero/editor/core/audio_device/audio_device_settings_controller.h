@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <expected>
 #include <functional>
 #include <memory>
 #include <rock_hero/common/audio/device/audio_device_settings.h>
@@ -21,10 +22,10 @@ namespace rock_hero::editor::core
        fence.
 
 The callable accepts the blocking operation plus a continuation that the host invokes after its
-busy indicator has cleared. Used by both OK and Cancel because both reopen the audio device, which
-blocks the message thread. When no dispatcher is supplied, the controller falls back to running the
-operation synchronously inside the matching intent handler. The async path is what the editor uses
-to present its busy overlay before running blocking device-manager calls.
+busy indicator has cleared. Used by OK, commit, and Cancel because each can reopen the audio
+device, which blocks the message thread. When no dispatcher is supplied, the controller falls back
+to running the operation synchronously inside the matching intent handler. The async path is what
+the editor uses to present its busy overlay before running blocking device-manager calls.
 */
 using AudioDeviceSettingsDispatcher =
     std::function<void(std::function<void()> work, std::function<void()> after_cleared)>;
@@ -37,9 +38,9 @@ public:
     /*!
     \brief Creates the controller around the shared settings backend.
     \param settings Shared audio-device settings workflow; must outlive this controller.
-    \param dispatcher Optional hook used by OK and Cancel to run device-manager operations
-           behind a host paint fence. When empty, OK and Cancel run synchronously inside the
-           matching intent handler.
+    \param dispatcher Optional hook used by OK, commit, and Cancel to run device-manager
+           operations behind a host paint fence. When empty, the operations run synchronously
+           inside the matching intent handler.
     */
     explicit AudioDeviceSettingsController(
         common::audio::IAudioDeviceSettings& settings,
@@ -88,11 +89,17 @@ private:
     // Requests the attached view close after marking the edit complete.
     void finishAndClose();
 
+    // Runs a finishing settings operation that may block on device work (apply, commit, cancel):
+    // fenced behind the dispatcher when one is supplied, synchronous otherwise. Closes the window
+    // on success; restores editing with the diagnostic rendered on failure.
+    void runFinishingOperation(
+        std::function<std::expected<void, common::audio::AudioDeviceSettingsError>()> operation);
+
     // Shared settings backend that owns staging policy and hardware-side apply behavior.
     common::audio::IAudioDeviceSettings& m_settings;
 
-    // Optional dispatcher used by OK and Cancel to run device-manager operations behind a host
-    // paint fence.
+    // Optional dispatcher used by OK, commit, and Cancel to run device-manager operations behind
+    // a host paint fence.
     AudioDeviceSettingsDispatcher m_dispatcher;
 
     // Non-owning view binding installed by attachView().
