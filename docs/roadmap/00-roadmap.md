@@ -51,6 +51,7 @@ graph TD
         P46[46 editor keybinds]
         P47[47 editor loop selection]
         P48[48 editor audio setup]
+        P50[50 tone designer + tone files]
     end
     subgraph Deferred
         P28[28 practice mode]
@@ -124,6 +125,7 @@ graph TD
     P47 -.whichever-first loop port.-> P21
     P40 -.non-blocking.-> P47
     P46 -.non-blocking.-> P47
+    P14 -.monitoring-gate coordination.-> P50
 ```
 
 Notes on cyclic-looking edges: 26 ↔ 27 is an ordering constraint, not a cycle —
@@ -227,6 +229,10 @@ Phases 1–2 and plan 10 Phase 0 (G10-DECISIONS answers), both Stage 1 items alr
 27. docs/roadmap/44-editor-3d-preview.md Phases 1–5 (after G20-RENDER + 25 Phases 1–2 + 12 + 45 Phase 1).
 28. docs/roadmap/47-editor-loop-selection.md Phases 2–4 (editor loop-selection state and persistence, ruler drag surface with grid snap, engagement/wrap semantics; no game gates — Phase 1 already runs as Stage 1 item 5, and docs/roadmap/28-practice-mode.md Phase 2 consumes the landed backend, reducing to test extension).
 28a. docs/roadmap/48-editor-audio-setup.md Phases 1–2 (effective-source facade + use-game-settings toggle defaulting on at first run; toggle-aware **separate** device + calibration windows, no consolidation) — depends on plan 14 P3 + plan 13 P1; off the game critical path.
+28b. docs/roadmap/50-tone-designer-and-tone-files.md Phases 1–5 (dependency-free and
+     gate-free; all decisions user-settled 2026-07-13. Coordination note: plan 50 Phase 3 edits
+     the monitoring-context gate flag in `input_calibration_handlers.cpp` that plan 14 P3
+     relocates into `LiveInputMonitor` — whichever lands second adapts the other's seam).
 29. docs/roadmap/30-game-2d-tab-view.md Phase 1 (scene-model promotion — dependency-free), Phase 2 (shared notation paint core + manifest; 30-Q1 amendment landed, runs before item 24's plan 40 Phase 3 per 30-Q2), Phases 3–5 (game strip renderer, three-way game display modes incl. simultaneous 2D+3D, editor preview display selector); Phase 6 (feedback overlays) after 24's event feed + 25 Phase 5's reduction.
 
 **Stage 7 — Deferred**
@@ -524,6 +530,7 @@ One line per plan; update the right-hand cell as phases complete.
 | docs/roadmap/47-editor-loop-selection.md | Ready (47-Q1..Q3 carry recommendations; Phase 1 coordinated with 21 Phase 1 by whichever-executes-first) | Shared loop-region port + Tracktion adapter; editor ruler-drag loop selection, auto-engagement, app-local persistence | Not started |
 | docs/roadmap/48-editor-audio-setup.md | Ready | Editor toggle-aware device + calibration surfaces; "use game settings" read-only mirror of the game (default-on first run); no consolidation | Not started — authored 2026-07-12 |
 | docs/roadmap/49-game-app-architecture-symmetry.md | **Complete 2026-07-12** | Split GameShell into SDL3Application base + RockHeroGame app + Game content (editor-symmetric layering); renamed RockHeroEditorApplication -> RockHeroEditor | Done 2026-07-12 @ 47947fc8 (editor rename) + 4d61b97b (game restructure); build + 7 suites green |
+| docs/roadmap/50-tone-designer-and-tone-files.md | **In progress** (no gates; decisions settled 2026-07-13) | Tone Designer idle rig mode (no-project = live signal chain) + portable `.rocktone` files; designer New/Open/Save/Save As document semantics, project Import/Export copy semantics, undoable opens/imports, automation-drop confirm | Phases 1–2 complete 2026-07-13 (container; ILiveRig export/capture/replace/restore with transactional swap + collect-all missing refusal; all suites green) |
 
 Milestone 0: **not reached** — exit = docs/roadmap/21-game-audio-engine-and-session.md Phase 6 soak
 checklist + docs/roadmap/25-note-highway-3d.md Phase 3 exit criteria witnessed on the same build.
