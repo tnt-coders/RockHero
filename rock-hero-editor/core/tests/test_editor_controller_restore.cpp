@@ -1,7 +1,79 @@
+#include <filesystem>
+#include <optional>
+#include <rock_hero/common/audio/input/input_calibration_state.h>
+#include <rock_hero/common/audio/settings/active_device_route.h>
+#include <rock_hero/common/audio/settings/audio_config_store.h>
+#include <rock_hero/common/audio/shared/gain.h>
+#include <rock_hero/common/audio/testing/in_memory_audio_config_store.h>
+#include <rock_hero/editor/core/audio/editor_audio_config_store.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
+#include <string>
+#include <string_view>
+#include <system_error>
 
 namespace rock_hero::editor::core
 {
+
+namespace
+{
+
+// Owns a build-local game audio-config file so a game-source restore test starts and ends clean.
+class ScopedGameFile final
+{
+public:
+    explicit ScopedGameFile(std::string_view file_name)
+        : m_path(std::filesystem::path{TEST_SETTINGS_DIR} / file_name)
+    {
+        remove();
+    }
+
+    ~ScopedGameFile()
+    {
+        remove();
+    }
+
+    ScopedGameFile(const ScopedGameFile&) = delete;
+    ScopedGameFile& operator=(const ScopedGameFile&) = delete;
+    ScopedGameFile(ScopedGameFile&&) = delete;
+    ScopedGameFile& operator=(ScopedGameFile&&) = delete;
+
+    [[nodiscard]] const std::filesystem::path& path() const noexcept
+    {
+        return m_path;
+    }
+
+private:
+    void remove() const
+    {
+        std::error_code error;
+        std::filesystem::remove(m_path, error);
+    }
+
+    std::filesystem::path m_path;
+};
+
+// Persists a calibrated game route so the editor's config store arms and reads the game source.
+void writeCalibratedGameRoute(const std::filesystem::path& game_file, const std::string& blob)
+{
+    const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
+    common::audio::AudioConfigStore game_store{
+        game_file, common::audio::AudioConfigStore::Access::ReadWrite
+    };
+    REQUIRE(
+        game_store
+            .setActiveDeviceRoute(
+                common::audio::ActiveDeviceRoute{.serialized_state = blob, .identity = identity})
+            .has_value());
+    REQUIRE(game_store
+                .saveInputCalibration(
+                    common::audio::InputCalibrationState{
+                        .calibration_gain = common::audio::Gain{6.0},
+                        .input_device_identity = identity,
+                    })
+                .has_value());
+}
+
+} // namespace
 
 // Startup restores the persisted device route from the editor's own audio-config store.
 TEST_CASE("EditorController restores serialized audio device state", "[core][editor-controller]")
@@ -510,6 +582,104 @@ TEST_CASE("EditorController restore prompts for unsaved changes", "[core][editor
             prompt_state.unsaved_changes_prompt ==
             std::optional{UnsavedChangesPrompt{EditorActionId::RestoreProject}});
     }
+}
+
+// While the game source is active the editor's config store is a read-only view of the game's file,
+// so a device-change persist fails at that view instead of mutating the editor's own store route.
+TEST_CASE(
+    "EditorController persist while sourcing the game leaves the own route intact",
+    "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"game_source_persist_no_own_write"};
+    const ScopedGameFile game_file{"game_source_persist.settings"};
+    writeCalibratedGameRoute(game_file.path(), "game-device-state");
+
+    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore own_store;
+    const common::audio::ActiveDeviceRoute editor_route{
+        .serialized_state = "own-device-state", .identity = std::nullopt
+    };
+    REQUIRE(own_store.setActiveDeviceRoute(editor_route).has_value());
+
+    EditorAudioConfigStore editor_store{own_store, game_file.path()};
+    REQUIRE(editor_store.gameSourceAvailable());
+    editor_store.useGameSource(true);
+
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    audio_devices.serialized_device_state = "changed-device-state";
+    audio_devices.current_input_identity = makeInputDeviceIdentity();
+
+    const EditorController controller{
+        audioPorts(transport, audio, audio_devices),
+        EditorController::Services{
+            .settings = settings,
+            .task_runner = immediateTaskRunner(),
+            .message_thread_scheduler = immediateMessageThreadScheduler(),
+            .audio_config_store = editor_store,
+            .live_input_monitor = defaultLiveInputMonitor(),
+            .editor_audio_config_store = &editor_store,
+        },
+        noopExitFunction()
+    };
+
+    audio_devices.notifyChanged();
+
+    // The persist attempt hit the read-only game view; the editor's own route is unchanged.
+    CHECK(audio_devices.serialized_device_state_call_count == 1);
+    REQUIRE(own_store.activeDeviceRoute().has_value());
+    CHECK(own_store.activeDeviceRoute() == editor_route);
+}
+
+// A failed startup restore normally clears the stored route, but while sourcing the game that clear
+// targets the read-only game view and fails, so the editor's own store route is left untouched.
+TEST_CASE(
+    "EditorController restore-failure clear while sourcing the game leaves the own route intact",
+    "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"game_source_clear_no_own_write"};
+    const ScopedGameFile game_file{"game_source_clear.settings"};
+    writeCalibratedGameRoute(game_file.path(), "game-device-state");
+
+    EditorSettings settings{files.settingsFile()};
+    common::audio::testing::InMemoryAudioConfigStore own_store;
+    const common::audio::ActiveDeviceRoute editor_route{
+        .serialized_state = "own-device-state", .identity = std::nullopt
+    };
+    REQUIRE(own_store.setActiveDeviceRoute(editor_route).has_value());
+
+    EditorAudioConfigStore editor_store{own_store, game_file.path()};
+    REQUIRE(editor_store.gameSourceAvailable());
+    editor_store.useGameSource(true);
+
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    audio_devices.next_restore_serialized_device_state_error =
+        common::audio::AudioDeviceConfigurationError{
+            common::audio::AudioDeviceConfigurationErrorCode::InvalidSerializedState,
+            "Serialized audio-device state is not XML.",
+        };
+
+    const EditorController controller{
+        audioPorts(transport, audio, audio_devices),
+        EditorController::Services{
+            .settings = settings,
+            .task_runner = immediateTaskRunner(),
+            .message_thread_scheduler = immediateMessageThreadScheduler(),
+            .audio_config_store = editor_store,
+            .live_input_monitor = defaultLiveInputMonitor(),
+            .editor_audio_config_store = &editor_store,
+        },
+        noopExitFunction()
+    };
+
+    // Startup restore read the game route, failed to apply it, and tried to clear it; the clear hit
+    // the read-only game view and failed, so the editor's own route is unchanged.
+    CHECK(audio_devices.restore_serialized_device_state_call_count == 1);
+    REQUIRE(own_store.activeDeviceRoute().has_value());
+    CHECK(own_store.activeDeviceRoute() == editor_route);
 }
 
 } // namespace rock_hero::editor::core

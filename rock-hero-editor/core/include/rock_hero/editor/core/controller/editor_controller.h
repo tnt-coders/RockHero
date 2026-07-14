@@ -37,7 +37,7 @@ class LiveInputMonitor;
 namespace rock_hero::editor::core
 {
 
-class EditorEffectiveAudioConfigStore;
+class EditorAudioConfigStore;
 class IEditorSettings;
 class IEditorTaskRunner;
 class IEditorView;
@@ -148,14 +148,14 @@ public:
         common::audio::LiveInputMonitor& live_input_monitor;
 
         /*!
-        \brief Effective-source facade driven by the "use game audio settings" toggle.
+        \brief Editor audio-config store driven by the "use game audio settings" toggle.
 
         Optional and null in tests that do not exercise the toggle: when supplied it is the same
         object as \ref audio_config_store, injected concretely here so the controller can re-select
-        its read source (own store vs. the game's file) on toggle change. When null the toggle only
+        its active source (own store vs. the game's file) on toggle change. When null the toggle only
         persists its workflow bit and applies no source switch or engine adoption.
         */
-        EditorEffectiveAudioConfigStore* effective_audio_source{nullptr};
+        EditorAudioConfigStore* editor_audio_config_store{nullptr};
     };
 
     /*!

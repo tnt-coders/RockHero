@@ -994,7 +994,7 @@ EditorController::Impl::Impl(
           exit_function ? std::move(exit_function) : EditorController::ExitFunction{defaultExit})
     , m_settings(services.settings)
     , m_audio_config_store(services.audio_config_store)
-    , m_effective_audio_source(services.effective_audio_source)
+    , m_editor_audio_config_store(services.editor_audio_config_store)
     , m_live_input_monitor(services.live_input_monitor)
     , m_busy(services.message_thread_scheduler, [this] { updateView(); })
     , m_task_runner(services.task_runner)
@@ -1464,18 +1464,18 @@ void EditorController::Impl::onAudioDeviceSettingsClosed()
     updateView();
 }
 
-// Persists the "use game audio settings" toggle, then re-selects the effective read source and
+// Persists the "use game audio settings" toggle, then re-selects the store's active source and
 // re-applies the resulting route to the editor engine. This is the toggle side-effect the plan 48
-// "Separate State From Side Effects" split keeps in the controller: the facade flip and the
-// write-routing are pure state on the facade; adopting the game's (on) or restoring the editor's own
-// (off) serialized device state is the message-thread side effect that lives here. Enabling with no
-// calibrated game configuration still persists the choice but leaves the editor on its own route so
-// the user is never stranded on a dead source. persistAudioDeviceState stays suppressed while the
-// game source is active because the facade's route setter no-ops in that state.
+// "Separate State From Side Effects" split keeps in the controller: the source flip is pure state on
+// the store; adopting the game's (on) or restoring the editor's own (off) serialized device state is
+// the message-thread side effect that lives here. Enabling with no calibrated game configuration
+// still persists the choice but leaves the editor on its own route so the user is never stranded on
+// a dead source. While the game source is active its store view is read-only, so any device-route
+// persist attempt fails loudly rather than silently landing in the editor's own store.
 void EditorController::Impl::refreshGameSourceAvailability()
 {
-    m_game_source_available =
-        m_effective_audio_source != nullptr && m_effective_audio_source->gameSourceAvailable();
+    m_game_source_available = m_editor_audio_config_store != nullptr &&
+                              m_editor_audio_config_store->gameSourceAvailable();
 }
 
 void EditorController::Impl::onUseGameAudioSettingsChangeRequested(bool enabled)
@@ -1483,12 +1483,12 @@ void EditorController::Impl::onUseGameAudioSettingsChangeRequested(bool enabled)
     recordSettingsResultBestEffort(
         m_settings.setUseGameAudioSettings(enabled), "persist use-game-audio-settings toggle");
 
-    if (m_effective_audio_source != nullptr)
+    if (m_editor_audio_config_store != nullptr)
     {
         refreshGameSourceAvailability();
         const bool source_game = enabled && m_game_source_available;
-        m_effective_audio_source->useGameSource(source_game);
-        // restoreAudioDeviceState reads the active route through the facade, so it now applies the
+        m_editor_audio_config_store->useGameSource(source_game);
+        // restoreAudioDeviceState reads the active route through the store, so it now applies the
         // game's route (on) or the editor's own route (off) to the engine, keeping the live device
         // and the selected source in agreement in both directions.
         restoreAudioDeviceState();
