@@ -977,12 +977,12 @@ private:
     }
 
     // Maps the staged preview device's construction-time error into the state's unavailable
-    // detail. ASIO exposes no structured failure cause -- init() returns a bare bool, and the only
-    // detail is the vendor-authored getErrorMessage() text -- so the backend's own words are the
-    // truest cause available. JUCE substitutes the placeholder "Driver failed to initialise" when
-    // a failed init supplies no vendor message (juce_ASIO_windows.cpp initDriver); the placeholder
-    // carries no information beyond the failure itself, so it maps to engaged-but-empty detail and
-    // the composed message stays at its base form.
+    // detail, shown verbatim as the settings window's standing notice. ASIO exposes no structured
+    // failure cause -- init() returns a bare bool, and the only detail is the vendor-authored
+    // getErrorMessage() text -- so the backend's own words are the truest cause available. The one
+    // boundary translation is spelling: JUCE substitutes the pinned placeholder "Driver failed to
+    // initialise" when a failed init supplies no vendor message (juce_ASIO_windows.cpp
+    // initDriver), and Rock Hero's user-facing text uses American English.
     [[nodiscard]] static std::optional<std::string> stagedDeviceErrorDetail(
         juce::AudioIODevice* staged_device)
     {
@@ -999,7 +999,7 @@ private:
 
         if (last_error == "Driver failed to initialise")
         {
-            return std::string{};
+            return std::string{"Driver failed to initialize"};
         }
 
         return last_error.toStdString();

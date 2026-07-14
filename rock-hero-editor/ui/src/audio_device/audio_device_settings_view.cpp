@@ -1,9 +1,6 @@
 #include "audio_device_settings_view.h"
 
 #include <algorithm>
-#include <optional>
-#include <rock_hero/common/audio/device/audio_device_settings.h>
-#include <string>
 #include <utility>
 
 namespace rock_hero::editor::ui
@@ -33,15 +30,6 @@ constexpr int g_toggle_box_width{28};
 // Hover text shown on the read-only device fields while the "use game audio settings" toggle is on,
 // explaining why they cannot be edited. Cleared when the editor owns its own audio route.
 constexpr const char* g_game_settings_tooltip{"Derived from game settings"};
-
-// Shown as the standing notice in the error label when the selected device's driver failed to
-// initialize, so opening the window on -- or re-opening toward -- an unavailable device explains
-// itself instead of finishing silently. Composed through the shared canonical helper, including
-// the backend's own detail when one exists.
-[[nodiscard]] juce::String deviceUnavailableText(const std::optional<std::string>& backend_detail)
-{
-    return juce::String{common::audio::deviceUnavailableMessage(backend_detail).c_str()};
-}
 
 // Returns the vertical space occupied by a visible form row set.
 [[nodiscard]] int formRowsHeight(int row_count) noexcept
@@ -536,14 +524,14 @@ void AudioDeviceSettingsView::applyStateToControls()
     // opens the driver's external panel regardless), and the unavailable-device disable is already
     // explained by the standing notice in the error label below, so a hover repeat is redundant.
 
-    // The error label doubles as the standing unavailable-device notice. A transient operation
-    // error is the more specific diagnostic and takes precedence; otherwise an unavailable staged
-    // device explains itself here, so opening the window on -- or re-opening toward -- a
-    // disconnected device never finishes silently.
+    // The error label doubles as the standing unavailable-device notice: the backend's own error
+    // text, verbatim, so opening the window on -- or re-opening toward -- a disconnected device
+    // never finishes silently. A transient operation error is the more specific diagnostic and
+    // takes precedence.
     const juce::String error_text = !m_state.error_message.empty()
                                         ? juce::String{m_state.error_message.c_str()}
                                     : m_state.staged_device_error.has_value()
-                                        ? deviceUnavailableText(m_state.staged_device_error)
+                                        ? juce::String{m_state.staged_device_error->c_str()}
                                         : juce::String{};
     m_error_label.setText(error_text, juce::dontSendNotification);
 }
