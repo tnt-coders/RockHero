@@ -38,9 +38,10 @@ TEST_CASE("resolveLibraryScanRoots deduplicates repeated roots", "[core][library
 {
     const std::filesystem::path app_data = "C:/data/Rock Hero";
     const std::vector<std::filesystem::path> custom = {
-        app_data / "Songs", // same as the default -> dropped
-        "D:/Extra Songs",   //
-        "D:/Extra Songs",   // literal duplicate -> dropped
+        app_data / "Songs",        // same as the default -> dropped
+        "D:/Extra Songs",          //
+        "D:/Extra/../Extra Songs", // normalizes to the previous custom -> dropped
+        "D:/Extra Songs",          // literal duplicate -> dropped
     };
 
     const std::vector<std::filesystem::path> roots = resolveLibraryScanRoots(app_data, custom);

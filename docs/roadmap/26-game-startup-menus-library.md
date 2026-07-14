@@ -12,9 +12,10 @@ so the caller creates the default folder on demand and feeds the roots to Phase 
 `first_run_completed` already shipped in plan 27 Phase 1. **Deliberately deferred to their
 consuming phases** (a deferral, not a drop): the video-settings model to the window layer that
 applies it (docs/roadmap/20), and the menu binding map to Phase 5, which defines the action
-vocabulary the map keys — persisting either now would mean guessing a shape with no consumer. Six
-new tests (custom-roots round-trip incl. non-ASCII and wholesale-replace, resolver default-leads /
-empty / dedup).
+vocabulary the map keys — persisting either now would mean guessing a shape with no consumer. Five
+new tests (custom-roots round-trip incl. non-ASCII and wholesale-replace, corrupt-value tolerance;
+resolver default-leads / empty / dedup). Review-fix pass: the resolver dedup key is the normalized
+path object (lossless), not a narrowed string.
 
 **Phase 3 COMPLETE (2026-07-12, overnight/game-shell):** the headless scan orchestration —
 `LibraryScanEngine`, a synchronous `step()`-driven state machine that lists roots, plans against
@@ -377,6 +378,9 @@ forward and record it in both plans).
   window layer applies); menu binding map storage (consumed by Phase 5). All persisted through
   `IGameSettings` (per-user app data, editor-settings pattern:
   `rock-hero-editor/core/.../settings/` port + PropertiesFile precedent).
+  **Delivered 2026-07-12: scan roots + first run only.** The video-settings model and the menu
+  binding map are deferred to their consuming phases (the plan 20 window layer and Phase 5's
+  action vocabulary) rather than persisting a shape with no consumer — see the Status block.
 - **Files**: game/core settings-consuming code plus field additions in the `IGameSettings`
   surface owned by plan 27 — coordinate the header change with that plan's owner section.
 - **Public-header impact**: additive methods on `IGameSettings`.

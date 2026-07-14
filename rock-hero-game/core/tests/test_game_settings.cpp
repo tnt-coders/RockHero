@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <filesystem>
+#include <fstream>
 #include <juce_events/juce_events.h>
 #include <rock_hero/game/core/settings/game_settings.h>
 #include <rock_hero/game/core/testing/null_game_settings.h>
@@ -148,6 +149,25 @@ TEST_CASE("Game settings custom scan roots round-trip", "[core][settings]")
     // A new set replaces the old one; an empty set clears it.
     REQUIRE(reopened.setCustomScanRoots(std::vector<std::filesystem::path>{}).has_value());
     CHECK(reopened.customScanRoots().empty());
+}
+
+// Verifies a corrupt stored custom-roots value degrades to none instead of crashing startup.
+TEST_CASE("Game settings custom scan roots tolerate a corrupt value", "[core][settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI juce_runtime;
+    const TemporarySettingsDirectory directory;
+
+    // Hand-write a settings file whose customScanRoots value is not a JSON array.
+    {
+        std::ofstream stream{directory.settingsFile(), std::ios::binary};
+        stream << R"(<?xml version="1.0" encoding="UTF-8"?>)"
+               << "\n<PROPERTIES>\n"
+               << R"(  <VALUE name="customScanRoots" val="not valid json {"/>)"
+               << "\n</PROPERTIES>\n";
+    }
+
+    const GameSettings settings{directory.settingsFile()};
+    CHECK(settings.customScanRoots().empty());
 }
 
 // Verifies the null fake satisfies the port with defaults and accepting writes.
