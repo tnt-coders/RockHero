@@ -8,11 +8,16 @@ add_library(rock_hero::game::core ALIAS rock_hero_game_core)
 # Session feature: the headless GameplaySession orchestration that loads a package, preloads the
 # tone rig, and drives playback through the shared audio ports (plan 21 Phase 2). Settings
 # feature: the game's one per-user persistence seam and the implicit v1 profile (plan 27
-# Phase 1), mirroring the editor's PropertiesFile-backed adapter.
+# Phase 1), mirroring the editor's PropertiesFile-backed adapter. Library feature: the cached
+# song-library index (versioned JSON, atomic writes, rebuild-on-doubt loads) plus the pure scan
+# planner that diffs it against on-disk package facts (plan 26 Phase 2).
 target_sources(
     rock_hero_game_core
     PRIVATE src/diagnostics/diagnostics.cpp
             src/frame_clock/frame_clock.cpp
+            src/library/library_index_store.cpp
+            src/library/library_index_store_error.cpp
+            src/library/library_scan_plan.cpp
             src/resources/game_resources.cpp
             src/session/gameplay_session.cpp
             src/session/gameplay_session_error.cpp
