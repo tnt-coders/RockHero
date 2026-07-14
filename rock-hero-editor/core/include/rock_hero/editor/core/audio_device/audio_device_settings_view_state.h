@@ -84,8 +84,8 @@ struct AudioDeviceSettingsViewState
 
     The driver still claims a control panel but showing it silently does nothing (for ASIO:
     hardware not connected, or the device held by another application), so the control panel
-    button renders disabled with an explanatory tooltip and the error label carries the composed
-    unavailable message. Holds the backend's detail text, empty when the backend supplied none.
+    button renders disabled and the error label carries the composed unavailable message. Holds
+    the backend's detail text, empty when the backend supplied none.
     */
     std::optional<std::string> staged_device_error{};
 

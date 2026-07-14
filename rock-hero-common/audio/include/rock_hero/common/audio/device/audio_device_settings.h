@@ -20,9 +20,8 @@ namespace rock_hero::common::audio
 /*!
 \brief User-facing base message for a staged device whose driver failed to initialize.
 
-The single source for every surface that reports the condition -- the settings window's standing
-notice, the apply-failure diagnostic, and the disabled control panel tooltip -- so the same fact
-never appears with two different wordings. Compose the full message with
+The single source for every surface that reports the condition (the settings window's standing
+notice), so the fact never appears with two different wordings. Compose the full message with
 deviceUnavailableMessage(), which appends the backend's own detail when one exists.
 */
 inline constexpr std::string_view g_device_unavailable_message{
@@ -280,8 +279,15 @@ public:
     virtual void selectBufferSize(int choice_id) = 0;
 
     /*!
-    \brief Applies the staged route to the active audio backend.
-    \return Empty success, or a typed settings failure.
+    \brief Applies the staged route to the active audio backend (no fallback).
+
+    A staged device whose driver cannot initialize (hardware not connected, or held by another
+    application) applies as a successfully adopted *closed* route -- the designed no-fallback
+    outcome, mirroring DeviceRestoreOutcome::DeviceUnavailable -- so OK closes the settings window
+    and the active device simply stays closed. A typed failure is returned only when the backend
+    rejects an otherwise-available route.
+
+    \return Empty success (device open, or adopted closed), or a typed settings failure.
     */
     [[nodiscard]] virtual std::expected<void, AudioDeviceSettingsError> apply() = 0;
 

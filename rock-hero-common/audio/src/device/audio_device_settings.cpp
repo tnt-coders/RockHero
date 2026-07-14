@@ -526,16 +526,22 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
 
         m_device_manager.closeAudioDevice();
         m_restore_pending = false;
-        // When the staged preview device confirms the failed driver init, report the composed
-        // canonical message (base text plus the backend's own detail) so the OK failure reads
-        // identically to the window's standing unavailable notice. Every other apply failure keeps
-        // JUCE's raw setup diagnostic, where the specific text is genuinely more informative.
+        // A staged device whose driver cannot initialize is the designed no-fallback outcome, not
+        // an apply failure: the route stays the user's explicit choice and the editor simply shows
+        // "[audio device closed]", mirroring the engine's DeviceRestoreOutcome::DeviceUnavailable.
+        // Succeeding here lets OK close the settings window instead of trapping the user behind an
+        // error the standing notice already explains. Every other apply failure keeps JUCE's raw
+        // setup diagnostic and leaves the window open.
         const std::optional<std::string> staged_device_error =
             stagedDeviceErrorDetail(m_staged_device.get());
+        if (staged_device_error.has_value())
+        {
+            refreshState({});
+            return {};
+        }
+
         AudioDeviceSettingsError error{
-            AudioDeviceSettingsErrorCode::ApplyFailed,
-            staged_device_error.has_value() ? deviceUnavailableMessage(staged_device_error)
-                                            : error_text.toStdString()
+            AudioDeviceSettingsErrorCode::ApplyFailed, error_text.toStdString()
         };
         refreshState(error.message);
         return std::unexpected{std::move(error)};
