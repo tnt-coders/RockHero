@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
+#include <rock_hero/game/core/library/library_index.h>
 
 namespace rock_hero::game::core
 {
@@ -72,6 +73,15 @@ struct GameShellOptions
     session over dev_package; unused when gameplay_session is null.
     */
     std::filesystem::path session_workspace_directory;
+
+    /*!
+    \brief When set, the shell opens the song-selection menu over this scanned library.
+
+    Composed by app/ (the startup scan of the configured roots); the shell builds the song-select
+    menu, renders it, and starts the gameplay session from the player's pick. Empty — or with
+    dev_package set — skips the menu and runs the dev/direct-load path.
+    */
+    std::optional<core::LibraryIndex> library;
 };
 
 /*!

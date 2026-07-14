@@ -8,6 +8,7 @@
 
 #include <SDL3/SDL.h>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <filesystem>
@@ -17,12 +18,19 @@
 #include <print>
 #include <rock_hero/common/audio/clock/playback_clock_snapshot.h>
 #include <rock_hero/common/core/shared/logger.h>
+#include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/ui/highway/highway_renderer.h>
 #include <rock_hero/common/ui/render/render_device.h>
 #include <rock_hero/game/core/diagnostics/diagnostics.h>
 #include <rock_hero/game/core/frame_clock/frame_clock.h>
+#include <rock_hero/game/core/input/menu_action.h>
+#include <rock_hero/game/core/input/menu_bindings.h>
+#include <rock_hero/game/core/input/menu_input_trigger.h>
+#include <rock_hero/game/core/library/library_index.h>
+#include <rock_hero/game/core/menu/song_select_menu.h>
 #include <rock_hero/game/core/resources/game_resources.h>
 #include <rock_hero/game/core/session/gameplay_session.h>
+#include <span>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -165,6 +173,99 @@ struct DiagnosticsIntentExecutor
         dev_session->seekToSection(intent.section_index, now);
     }
 };
+
+// Renders the song-selection menu with the bgfx debug font over the board backdrop (functional
+// placeholder styling; plan 26 defers real menu art). Both a '>' marker and a translucent overlay
+// bar mark the highlighted row; character row R sits at pixel y = R * 16 (the debug font cell).
+void renderMenu(
+    common::ui::RenderDevice& device, common::ui::HighwayRenderer& renderer,
+    const core::SongSelectMenu& menu)
+{
+    constexpr std::uint16_t first_row = 3;
+    constexpr std::uint16_t left_column = 4;
+    constexpr float cell_height_pixels = 16.0F;
+
+    device.setDebugTextEnabled(true);
+    device.clearDebugText();
+
+    std::size_t item_count = 0;
+    std::size_t selected = 0;
+
+    if (menu.screen() == core::SongSelectScreen::SongList)
+    {
+        device.printDebugText(2, 1, "ROCK HERO   -   SELECT A SONG");
+        const std::vector<core::LibraryEntry>& entries = menu.library().entries;
+        item_count = entries.size();
+        selected = menu.selectedSongIndex();
+        if (entries.empty())
+        {
+            device.printDebugText(
+                left_column,
+                first_row,
+                "No songs found. Drop .rock files into your Songs folder and restart.");
+        }
+        for (std::size_t i = 0; i < entries.size(); ++i)
+        {
+            const core::LibraryEntry& entry = entries[i];
+            const std::string_view title = entry.metadata.title.empty()
+                                               ? std::string_view{"(untitled)"}
+                                               : std::string_view{entry.metadata.title};
+            const std::string line = entry.metadata.artist.empty()
+                                         ? std::format("{} {}", i == selected ? '>' : ' ', title)
+                                         : std::format(
+                                               "{} {}   -   {}",
+                                               i == selected ? '>' : ' ',
+                                               title,
+                                               entry.metadata.artist);
+            device.printDebugText(left_column, static_cast<std::uint16_t>(first_row + i), line);
+        }
+    }
+    else
+    {
+        const core::LibraryEntry* const song = menu.currentSong();
+        device.printDebugText(
+            2,
+            1,
+            std::format(
+                "ARRANGEMENTS   -   {}", song != nullptr ? song->metadata.title : std::string{}));
+        const std::span<const core::LibraryArrangementSummary> arrangements =
+            menu.currentArrangements();
+        item_count = arrangements.size();
+        selected = menu.selectedArrangementIndex();
+        for (std::size_t i = 0; i < arrangements.size(); ++i)
+        {
+            const std::string_view part = arrangements[i].part.has_value()
+                                              ? common::core::partToken(*arrangements[i].part)
+                                              : std::string_view{"Arrangement"};
+            device.printDebugText(
+                left_column,
+                static_cast<std::uint16_t>(first_row + i),
+                std::format("{} {}", i == selected ? '>' : ' ', part));
+        }
+    }
+
+    device.printDebugText(
+        2,
+        static_cast<std::uint16_t>(first_row + item_count + 2),
+        menu.screen() == core::SongSelectScreen::SongList ? "Up/Down move   Enter choose   Esc quit"
+                                                          : "Up/Down move   Enter play   Esc back");
+
+    if (item_count > 0)
+    {
+        const float top = static_cast<float>(first_row + selected) * cell_height_pixels;
+        const common::ui::HighwayOverlayRect bar{
+            .left = 0.0F,
+            .top = top,
+            .right = static_cast<float>(device.width()),
+            .bottom = top + cell_height_pixels,
+            .abgr = 0x40FFFFFFU,
+        };
+        renderer.drawOverlayRects(
+            std::span<const common::ui::HighwayOverlayRect>{&bar, 1},
+            device.width(),
+            device.height());
+    }
+}
 
 } // namespace
 
@@ -311,6 +412,64 @@ int GameShell::run(const GameShellOptions& options)
         }
     }
 
+    // Song-selection menu (plan 26 Phases 5-7): when app/ composed a scanned library, the shell
+    // opens the menu and starts the session from the player's pick rather than auto-loading a dev
+    // package. Keyboard triggers resolve through the Phase-5 bindings; the concrete SDL keycode
+    // defaults are installed here at the composition boundary so game/core stays SDL-free.
+    std::optional<core::SongSelectMenu> menu;
+    core::MenuBindings menu_bindings;
+    bool in_menu = false;
+    if (options.library.has_value())
+    {
+        menu.emplace(*options.library);
+        const auto keyTrigger = [](const SDL_Keycode code) {
+            return core::MenuInputTrigger{
+                .source = core::MenuInputSource::Keyboard, .code = static_cast<int>(code)
+            };
+        };
+        menu_bindings.bind(core::MenuAction::NavigateUp, keyTrigger(SDLK_UP));
+        menu_bindings.bind(core::MenuAction::NavigateDown, keyTrigger(SDLK_DOWN));
+        menu_bindings.bind(core::MenuAction::NavigateLeft, keyTrigger(SDLK_LEFT));
+        menu_bindings.bind(core::MenuAction::NavigateRight, keyTrigger(SDLK_RIGHT));
+        menu_bindings.bind(core::MenuAction::Accept, keyTrigger(SDLK_RETURN));
+        menu_bindings.bind(core::MenuAction::Back, keyTrigger(SDLK_ESCAPE));
+        in_menu = true;
+    }
+
+    // Starts the picked song: the dev-session projection drives the chart display and the composed
+    // gameplay session drives audio (the same pair the --dev-package path uses). close() first so a
+    // second pick from the menu re-loads cleanly from the session's Idle stage.
+    const auto launchSong = [&](const core::SongSelectLaunch& launch) {
+        dev_session = DevSession::create(
+            launch.package_path,
+            options.lefty,
+            std::chrono::steady_clock::now().time_since_epoch());
+        if (dev_session.has_value())
+        {
+            std::optional<common::core::HighwayViewState> state =
+                dev_session->takeLoadedViewState();
+            if (state.has_value())
+            {
+                renderer->setViewState(std::move(*state));
+            }
+        }
+        if (session != nullptr)
+        {
+            session->close();
+            if (const auto started = session->start(
+                    core::GameplaySessionRequest{
+                        .package_path = launch.package_path,
+                        .arrangement_id = launch.arrangement_id,
+                        .workspace_directory = options.session_workspace_directory,
+                    });
+                !started.has_value())
+            {
+                RH_LOG_WARNING("game.session", "session start failed: {}", started.error().message);
+            }
+        }
+        in_menu = false;
+    };
+
     // The L2 frame loop: freshest input first, JUCE callbacks settled before the frame is built,
     // then the vsynced present paces the whole loop.
     core::FrameClock frame_clock;
@@ -330,80 +489,119 @@ int GameShell::run(const GameShellOptions& options)
         {
             device->resize(events.pixel_size_changed->width, events.pixel_size_changed->height);
         }
-        for (const GameKey key : events.keys_pressed)
+        if (in_menu && menu.has_value())
         {
-            switch (key)
+            for (const int code : events.key_codes_pressed)
             {
-                case GameKey::ToggleDiagnosticsOverlay:
+                if (const std::optional<core::MenuAction> action = menu_bindings.resolve(
+                        core::MenuInputTrigger{
+                            .source = core::MenuInputSource::Keyboard, .code = code
+                        });
+                    action.has_value())
                 {
-                    diagnostics.toggleOverlay();
-                    break;
+                    menu->handle(*action);
                 }
-                case GameKey::ToggleAutoplay:
-                {
-                    diagnostics.toggleAutoplay();
-                    break;
-                }
-                case GameKey::ReloadChart:
-                {
-                    diagnostics.requestChartReload();
-                    break;
-                }
-                case GameKey::SeekPreviousSection:
-                {
-                    if (dev_session.has_value())
-                    {
-                        const std::optional<std::size_t> section =
-                            dev_session->sectionBefore(last_song_seconds);
-                        if (section.has_value())
-                        {
-                            diagnostics.requestSeekToSection(*section);
-                        }
-                    }
-                    break;
-                }
-                case GameKey::SeekNextSection:
-                {
-                    if (dev_session.has_value())
-                    {
-                        const std::optional<std::size_t> section =
-                            dev_session->sectionAfter(last_song_seconds);
-                        if (section.has_value())
-                        {
-                            diagnostics.requestSeekToSection(*section);
-                        }
-                    }
-                    break;
-                }
-                case GameKey::TogglePlayPause:
+            }
+            if (std::optional<core::SongSelectLaunch> launch = menu->takeLaunch();
+                launch.has_value())
+            {
+                launchSong(*launch);
+            }
+        }
+        else
+        {
+            // Esc leaves the current song and returns to the menu (when a library was scanned).
+            for (const int code : events.key_codes_pressed)
+            {
+                if (menu.has_value() && code == static_cast<int>(SDLK_ESCAPE))
                 {
                     if (session != nullptr)
                     {
-                        // Play covers Ready, Paused, and Finished (restart); pause covers
-                        // Playing. Out-of-stage presses (still loading, failed) are refused by
-                        // the session and logged rather than crashing or silently retrying.
-                        const bool playing =
-                            session->stage() == core::GameplaySessionStage::Playing;
-                        const auto toggled = playing ? session->pause() : session->play();
-                        if (!toggled.has_value())
-                        {
-                            RH_LOG_WARNING(
-                                "game.session", "play/pause refused: {}", toggled.error().message);
-                        }
+                        session->close();
                     }
-                    break;
+                    dev_session.reset();
+                    in_menu = true;
                 }
-                case GameKey::RestartSong:
+            }
+            for (const GameKey key : events.keys_pressed)
+            {
+                switch (key)
                 {
-                    if (session != nullptr)
+                    case GameKey::ToggleDiagnosticsOverlay:
                     {
-                        if (const auto restarted = session->restart(); !restarted.has_value())
-                        {
-                            RH_LOG_WARNING(
-                                "game.session", "restart refused: {}", restarted.error().message);
-                        }
+                        diagnostics.toggleOverlay();
+                        break;
                     }
-                    break;
+                    case GameKey::ToggleAutoplay:
+                    {
+                        diagnostics.toggleAutoplay();
+                        break;
+                    }
+                    case GameKey::ReloadChart:
+                    {
+                        diagnostics.requestChartReload();
+                        break;
+                    }
+                    case GameKey::SeekPreviousSection:
+                    {
+                        if (dev_session.has_value())
+                        {
+                            const std::optional<std::size_t> section =
+                                dev_session->sectionBefore(last_song_seconds);
+                            if (section.has_value())
+                            {
+                                diagnostics.requestSeekToSection(*section);
+                            }
+                        }
+                        break;
+                    }
+                    case GameKey::SeekNextSection:
+                    {
+                        if (dev_session.has_value())
+                        {
+                            const std::optional<std::size_t> section =
+                                dev_session->sectionAfter(last_song_seconds);
+                            if (section.has_value())
+                            {
+                                diagnostics.requestSeekToSection(*section);
+                            }
+                        }
+                        break;
+                    }
+                    case GameKey::TogglePlayPause:
+                    {
+                        if (session != nullptr)
+                        {
+                            // Play covers Ready, Paused, and Finished (restart); pause covers
+                            // Playing. Out-of-stage presses (still loading, failed) are refused by
+                            // the session and logged rather than crashing or silently retrying.
+                            const bool playing =
+                                session->stage() == core::GameplaySessionStage::Playing;
+                            const auto toggled = playing ? session->pause() : session->play();
+                            if (!toggled.has_value())
+                            {
+                                RH_LOG_WARNING(
+                                    "game.session",
+                                    "play/pause refused: {}",
+                                    toggled.error().message);
+                            }
+                        }
+                        break;
+                    }
+                    case GameKey::RestartSong:
+                    {
+                        if (session != nullptr)
+                        {
+                            if (const auto restarted = session->restart(); !restarted.has_value())
+                            {
+                                RH_LOG_WARNING(
+                                    "game.session",
+                                    "restart refused: {}",
+                                    restarted.error().message);
+                            }
+                        }
+                        break;
+                    }
                 }
             }
         }
@@ -464,49 +662,56 @@ int GameShell::run(const GameShellOptions& options)
             device->width(),
             device->height());
 
-        // Diagnostics overlay: the frame-time graph plus the debug-text readouts.
-        const bool overlay_visible = diagnostics.state().overlay_visible;
-        device->setDebugTextEnabled(overlay_visible);
-        overlay.recordFrameDelta(frame_sample.frame_delta);
-        if (overlay_visible)
+        if (in_menu && menu.has_value())
         {
-            renderer->drawOverlayRects(overlay.buildRects(), device->width(), device->height());
+            renderMenu(*device, *renderer, *menu);
         }
-        device->clearDebugText();
-        if (overlay_visible)
+        else
         {
-            if (last_pacing_summary.has_value())
+            // Diagnostics overlay: the frame-time graph plus the debug-text readouts.
+            const bool overlay_visible = diagnostics.state().overlay_visible;
+            device->setDebugTextEnabled(overlay_visible);
+            overlay.recordFrameDelta(frame_sample.frame_delta);
+            if (overlay_visible)
             {
+                renderer->drawOverlayRects(overlay.buildRects(), device->width(), device->height());
+            }
+            device->clearDebugText();
+            if (overlay_visible)
+            {
+                if (last_pacing_summary.has_value())
+                {
+                    device->printDebugText(
+                        1,
+                        1,
+                        std::format(
+                            "frame avg {:.2f} ms  max {:.2f} ms  ({} fps)",
+                            static_cast<double>(last_pacing_summary->average_delta.count()) / 1.0e6,
+                            static_cast<double>(last_pacing_summary->max_delta.count()) / 1.0e6,
+                            last_pacing_summary->frame_count));
+                }
+                // Clock panel: song time, mirror age, and the extrapolation drift (rendered song
+                // time minus the raw snapshot position — how far ahead of the mirror the frame ran).
                 device->printDebugText(
                     1,
-                    1,
+                    2,
                     std::format(
-                        "frame avg {:.2f} ms  max {:.2f} ms  ({} fps)",
-                        static_cast<double>(last_pacing_summary->average_delta.count()) / 1.0e6,
-                        static_cast<double>(last_pacing_summary->max_delta.count()) / 1.0e6,
-                        last_pacing_summary->frame_count));
+                        "song {:.3f} s  mirror {}  drift {:+.2f} ms  {}",
+                        frame_sample.song_time.seconds,
+                        frame_sample.snapshot_age.has_value()
+                            ? std::format(
+                                  "{:.2f} ms",
+                                  static_cast<double>(frame_sample.snapshot_age->count()) / 1.0e6)
+                            : std::string{"unpublished"},
+                        (frame_sample.song_time.seconds - snapshot.position.seconds) * 1.0e3,
+                        frame_sample.playing ? "playing" : "stopped"));
+                device->printDebugText(
+                    1,
+                    3,
+                    std::format(
+                        "F1 overlay  F2 autoplay{}  F5 reload  PgUp/PgDn section",
+                        diagnostics.state().autoplay_enabled ? " [AUTOPLAY]" : ""));
             }
-            // Clock panel: song time, mirror age, and the extrapolation drift (rendered song
-            // time minus the raw snapshot position — how far ahead of the mirror the frame ran).
-            device->printDebugText(
-                1,
-                2,
-                std::format(
-                    "song {:.3f} s  mirror {}  drift {:+.2f} ms  {}",
-                    frame_sample.song_time.seconds,
-                    frame_sample.snapshot_age.has_value()
-                        ? std::format(
-                              "{:.2f} ms",
-                              static_cast<double>(frame_sample.snapshot_age->count()) / 1.0e6)
-                        : std::string{"unpublished"},
-                    (frame_sample.song_time.seconds - snapshot.position.seconds) * 1.0e3,
-                    frame_sample.playing ? "playing" : "stopped"));
-            device->printDebugText(
-                1,
-                3,
-                std::format(
-                    "F1 overlay  F2 autoplay{}  F5 reload  PgUp/PgDn section",
-                    diagnostics.state().autoplay_enabled ? " [AUTOPLAY]" : ""));
         }
 
         device->submitFrame();

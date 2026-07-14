@@ -105,6 +105,14 @@ struct GameWindowEvents
 
     /*! \brief Key actions pressed this frame, in event order (auto-repeats filtered out). */
     std::vector<GameKey> keys_pressed;
+
+    /*!
+    \brief Raw SDL keycodes pressed this frame (auto-repeats filtered out), for the menu resolver.
+
+    Carries every key-down, mapped or not, so the shell can feed a MenuBindings resolver in menu
+    mode; the pre-mapped \ref keys_pressed drives gameplay and diagnostics.
+    */
+    std::vector<int> key_codes_pressed;
 };
 
 /*!

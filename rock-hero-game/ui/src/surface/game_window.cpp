@@ -216,6 +216,9 @@ GameWindowEvents GameWindow::pollEvents()
                 {
                     break;
                 }
+                // Every key-down carries its raw code for the menu resolver; the mapped GameKey (if
+                // any) additionally drives gameplay and diagnostics.
+                events.key_codes_pressed.push_back(static_cast<int>(event.key.key));
                 const std::optional<GameKey> key = toGameKey(event.key.key);
                 if (key.has_value())
                 {
