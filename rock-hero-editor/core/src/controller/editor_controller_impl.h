@@ -185,7 +185,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onPluginDisplayTypeOverrideChanged(
         std::string instance_id, std::optional<PluginDisplayType> display_type);
     void onOpenPluginRequested(std::string instance_id);
-    void onUseGameAudioSettingsChangeRequested(bool enabled);
+    void onUseGameAudioSettingsChangeRequested(
+        bool enabled, std::function<void(bool)> set_applying);
     void onInputCalibrationRequested();
     [[nodiscard]] std::expected<void, common::audio::LiveInputMonitorError>
     onInputCalibrationMeasurementStarted();

@@ -46,8 +46,16 @@ public:
     /*! \brief Called when the settings window reaches a final close path. */
     using ClosedCallback = std::function<void()>;
 
-    /*! \brief Called with the requested value when the "use game audio settings" toggle changes. */
-    using GameAudioSettingsChangedCallback = std::function<void(bool)>;
+    /*!
+    \brief Called when the "use game audio settings" toggle changes.
+
+    Receives the requested toggle value plus the dialog's applying presentation (empty on the
+    cancel-time restore). The composition layer forwards both to the editor controller, which
+    brackets a genuine blocking device re-open with the presentation -- hiding the dialog like the
+    OK/Cancel apply path -- and never invokes it for an instant same-device flip.
+    */
+    using GameAudioSettingsChangedCallback =
+        std::function<void(bool enabled, std::function<void(bool)> set_applying)>;
 
     /*! \brief Resolved "use game audio settings" toggle and game-availability state at open. */
     struct GameAudioSettings final

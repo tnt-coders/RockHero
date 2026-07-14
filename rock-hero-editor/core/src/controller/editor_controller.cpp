@@ -896,9 +896,10 @@ void EditorController::onOpenPluginRequested(std::string instance_id)
     m_impl->onOpenPluginRequested(std::move(instance_id));
 }
 
-void EditorController::onUseGameAudioSettingsChangeRequested(bool enabled)
+void EditorController::onUseGameAudioSettingsChangeRequested(
+    bool enabled, std::function<void(bool)> set_applying)
 {
-    m_impl->onUseGameAudioSettingsChangeRequested(enabled);
+    m_impl->onUseGameAudioSettingsChangeRequested(enabled, std::move(set_applying));
 }
 
 void EditorController::onInputCalibrationRequested()
@@ -1479,7 +1480,8 @@ void EditorController::Impl::refreshGameSourceAvailability()
                               m_editor_audio_config_store->gameSourceAvailable();
 }
 
-void EditorController::Impl::onUseGameAudioSettingsChangeRequested(bool enabled)
+void EditorController::Impl::onUseGameAudioSettingsChangeRequested(
+    bool enabled, std::function<void(bool)> set_applying)
 {
     recordSettingsResultBestEffort(
         m_settings.setUseGameAudioSettings(enabled), "persist use-game-audio-settings toggle");
@@ -1504,15 +1506,26 @@ void EditorController::Impl::onUseGameAudioSettingsChangeRequested(bool enabled)
             route.has_value() && !route->serialized_state.empty() &&
             !m_audio_devices.deviceStateMatchesActive(route->serialized_state);
 
-        if (device_reopen_required)
+        if (device_reopen_required && set_applying)
         {
-            m_busy.runMessageThreadBusyOperation(BusyOperation::OpeningAudioDevice, [this] {
-                restoreAudioDeviceState();
-                static_cast<void>(m_live_input_monitor.refresh(monitoringContext()));
-            });
+            // Reuse the OK/Cancel apply presentation: the dialog hides itself for the duration of
+            // the blocking re-open (set_applying true, then false once the overlay clears) while
+            // the editor's busy overlay paints "Opening audio device..." in its place.
+            set_applying(true);
+            m_busy.runMessageThreadBusyOperation(
+                BusyOperation::OpeningAudioDevice,
+                [this] {
+                    restoreAudioDeviceState();
+                    static_cast<void>(m_live_input_monitor.refresh(monitoringContext()));
+                },
+                [set_applying] { set_applying(false); });
             return;
         }
 
+        // Same-device flips apply instantly. A required re-open with no applying presentation (the
+        // cancel-time toggle restore, whose window is already closing) also runs inline: routing it
+        // through the busy workflow would let the cancel's own staged-device rollback supersede its
+        // token and drop the re-open.
         restoreAudioDeviceState();
         static_cast<void>(m_live_input_monitor.refresh(monitoringContext()));
     }

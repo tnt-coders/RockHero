@@ -341,9 +341,20 @@ public:
     calibrated game configuration exists, disabling restores the editor's own route. Enabling with no
     calibrated game configuration persists the choice but leaves the editor on its own route.
 
+    When the flip resolves to a route that differs from the open device, the blocking re-open runs
+    behind the editor's busy overlay, bracketed by \p set_applying (true before, false after it
+    clears) so the settings dialog can hide itself exactly as the OK/Cancel apply path does. A
+    same-device flip is applied instantly and never invokes \p set_applying. An empty
+    \p set_applying runs any re-open inline with no busy presentation; the cancel-time toggle
+    restore relies on this because its window is already closing and the cancel's own staged-device
+    rollback begins immediately afterwards.
+
     \param enabled True to source the game's audio configuration, false to source the editor's own.
+    \param set_applying Applying presentation bracketing a genuine device re-open, or empty to run
+           any re-open inline.
     */
-    virtual void onUseGameAudioSettingsChangeRequested(bool enabled) = 0;
+    virtual void onUseGameAudioSettingsChangeRequested(
+        bool enabled, std::function<void(bool)> set_applying) = 0;
 
     /*! \brief Handles a request to manually calibrate the current input route. */
     virtual void onInputCalibrationRequested() = 0;

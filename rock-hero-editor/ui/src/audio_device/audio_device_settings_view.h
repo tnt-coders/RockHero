@@ -32,12 +32,16 @@ public:
     /*!
     \brief Host callback fired when the user changes the "use game audio settings" toggle.
 
-    Fires with the requested toggle value from the toggle switch. The host forwards it to the editor
-    controller, which owns the source switch and engine adoption; the view updates its own read-only
-    presentation immediately so the panel reflects the change without waiting for a controller
-    round-trip.
+    Fires with the requested toggle value plus an applying presentation. The interactive toggle
+    binds the presentation to this view's setApplying(), so a flip that needs a blocking device
+    re-open hides the dialog exactly like the OK/Cancel apply path; the cancel-time restore passes
+    an empty presentation instead because its window is already closing, which runs the re-open
+    inline. The host forwards both to the editor controller, which owns the source switch and engine
+    adoption; the view updates its own read-only presentation immediately so the panel reflects the
+    change without waiting for a controller round-trip.
     */
-    using GameAudioSettingsChangedCallback = std::function<void(bool)>;
+    using GameAudioSettingsChangedCallback =
+        std::function<void(bool enabled, std::function<void(bool)> set_applying)>;
 
     /*! \brief Governs whether the panel reflects the game's audio config or edits the editor's own. */
     struct GameAudioSettingsState final
