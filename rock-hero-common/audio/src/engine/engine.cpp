@@ -15,6 +15,18 @@ namespace rock_hero::common::audio
 void Engine::Impl::createEdit()
 {
     m_edit = tracktion::Edit::createSingleTrackEdit(*m_engine);
+
+    // Plugin-delay compensation is poison for a live player: with PDC on, every branch of the
+    // multi-tone rack is delayed to the WORST branch's reported latency at all times (the graph
+    // aligns parallel paths at sum points). With it off, the player hears only the active
+    // branch's real latency; branches misalign only during the 5-10 ms tone crossfade — a brief
+    // phase smear, not a timing error. PDC exists to align recorded material in mixes; this
+    // product has one live path plus a backing stem, so compensation stays off for BOTH products
+    // (latency stance recorded in docs/roadmap/21-game-audio-engine-and-session.md Phase 5 and
+    // the tone plan's 2026-07-05 latency amendment). Scoring is unaffected either way: note
+    // detection taps the dry input before the rack.
+    m_edit->setLatencyCompensationEnabled(false);
+
     auto audio_tracks = tracktion::getAudioTracks(*m_edit);
     tracktion::AudioTrack* const backing_track = audio_tracks.getFirst();
 

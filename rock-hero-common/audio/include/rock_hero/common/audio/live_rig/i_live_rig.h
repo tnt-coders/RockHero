@@ -159,6 +159,17 @@ struct [[nodiscard]] LoadedToneChainIdentities
 
     /*! \brief Chain plugin identities in playback order. */
     std::vector<LoadedTonePluginIdentity> plugins;
+
+    /*!
+    \brief Sum of the chain plugins' self-reported latencies, in seconds, at load completion.
+
+    With plugin-delay compensation off (the product stance), this is the real monitoring
+    latency the player hears while this tone is audible. Gameplay stays silent about it
+    (21-Q2); the consumer is the editor's authoring-time export warning, so a charter cannot
+    ship an unintentionally high-latency tone. Accuracy depends on each plugin's own
+    getLatencySeconds() report.
+    */
+    double summed_reported_latency_seconds{0.0};
 };
 
 /*! \brief Result of loading an arrangement's tone set into the live rig. */

@@ -1,6 +1,16 @@
 # Plan 21 — Game Audio Engine and GameplaySession
 
-Status: **Phases 1–4 COMPLETE (Phases 1–3: 2026-07-11; Phase 4: 2026-07-12).** Phase 4 — mix
+Status: **Phases 1–5 COMPLETE (Phases 1–3: 2026-07-11; Phases 4–5: 2026-07-12).** Phase 5 —
+latency stance: PDC disabled at edit construction for BOTH products (engine.cpp, full rationale
+comment; aligned with the tone plan's 2026-07-05 latency amendment — one live path + backing
+stem, active-branch-only latency); per-tone `summed_reported_latency_seconds` surfaced on
+`LoadedToneChainIdentities` at load completion (consumer = the editor's authoring-time export
+warning per the 21-Q2 refinement; gameplay silent); dry-tap contract recorded on `ILiveInput`
+(detection taps pre-rack; chain latency never touches scoring timestamps). Coverage notes: no
+latency-reporting plugin exists headless, so the adapter test pins the field at exactly 0.0 for
+empty chains; the private edit cannot be reached for a direct PDC-off assertion — both are
+source-verified one-liners whose live confirmation folds into Phase 6's soak (the plan-12/47
+split). Verified `-Targets all` + `-RunTouchedTests` green; clang-tidy pending user trigger. Phase 4 — mix
 controls: `IMixControls` port (common/audio mix/; master + backing only — monitor stays
 `ILiveRig::outputGain`, one owner per volume), Engine implementation over expert-verified
 Tracktion surfaces (`getMasterVolumePlugin()->setVolumeDb` — always-present plugin, -3 dB
