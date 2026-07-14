@@ -37,10 +37,10 @@ constexpr double g_follow_shift_trigger_fraction{0.8};
 constexpr double g_follow_shift_pin_fraction{0.05};
 constexpr double g_follow_shift_duration_seconds{0.3};
 
-// Fixed-cursor smooth scrolling pins the cursor near the left edge so almost the whole view is
-// road ahead (user tuned 1/3 -> 0.05: a deep pin wasted the screen on already-played content);
-// see docs/todo/smooth-scroll-follow-evaluation.md.
-constexpr double g_smooth_follow_pin_fraction{0.05};
+// Fixed-cursor smooth scrolling pins the cursor a fifth of the view from the left: most of the
+// screen is road ahead, with enough recent context behind the cursor to stay oriented (user
+// tuned 1/3 -> 0.05 -> 0.2).
+constexpr double g_smooth_follow_pin_fraction{0.2};
 
 // Treats tiny wheel deltas as absent so zoom input stays stable across platforms.
 [[nodiscard]] bool hasMouseWheelDelta(float delta) noexcept
