@@ -261,12 +261,12 @@ TEST_CASE("TabView draws techniques, shapes, and fret-hand positions", "[ui][tab
     CHECK(image.getPixelAt(60, 110).getARGB() == 0);
     CHECK(image.getPixelAt(200, 110).getARGB() == 0);
 
-    // The arpeggio start brackets every posture string with side arcs just outside the head
-    // ring — probed 45 degrees up the right arc (radius ~16.5 from the lane center), clear of
-    // string lines and text: the unsounded string 5 (lane center y = 60) and the sounded
-    // string 3 (y = 140) both wear them.
-    CHECK(image.getPixelAt(211, 48).getARGB() != 0);
-    CHECK(image.getPixelAt(211, 128).getARGB() != 0);
+    // The arpeggio start brackets every posture string with side arcs hugging the head ring —
+    // probed 45 degrees up the right arc (radius ~14.7 from the lane center), clear of string
+    // lines and text: the unsounded string 5 (lane center y = 60) and the sounded string 3
+    // (y = 140) both wear them.
+    CHECK(image.getPixelAt(210, 49).getARGB() != 0);
+    CHECK(image.getPixelAt(210, 129).getARGB() != 0);
 
     // Inside the brackets the head area stays empty (no backing disc), and the sounded string
     // draws no held fret number — its full head comes from the note pass instead.
