@@ -240,12 +240,18 @@ public:
         common::audio::IAudioDeviceConfiguration& audio_devices,
         core::AudioDeviceSettingsDispatcher dispatcher,
         AudioDeviceSettingsView::ApplyingCallback applying_callback,
-        AudioDeviceSettingsView::CloseCallback close_callback)
+        AudioDeviceSettingsView::CloseCallback close_callback,
+        AudioDeviceSettingsView::GameAudioSettingsState game_settings,
+        AudioDeviceSettingsView::GameAudioSettingsChangedCallback on_game_settings_changed)
         : m_settings(audio_devices)
         , m_controller(m_settings, std::move(dispatcher))
         , m_view(m_controller, std::move(applying_callback), std::move(close_callback))
     {
         m_controller.attachView(m_view);
+        // Install the toggle callback before pushing the initial toggle state so the read-only
+        // presentation is applied for the first paint without emitting a spurious change.
+        m_view.setGameAudioSettingsChangedCallback(std::move(on_game_settings_changed));
+        m_view.setGameAudioSettings(game_settings);
         addAndMakeVisible(m_view);
         setSize(AudioDeviceSettingsView::preferredWidth(), m_view.preferredContentHeight());
     }
@@ -278,7 +284,8 @@ private:
 // Launches the audio settings window centered on the editor window that owns the launcher.
 std::unique_ptr<juce::DocumentWindow> AudioDeviceSettingsWindow::show(
     common::audio::IAudioDeviceConfiguration& audio_devices, juce::Component& anchor,
-    Dispatcher dispatcher, ClosedCallback closed_callback)
+    Dispatcher dispatcher, ClosedCallback closed_callback, GameAudioSettings game_settings,
+    GameAudioSettingsChangedCallback on_game_settings_changed)
 {
     // getTopLevelComponent() walks the parent chain and returns the anchor itself when it has no
     // parent, so the centering target is never null.
@@ -299,7 +306,12 @@ std::unique_ptr<juce::DocumentWindow> AudioDeviceSettingsWindow::show(
             {
                 target_window->requestClose();
             }
-        });
+        },
+        AudioDeviceSettingsView::GameAudioSettingsState{
+            .use_game_settings = game_settings.use_game_settings,
+            .game_source_available = game_settings.game_source_available,
+        },
+        std::move(on_game_settings_changed));
     const int content_height = content->preferredContentHeight();
 
     window->installContent(std::move(content), content_height);

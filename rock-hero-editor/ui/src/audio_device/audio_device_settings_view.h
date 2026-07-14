@@ -30,6 +30,26 @@ public:
     using CloseCallback = std::function<void()>;
 
     /*!
+    \brief Host callback fired when the user changes the "use game audio settings" toggle.
+
+    Fires with the requested toggle value from the toggle switch and from the unconfigured-game
+    opt-out (which requests false). The host forwards it to the editor controller, which owns the
+    source switch and engine adoption; the view updates its own read-only presentation immediately so
+    the panel reflects the change without waiting for a controller round-trip.
+    */
+    using GameAudioSettingsChangedCallback = std::function<void(bool)>;
+
+    /*! \brief Governs whether the panel reflects the game's audio config or edits the editor's own. */
+    struct GameAudioSettingsState final
+    {
+        /*! \brief True when the "use game audio settings" toggle is on. */
+        bool use_game_settings{false};
+
+        /*! \brief True when a calibrated game audio configuration exists to reflect. */
+        bool game_source_available{false};
+    };
+
+    /*!
     \brief Creates the audio settings view around an editor settings controller.
     \param controller Controller that receives all user intents emitted by this view.
     \param applying_callback Optional host callback for applying presentation changes.
@@ -90,6 +110,24 @@ public:
     */
     void setState(const core::AudioDeviceSettingsViewState& state) override;
 
+    /*!
+    \brief Sets the host callback fired when the "use game audio settings" toggle changes.
+    \param callback Callback invoked with the requested toggle value.
+    */
+    void setGameAudioSettingsChangedCallback(GameAudioSettingsChangedCallback callback);
+
+    /*!
+    \brief Applies the "use game audio settings" toggle state and re-scopes the panel.
+
+    When the toggle is on the device fields render read-only, reflecting the game's route, with an
+    explanatory notice; when on but no calibrated game configuration exists, the notice explains the
+    unconfigured game and an opt-out button offers the editable editor-own flow. When off the panel is
+    the full editable device flow.
+
+    \param state Resolved toggle and game-availability state.
+    */
+    void setGameAudioSettings(GameAudioSettingsState state);
+
     /*! \brief Requests modal shutdown from the host DialogWindow. */
     void requestClose() override;
 
@@ -108,6 +146,13 @@ private:
 
     // Populates every control from the current view state.
     void applyStateToControls();
+
+    // Applies the toggle switch value, notice text, opt-out visibility, and read-only field state.
+    void applyGameAudioSettingsPresentation();
+
+    // True while the toggle is on, which renders the device fields read-only regardless of source
+    // availability (an unconfigured game still locks the fields and steers the user to the opt-out).
+    [[nodiscard]] bool gameSettingsLockActive() const noexcept;
 
     // Resizes the view and host window to match the current form rows.
     void syncWindowHeightToContent();
@@ -130,6 +175,15 @@ private:
     // Host callback that owns final window disposal.
     CloseCallback m_close_callback;
 
+    // Host callback fired when the user changes the "use game audio settings" toggle.
+    GameAudioSettingsChangedCallback m_on_use_game_settings_changed;
+
+    // Resolved "use game audio settings" toggle and game-availability state governing read-only mode.
+    GameAudioSettingsState m_game_settings{};
+
+    juce::ToggleButton m_use_game_settings_toggle;
+    juce::Label m_game_settings_notice;
+    juce::TextButton m_use_editor_audio_button;
     juce::Label m_device_type_label;
     juce::ComboBox m_device_type_combo;
     juce::Label m_device_label;

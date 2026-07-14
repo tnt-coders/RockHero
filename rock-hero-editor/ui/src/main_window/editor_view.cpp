@@ -1309,14 +1309,25 @@ void EditorView::presentInputCalibrationPromptIfNeeded(
         return;
     }
 
+    // One toggle governs both surfaces: sourcing a calibrated game configuration shows the game's
+    // calibration value read-only with a notice and no measure action; otherwise the full editable
+    // strum-to-calibrate flow runs against the editor's own store.
+    const bool read_only_game_reflection =
+        m_state.use_game_audio_settings && m_state.game_audio_source_available;
+
     if (m_input_calibration_window != nullptr)
     {
+        m_input_calibration_window->setReadOnlyGameReflection(read_only_game_reflection);
         m_input_calibration_window->toFront(true);
         return;
     }
 
     m_input_calibration_window = std::make_unique<InputCalibrationWindow>(
-        m_controller, &m_live_input, *prompt, isShowing() ? this : nullptr);
+        m_controller,
+        &m_live_input,
+        *prompt,
+        isShowing() ? this : nullptr,
+        read_only_game_reflection);
 }
 
 // Opens or refreshes the plugin browser top-level window from controller-derived state.
@@ -1469,6 +1480,16 @@ void EditorView::showAudioDeviceSettingsWindow()
                 view->m_audio_device_settings_window_reset_pending = true;
                 view->m_controller.onAudioDeviceSettingsClosed();
                 view->scheduleAudioDeviceSettingsWindowReset();
+            }
+        },
+        AudioDeviceSettingsWindow::GameAudioSettings{
+            .use_game_settings = m_state.use_game_audio_settings,
+            .game_source_available = m_state.game_audio_source_available,
+        },
+        [safe_this](bool enabled) {
+            if (auto* view = safe_this.getComponent())
+            {
+                view->m_controller.onUseGameAudioSettingsChangeRequested(enabled);
             }
         });
 }

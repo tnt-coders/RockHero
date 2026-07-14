@@ -37,6 +37,7 @@ class LiveInputMonitor;
 namespace rock_hero::editor::core
 {
 
+class EditorEffectiveAudioConfigStore;
 class IEditorSettings;
 class IEditorTaskRunner;
 class IEditorView;
@@ -145,6 +146,16 @@ public:
 
         /*! \brief Shared calibrate-first live-input monitoring service driven by the controller. */
         common::audio::LiveInputMonitor& live_input_monitor;
+
+        /*!
+        \brief Effective-source facade driven by the "use game audio settings" toggle.
+
+        Optional and null in tests that do not exercise the toggle: when supplied it is the same
+        object as \ref audio_config_store, injected concretely here so the controller can re-select
+        its read source (own store vs. the game's file) on toggle change. When null the toggle only
+        persists its workflow bit and applies no source switch or engine adoption.
+        */
+        EditorEffectiveAudioConfigStore* effective_audio_source{nullptr};
     };
 
     /*!
@@ -474,6 +485,9 @@ public:
     \param instance_id Opaque plugin instance ID selected by the user.
     */
     void onOpenPluginRequested(std::string instance_id) override;
+
+    /*! \copydoc IEditorController::onUseGameAudioSettingsChangeRequested */
+    void onUseGameAudioSettingsChangeRequested(bool enabled) override;
 
     /*! \brief Handles a request to manually calibrate the current input route. */
     void onInputCalibrationRequested() override;

@@ -103,10 +103,12 @@ class InputCalibrationWindow::Content final : public juce::Component,
 public:
     Content(
         InputCalibrationWindow& owner, core::IEditorController& controller,
-        const common::audio::ILiveInput* live_input, const core::InputCalibrationPrompt& prompt)
+        const common::audio::ILiveInput* live_input, const core::InputCalibrationPrompt& prompt,
+        bool read_only)
         : m_owner(owner)
         , m_editor_controller(controller)
         , m_live_input(live_input)
+        , m_read_only(read_only)
         , m_calibration_controller(
               *this, prompt,
               core::InputCalibrationController::CaptureSettings{
@@ -173,8 +175,17 @@ public:
         m_cancel_button.onClick = [this] { m_owner.closeButtonPressed(); };
         addAndMakeVisible(m_cancel_button);
 
+        m_game_source_notice.setComponentID("input_calibration_game_notice");
+        m_game_source_notice.setText(
+            "These come from your Game audio settings.", juce::dontSendNotification);
+        m_game_source_notice.setJustificationType(juce::Justification::centredLeft);
+        m_game_source_notice.setMinimumHorizontalScale(0.6f);
+        m_game_source_notice.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
+        addChildComponent(m_game_source_notice);
+
         setSize(g_input_calibration_preferred_width, preferredHeight());
         m_calibration_controller.attachView(*this);
+        applyModePresentation();
         startTimerHz(g_input_calibration_meter_hz);
     }
 
@@ -210,7 +221,10 @@ public:
         auto buttons = area.removeFromBottom(28);
         m_cancel_button.setBounds(buttons.removeFromRight(96));
         buttons.removeFromRight(8);
+        // The Calibrate button is hidden in the read-only game reflection; its freed row space
+        // carries the "these come from your game settings" notice instead.
         m_calibrate_button.setBounds(buttons.removeFromRight(96));
+        m_game_source_notice.setBounds(buttons);
     }
 
     void requestDismissal()
@@ -218,7 +232,38 @@ public:
         m_calibration_controller.onDismissRequested();
     }
 
+    // Re-scopes the popup live between the editable flow and the read-only game reflection.
+    void setReadOnly(bool read_only)
+    {
+        if (m_read_only == read_only)
+        {
+            return;
+        }
+
+        m_read_only = read_only;
+        applyModePresentation();
+        resized();
+    }
+
 private:
+    // Shows or hides the measure/apply affordances for the current source mode. In the read-only
+    // game reflection the strum-to-calibrate action and manual apply are removed and the notice is
+    // shown; the gain slider stays visible but disabled so the game's calibrated value is displayed
+    // read-only rather than hidden.
+    void applyModePresentation()
+    {
+        const bool editable = !m_read_only;
+        m_calibrate_button.setVisible(editable);
+        m_manual_apply_button.setVisible(editable);
+        m_game_source_notice.setVisible(m_read_only);
+        if (m_read_only)
+        {
+            m_manual_gain_slider.setEnabled(false);
+            m_manual_apply_button.setEnabled(false);
+            m_calibrate_button.setEnabled(false);
+        }
+    }
+
     [[nodiscard]] int preferredHeight() const
     {
         constexpr int outer_margin{g_input_calibration_content_margin * 2};
@@ -251,6 +296,9 @@ private:
         m_manual_gain_slider.setEnabled(state.manual_gain_controls_enabled);
         m_manual_apply_button.setEnabled(state.manual_gain_controls_enabled);
         m_cancel_button.setButtonText(juce::String{state.dismiss_button_text});
+        // Re-assert the read-only game reflection after every controller push so a state refresh
+        // never re-enables the measure/apply controls the game-source mode hides.
+        applyModePresentation();
         syncPreferredSize();
     }
 
@@ -325,9 +373,13 @@ private:
     InputCalibrationWindow& m_owner;
     core::IEditorController& m_editor_controller;
     const common::audio::ILiveInput* m_live_input{};
+    // True while the editor sources the game's audio configuration: the popup then reflects the
+    // game's calibration value read-only with a notice and offers no measure action.
+    bool m_read_only{false};
     core::InputCalibrationController m_calibration_controller;
     AudioLevelMeter m_input_meter;
     juce::Label m_target_label;
+    juce::Label m_game_source_notice;
     std::unique_ptr<juce::Drawable> m_help_icon;
     juce::DrawableButton m_help_button{"input_calibration_help", juce::DrawableButton::ImageFitted};
     juce::Label m_manual_label;
@@ -340,7 +392,8 @@ private:
 
 InputCalibrationWindow::InputCalibrationWindow(
     core::IEditorController& controller, const common::audio::ILiveInput* live_input,
-    const core::InputCalibrationPrompt& prompt, juce::Component* centering_component)
+    const core::InputCalibrationPrompt& prompt, juce::Component* centering_component,
+    bool read_only_game_reflection)
     : juce::DocumentWindow(
           "Input Calibration", editorTheme().bar_background, juce::DocumentWindow::closeButton)
 {
@@ -348,7 +401,8 @@ InputCalibrationWindow::InputCalibrationWindow(
     setUsingNativeTitleBar(true);
     setResizable(false, false);
     setAlwaysOnTop(juce::WindowUtils::areThereAnyAlwaysOnTopWindows());
-    auto content = std::make_unique<Content>(*this, controller, live_input, prompt);
+    auto content =
+        std::make_unique<Content>(*this, controller, live_input, prompt, read_only_game_reflection);
     m_content = content.get();
     setContentOwned(content.release(), true);
     centreAroundComponent(centering_component, getWidth(), getHeight());
@@ -364,6 +418,14 @@ void InputCalibrationWindow::closeButtonPressed()
         m_content->requestDismissal();
     }
     setVisible(false);
+}
+
+void InputCalibrationWindow::setReadOnlyGameReflection(bool read_only_game_reflection)
+{
+    if (m_content != nullptr)
+    {
+        m_content->setReadOnly(read_only_game_reflection);
+    }
 }
 
 } // namespace rock_hero::editor::ui

@@ -1,6 +1,7 @@
 #include "audio_device/audio_device_settings_view.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <optional>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
 
 namespace rock_hero::editor::ui
@@ -178,6 +179,124 @@ TEST_CASE("AudioDeviceSettingsView emits button intents", "[ui][audio-device-set
     CHECK(controller.control_panel_call_count == 1);
     CHECK(controller.ok_call_count == 1);
     CHECK(controller.cancel_call_count == 1);
+}
+
+// Toggle ON with an available game config renders the device fields read-only with the notice and
+// no opt-out.
+TEST_CASE(
+    "AudioDeviceSettingsView locks fields read-only when sourcing the game",
+    "[ui][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeAudioDeviceSettingsController controller;
+    AudioDeviceSettingsView view{controller};
+    view.setState(splitDeviceState());
+
+    view.setGameAudioSettings(
+        AudioDeviceSettingsView::GameAudioSettingsState{
+            .use_game_settings = true,
+            .game_source_available = true,
+        });
+
+    const auto& input_device =
+        findRequiredDirectChild<juce::ComboBox>(view, "audio_settings_input_device");
+    const auto& sample_rate =
+        findRequiredDirectChild<juce::ComboBox>(view, "audio_settings_sample_rate");
+    const auto& ok_button =
+        findRequiredDirectChild<juce::TextButton>(view, "audio_settings_ok_button");
+    const auto& toggle =
+        findRequiredDirectChild<juce::ToggleButton>(view, "audio_settings_use_game_toggle");
+    const auto& notice = findRequiredDirectChild<juce::Label>(view, "audio_settings_game_notice");
+    const auto& opt_out =
+        findRequiredDirectChild<juce::TextButton>(view, "audio_settings_use_editor_button");
+
+    CHECK(toggle.getToggleState());
+    CHECK_FALSE(input_device.isEnabled());
+    CHECK_FALSE(sample_rate.isEnabled());
+    CHECK_FALSE(ok_button.isEnabled());
+    CHECK(notice.isVisible());
+    CHECK(notice.getText().contains("Game audio settings"));
+    CHECK_FALSE(opt_out.isVisible());
+}
+
+// Toggle ON with an unconfigured game surfaces the disabled reason and the one-action opt-out
+// instead of an inert switch.
+TEST_CASE(
+    "AudioDeviceSettingsView surfaces the opt-out when the game is unconfigured",
+    "[ui][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeAudioDeviceSettingsController controller;
+    AudioDeviceSettingsView view{controller};
+    view.setState(splitDeviceState());
+
+    view.setGameAudioSettings(
+        AudioDeviceSettingsView::GameAudioSettingsState{
+            .use_game_settings = true,
+            .game_source_available = false,
+        });
+
+    const auto& input_device =
+        findRequiredDirectChild<juce::ComboBox>(view, "audio_settings_input_device");
+    const auto& notice = findRequiredDirectChild<juce::Label>(view, "audio_settings_game_notice");
+    auto& opt_out =
+        findRequiredDirectChild<juce::TextButton>(view, "audio_settings_use_editor_button");
+
+    CHECK_FALSE(input_device.isEnabled());
+    CHECK(notice.isVisible());
+    CHECK(opt_out.isVisible());
+    CHECK(opt_out.isEnabled());
+
+    bool last_requested_on{true};
+    int change_count{0};
+    view.setGameAudioSettingsChangedCallback([&](bool enabled) {
+        last_requested_on = enabled;
+        change_count += 1;
+    });
+
+    REQUIRE(opt_out.onClick);
+    opt_out.onClick();
+
+    CHECK(change_count == 1);
+    CHECK_FALSE(last_requested_on);
+    // The opt-out drops locally into the editable device flow before the controller round-trip.
+    CHECK(input_device.isEnabled());
+    CHECK_FALSE(notice.isVisible());
+}
+
+// Toggle OFF keeps the full editable device flow and emits the toggle change to the host.
+TEST_CASE(
+    "AudioDeviceSettingsView emits the use-game-settings toggle change",
+    "[ui][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeAudioDeviceSettingsController controller;
+    AudioDeviceSettingsView view{controller};
+    view.setState(splitDeviceState());
+    view.setGameAudioSettings(
+        AudioDeviceSettingsView::GameAudioSettingsState{
+            .use_game_settings = false,
+            .game_source_available = true,
+        });
+
+    const auto& input_device =
+        findRequiredDirectChild<juce::ComboBox>(view, "audio_settings_input_device");
+    CHECK(input_device.isEnabled());
+
+    std::optional<bool> requested;
+    view.setGameAudioSettingsChangedCallback([&](bool enabled) { requested = enabled; });
+
+    // Drive the toggle deterministically: set the state, then invoke its handler as a real click
+    // would, matching the file's direct-onClick pattern for buttons.
+    auto& toggle =
+        findRequiredDirectChild<juce::ToggleButton>(view, "audio_settings_use_game_toggle");
+    toggle.setToggleState(true, juce::dontSendNotification);
+    REQUIRE(toggle.onClick);
+    toggle.onClick();
+
+    REQUIRE(requested.has_value());
+    CHECK(requested.value());
+    CHECK_FALSE(input_device.isEnabled());
 }
 
 } // namespace rock_hero::editor::ui
