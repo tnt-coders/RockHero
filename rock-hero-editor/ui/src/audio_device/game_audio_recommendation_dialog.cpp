@@ -10,27 +10,39 @@ namespace rock_hero::editor::ui
 namespace
 {
 
-constexpr int g_dialog_width = 460;
-constexpr int g_margin = 16;
-constexpr int g_row_gap = 12;
-constexpr int g_button_height = 28;
+constexpr int g_dialog_width = 520;
+constexpr int g_margin = 20;
+constexpr int g_heading_height = 22;
+constexpr int g_heading_gap = 10;
+// Three body lines at the 14 px body font so the recommendation sentence wraps without shrinking.
+constexpr int g_body_height = 66;
+constexpr int g_section_gap = 18;
 constexpr int g_checkbox_height = 22;
+constexpr int g_button_height = 28;
+constexpr int g_button_gap = 8;
 
-// Message body, checkbox, and the two decision buttons; the host window turns button clicks and
+// Heading, body, checkbox, and the two decision buttons; the host window turns button clicks and
 // bypass closes into exactly one decision callback.
 class RecommendationContent final : public juce::Component
 {
 public:
     RecommendationContent(std::function<void()> on_use_game, std::function<void()> on_use_custom)
     {
-        m_message.setComponentID("game_audio_recommendation_message");
-        m_message.setText(
-            "Rock Hero game audio settings were detected.\n\n"
+        m_heading.setComponentID("game_audio_recommendation_heading");
+        m_heading.setText("Game audio settings detected", juce::dontSendNotification);
+        m_heading.setFont(juce::Font{juce::FontOptions{16.0f, juce::Font::bold}});
+        m_heading.setColour(juce::Label::textColourId, editorTheme().primary_text);
+        m_heading.setJustificationType(juce::Justification::centredLeft);
+
+        m_body.setComponentID("game_audio_recommendation_message");
+        m_body.setText(
             "Using the game's audio settings in the editor is recommended for the most consistent "
             "experience across the game and the editor.",
             juce::dontSendNotification);
-        m_message.setJustificationType(juce::Justification::topLeft);
-        m_message.setMinimumHorizontalScale(1.0F);
+        m_body.setFont(juce::Font{juce::FontOptions{14.0f}});
+        m_body.setColour(juce::Label::textColourId, editorTheme().muted_text);
+        m_body.setJustificationType(juce::Justification::topLeft);
+        m_body.setMinimumHorizontalScale(1.0F);
 
         m_suppress_checkbox.setComponentID("game_audio_recommendation_suppress");
         m_suppress_checkbox.setButtonText("Don't show this message again");
@@ -43,14 +55,15 @@ public:
         m_use_custom_button.setButtonText("Use custom audio settings");
         m_use_custom_button.onClick = std::move(on_use_custom);
 
-        addAndMakeVisible(m_message);
+        addAndMakeVisible(m_heading);
+        addAndMakeVisible(m_body);
         addAndMakeVisible(m_suppress_checkbox);
         addAndMakeVisible(m_use_game_button);
         addAndMakeVisible(m_use_custom_button);
 
-        const int message_height = 96;
-        const int content_height = g_margin + message_height + g_row_gap + g_checkbox_height +
-                                   g_row_gap + (2 * g_button_height) + g_row_gap + g_margin;
+        const int content_height = g_margin + g_heading_height + g_heading_gap + g_body_height +
+                                   g_section_gap + g_checkbox_height + g_section_gap +
+                                   g_button_height + g_margin;
         setSize(g_dialog_width, content_height);
     }
 
@@ -62,17 +75,25 @@ public:
     void resized() override
     {
         juce::Rectangle<int> area = getLocalBounds().reduced(g_margin);
-        m_message.setBounds(area.removeFromTop(96));
-        area.removeFromTop(g_row_gap);
+        m_heading.setBounds(area.removeFromTop(g_heading_height));
+        area.removeFromTop(g_heading_gap);
+        m_body.setBounds(area.removeFromTop(g_body_height));
+        area.removeFromTop(g_section_gap);
         m_suppress_checkbox.setBounds(area.removeFromTop(g_checkbox_height));
-        area.removeFromTop(g_row_gap);
-        m_use_game_button.setBounds(area.removeFromTop(g_button_height));
-        area.removeFromTop(g_row_gap);
-        m_use_custom_button.setBounds(area.removeFromTop(g_button_height));
+
+        // Bottom-right decision row, buttons sized to their captions, the recommended action
+        // leading — matching the settings window's OK/Cancel arrangement.
+        juce::Rectangle<int> button_row = area.removeFromBottom(g_button_height);
+        m_use_custom_button.changeWidthToFitText(g_button_height);
+        m_use_game_button.changeWidthToFitText(g_button_height);
+        m_use_custom_button.setBounds(button_row.removeFromRight(m_use_custom_button.getWidth()));
+        button_row.removeFromRight(g_button_gap);
+        m_use_game_button.setBounds(button_row.removeFromRight(m_use_game_button.getWidth()));
     }
 
 private:
-    juce::Label m_message;
+    juce::Label m_heading;
+    juce::Label m_body;
     juce::ToggleButton m_suppress_checkbox;
     juce::TextButton m_use_game_button;
     juce::TextButton m_use_custom_button;
