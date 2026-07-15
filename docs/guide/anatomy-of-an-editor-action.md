@@ -92,3 +92,23 @@ Every editor action is some subset of this: **intent → action value → gate �
 prompt, the busy operation, and undo; saving a project adds a worker-thread offload; but the
 stages always appear in this order, in these files. When tracing an unfamiliar action, start at
 its `performActionImpl` overload and read outward in both directions.
+
+```mermaid
+flowchart TB
+    intent["UI component emits an intent"]
+    action["intent becomes an EditorAction value"]
+    gate["availability + busy gate"]
+    reason["rejected with a typed reason"]
+    handler["performActionImpl in the feature handler"]
+    prompt["`prompt via view state
+    (the answer re-enters as a new action)`"]
+    work["`busy operation + port crossing
+    (when the action needs the engine)`"]
+    undo["undo entry pushed"]
+    view["deriveViewState + setState push"]
+    intent --> action --> gate
+    gate -- rejected --> reason
+    gate -- allowed --> handler
+    handler -. needs confirmation .-> prompt
+    handler --> work --> undo --> view
+```
