@@ -66,7 +66,7 @@ TEST_CASE("Library scan planner diffs the index against file facts", "[core][lib
 
 // Verifies a moved package plans as Remove + Add today; hash-based move detection (which would
 // turn this into a single Move that preserves the cached description) activates once
-// docs/roadmap/10-format-versioning-and-chart-identity.md supplies package identity hashes.
+// docs/plans/roadmap/10-format-versioning-and-chart-identity.md supplies package identity hashes.
 TEST_CASE("Library scan planner treats a moved package as remove plus add", "[core][library]")
 {
     LibraryIndex previous;

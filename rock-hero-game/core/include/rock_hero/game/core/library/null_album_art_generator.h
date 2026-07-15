@@ -16,7 +16,7 @@ namespace rock_hero::game::core
 /*!
 \brief Album-art generator that always reports "no album art".
 
-The shipping default until docs/roadmap/43-song-information-and-art.md adds album art and a
+The shipping default until docs/plans/roadmap/43-song-information-and-art.md adds album art and a
 JUCE-backed decoder. It never reads a package and never fails, so the library scan runs fully
 headless with no image decoding — the same code path plan 43 later swaps a real adapter into.
 */

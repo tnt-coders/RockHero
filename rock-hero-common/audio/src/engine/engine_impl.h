@@ -208,7 +208,7 @@ private:
     double m_loaded_length_seconds{0.0};
 
     // Port-level playback speed factor. Only 1.0 is storable until practice-speed support
-    // (docs/roadmap/28-practice-mode.md) implements real time-stretch over the proxy-off backing
+    // (docs/plans/roadmap/28-practice-mode.md) implements real time-stretch over the proxy-off backing
     // clip; the port rejects every other value with a typed error.
     double m_playback_speed{1.0};
 

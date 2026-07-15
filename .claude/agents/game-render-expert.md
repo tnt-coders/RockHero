@@ -12,7 +12,7 @@ mechanisms instead of assumptions.
 # Ground rules
 
 - The primary evidence is the G20-RENDER gate record:
-  `docs/roadmap/20-game-architecture-and-render-stack.md` § Gate record (criteria S1–S6,
+  `docs/plans/roadmap/20-game-architecture-and-render-stack.md` § Gate record (criteria S1–S6,
   measured soak numbers, loop-option enumeration with JUCE source citations, the stack
   alternatives analysis, and the integration-findings list). Read it before answering anything.
 - Spike code lives on the throwaway branch `spike/render-stack` (@ 049c898c): a working

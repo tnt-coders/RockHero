@@ -33,9 +33,9 @@ Repository context to read first for non-trivial JUCE work:
 - `docs/design/architectural-principles.md`
 - `docs/design/coding-conventions.md`
 - `docs/design/documentation-conventions.md`
-- `docs/in-progress/tracktion-live-instrument-monitoring-plan.md` when live
+- `docs/plans/in-progress/tracktion-live-instrument-monitoring-plan.md` when live
   input monitoring is involved
-- `docs/in-progress/tracktion-live-instrument-monitoring-plan-review.md` when
+- `docs/plans/in-progress/tracktion-live-instrument-monitoring-plan-review.md` when
   reviewing or implementing the live monitoring plan
 - `rock-hero-editor/ui/src/audio_device_settings_*`
 - `rock-hero-editor/ui/include/rock_hero/editor/ui/*.h`

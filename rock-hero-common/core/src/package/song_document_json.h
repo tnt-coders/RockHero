@@ -20,7 +20,7 @@ namespace rock_hero::common::core
 /*!
 \brief The single home of today's hard `formatVersion == 1` check.
 
-docs/roadmap/10-format-versioning-and-chart-identity.md replaces this ONE helper with its
+docs/plans/roadmap/10-format-versioning-and-chart-identity.md replaces this ONE helper with its
 tolerance/migration ladder; no other call site may test the version.
 
 \param song_document Parsed song.json document root.

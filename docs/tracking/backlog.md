@@ -2,8 +2,8 @@
 
 Small fixes and evaluations to do when there's time — short entries, not plans. Counterpart to
 [watch-items.md](watch-items.md): backlog items you *do*, watch items you *monitor*. Anything
-that needs a design or multiple steps belongs in a `docs/todo/` plan instead. Delete an entry when
-it's done — git history is the record.
+that needs a design or multiple steps belongs in a `docs/plans/todo/` plan instead. Delete an
+entry when it's done — git history is the record.
 
 - Tone changes should switch SLIGHTLY before the tone region begins (~100 ms ahead?) so the
   transition still feels seamless for players who are a little out of time — needs evaluation and

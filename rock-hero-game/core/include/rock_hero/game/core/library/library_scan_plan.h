@@ -5,7 +5,7 @@
 The planner performs no IO: callers snapshot file facts (paths, sizes, modification times) with
 whatever lister they own and receive a deterministic action list. A moved package plans as
 Remove + Add today; hash-based move detection activates once
-docs/roadmap/10-format-versioning-and-chart-identity.md supplies package identity hashes.
+docs/plans/roadmap/10-format-versioning-and-chart-identity.md supplies package identity hashes.
 */
 
 #pragma once
