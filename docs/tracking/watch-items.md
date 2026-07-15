@@ -11,8 +11,8 @@ Maintenance: every entry names its **trigger** (the moment it graduates to actio
 *Retired* at the bottom rather than deleting it, so the history stays auditable. When you add an
 item, give it both a trigger and a remedy or it belongs in the backlog instead.
 
-Consolidated 2026-07-11 from `docs/todo/game-render-watch-items.md` and
-`docs/todo/plugin-idle-churn-watch.md`, with every claim re-verified against the code that day
+Consolidated 2026-07-11 from `docs/plans/todo/game-render-watch-items.md` and
+`docs/plans/todo/plugin-idle-churn-watch.md`, with every claim re-verified against the code that day
 (paths updated where the highway renderer's promotion to `rock-hero-common/ui` moved them; one
 item retired as resolved — see *Retired*).
 
@@ -149,7 +149,7 @@ missing or absent plugin tones could still be played with a standard default ton
 the opt-in "play with default tones" path on the 21-Q1 refuse-to-start point, so the player can
 choose to proceed with default tones instead of being blocked — a PINNED opt-in on the refusal,
 never an automatic substitution. (Referenced from `docs/tracking/backlog.md`'s standard-tones item
-and `docs/roadmap/00-roadmap.md`'s 21-Q1 answer.)
+and `docs/plans/roadmap/00-roadmap.md`'s 21-Q1 answer.)
 
 ### Plugin-state idle churn — trigger: repeating no-intent settle log lines at idle
 
@@ -158,8 +158,8 @@ drifting state chunk ~1/sec at idle. The real defect was narrower — an asynchr
 instantiation/restore re-announce settling as a phantom "Edit <plugin>" undo entry — and is fixed
 structurally: a settled plugin-state transaction is emitted only when it carried a parameter
 gesture (`rock-hero-common/audio/src/tracktion/plugin_dirty_tracking.{h,cpp}`); everything else
-folds into the baseline. (Closed out of `docs/in-progress/` on 2026-07-08 with commit `edb485bd`,
-later simplified to a gesture-only gate.)
+folds into the baseline. (Closed out of `docs/plans/in-progress/` on 2026-07-08 with commit
+`edb485bd`, later simplified to a gesture-only gate.)
 
 - **True idle churn** would now surface as repeating `Folded plugin state change (no user intent)`
   log lines at idle. It can no longer pollute undo, but each folded settle still runs a full state

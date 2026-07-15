@@ -46,8 +46,8 @@ Keep progress updates brief and less frequent for short tasks. For routine edits
 current action and any meaningful finding or blocker; avoid narrating every small inspection step.
 
 ## Documentation Maintenance Rules
-Do not keep `docs/todo/` planning documents continuously synchronized with routine code or design
-changes. Treat them as deferred implementation plans that may be stale until the user chooses to
+Do not keep `docs/plans/todo/` planning documents continuously synchronized with routine code or
+design changes. Treat them as deferred implementation plans that may be stale until the user chooses to
 implement that specific plan; at that point, re-read the current code and design docs and revise the
 plan as needed before using it.
 
@@ -60,7 +60,8 @@ Product-scope libraries live at the repository root under `rock-hero-common`, `r
 and `rock-hero-game`. Each scope owns `core`, `audio`, and `ui` submodules only when needed, with
 matching namespaces and include paths such as `rock_hero::editor::ui` and
 `<rock_hero/editor/ui/*.h>`. Executable startup lives under the matching product `app/` folder.
-`docs/` holds Doxygen inputs such as `Doxyfile.in`. Third-party source submodules live under
+`docs/` holds the design docs, user docs, plan lifecycle (`docs/plans/`), and Doxygen inputs such
+as `Doxyfile.in`. Third-party source submodules live under
 `external/` (`external/tracktion_engine`). `project-config/` remains a root-level submodule
 providing shared CMake presets, Conan integration, docs theming, and lint targets; its vendored
 `cmake-conan/` subtree carries its own pytest suite. Root build outputs go to `build/debug` and

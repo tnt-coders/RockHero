@@ -1,6 +1,6 @@
 # PreToolUse hook for the Write|Edit matcher: denies any tool call whose new file content or
 # target path contains the name of the commercial real-guitar game this project must never
-# reference by name (the NAMING FIREWALL constraint restated in every docs/roadmap/*.md
+# reference by name (the NAMING FIREWALL constraint restated in every docs/plans/roadmap/*.md
 # Constraints section; use "RS" or neutral phrasing instead).
 #
 # The forbidden pattern is assembled by string concatenation so this script itself never
@@ -60,7 +60,7 @@ foreach ($text in $texts)
             "BLOCKED by .claude/hooks/block-forbidden-name.ps1: the content or file path " +
             "contains the name of the commercial real-guitar game that inspired this project. " +
             "Repo naming rule (see the NAMING FIREWALL constraint restated in the Constraints " +
-            "section of every docs/roadmap/*.md plan): that name must never appear in any file, " +
+            "section of every docs/plans/roadmap/*.md plan): that name must never appear in any file, " +
             "commit message, or generated text -- use 'RS'/'RS2014' or neutral phrasing such " +
             "as 'the reference real-guitar game' instead, including inside quotes, comments, " +
             "and test data. Rewrite the content without the name and retry.")

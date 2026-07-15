@@ -146,7 +146,7 @@ mirroring how `rock-hero-common/core` earned its `juce_core` grant: a **designat
 header may expose `juce_graphics` types when the header's purpose is shared presentation code
 that both products execute directly (the tab notation paint core's `juce::Graphics&` signature
 is the exemplar — one rasterizer defining a look both products render; approved 2026-07-11,
-docs/roadmap/30-game-2d-tab-view.md 30-Q1). Each such exposure is a recorded decision, never a
+docs/plans/roadmap/30-game-2d-tab-view.md 30-Q1). Each such exposure is a recorded decision, never a
 default, and consumers of that header take on the `juce_graphics` wrapper link explicitly. bgfx
 types never appear in public headers.
 

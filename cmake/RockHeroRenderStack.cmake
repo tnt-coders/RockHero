@@ -3,7 +3,7 @@ include_guard()
 # RockHeroRenderStack.cmake
 #
 # Render-stack dependency wiring for the SDL3 + bgfx game view and the editor 3D preview, per the
-# G20-RENDER gate decision (docs/roadmap/20-game-architecture-and-render-stack.md § Gate record).
+# G20-RENDER gate decision (docs/plans/roadmap/20-game-architecture-and-render-stack.md § Gate record).
 #
 # Like the JUCE/Tracktion wrappers in RockHeroExternalModules.cmake, consumers link project-owned
 # rock_hero:: aliases instead of raw third-party targets. SDL3 and bgfx arrive precompiled through
@@ -62,7 +62,7 @@ function(rock_hero_add_compiled_shader)
     # it as a dependency to get correct rebuilds when only the varyings change. Includes are NOT
     # tracked: today the only include dir is immutable Conan package content, so that is correct;
     # the moment project-owned shared .sh includes appear, switch to shaderc's --depends output
-    # via DEPFILE (see docs/todo/game-render-watch-items.md). The source rides plain DEPENDS,
+    # via DEPFILE (see docs/plans/todo/game-render-watch-items.md). The source rides plain DEPENDS,
     # never MAIN_DEPENDENCY: both products compile the same shared sources, and a source file may
     # be the main dependency of at most one custom command (benign under Ninja, silently drops a
     # rule under other generators).

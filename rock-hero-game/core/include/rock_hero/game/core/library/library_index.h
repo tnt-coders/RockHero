@@ -4,7 +4,7 @@
 
 The index is game-owned per-user cache data derived from read-only packages: it is always safe to
 discard and rebuild by rescanning, so nothing in it is authoritative. Entries are keyed by
-absolute package path until docs/roadmap/10-format-versioning-and-chart-identity.md supplies a
+absolute package path until docs/plans/roadmap/10-format-versioning-and-chart-identity.md supplies a
 package identity hash for move detection.
 */
 
@@ -47,7 +47,7 @@ struct LibraryArrangementSummary
     /*!
     \brief Derived intensity; empty means the "Unknown" difficulty bucket.
 
-    Stays empty until docs/roadmap/11-derived-difficulty-calculator.md ships a calculator.
+    Stays empty until docs/plans/roadmap/11-derived-difficulty-calculator.md ships a calculator.
     */
     std::optional<ArrangementIntensity> intensity;
 };
@@ -66,7 +66,7 @@ struct LibraryEntry
 
     /*!
     \brief Package identity hash; empty until
-           docs/roadmap/10-format-versioning-and-chart-identity.md lands (enables move detection
+           docs/plans/roadmap/10-format-versioning-and-chart-identity.md lands (enables move detection
            and stable album-art identity).
     */
     std::string package_hash;
@@ -79,7 +79,7 @@ struct LibraryEntry
 
     /*!
     \brief Cached album-art image file name beside the index; empty until
-           docs/roadmap/43-song-information-and-art.md adds album art.
+           docs/plans/roadmap/43-song-information-and-art.md adds album art.
     */
     std::string album_art_file_name;
 

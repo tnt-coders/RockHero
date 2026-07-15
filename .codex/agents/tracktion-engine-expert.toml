@@ -38,11 +38,11 @@ Repository context to read first for non-trivial Tracktion work:
 - `docs/design/architectural-principles.md`
 - `docs/design/coding-conventions.md`
 - `docs/design/documentation-conventions.md`
-- `docs/in-progress/tracktion-live-instrument-monitoring-plan.md` when live
+- `docs/plans/in-progress/tracktion-live-instrument-monitoring-plan.md` when live
   input monitoring is involved
-- `docs/in-progress/tracktion-live-instrument-monitoring-plan-review.md` when
+- `docs/plans/in-progress/tracktion-live-instrument-monitoring-plan-review.md` when
   reviewing or implementing the live monitoring plan
-- `docs/in-progress/for-reference-only_tracktion-guitar-track-plugin-chain-plan.md`
+- `docs/plans/in-progress/for-reference-only_tracktion-guitar-track-plugin-chain-plan.md`
   when plugin chains or tone automation are involved
 - `rock-hero-common/audio/include/rock_hero/common/audio/*.h`
 - `rock-hero-common/audio/src/engine.cpp`

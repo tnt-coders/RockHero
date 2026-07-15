@@ -38,7 +38,7 @@ Current working tree includes uncommitted busy/progress files:
 
 Primary plan file:
 
-- `docs/in-progress/editor-busy-overlay-plan.md`
+- `docs/plans/in-progress/editor-busy-overlay-plan.md`
 
 ## Current Design Shape
 

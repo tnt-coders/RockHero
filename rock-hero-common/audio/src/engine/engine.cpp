@@ -22,7 +22,7 @@ void Engine::Impl::createEdit()
     // branch's real latency; branches misalign only during the 5-10 ms tone crossfade — a brief
     // phase smear, not a timing error. PDC exists to align recorded material in mixes; this
     // product has one live path plus a backing stem, so compensation stays off for BOTH products
-    // (latency stance recorded in docs/roadmap/21-game-audio-engine-and-session.md Phase 5 and
+    // (latency stance recorded in docs/plans/roadmap/21-game-audio-engine-and-session.md Phase 5 and
     // the tone plan's 2026-07-05 latency amendment). Scoring is unaffected either way: note
     // detection taps the dry input before the rack.
     m_edit->setLatencyCompensationEnabled(false);

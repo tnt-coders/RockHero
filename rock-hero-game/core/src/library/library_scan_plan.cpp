@@ -16,7 +16,7 @@ std::vector<LibraryScanAction> planLibraryScan(
     // Windows filesystem is case-insensitive. The lister and the stored index must therefore agree
     // on one canonical spelling per package; if the same file is ever presented under different
     // casing across runs, this planner sees two keys and degrades a Reuse into Remove + Add (a
-    // benign re-describe, never a crash). docs/roadmap/10-format-versioning-and-chart-identity.md's
+    // benign re-describe, never a crash). docs/plans/roadmap/10-format-versioning-and-chart-identity.md's
     // package identity hash is the designed real fix for stable identity across path spellings.
     std::map<std::filesystem::path, const PackageFileFacts*> facts_by_path;
     for (const PackageFileFacts& facts : current_files)
