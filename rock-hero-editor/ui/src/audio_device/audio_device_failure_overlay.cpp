@@ -13,10 +13,11 @@ namespace
 // share one visual language.
 constexpr float g_dim_alpha = 0.55F;
 
-// Centered surface dimensions in pixels. Sized for a single wrapped message line plus the button
-// row; the overlay shrinks the surface when EditorView is narrow.
+// Centered surface dimensions in pixels. Sized for the two-line message (a heading line plus the
+// reason on its own line, which may itself wrap) above the button row; the overlay shrinks the
+// surface when EditorView is narrow.
 constexpr int g_surface_width = 460;
-constexpr int g_surface_height = 130;
+constexpr int g_surface_height = 160;
 constexpr int g_surface_padding = 16;
 constexpr int g_surface_corner_radius = 8;
 
@@ -74,7 +75,7 @@ void AudioDeviceFailureOverlay::setPrompt(
     if (should_be_visible)
     {
         m_message_label.setText(
-            juce::String{"There was an error opening the audio hardware: "} +
+            juce::String{"There was an error opening the audio hardware:\n"} +
                 juce::String::fromUTF8(prompt->message.c_str()),
             juce::dontSendNotification);
         resized();
