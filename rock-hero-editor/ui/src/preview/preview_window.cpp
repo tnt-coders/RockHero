@@ -52,6 +52,10 @@ void PreviewWindow::open()
     setVisible(true);
     toFront(true);
     m_surface->attach();
+    // Route keyboard focus to the surface so its unhandled keys bubble to keyPressed() here and
+    // forward transport shortcuts to the editor; otherwise focus stays on whatever editor
+    // component last held it and the preview never sees the keys.
+    m_surface->grabKeyboardFocus();
 }
 
 void PreviewWindow::close()
