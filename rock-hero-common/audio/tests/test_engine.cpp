@@ -709,6 +709,10 @@ TEST_CASE(
     // The backend's own diagnostic survives on the closed status snapshot so the editor's
     // failure prompt can name the real cause.
     CHECK_FALSE(audio_devices.currentDeviceStatus().unavailable_reason.empty());
+    // The requested route becomes the saved choice even though it could not open; the settings
+    // window's apply relies on this to keep a chosen-but-unopenable device as the saved route.
+    const std::optional<std::string> saved = audio_devices.serializedDeviceState();
+    CHECK(saved.value_or(std::string{}).find("Rejected Output") != std::string::npos);
 }
 
 // Unplugging the saved device makes JUCE's audioDeviceListChanged fall back to another device

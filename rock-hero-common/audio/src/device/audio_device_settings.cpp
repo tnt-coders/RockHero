@@ -328,7 +328,8 @@ AudioDeviceSettingsError::AudioDeviceSettingsError(
 struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
 {
     explicit Impl(IAudioDeviceConfiguration& audio_devices)
-        : m_device_manager(audio_devices.deviceManager())
+        : m_audio_devices(audio_devices)
+        , m_device_manager(audio_devices.deviceManager())
         , m_configuration_listener(audio_devices, *this)
     {
         captureInitialRouteAndCloseDevice();
@@ -579,13 +580,17 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
             // "The route stays the user's explicit choice" needs help here: a failed
             // setAudioDeviceSetup never reaches updateXml(), so JUCE's saved state still names the
             // PREVIOUS route -- the closed-device failure prompt would report and Retry the old
-            // device instead of the one just chosen. initialise() stores the serialized route up
-            // front regardless of the open outcome (the same no-fallback shape the startup restore
-            // uses); its repeated open attempt fails the same way, or wins the race if the driver
-            // recovered.
+            // device instead of the one just chosen. Re-applying through the port's no-fallback
+            // restore (the same path startup and the failure prompt's Retry use) stores the
+            // serialized route regardless of the open outcome AND records the backend's own
+            // diagnostic for the prompt -- a direct initialise() would cement the route but drop
+            // the reason, leaving the first popup with the composed disconnect notice while a
+            // Retry suddenly shows the driver's text. The repeated open attempt fails the same
+            // way, or wins the race if the driver recovered.
             const std::unique_ptr<juce::XmlElement> staged_xml =
                 serializeDeviceSetupToXml(m_staged_device_type, m_staged_setup);
-            static_cast<void>(m_device_manager.initialise(1, 2, staged_xml.get(), false));
+            static_cast<void>(
+                m_audio_devices.restoreSerializedDeviceState(staged_xml->toString().toStdString()));
             refreshState({});
             return {};
         }
@@ -1220,6 +1225,10 @@ private:
         m_staged_setup.outputChannels.setBit(left_channel);
         m_staged_setup.outputChannels.setBit(right_channel);
     }
+
+    // Configuration port used to re-apply a chosen-but-unopenable route through the shared
+    // no-fallback restore, so its diagnostic reaches the port's status snapshot.
+    IAudioDeviceConfiguration& m_audio_devices;
 
     // Audio device manager owned by the shared backend.
     juce::AudioDeviceManager& m_device_manager;
