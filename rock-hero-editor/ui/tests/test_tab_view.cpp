@@ -210,7 +210,11 @@ TEST_CASE("TabView draws techniques, shapes, and fret-hand positions", "[ui][tab
     };
     state.shapes = {
         core::TabShapeView{
-            .start_seconds = 2.0, .end_seconds = 6.0, .name = "A5", .arpeggio = false
+            .start_seconds = 2.0,
+            .end_seconds = 6.0,
+            .name = "A5",
+            .arpeggio = false,
+            .arpeggio_notes = {},
         },
         core::TabShapeView{
             .start_seconds = 10.0,

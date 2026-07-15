@@ -285,6 +285,7 @@ TEST_CASE("EditorController publishes current audio device", "[core][editor-cont
         .buffer_size_samples = 128,
         .input_latency_ms = 4.5,
         .output_latency_ms = 7.5,
+        .unavailable_reason = {},
     };
     EditorController controller{
         audioPorts(transport, audio, audio_devices), defaultControllerServices(), noopExitFunction()
@@ -325,6 +326,7 @@ TEST_CASE("EditorController re-derives state on device change", "[core][editor-c
         .buffer_size_samples = 512,
         .input_latency_ms = 9.5,
         .output_latency_ms = 30.0,
+        .unavailable_reason = {},
     };
     audio_devices.notifyChanged();
 

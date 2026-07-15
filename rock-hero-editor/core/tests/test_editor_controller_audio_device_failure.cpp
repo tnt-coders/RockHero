@@ -9,6 +9,7 @@
 #include <rock_hero/common/audio/testing/in_memory_audio_config_store.h>
 #include <rock_hero/editor/core/audio/editor_audio_config_store.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -87,10 +88,38 @@ struct FailurePromptHarness
     }
 
     // The staged failure prompt in the most recently pushed view state, if any.
-    [[nodiscard]] const std::optional<AudioDeviceFailurePrompt>& prompt() const
+    [[nodiscard]] std::optional<AudioDeviceFailurePrompt> prompt() const
     {
         REQUIRE(view.last_state.has_value());
-        return view.last_state->audio_device_failure_prompt;
+        if (view.last_state.has_value())
+        {
+            return view.last_state->audio_device_failure_prompt;
+        }
+        return std::nullopt;
+    }
+
+    // The staged failure prompt's message, gated on the prompt being present.
+    [[nodiscard]] std::string promptMessage() const
+    {
+        const std::optional<AudioDeviceFailurePrompt> failure_prompt = prompt();
+        REQUIRE(failure_prompt.has_value());
+        if (failure_prompt.has_value())
+        {
+            return failure_prompt->message;
+        }
+        return {};
+    }
+
+    // The bound controller. The optional is always engaged after construction; the guard keeps the
+    // optional-access analysis satisfied while the REQUIRE stays the effective gate.
+    [[nodiscard]] EditorController& controllerRef()
+    {
+        REQUIRE(controller.has_value());
+        if (controller.has_value())
+        {
+            return *controller;
+        }
+        throw std::logic_error{"FailurePromptHarness controller was not constructed"};
     }
 
     FakeTransport transport;
@@ -114,8 +143,12 @@ TEST_CASE(
     FailurePromptHarness harness;
 
     REQUIRE(harness.prompt().has_value());
-    CHECK(harness.prompt()->message == "driver init failed");
-    CHECK(harness.view.last_state->audio_device_status_text == "[audio device closed]");
+    CHECK(harness.promptMessage() == "driver init failed");
+    REQUIRE(harness.view.last_state.has_value());
+    if (harness.view.last_state.has_value())
+    {
+        CHECK(harness.view.last_state->audio_device_status_text == "[audio device closed]");
+    }
 }
 
 // A startup that opens the device stages nothing, and a closed device with no saved route stays
@@ -126,7 +159,7 @@ TEST_CASE(
 {
     SECTION("device opened")
     {
-        FailurePromptHarness harness{
+        const FailurePromptHarness harness{
             "own-device-state", common::audio::DeviceRestoreOutcome::Opened, openStatus()
         };
         CHECK_FALSE(harness.prompt().has_value());
@@ -140,7 +173,11 @@ TEST_CASE(
             closedStatusWithReason("driver init failed")
         };
         CHECK_FALSE(harness.prompt().has_value());
-        CHECK(harness.view.last_state->audio_device_status_text == "[audio device closed]");
+        REQUIRE(harness.view.last_state.has_value());
+        if (harness.view.last_state.has_value())
+        {
+            CHECK(harness.view.last_state->audio_device_status_text == "[audio device closed]");
+        }
     }
 }
 
@@ -154,17 +191,17 @@ TEST_CASE(
 {
     FailurePromptHarness harness;
     REQUIRE(harness.prompt().has_value());
-    CHECK(harness.prompt()->message == "driver init failed");
+    CHECK(harness.promptMessage() == "driver init failed");
 
     harness.audio_devices.notifyChanged();
     REQUIRE(harness.prompt().has_value());
-    CHECK(harness.prompt()->message == "driver init failed");
+    CHECK(harness.promptMessage() == "driver init failed");
 
     // A device event with a fresher backend reason updates the shown text in place.
     harness.audio_devices.current_status = closedStatusWithReason("device is in use");
     harness.audio_devices.notifyChanged();
     REQUIRE(harness.prompt().has_value());
-    CHECK(harness.prompt()->message == "device is in use");
+    CHECK(harness.promptMessage() == "device is in use");
 }
 
 // A device event reporting the device open clears the staged prompt.
@@ -192,7 +229,7 @@ TEST_CASE(
     FailurePromptHarness harness;
     REQUIRE(harness.prompt().has_value());
 
-    REQUIRE(harness.controller->onAudioDeviceSettingsOpenRequested());
+    REQUIRE(harness.controllerRef().onAudioDeviceSettingsOpenRequested());
     CHECK_FALSE(harness.prompt().has_value());
 
     // Device events while the window is open stay suppressed.
@@ -201,10 +238,10 @@ TEST_CASE(
 
     // The close notification alone must not stage (the native-close cancel backstop may not have
     // rolled the device back yet); teardown-complete is the trustworthy evaluation point.
-    harness.controller->onAudioDeviceSettingsClosed();
+    harness.controllerRef().onAudioDeviceSettingsClosed();
     CHECK_FALSE(harness.prompt().has_value());
 
-    harness.controller->onAudioDeviceSettingsTeardownComplete();
+    harness.controllerRef().onAudioDeviceSettingsTeardownComplete();
     REQUIRE(harness.prompt().has_value());
 }
 
@@ -222,19 +259,19 @@ TEST_CASE(
 
     // Failed retry: the device is still unavailable, now with a fresher backend reason.
     harness.audio_devices.current_status = closedStatusWithReason("device is in use");
-    harness.controller->onAudioDeviceFailureDecision(AudioDeviceFailureDecision::Retry);
+    harness.controllerRef().onAudioDeviceFailureDecision(AudioDeviceFailureDecision::Retry);
 
     CHECK(
         harness.audio_devices.restore_serialized_device_state_call_count ==
         startup_restore_count + 1);
     REQUIRE(harness.prompt().has_value());
-    CHECK(harness.prompt()->message == "device is in use");
+    CHECK(harness.promptMessage() == "device is in use");
 
     // Successful retry: the route opens, and the prompt stays cleared.
     harness.audio_devices.restore_serialized_device_state_outcome =
         common::audio::DeviceRestoreOutcome::Opened;
     harness.audio_devices.current_status = openStatus();
-    harness.controller->onAudioDeviceFailureDecision(AudioDeviceFailureDecision::Retry);
+    harness.controllerRef().onAudioDeviceFailureDecision(AudioDeviceFailureDecision::Retry);
 
     CHECK(
         harness.audio_devices.restore_serialized_device_state_call_count ==
@@ -251,12 +288,12 @@ TEST_CASE(
     FailurePromptHarness harness;
     REQUIRE(harness.prompt().has_value());
 
-    harness.controller->onAudioDeviceFailureDecision(AudioDeviceFailureDecision::OpenSettings);
+    harness.controllerRef().onAudioDeviceFailureDecision(AudioDeviceFailureDecision::OpenSettings);
     CHECK_FALSE(harness.prompt().has_value());
 
-    REQUIRE(harness.controller->onAudioDeviceSettingsOpenRequested());
-    harness.controller->onAudioDeviceSettingsClosed();
-    harness.controller->onAudioDeviceSettingsTeardownComplete();
+    REQUIRE(harness.controllerRef().onAudioDeviceSettingsOpenRequested());
+    harness.controllerRef().onAudioDeviceSettingsClosed();
+    harness.controllerRef().onAudioDeviceSettingsTeardownComplete();
 
     REQUIRE(harness.prompt().has_value());
 }
@@ -370,16 +407,28 @@ TEST_CASE(
 
     // The recommendation is staged and owns the startup modal slot; the failure prompt defers.
     REQUIRE(view.last_state.has_value());
-    CHECK(view.last_state->game_audio_recommendation_prompt);
-    CHECK_FALSE(view.last_state->audio_device_failure_prompt.has_value());
-    CHECK_FALSE(view.last_state->use_game_audio_settings);
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& state = view.last_state.value();
+        CHECK(state.game_audio_recommendation_prompt);
+        CHECK_FALSE(state.audio_device_failure_prompt.has_value());
+        CHECK_FALSE(state.use_game_audio_settings);
+    }
 
     // Once the recommendation resolves, the deferred closed-device notice surfaces.
     controller.onGameAudioRecommendationDecision(GameAudioRecommendationDecision::Dismissed, false);
 
-    CHECK_FALSE(view.last_state->game_audio_recommendation_prompt);
-    REQUIRE(view.last_state->audio_device_failure_prompt.has_value());
-    CHECK(view.last_state->audio_device_failure_prompt->message == "driver init failed");
+    REQUIRE(view.last_state.has_value());
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& state = view.last_state.value();
+        CHECK_FALSE(state.game_audio_recommendation_prompt);
+        REQUIRE(state.audio_device_failure_prompt.has_value());
+        if (state.audio_device_failure_prompt.has_value())
+        {
+            CHECK(state.audio_device_failure_prompt->message == "driver init failed");
+        }
+    }
 }
 
 } // namespace rock_hero::editor::core

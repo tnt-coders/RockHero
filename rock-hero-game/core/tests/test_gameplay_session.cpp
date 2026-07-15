@@ -1,5 +1,7 @@
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>
+#include <compare>
 #include <expected>
 #include <filesystem>
 #include <fstream>
@@ -25,6 +27,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -88,14 +91,8 @@ public:
     // Removes the test directory on a best-effort basis.
     ~TemporarySessionDirectory() noexcept
     {
-        try
-        {
-            std::filesystem::remove_all(m_path);
-        }
-        catch (...)
-        {
-            // Best-effort cleanup; a straggling temp directory cannot affect other tests.
-        }
+        std::error_code cleanup_error;
+        std::filesystem::remove_all(m_path, cleanup_error);
     }
 
     TemporarySessionDirectory(const TemporarySessionDirectory&) = delete;
@@ -282,7 +279,7 @@ public:
     [[nodiscard]] std::expected<void, common::audio::TransportError> setPlaybackSpeed(
         double factor) override
     {
-        if (factor != 1.0)
+        if (std::is_neq(factor <=> 1.0))
         {
             return std::unexpected{
                 common::audio::TransportError{common::audio::TransportErrorCode::SpeedNotSupported}
@@ -675,8 +672,13 @@ TEST_CASE("Gameplay session walks the happy path to Ready", "[core][session]")
     CHECK(harness.session.stage() == GameplaySessionStage::PreparingRig);
     CHECK(harness.song_audio.active_arrangement_id == std::string{g_first_arrangement_id});
     REQUIRE(harness.live_rig.last_request.has_value());
-    CHECK(harness.live_rig.last_request->song_directory == harness.directory.path() / "workspace");
-    CHECK(harness.live_rig.last_request->audible_tone_ref.empty());
+    if (harness.live_rig.last_request.has_value())
+    {
+        CHECK(
+            harness.live_rig.last_request->song_directory ==
+            harness.directory.path() / "workspace");
+        CHECK(harness.live_rig.last_request->audible_tone_ref.empty());
+    }
 
     // The session must not be Ready until the rig preload actually completes.
     CHECK(harness.session.stage() != GameplaySessionStage::Ready);
@@ -708,7 +710,10 @@ TEST_CASE("Gameplay session rejects unknown arrangement ids", "[core][session]")
     CHECK(started.error().code == GameplaySessionErrorCode::ArrangementNotFound);
     CHECK(harness.session.stage() == GameplaySessionStage::Failed);
     REQUIRE(harness.session.error().has_value());
-    CHECK(harness.session.error()->code == GameplaySessionErrorCode::ArrangementNotFound);
+    if (harness.session.error().has_value())
+    {
+        CHECK(harness.session.error()->code == GameplaySessionErrorCode::ArrangementNotFound);
+    }
 }
 
 // Verifies an unreadable package fails the Loading stage with the typed error.
@@ -754,7 +759,10 @@ TEST_CASE("Gameplay session fails when the rig load fails", "[core][session]")
 
     CHECK(harness.session.stage() == GameplaySessionStage::Failed);
     REQUIRE(harness.session.error().has_value());
-    CHECK(harness.session.error()->code == GameplaySessionErrorCode::RigLoadFailed);
+    if (harness.session.error().has_value())
+    {
+        CHECK(harness.session.error()->code == GameplaySessionErrorCode::RigLoadFailed);
+    }
 }
 
 // Verifies the missing-plugin refusal maps to its own session code so UI can present an
@@ -768,8 +776,11 @@ TEST_CASE("Gameplay session surfaces missing plugins distinctly", "[core][sessio
 
     CHECK(harness.session.stage() == GameplaySessionStage::Failed);
     REQUIRE(harness.session.error().has_value());
-    CHECK(harness.session.error()->code == GameplaySessionErrorCode::MissingPlugins);
-    CHECK(harness.session.error()->message.find("Amp Sim") != std::string::npos);
+    if (harness.session.error().has_value())
+    {
+        CHECK(harness.session.error()->code == GameplaySessionErrorCode::MissingPlugins);
+        CHECK(harness.session.error()->message.find("Amp Sim") != std::string::npos);
+    }
 }
 
 // Verifies a tone-timeline failure after a successful rig load lands in its own typed Failed.
@@ -783,7 +794,10 @@ TEST_CASE("Gameplay session fails when the tone timeline fails", "[core][session
 
     CHECK(harness.session.stage() == GameplaySessionStage::Failed);
     REQUIRE(harness.session.error().has_value());
-    CHECK(harness.session.error()->code == GameplaySessionErrorCode::ToneTimelineFailed);
+    if (harness.session.error().has_value())
+    {
+        CHECK(harness.session.error()->code == GameplaySessionErrorCode::ToneTimelineFailed);
+    }
 }
 
 // Verifies playback transitions: play/pause round-trip, restart without re-preloading, and the
@@ -874,16 +888,16 @@ TEST_CASE("Gameplay session forwards mix volumes to their owners", "[core][sessi
     SessionHarness harness;
 
     REQUIRE(harness.session.setMasterVolume(common::audio::Gain{-3.0}).has_value());
-    CHECK(harness.mix_controls.master_gain.db == -3.0);
-    CHECK(harness.session.masterVolume().db == -3.0);
+    CHECK(harness.mix_controls.master_gain.db == Catch::Approx(-3.0));
+    CHECK(harness.session.masterVolume().db == Catch::Approx(-3.0));
 
     REQUIRE(harness.session.setBackingVolume(common::audio::Gain{-6.0}).has_value());
-    CHECK(harness.mix_controls.backing_gain.db == -6.0);
-    CHECK(harness.session.backingVolume().db == -6.0);
+    CHECK(harness.mix_controls.backing_gain.db == Catch::Approx(-6.0));
+    CHECK(harness.session.backingVolume().db == Catch::Approx(-6.0));
 
     REQUIRE(harness.session.setMonitorVolume(common::audio::Gain{-9.0}).has_value());
-    CHECK(harness.live_rig.output_gain.db == -9.0);
-    CHECK(harness.session.monitorVolume().db == -9.0);
+    CHECK(harness.live_rig.output_gain.db == Catch::Approx(-9.0));
+    CHECK(harness.session.monitorVolume().db == Catch::Approx(-9.0));
 }
 
 // Verifies the speed and loop passthroughs reach the transport port.
@@ -926,7 +940,7 @@ TEST_CASE("Gameplay session arms live-input monitoring at Ready", "[core][sessio
                                         setLiveInputMonitoringCall(true),
                                     });
     CHECK(harness.live_input.live_input_monitoring_enabled);
-    CHECK(harness.live_input.current_input_gain.db == 5.0);
+    CHECK(harness.live_input.current_input_gain.db == Catch::Approx(5.0));
 }
 
 // Verifies the gate stays silent (never arms processed monitoring, never applies a calibrated gain)

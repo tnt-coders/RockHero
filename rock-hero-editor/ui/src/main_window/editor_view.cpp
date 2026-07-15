@@ -219,7 +219,42 @@ constexpr int g_track_viewport_min_height{80};
             {
                 return "Save your tone before opening another tone file?";
             }
-            default:
+            case core::EditorActionId::SaveProject:
+            case core::EditorActionId::SaveProjectAs:
+            case core::EditorActionId::PublishProject:
+            case core::EditorActionId::CloseProject:
+            case core::EditorActionId::ResolveUnsavedChangesPrompt:
+            case core::EditorActionId::CancelSaveAsPrompt:
+            case core::EditorActionId::CancelBusyOperation:
+            case core::EditorActionId::Undo:
+            case core::EditorActionId::Redo:
+            case core::EditorActionId::PlayPause:
+            case core::EditorActionId::Stop:
+            case core::EditorActionId::SeekTimeline:
+            case core::EditorActionId::SetGridNoteValue:
+            case core::EditorActionId::SelectArrangement:
+            case core::EditorActionId::SelectToneRegion:
+            case core::EditorActionId::ResizeToneRegion:
+            case core::EditorActionId::CreateToneRegion:
+            case core::EditorActionId::DeleteToneRegion:
+            case core::EditorActionId::RenameTone:
+            case core::EditorActionId::MoveToneBoundary:
+            case core::EditorActionId::CreateNewTone:
+            case core::EditorActionId::ShowPluginBrowser:
+            case core::EditorActionId::BeginPluginInsert:
+            case core::EditorActionId::ScanPluginCatalog:
+            case core::EditorActionId::InsertSelectedPlugin:
+            case core::EditorActionId::RemovePlugin:
+            case core::EditorActionId::MovePlugin:
+            case core::EditorActionId::SetSignalChainPlacement:
+            case core::EditorActionId::SetPluginDisplayTypeOverride:
+            case core::EditorActionId::OpenPlugin:
+            case core::EditorActionId::SetToneAutomationPoints:
+            case core::EditorActionId::SaveToneFile:
+            case core::EditorActionId::SaveToneFileAs:
+            case core::EditorActionId::ImportToneFile:
+            case core::EditorActionId::ExportToneFile:
+            case core::EditorActionId::ResolveToneImportPrompt:
             {
                 return "Save your tone before continuing?";
             }
@@ -1835,17 +1870,17 @@ void EditorView::showAudioDeviceSettingsWindow()
                 view->scheduleAudioDeviceSettingsWindowReset();
             }
         },
-        AudioDeviceSettingsWindow::GameAudioSettings{
+        GameAudioSettings{
             .use_game_settings = m_state.use_game_audio_settings,
             // Fresh one-shot read at open: NotConfigured disables the toggle with its tooltip.
             .source_state = m_controller.gameAudioSourceState(),
         },
-        [safe_this](bool enabled, std::function<void(bool)> set_applying)
+        [safe_this](bool enabled, const std::function<void(bool)>& set_applying)
             -> std::expected<void, core::GameAudioSourceError> {
             if (auto* view = safe_this.getComponent())
             {
                 return view->m_controller.onUseGameAudioSettingsChangeRequested(
-                    enabled, std::move(set_applying));
+                    enabled, set_applying);
             }
 
             // A torn-down view has no editor to switch, so there is no failure to report to the

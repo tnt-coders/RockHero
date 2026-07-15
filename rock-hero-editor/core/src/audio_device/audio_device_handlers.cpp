@@ -179,17 +179,17 @@ void EditorController::Impl::refreshAudioDeviceFailurePrompt()
 // controller: the source flip is pure state on the store; adopting the game's (on) or restoring
 // the editor's own (off) serialized device state is the message-thread side effect.
 std::expected<void, GameAudioSourceError> EditorController::Impl::
-    onUseGameAudioSettingsChangeRequested(bool enabled, std::function<void(bool)> set_applying)
+    onUseGameAudioSettingsChangeRequested(
+        bool enabled, const std::function<void(bool)>& set_applying)
 {
     return applyAudioSourceAndRoute(
-        enabled ? AudioSourceSelection::Game : AudioSourceSelection::EditorOwn,
-        std::move(set_applying));
+        enabled ? AudioSourceSelection::Game : AudioSourceSelection::EditorOwn, set_applying);
 }
 
 // The one route-application path shared by startup, the settings-window toggle, the startup
 // recommendation decision, and the failure prompt's Retry.
 std::expected<void, GameAudioSourceError> EditorController::Impl::applyAudioSourceAndRoute(
-    AudioSourceSelection selection, std::function<void(bool)> set_applying)
+    AudioSourceSelection selection, const std::function<void(bool)>& set_applying)
 {
     if (selection == AudioSourceSelection::Game)
     {

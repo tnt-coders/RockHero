@@ -121,7 +121,7 @@ void showThemedTextPrompt(
 
     // The modal callback runs before the self-deleting window is destroyed, so the raw pointer is
     // still valid for reading the entered text.
-    juce::AlertWindow* const window_ptr = window.get();
+    const juce::AlertWindow* const window_ptr = window.get();
     showThemedDialogModally(
         std::move(window),
         associated_component,

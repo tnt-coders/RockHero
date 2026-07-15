@@ -38,7 +38,7 @@ std::vector<LibraryScanAction> planLibraryScan(
         const auto known = entries_by_path.find(path);
         if (known == entries_by_path.end())
         {
-            actions.push_back({LibraryScanActionKind::Add, path});
+            actions.push_back({.kind = LibraryScanActionKind::Add, .package_path = path});
             continue;
         }
 
@@ -46,14 +46,15 @@ std::vector<LibraryScanAction> planLibraryScan(
             known->second->file_size_bytes == facts->file_size_bytes &&
             known->second->modification_time_milliseconds == facts->modification_time_milliseconds;
         actions.push_back(
-            {unchanged ? LibraryScanActionKind::Reuse : LibraryScanActionKind::Rescan, path});
+            {.kind = unchanged ? LibraryScanActionKind::Reuse : LibraryScanActionKind::Rescan,
+             .package_path = path});
     }
 
     for (const auto& [path, entry] : entries_by_path)
     {
         if (!facts_by_path.contains(path))
         {
-            actions.push_back({LibraryScanActionKind::Remove, path});
+            actions.push_back({.kind = LibraryScanActionKind::Remove, .package_path = path});
         }
     }
 

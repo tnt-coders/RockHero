@@ -397,7 +397,8 @@ public:
             configuration cannot be used (enable requests only; disabling always succeeds).
     */
     [[nodiscard]] virtual std::expected<void, GameAudioSourceError>
-    onUseGameAudioSettingsChangeRequested(bool enabled, std::function<void(bool)> set_applying) = 0;
+    onUseGameAudioSettingsChangeRequested(
+        bool enabled, const std::function<void(bool)>& set_applying) = 0;
 
     /*!
     \brief Reads the adoption-readiness of the game's audio configuration, freshly.

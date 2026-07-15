@@ -9,6 +9,7 @@
 #include <rock_hero/common/core/package/archive_io.h>
 #include <rock_hero/common/core/package/package_description.h>
 #include <string>
+#include <system_error>
 
 namespace rock_hero::common::core
 {
@@ -40,14 +41,8 @@ public:
     // Removes the test directory on a best-effort basis.
     ~TemporaryPackageDirectory() noexcept
     {
-        try
-        {
-            std::filesystem::remove_all(m_path);
-        }
-        catch (...)
-        {
-            // Best-effort cleanup; a straggling temp directory cannot affect other tests.
-        }
+        std::error_code cleanup_error;
+        std::filesystem::remove_all(m_path, cleanup_error);
     }
 
     TemporaryPackageDirectory(const TemporaryPackageDirectory&) = delete;
@@ -144,10 +139,13 @@ TEST_CASE("Package description peeks fields from the archive", "[core][package-d
     CHECK(arrangement.chart_ref == g_chart_ref);
     CHECK(arrangement.audio_asset_present);
     REQUIRE(arrangement.tuning.has_value());
-    CHECK(arrangement.tuning->strings.size() == 6);
-    CHECK(arrangement.tuning->strings.front() == "D2");
-    CHECK(arrangement.tuning->capo == 2);
-    CHECK(arrangement.tuning->cent_offset == Catch::Approx(-6.0));
+    if (arrangement.tuning.has_value())
+    {
+        CHECK(arrangement.tuning->strings.size() == 6);
+        CHECK(arrangement.tuning->strings.front() == "D2");
+        CHECK(arrangement.tuning->capo == 2);
+        CHECK(arrangement.tuning->cent_offset == Catch::Approx(-6.0));
+    }
 }
 
 // Verifies a corrupt chart entry degrades to a warning, never a hard failure.

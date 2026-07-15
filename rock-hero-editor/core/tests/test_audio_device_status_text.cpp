@@ -25,6 +25,7 @@ TEST_CASE("Audio device status text formats open device", "[core][audio-device-s
         .buffer_size_samples = 128,
         .input_latency_ms = 5.1,
         .output_latency_ms = 8.5,
+        .unavailable_reason = {},
     };
 
     CHECK(audioDeviceStatusText(status) == "[48kHz 24bit: 8/8ch 128spls ~5.1/8.5ms ASIO]");
@@ -44,6 +45,7 @@ TEST_CASE("Audio device status text maps Windows Audio", "[core][audio-device-st
         .buffer_size_samples = 512,
         .input_latency_ms = 7.5,
         .output_latency_ms = 30.0,
+        .unavailable_reason = {},
     };
 
     CHECK(audioDeviceStatusText(status) == "[44.1kHz 24bit: 2/2ch 512spls ~7.5/30ms WASAPI]");

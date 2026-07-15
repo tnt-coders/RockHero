@@ -1,5 +1,7 @@
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <compare>
 #include <expected>
 #include <optional>
 #include <rock_hero/common/audio/transport/i_transport.h>
@@ -66,7 +68,7 @@ public:
     // Mirrors the v1 speed contract: exactly 1.0 is accepted, everything else fails loudly.
     [[nodiscard]] std::expected<void, TransportError> setPlaybackSpeed(double factor) override
     {
-        if (factor != 1.0)
+        if (std::is_neq(factor <=> 1.0))
         {
             return std::unexpected{TransportError{TransportErrorCode::SpeedNotSupported}};
         }
@@ -228,12 +230,12 @@ TEST_CASE("ITransport playback speed accepts only 1.0 in v1", "[audio][transport
     FakeTransport transport;
 
     CHECK(transport.setPlaybackSpeed(1.0).has_value());
-    CHECK(transport.playbackSpeed() == 1.0);
+    CHECK_THAT(transport.playbackSpeed(), Catch::Matchers::WithinULP(1.0, 0));
 
     const auto rejected = transport.setPlaybackSpeed(0.5);
     REQUIRE_FALSE(rejected.has_value());
     CHECK(rejected.error().code == TransportErrorCode::SpeedNotSupported);
-    CHECK(transport.playbackSpeed() == 1.0);
+    CHECK_THAT(transport.playbackSpeed(), Catch::Matchers::WithinULP(1.0, 0));
 }
 
 // Verifies the loop contract's happy path: set round-trips through loopRegion() and clear
@@ -273,8 +275,11 @@ TEST_CASE("ITransport loop region normalizes reversed endpoints", "[audio][trans
 
     const auto region = transport.loopRegion();
     REQUIRE(region.has_value());
-    CHECK(region->start == rock_hero::common::core::TimePosition{2.0});
-    CHECK(region->end == rock_hero::common::core::TimePosition{6.5});
+    if (region.has_value())
+    {
+        CHECK(region->start == rock_hero::common::core::TimePosition{2.0});
+        CHECK(region->end == rock_hero::common::core::TimePosition{6.5});
+    }
 }
 
 // Verifies a sub-minimum region is rejected with the typed error and any engaged loop survives.

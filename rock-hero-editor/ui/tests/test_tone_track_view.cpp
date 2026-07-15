@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
+#include <compare>
 #include <expected>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <optional>
@@ -116,7 +117,7 @@ struct StubTransport final : public common::audio::ITransport
     [[nodiscard]] std::expected<void, common::audio::TransportError> setPlaybackSpeed(
         double factor) override
     {
-        if (factor != 1.0)
+        if (std::is_neq(factor <=> 1.0))
         {
             return std::unexpected{
                 common::audio::TransportError{common::audio::TransportErrorCode::SpeedNotSupported}

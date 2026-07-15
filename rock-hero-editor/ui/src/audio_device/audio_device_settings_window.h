@@ -25,6 +25,16 @@ class IAudioDeviceConfiguration;
 namespace rock_hero::editor::ui
 {
 
+/*! \brief Resolved "use game audio settings" toggle state at an audio-device settings window open. */
+struct GameAudioSettings final
+{
+    /*! \brief True when the toggle is on and the panel opens read-only. */
+    bool use_game_settings{false};
+
+    /*! \brief Adoption-readiness of the game's configuration, read fresh at window open. */
+    core::GameAudioSourceState source_state{core::GameAudioSourceState::NotConfigured};
+};
+
 /*!
 \brief Opens the audio-device settings window.
 
@@ -62,16 +72,6 @@ public:
     using GameAudioSettingsChangedCallback =
         std::function<std::expected<void, core::GameAudioSourceError>(
             bool enabled, std::function<void(bool)> set_applying)>;
-
-    /*! \brief Resolved "use game audio settings" toggle state at open. */
-    struct GameAudioSettings final
-    {
-        /*! \brief True when the toggle is on and the panel opens read-only. */
-        bool use_game_settings{false};
-
-        /*! \brief Adoption-readiness of the game's configuration, read fresh at window open. */
-        core::GameAudioSourceState source_state{core::GameAudioSourceState::NotConfigured};
-    };
 
     /*!
     \brief Opens the modal window around the top-level component that owns the launcher.

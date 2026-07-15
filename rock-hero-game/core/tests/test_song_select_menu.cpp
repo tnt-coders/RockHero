@@ -79,8 +79,11 @@ TEST_CASE("Song select accepts an arrangement into a launch request", "[core][me
     menu.handle(MenuAction::Accept);
     const std::optional<SongSelectLaunch> launch = menu.takeLaunch();
     REQUIRE(launch.has_value());
-    CHECK(launch->package_path == std::filesystem::path{"C:/Songs/a.rock"});
-    CHECK(launch->arrangement_id == "a-bass");
+    if (launch.has_value())
+    {
+        CHECK(launch->package_path == std::filesystem::path{"C:/Songs/a.rock"});
+        CHECK(launch->arrangement_id == "a-bass");
+    }
 
     // The launch is one-shot.
     CHECK_FALSE(menu.takeLaunch().has_value());

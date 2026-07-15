@@ -6,6 +6,7 @@
 #include <rock_hero/game/core/settings/game_settings.h>
 #include <rock_hero/game/core/testing/null_game_settings.h>
 #include <string>
+#include <system_error>
 #include <vector>
 
 namespace rock_hero::game::core
@@ -34,14 +35,8 @@ public:
     // Removes the test directory on a best-effort basis.
     ~TemporarySettingsDirectory() noexcept
     {
-        try
-        {
-            std::filesystem::remove_all(m_path);
-        }
-        catch (...)
-        {
-            // Best-effort cleanup; a straggling temp directory cannot affect other tests.
-        }
+        std::error_code cleanup_error;
+        std::filesystem::remove_all(m_path, cleanup_error);
     }
 
     TemporarySettingsDirectory(const TemporarySettingsDirectory&) = delete;
@@ -120,7 +115,7 @@ TEST_CASE("Game settings first-run flag persists", "[core][settings]")
         CHECK(settings.firstRunCompleted() == std::optional{true});
     }
 
-    GameSettings reopened{directory.settingsFile()};
+    const GameSettings reopened{directory.settingsFile()};
     CHECK(reopened.firstRunCompleted() == std::optional{true});
 }
 

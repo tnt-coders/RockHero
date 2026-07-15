@@ -524,7 +524,7 @@ public:
 
     /*! \copydoc IEditorController::onUseGameAudioSettingsChangeRequested */
     [[nodiscard]] std::expected<void, GameAudioSourceError> onUseGameAudioSettingsChangeRequested(
-        bool enabled, std::function<void(bool)> set_applying) override;
+        bool enabled, const std::function<void(bool)>& set_applying) override;
 
     /*! \copydoc IEditorController::gameAudioSourceState */
     [[nodiscard]] GameAudioSourceState gameAudioSourceState() const override;

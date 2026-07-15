@@ -38,6 +38,8 @@ struct ScopedTempDirectory
 
     ScopedTempDirectory(const ScopedTempDirectory&) = delete;
     ScopedTempDirectory& operator=(const ScopedTempDirectory&) = delete;
+    ScopedTempDirectory(ScopedTempDirectory&&) = delete;
+    ScopedTempDirectory& operator=(ScopedTempDirectory&&) = delete;
 
     std::filesystem::path path;
 };
@@ -100,11 +102,10 @@ void writeTestArchive(
     juce::ZipFile::Builder builder;
     for (const auto& [entry_name, contents] : entries)
     {
+        auto stream = std::make_unique<juce::MemoryInputStream>(
+            juce::MemoryBlock{contents.data(), contents.size()}, true);
         builder.addEntry(
-            new juce::MemoryInputStream{juce::MemoryBlock{contents.data(), contents.size()}, true},
-            9,
-            juce::String::fromUTF8(entry_name.c_str()),
-            juce::Time{});
+            stream.release(), 9, juce::String::fromUTF8(entry_name.c_str()), juce::Time{});
     }
 
     juce::FileOutputStream output{core::juceFileFromPath(archive_path)};

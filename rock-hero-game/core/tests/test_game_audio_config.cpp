@@ -8,6 +8,7 @@
 #include <rock_hero/game/core/settings/game_settings.h>
 #include <rock_hero/game/core/testing/null_game_settings.h>
 #include <string>
+#include <system_error>
 
 namespace rock_hero::game::core
 {
@@ -33,14 +34,8 @@ public:
 
     ~TemporarySettingsDirectory() noexcept
     {
-        try
-        {
-            std::filesystem::remove_all(m_path);
-        }
-        catch (...)
-        {
-            // Best-effort cleanup; a straggling temp directory cannot affect other tests.
-        }
+        std::error_code cleanup_error;
+        std::filesystem::remove_all(m_path, cleanup_error);
     }
 
     TemporarySettingsDirectory(const TemporarySettingsDirectory&) = delete;
@@ -168,7 +163,10 @@ TEST_CASE("Primary player route selects slot 0", "[core][settings][audio]")
     };
     const auto primary = primaryPlayerRoute(config);
     REQUIRE(primary.has_value());
-    CHECK(*primary == guitarRoute());
+    if (primary.has_value())
+    {
+        CHECK(*primary == guitarRoute());
+    }
 }
 
 // Verifies the null fake satisfies the extended port with an empty config and accepting writes.

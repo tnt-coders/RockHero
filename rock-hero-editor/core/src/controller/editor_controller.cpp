@@ -210,6 +210,34 @@ namespace
         {
             return "SetToneAutomationPoints";
         }
+        case EditorAction::Id::NewToneDocument:
+        {
+            return "NewToneDocument";
+        }
+        case EditorAction::Id::OpenToneFile:
+        {
+            return "OpenToneFile";
+        }
+        case EditorAction::Id::SaveToneFile:
+        {
+            return "SaveToneFile";
+        }
+        case EditorAction::Id::SaveToneFileAs:
+        {
+            return "SaveToneFileAs";
+        }
+        case EditorAction::Id::ImportToneFile:
+        {
+            return "ImportToneFile";
+        }
+        case EditorAction::Id::ExportToneFile:
+        {
+            return "ExportToneFile";
+        }
+        case EditorAction::Id::ResolveToneImportPrompt:
+        {
+            return "ResolveToneImportPrompt";
+        }
     }
 
     return "Unknown";
@@ -256,6 +284,14 @@ namespace
             case EditorAction::Id::CreateNewTone:
             case EditorAction::Id::SetToneAutomationPoints:
             case EditorAction::Id::SelectArrangement:
+            // Tone-document actions replace or persist the signal chain the calibration prompt owns.
+            case EditorAction::Id::NewToneDocument:
+            case EditorAction::Id::OpenToneFile:
+            case EditorAction::Id::SaveToneFile:
+            case EditorAction::Id::SaveToneFileAs:
+            case EditorAction::Id::ImportToneFile:
+            case EditorAction::Id::ExportToneFile:
+            case EditorAction::Id::ResolveToneImportPrompt:
             {
                 return "input-calibration-prompt";
             }
@@ -336,6 +372,25 @@ namespace
         case EditorAction::Id::OpenPlugin:
         {
             return "plugin-chain-unavailable";
+        }
+        case EditorAction::Id::NewToneDocument:
+        case EditorAction::Id::OpenToneFile:
+        case EditorAction::Id::SaveToneFile:
+        case EditorAction::Id::SaveToneFileAs:
+        {
+            return "tone-designer-unavailable";
+        }
+        case EditorAction::Id::ImportToneFile:
+        {
+            return "tone-import-unavailable";
+        }
+        case EditorAction::Id::ExportToneFile:
+        {
+            return "tone-export-unavailable";
+        }
+        case EditorAction::Id::ResolveToneImportPrompt:
+        {
+            return "no-tone-import-prompt";
         }
         case EditorAction::Id::OpenProject:
         case EditorAction::Id::RestoreProject:
@@ -932,9 +987,9 @@ void EditorController::onOpenPluginRequested(std::string instance_id)
 }
 
 std::expected<void, GameAudioSourceError> EditorController::onUseGameAudioSettingsChangeRequested(
-    bool enabled, std::function<void(bool)> set_applying)
+    bool enabled, const std::function<void(bool)>& set_applying)
 {
-    return m_impl->onUseGameAudioSettingsChangeRequested(enabled, std::move(set_applying));
+    return m_impl->onUseGameAudioSettingsChangeRequested(enabled, set_applying);
 }
 
 GameAudioSourceState EditorController::gameAudioSourceState() const

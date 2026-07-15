@@ -339,6 +339,7 @@ AudioDeviceStatus Engine::currentDeviceStatus() const
             samplesToMilliseconds(current_device->getInputLatencyInSamples(), sample_rate_hz),
         .output_latency_ms =
             samplesToMilliseconds(current_device->getOutputLatencyInSamples(), sample_rate_hz),
+        .unavailable_reason = {},
     };
 }
 

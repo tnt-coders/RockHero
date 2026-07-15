@@ -315,7 +315,7 @@ TEST_CASE(
     std::optional<bool> requested;
     view.setGameAudioSettingsChangedCallback(
         [&](bool enabled,
-            std::function<void(bool)>) -> std::expected<void, core::GameAudioSourceError> {
+            const std::function<void(bool)>&) -> std::expected<void, core::GameAudioSourceError> {
             requested = enabled;
             return {};
         });
@@ -327,7 +327,10 @@ TEST_CASE(
     REQUIRE(toggle.onClick);
     toggle.onClick();
     REQUIRE(requested.has_value());
-    CHECK_FALSE(requested.value());
+    if (requested.has_value())
+    {
+        CHECK_FALSE(requested.value());
+    }
 
     // Cancel restores the open-time checked toggle first, then routes the cancel intent.
     clickTextButton(view, "audio_settings_cancel_button");
@@ -335,7 +338,10 @@ TEST_CASE(
     CHECK(controller.cancel_call_count == 1);
     CHECK(toggle.getToggleState());
     REQUIRE(requested.has_value());
-    CHECK(requested.value());
+    if (requested.has_value())
+    {
+        CHECK(requested.value());
+    }
 }
 
 // Cancel restores the toggle to its unchecked open-time value after the user checks it, landing
@@ -357,7 +363,7 @@ TEST_CASE(
     std::optional<bool> requested;
     view.setGameAudioSettingsChangedCallback(
         [&](bool enabled,
-            std::function<void(bool)>) -> std::expected<void, core::GameAudioSourceError> {
+            const std::function<void(bool)>&) -> std::expected<void, core::GameAudioSourceError> {
             requested = enabled;
             return {};
         });
@@ -369,7 +375,10 @@ TEST_CASE(
     REQUIRE(toggle.onClick);
     toggle.onClick();
     REQUIRE(requested.has_value());
-    CHECK(requested.value());
+    if (requested.has_value())
+    {
+        CHECK(requested.value());
+    }
 
     // Cancel restores the open-time unchecked toggle and re-fires the callback with the off value.
     clickTextButton(view, "audio_settings_cancel_button");
@@ -377,7 +386,10 @@ TEST_CASE(
     CHECK(controller.cancel_call_count == 1);
     CHECK_FALSE(toggle.getToggleState());
     REQUIRE(requested.has_value());
-    CHECK_FALSE(requested.value());
+    if (requested.has_value())
+    {
+        CHECK_FALSE(requested.value());
+    }
 }
 
 // Cancel without a toggle change restores nothing and does not fire the change callback, so a plain
@@ -399,7 +411,7 @@ TEST_CASE(
     std::optional<bool> requested;
     view.setGameAudioSettingsChangedCallback(
         [&](bool enabled,
-            std::function<void(bool)>) -> std::expected<void, core::GameAudioSourceError> {
+            const std::function<void(bool)>&) -> std::expected<void, core::GameAudioSourceError> {
             requested = enabled;
             return {};
         });
@@ -440,7 +452,7 @@ TEST_CASE(
     std::optional<bool> requested;
     view.setGameAudioSettingsChangedCallback(
         [&](bool enabled,
-            std::function<void(bool)>) -> std::expected<void, core::GameAudioSourceError> {
+            const std::function<void(bool)>&) -> std::expected<void, core::GameAudioSourceError> {
             requested = enabled;
             return {};
         });
@@ -452,7 +464,10 @@ TEST_CASE(
     toggle.onClick();
 
     REQUIRE(requested.has_value());
-    CHECK_FALSE(requested.value());
+    if (requested.has_value())
+    {
+        CHECK_FALSE(requested.value());
+    }
     CHECK(input_device.isEnabled());
     CHECK(input_device.getTooltip().isEmpty());
 }
@@ -511,7 +526,7 @@ TEST_CASE(
     std::optional<bool> requested;
     view.setGameAudioSettingsChangedCallback(
         [&](bool enabled,
-            std::function<void(bool)>) -> std::expected<void, core::GameAudioSourceError> {
+            const std::function<void(bool)>&) -> std::expected<void, core::GameAudioSourceError> {
             requested = enabled;
             return {};
         });
@@ -525,7 +540,10 @@ TEST_CASE(
     toggle.onClick();
 
     REQUIRE(requested.has_value());
-    CHECK(requested.value());
+    if (requested.has_value())
+    {
+        CHECK(requested.value());
+    }
     CHECK_FALSE(input_device.isEnabled());
 }
 

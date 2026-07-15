@@ -33,8 +33,10 @@ constexpr int g_zip_compression_level = 9;
 void addTextEntry(
     juce::ZipFile::Builder& builder, const std::string& entry_name, const std::string& contents)
 {
+    auto stream = std::make_unique<juce::MemoryInputStream>(
+        juce::MemoryBlock{contents.data(), contents.size()}, true);
     builder.addEntry(
-        new juce::MemoryInputStream{juce::MemoryBlock{contents.data(), contents.size()}, true},
+        stream.release(),
         g_zip_compression_level,
         juce::String::fromUTF8(entry_name.c_str()),
         juce::Time{});

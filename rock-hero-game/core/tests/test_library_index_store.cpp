@@ -5,6 +5,7 @@
 #include <fstream>
 #include <rock_hero/game/core/library/library_index_store.h>
 #include <string>
+#include <system_error>
 
 namespace rock_hero::game::core
 {
@@ -32,14 +33,8 @@ public:
     // Removes the test directory on a best-effort basis.
     ~TemporaryIndexDirectory() noexcept
     {
-        try
-        {
-            std::filesystem::remove_all(m_path);
-        }
-        catch (...)
-        {
-            // Best-effort cleanup; a straggling temp directory cannot affect other tests.
-        }
+        std::error_code cleanup_error;
+        std::filesystem::remove_all(m_path, cleanup_error);
     }
 
     TemporaryIndexDirectory(const TemporaryIndexDirectory&) = delete;
@@ -131,13 +126,19 @@ TEST_CASE("Library index round-trips through its JSON document", "[core][library
     CHECK(lead.id == "4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4");
     CHECK(lead.part == std::optional{common::core::Part::Lead});
     REQUIRE(lead.tuning.has_value());
-    CHECK(lead.tuning->strings.size() == 6);
-    CHECK(lead.tuning->strings.front() == "D2");
-    CHECK(lead.tuning->capo == 2);
-    CHECK(lead.tuning->cent_offset == Catch::Approx(-6.0));
+    if (lead.tuning.has_value())
+    {
+        CHECK(lead.tuning->strings.size() == 6);
+        CHECK(lead.tuning->strings.front() == "D2");
+        CHECK(lead.tuning->capo == 2);
+        CHECK(lead.tuning->cent_offset == Catch::Approx(-6.0));
+    }
     REQUIRE(lead.intensity.has_value());
-    CHECK(lead.intensity->value == Catch::Approx(7.5));
-    CHECK(lead.intensity->calculator_version == 3);
+    if (lead.intensity.has_value())
+    {
+        CHECK(lead.intensity->value == Catch::Approx(7.5));
+        CHECK(lead.intensity->calculator_version == 3);
+    }
 
     const LibraryArrangementSummary& bare = full.arrangements.back();
     CHECK_FALSE(bare.part.has_value());

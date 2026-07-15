@@ -150,7 +150,7 @@ namespace
         juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
             .getChildFile(juce::String{folder_name.data(), folder_name.size()}));
 
-    core::GameSettings settings;
+    const core::GameSettings settings;
     const std::vector<std::filesystem::path> custom_roots = settings.customScanRoots();
     const std::vector<std::filesystem::path> roots =
         core::resolveLibraryScanRoots(app_data_directory, custom_roots);
@@ -239,7 +239,7 @@ try
     // Throwaway scaffolding; delete once the in-game audio-setup wizard lands.
     if (rock_hero::game::app::hasFlag("--import-editor-audio", argc, argv))
     {
-        rock_hero::common::audio::AudioConfigStore editor_audio_config_store{
+        const rock_hero::common::audio::AudioConfigStore editor_audio_config_store{
             rock_hero::common::audio::editorAudioConfigApplicationName(),
             rock_hero::common::audio::AudioConfigStore::Access::ReadOnly
         };
