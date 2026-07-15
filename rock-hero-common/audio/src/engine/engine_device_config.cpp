@@ -184,16 +184,21 @@ void Engine::Impl::handleAudioDeviceConfigurationRefresh()
 // Applies the no-fallback device policy after any JUCE device-configuration change. JUCE's own
 // disconnect handler falls back to a default device (hard-coded, not suppressible in-band), so a
 // detected fallback is undone here by closing the substitute -- the saved choice survives in
-// lastExplicitSettings, matching the startup restore's behavior. Symmetrically, when the device is
-// closed and the saved device transitions from absent to present, the saved route is re-applied so
-// replugging the interface restores the user's device and never a different one.
+// lastExplicitSettings, matching the startup restore's behavior. Symmetrically, while the device
+// is closed and the saved device's hardware is attached and initializable, the saved route is
+// re-applied so plugging the interface back in restores the user's device and never a different
+// one.
 //
-// The absent->present transition gate is load-bearing twice over. A settings edit deliberately
-// stages with the device closed while the saved device stays present, so no transition fires and
-// the edit is left alone (a device replugged mid-edit is the one rare corner that would reopen
-// under the dialog). And a failed reopen (driver busy) does not retry until the device disappears
-// and returns again, which prevents broadcast-driven retry loops: a failing initialise() posts
-// another change message, and an unconditional reopen here would chase it forever.
+// The reopen retries on every external device event rather than only on an absent -> present
+// presence transition: presence is probed live in savedDeviceIsPresent(), and an edge-triggered
+// gate proved fragile -- an ASIO driver that still initializes for a moment right after unplug
+// latched "present" while closed, after which a real replug produced no edge and the device
+// stayed closed forever. Two guards keep the per-event retry sound. A staging settings edit
+// deliberately closes the device and suppresses the reopen through m_route_staging_active, so
+// nothing grabs the device under the open settings window. And a failed reopen posts its own
+// change message, which m_reopen_echo_pending consumes without a new attempt, so a device that
+// refuses to open earns exactly one attempt per external event instead of a broadcast-driven
+// retry loop.
 void Engine::Impl::enforceNoFallbackDevicePolicy()
 {
     juce::AudioDeviceManager& device_manager = m_engine->getDeviceManager().deviceManager;
@@ -201,7 +206,6 @@ void Engine::Impl::enforceNoFallbackDevicePolicy()
     if (saved == nullptr)
     {
         // No explicit device choice exists (first run), so default auto-detection stands.
-        m_saved_device_present = false;
         return;
     }
 
@@ -214,41 +218,50 @@ void Engine::Impl::enforceNoFallbackDevicePolicy()
             "Saved audio device vanished; closing JUCE's fallback substitute and keeping the "
             "saved choice");
         device_manager.closeAudioDevice();
-        m_saved_device_present = false;
         return;
     }
 
     juce::AudioIODevice* const live_device = device_manager.getCurrentAudioDevice();
     if (live_device != nullptr && live_device->isOpen())
     {
-        // The open device is the saved device (a fallback was ruled out above).
-        m_saved_device_present = true;
+        // The open device is the saved device (a fallback was ruled out above). Any pending echo
+        // is stale once a device is open.
+        m_reopen_echo_pending = false;
         return;
     }
 
-    const bool was_present = m_saved_device_present;
-    m_saved_device_present = savedDeviceIsPresent(device_manager, *saved);
-    if (m_saved_device_present && !was_present)
+    if (m_route_staging_active)
     {
-        // Replug: re-apply the saved route with JUCE's fallback disabled so only the user's device
-        // can open. On success the follow-up broadcast converges (open device == saved choice); on
-        // failure the device stays closed until the next absent->present transition.
-        RH_LOG_INFO(
-            "audio.device_policy", "Saved audio device reappeared; re-applying the saved route");
-        static_cast<void>(device_manager.initialise(1, 2, saved.get(), false));
+        // A settings edit is staging with the device deliberately closed; leave it alone. The
+        // edit's own commit/cancel decides what reopens when the window closes.
         return;
     }
 
-    if (m_saved_device_present && was_present)
+    if (m_reopen_echo_pending)
     {
-        // The stuck-closed corner: the device is closed but its driver still lists it, so the
-        // absent->present retry gate never fires and nothing reopens automatically (a settings
-        // edit staging with a deliberately closed device also lands here and must stay untouched).
-        // Logged so a session sitting in this state is explainable from the log alone.
+        // This broadcast is the echo of the failed reopen attempt below; consuming it without a
+        // new attempt is what bounds retries to one per external device event.
+        m_reopen_echo_pending = false;
+        return;
+    }
+
+    if (!savedDeviceIsPresent(device_manager, *saved))
+    {
+        // The saved device's hardware is absent or its driver cannot initialize; the next device
+        // event re-evaluates.
+        return;
+    }
+
+    // Re-apply the saved route with JUCE's fallback disabled so only the user's device can open.
+    RH_LOG_INFO(
+        "audio.device_policy", "Saved audio device is available; re-applying the saved route");
+    const juce::String reopen_error = device_manager.initialise(1, 2, saved.get(), false);
+    if (reopen_error.isNotEmpty())
+    {
         RH_LOG_WARNING(
             "audio.device_policy",
-            "Audio device is closed while the saved device is still listed; no automatic reopen "
-            "(reopen through the audio settings or restart)");
+            "Saved audio device did not reopen; retrying on the next device event");
+        m_reopen_echo_pending = true;
     }
 }
 
@@ -453,6 +466,12 @@ std::optional<InputDeviceIdentity> Engine::currentInputDeviceIdentity() const
     }
 
     return identity;
+}
+
+// Suppresses the policy auto-reopen while a settings edit deliberately holds the device closed.
+void Engine::setRouteStagingActive(bool active)
+{
+    m_impl->m_route_staging_active = active;
 }
 
 // Registers a project-owned device-configuration listener.
