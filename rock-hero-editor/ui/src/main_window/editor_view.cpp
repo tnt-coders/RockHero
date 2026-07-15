@@ -1641,7 +1641,7 @@ void EditorView::presentGameAudioRecommendationIfNeeded(bool prompt_requested)
         *this, [safe_this](core::GameAudioRecommendationDecision decision, bool suppress_future) {
             if (auto* view = safe_this.getComponent())
             {
-                // The decline button reads "Open Settings", so it lands the user in the audio
+                // The decline button reads "Open Audio Settings", so it lands the user in the audio
                 // device settings window. The window opens BEFORE the decision is reported: the
                 // settings-open state then suppresses the closed-device failure prompt that the
                 // decision handler would otherwise stage under the opening window.
@@ -1657,7 +1657,7 @@ void EditorView::presentGameAudioRecommendationIfNeeded(bool prompt_requested)
 // Presents the persistent audio-device failure modal. Each staged generation presents once; a
 // failed Retry re-stages a fresh generation, which re-presents through the same tracking, so the
 // modal is persistent without any dialog-lifetime bookkeeping. The question box's fixed keyboard
-// rule maps Return to Retry and Escape to Open Settings, so every dismissal path lands in a
+// rule maps Return to Retry and Escape to Open Audio Settings, so every dismissal path lands in a
 // resolution flow.
 void EditorView::presentAudioDeviceFailurePromptIfNeeded(
     const std::optional<core::AudioDeviceFailurePrompt>& prompt)
@@ -1680,7 +1680,7 @@ void EditorView::presentAudioDeviceFailurePromptIfNeeded(
         "Audio device unavailable",
         juce::String{"Failed to open audio device:\n\n"} +
             juce::String::fromUTF8(prompt->message.c_str()),
-        {"Retry", "Open Settings"},
+        {"Retry", "Open Audio Settings"},
         [safe_this](int button_index) {
             if (safe_this == nullptr)
             {

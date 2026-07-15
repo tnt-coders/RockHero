@@ -10,8 +10,9 @@ function without one). This section is authoritative over the rule-1 phrasing be
 conflict; the game-audio ruleset itself is unchanged.
 
 - **Any closed-audio-device state raises a persistent modal**: "Failed to open audio device:
-  \<specific reason\>" with **Retry** and **Open Settings** (no Close — it stays until a Retry
-  succeeds or the settings window opens; Escape maps to Open Settings). Raised at startup when the
+  \<specific reason\>" with **Retry** and **Open Audio Settings** (no Close — it stays until a
+  Retry succeeds or the settings window opens; Escape maps to Open Audio Settings). Raised at
+  startup when the
   saved route cannot open, and on a mid-session disconnect. Suppressed while the audio settings
   window is open (its staged edit deliberately closes the device); re-raised when the window tears
   down with the device still closed. Deferred behind the plan-48 startup prompts so at most one
@@ -27,7 +28,8 @@ conflict; the game-audio ruleset itself is unchanged.
   decision, and Retry; `EditorViewState::use_game_audio_settings` now derives from the live store
   selection rather than re-reading the persisted toggle.
 - **Recommendation decline button (supersedes rule 3's "no settings window" clause):** the
-  decline button now reads **"Open Settings"** and opens the audio device settings window after
+  decline button now reads **"Open Audio Settings"** and opens the audio device settings window
+  after
   persisting the toggle off, landing the user where custom settings are actually configured. Its
   decision semantics are otherwise unchanged (Esc/close still writes nothing and re-asks).
 - **Chosen-but-unopenable device stays the saved choice:** an OK onto a device whose driver fails
