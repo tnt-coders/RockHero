@@ -82,10 +82,14 @@ namespace
            saved_setup.outputDeviceName != live_setup.outputDeviceName;
 }
 
-// Composes the user-facing notice for a closed saved route. The saved XML is the only identity
+// The disconnect notice used when the saved device vanished: nothing attempted an open, so no
+// backend diagnostic exists to report. Every open attempt records the backend's own text instead.
+constexpr const char* g_disconnected_reason = "Disconnected";
+
+// Extracts the display name(s) of the saved route's device. The saved XML is the only identity
 // that reliably survives a disconnect (JUCE clears the live setup's device names on its failure
-// path), and the copy is engine-owned so every product explains a closed device the same way.
-[[nodiscard]] std::string deviceUnavailableMessageFor(const juce::XmlElement& saved)
+// path); split-device routes join both names.
+[[nodiscard]] std::string savedRouteDeviceNamesFor(const juce::XmlElement& saved)
 {
     const juce::AudioDeviceManager::AudioDeviceSetup setup = reconstructDeviceSetupFromXml(saved);
     juce::StringArray device_names;
@@ -98,21 +102,7 @@ namespace
         device_names.addIfNotAlreadyThere(setup.outputDeviceName);
     }
 
-    if (device_names.isEmpty())
-    {
-        return "No audio device could be opened.";
-    }
-
-    if (device_names.size() == 1)
-    {
-        return ("Audio device \"" + device_names[0] +
-                "\" is unavailable (disconnected or in use by another application).")
-            .toStdString();
-    }
-
-    return ("Audio devices \"" + device_names.joinIntoString("\" and \"") +
-            "\" are unavailable (disconnected or in use by another application).")
-        .toStdString();
+    return device_names.joinIntoString(", ").toStdString();
 }
 
 } // namespace
@@ -189,7 +179,8 @@ void Engine::Impl::enforceNoFallbackDevicePolicy()
             "Saved audio device vanished; closing JUCE's fallback substitute and keeping the "
             "saved choice");
         device_manager.closeAudioDevice();
-        m_device_unavailable_reason = deviceUnavailableMessageFor(*saved);
+        m_device_unavailable_reason = g_disconnected_reason;
+        m_device_unavailable_device_name = savedRouteDeviceNamesFor(*saved);
         return;
     }
 
@@ -198,6 +189,7 @@ void Engine::Impl::enforceNoFallbackDevicePolicy()
     {
         // The open device is the saved device (a fallback was ruled out above).
         m_device_unavailable_reason.clear();
+        m_device_unavailable_device_name.clear();
         return;
     }
 
@@ -205,7 +197,8 @@ void Engine::Impl::enforceNoFallbackDevicePolicy()
     {
         // Closed without a recorded open failure -- the saved device vanished with nothing to
         // fall back to, so JUCE closed it without an error string to keep.
-        m_device_unavailable_reason = deviceUnavailableMessageFor(*saved);
+        m_device_unavailable_reason = g_disconnected_reason;
+        m_device_unavailable_device_name = savedRouteDeviceNamesFor(*saved);
     }
 }
 
@@ -271,6 +264,7 @@ std::expected<DeviceRestoreOutcome, AudioDeviceConfigurationError> Engine::
     if (activeDeviceMatchesSerializedState(device_manager, *xml))
     {
         m_impl->m_device_unavailable_reason.clear();
+        m_impl->m_device_unavailable_device_name.clear();
         return DeviceRestoreOutcome::Opened;
     }
 
@@ -291,10 +285,12 @@ std::expected<DeviceRestoreOutcome, AudioDeviceConfigurationError> Engine::
         // disconnect does, so the synchronous monitoring rebuild below is correctly skipped on
         // this branch.
         m_impl->m_device_unavailable_reason = error_text.toStdString();
+        m_impl->m_device_unavailable_device_name = savedRouteDeviceNamesFor(*xml);
         return DeviceRestoreOutcome::DeviceUnavailable;
     }
 
     m_impl->m_device_unavailable_reason.clear();
+    m_impl->m_device_unavailable_device_name.clear();
     auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
     if (!route_result.has_value())
     {
@@ -341,6 +337,7 @@ AudioDeviceStatus Engine::currentDeviceStatus() const
 {
     AudioDeviceStatus closed_status;
     closed_status.unavailable_reason = m_impl->m_device_unavailable_reason;
+    closed_status.unavailable_device_name = m_impl->m_device_unavailable_device_name;
 
     auto* const current_device =
         m_impl->m_engine->getDeviceManager().deviceManager.getCurrentAudioDevice();

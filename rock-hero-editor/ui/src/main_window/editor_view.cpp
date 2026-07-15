@@ -1656,9 +1656,11 @@ void EditorView::presentGameAudioRecommendationIfNeeded(bool prompt_requested)
 
 // Presents the persistent audio-device failure modal. Each staged generation presents once; a
 // failed Retry re-stages a fresh generation, which re-presents through the same tracking, so the
-// modal is persistent without any dialog-lifetime bookkeeping. The question box's fixed keyboard
-// rule maps Return to Retry and Escape to Open Audio Settings, so every dismissal path lands in a
-// resolution flow.
+// modal is persistent without any dialog-lifetime bookkeeping. Built directly on the shared modal
+// launcher because the keyboard rules are bespoke: Return maps to Retry and Escape to Open Audio
+// Settings, while Exit Editor -- the escape hatch for a user with no working device at all, since
+// the modal blocks the main window's own close controls -- is deliberately click-only so a
+// reflexive keypress can never quit the app.
 void EditorView::presentAudioDeviceFailurePromptIfNeeded(
     const std::optional<core::AudioDeviceFailurePrompt>& prompt)
 {
@@ -1674,27 +1676,53 @@ void EditorView::presentAudioDeviceFailurePromptIfNeeded(
     }
 
     m_last_audio_device_failure_prompt = prompt;
-    const juce::Component::SafePointer<EditorView> safe_this{this};
-    showThemedQuestionBox(
-        this,
-        "Audio device unavailable",
-        juce::String{"Failed to open audio device:\n\n"} +
-            juce::String::fromUTF8(prompt->message.c_str()),
-        {"Retry", "Open Audio Settings"},
-        [safe_this](int button_index) {
-            if (safe_this == nullptr)
-            {
-                return;
-            }
 
-            safe_this->m_controller.onAudioDeviceFailureDecision(
-                button_index == 0 ? core::AudioDeviceFailureDecision::Retry
-                                  : core::AudioDeviceFailureDecision::OpenSettings);
-            if (button_index != 0)
+    juce::String message;
+    if (!prompt->device_name.empty())
+    {
+        message << "Audio device \"" << juce::String::fromUTF8(prompt->device_name.c_str())
+                << "\" unavailable\n\n";
+    }
+    message << "Failed to open audio device: " << juce::String::fromUTF8(prompt->message.c_str());
+
+    auto window = std::make_unique<juce::AlertWindow>(
+        "Audio device unavailable", message, juce::MessageBoxIconType::WarningIcon, this);
+    window->addButton("Retry", 1, juce::KeyPress{juce::KeyPress::returnKey});
+    window->addButton("Open Audio Settings", 2, juce::KeyPress{juce::KeyPress::escapeKey});
+    window->addButton("Exit Editor", 3);
+
+    const juce::Component::SafePointer<EditorView> safe_this{this};
+    showThemedDialogModally(std::move(window), [safe_this](int result) {
+        if (safe_this == nullptr)
+        {
+            return;
+        }
+
+        switch (result)
+        {
+            case 1:
             {
-                safe_this->showAudioDeviceSettingsWindow();
+                safe_this->m_controller.onAudioDeviceFailureDecision(
+                    core::AudioDeviceFailureDecision::Retry);
+                break;
             }
-        });
+            case 3:
+            {
+                safe_this->m_controller.onAudioDeviceFailureDecision(
+                    core::AudioDeviceFailureDecision::ExitEditor);
+                break;
+            }
+            default:
+            {
+                // Result 0 is AlertWindow's built-in Escape exit, which shares the Open Audio
+                // Settings meaning with button 2.
+                safe_this->m_controller.onAudioDeviceFailureDecision(
+                    core::AudioDeviceFailureDecision::OpenSettings);
+                safe_this->showAudioDeviceSettingsWindow();
+                break;
+            }
+        }
+    });
 }
 
 // Opens or closes the input calibration prompt from controller-derived state.
