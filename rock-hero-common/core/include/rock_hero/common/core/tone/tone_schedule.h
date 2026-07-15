@@ -85,7 +85,7 @@ struct ToneGainPoint
     \param rhs Right-hand envelope point.
     \return True when both points store equal values.
     */
-    friend constexpr bool operator==(const ToneGainPoint& lhs, const ToneGainPoint& rhs) = default;
+    friend bool operator==(const ToneGainPoint& lhs, const ToneGainPoint& rhs) = default;
 };
 
 /*!

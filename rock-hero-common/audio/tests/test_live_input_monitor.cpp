@@ -337,7 +337,10 @@ TEST_CASE(
     const auto stored = store.inputCalibrationFor(identity);
     REQUIRE(stored.has_value());
     REQUIRE(stored->has_value());
-    CHECK_THAT((*stored)->calibration_gain.db, Catch::Matchers::WithinULP(7.5, 0));
+    if (stored.has_value() && stored->has_value())
+    {
+        CHECK_THAT((*stored)->calibration_gain.db, Catch::Matchers::WithinULP(7.5, 0));
+    }
 }
 
 // A store write failure at commit surfaces the failure only through logging, not a hard error, and
@@ -359,9 +362,12 @@ TEST_CASE("LiveInputMonitor commit tolerates a store write failure", "[common][a
 
     REQUIRE(committed.has_value());
     CHECK(live_input.live_input_monitoring_enabled);
-    REQUIRE(monitor.activeCalibrationState().has_value());
-    CHECK_THAT(
-        monitor.activeCalibrationState()->calibration_gain.db, Catch::Matchers::WithinULP(7.5, 0));
+    const auto active = monitor.activeCalibrationState();
+    REQUIRE(active.has_value());
+    if (active.has_value())
+    {
+        CHECK_THAT(active->calibration_gain.db, Catch::Matchers::WithinULP(7.5, 0));
+    }
 }
 
 // The input identity is sampled exactly once per commit operation, so a route that changes between

@@ -1,6 +1,7 @@
 #include "engine_impl.h"
 
 #include <algorithm>
+#include <compare>
 
 namespace rock_hero::common::audio
 {
@@ -166,7 +167,9 @@ void Engine::seek(common::core::TimePosition position)
 // keeps early consumers from shipping code that believes speed changes worked.
 std::expected<void, TransportError> Engine::setPlaybackSpeed(double factor)
 {
-    if (factor != 1.0)
+    // Exact inequality via std::is_neq keeps the -Wfloat-equal build clean and still rejects NaN,
+    // which an ordered factor < 1.0 || factor > 1.0 rewrite would silently accept as 1.0.
+    if (std::is_neq(factor <=> 1.0))
     {
         return std::unexpected{TransportError{
             TransportErrorCode::SpeedNotSupported,

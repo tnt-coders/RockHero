@@ -116,8 +116,12 @@ TEST_CASE("EditorController restores serialized audio device state", "[core][edi
     CHECK(
         audio_devices.last_restored_serialized_device_state ==
         std::optional<std::string>{"serialized-device-state"});
-    REQUIRE(store.activeDeviceRoute().has_value());
-    CHECK(store.activeDeviceRoute()->serialized_state == "serialized-device-state");
+    const auto route = store.activeDeviceRoute();
+    REQUIRE(route.has_value());
+    if (route.has_value())
+    {
+        CHECK(route->serialized_state == "serialized-device-state");
+    }
 }
 
 // Invalid serialized device state is discarded from the store so future launches do not retry it.
@@ -176,9 +180,13 @@ TEST_CASE("EditorController persists serialized audio device state", "[core][edi
     audio_devices.notifyChanged();
 
     CHECK(audio_devices.serialized_device_state_call_count == 1);
-    REQUIRE(store.activeDeviceRoute().has_value());
-    CHECK(store.activeDeviceRoute()->serialized_state == "updated-serialized-device-state");
-    CHECK(store.activeDeviceRoute()->identity == std::optional{makeInputDeviceIdentity()});
+    const auto route = store.activeDeviceRoute();
+    REQUIRE(route.has_value());
+    if (route.has_value())
+    {
+        CHECK(route->serialized_state == "updated-serialized-device-state");
+        CHECK(route->identity == std::optional{makeInputDeviceIdentity()});
+    }
 }
 
 // Empty capture results clear the stored route instead of preserving stale device state.
@@ -765,10 +773,10 @@ TEST_CASE(
     const int paint_callbacks_before = view.busy_overlay_paint_callback_count;
 
     int applying_call_count = 0;
-    REQUIRE(controller
-                .onUseGameAudioSettingsChangeRequested(
-                    true, [&applying_call_count](bool) { ++applying_call_count; })
-                .has_value());
+    const std::expected<void, GameAudioSourceError> toggle_result =
+        controller.onUseGameAudioSettingsChangeRequested(
+            true, [&applying_call_count](bool) { ++applying_call_count; });
+    REQUIRE(toggle_result.has_value());
 
     // The toggle consulted the skip-if-unchanged predicate against the now-active game route.
     CHECK(audio_devices.device_state_matches_active_call_count >= 1);
@@ -982,8 +990,11 @@ TEST_CASE(
     CHECK_FALSE(state->use_game_audio_settings);
     CHECK_FALSE(state->game_audio_recommendation_prompt);
     REQUIRE(state->game_audio_unavailable_prompt.has_value());
-    CHECK(state->game_audio_unavailable_prompt->error.code == expected_code);
-    CHECK_FALSE(state->game_audio_unavailable_prompt->error.message.empty());
+    if (state->game_audio_unavailable_prompt.has_value())
+    {
+        CHECK(state->game_audio_unavailable_prompt->error.code == expected_code);
+        CHECK_FALSE(state->game_audio_unavailable_prompt->error.message.empty());
+    }
 
     controller.onGameAudioUnavailablePromptDismissed();
     const EditorViewState* dismissed_state = stateOrNull(view.last_state);

@@ -195,7 +195,7 @@ void drawStringLines(
             charterMultiply(tabStringColor(displayed_string, metrics.displayed_count), 0.8));
         // Snapped to a whole pixel row so the one-pixel line stays crisp like Charter's.
         const auto row = static_cast<float>(static_cast<int>(y));
-        float cursor = static_cast<float>(clip.getX());
+        auto cursor = static_cast<float>(clip.getX());
         const auto right = static_cast<float>(clip.getRight());
         for (const juce::Range<float>& range :
              exclusions[static_cast<std::size_t>(displayed_string - 1)])
@@ -969,8 +969,8 @@ void TabView::paint(juce::Graphics& g)
             const int displayed = arpeggio_note.string + metrics.extra_lanes;
             if (displayed >= 1 && displayed <= metrics.displayed_count)
             {
-                line_exclusions[static_cast<std::size_t>(displayed - 1)].push_back(
-                    juce::Range<float>{start_x - bracket_radius, start_x + bracket_radius});
+                line_exclusions[static_cast<std::size_t>(displayed - 1)].emplace_back(
+                    start_x - bracket_radius, start_x + bracket_radius);
             }
         }
     }

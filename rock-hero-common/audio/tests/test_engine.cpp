@@ -389,7 +389,8 @@ public:
             return nullptr;
         }
 
-        return new FakeAudioIODevice(name, getTypeName());
+        auto device = std::make_unique<FakeAudioIODevice>(name, getTypeName());
+        return device.release();
     }
 
 private:
@@ -418,7 +419,7 @@ private:
 }
 
 // Posts the next scenario step; declared before runMessageThreadSteps for the recursive chain.
-void postNextMessageThreadStep(std::shared_ptr<std::deque<std::function<void()>>> steps)
+void postNextMessageThreadStep(const std::shared_ptr<std::deque<std::function<void()>>>& steps)
 {
     juce::MessageManager::callAsync([steps] {
         if (steps->empty())
@@ -427,7 +428,7 @@ void postNextMessageThreadStep(std::shared_ptr<std::deque<std::function<void()>>
             return;
         }
 
-        std::function<void()> step = std::move(steps->front());
+        const std::function<void()> step = std::move(steps->front());
         steps->pop_front();
         step();
         postNextMessageThreadStep(steps);
@@ -448,7 +449,7 @@ void runMessageThreadSteps(std::vector<std::function<void()>> steps)
         queue->push_back(std::move(step));
     }
 
-    postNextMessageThreadStep(std::move(queue));
+    postNextMessageThreadStep(queue);
     juce::MessageManager::getInstance()->runDispatchLoop();
 }
 
@@ -550,12 +551,12 @@ TEST_CASE("Engine playback speed accepts only 1.0", "[audio][engine][integration
     ITransport& transport = harness.engine;
 
     CHECK(transport.setPlaybackSpeed(1.0).has_value());
-    CHECK(transport.playbackSpeed() == 1.0);
+    CHECK_THAT(transport.playbackSpeed(), Catch::Matchers::WithinULP(1.0, 0));
 
     const auto rejected = transport.setPlaybackSpeed(0.5);
     REQUIRE_FALSE(rejected.has_value());
     CHECK(rejected.error().code == TransportErrorCode::SpeedNotSupported);
-    CHECK(transport.playbackSpeed() == 1.0);
+    CHECK_THAT(transport.playbackSpeed(), Catch::Matchers::WithinULP(1.0, 0));
 }
 
 // Verifies loop engage/read/clear round-trips through the Tracktion-backed adapter.
@@ -576,8 +577,11 @@ TEST_CASE("Engine loop region round-trips and clears", "[audio][engine][integrat
 
     const auto engaged = transport.loopRegion();
     REQUIRE(engaged.has_value());
-    CHECK(engaged->start.seconds == Catch::Approx(region.start.seconds));
-    CHECK(engaged->end.seconds == Catch::Approx(region.end.seconds));
+    if (engaged.has_value())
+    {
+        CHECK(engaged->start.seconds == Catch::Approx(region.start.seconds));
+        CHECK(engaged->end.seconds == Catch::Approx(region.end.seconds));
+    }
 
     transport.clearLoopRegion();
     CHECK_FALSE(transport.loopRegion().has_value());
@@ -600,8 +604,11 @@ TEST_CASE("Engine loop region normalizes reversed endpoints", "[audio][engine][i
 
     const auto engaged = transport.loopRegion();
     REQUIRE(engaged.has_value());
-    CHECK(engaged->start.seconds == Catch::Approx(duration.seconds * 0.1));
-    CHECK(engaged->end.seconds == Catch::Approx(duration.seconds * 0.6));
+    if (engaged.has_value())
+    {
+        CHECK(engaged->start.seconds == Catch::Approx(duration.seconds * 0.1));
+        CHECK(engaged->end.seconds == Catch::Approx(duration.seconds * 0.6));
+    }
 }
 
 // Verifies the 0.1 s port minimum rejects short regions with the typed error and leaves a
@@ -628,7 +635,10 @@ TEST_CASE("Engine loop region rejects sub-minimum durations", "[audio][engine][i
 
     const auto surviving = transport.loopRegion();
     REQUIRE(surviving.has_value());
-    CHECK(surviving->end.seconds == Catch::Approx(engaged.end.seconds));
+    if (surviving.has_value())
+    {
+        CHECK(surviving->end.seconds == Catch::Approx(engaged.end.seconds));
+    }
 }
 
 // Verifies loop endpoints clamp into the loaded audio: the backend would accept a loop end far
@@ -649,8 +659,11 @@ TEST_CASE("Engine loop region clamps to loaded audio length", "[audio][engine][i
 
     const auto engaged = transport.loopRegion();
     REQUIRE(engaged.has_value());
-    CHECK(engaged->start.seconds == Catch::Approx(0.0));
-    CHECK(engaged->end.seconds == Catch::Approx(duration.seconds));
+    if (engaged.has_value())
+    {
+        CHECK(engaged->start.seconds == Catch::Approx(0.0));
+        CHECK(engaged->end.seconds == Catch::Approx(duration.seconds));
+    }
 }
 
 // Verifies arrangement activation disengages an engaged loop: loop state persists in the edit's
@@ -1303,8 +1316,11 @@ TEST_CASE("Engine replaces the audible tone from a tone file", "[audio][engine][
         },
         [&replace_result](auto value) { replace_result = std::move(value); });
     REQUIRE(replace_result.has_value());
-    REQUIRE_FALSE(replace_result->has_value());
-    CHECK(replace_result->error().code == LiveRigErrorCode::InvalidRequest);
+    if (replace_result.has_value())
+    {
+        REQUIRE_FALSE(replace_result->has_value());
+        CHECK(replace_result->error().code == LiveRigErrorCode::InvalidRequest);
+    }
 
     std::optional<std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>>
         load_result;
@@ -1340,8 +1356,11 @@ TEST_CASE("Engine replaces the audible tone from a tone file", "[audio][engine][
         },
         [&replace_result](auto value) { replace_result = std::move(value); });
     REQUIRE(replace_result.has_value());
-    REQUIRE_FALSE(replace_result->has_value());
-    CHECK(replace_result->error().code == LiveRigErrorCode::CouldNotReadToneFile);
+    if (replace_result.has_value())
+    {
+        REQUIRE_FALSE(replace_result->has_value());
+        CHECK(replace_result->error().code == LiveRigErrorCode::CouldNotReadToneFile);
+    }
     // The failed replace never touched the live chain.
     CHECK(live_rig.outputGain().db == Catch::Approx(-4.5));
 }
@@ -1395,8 +1414,11 @@ TEST_CASE("Engine tone-file replace refuses missing plugins", "[audio][engine][i
         [&replace_result](auto value) { replace_result = std::move(value); });
 
     REQUIRE(replace_result.has_value());
-    REQUIRE_FALSE(replace_result->has_value());
-    CHECK(replace_result->error().code == LiveRigErrorCode::MissingPlugins);
+    if (replace_result.has_value())
+    {
+        REQUIRE_FALSE(replace_result->has_value());
+        CHECK(replace_result->error().code == LiveRigErrorCode::MissingPlugins);
+    }
     // Refusal is transactional: the previous chain state stays untouched.
     CHECK(live_rig.outputGain().db == Catch::Approx(-1.5));
 }
@@ -1653,8 +1675,9 @@ TEST_CASE("Engine backing gain composes with normalization", "[audio][engine][in
     IMixControls& mix = harness.engine;
     ISongAudio& audio = harness.engine;
 
-    // Track volume defaults to 0 dB before any song loads.
-    CHECK(mix.backingGain().db == Catch::Approx(0.0));
+    // Track volume defaults to 0 dB before any song loads. An absolute tolerance absorbs the float
+    // linear->dB round-trip error (macOS returns ~-2.4e-7 dB where MSVC returns exactly 0.0).
+    CHECK_THAT(mix.backingGain().db, Catch::Matchers::WithinAbs(0.0, 1e-6));
     REQUIRE(mix.setBackingGain(Gain{-4.5}).has_value());
     CHECK(mix.backingGain().db == Catch::Approx(-4.5));
 
@@ -1662,7 +1685,7 @@ TEST_CASE("Engine backing gain composes with normalization", "[audio][engine][in
     // gain must survive untouched because it is a different processing stage.
     auto song = makeFixtureSong();
     song.arrangements.front().audio_asset.normalization =
-        common::core::AudioNormalization{.gain_db = -8.0};
+        common::core::AudioNormalization{.gain_db = -8.0, .validation_sha256 = {}};
     REQUIRE(audio.prepareSong(song).has_value());
     REQUIRE(audio.setActiveArrangement(song.arrangements.front()).has_value());
 
@@ -1731,8 +1754,12 @@ TEST_CASE("Engine tone timeline bakes the switch schedule", "[audio][engine][int
     // The load result surfaces each tone's summed reported latency (plan 21 Phase 5): empty
     // chains report exactly zero, and the field exists for the editor's export warning to read.
     REQUIRE((*loaded)->tone_chains.size() == 2);
-    CHECK((*loaded)->tone_chains[0].summed_reported_latency_seconds == 0.0);
-    CHECK((*loaded)->tone_chains[1].summed_reported_latency_seconds == 0.0);
+    CHECK_THAT(
+        (*loaded)->tone_chains[0].summed_reported_latency_seconds,
+        Catch::Matchers::WithinULP(0.0, 0));
+    CHECK_THAT(
+        (*loaded)->tone_chains[1].summed_reported_latency_seconds,
+        Catch::Matchers::WithinULP(0.0, 0));
 
     CHECK(timeline.prepareToneTimeline(song_directory.path(), schedule).has_value());
 

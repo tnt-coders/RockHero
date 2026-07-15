@@ -66,6 +66,20 @@ CheckOptions:
   - key: cppcoreguidelines-avoid-do-while.IgnoreMacros
     value: 'true'
 
+  # The codebase marks a deliberately discarded result with an explicit static_cast<void>(...)
+  # (best-effort teardown, and startup/retry route application whose failure is handled in-band
+  # through a staged prompt). Honor that idiom so an explicit void cast satisfies the check, while
+  # a bare unchecked call that returns a status/expected still fails.
+  - key: bugprone-unused-return-value.AllowCastToVoid
+    value: 'true'
+
+  # Allocation failure (OOM) is not a recoverable exception in this app: a function that can only
+  # throw via an allocation is allowed to be noexcept (message-loop async callbacks, best-effort
+  # cleanup destructors, and status accessors that copy a std::string/path all fall here). A
+  # function that can throw a logic exception is still flagged.
+  - key: bugprone-exception-escape.IgnoredExceptions
+    value: 'bad_alloc,bad_array_new_length,length_error'
+
   # --------------------------------------------------------------------------
   # Const correctness
   # --------------------------------------------------------------------------

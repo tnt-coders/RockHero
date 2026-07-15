@@ -144,8 +144,9 @@ void renderMenu(
         selected = menu.selectedArrangementIndex();
         for (std::size_t i = 0; i < arrangements.size(); ++i)
         {
-            const std::string_view part = arrangements[i].part.has_value()
-                                              ? common::core::partToken(*arrangements[i].part)
+            const auto& arrangement = arrangements[i];
+            const std::string_view part = arrangement.part.has_value()
+                                              ? common::core::partToken(*arrangement.part)
                                               : std::string_view{"Arrangement"};
             device.printDebugText(
                 left_column,
@@ -242,17 +243,17 @@ Game::Game(common::ui::HighwayRenderer renderer, Config config)
     if (config.library.has_value())
     {
         m_menu.emplace(std::move(*config.library));
-        const auto keyTrigger = [](const SDL_Keycode code) {
+        const auto key_trigger = [](const SDL_Keycode code) {
             return core::MenuInputTrigger{
                 .source = core::MenuInputSource::Keyboard, .code = static_cast<int>(code)
             };
         };
-        m_menu_bindings.bind(core::MenuAction::NavigateUp, keyTrigger(SDLK_UP));
-        m_menu_bindings.bind(core::MenuAction::NavigateDown, keyTrigger(SDLK_DOWN));
-        m_menu_bindings.bind(core::MenuAction::NavigateLeft, keyTrigger(SDLK_LEFT));
-        m_menu_bindings.bind(core::MenuAction::NavigateRight, keyTrigger(SDLK_RIGHT));
-        m_menu_bindings.bind(core::MenuAction::Accept, keyTrigger(SDLK_RETURN));
-        m_menu_bindings.bind(core::MenuAction::Back, keyTrigger(SDLK_ESCAPE));
+        m_menu_bindings.bind(core::MenuAction::NavigateUp, key_trigger(SDLK_UP));
+        m_menu_bindings.bind(core::MenuAction::NavigateDown, key_trigger(SDLK_DOWN));
+        m_menu_bindings.bind(core::MenuAction::NavigateLeft, key_trigger(SDLK_LEFT));
+        m_menu_bindings.bind(core::MenuAction::NavigateRight, key_trigger(SDLK_RIGHT));
+        m_menu_bindings.bind(core::MenuAction::Accept, key_trigger(SDLK_RETURN));
+        m_menu_bindings.bind(core::MenuAction::Back, key_trigger(SDLK_ESCAPE));
         m_in_menu = true;
     }
 }
@@ -330,7 +331,7 @@ void Game::handleWindowEvents(const GameWindowEvents& events)
     // Esc leaves the current song and returns to the menu (when a library was scanned).
     for (const int code : events.key_codes_pressed)
     {
-        if (m_menu.has_value() && code == static_cast<int>(SDLK_ESCAPE))
+        if (m_menu.has_value() && std::cmp_equal(code, SDLK_ESCAPE))
         {
             if (m_session != nullptr)
             {

@@ -188,7 +188,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         std::string instance_id, std::optional<PluginDisplayType> display_type);
     void onOpenPluginRequested(std::string instance_id);
     [[nodiscard]] std::expected<void, GameAudioSourceError> onUseGameAudioSettingsChangeRequested(
-        bool enabled, std::function<void(bool)> set_applying);
+        bool enabled, const std::function<void(bool)>& set_applying);
     [[nodiscard]] GameAudioSourceState gameAudioSourceState() const;
     void onGameAudioUnavailablePromptDismissed();
     void onGameAudioRecommendationDecision(
@@ -254,7 +254,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(EditorAction::NewToneDocument action);
     void performActionImpl(EditorAction::OpenToneFile action);
     void performActionImpl(EditorAction::SaveToneFile action);
-    void performActionImpl(EditorAction::SaveToneFileAs action);
+    void performActionImpl(const EditorAction::SaveToneFileAs& action);
     [[nodiscard]] EditorEditContext editContext() noexcept;
     void pushUndoEntry(std::unique_ptr<IEdit> edit);
     void pushOutputGainUndoEntry(common::audio::Gain before_gain, common::audio::Gain after_gain);
@@ -309,7 +309,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void reconcileToneDesignerCleanMarker();
     void runToneDesignerNew();
     void runToneDesignerOpen(std::filesystem::path file);
-    void runToneDesignerSave(std::filesystem::path destination);
+    void runToneDesignerSave(const std::filesystem::path& destination);
     [[nodiscard]] std::optional<ToneDesignerDocumentSnapshot> captureToneDesignerSnapshot(
         bool matches_file);
     void finishToneDesignerReplace(
@@ -321,10 +321,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] std::size_t activeToneAutomationEntryCount() const;
     void performActionImpl(EditorAction::ImportToneFile action);
     void performActionImpl(EditorAction::ResolveToneImportPrompt action);
-    void performActionImpl(EditorAction::ExportToneFile action);
+    void performActionImpl(const EditorAction::ExportToneFile& action);
     void runToneImport(std::filesystem::path file);
     void finishToneImport(
-        ToneChainSnapshot before, std::vector<std::pair<std::string, std::string>> prior_ids,
+        ToneChainSnapshot before, const std::vector<std::pair<std::string, std::string>>& prior_ids,
         const std::string& tone_ref, const std::string& tone_name,
         const std::filesystem::path& import_file, const common::audio::LiveRigLoadResult& result);
     void openProject(const std::filesystem::path& file, bool clear_last_open_project_on_failure);
@@ -425,7 +425,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // the now-active source is applied either inline or behind the OpeningAudioDevice busy
     // overlay (a non-empty set_applying requests the overlay for a genuine device re-open).
     [[nodiscard]] std::expected<void, GameAudioSourceError> applyAudioSourceAndRoute(
-        AudioSourceSelection selection, std::function<void(bool)> set_applying);
+        AudioSourceSelection selection, const std::function<void(bool)>& set_applying);
 
     // The one evaluation deciding whether the audio-device failure prompt should be staged; the
     // blocking overlay rendering it follows the staged value directly, so the prompt is simply

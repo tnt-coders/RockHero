@@ -1824,7 +1824,7 @@ void Engine::Impl::executeToneReplaceStep()
 
     // Candidates instantiate free-floating through the plugin cache; nothing touches the
     // existing chain until every candidate has resolved.
-    juce::ValueTree state_copy = candidate.state.createCopy();
+    const juce::ValueTree state_copy = candidate.state.createCopy();
     tracktion::EditItemID::readOrCreateNewID(*m_edit, state_copy);
     const tracktion::Plugin::Ptr restored_plugin =
         m_edit->getPluginCache().getOrCreatePluginFor(state_copy);
