@@ -250,6 +250,9 @@ public:
         return std::nullopt;
     }
 
+    void setRouteStagingActive(bool) override
+    {}
+
     void addListener(common::audio::IAudioDeviceConfiguration::Listener&) override
     {}
 
