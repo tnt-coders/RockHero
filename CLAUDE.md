@@ -151,6 +151,14 @@ Consult these documents per the [Bootstrap Rules](#bootstrap-rules) above:
 
 `docs/design/index.md` is a table of contents that links the above.
 
+Separately, **`docs/guide/`** is the developer guide: plain-language concept introductions and
+procedural checklists for common changes (new editor action, port method, UI view, package-format
+field), with `docs/guide/index.md` as the hub. It is NOT a source of truth for rules — the design
+documents above always win — but consult its recipe checklists when making one of the changes
+they cover, especially the "silent steps" lists of touchpoints that produce no compile error when
+forgotten. `CONTRIBUTING.md` at the repository root is the human-facing entry point that links
+the tiers together.
+
 ## Documentation Maintenance Rules
 
 Planning documents live in three lifecycle buckets under `docs/plans/` — the stages a single
@@ -182,6 +190,9 @@ either file, re-verify its claims against the current code — a stale registry 
 Keep `docs/design/` documents aligned with implemented architecture and durable project decisions.
 Before making any significant rule or architecture change in `docs/design/`, confirm with the user
 that they intend to change the design rather than merely make a local implementation adjustment.
+
+`docs/guide/` is maintained like `docs/design/`: if a change touches any file, function, or step
+the developer guide names, update the guide in the same change set.
 
 ## Build Commands
 
@@ -248,7 +259,7 @@ RockHero/
     core/                   - Game-specific pure gameplay behavior
     audio/                  - Game-specific audio analysis and gameplay plumbing
     ui/                     - Game-specific presentation and rendering
-  docs/                     - Design docs, user docs, plan lifecycle, Doxygen configuration
+  docs/                     - Design docs, developer guide, user docs, plans, Doxygen config
   external/tracktion_engine/ - Git submodule: Tracktion Engine + JUCE 8
   project-config/           - Git submodule: CMake presets, Conan 2.x, Doxygen theme, lint
 ```
