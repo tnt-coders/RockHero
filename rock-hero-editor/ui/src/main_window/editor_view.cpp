@@ -1641,6 +1641,14 @@ void EditorView::presentGameAudioRecommendationIfNeeded(bool prompt_requested)
         *this, [safe_this](core::GameAudioRecommendationDecision decision, bool suppress_future) {
             if (auto* view = safe_this.getComponent())
             {
+                // The decline button reads "Open Settings", so it lands the user in the audio
+                // device settings window. The window opens BEFORE the decision is reported: the
+                // settings-open state then suppresses the closed-device failure prompt that the
+                // decision handler would otherwise stage under the opening window.
+                if (decision == core::GameAudioRecommendationDecision::UseCustomSettings)
+                {
+                    view->showAudioDeviceSettingsWindow();
+                }
                 view->m_controller.onGameAudioRecommendationDecision(decision, suppress_future);
             }
         });

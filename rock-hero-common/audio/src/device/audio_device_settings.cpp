@@ -576,6 +576,16 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
             stagedDeviceErrorDetail(m_staged_device.get());
         if (staged_device_error.has_value())
         {
+            // "The route stays the user's explicit choice" needs help here: a failed
+            // setAudioDeviceSetup never reaches updateXml(), so JUCE's saved state still names the
+            // PREVIOUS route -- the closed-device failure prompt would report and Retry the old
+            // device instead of the one just chosen. initialise() stores the serialized route up
+            // front regardless of the open outcome (the same no-fallback shape the startup restore
+            // uses); its repeated open attempt fails the same way, or wins the race if the driver
+            // recovered.
+            const std::unique_ptr<juce::XmlElement> staged_xml =
+                serializeDeviceSetupToXml(m_staged_device_type, m_staged_setup);
+            static_cast<void>(m_device_manager.initialise(1, 2, staged_xml.get(), false));
             refreshState({});
             return {};
         }
