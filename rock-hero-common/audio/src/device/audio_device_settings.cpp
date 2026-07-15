@@ -328,14 +328,9 @@ AudioDeviceSettingsError::AudioDeviceSettingsError(
 struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
 {
     explicit Impl(IAudioDeviceConfiguration& audio_devices)
-        : m_audio_devices(audio_devices)
-        , m_device_manager(audio_devices.deviceManager())
+        : m_device_manager(audio_devices.deviceManager())
         , m_configuration_listener(audio_devices, *this)
     {
-        // Announce staging before the capture closes the device, so even the close's own
-        // broadcast sees the edit and the backend's auto-reopen stays out of the way for the
-        // whole edit.
-        m_audio_devices.setRouteStagingActive(true);
         captureInitialRouteAndCloseDevice();
     }
 
@@ -346,9 +341,6 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
     // before the settings edit began.
     ~Impl() noexcept override
     {
-        // Ends the staging suppression first: any broadcast the restore below posts should be
-        // free to run the backend's auto-reopen policy once the edit is gone.
-        m_audio_devices.setRouteStagingActive(false);
         try
         {
             restorePreviousRouteBestEffort();
@@ -1218,9 +1210,6 @@ private:
         m_staged_setup.outputChannels.setBit(left_channel);
         m_staged_setup.outputChannels.setBit(right_channel);
     }
-
-    // Configuration port whose route-staging flag brackets this edit's lifetime.
-    IAudioDeviceConfiguration& m_audio_devices;
 
     // Audio device manager owned by the shared backend.
     juce::AudioDeviceManager& m_device_manager;

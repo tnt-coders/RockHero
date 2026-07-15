@@ -7,6 +7,7 @@ target_sources(
     rock_hero_editor_core
     PRIVATE src/audio/editor_audio_config_store.cpp
             src/audio/game_audio_source_error.cpp
+            src/audio_device/audio_device_handlers.cpp
             src/audio_device/audio_device_settings_controller.cpp
             src/audio_device/audio_device_status_text.cpp
             src/audio_device/audio_device_status_text.h

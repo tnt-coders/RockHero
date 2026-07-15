@@ -598,6 +598,12 @@ public:
     /*! \brief Handles the audio-device settings window closing. */
     void onAudioDeviceSettingsClosed() override;
 
+    /*! \brief Handles the audio-device settings window's asynchronous teardown completing. */
+    void onAudioDeviceSettingsTeardownComplete() override;
+
+    /*! \brief Handles the user's response to the audio-device failure prompt. */
+    void onAudioDeviceFailureDecision(AudioDeviceFailureDecision decision) override;
+
 private:
     struct Impl;
     std::unique_ptr<Impl> m_impl;

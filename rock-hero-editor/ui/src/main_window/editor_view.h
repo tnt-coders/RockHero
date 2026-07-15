@@ -246,6 +246,10 @@ private:
     // Opens or releases the startup game-audio recommendation dialog from controller state.
     void presentGameAudioRecommendationIfNeeded(bool prompt_requested);
 
+    // Presents the persistent audio-device failure modal once per staged prompt generation.
+    void presentAudioDeviceFailurePromptIfNeeded(
+        const std::optional<core::AudioDeviceFailurePrompt>& prompt);
+
     // Presents or closes the input calibration prompt from controller state.
     void presentInputCalibrationPromptIfNeeded(
         const std::optional<core::InputCalibrationPrompt>& prompt);
@@ -540,6 +544,10 @@ private:
     // True while the controller's current recommendation request has been presented; the
     // self-deleting standard alert owns its own teardown, so only the dedup flag lives here.
     bool m_game_audio_recommendation_presented{false};
+
+    // Last audio-device failure prompt shown; the controller bumps the prompt's generation on
+    // every re-staging, so a failed Retry re-presents through this same tracking.
+    std::optional<core::AudioDeviceFailurePrompt> m_last_audio_device_failure_prompt{};
 
     // True after the editor has made its one startup focus request.
     bool m_has_requested_initial_keyboard_focus{false};

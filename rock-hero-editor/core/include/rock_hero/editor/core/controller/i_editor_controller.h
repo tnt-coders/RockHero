@@ -506,6 +506,30 @@ public:
     /*! \brief Handles the audio-device settings window closing. */
     virtual void onAudioDeviceSettingsClosed() = 0;
 
+    /*!
+    \brief Handles the audio-device settings window's asynchronous teardown completing.
+
+    Called by the view after the window object is destroyed, when any staged-edit rollback
+    (including the native-close cancel backstop) has settled the device synchronously. This is
+    the first trustworthy moment to evaluate whether the editor ended up without an open audio
+    device; evaluating at onAudioDeviceSettingsClosed() would see the staged edit's transiently
+    closed device and flash a spurious failure prompt over a route that reopens one message hop
+    later.
+    */
+    virtual void onAudioDeviceSettingsTeardownComplete() = 0;
+
+    /*!
+    \brief Handles the user's response to the audio-device failure prompt.
+
+    Retry re-applies the active source's saved route behind the busy overlay; a device that still
+    fails to open re-stages the prompt with a fresh reason. OpenSettings clears the prompt only:
+    the view follows the decision by opening the audio device settings window, whose suppression
+    then owns the prompt until the window tears down.
+
+    \param decision Decision selected by the user.
+    */
+    virtual void onAudioDeviceFailureDecision(AudioDeviceFailureDecision decision) = 0;
+
 protected:
     /*! \brief Creates the editor-controller interface. */
     IEditorController() = default;

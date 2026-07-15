@@ -584,6 +584,22 @@ public:
         audio_device_settings_close_count += 1;
     }
 
+    /*! \brief Counts audio-device settings teardown-complete notifications. */
+    void onAudioDeviceSettingsTeardownComplete() override
+    {
+        audio_device_settings_teardown_complete_count += 1;
+    }
+
+    /*!
+    \brief Records the failure-prompt decision reported by the view.
+    \param decision User-selected failure-prompt decision.
+    */
+    void onAudioDeviceFailureDecision(AudioDeviceFailureDecision decision) override
+    {
+        last_audio_device_failure_decision = decision;
+        audio_device_failure_decision_count += 1;
+    }
+
     /*! \brief Last file passed to onOpenRequested(). */
     std::optional<std::filesystem::path> last_open_file{};
 
@@ -916,6 +932,15 @@ public:
 
     /*! \brief Number of audio-device settings close notifications received. */
     int audio_device_settings_close_count{0};
+
+    /*! \brief Number of audio-device settings teardown-complete notifications received. */
+    int audio_device_settings_teardown_complete_count{0};
+
+    /*! \brief Last decision received from the audio-device failure prompt. */
+    std::optional<AudioDeviceFailureDecision> last_audio_device_failure_decision{};
+
+    /*! \brief Number of audio-device failure-prompt decisions received. */
+    int audio_device_failure_decision_count{0};
 };
 
 } // namespace rock_hero::editor::core::testing

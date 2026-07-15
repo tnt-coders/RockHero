@@ -82,59 +82,37 @@ namespace
            saved_setup.outputDeviceName != live_setup.outputDeviceName;
 }
 
-// Reports whether the saved route's device is currently attached and initializable, so a replug
-// can re-apply the saved route.
-//
-// The name check mirrors the availability check JUCE's setAudioDeviceSetup performs (a
-// device-type match plus each non-empty device name present in that type's freshly scanned
-// list). It is necessary but not sufficient: an ASIO driver keeps advertising its device names
-// while the hardware is unplugged (the listing is registry-backed, not presence-backed), which
-// would report the device permanently "present" and keep the absent->present replug gate from
-// ever firing -- the device would stay closed forever after a reconnect. A non-open probe device
-// settles it: constructing the device loads the driver and runs its init without opening an
-// audio stream, and a failed init (hardware unplugged, or the device held by another
-// application) leaves getLastError() non-empty from birth (verified in juce_ASIO_windows.cpp;
-// the settings window's staged preview device relies on the same behavior). This runs only while
-// the route is closed, so it never contends with an open device.
-[[nodiscard]] bool savedDeviceIsPresent(
-    juce::AudioDeviceManager& device_manager, const juce::XmlElement& saved)
+// Composes the user-facing notice for a closed saved route. The saved XML is the only identity
+// that reliably survives a disconnect (JUCE clears the live setup's device names on its failure
+// path), and the copy is engine-owned so every product explains a closed device the same way.
+[[nodiscard]] std::string deviceUnavailableMessageFor(const juce::XmlElement& saved)
 {
-    const juce::String type_name = saved.getStringAttribute("deviceType");
-    juce::AudioIODeviceType* matching_type = nullptr;
-    for (juce::AudioIODeviceType* type : device_manager.getAvailableDeviceTypes())
-    {
-        if (type->getTypeName() == type_name)
-        {
-            matching_type = type;
-            break;
-        }
-    }
-
-    if (matching_type == nullptr)
-    {
-        return false;
-    }
-
     const juce::AudioDeviceManager::AudioDeviceSetup setup = reconstructDeviceSetupFromXml(saved);
-    if (setup.inputDeviceName.isEmpty() && setup.outputDeviceName.isEmpty())
+    juce::StringArray device_names;
+    if (setup.inputDeviceName.isNotEmpty())
     {
-        return false;
+        device_names.addIfNotAlreadyThere(setup.inputDeviceName);
+    }
+    if (setup.outputDeviceName.isNotEmpty())
+    {
+        device_names.addIfNotAlreadyThere(setup.outputDeviceName);
     }
 
-    matching_type->scanForDevices();
-    const bool input_present = setup.inputDeviceName.isEmpty() ||
-                               matching_type->getDeviceNames(true).contains(setup.inputDeviceName);
-    const bool output_present =
-        setup.outputDeviceName.isEmpty() ||
-        matching_type->getDeviceNames(false).contains(setup.outputDeviceName);
-    if (!input_present || !output_present)
+    if (device_names.isEmpty())
     {
-        return false;
+        return "No audio device could be opened.";
     }
 
-    const std::unique_ptr<juce::AudioIODevice> probe{matching_type->createDevice(
-        setup.outputDeviceName, setup.inputDeviceName)};
-    return probe != nullptr && probe->getLastError().isEmpty();
+    if (device_names.size() == 1)
+    {
+        return ("Audio device \"" + device_names[0] +
+                "\" is unavailable (disconnected or in use by another application).")
+            .toStdString();
+    }
+
+    return ("Audio devices \"" + device_names.joinIntoString("\" and \"") +
+            "\" are unavailable (disconnected or in use by another application).")
+        .toStdString();
 }
 
 } // namespace
@@ -184,21 +162,14 @@ void Engine::Impl::handleAudioDeviceConfigurationRefresh()
 // Applies the no-fallback device policy after any JUCE device-configuration change. JUCE's own
 // disconnect handler falls back to a default device (hard-coded, not suppressible in-band), so a
 // detected fallback is undone here by closing the substitute -- the saved choice survives in
-// lastExplicitSettings, matching the startup restore's behavior. Symmetrically, while the device
-// is closed and the saved device's hardware is attached and initializable, the saved route is
-// re-applied so plugging the interface back in restores the user's device and never a different
-// one.
+// lastExplicitSettings, matching the startup restore's behavior.
 //
-// The reopen retries on every external device event rather than only on an absent -> present
-// presence transition: presence is probed live in savedDeviceIsPresent(), and an edge-triggered
-// gate proved fragile -- an ASIO driver that still initializes for a moment right after unplug
-// latched "present" while closed, after which a real replug produced no edge and the device
-// stayed closed forever. Two guards keep the per-event retry sound. A staging settings edit
-// deliberately closes the device and suppresses the reopen through m_route_staging_active, so
-// nothing grabs the device under the open settings window. And a failed reopen posts its own
-// change message, which m_reopen_echo_pending consumes without a new attempt, so a device that
-// refuses to open earns exactly one attempt per external event instead of a broadcast-driven
-// retry loop.
+// Nothing here (or anywhere else in the engine) reopens a device automatically: automatic
+// reopening required a speculative driver probe and a reopen inside the policy pass, both of
+// which crashed flaky ASIO drivers mid-enumeration. Every reopen is an explicit user-driven
+// application of the saved route (the editor surfaces a closed device through its failure
+// prompt). While the route is closed this policy keeps m_device_unavailable_reason populated so
+// the status snapshot can explain why.
 void Engine::Impl::enforceNoFallbackDevicePolicy()
 {
     juce::AudioDeviceManager& device_manager = m_engine->getDeviceManager().deviceManager;
@@ -218,50 +189,23 @@ void Engine::Impl::enforceNoFallbackDevicePolicy()
             "Saved audio device vanished; closing JUCE's fallback substitute and keeping the "
             "saved choice");
         device_manager.closeAudioDevice();
+        m_device_unavailable_reason = deviceUnavailableMessageFor(*saved);
         return;
     }
 
     juce::AudioIODevice* const live_device = device_manager.getCurrentAudioDevice();
     if (live_device != nullptr && live_device->isOpen())
     {
-        // The open device is the saved device (a fallback was ruled out above). Any pending echo
-        // is stale once a device is open.
-        m_reopen_echo_pending = false;
+        // The open device is the saved device (a fallback was ruled out above).
+        m_device_unavailable_reason.clear();
         return;
     }
 
-    if (m_route_staging_active)
+    if (m_device_unavailable_reason.empty())
     {
-        // A settings edit is staging with the device deliberately closed; leave it alone. The
-        // edit's own commit/cancel decides what reopens when the window closes.
-        return;
-    }
-
-    if (m_reopen_echo_pending)
-    {
-        // This broadcast is the echo of the failed reopen attempt below; consuming it without a
-        // new attempt is what bounds retries to one per external device event.
-        m_reopen_echo_pending = false;
-        return;
-    }
-
-    if (!savedDeviceIsPresent(device_manager, *saved))
-    {
-        // The saved device's hardware is absent or its driver cannot initialize; the next device
-        // event re-evaluates.
-        return;
-    }
-
-    // Re-apply the saved route with JUCE's fallback disabled so only the user's device can open.
-    RH_LOG_INFO(
-        "audio.device_policy", "Saved audio device is available; re-applying the saved route");
-    const juce::String reopen_error = device_manager.initialise(1, 2, saved.get(), false);
-    if (reopen_error.isNotEmpty())
-    {
-        RH_LOG_WARNING(
-            "audio.device_policy",
-            "Saved audio device did not reopen; retrying on the next device event");
-        m_reopen_echo_pending = true;
+        // Closed without a recorded open failure -- the saved device vanished with nothing to
+        // fall back to, so JUCE closed it without an error string to keep.
+        m_device_unavailable_reason = deviceUnavailableMessageFor(*saved);
     }
 }
 
@@ -326,6 +270,7 @@ std::expected<DeviceRestoreOutcome, AudioDeviceConfigurationError> Engine::
     // editor's own route) costs nothing.
     if (activeDeviceMatchesSerializedState(device_manager, *xml))
     {
+        m_impl->m_device_unavailable_reason.clear();
         return DeviceRestoreOutcome::Opened;
     }
 
@@ -340,12 +285,16 @@ std::expected<DeviceRestoreOutcome, AudioDeviceConfigurationError> Engine::
     {
         // The route was applied but the device stayed closed -- the designed no-fallback outcome,
         // reported in the value channel rather than as an error so callers keep the saved choice.
-        // The failed initialise() already posted a device-change message, which drives the same
-        // async monitoring teardown a mid-session disconnect does, so the synchronous monitoring
-        // rebuild below is correctly skipped on this branch.
+        // The backend's own diagnostic is recorded for the status snapshot, so the editor's
+        // failure prompt can name the real cause. The failed initialise() already posted a
+        // device-change message, which drives the same async monitoring teardown a mid-session
+        // disconnect does, so the synchronous monitoring rebuild below is correctly skipped on
+        // this branch.
+        m_impl->m_device_unavailable_reason = error_text.toStdString();
         return DeviceRestoreOutcome::DeviceUnavailable;
     }
 
+    m_impl->m_device_unavailable_reason.clear();
     auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
     if (!route_result.has_value())
     {
@@ -386,20 +335,24 @@ bool Engine::deviceStateMatchesActive(const std::string& serialized_state) const
         m_impl->m_engine->getDeviceManager().deviceManager, *xml);
 }
 
-// Captures open-device timing and route details through the JUCE device manager.
+// Captures open-device timing and route details through the JUCE device manager. A closed
+// snapshot carries the recorded unavailable reason so status consumers can explain the closure.
 AudioDeviceStatus Engine::currentDeviceStatus() const
 {
+    AudioDeviceStatus closed_status;
+    closed_status.unavailable_reason = m_impl->m_device_unavailable_reason;
+
     auto* const current_device =
         m_impl->m_engine->getDeviceManager().deviceManager.getCurrentAudioDevice();
     if (current_device == nullptr || !current_device->isOpen())
     {
-        return {};
+        return closed_status;
     }
 
     const double sample_rate_hz = current_device->getCurrentSampleRate();
     if (sample_rate_hz <= 0.0)
     {
-        return {};
+        return closed_status;
     }
 
     return AudioDeviceStatus{
@@ -466,12 +419,6 @@ std::optional<InputDeviceIdentity> Engine::currentInputDeviceIdentity() const
     }
 
     return identity;
-}
-
-// Suppresses the policy auto-reopen while a settings edit deliberately holds the device closed.
-void Engine::setRouteStagingActive(bool active)
-{
-    m_impl->m_route_staging_active = active;
 }
 
 // Registers a project-owned device-configuration listener.
