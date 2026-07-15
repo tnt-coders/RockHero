@@ -519,14 +519,12 @@ public:
     virtual void onAudioDeviceSettingsTeardownComplete() = 0;
 
     /*!
-    \brief Handles the user's response to the audio-device failure prompt.
+    \brief Handles the user's response to the audio-device failure overlay.
 
     Retry re-applies the active source's saved route behind the busy overlay; a device that still
     fails to open re-stages the prompt with a fresh reason. OpenSettings clears the prompt only:
     the view follows the decision by opening the audio device settings window, whose suppression
-    then owns the prompt until the window tears down. ExitEditor runs the regular exit flow
-    (unsaved-changes prompting included) so a user with no working audio device is never trapped
-    behind the persistent modal.
+    then owns the prompt until the window tears down.
 
     \param decision Decision selected by the user.
     */

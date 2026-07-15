@@ -238,9 +238,9 @@ struct GameAudioUnavailablePrompt
 
 Staged whenever the editor ends up without an open audio device outside the flows that
 legitimately close it (a staging settings edit, an in-flight device operation, an unresolved
-startup game-audio prompt). The view presents it as the persistent Retry / Open Audio Settings
-modal;
-it clears only when a device opens or the audio settings window takes over.
+startup game-audio prompt). The view renders it as the editor-wide blocking failure overlay,
+which follows this state directly: it appears while the prompt is staged, live-updates its text,
+and retracts when a device opens or the audio settings window takes over.
 */
 struct AudioDeviceFailurePrompt
 {
@@ -249,14 +249,6 @@ struct AudioDeviceFailurePrompt
 
     /*! \brief Display name(s) of the saved route's device the reason is about; may be empty. */
     std::string device_name;
-
-    /*!
-    \brief Staging counter making each (re)staging distinct.
-
-    Bumped by the controller every time the prompt is staged, so the view's present-once tracking
-    re-presents the modal after a failed Retry even when the reason text is unchanged.
-    */
-    std::uint64_t generation{0};
 
     /*!
     \brief Compares two failure prompt requests by their stored values.
@@ -268,7 +260,7 @@ struct AudioDeviceFailurePrompt
         const AudioDeviceFailurePrompt& lhs, const AudioDeviceFailurePrompt& rhs) = default;
 };
 
-/*! \brief User decisions available on the audio-device failure prompt. */
+/*! \brief User decisions available on the audio-device failure overlay. */
 enum class AudioDeviceFailureDecision : std::uint8_t
 {
     /*! \brief Re-apply the active source's saved route. */
@@ -276,14 +268,6 @@ enum class AudioDeviceFailureDecision : std::uint8_t
 
     /*! \brief Open the audio device settings window to fix the route by hand. */
     OpenSettings,
-
-    /*!
-    \brief Exit the editor through the regular exit flow.
-
-    The escape hatch for a user with no working audio device at all: the persistent prompt would
-    otherwise trap them, because the modal blocks the main window's own close controls.
-    */
-    ExitEditor,
 };
 
 /*! \brief Describes an active input calibration prompt requested by the controller. */
@@ -436,8 +420,7 @@ struct EditorViewState
 
     Present whenever the editor runs without an open audio device and no other flow owns the
     situation (settings window open, busy device operation in flight, startup game-audio prompt
-    unresolved). The view presents the persistent Retry / Open Audio Settings modal and answers
-    through
+    unresolved). The view renders the blocking failure overlay while present and answers through
     IEditorController::onAudioDeviceFailureDecision.
     */
     std::optional<AudioDeviceFailurePrompt> audio_device_failure_prompt{};

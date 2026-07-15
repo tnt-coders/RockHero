@@ -9,7 +9,9 @@ add_library(rock_hero::editor::ui ALIAS rock_hero_editor_ui)
 # Sources are grouped by feature folder; folders are navigation only and add no targets.
 target_sources(
     rock_hero_editor_ui
-    PRIVATE src/audio_device/audio_device_settings_view.cpp
+    PRIVATE src/audio_device/audio_device_failure_overlay.cpp
+            src/audio_device/audio_device_failure_overlay.h
+            src/audio_device/audio_device_settings_view.cpp
             src/audio_device/audio_device_settings_view.h
             src/audio_device/audio_device_settings_window.cpp
             src/audio_device/audio_device_settings_window.h

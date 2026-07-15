@@ -9,19 +9,23 @@ User-directed redesign of how a closed audio device is surfaced (the app realist
 function without one). This section is authoritative over the rule-1 phrasing below wherever they
 conflict; the game-audio ruleset itself is unchanged.
 
-- **Any closed-audio-device state raises a persistent modal**: an `Audio device "X" unavailable`
-  headline (device name from the saved route) followed by "Failed to open audio device:
-  \<specific reason\>" — the backend's own diagnostic when an open was attempted, or the plain
-  "Disconnected" when the device simply vanished (no open ran, so no driver text exists). Buttons:
-  **Retry**, **Open Audio Settings**, and **Exit Editor** (no dismiss — it stays until a Retry
-  succeeds or the settings window opens; Return maps to Retry, Escape to Open Audio Settings, and
-  Exit Editor is click-only so a reflexive keypress can never quit; it exists because the modal
-  blocks the main window's close controls and a user may have no working device at all). Raised at
-  startup when the saved route cannot open, and on a mid-session disconnect. Suppressed while the
-  audio settings window is open (its staged edit deliberately closes the device); re-raised when
-  the window tears down with the device still closed. Deferred behind the plan-48 startup prompts
-  so at most one modal shows at a time. Rule 1's "route-kept-closed notice" is now this popup; the
-  toggle still stays ON (the failure is about the device, not the source).
+- **Any closed-audio-device state raises an editor-wide blocking overlay** (not a JUCE modal): it
+  shares the busy overlay's presentation language — a dim layer over the whole editor with a
+  centered surface — but is its own standing state, driven directly by
+  `EditorViewState::audio_device_failure_prompt`. It shows an `Audio device "X" unavailable`
+  headline (device name from the saved route) and "Failed to open audio device: \<specific
+  reason\>" — the backend's own diagnostic when an open was attempted, or the plain "Disconnected"
+  when the device simply vanished (no open ran, so no driver text exists). Buttons: **Retry** and
+  **Open Audio Settings** (Return maps to Retry, Escape to Open Audio Settings). Because it is an
+  ordinary child component rather than a modal, the main window's own close controls keep working,
+  so a user with no working device at all can always exit the editor normally — no dedicated exit
+  affordance is needed. It appears at startup when the saved route cannot open, and on a
+  mid-session disconnect; live-updates its reason on later device events; and retracts the moment a
+  device opens. Suppressed while the audio settings window is open (its staged edit deliberately
+  closes the device); re-raised when the window tears down with the device still closed. Deferred
+  behind the plan-48 startup prompts so at most one blocking surface shows at a time. Rule 1's
+  "route-kept-closed notice" is now this overlay; the toggle still stays ON (the failure is about
+  the device, not the source).
 - **The engine's automatic reopen is removed** (it speculatively instantiated ASIO drivers
   mid-enumeration and re-opened devices inside its policy pass — both intermittently crashed
   flaky drivers). The engine's no-fallback policy now only undoes JUCE's hard-coded disconnect
