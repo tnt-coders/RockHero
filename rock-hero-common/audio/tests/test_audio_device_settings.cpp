@@ -813,6 +813,67 @@ TEST_CASE(
         juce::String{g_output_b});
 }
 
+// An edit can begin on a closed, disconnected device (the startup restore fell back nowhere by
+// design), so there is no pending restore. When the hardware returns while the window is open, OK
+// is an explicit confirmation of the shown route and must finish with the device open -- the
+// restore-pending gate only guards cancel's "don't start audio that was not running".
+TEST_CASE(
+    "AudioDeviceSettings commit opens the saved route once its device returns",
+    "[audio][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    MockAudioDeviceType& audio_type =
+        addMockAudioType(audio_devices.device_manager, g_asio_type_name);
+    REQUIRE(audio_devices.device_manager.setAudioDeviceSetup(initialRouteSetup(), true).isEmpty());
+
+    juce::XmlElement saved{"DEVICESETUP"};
+    saved.setAttribute("deviceType", g_asio_type_name);
+    saved.setAttribute("audioInputDeviceName", "Input Z");
+    saved.setAttribute("audioOutputDeviceName", "Output Z");
+    REQUIRE(audio_devices.device_manager.initialise(1, 2, &saved, false).isNotEmpty());
+
+    AudioDeviceSettings settings{audio_devices};
+    REQUIRE(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
+
+    audio_type.setDeviceNames(
+        {g_input_a, g_input_b, "Input Z"}, {g_output_a, g_output_b, "Output Z"});
+    audio_devices.notifyChanged();
+    REQUIRE_FALSE(settings.state().staged_device_error.has_value());
+
+    const auto committed = settings.commit();
+    REQUIRE(committed.has_value());
+    CHECK(audio_devices.device_manager.getCurrentAudioDevice() != nullptr);
+    CHECK(
+        audio_devices.device_manager.getAudioDeviceSetup().outputDeviceName ==
+        juce::String{"Output Z"});
+}
+
+// When the chosen device is still missing at OK time, the reopen attempt fails as the designed
+// no-fallback outcome: commit succeeds so the window closes, the device stays closed, and the
+// route remains the user's explicit choice for the next replug or launch.
+TEST_CASE(
+    "AudioDeviceSettings commit leaves a still-missing device closed",
+    "[audio][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    openInitialRoute(audio_devices);
+
+    juce::XmlElement saved{"DEVICESETUP"};
+    saved.setAttribute("deviceType", g_asio_type_name);
+    saved.setAttribute("audioInputDeviceName", "Input Z");
+    saved.setAttribute("audioOutputDeviceName", "Output Z");
+    REQUIRE(audio_devices.device_manager.initialise(1, 2, &saved, false).isNotEmpty());
+
+    AudioDeviceSettings settings{audio_devices};
+
+    const auto committed = settings.commit();
+    REQUIRE(committed.has_value());
+    CHECK(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
+    CHECK(settings.state().staged_device_error.has_value());
+}
+
 // After a failed no-fallback restore of a missing device, JUCE's live setup no longer names the
 // user's choice (the failure clears the setup's device names on its way out), so seeding the edit
 // from the live setup would snap it to the driver's default device. The user's actual choice
