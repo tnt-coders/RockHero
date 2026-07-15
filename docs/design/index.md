@@ -14,3 +14,6 @@ Read these documents together:
   maintainable as it grows.
 - `Coding Conventions` defines C++ rules that are not fully captured by clang-format or clang-tidy.
 - `Documentation Conventions` defines the comment and Doxygen conventions for project-owned code.
+
+For plain-language introductions to these concepts and step-by-step checklists for common
+changes, see the \ref guide — the procedural companion to these rule documents.

@@ -1030,14 +1030,9 @@ INPUT                  = @CMAKE_SOURCE_DIR@/README.md \
                          @CMAKE_SOURCE_DIR@/rock-hero-common \
                          @CMAKE_SOURCE_DIR@/rock-hero-editor \
                          @CMAKE_SOURCE_DIR@/rock-hero-game \
-                         @CMAKE_SOURCE_DIR@/docs/design/index.md \
-                         @CMAKE_SOURCE_DIR@/docs/design/architecture.md \
-                         @CMAKE_SOURCE_DIR@/docs/design/architectural-principles.md \
-                         @CMAKE_SOURCE_DIR@/docs/design/coding-conventions.md \
-                         @CMAKE_SOURCE_DIR@/docs/design/documentation-conventions.md \
-                         @CMAKE_SOURCE_DIR@/docs/user/index.md \
-                         @CMAKE_SOURCE_DIR@/docs/user/input-calibration.md \
-                         @CMAKE_SOURCE_DIR@/docs/user/difficulty-ratings.md
+                         @CMAKE_SOURCE_DIR@/docs/design \
+                         @CMAKE_SOURCE_DIR@/docs/guide \
+                         @CMAKE_SOURCE_DIR@/docs/user
 
 # This tag can be used to specify the character encoding of the source files
 # that Doxygen parses. Internally Doxygen uses the UTF-8 encoding. Doxygen uses
