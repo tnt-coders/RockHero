@@ -7,6 +7,7 @@
 #include <rock_hero/common/audio/input/live_input_monitor.h>
 #include <rock_hero/common/audio/settings/audio_config_identity.h>
 #include <rock_hero/common/core/shared/application_identity.h>
+#include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/editor/core/audio/editor_audio_config_store.h>
 #include <rock_hero/editor/core/settings/editor_settings.h>
@@ -38,7 +39,7 @@ constexpr std::size_t g_max_log_file_size_bytes = static_cast<std::size_t>(8U * 
         juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
             .getChildFile(juce::String{folder_name.data(), folder_name.size()})
             .getChildFile("Rock Hero Editor.log");
-    return std::filesystem::path{log_file.getFullPathName().toStdString()};
+    return common::core::pathFromJuceFile(log_file);
 }
 
 // Resolves the game's audio-config file by the same per-user path AudioConfigStore derives for the
@@ -56,7 +57,7 @@ constexpr std::size_t g_max_log_file_size_bytes = static_cast<std::size_t>(8U * 
     options.folderName = juce::String{folder_name.data(), folder_name.size()};
     options.osxLibrarySubFolder = "Application Support";
     options.commonToAllUsers = false;
-    return std::filesystem::path{options.getDefaultFile().getFullPathName().toStdString()};
+    return common::core::pathFromJuceFile(options.getDefaultFile());
 }
 
 // Maps the concrete Tracktion-backed engine into the editor's narrow audio-port bundle. This

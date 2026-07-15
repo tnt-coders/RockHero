@@ -45,7 +45,7 @@ namespace
         juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
             .getChildFile(juce::String{folder_name.data(), folder_name.size()})
             .getChildFile("Rock Hero Game.log");
-    return std::filesystem::path{log_file.getFullPathName().toStdString()};
+    return common::core::pathFromJuceFile(log_file);
 }
 
 // Returns the value following the named argument, or empty when the argument is absent.
@@ -134,7 +134,7 @@ namespace
             .getChildFile(juce::String{folder_name.data(), folder_name.size()})
             .getChildFile("game-sessions")
             .getChildFile(juce::Uuid{}.toString());
-    return std::filesystem::path{workspace_root.getFullPathName().toStdString()};
+    return common::core::pathFromJuceFile(workspace_root);
 }
 
 // Scans the song library at startup for the shell's menu: the per-user default Songs folder
