@@ -26,6 +26,14 @@ conflict; the game-audio ruleset itself is unchanged.
   (`applyAudioSourceAndRoute`) shared by startup, the settings-window toggle, the recommendation
   decision, and Retry; `EditorViewState::use_game_audio_settings` now derives from the live store
   selection rather than re-reading the persisted toggle.
+- **Recommendation decline button (supersedes rule 3's "no settings window" clause):** the
+  decline button now reads **"Open Settings"** and opens the audio device settings window after
+  persisting the toggle off, landing the user where custom settings are actually configured. Its
+  decision semantics are otherwise unchanged (Esc/close still writes nothing and re-asks).
+- **Chosen-but-unopenable device stays the saved choice:** an OK onto a device whose driver fails
+  to initialize now re-serializes the staged route as the saved choice (JUCE's own updateXml runs
+  only after a successful open), so the failure popup and its Retry target the newly chosen
+  device, never the previous one.
 
 ## Amendment (2026-07-13) — final startup ruleset
 

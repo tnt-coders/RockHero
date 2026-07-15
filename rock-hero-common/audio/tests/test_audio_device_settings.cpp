@@ -729,6 +729,40 @@ TEST_CASE(
     CHECK(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
 }
 
+// OK onto a device whose driver cannot initialize keeps THAT device as the saved choice: JUCE's
+// own updateXml() runs only after a successful open, so without the explicit re-serialization the
+// previous route would silently remain the saved choice -- and the editor's failure prompt would
+// name and Retry the old device instead of the one the user just chose.
+TEST_CASE(
+    "AudioDeviceSettings apply keeps an unopenable staged route as the saved choice",
+    "[audio][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    addMockAudioType(
+        audio_devices.device_manager,
+        g_asio_type_name,
+        juce::StringArray{},
+        false,
+        true,
+        juce::StringArray{g_output_b});
+    REQUIRE(audio_devices.device_manager.setAudioDeviceSetup(initialRouteSetup(), true).isEmpty());
+
+    AudioDeviceSettings settings{audio_devices};
+    settings.selectInputDevice(2);
+    settings.selectOutputDevice(2);
+    REQUIRE(settings.state().staged_device_error.has_value());
+
+    const auto applied = settings.apply();
+
+    REQUIRE(applied.has_value());
+    CHECK(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
+    const std::unique_ptr<juce::XmlElement> saved = audio_devices.device_manager.createStateXml();
+    REQUIRE(saved != nullptr);
+    CHECK(saved->getStringAttribute("audioOutputDeviceName") == juce::String{g_output_b});
+    CHECK(saved->getStringAttribute("audioInputDeviceName") == juce::String{g_input_b});
+}
+
 // JUCE substitutes the pinned placeholder "Driver failed to initialise" when a failed driver init
 // supplies no vendor message; it passes through like any other backend text, normalized only to
 // American spelling at this boundary.

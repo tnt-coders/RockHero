@@ -33,7 +33,9 @@ public:
         m_suppress_checkbox.setSize(g_checkbox_width, g_checkbox_height);
         addCustomComponent(&m_suppress_checkbox);
         addButton("Use game audio settings (recommended)", g_use_game_result);
-        addButton("Use custom audio settings", g_use_custom_result);
+        // The decline path lands the user in the audio settings window (the view opens it on this
+        // decision), so the button names that destination rather than an abstract "custom" mode.
+        addButton("Open Settings", g_use_custom_result);
     }
 
     RecommendationAlertWindow(const RecommendationAlertWindow&) = delete;

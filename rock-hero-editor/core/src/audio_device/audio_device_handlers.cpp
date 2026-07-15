@@ -319,7 +319,10 @@ void EditorController::Impl::onGameAudioRecommendationDecision(
         case GameAudioRecommendationDecision::UseCustomSettings:
         {
             // The same application path as every other source decision: persists the toggle off
-            // and re-applies the editor's own route (a no-op when it is already active).
+            // and re-applies the editor's own route (a no-op when it is already active). The view
+            // has already opened the audio device settings window for this decision ("Open
+            // Settings"), so the settings-open suppression keeps the failure-prompt evaluation
+            // below quiet until that window tears down.
             static_cast<void>(applyAudioSourceAndRoute(AudioSourceSelection::EditorOwn, {}));
             break;
         }
