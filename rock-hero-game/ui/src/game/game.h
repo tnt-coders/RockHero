@@ -155,8 +155,10 @@ public:
         const std::optional<core::FramePacingSummary>& pacing_summary);
 
 private:
-    // Starts the picked song: reprojects the chart into the renderer and (re)starts the gameplay
-    // session on it, closing any prior session first so a second pick reloads cleanly.
+    // Starts the picked song: loads the chart into the renderer and (re)starts the gameplay session
+    // on it, closing any prior session first so a second pick reloads cleanly. Leaves the menu only
+    // when both the chart load and the session start succeed; either failure stays in the menu
+    // (logged and printed to stderr) rather than dropping the player onto an empty, frozen board.
     void launchSong(const core::SongSelectLaunch& launch);
 
     // Content owned by this object.

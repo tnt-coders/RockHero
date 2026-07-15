@@ -259,16 +259,25 @@ Game::Game(common::ui::HighwayRenderer renderer, Config config)
 
 void Game::launchSong(const core::SongSelectLaunch& launch)
 {
-    m_dev_session = DevSession::create(
+    // Load the display chart first, into a local. A pick that produces no loadable chart must not
+    // drop the player out of the menu onto an empty board, so bail before touching the session,
+    // the renderer, or the menu flag.
+    std::optional<DevSession> dev_session = DevSession::create(
         launch.package_path, m_lefty, std::chrono::steady_clock::now().time_since_epoch());
-    if (m_dev_session.has_value())
+    if (!dev_session.has_value())
     {
-        std::optional<common::core::HighwayViewState> state = m_dev_session->takeLoadedViewState();
-        if (state.has_value())
-        {
-            m_renderer.setViewState(std::move(*state));
-        }
+        RH_LOG_WARNING(
+            "game.session",
+            "launch aborted: package has no loadable chart package={:?}",
+            launch.package_path.string());
+        std::println(
+            stderr, "rock-hero: package has no loadable chart: {}", launch.package_path.string());
+        return;
     }
+
+    // Start the gameplay session (audio) before leaving the menu, so a synchronous start failure
+    // keeps the player in the menu rather than on a silent, frozen board. Closing any prior session
+    // first lets a second pick reload cleanly and satisfies start()'s Idle precondition.
     if (m_session != nullptr)
     {
         m_session->close();
@@ -281,8 +290,18 @@ void Game::launchSong(const core::SongSelectLaunch& launch)
             !started.has_value())
         {
             RH_LOG_WARNING("game.session", "session start failed: {}", started.error().message);
+            std::println(stderr, "rock-hero: {}", started.error().message);
+            return;
         }
     }
+
+    // Both steps succeeded: adopt the loaded chart and leave the menu for the gameplay surface.
+    std::optional<common::core::HighwayViewState> state = dev_session->takeLoadedViewState();
+    if (state.has_value())
+    {
+        m_renderer.setViewState(std::move(*state));
+    }
+    m_dev_session = std::move(dev_session);
     m_in_menu = false;
 }
 

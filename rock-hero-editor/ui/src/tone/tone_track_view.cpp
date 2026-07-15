@@ -373,7 +373,9 @@ void ToneTrackView::showRegionContextMenu(
         return;
     }
     menu.showMenuAsync(
-        juce::PopupMenu::Options{}.withMousePosition(),
+        // Force a cancel result if this view is deleted while the menu is open, so the callback
+        // never dereferences a dangling listener (JUCE reports result 0 for a deleted watch target).
+        juce::PopupMenu::Options{}.withMousePosition().withDeletionCheck(*this),
         [this, ref = region.tone_document_ref, name = region.name, id = region.id, insert_position](
             int result) {
             if (result == 1)

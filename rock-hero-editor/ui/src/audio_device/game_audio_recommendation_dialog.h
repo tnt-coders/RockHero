@@ -26,7 +26,7 @@ class GameAudioRecommendationDialog final
 {
 public:
     /*!
-    \brief Called exactly once when the dialog is answered or dismissed.
+    \brief Called at most once when the dialog is answered or dismissed.
 
     Receives the decision plus the "don't show this message again" checkbox value at close time.
     */
@@ -35,8 +35,11 @@ public:
 
     /*!
     \brief Opens the self-deleting modal alert associated with the window that owns the anchor.
-    \param anchor Component used to find the owning editor window for positioning.
-    \param on_decision Called exactly once with the user's decision and checkbox value.
+    \param anchor Component used to find the owning editor window for positioning, and the liveness
+           anchor for the callback: if it is destroyed before the dialog closes, on_decision is not
+           called.
+    \param on_decision Called once with the user's decision and checkbox value, unless the anchor
+           was destroyed first.
     */
     static void show(juce::Component& anchor, DecisionCallback on_decision);
 

@@ -31,7 +31,9 @@ void showThemedButtonBox(
 
     const int last_index = buttons.size() - 1;
     showThemedDialogModally(
-        std::move(window), [last_index, owned_on_choice = std::move(on_choice)](int result) {
+        std::move(window),
+        associated_component,
+        [last_index, owned_on_choice = std::move(on_choice)](int result) {
             if (owned_on_choice)
             {
                 owned_on_choice(result == 0 ? last_index : result - 1);
@@ -53,18 +55,30 @@ std::function<void(int)> ignoringChoice(std::function<void()> on_dismissed)
 } // namespace
 
 void showThemedDialogModally(
-    std::unique_ptr<juce::AlertWindow> window, std::function<void(int)> on_result)
+    std::unique_ptr<juce::AlertWindow> window, juce::Component* owner,
+    std::function<void(int)> on_result)
 {
     juce::AlertWindow* const window_ptr = window.release();
     window_ptr->enterModalState(
         true,
-        // Distinct capture name: clang's -Wshadow-uncaptured-local flags `x = std::move(x)`.
-        juce::ModalCallbackFunction::create([owned_on_result = std::move(on_result)](int result) {
-            if (owned_on_result)
-            {
+        // A self-deleting modal dialog can outlive the component that opened it (e.g. the editor is
+        // torn down at app shutdown while a prompt is up), and the result callback captures that
+        // component, so drop the result once the owner is gone. A null owner opts out. Distinct
+        // capture name: clang's -Wshadow-uncaptured-local flags `x = std::move(x)`.
+        juce::ModalCallbackFunction::create(
+            [owner_guard = juce::Component::SafePointer<juce::Component>{owner},
+             owner_was_set = owner != nullptr,
+             owned_on_result = std::move(on_result)](int result) {
+                if (!owned_on_result)
+                {
+                    return;
+                }
+                if (owner_was_set && owner_guard.getComponent() == nullptr)
+                {
+                    return;
+                }
                 owned_on_result(result);
-            }
-        }),
+            }),
         true);
 }
 
@@ -109,7 +123,9 @@ void showThemedTextPrompt(
     // still valid for reading the entered text.
     juce::AlertWindow* const window_ptr = window.get();
     showThemedDialogModally(
-        std::move(window), [window_ptr, owned_on_accept = std::move(on_accept)](int result) {
+        std::move(window),
+        associated_component,
+        [window_ptr, owned_on_accept = std::move(on_accept)](int result) {
             if (result == 1 && owned_on_accept)
             {
                 owned_on_accept(window_ptr->getTextEditorContents("value"));
