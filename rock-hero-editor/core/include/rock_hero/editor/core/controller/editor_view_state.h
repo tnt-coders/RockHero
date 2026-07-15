@@ -244,8 +244,11 @@ it clears only when a device opens or the audio settings window takes over.
 */
 struct AudioDeviceFailurePrompt
 {
-    /*! \brief Reason no device is open: the backend's diagnostic or a composed disconnect notice. */
+    /*! \brief Reason no device is open: the backend's diagnostic, or "Disconnected". */
     std::string message;
+
+    /*! \brief Display name(s) of the saved route's device the reason is about; may be empty. */
+    std::string device_name;
 
     /*!
     \brief Staging counter making each (re)staging distinct.
@@ -273,6 +276,14 @@ enum class AudioDeviceFailureDecision : std::uint8_t
 
     /*! \brief Open the audio device settings window to fix the route by hand. */
     OpenSettings,
+
+    /*!
+    \brief Exit the editor through the regular exit flow.
+
+    The escape hatch for a user with no working audio device at all: the persistent prompt would
+    otherwise trap them, because the modal blocks the main window's own close controls.
+    */
+    ExitEditor,
 };
 
 /*! \brief Describes an active input calibration prompt requested by the controller. */

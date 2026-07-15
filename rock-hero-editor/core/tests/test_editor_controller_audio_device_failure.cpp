@@ -20,12 +20,14 @@ namespace rock_hero::editor::core
 namespace
 {
 
-// Builds a closed-device status carrying the backend's recorded unavailable reason, mirroring how
-// the engine publishes a failed open on its status snapshot.
-[[nodiscard]] common::audio::AudioDeviceStatus closedStatusWithReason(std::string reason)
+// Builds a closed-device status carrying the backend's recorded unavailable reason and device
+// name, mirroring how the engine publishes a failed open on its status snapshot.
+[[nodiscard]] common::audio::AudioDeviceStatus closedStatusWithReason(
+    std::string reason, std::string device_name = "Interface A")
 {
     common::audio::AudioDeviceStatus status;
     status.unavailable_reason = std::move(reason);
+    status.unavailable_device_name = std::move(device_name);
     return status;
 }
 
@@ -82,7 +84,7 @@ struct FailurePromptHarness
         controller.emplace(
             audioPorts(transport, audio, audio_devices),
             controllerServices(nullEditorSettings(), store, monitor),
-            noopExitFunction());
+            [this] { exit_count += 1; });
         controller->attachView(view);
     }
 
@@ -100,6 +102,7 @@ struct FailurePromptHarness
     common::audio::testing::FakeLiveInput live_input;
     common::audio::LiveInputMonitor monitor{live_input, audio_devices, store};
     FakeEditorView view;
+    int exit_count{0};
     std::optional<EditorController> controller;
 };
 
@@ -115,6 +118,7 @@ TEST_CASE(
 
     REQUIRE(harness.prompt().has_value());
     CHECK(harness.prompt()->message == "driver init failed");
+    CHECK(harness.prompt()->device_name == "Interface A");
     CHECK(harness.view.last_state->audio_device_status_text == "[audio device closed]");
 }
 
@@ -238,6 +242,20 @@ TEST_CASE(
         harness.audio_devices.restore_serialized_device_state_call_count ==
         startup_restore_count + 2);
     CHECK_FALSE(harness.prompt().has_value());
+}
+
+// Exit Editor routes through the regular exit flow -- the escape hatch for a user with no working
+// audio device, since the persistent modal blocks the main window's own close controls.
+TEST_CASE(
+    "EditorController ExitEditor decision runs the exit flow",
+    "[core][editor-controller][audio-device-failure]")
+{
+    FailurePromptHarness harness;
+    REQUIRE(harness.prompt().has_value());
+
+    harness.controller->onAudioDeviceFailureDecision(AudioDeviceFailureDecision::ExitEditor);
+
+    CHECK(harness.exit_count == 1);
 }
 
 // OpenSettings clears the prompt so the settings window can take over; nothing re-stages until

@@ -105,15 +105,29 @@ void EditorController::Impl::onAudioDeviceSettingsTeardownComplete()
 // source's saved route; the no-op applying presentation routes the genuine reopen through the
 // busy overlay, and the busy-clear evaluation re-stages the prompt with a fresh generation when
 // the device is still closed. OpenSettings clears the prompt only: the view follows by opening
-// the settings window, whose suppression owns the prompt until teardown.
+// the settings window, whose suppression owns the prompt until teardown. ExitEditor runs the
+// regular exit flow (unsaved-changes prompting included) -- the escape hatch for a user with no
+// working audio device at all.
 void EditorController::Impl::onAudioDeviceFailureDecision(AudioDeviceFailureDecision decision)
 {
     m_audio_device_failure_prompt.reset();
 
-    if (decision == AudioDeviceFailureDecision::Retry)
+    switch (decision)
     {
-        static_cast<void>(applyAudioSourceAndRoute(AudioSourceSelection::Current, [](bool) {}));
-        return;
+        case AudioDeviceFailureDecision::Retry:
+        {
+            static_cast<void>(applyAudioSourceAndRoute(AudioSourceSelection::Current, [](bool) {}));
+            return;
+        }
+        case AudioDeviceFailureDecision::OpenSettings:
+        {
+            break;
+        }
+        case AudioDeviceFailureDecision::ExitEditor:
+        {
+            onExitRequested();
+            return;
+        }
     }
 
     updateView();
@@ -175,6 +189,7 @@ void EditorController::Impl::refreshAudioDeviceFailurePrompt()
         .message = !status.unavailable_reason.empty()
                        ? status.unavailable_reason
                        : std::string{g_generic_device_failure_reason},
+        .device_name = status.unavailable_device_name,
         .generation = ++m_audio_device_failure_generation,
     };
 }

@@ -9,15 +9,19 @@ User-directed redesign of how a closed audio device is surfaced (the app realist
 function without one). This section is authoritative over the rule-1 phrasing below wherever they
 conflict; the game-audio ruleset itself is unchanged.
 
-- **Any closed-audio-device state raises a persistent modal**: "Failed to open audio device:
-  \<specific reason\>" with **Retry** and **Open Audio Settings** (no Close — it stays until a
-  Retry succeeds or the settings window opens; Escape maps to Open Audio Settings). Raised at
-  startup when the
-  saved route cannot open, and on a mid-session disconnect. Suppressed while the audio settings
-  window is open (its staged edit deliberately closes the device); re-raised when the window tears
-  down with the device still closed. Deferred behind the plan-48 startup prompts so at most one
-  modal shows at a time. Rule 1's "route-kept-closed notice" is now this popup; the toggle still
-  stays ON (the failure is about the device, not the source).
+- **Any closed-audio-device state raises a persistent modal**: an `Audio device "X" unavailable`
+  headline (device name from the saved route) followed by "Failed to open audio device:
+  \<specific reason\>" — the backend's own diagnostic when an open was attempted, or the plain
+  "Disconnected" when the device simply vanished (no open ran, so no driver text exists). Buttons:
+  **Retry**, **Open Audio Settings**, and **Exit Editor** (no dismiss — it stays until a Retry
+  succeeds or the settings window opens; Return maps to Retry, Escape to Open Audio Settings, and
+  Exit Editor is click-only so a reflexive keypress can never quit; it exists because the modal
+  blocks the main window's close controls and a user may have no working device at all). Raised at
+  startup when the saved route cannot open, and on a mid-session disconnect. Suppressed while the
+  audio settings window is open (its staged edit deliberately closes the device); re-raised when
+  the window tears down with the device still closed. Deferred behind the plan-48 startup prompts
+  so at most one modal shows at a time. Rule 1's "route-kept-closed notice" is now this popup; the
+  toggle still stays ON (the failure is about the device, not the source).
 - **The engine's automatic reopen is removed** (it speculatively instantiated ASIO drivers
   mid-enumeration and re-opened devices inside its policy pass — both intermittently crashed
   flaky drivers). The engine's no-fallback policy now only undoes JUCE's hard-coded disconnect
