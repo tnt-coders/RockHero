@@ -36,7 +36,6 @@ TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-
                     .stop_enabled = false,
                     .play_pause_shows_pause_icon = false,
                 },
-            .audio_devices_available = false,
             .visible_timeline =
                 common::core::TimeRange{
                     .start = common::core::TimePosition{},
@@ -136,7 +135,6 @@ TEST_CASE("EditorView setState projects controls with load focus", "[ui][editor-
                     .stop_enabled = true,
                     .play_pause_shows_pause_icon = true,
                 },
-            .audio_devices_available = false,
             .visible_timeline =
                 common::core::TimeRange{
                     .start = common::core::TimePosition{},
@@ -272,7 +270,8 @@ TEST_CASE("EditorView emits plugin open intents", "[ui][editor-view]")
     CHECK(controller.last_opened_plugin_instance_id == std::optional<std::string>{"instance"});
 }
 
-// Verifies the menu-bar button reflects the current audio-device status and backend availability.
+// Verifies the menu-bar button reflects the current audio-device status text and the settings
+// enablement gate.
 TEST_CASE("EditorView projects audio device menu button state", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -284,16 +283,17 @@ TEST_CASE("EditorView projects audio device menu button state", "[ui][editor-vie
 
     view.setState(core::EditorViewState{});
 
-    CHECK_FALSE(audio_button.isEnabled());
-    CHECK(audio_button.getText() == "[audio device closed]");
-
-    core::EditorViewState state;
-    state.audio_devices_available = true;
-    view.setState(state);
-
     CHECK(audio_button.isEnabled());
     CHECK(audio_button.getText() == "[audio device closed]");
 
+    core::EditorViewState state;
+    state.audio_device_settings_enabled = false;
+    view.setState(state);
+
+    CHECK_FALSE(audio_button.isEnabled());
+    CHECK(audio_button.getText() == "[audio device closed]");
+
+    state.audio_device_settings_enabled = true;
     state.audio_device_status_text = "[48kHz 24bit: 2/2ch 128spls ~4.5/7.5ms ASIO]";
     view.setState(state);
 

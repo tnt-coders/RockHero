@@ -233,6 +233,47 @@ struct GameAudioUnavailablePrompt
     }
 };
 
+/*!
+\brief Standing failure notice that no audio device is open, when raised.
+
+Staged whenever the editor ends up without an open audio device outside the flows that
+legitimately close it (a staging settings edit, an in-flight device operation, an unresolved
+startup game-audio prompt). The view presents it as the persistent Retry / Open Settings modal;
+it clears only when a device opens or the audio settings window takes over.
+*/
+struct AudioDeviceFailurePrompt
+{
+    /*! \brief Reason no device is open: the backend's diagnostic or a composed disconnect notice. */
+    std::string message;
+
+    /*!
+    \brief Staging counter making each (re)staging distinct.
+
+    Bumped by the controller every time the prompt is staged, so the view's present-once tracking
+    re-presents the modal after a failed Retry even when the reason text is unchanged.
+    */
+    std::uint64_t generation{0};
+
+    /*!
+    \brief Compares two failure prompt requests by their stored values.
+    \param lhs Left-hand prompt request.
+    \param rhs Right-hand prompt request.
+    \return True when both prompt requests store equal values.
+    */
+    friend bool operator==(
+        const AudioDeviceFailurePrompt& lhs, const AudioDeviceFailurePrompt& rhs) = default;
+};
+
+/*! \brief User decisions available on the audio-device failure prompt. */
+enum class AudioDeviceFailureDecision : std::uint8_t
+{
+    /*! \brief Re-apply the active source's saved route. */
+    Retry,
+
+    /*! \brief Open the audio device settings window to fix the route by hand. */
+    OpenSettings,
+};
+
 /*! \brief Describes an active input calibration prompt requested by the controller. */
 struct InputCalibrationPrompt
 {
@@ -347,9 +388,6 @@ struct EditorViewState
     /*! \brief Menu-bar status text for the current audio-device route. */
     std::string audio_device_status_text{"[audio device closed]"};
 
-    /*! \brief True when the controller has an audio-device backend available. */
-    bool audio_devices_available{false};
-
     /*! \brief Enables or disables opening audio-device settings. */
     bool audio_device_settings_enabled{true};
 
@@ -380,6 +418,16 @@ struct EditorViewState
     through IEditorController::onGameAudioRecommendationDecision.
     */
     bool game_audio_recommendation_prompt{false};
+
+    /*!
+    \brief Standing notice that no audio device is open, when raised.
+
+    Present whenever the editor runs without an open audio device and no other flow owns the
+    situation (settings window open, busy device operation in flight, startup game-audio prompt
+    unresolved). The view presents the persistent Retry / Open Settings modal and answers through
+    IEditorController::onAudioDeviceFailureDecision.
+    */
+    std::optional<AudioDeviceFailurePrompt> audio_device_failure_prompt{};
 
     /*!
     \brief Visible timeline range used to map cursor position and waveform content to pixels.

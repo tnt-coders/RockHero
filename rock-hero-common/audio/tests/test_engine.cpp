@@ -215,14 +215,8 @@ void installOnlyRejectingAudioDeviceType(juce::AudioDeviceManager& manager)
 class FakeAudioIODevice final : public juce::AudioIODevice
 {
 public:
-    // Mirrors ASIO's construction-time driver init: a failed init (hardware unplugged) leaves
-    // getLastError() non-empty from birth, which also makes JUCE's setAudioDeviceSetup refuse to
-    // open the device.
-    FakeAudioIODevice(
-        const juce::String& device_name, const juce::String& type_name,
-        juce::String driver_init_error = {})
+    FakeAudioIODevice(const juce::String& device_name, const juce::String& type_name)
         : juce::AudioIODevice(device_name, type_name)
-        , m_last_error(std::move(driver_init_error))
     {}
 
     [[nodiscard]] juce::StringArray getOutputChannelNames() override
@@ -294,7 +288,7 @@ public:
 
     [[nodiscard]] juce::String getLastError() override
     {
-        return m_last_error;
+        return {};
     }
 
     [[nodiscard]] int getCurrentBufferSizeSamples() override
@@ -339,7 +333,6 @@ public:
 private:
     bool m_open{false};
     juce::AudioIODeviceCallback* m_callback{nullptr};
-    juce::String m_last_error;
 };
 
 // Device type whose device list tests mutate to unplug and replug fake hardware. Raising the
@@ -359,14 +352,6 @@ public:
     {
         m_device_names = std::move(device_names);
         callDeviceChangeListeners();
-    }
-
-    // Marks devices whose hardware is "unplugged" while the driver keeps listing them
-    // (ASIO-style, where the listing is registry-backed): createDevice() still returns a device
-    // object, but its init failed from birth.
-    void setDriverInitFailingNames(juce::StringArray device_names)
-    {
-        m_driver_init_failing_names = std::move(device_names);
     }
 
     // The fake list is authoritative; there is no hardware to scan.
@@ -404,15 +389,11 @@ public:
             return nullptr;
         }
 
-        const juce::String init_error = m_driver_init_failing_names.contains(name)
-                                            ? juce::String{"Fake driver failed to initialise"}
-                                            : juce::String{};
-        return new FakeAudioIODevice(name, getTypeName(), init_error);
+        return new FakeAudioIODevice(name, getTypeName());
     }
 
 private:
     juce::StringArray m_device_names;
-    juce::StringArray m_driver_init_failing_names;
 };
 
 // Replaces platform audio types with one fake list-mutable type and returns it for test control.
@@ -725,6 +706,9 @@ TEST_CASE(
     REQUIRE(restored.has_value());
     CHECK(*restored == DeviceRestoreOutcome::DeviceUnavailable);
     CHECK_FALSE(audio_devices.currentDeviceStatus().open);
+    // The backend's own diagnostic survives on the closed status snapshot so the editor's
+    // failure prompt can name the real cause.
+    CHECK_FALSE(audio_devices.currentDeviceStatus().unavailable_reason.empty());
 }
 
 // Unplugging the saved device makes JUCE's audioDeviceListChanged fall back to another device
@@ -756,8 +740,12 @@ TEST_CASE(
         },
         [&] {
             // The refresh ran between steps: the policy closed the fallback device, and the saved
-            // route still names device A for the next launch.
+            // route still names device A for the next launch. The closed status snapshot names
+            // the vanished device so the editor's failure prompt can explain the closure.
             CHECK_FALSE(audio_devices.currentDeviceStatus().open);
+            CHECK(
+                audio_devices.currentDeviceStatus().unavailable_reason.find(g_fake_device_a_name) !=
+                std::string::npos);
             const std::optional<std::string> saved = audio_devices.serializedDeviceState();
             CHECK(saved.has_value());
             CHECK(saved.value_or(std::string{}).find(g_fake_device_a_name) != std::string::npos);
@@ -765,9 +753,13 @@ TEST_CASE(
     });
 }
 
-// After a no-fallback close, replugging the saved device must reopen it automatically -- and only
-// it: the policy re-applies the saved route, never a substitute.
-TEST_CASE("Engine reopens the saved device when it is replugged", "[audio][engine][integration]")
+// Nothing reopens a device automatically: after a disconnect close, the saved device returning
+// produces no reopen (the automatic path crashed flaky ASIO drivers mid-enumeration and was
+// removed), and the closed status snapshot explains why the route is closed. The only reopen path
+// is an explicit application of the saved route -- the editor's failure-prompt Retry.
+TEST_CASE(
+    "Engine leaves a closed device closed when its hardware returns",
+    "[audio][engine][integration]")
 {
     EngineTestHarness harness;
     IAudioDeviceConfiguration& audio_devices = harness.engine;
@@ -777,6 +769,7 @@ TEST_CASE("Engine reopens the saved device when it is replugged", "[audio][engin
     const auto restored = audio_devices.restoreSerializedDeviceState(g_fake_device_a_state);
     REQUIRE(restored.has_value());
     REQUIRE(*restored == DeviceRestoreOutcome::Opened);
+    REQUIRE(audio_devices.currentDeviceStatus().unavailable_reason.empty());
 
     juce::AudioDeviceManager& device_manager = audio_devices.deviceManager();
     runMessageThreadSteps({
@@ -787,69 +780,34 @@ TEST_CASE("Engine reopens the saved device when it is replugged", "[audio][engin
         },
         [&] {
             CHECK_FALSE(audio_devices.currentDeviceStatus().open);
-            // Replug device A.
+            CHECK(
+                audio_devices.currentDeviceStatus().unavailable_reason.find(g_fake_device_a_name) !=
+                std::string::npos);
+            // Replug device A: a device event fires, but nothing may reopen automatically.
             fake_type.simulateDeviceListChange({g_fake_device_a_name});
             device_manager.dispatchPendingMessages();
         },
         [&] {
-            // The refresh saw the absent -> present transition and re-applied the saved route.
-            CHECK(audio_devices.currentDeviceStatus().open);
-            CHECK(device_manager.getAudioDeviceSetup().outputDeviceName == g_fake_device_a_name);
-        },
-    });
-}
-
-// A staging settings edit deliberately closes the device; while the edit marks route staging the
-// policy must not auto-reopen even though the saved device stays attached and initializable, and
-// once staging ends the next device event reopens the saved route.
-TEST_CASE(
-    "Engine leaves a staging-closed device closed until the edit ends",
-    "[audio][engine][integration]")
-{
-    EngineTestHarness harness;
-    IAudioDeviceConfiguration& audio_devices = harness.engine;
-    FakeAudioDeviceType& fake_type =
-        installOnlyFakeAudioDeviceType(audio_devices.deviceManager(), {g_fake_device_a_name});
-
-    const auto restored = audio_devices.restoreSerializedDeviceState(g_fake_device_a_state);
-    REQUIRE(restored.has_value());
-    REQUIRE(*restored == DeviceRestoreOutcome::Opened);
-
-    juce::AudioDeviceManager& device_manager = audio_devices.deviceManager();
-    runMessageThreadSteps({
-        [&] {
-            // The staging close, announced exactly as the settings edit does, then a benign list
-            // event with the device still attached.
-            audio_devices.setRouteStagingActive(true);
-            device_manager.closeAudioDevice();
-            fake_type.simulateDeviceListChange({g_fake_device_a_name});
-            device_manager.dispatchPendingMessages();
-        },
-        [&] {
-            // Staging suppressed the reopen despite the attached, initializable device, and the
-            // saved route survived for the edit's own commit/cancel to decide.
             CHECK_FALSE(audio_devices.currentDeviceStatus().open);
             const std::optional<std::string> saved = audio_devices.serializedDeviceState();
             CHECK(saved.value_or(std::string{}).find(g_fake_device_a_name) != std::string::npos);
 
-            // The edit ends without reopening; the next device event resumes the policy.
-            audio_devices.setRouteStagingActive(false);
-            fake_type.simulateDeviceListChange({g_fake_device_a_name});
-            device_manager.dispatchPendingMessages();
-        },
-        [&] {
+            // The user-driven retry applies the saved route explicitly and clears the reason.
+            const auto retried = audio_devices.restoreSerializedDeviceState(g_fake_device_a_state);
+            REQUIRE(retried.has_value());
+            CHECK(*retried == DeviceRestoreOutcome::Opened);
             CHECK(audio_devices.currentDeviceStatus().open);
+            CHECK(audio_devices.currentDeviceStatus().unavailable_reason.empty());
             CHECK(device_manager.getAudioDeviceSetup().outputDeviceName == g_fake_device_a_name);
         },
     });
 }
 
-// An ASIO-style backend keeps listing a device whose hardware is unplugged, so the listing alone
-// can never disarm or trigger the reopen. While the driver's init fails the policy leaves the
-// device closed; once the hardware returns (init succeeds again), any device event reopens the
-// saved route -- there is no absent -> present listing edge to miss.
+// A deliberately closed device (the settings edit stages with the device closed) stays closed
+// through benign device events while its hardware remains attached: JUCE's own list handler is a
+// no-op with no open device, and the engine adds no reopen of its own.
 TEST_CASE(
-    "Engine reopens a still-listed device once its hardware returns",
+    "Engine leaves a deliberately closed device closed while its hardware stays listed",
     "[audio][engine][integration]")
 {
     EngineTestHarness harness;
@@ -864,25 +822,16 @@ TEST_CASE(
     juce::AudioDeviceManager& device_manager = audio_devices.deviceManager();
     runMessageThreadSteps({
         [&] {
-            // Unplug the hardware behind a driver that keeps listing the device: the stream
-            // closes, and from here on the probe sees a failing driver init.
-            fake_type.setDriverInitFailingNames({g_fake_device_a_name});
+            // The staging close, then a benign list event with the device still attached.
             device_manager.closeAudioDevice();
             fake_type.simulateDeviceListChange({g_fake_device_a_name});
             device_manager.dispatchPendingMessages();
         },
         [&] {
-            // Still listed but not initializable: the policy must not reopen (and must not spin).
+            // Still closed, and the saved route survived for the edit's commit/cancel to decide.
             CHECK_FALSE(audio_devices.currentDeviceStatus().open);
-
-            // Replug: the driver initializes again, and the next device event reopens the route.
-            fake_type.setDriverInitFailingNames({});
-            fake_type.simulateDeviceListChange({g_fake_device_a_name});
-            device_manager.dispatchPendingMessages();
-        },
-        [&] {
-            CHECK(audio_devices.currentDeviceStatus().open);
-            CHECK(device_manager.getAudioDeviceSetup().outputDeviceName == g_fake_device_a_name);
+            const std::optional<std::string> saved = audio_devices.serializedDeviceState();
+            CHECK(saved.value_or(std::string{}).find(g_fake_device_a_name) != std::string::npos);
         },
     });
 }

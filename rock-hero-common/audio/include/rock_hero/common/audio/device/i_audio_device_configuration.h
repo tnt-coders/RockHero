@@ -122,18 +122,6 @@ public:
     [[nodiscard]] virtual std::optional<InputDeviceIdentity> currentInputDeviceIdentity() const = 0;
 
     /*!
-    \brief Marks whether a settings edit is staging with the device deliberately closed.
-
-    While active, the backend's no-fallback policy must not auto-reopen the saved route: the
-    staging close is intentional, and a reopen would grab the device under the open settings
-    window. The settings workflow holds this for the lifetime of one edit; it is a plain flag, not
-    a counter, because the product opens at most one settings edit at a time.
-
-    \param active True while a settings edit holds the device closed for staging.
-    */
-    virtual void setRouteStagingActive(bool active) = 0;
-
-    /*!
     \brief Registers a listener notified after audio device configuration changes.
     \param listener Listener that should be notified until it is removed.
     */

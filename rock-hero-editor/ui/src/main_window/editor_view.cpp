@@ -606,6 +606,7 @@ void EditorView::setState(const core::EditorViewState& state)
     presentRestoreInterruptedPromptIfNeeded(m_state.restore_interrupted_prompt);
     presentGameAudioUnavailablePromptIfNeeded(m_state.game_audio_unavailable_prompt);
     presentGameAudioRecommendationIfNeeded(m_state.game_audio_recommendation_prompt);
+    presentAudioDeviceFailurePromptIfNeeded(m_state.audio_device_failure_prompt);
     presentInputCalibrationPromptIfNeeded(m_state.input_calibration_prompt);
     presentPluginBrowserIfNeeded(m_state.plugin_browser);
     m_busy_overlay.setBusyState(m_state.busy);
@@ -1645,6 +1646,49 @@ void EditorView::presentGameAudioRecommendationIfNeeded(bool prompt_requested)
         });
 }
 
+// Presents the persistent audio-device failure modal. Each staged generation presents once; a
+// failed Retry re-stages a fresh generation, which re-presents through the same tracking, so the
+// modal is persistent without any dialog-lifetime bookkeeping. The question box's fixed keyboard
+// rule maps Return to Retry and Escape to Open Settings, so every dismissal path lands in a
+// resolution flow.
+void EditorView::presentAudioDeviceFailurePromptIfNeeded(
+    const std::optional<core::AudioDeviceFailurePrompt>& prompt)
+{
+    if (!prompt.has_value())
+    {
+        m_last_audio_device_failure_prompt.reset();
+        return;
+    }
+
+    if (m_last_audio_device_failure_prompt == prompt)
+    {
+        return;
+    }
+
+    m_last_audio_device_failure_prompt = prompt;
+    const juce::Component::SafePointer<EditorView> safe_this{this};
+    showThemedQuestionBox(
+        this,
+        "Audio device unavailable",
+        juce::String{"Failed to open audio device:\n\n"} +
+            juce::String::fromUTF8(prompt->message.c_str()),
+        {"Retry", "Open Settings"},
+        [safe_this](int button_index) {
+            if (safe_this == nullptr)
+            {
+                return;
+            }
+
+            safe_this->m_controller.onAudioDeviceFailureDecision(
+                button_index == 0 ? core::AudioDeviceFailureDecision::Retry
+                                  : core::AudioDeviceFailureDecision::OpenSettings);
+            if (button_index != 0)
+            {
+                safe_this->showAudioDeviceSettingsWindow();
+            }
+        });
+}
+
 // Opens or closes the input calibration prompt from controller-derived state.
 void EditorView::presentInputCalibrationPromptIfNeeded(
     const std::optional<core::InputCalibrationPrompt>& prompt)
@@ -1754,8 +1798,7 @@ void EditorView::updateAudioDeviceButton()
         layoutMenuStrip();
     }
 
-    m_audio_device_button.setEnabled(
-        m_state.audio_devices_available && m_state.audio_device_settings_enabled);
+    m_audio_device_button.setEnabled(m_state.audio_device_settings_enabled);
 }
 
 // Samples meter values at display cadence. This intentionally bypasses EditorController state
@@ -1862,7 +1905,10 @@ void EditorView::showAudioDeviceSettingsWindow()
         });
 }
 
-// Clears the owner-held settings window after JUCE and view callbacks have unwound.
+// Clears the owner-held settings window after JUCE and view callbacks have unwound. Destroying
+// the window content runs the staged edit's cancel backstop synchronously, so once the reset has
+// finished the device state is settled and the controller can trustworthily evaluate whether the
+// editor ended up without an open device.
 void EditorView::scheduleAudioDeviceSettingsWindowReset()
 {
     const juce::Component::SafePointer<EditorView> safe_this{this};
@@ -1871,6 +1917,7 @@ void EditorView::scheduleAudioDeviceSettingsWindowReset()
         {
             view->m_audio_device_settings_window.reset();
             view->m_audio_device_settings_window_reset_pending = false;
+            view->m_controller.onAudioDeviceSettingsTeardownComplete();
         }
     });
 }

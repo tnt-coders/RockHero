@@ -208,6 +208,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         std::function<void()> change_audio_device, std::function<void()> after_busy_cleared);
     [[nodiscard]] bool onAudioDeviceSettingsOpenRequested();
     void onAudioDeviceSettingsClosed();
+    void onAudioDeviceSettingsTeardownComplete();
+    void onAudioDeviceFailureDecision(AudioDeviceFailureDecision decision);
     void onTransportStateChanged(common::audio::TransportState state) override;
     void onAudioDeviceConfigurationChanged() override;
 
@@ -403,11 +405,32 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void restoreAudioDeviceState();
     void persistAudioDeviceState();
     // Resolves the persisted "use game audio settings" toggle against a fresh read of the game's
-    // configuration before the startup device restore (plan 48 amended ruleset): on + adoptable
-    // selects the game source so the restore adopts the game route; on + broken writes the toggle
-    // off and stages the unavailable-game prompt; off + adoptable + unsuppressed stages the
+    // configuration before the startup route application (plan 48 amended ruleset): on + adoptable
+    // selects the game source so the application adopts the game route; on + broken writes the
+    // toggle off and stages the unavailable-game prompt; off + adoptable + unsuppressed stages the
     // recommendation prompt; anything else leaves the editor silently on its own settings.
     void resolveGameAudioSourceAtStartup();
+
+    // Which audio-config source the editor should be running on after applyAudioSourceAndRoute.
+    enum class AudioSourceSelection : std::uint8_t
+    {
+        EditorOwn, // Persist the toggle off and select the editor's own store, then apply.
+        Game,      // Validate adoptability fresh; persist the toggle on and select the game view.
+        Current,   // Touch neither the toggle nor the source; (re)apply the active route.
+    };
+
+    // The one route-application path shared by startup, the settings-window toggle, the startup
+    // recommendation decision, and the failure prompt's Retry: optional source flip (validated
+    // fresh for Game so a persisted on always means adoption succeeded), then the saved route of
+    // the now-active source is applied either inline or behind the OpeningAudioDevice busy
+    // overlay (a non-empty set_applying requests the overlay for a genuine device re-open).
+    [[nodiscard]] std::expected<void, GameAudioSourceError> applyAudioSourceAndRoute(
+        AudioSourceSelection selection, std::function<void(bool)> set_applying);
+
+    // The one evaluation deciding whether the audio-device failure prompt should be staged;
+    // stage-if-absent with a monotonic generation so repeat device events never re-present a
+    // staged prompt while Retry/settings flows re-stage a fresh generation.
+    void refreshAudioDeviceFailurePrompt();
     void recordSettingsResultBestEffort(
         std::expected<void, EditorSettingsError> result, std::string_view context);
     void recordAudioConfigResultBestEffort(
@@ -517,6 +540,15 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Startup recommendation staged when the toggle is off, a calibrated game configuration exists,
     // and the user has not suppressed the prompt; cleared when the view reports a decision.
     bool m_game_audio_recommendation_prompt{false};
+
+    // Standing failure notice staged by refreshAudioDeviceFailurePrompt() while the editor runs
+    // without an open audio device and no other flow owns the situation. Cleared when a device
+    // opens, when the settings window takes over, or when the user answers the prompt.
+    std::optional<AudioDeviceFailurePrompt> m_audio_device_failure_prompt{};
+
+    // Monotonic staging counter carried on the prompt so a re-staging (failed Retry, settings
+    // window closed still-broken) reads as a new prompt to the view's present-once tracking.
+    std::uint64_t m_audio_device_failure_generation{0};
 
     // Non-owning view binding installed by attachView(); null before the first attachment.
     // updateView() and reportError() tolerate the null window because the constructor's

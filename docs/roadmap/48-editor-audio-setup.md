@@ -1,6 +1,31 @@
 # Plan 48 — Editor Audio Setup: toggle-aware device + calibration surfaces
 
-Status: In progress — amended 2026-07-13 (final startup ruleset below) | baseline `refactor @ 75cc26dd`
+Status: In progress — amended 2026-07-13 (final startup ruleset below), 2026-07-14 (device-failure
+popup) | baseline `refactor @ 75cc26dd`
+
+## Amendment (2026-07-14) — closed-device failure popup replaces silent closure and auto-reopen
+
+User-directed redesign of how a closed audio device is surfaced (the app realistically cannot
+function without one). This section is authoritative over the rule-1 phrasing below wherever they
+conflict; the game-audio ruleset itself is unchanged.
+
+- **Any closed-audio-device state raises a persistent modal**: "Failed to open audio device:
+  \<specific reason\>" with **Retry** and **Open Settings** (no Close — it stays until a Retry
+  succeeds or the settings window opens; Escape maps to Open Settings). Raised at startup when the
+  saved route cannot open, and on a mid-session disconnect. Suppressed while the audio settings
+  window is open (its staged edit deliberately closes the device); re-raised when the window tears
+  down with the device still closed. Deferred behind the plan-48 startup prompts so at most one
+  modal shows at a time. Rule 1's "route-kept-closed notice" is now this popup; the toggle still
+  stays ON (the failure is about the device, not the source).
+- **The engine's automatic reopen is removed** (it speculatively instantiated ASIO drivers
+  mid-enumeration and re-opened devices inside its policy pass — both intermittently crashed
+  flaky drivers). The engine's no-fallback policy now only undoes JUCE's hard-coded disconnect
+  fallback; every reopen is the user's explicit Retry (or a settings-window apply). The engine
+  records why the device is closed on `AudioDeviceStatus::unavailable_reason` for the popup.
+- The editor-controller source/route side effects consolidated into one application path
+  (`applyAudioSourceAndRoute`) shared by startup, the settings-window toggle, the recommendation
+  decision, and Retry; `EditorViewState::use_game_audio_settings` now derives from the live store
+  selection rather than re-reading the persisted toggle.
 
 ## Amendment (2026-07-13) — final startup ruleset
 

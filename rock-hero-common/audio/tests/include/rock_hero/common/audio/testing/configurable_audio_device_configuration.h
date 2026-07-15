@@ -104,15 +104,6 @@ public:
     }
 
     /*!
-    \brief Records the route-staging flag toggled by the settings workflow under test.
-    \param active True while a settings edit holds the device closed for staging.
-    */
-    void setRouteStagingActive(bool active) override
-    {
-        route_staging_active = active;
-    }
-
-    /*!
     \brief Stores a non-owning listener pointer for explicit test notifications.
     \param listener Listener registered by the object under test.
     */
@@ -165,9 +156,6 @@ public:
 
     /*! \brief Answer returned by deviceStateMatchesActive(). */
     bool device_state_matches_active{false};
-
-    /*! \brief Last route-staging flag received from the object under test. */
-    bool route_staging_active{false};
 
     /*! \brief Last serialized state passed to deviceStateMatchesActive(). */
     mutable std::optional<std::string> last_device_state_match_query{};
