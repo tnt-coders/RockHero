@@ -145,7 +145,7 @@ using common::core::partToken;
         {
             warnings.append(Json::makeString(warning));
         }
-        json.getDynamicObject()->setProperty(Json::identifier("warnings"), std::move(warnings));
+        json.getDynamicObject()->setProperty(Json::identifier("warnings"), warnings);
     }
 
     return json;

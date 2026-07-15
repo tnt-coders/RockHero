@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
+#include <compare>
 #include <cstdlib>
 #include <expected>
 #include <filesystem>
@@ -462,7 +463,7 @@ public:
     [[nodiscard]] std::expected<void, common::audio::TransportError> setPlaybackSpeed(
         double factor) override
     {
-        if (factor != 1.0)
+        if (std::is_neq(factor <=> 1.0))
         {
             return std::unexpected{
                 common::audio::TransportError{common::audio::TransportErrorCode::SpeedNotSupported}

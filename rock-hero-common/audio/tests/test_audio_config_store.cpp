@@ -190,8 +190,11 @@ TEST_CASE("AudioConfigStore persists an active route without identity", "[audio]
     const AudioConfigStore reloaded{settings_file.path(), AudioConfigStore::Access::ReadWrite};
     const auto stored = reloaded.activeDeviceRoute();
     REQUIRE(stored.has_value());
-    CHECK(stored->serialized_state == route.serialized_state);
-    CHECK_FALSE(stored->identity.has_value());
+    if (stored.has_value())
+    {
+        CHECK(stored->serialized_state == route.serialized_state);
+        CHECK_FALSE(stored->identity.has_value());
+    }
 }
 
 // Clearing the active route removes it from the store without disturbing calibration.
@@ -375,8 +378,8 @@ TEST_CASE("AudioConfigStore read-only rejects every setter", "[audio][config-sto
     CHECK(reader.activeDeviceRoute().has_value());
     CHECK(inputCalibrationFor(reader, identity).has_value());
 
-    const auto route_result =
-        reader.setActiveDeviceRoute(ActiveDeviceRoute{.serialized_state = "<OTHER/>"});
+    const auto route_result = reader.setActiveDeviceRoute(
+        ActiveDeviceRoute{.serialized_state = "<OTHER/>", .identity = {}});
     REQUIRE_FALSE(route_result.has_value());
     CHECK(route_result.error().code == AudioConfigErrorCode::CouldNotSave);
 

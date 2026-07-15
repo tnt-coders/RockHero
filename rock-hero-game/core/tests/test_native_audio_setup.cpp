@@ -17,6 +17,7 @@
 #include <rock_hero/game/core/audio/native_audio_setup.h>
 #include <rock_hero/game/core/settings/game_settings.h>
 #include <string>
+#include <system_error>
 
 namespace rock_hero::game::core
 {
@@ -57,7 +58,7 @@ public:
         apply_call_count += 1;
         if (next_apply_error.has_value())
         {
-            common::audio::AudioDeviceSettingsError error = *next_apply_error;
+            const common::audio::AudioDeviceSettingsError error = *next_apply_error;
             next_apply_error.reset();
             return std::unexpected{error};
         }
@@ -107,14 +108,8 @@ public:
 
     ~TemporarySettingsDirectory() noexcept
     {
-        try
-        {
-            std::filesystem::remove_all(m_path);
-        }
-        catch (...)
-        {
-            // Best-effort cleanup; a straggling temp directory cannot affect other tests.
-        }
+        std::error_code cleanup_error;
+        std::filesystem::remove_all(m_path, cleanup_error);
     }
 
     TemporarySettingsDirectory(const TemporarySettingsDirectory&) = delete;
@@ -220,9 +215,15 @@ TEST_CASE("Native setup reaches an armed store state", "[core][audio][setup]")
 
     const auto stored_route = harness.store.activeDeviceRoute();
     REQUIRE(stored_route.has_value());
-    CHECK(stored_route->serialized_state == "device-restore-blob");
-    REQUIRE(stored_route->identity.has_value());
-    CHECK(*stored_route->identity == guitarRoute());
+    if (stored_route.has_value())
+    {
+        CHECK(stored_route->serialized_state == "device-restore-blob");
+        REQUIRE(stored_route->identity.has_value());
+        if (stored_route->identity.has_value())
+        {
+            CHECK(*stored_route->identity == guitarRoute());
+        }
+    }
 
     // The slot-0 player-to-route mapping is persisted through game/core, and its primary route is
     // the identity mirrored into the shared store above.
@@ -230,7 +231,10 @@ TEST_CASE("Native setup reaches an armed store state", "[core][audio][setup]")
     REQUIRE(persisted.players.size() == 1);
     CHECK(persisted.players.front().player_slot == 0);
     CHECK(persisted.players.front().route == guitarRoute());
-    CHECK(primaryPlayerRoute(persisted) == stored_route->identity);
+    if (stored_route.has_value())
+    {
+        CHECK(primaryPlayerRoute(persisted) == stored_route->identity);
+    }
 
     // Gain calibration: metering the steady strum completes and commits.
     REQUIRE(harness.setup.beginGainCalibration().has_value());
@@ -242,8 +246,12 @@ TEST_CASE("Native setup reaches an armed store state", "[core][audio][setup]")
     // The store now holds a calibration matching the active route — the armed state.
     const auto stored_calibration = harness.store.inputCalibrationFor(guitarRoute());
     REQUIRE(stored_calibration.has_value());
-    REQUIRE(stored_calibration->has_value());
-    CHECK((*stored_calibration)->input_device_identity == guitarRoute());
+    const auto& calibration = *stored_calibration;
+    REQUIRE(calibration.has_value());
+    if (calibration.has_value())
+    {
+        CHECK(calibration->input_device_identity == guitarRoute());
+    }
 
     // Capstone: with the route and matching calibration persisted, the shared calibrate-first gate
     // arms to Active for a ready session — the live guitar is audible.
@@ -273,7 +281,10 @@ TEST_CASE("Native setup device-apply failure writes nothing", "[core][audio][set
 
     const auto failure = harness.setup.failure();
     REQUIRE(failure.has_value());
-    CHECK(failure->code == NativeAudioSetupErrorCode::DeviceApplyFailed);
+    if (failure.has_value())
+    {
+        CHECK(failure->code == NativeAudioSetupErrorCode::DeviceApplyFailed);
+    }
 
     CHECK(harness.store.activeDeviceRoute() == std::nullopt);
     CHECK(harness.game_settings.gameAudioConfig().players.empty());
@@ -348,9 +359,15 @@ TEST_CASE("Native setup re-run overwrites the previous device cleanly", "[core][
 
     const auto stored_route = harness.store.activeDeviceRoute();
     REQUIRE(stored_route.has_value());
-    CHECK(stored_route->serialized_state == "second-device-blob");
-    REQUIRE(stored_route->identity.has_value());
-    CHECK(*stored_route->identity == second_route);
+    if (stored_route.has_value())
+    {
+        CHECK(stored_route->serialized_state == "second-device-blob");
+        REQUIRE(stored_route->identity.has_value());
+        if (stored_route->identity.has_value())
+        {
+            CHECK(*stored_route->identity == second_route);
+        }
+    }
 
     const GameAudioConfig persisted = harness.game_settings.gameAudioConfig();
     REQUIRE(persisted.players.size() == 1);
@@ -362,8 +379,12 @@ TEST_CASE("Native setup re-run overwrites the previous device cleanly", "[core][
 
     const auto stored_calibration = harness.store.inputCalibrationFor(second_route);
     REQUIRE(stored_calibration.has_value());
-    REQUIRE(stored_calibration->has_value());
-    CHECK((*stored_calibration)->input_device_identity == second_route);
+    const auto& calibration = *stored_calibration;
+    REQUIRE(calibration.has_value());
+    if (calibration.has_value())
+    {
+        CHECK(calibration->input_device_identity == second_route);
+    }
 }
 
 // Gain calibration is illegal before a device is applied.
@@ -403,7 +424,10 @@ TEST_CASE("Native setup machine enforces the legal progression", "[core][audio][
     machine.fail(NativeAudioSetupError{NativeAudioSetupErrorCode::DeviceApplyFailed});
     CHECK(machine.phase() == NativeAudioSetupPhase::Failed);
     REQUIRE(machine.failure().has_value());
-    CHECK(machine.failure()->code == NativeAudioSetupErrorCode::DeviceApplyFailed);
+    if (machine.failure().has_value())
+    {
+        CHECK(machine.failure()->code == NativeAudioSetupErrorCode::DeviceApplyFailed);
+    }
 
     // A retry after failure clears the terminal error.
     machine.beginDeviceSelection();

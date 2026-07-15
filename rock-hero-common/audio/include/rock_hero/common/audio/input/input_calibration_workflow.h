@@ -186,43 +186,47 @@ public:
         if (m_audio_device_settings_open)
         {
             return {
-                LiveInputMonitoringState::Disabled,
-                LiveInputMonitoringDisabledReason::AudioDeviceSettingsOpen,
+                .state = LiveInputMonitoringState::Disabled,
+                .reason = LiveInputMonitoringDisabledReason::AudioDeviceSettingsOpen,
             };
         }
 
         if (!context.live_input_ready || !context.arrangement_loaded)
         {
             return {
-                LiveInputMonitoringState::Disabled,
-                LiveInputMonitoringDisabledReason::SessionNotReady
+                .state = LiveInputMonitoringState::Disabled,
+                .reason = LiveInputMonitoringDisabledReason::SessionNotReady,
             };
         }
 
         if (!context.current_input_device_identity.has_value())
         {
             return {
-                LiveInputMonitoringState::Disabled, LiveInputMonitoringDisabledReason::NoInputDevice
+                .state = LiveInputMonitoringState::Disabled,
+                .reason = LiveInputMonitoringDisabledReason::NoInputDevice,
             };
         }
 
         if (!m_calibration_state.has_value())
         {
             return {
-                LiveInputMonitoringState::Disabled,
-                LiveInputMonitoringDisabledReason::MissingCalibration
+                .state = LiveInputMonitoringState::Disabled,
+                .reason = LiveInputMonitoringDisabledReason::MissingCalibration,
             };
         }
 
         if (!calibrationMatches(context.current_input_device_identity))
         {
             return {
-                LiveInputMonitoringState::Disabled,
-                LiveInputMonitoringDisabledReason::CalibrationRouteMismatch,
+                .state = LiveInputMonitoringState::Disabled,
+                .reason = LiveInputMonitoringDisabledReason::CalibrationRouteMismatch,
             };
         }
 
-        return {LiveInputMonitoringState::Active, LiveInputMonitoringDisabledReason::None};
+        return {
+            .state = LiveInputMonitoringState::Active,
+            .reason = LiveInputMonitoringDisabledReason::None,
+        };
     }
 
     /*!

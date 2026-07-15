@@ -299,7 +299,7 @@ void EditorController::Impl::runToneDesignerOpen(std::filesystem::path file)
 
 // Saves the designer document to a tone file: a pure engine read plus a checkpoint move — saves
 // never enter the undo history.
-void EditorController::Impl::runToneDesignerSave(std::filesystem::path destination)
+void EditorController::Impl::runToneDesignerSave(const std::filesystem::path& destination)
 {
     if (!m_tone_designer.active)
     {
@@ -365,12 +365,12 @@ void EditorController::Impl::performActionImpl(EditorAction::SaveToneFile /*acti
     runToneDesignerSave(*m_tone_designer.document_path);
 }
 
-void EditorController::Impl::performActionImpl(EditorAction::SaveToneFileAs action)
+void EditorController::Impl::performActionImpl(const EditorAction::SaveToneFileAs& action)
 {
     // When this Save As continues a deferred action, dismiss the chooser phase (mirrors
     // SaveProjectAs); a standalone Save As leaves this a no-op.
     m_deferred_project_action_state.saveAsPathChosen();
-    runToneDesignerSave(std::move(action.file));
+    runToneDesignerSave(action.file);
 }
 
 void EditorController::Impl::runProjectActionImpl(EditorAction::NewToneDocument /*action*/)
@@ -463,7 +463,7 @@ void EditorController::Impl::performActionImpl(EditorAction::ResolveToneImportPr
     updateView();
 }
 
-void EditorController::Impl::performActionImpl(EditorAction::ExportToneFile action)
+void EditorController::Impl::performActionImpl(const EditorAction::ExportToneFile& action)
 {
     if (!hasLoadedArrangement())
     {
@@ -602,7 +602,7 @@ void EditorController::Impl::runToneImport(std::filesystem::path file)
                             "store tone file directory");
                         finishToneImport(
                             std::move(moved_before),
-                            std::move(moved_prior_ids),
+                            moved_prior_ids,
                             tone_ref,
                             tone_name,
                             import_file,
@@ -614,7 +614,7 @@ void EditorController::Impl::runToneImport(std::filesystem::path file)
 // Applies a completed tone import: extracts the replaced chain's automation into the undo entry,
 // mints fresh durable ids for the imported plugins, and pushes exactly one undo entry.
 void EditorController::Impl::finishToneImport(
-    ToneChainSnapshot before, std::vector<std::pair<std::string, std::string>> prior_ids,
+    ToneChainSnapshot before, const std::vector<std::pair<std::string, std::string>>& prior_ids,
     const std::string& tone_ref, const std::string& tone_name,
     const std::filesystem::path& import_file, const common::audio::LiveRigLoadResult& result)
 {

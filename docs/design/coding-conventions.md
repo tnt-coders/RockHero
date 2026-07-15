@@ -459,6 +459,58 @@ CHECK(session.arrangements()[1].part == Part::Bass);
 Use the `_FALSE` variants with the same rule: `REQUIRE_FALSE` for fatal preconditions and
 `CHECK_FALSE` for independent observations.
 
+# Floating-Point Comparisons
+
+JUCE's recommended warning set enables `-Wfloat-equal` under `-Werror`, so a raw `==` or `!=`
+between floating-point values does not compile in project-owned code. Choose the replacement by
+what the comparison *means*, not by whatever silences the warning fastest.
+
+For an assertion that means *bit-exact* equality — a value that must round-trip losslessly or must
+equal an exact sentinel such as `0.0` or `1.0` — use the zero-ULP floating-point matcher:
+
+\code{.cpp}
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
+
+CHECK_THAT(transport.playbackSpeed(), Catch::Matchers::WithinULP(1.0, 0));
+\endcode
+
+`WithinULP(target, 0)` matches only the identical bit pattern, so it states exact equality without
+tripping `-Wfloat-equal`. Prefer it over `Catch::Approx(target)` whenever the test genuinely means
+"equal", because `Approx` carries a tolerance and would silently pass on a wrong-but-close value.
+
+For an assertion that means *approximately* equal, keep a tolerant matcher and pick the tolerance
+deliberately:
+
+- `Catch::Matchers::WithinAbs(target, tolerance)` for an absolute window, including near-zero
+  results where a relative match is meaningless. A linear-to-dB round-trip that returns `-2.4e-7`
+  instead of `0.0` is a `WithinAbs(0.0, 1e-6)` case, not an exact one.
+- `value == Catch::Approx(target)` stays fine for ordinary tolerant comparisons: `Approx`
+  overloads `operator==`, so the expression never reaches the built-in float `==` and never trips
+  `-Wfloat-equal`. Do not use `Catch::Approx(0.0)` for a near-zero value — its default margin is
+  `0`, so it only matches exactly `0.0`; use `WithinAbs` with an explicit tolerance instead.
+
+Do not mechanically convert every `Approx` to `WithinULP`. Reserve the exact matcher for values
+that are genuinely exact; leave legitimately tolerant comparisons (measured levels, accumulated
+times, log-derived decibels) as `Approx` or `WithinAbs`.
+
+Outside assertions — a control-flow guard in production or in a test fake that must branch on an
+exact float value — use the standard `<compare>` helpers on a three-way comparison instead of a
+raw `==` / `!=`:
+
+\code{.cpp}
+// v1 accepts exactly 1.0; every other factor (including NaN) is rejected.
+if (std::is_neq(factor <=> 1.0))
+{
+    return std::unexpected{TransportError{TransportErrorCode::SpeedNotSupported}};
+}
+\endcode
+
+`a <=> b` is not an equality operator, so it never trips `-Wfloat-equal`, and `std::is_eq` /
+`std::is_neq` read the ordering result. Prefer this over an ordered `a < b || a > b` rewrite: the
+helpers state exact (in)equality directly and treat an unordered NaN result as not-equal, whereas
+`a < b || a > b` silently reports NaN as equal. This is the project's established idiom, used in the
+`operator==` definitions throughout `common/core` and `common/audio`.
+
 # Test CTAD
 
 In test code, prefer class template argument deduction for short-lived expected values when the

@@ -439,7 +439,7 @@ public:
     \return Success, or the scripted decline installed via use_game_audio_settings_error.
     */
     [[nodiscard]] std::expected<void, GameAudioSourceError> onUseGameAudioSettingsChangeRequested(
-        bool enabled, std::function<void(bool)> /*set_applying*/) override
+        bool enabled, const std::function<void(bool)>& /*set_applying*/) override
     {
         last_use_game_audio_settings = enabled;
         use_game_audio_settings_change_count += 1;

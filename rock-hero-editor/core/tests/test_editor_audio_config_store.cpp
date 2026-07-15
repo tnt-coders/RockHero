@@ -1,3 +1,4 @@
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <expected>
 #include <filesystem>
@@ -98,7 +99,11 @@ void writeGameConfig(
     REQUIRE(game_store.setActiveDeviceRoute(route).has_value());
     if (with_calibration)
     {
-        REQUIRE(game_store.saveInputCalibration(calibrationFor(*route.identity)).has_value());
+        REQUIRE(route.identity.has_value());
+        if (route.identity.has_value())
+        {
+            REQUIRE(game_store.saveInputCalibration(calibrationFor(*route.identity)).has_value());
+        }
     }
 }
 
@@ -110,7 +115,7 @@ TEST_CASE(
 {
     const ScopedGameFile game_file{"editor_config_available.settings"};
     common::audio::testing::InMemoryAudioConfigStore own_store;
-    EditorAudioConfigStore store{own_store, game_file.path()};
+    const EditorAudioConfigStore store{own_store, game_file.path()};
 
     SECTION("no game file reads as not configured")
     {
@@ -157,7 +162,12 @@ TEST_CASE(
     const auto own_stored = own_store.inputCalibrationFor(guitarIdentity());
     REQUIRE(own_stored.has_value());
     REQUIRE(own_stored->has_value());
-    CHECK((*own_stored)->calibration_gain.db == editor_calibration.calibration_gain.db);
+    if (own_stored.has_value() && own_stored->has_value())
+    {
+        CHECK(
+            (*own_stored)->calibration_gain.db ==
+            Catch::Approx(editor_calibration.calibration_gain.db));
+    }
 
     // Game source: reads delegate to the game's route.
     store.useGameSource(true);

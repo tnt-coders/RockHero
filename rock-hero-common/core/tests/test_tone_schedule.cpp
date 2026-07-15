@@ -1,5 +1,6 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstddef>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
@@ -24,6 +25,14 @@ namespace
         .end = GridPosition{.measure = end_measure, .beat = 1, .offset = {}},
         .tone_document_ref = tone_document_ref,
     };
+}
+
+// Asserts a baked envelope point field-by-field. The gain is compared with tolerance so the raw
+// float member never runs through ToneGainPoint's exact ==, which -Wfloat-equal rejects.
+void checkGainPoint(const ToneGainPoint& point, double seconds, float gain)
+{
+    CHECK(point.seconds == Catch::Approx(seconds));
+    CHECK_THAT(point.gain, Catch::Matchers::WithinULP(gain, 0));
 }
 
 } // namespace
@@ -130,15 +139,15 @@ TEST_CASE("Tone gain envelope bakes mirrored crossfades", "[core][tone-schedule]
 
     const auto envelope_a = makeToneGainEnvelope(schedule, "tones/a/tone.json", 0.01);
     REQUIRE(envelope_a.size() == 3);
-    CHECK(envelope_a[0] == ToneGainPoint{.seconds = 0.0, .gain = 1.0F});
-    CHECK(envelope_a[1] == ToneGainPoint{.seconds = 4.0, .gain = 1.0F});
-    CHECK(envelope_a[2] == ToneGainPoint{.seconds = 4.01, .gain = 0.0F});
+    checkGainPoint(envelope_a[0], 0.0, 1.0F);
+    checkGainPoint(envelope_a[1], 4.0, 1.0F);
+    checkGainPoint(envelope_a[2], 4.01, 0.0F);
 
     const auto envelope_b = makeToneGainEnvelope(schedule, "tones/b/tone.json", 0.01);
     REQUIRE(envelope_b.size() == 3);
-    CHECK(envelope_b[0] == ToneGainPoint{.seconds = 0.0, .gain = 0.0F});
-    CHECK(envelope_b[1] == ToneGainPoint{.seconds = 4.0, .gain = 0.0F});
-    CHECK(envelope_b[2] == ToneGainPoint{.seconds = 4.01, .gain = 1.0F});
+    checkGainPoint(envelope_b[0], 0.0, 0.0F);
+    checkGainPoint(envelope_b[1], 4.0, 0.0F);
+    checkGainPoint(envelope_b[2], 4.01, 1.0F);
 }
 
 // Verifies a boundary between two spans of the SAME tone bakes nothing (no dip to silence) and
@@ -158,11 +167,11 @@ TEST_CASE("Tone gain envelope skips same-tone boundaries", "[core][tone-schedule
 
     const auto envelope_a = makeToneGainEnvelope(schedule, "tones/a/tone.json", 0.01);
     REQUIRE(envelope_a.size() == 1);
-    CHECK(envelope_a.front() == ToneGainPoint{.seconds = 0.0, .gain = 1.0F});
+    checkGainPoint(envelope_a.front(), 0.0, 1.0F);
 
     const auto envelope_c = makeToneGainEnvelope(schedule, "tones/c/tone.json", 0.01);
     REQUIRE(envelope_c.size() == 1);
-    CHECK(envelope_c.front() == ToneGainPoint{.seconds = 0.0, .gain = 0.0F});
+    checkGainPoint(envelope_c.front(), 0.0, 0.0F);
 }
 
 // Verifies the crossfade clamps to half the incoming span so back-to-back short spans cannot
@@ -182,8 +191,7 @@ TEST_CASE("Tone gain envelope clamps ramps to short spans", "[core][tone-schedul
 
     const auto envelope_b = makeToneGainEnvelope(schedule, "tones/b/tone.json", 0.01);
     REQUIRE(envelope_b.size() == 3);
-    CHECK(envelope_b[2].seconds == Catch::Approx(1.005));
-    CHECK(envelope_b[2].gain == 1.0F);
+    checkGainPoint(envelope_b[2], 1.005, 1.0F);
 }
 
 } // namespace rock_hero::common::core

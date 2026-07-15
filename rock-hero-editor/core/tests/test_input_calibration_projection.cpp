@@ -1,5 +1,6 @@
 #include "input_calibration/input_calibration_projection.h"
 
+#include <array>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <optional>
@@ -58,35 +59,35 @@ TEST_CASE(
         InputCalibrationStatus expected_status;
     };
 
-    const Case cases[] = {
-        {common::audio::LiveInputMonitoringDisabledReason::None,
-         true,
-         InputCalibrationStatus::Calibrated},
-        {common::audio::LiveInputMonitoringDisabledReason::None,
-         false,
-         InputCalibrationStatus::Unavailable},
-        {common::audio::LiveInputMonitoringDisabledReason::AudioDeviceSettingsOpen,
-         true,
-         InputCalibrationStatus::NoActiveInputDevice},
-        {common::audio::LiveInputMonitoringDisabledReason::SessionNotReady,
-         true,
-         InputCalibrationStatus::NoActiveInputDevice},
-        {common::audio::LiveInputMonitoringDisabledReason::NoInputDevice,
-         true,
-         InputCalibrationStatus::NoActiveInputDevice},
-        {common::audio::LiveInputMonitoringDisabledReason::MissingCalibration,
-         true,
-         InputCalibrationStatus::MissingCalibration},
-        {common::audio::LiveInputMonitoringDisabledReason::CalibrationRouteMismatch,
-         true,
-         InputCalibrationStatus::MissingCalibration},
-        {common::audio::LiveInputMonitoringDisabledReason::BackendUnavailable,
-         true,
-         InputCalibrationStatus::Unavailable},
-        {common::audio::LiveInputMonitoringDisabledReason::CalibrationStoreUnavailable,
-         true,
-         InputCalibrationStatus::Unavailable},
-    };
+    const std::array<Case, 9> cases = {{
+        {.reason = common::audio::LiveInputMonitoringDisabledReason::None,
+         .backend_available = true,
+         .expected_status = InputCalibrationStatus::Calibrated},
+        {.reason = common::audio::LiveInputMonitoringDisabledReason::None,
+         .backend_available = false,
+         .expected_status = InputCalibrationStatus::Unavailable},
+        {.reason = common::audio::LiveInputMonitoringDisabledReason::AudioDeviceSettingsOpen,
+         .backend_available = true,
+         .expected_status = InputCalibrationStatus::NoActiveInputDevice},
+        {.reason = common::audio::LiveInputMonitoringDisabledReason::SessionNotReady,
+         .backend_available = true,
+         .expected_status = InputCalibrationStatus::NoActiveInputDevice},
+        {.reason = common::audio::LiveInputMonitoringDisabledReason::NoInputDevice,
+         .backend_available = true,
+         .expected_status = InputCalibrationStatus::NoActiveInputDevice},
+        {.reason = common::audio::LiveInputMonitoringDisabledReason::MissingCalibration,
+         .backend_available = true,
+         .expected_status = InputCalibrationStatus::MissingCalibration},
+        {.reason = common::audio::LiveInputMonitoringDisabledReason::CalibrationRouteMismatch,
+         .backend_available = true,
+         .expected_status = InputCalibrationStatus::MissingCalibration},
+        {.reason = common::audio::LiveInputMonitoringDisabledReason::BackendUnavailable,
+         .backend_available = true,
+         .expected_status = InputCalibrationStatus::Unavailable},
+        {.reason = common::audio::LiveInputMonitoringDisabledReason::CalibrationStoreUnavailable,
+         .backend_available = true,
+         .expected_status = InputCalibrationStatus::Unavailable},
+    }};
 
     for (const Case& test_case : cases)
     {
