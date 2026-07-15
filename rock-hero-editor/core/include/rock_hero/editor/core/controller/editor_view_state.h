@@ -238,7 +238,8 @@ struct GameAudioUnavailablePrompt
 
 Staged whenever the editor ends up without an open audio device outside the flows that
 legitimately close it (a staging settings edit, an in-flight device operation, an unresolved
-startup game-audio prompt). The view presents it as the persistent Retry / Open Settings modal;
+startup game-audio prompt). The view presents it as the persistent Retry / Open Audio Settings
+modal;
 it clears only when a device opens or the audio settings window takes over.
 */
 struct AudioDeviceFailurePrompt
@@ -424,7 +425,8 @@ struct EditorViewState
 
     Present whenever the editor runs without an open audio device and no other flow owns the
     situation (settings window open, busy device operation in flight, startup game-audio prompt
-    unresolved). The view presents the persistent Retry / Open Settings modal and answers through
+    unresolved). The view presents the persistent Retry / Open Audio Settings modal and answers
+    through
     IEditorController::onAudioDeviceFailureDecision.
     */
     std::optional<AudioDeviceFailurePrompt> audio_device_failure_prompt{};
