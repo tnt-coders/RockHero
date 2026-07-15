@@ -28,4 +28,35 @@ juce::AudioDeviceManager::AudioDeviceSetup reconstructDeviceSetupFromXml(
     return setup;
 }
 
+std::unique_ptr<juce::XmlElement> serializeDeviceSetupToXml(
+    const juce::String& device_type_name, const juce::AudioDeviceManager::AudioDeviceSetup& setup)
+{
+    auto xml = std::make_unique<juce::XmlElement>("DEVICESETUP");
+    xml->setAttribute("deviceType", device_type_name);
+    xml->setAttribute("audioOutputDeviceName", setup.outputDeviceName);
+    xml->setAttribute("audioInputDeviceName", setup.inputDeviceName);
+
+    // updateXml() reads these from the open device; with no open device the setup's own values
+    // are the chosen ones. Zero values mean "unspecified" and are omitted, matching the defaults
+    // initialiseFromXML() falls back to.
+    if (setup.sampleRate > 0.0)
+    {
+        xml->setAttribute("audioDeviceRate", setup.sampleRate);
+    }
+    if (setup.bufferSize > 0)
+    {
+        xml->setAttribute("audioDeviceBufferSize", setup.bufferSize);
+    }
+    if (!setup.useDefaultInputChannels)
+    {
+        xml->setAttribute("audioDeviceInChans", setup.inputChannels.toString(2));
+    }
+    if (!setup.useDefaultOutputChannels)
+    {
+        xml->setAttribute("audioDeviceOutChans", setup.outputChannels.toString(2));
+    }
+
+    return xml;
+}
+
 } // namespace rock_hero::common::audio

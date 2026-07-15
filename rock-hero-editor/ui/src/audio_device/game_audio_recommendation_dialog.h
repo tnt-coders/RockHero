@@ -18,8 +18,9 @@ namespace rock_hero::editor::ui
 Shown when the "use game audio settings" toggle is off, a calibrated game configuration exists to
 adopt, and the user has not suppressed the recommendation. Rendered as the editor's standard
 juce::AlertWindow info dialog — matching the app's other prompts — with the recommended adopt path
-and the keep-custom path as buttons, plus a "don't show this message again" checkbox whose value is
-reported with every decision. Escape reports GameAudioRecommendationDecision::Dismissed.
+and an "Open Settings" decline path as buttons (the view follows the decline by opening the audio
+device settings window), plus a "don't show this message again" checkbox whose value is reported
+with every decision. Escape reports GameAudioRecommendationDecision::Dismissed.
 */
 class GameAudioRecommendationDialog final
 {
