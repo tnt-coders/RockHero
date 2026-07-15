@@ -16,9 +16,9 @@ constexpr int g_main_window_min_height{720};
 constexpr int g_main_window_restore_width{1920};
 constexpr int g_main_window_restore_height{1080};
 
-// Keeps the restored native window inside the OS work area. A 1920x1080 restored window does not
-// fit on a 1080p Windows desktop once the title bar and taskbar are included.
-[[nodiscard]] juce::Rectangle<int> restoredMainWindowBounds() noexcept
+// Returns the primary display's work area in logical pixels, falling back to the restore size
+// when no display information is available.
+[[nodiscard]] juce::Rectangle<int> primaryDisplayWorkArea() noexcept
 {
     const auto* const display = juce::Desktop::getInstance().getDisplays().getPrimaryDisplay();
     if (display == nullptr)
@@ -32,14 +32,23 @@ constexpr int g_main_window_restore_height{1080};
         return {0, 0, g_main_window_restore_width, g_main_window_restore_height};
     }
 
+    return user_bounds;
+}
+
+// Keeps the restored native window inside the OS work area. A 1920x1080 restored window does not
+// fit on a 1080p Windows desktop once the title bar and taskbar are included.
+[[nodiscard]] juce::Rectangle<int> restoredMainWindowBounds() noexcept
+{
+    const juce::Rectangle<int> work_area = primaryDisplayWorkArea();
+
     const juce::Rectangle<int> preferred_bounds{
         0,
         0,
-        std::min(g_main_window_restore_width, user_bounds.getWidth()),
-        std::min(g_main_window_restore_height, user_bounds.getHeight()),
+        std::min(g_main_window_restore_width, work_area.getWidth()),
+        std::min(g_main_window_restore_height, work_area.getHeight()),
     };
 
-    return preferred_bounds.withCentre(user_bounds.getCentre()).constrainedWithin(user_bounds);
+    return preferred_bounds.withCentre(work_area.getCentre()).constrainedWithin(work_area);
 }
 
 } // namespace
@@ -69,10 +78,20 @@ MainWindow::MainWindow(
         std::min(g_main_window_min_height, restore_bounds.getHeight()),
         8192,
         8192);
-    setBounds(restore_bounds);
-    // Make the first native show use the maximized state directly. Showing the restored bounds
-    // first lets Windows present a stretched restored-size frame before the maximize call lands.
+    // setFullScreen's maximizing ShowWindow paints and presents one Direct2D frame at the
+    // pre-maximize client rect (during WM_SHOWWINDOW, before the maximized size is applied), and
+    // the DXGI swap chain stretches that frame across the maximized window until the next paint
+    // lands after startup work releases the message loop. Laying the window out at the work-area
+    // size first keeps that stretched frame imperceptible; restored-size bounds here show up as a
+    // 1080p frame stretched over the whole screen.
+    setBounds(primaryDisplayWorkArea());
     setFullScreen(true);
+    // The peer captured the work-area bounds above as its un-maximize rect; record the real
+    // restored-window rect instead, as ResizableWindow::restoreWindowStateFromString does.
+    if (juce::ComponentPeer* const peer = getPeer())
+    {
+        peer->setNonFullScreenBounds(restore_bounds);
+    }
     setVisible(true);
 
     // JUCE's show path does not request native foreground activation, so ask once at startup for
