@@ -171,7 +171,6 @@ void EditorController::Impl::refreshAudioDeviceFailurePrompt()
         .message = !status.unavailable_reason.empty()
                        ? status.unavailable_reason
                        : std::string{g_generic_device_failure_reason},
-        .device_name = status.unavailable_device_name,
     };
 }
 

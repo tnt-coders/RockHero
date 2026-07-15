@@ -79,7 +79,7 @@ public:
     */
     void paint(juce::Graphics& g) override;
 
-    /*! \brief Lays out the centered surface: headline, reason text, and the two choice buttons. */
+    /*! \brief Lays out the centered surface: reason text above the two choice buttons. */
     void resized() override;
 
     /*!
@@ -94,10 +94,7 @@ public:
     bool keyPressed(const juce::KeyPress& key) override;
 
 private:
-    // Device headline, e.g. `Audio device "X" unavailable`.
-    juce::Label m_headline_label;
-
-    // Reason line: "Failed to open audio device: <reason>".
+    // Reason line: "There was an error opening the audio hardware: <reason>".
     juce::Label m_message_label;
 
     // Re-applies the saved route through the controller's Retry decision.

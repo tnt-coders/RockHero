@@ -706,12 +706,9 @@ TEST_CASE(
     REQUIRE(restored.has_value());
     CHECK(*restored == DeviceRestoreOutcome::DeviceUnavailable);
     CHECK_FALSE(audio_devices.currentDeviceStatus().open);
-    // The backend's own diagnostic survives on the closed status snapshot -- along with the
-    // requested route's device name -- so the editor's failure prompt can name the real cause.
+    // The backend's own diagnostic survives on the closed status snapshot so the editor's failure
+    // prompt can report the real cause.
     CHECK_FALSE(audio_devices.currentDeviceStatus().unavailable_reason.empty());
-    CHECK(
-        audio_devices.currentDeviceStatus().unavailable_device_name.find("Rejected Output") !=
-        std::string::npos);
     // The requested route becomes the saved choice even though it could not open; the settings
     // window's apply relies on this to keep a chosen-but-unopenable device as the saved route.
     const std::optional<std::string> saved = audio_devices.serializedDeviceState();
@@ -748,13 +745,10 @@ TEST_CASE(
         [&] {
             // The refresh ran between steps: the policy closed the fallback device, and the saved
             // route still names device A for the next launch. The closed status snapshot reports
-            // the plain disconnect reason plus the vanished device's name so the editor's failure
-            // prompt can explain the closure in the same shape as a failed open.
+            // the plain disconnect reason so the editor's failure overlay can explain the closure
+            // in the same shape as a failed open.
             CHECK_FALSE(audio_devices.currentDeviceStatus().open);
             CHECK(audio_devices.currentDeviceStatus().unavailable_reason == "Disconnected");
-            CHECK(
-                audio_devices.currentDeviceStatus().unavailable_device_name.find(
-                    g_fake_device_a_name) != std::string::npos);
             const std::optional<std::string> saved = audio_devices.serializedDeviceState();
             CHECK(saved.has_value());
             CHECK(saved.value_or(std::string{}).find(g_fake_device_a_name) != std::string::npos);
@@ -790,9 +784,6 @@ TEST_CASE(
         [&] {
             CHECK_FALSE(audio_devices.currentDeviceStatus().open);
             CHECK(audio_devices.currentDeviceStatus().unavailable_reason == "Disconnected");
-            CHECK(
-                audio_devices.currentDeviceStatus().unavailable_device_name.find(
-                    g_fake_device_a_name) != std::string::npos);
             // Replug device A: a device event fires, but nothing may reopen automatically.
             fake_type.simulateDeviceListChange({g_fake_device_a_name});
             device_manager.dispatchPendingMessages();
