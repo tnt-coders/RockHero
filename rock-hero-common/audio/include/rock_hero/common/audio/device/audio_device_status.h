@@ -59,15 +59,6 @@ struct AudioDeviceStatus
     std::string unavailable_reason;
 
     /*!
-    \brief Display name(s) of the saved route's device while no device is open.
-
-    Derived from the saved route (the only identity that survives a disconnect) whenever
-    unavailable_reason is set, so failure reporting can name the device the reason is about.
-    Empty while a device is open.
-    */
-    std::string unavailable_device_name;
-
-    /*!
     \brief Compares two device snapshots by their stored values.
     \param lhs Left-hand device snapshot.
     \param rhs Right-hand device snapshot.

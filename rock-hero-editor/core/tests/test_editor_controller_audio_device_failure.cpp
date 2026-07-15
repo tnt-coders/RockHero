@@ -20,14 +20,12 @@ namespace rock_hero::editor::core
 namespace
 {
 
-// Builds a closed-device status carrying the backend's recorded unavailable reason and device
-// name, mirroring how the engine publishes a failed open on its status snapshot.
-[[nodiscard]] common::audio::AudioDeviceStatus closedStatusWithReason(
-    std::string reason, std::string device_name = "Interface A")
+// Builds a closed-device status carrying the backend's recorded unavailable reason, mirroring how
+// the engine publishes a failed open on its status snapshot.
+[[nodiscard]] common::audio::AudioDeviceStatus closedStatusWithReason(std::string reason)
 {
     common::audio::AudioDeviceStatus status;
     status.unavailable_reason = std::move(reason);
-    status.unavailable_device_name = std::move(device_name);
     return status;
 }
 
@@ -117,7 +115,6 @@ TEST_CASE(
 
     REQUIRE(harness.prompt().has_value());
     CHECK(harness.prompt()->message == "driver init failed");
-    CHECK(harness.prompt()->device_name == "Interface A");
     CHECK(harness.view.last_state->audio_device_status_text == "[audio device closed]");
 }
 

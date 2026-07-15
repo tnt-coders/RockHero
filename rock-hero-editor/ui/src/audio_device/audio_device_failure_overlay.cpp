@@ -13,15 +13,13 @@ namespace
 // share one visual language.
 constexpr float g_dim_alpha = 0.55F;
 
-// Centered surface dimensions in pixels. Wider than the busy surface because backend diagnostics
-// can be long sentences; the overlay shrinks the surface when EditorView is narrow.
-constexpr int g_surface_width = 520;
-constexpr int g_surface_height = 190;
+// Centered surface dimensions in pixels. Sized for a single wrapped message line plus the button
+// row; the overlay shrinks the surface when EditorView is narrow.
+constexpr int g_surface_width = 460;
+constexpr int g_surface_height = 130;
 constexpr int g_surface_padding = 16;
 constexpr int g_surface_corner_radius = 8;
 
-constexpr int g_headline_height = 24;
-constexpr int g_headline_message_gap = 8;
 constexpr int g_button_row_height = 28;
 constexpr int g_button_message_gap = 14;
 constexpr int g_retry_button_width = 96;
@@ -38,13 +36,8 @@ AudioDeviceFailureOverlay::AudioDeviceFailureOverlay()
     setInterceptsMouseClicks(true, true);
     setWantsKeyboardFocus(true);
 
-    m_headline_label.setJustificationType(juce::Justification::centred);
-    m_headline_label.setColour(juce::Label::textColourId, juce::Colours::white);
-    m_headline_label.setInterceptsMouseClicks(false, false);
-    addAndMakeVisible(m_headline_label);
-
     m_message_label.setJustificationType(juce::Justification::centred);
-    m_message_label.setColour(juce::Label::textColourId, juce::Colours::lightsalmon);
+    m_message_label.setColour(juce::Label::textColourId, juce::Colours::white);
     m_message_label.setInterceptsMouseClicks(false, false);
     addAndMakeVisible(m_message_label);
 
@@ -69,10 +62,9 @@ AudioDeviceFailureOverlay::AudioDeviceFailureOverlay()
     addAndMakeVisible(m_open_settings_button);
 }
 
-// Drives visibility, headline, and reason text from the controller-supplied prompt. When the
-// overlay becomes newly visible it grabs keyboard focus so EditorView shortcut handlers stop
-// receiving keypresses; when it hides it releases interception so the editor returns to its
-// normal input state.
+// Drives visibility and reason text from the controller-supplied prompt. When the overlay becomes
+// newly visible it grabs keyboard focus so EditorView shortcut handlers stop receiving keypresses;
+// when it hides it releases interception so the editor returns to its normal input state.
 void AudioDeviceFailureOverlay::setPrompt(
     const std::optional<core::AudioDeviceFailurePrompt>& prompt)
 {
@@ -81,14 +73,8 @@ void AudioDeviceFailureOverlay::setPrompt(
 
     if (should_be_visible)
     {
-        const juce::String headline =
-            prompt->device_name.empty()
-                ? juce::String{"Audio device unavailable"}
-                : juce::String{"Audio device \""} +
-                      juce::String::fromUTF8(prompt->device_name.c_str()) + "\" unavailable";
-        m_headline_label.setText(headline, juce::dontSendNotification);
         m_message_label.setText(
-            juce::String{"Failed to open audio device: "} +
+            juce::String{"There was an error opening the audio hardware: "} +
                 juce::String::fromUTF8(prompt->message.c_str()),
             juce::dontSendNotification);
         resized();
@@ -135,8 +121,8 @@ void AudioDeviceFailureOverlay::paint(juce::Graphics& g)
     g.fillRoundedRectangle(surface.toFloat(), static_cast<float>(g_surface_corner_radius));
 }
 
-// Lays out the centered surface contents: headline on top, reason text in the middle, and the
-// two choice buttons along the bottom.
+// Lays out the centered surface contents: the wrapped reason line fills the space above the two
+// choice buttons along the bottom.
 void AudioDeviceFailureOverlay::resized()
 {
     const juce::Rectangle<int> bounds = getLocalBounds();
@@ -154,8 +140,6 @@ void AudioDeviceFailureOverlay::resized()
     m_open_settings_button.setBounds(button_row);
     surface.removeFromBottom(g_button_message_gap);
 
-    m_headline_label.setBounds(surface.removeFromTop(g_headline_height));
-    surface.removeFromTop(g_headline_message_gap);
     m_message_label.setBounds(surface);
 }
 
