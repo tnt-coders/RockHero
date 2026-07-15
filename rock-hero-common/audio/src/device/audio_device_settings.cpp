@@ -606,19 +606,18 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
 
     // Keeps the live route as final. A route opened out of band while the window was open (for
     // example by the editor's live "use game audio settings" toggle) is already the one the user
-    // is keeping and survives untouched. When nothing opened a device during the edit, the kept
-    // route is the captured one that construction closed for staging, so finishing must reopen it
-    // -- otherwise a plain OK on an untouched window would leave the device closed.
+    // is keeping and survives untouched. When nothing is open, OK is an explicit confirmation of
+    // the shown route, so commit reopens the captured one -- whether construction closed it for
+    // staging or the edit began on an unavailable device whose hardware has since returned. This
+    // deliberately ignores the m_restore_pending gate, which exists for cancel's "don't start
+    // audio that was not running before the edit"; a reopen failure is the designed no-fallback
+    // outcome (the route stays chosen, the device stays closed behind the standing notice) and
+    // therefore does not fail the commit.
     [[nodiscard]] std::expected<void, AudioDeviceSettingsError> commit()
     {
-        if (m_device_manager.getCurrentAudioDevice() == nullptr && m_restore_pending)
+        if (m_device_manager.getCurrentAudioDevice() == nullptr)
         {
-            auto restored = restorePreviousRoute();
-            if (!restored.has_value())
-            {
-                refreshState(restored.error().message);
-                return std::unexpected{std::move(restored.error())};
-            }
+            openPreviousRouteBestEffort();
         }
 
         m_restore_pending = false;
@@ -705,6 +704,28 @@ private:
         return std::unexpected{AudioDeviceSettingsError{
             AudioDeviceSettingsErrorCode::RestoreFailed, error_text.toStdString()
         }};
+    }
+
+    // Best-effort reopen of the captured route for commit(). Unlike restorePreviousRoute() this
+    // ignores the m_restore_pending gate, and a failure -- the chosen device is still unavailable
+    // -- is swallowed as the designed no-fallback outcome: the route stays the user's explicit
+    // choice (a failed setAudioDeviceSetup never reaches updateXml, so the saved state keeps it)
+    // and the device stays closed behind the standing notice.
+    void openPreviousRouteBestEffort()
+    {
+        if (m_previous_device_type.isEmpty() || (m_previous_setup.inputDeviceName.isEmpty() &&
+                                                 m_previous_setup.outputDeviceName.isEmpty()))
+        {
+            return;
+        }
+
+        if (m_previous_device_type != m_device_manager.getCurrentAudioDeviceType())
+        {
+            m_device_manager.setCurrentAudioDeviceType(m_previous_device_type, true);
+        }
+
+        [[maybe_unused]] const juce::String reopen_error =
+            m_device_manager.setAudioDeviceSetup(m_previous_setup, true);
     }
 
     // Destructor cleanup has no caller-visible channel, so restore failure is intentionally

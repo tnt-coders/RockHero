@@ -82,9 +82,20 @@ namespace
            saved_setup.outputDeviceName != live_setup.outputDeviceName;
 }
 
-// Reports whether the saved route's device is currently attached, so a replug can re-apply the
-// saved route. Mirrors the availability check JUCE's setAudioDeviceSetup performs (a device-type
-// match plus each non-empty device name present in that type's freshly scanned list).
+// Reports whether the saved route's device is currently attached and initializable, so a replug
+// can re-apply the saved route.
+//
+// The name check mirrors the availability check JUCE's setAudioDeviceSetup performs (a
+// device-type match plus each non-empty device name present in that type's freshly scanned
+// list). It is necessary but not sufficient: an ASIO driver keeps advertising its device names
+// while the hardware is unplugged (the listing is registry-backed, not presence-backed), which
+// would report the device permanently "present" and keep the absent->present replug gate from
+// ever firing -- the device would stay closed forever after a reconnect. A non-open probe device
+// settles it: constructing the device loads the driver and runs its init without opening an
+// audio stream, and a failed init (hardware unplugged, or the device held by another
+// application) leaves getLastError() non-empty from birth (verified in juce_ASIO_windows.cpp;
+// the settings window's staged preview device relies on the same behavior). This runs only while
+// the route is closed, so it never contends with an open device.
 [[nodiscard]] bool savedDeviceIsPresent(
     juce::AudioDeviceManager& device_manager, const juce::XmlElement& saved)
 {
@@ -116,7 +127,14 @@ namespace
     const bool output_present =
         setup.outputDeviceName.isEmpty() ||
         matching_type->getDeviceNames(false).contains(setup.outputDeviceName);
-    return input_present && output_present;
+    if (!input_present || !output_present)
+    {
+        return false;
+    }
+
+    const std::unique_ptr<juce::AudioIODevice> probe{matching_type->createDevice(
+        setup.outputDeviceName, setup.inputDeviceName)};
+    return probe != nullptr && probe->getLastError().isEmpty();
 }
 
 } // namespace
