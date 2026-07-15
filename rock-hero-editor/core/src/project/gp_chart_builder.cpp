@@ -331,7 +331,7 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
 // Classifies a track's part by a heuristic: four strings or a bass-named track become Bass, the
 // first non-bass track becomes Lead, and the rest Rhythm. This is a stopgap — Guitar Pro tracks
 // carry no Rock Hero part, so a robust import should let the user map each track to a part on
-// import rather than guessing. Tracked in docs/todo/gp-track-part-mapping.md.
+// import rather than guessing. Tracked in docs/plans/todo/gp-track-part-mapping.md.
 [[nodiscard]] common::core::Part partForTrack(const GpTrack& track, bool first_track)
 {
     std::string lower_name = track.name;
@@ -754,7 +754,7 @@ std::expected<GpBuiltSong, SongImportError> buildGpSong(const GpScore& score)
     }
 
     // The track-to-part mapping is a heuristic guess (see partForTrack); surface it so the user
-    // can spot and correct a misfiled track. Tracked in docs/todo/gp-track-part-mapping.md.
+    // can spot and correct a misfiled track. Tracked in docs/plans/todo/gp-track-part-mapping.md.
     song.notes.push_back("assigned parts by track order and name (verify): " + part_guesses);
 
     return song;

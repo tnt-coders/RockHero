@@ -97,7 +97,7 @@ public:
     The live instrument path is never speed-affected — speed applies to backing playback only.
     Current implementations accept exactly 1.0; any other factor returns
     TransportErrorCode::SpeedNotSupported and leaves playback unchanged. Practice-speed support
-    (docs/roadmap/28-practice-mode.md) widens the accepted range behind this same signature.
+    (docs/plans/roadmap/28-practice-mode.md) widens the accepted range behind this same signature.
 
     \param factor Requested playback speed multiplier, where 1.0 is normal speed.
     \return Nothing on success, or a typed transport error when the factor is unsupported.

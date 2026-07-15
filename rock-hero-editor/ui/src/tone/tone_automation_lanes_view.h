@@ -4,7 +4,7 @@
 
 One component paints every lane (dynamic count, per-lane vertical resize, dirty-rect locality) and
 the trailing empty lane whose pinned "+" chip opens the parameter picker. Gestures follow the
-editor-wide interaction model (docs/in-progress/editing-interaction-model.md): a plain click never
+editor-wide interaction model (docs/plans/in-progress/editing-interaction-model.md): a plain click never
 mutates (points select; empty lane space passes through to the seek overlay), Alt is the insert
 quasimode (click or press-drag-release places a point, with a ghost preview and copy cursor while
 Alt is held), Ctrl bypasses grid snap to the fine grid, Shift axis-locks point drags, and Esc

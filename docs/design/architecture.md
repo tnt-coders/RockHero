@@ -269,7 +269,7 @@ for 3-4, Hard for 5-6, Expert for 7-8, and Master for 9-10. A value of 0 represe
 draft/default arrangements do not imply a fake difficulty; validation for playable songs should
 reject Unknown once playable chart data exists. Difficulty is currently not persisted in song
 packages and defaults to Unknown on load. See
-`docs/roadmap/11-derived-difficulty-calculator.md`.
+`docs/plans/roadmap/11-derived-difficulty-calculator.md`.
 
 The tempo map is a **warp-anchor grid**: time signatures are stored as changes (carried forward),
 and time is pinned only on a sparse set of addressed **anchors** (a measure/beat with an absolute
@@ -330,7 +330,7 @@ real, add a dedicated boundary for them then; do not overload song loading, audi
 transport, or playback setup ports with edit-command responsibilities. The editor's current
 undo/redo edit-command interface lives in `rock-hero-editor/core`, because undo entries also restore
 editor-only visual state (block placement, display-type overrides) that `rock-hero-common/audio`
-must not depend on (see `docs/completed/editor-undo/editor-undo-plan.md`).
+must not depend on (see `docs/plans/completed/editor-undo/editor-undo-plan.md`).
 
 Audio-device and settings boundaries report recoverable side-effect failures with typed errors.
 `common::audio::IAudioDeviceConfiguration` owns serialized audio-device restore diagnostics,
@@ -541,7 +541,7 @@ Built with SDL3 (window management, input) and bgfx (rendering abstraction over 
 D3D11/D3D12, OpenGL; Direct3D 11 is the proven default backend on Windows). Lives in
 `rock-hero-game`. This stack was spike-proven and compared against alternatives at the
 G20-RENDER gate (2026-07-10); the evidence and decision record live in
-`docs/roadmap/20-game-architecture-and-render-stack.md` § Gate record.
+`docs/plans/roadmap/20-game-architecture-and-render-stack.md` § Gate record.
 
 The note highway is geometrically simple — textured quads on lanes with perspective projection. bgfx handles this easily with room for glow effects, particles on note hits, and other visual feedback.
 
