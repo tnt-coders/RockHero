@@ -84,7 +84,7 @@ struct FailurePromptHarness
         controller.emplace(
             audioPorts(transport, audio, audio_devices),
             controllerServices(nullEditorSettings(), store, monitor),
-            [this] { exit_count += 1; });
+            noopExitFunction());
         controller->attachView(view);
     }
 
@@ -102,7 +102,6 @@ struct FailurePromptHarness
     common::audio::testing::FakeLiveInput live_input;
     common::audio::LiveInputMonitor monitor{live_input, audio_devices, store};
     FakeEditorView view;
-    int exit_count{0};
     std::optional<EditorController> controller;
 };
 
@@ -148,21 +147,27 @@ TEST_CASE(
     }
 }
 
-// Repeat device events while the device stays closed never re-stage the prompt: the staged
-// generation is stable, so the view's present-once tracking cannot flicker the modal.
+// Repeat device events while the device stays closed keep the same prompt (the blocking overlay
+// follows the value directly, so an unchanged reason simply re-derives the same prompt); a device
+// event carrying a fresher reason live-updates the overlay's text.
 TEST_CASE(
-    "EditorController keeps the staged failure prompt stable across repeat device events",
+    "EditorController keeps the failure prompt across repeat device events and live-updates its "
+    "reason",
     "[core][editor-controller][audio-device-failure]")
 {
     FailurePromptHarness harness;
     REQUIRE(harness.prompt().has_value());
-    const std::uint64_t staged_generation = harness.prompt()->generation;
+    CHECK(harness.prompt()->message == "driver init failed");
 
     harness.audio_devices.notifyChanged();
-    harness.audio_devices.notifyChanged();
-
     REQUIRE(harness.prompt().has_value());
-    CHECK(harness.prompt()->generation == staged_generation);
+    CHECK(harness.prompt()->message == "driver init failed");
+
+    // A device event with a fresher backend reason updates the shown text in place.
+    harness.audio_devices.current_status = closedStatusWithReason("device is in use");
+    harness.audio_devices.notifyChanged();
+    REQUIRE(harness.prompt().has_value());
+    CHECK(harness.prompt()->message == "device is in use");
 }
 
 // A device event reporting the device open clears the staged prompt.
@@ -181,7 +186,7 @@ TEST_CASE(
 
 // The settings window owns the closed-device situation while it is open: the prompt clears at
 // open, stays clear through the close notification (the staged edit may still be rolling back),
-// and re-stages with a fresh generation only at teardown-complete when the device is still closed.
+// and re-stages only at teardown-complete when the device is still closed.
 TEST_CASE(
     "EditorController suppresses the failure prompt for the settings window and re-stages at "
     "teardown",
@@ -189,7 +194,6 @@ TEST_CASE(
 {
     FailurePromptHarness harness;
     REQUIRE(harness.prompt().has_value());
-    const std::uint64_t staged_generation = harness.prompt()->generation;
 
     REQUIRE(harness.controller->onAudioDeviceSettingsOpenRequested());
     CHECK_FALSE(harness.prompt().has_value());
@@ -205,19 +209,17 @@ TEST_CASE(
 
     harness.controller->onAudioDeviceSettingsTeardownComplete();
     REQUIRE(harness.prompt().has_value());
-    CHECK(harness.prompt()->generation > staged_generation);
 }
 
 // Retry re-applies the saved route behind the busy overlay. A still-failing device re-stages the
-// prompt with a bumped generation and the freshly recorded reason (the busy-clear evaluation is
-// the single staging point, so nothing flashes mid-operation); a succeeding retry stays cleared.
+// prompt with the freshly recorded reason (the busy-clear evaluation is the single staging point,
+// so nothing flashes mid-operation); a succeeding retry stays cleared.
 TEST_CASE(
     "EditorController Retry re-stages on failure and clears on success",
     "[core][editor-controller][audio-device-failure]")
 {
     FailurePromptHarness harness;
     REQUIRE(harness.prompt().has_value());
-    const std::uint64_t staged_generation = harness.prompt()->generation;
     const int startup_restore_count =
         harness.audio_devices.restore_serialized_device_state_call_count;
 
@@ -229,7 +231,6 @@ TEST_CASE(
         harness.audio_devices.restore_serialized_device_state_call_count ==
         startup_restore_count + 1);
     REQUIRE(harness.prompt().has_value());
-    CHECK(harness.prompt()->generation > staged_generation);
     CHECK(harness.prompt()->message == "device is in use");
 
     // Successful retry: the route opens, and the prompt stays cleared.
@@ -242,20 +243,6 @@ TEST_CASE(
         harness.audio_devices.restore_serialized_device_state_call_count ==
         startup_restore_count + 2);
     CHECK_FALSE(harness.prompt().has_value());
-}
-
-// Exit Editor routes through the regular exit flow -- the escape hatch for a user with no working
-// audio device, since the persistent modal blocks the main window's own close controls.
-TEST_CASE(
-    "EditorController ExitEditor decision runs the exit flow",
-    "[core][editor-controller][audio-device-failure]")
-{
-    FailurePromptHarness harness;
-    REQUIRE(harness.prompt().has_value());
-
-    harness.controller->onAudioDeviceFailureDecision(AudioDeviceFailureDecision::ExitEditor);
-
-    CHECK(harness.exit_count == 1);
 }
 
 // OpenSettings clears the prompt so the settings window can take over; nothing re-stages until
