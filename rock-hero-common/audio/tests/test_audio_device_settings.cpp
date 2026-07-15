@@ -729,12 +729,14 @@ TEST_CASE(
     CHECK(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
 }
 
-// OK onto a device whose driver cannot initialize keeps THAT device as the saved choice: JUCE's
-// own updateXml() runs only after a successful open, so without the explicit re-serialization the
-// previous route would silently remain the saved choice -- and the editor's failure prompt would
-// name and Retry the old device instead of the one the user just chose.
+// OK onto a device whose driver cannot initialize re-applies THAT route through the port's
+// no-fallback restore: JUCE's own updateXml() runs only after a successful open, so without the
+// re-application the previous route would silently remain the saved choice -- and the editor's
+// failure prompt would name and Retry the old device instead of the one the user just chose.
+// Routing through the port (rather than a bare initialise) also records the backend's own
+// diagnostic for the prompt, so the first popup and a failed Retry read the same reason.
 TEST_CASE(
-    "AudioDeviceSettings apply keeps an unopenable staged route as the saved choice",
+    "AudioDeviceSettings apply re-applies an unopenable staged route through the restore port",
     "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -757,10 +759,12 @@ TEST_CASE(
 
     REQUIRE(applied.has_value());
     CHECK(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
-    const std::unique_ptr<juce::XmlElement> saved = audio_devices.device_manager.createStateXml();
-    REQUIRE(saved != nullptr);
-    CHECK(saved->getStringAttribute("audioOutputDeviceName") == juce::String{g_output_b});
-    CHECK(saved->getStringAttribute("audioInputDeviceName") == juce::String{g_input_b});
+    // The staged route -- not the pre-edit one -- went through the port's restore.
+    CHECK(audio_devices.restore_serialized_device_state_call_count == 1);
+    const std::string restored_blob =
+        audio_devices.last_restored_serialized_device_state.value_or(std::string{});
+    CHECK(restored_blob.find(g_output_b) != std::string::npos);
+    CHECK(restored_blob.find(g_input_b) != std::string::npos);
 }
 
 // JUCE substitutes the pinned placeholder "Driver failed to initialise" when a failed driver init
