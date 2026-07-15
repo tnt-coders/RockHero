@@ -9,6 +9,11 @@
   makes architecture, layering, coding-style, testing, or documentation decisions that require
   them. Re-read only the relevant document(s) if the prior context may be stale, the file changed,
   or the task raises a design question not already covered by current context.
+- Consult the developer guide (`docs/guide/index.md`) for procedural recipes when adding an
+  editor action, audio-port method, UI view, source file, or package-format field — its "silent
+  steps" checklists list the touchpoints that produce no compile error when forgotten. It is not
+  a source of truth for rules; the design documents win on any conflict. Update the guide in the
+  same change set when a change touches anything it names.
 - Trivial renames, formatting-only edits, factual answers, status checks, and narrow mechanical
   follow-ups should not trigger the full documentation bootstrap.
 - Treat files in `.codex/agents/*.toml` as Codex subagent profiles that may be used when
@@ -60,8 +65,8 @@ Product-scope libraries live at the repository root under `rock-hero-common`, `r
 and `rock-hero-game`. Each scope owns `core`, `audio`, and `ui` submodules only when needed, with
 matching namespaces and include paths such as `rock_hero::editor::ui` and
 `<rock_hero/editor/ui/*.h>`. Executable startup lives under the matching product `app/` folder.
-`docs/` holds the design docs, user docs, plan lifecycle (`docs/plans/`), and Doxygen inputs such
-as `Doxyfile.in`. Third-party source submodules live under
+`docs/` holds the design docs, developer guide, user docs, plan lifecycle (`docs/plans/`), and
+Doxygen inputs such as `Doxyfile.in`. Third-party source submodules live under
 `external/` (`external/tracktion_engine`). `project-config/` remains a root-level submodule
 providing shared CMake presets, Conan integration, docs theming, and lint targets; its vendored
 `cmake-conan/` subtree carries its own pytest suite. Root build outputs go to `build/debug` and
