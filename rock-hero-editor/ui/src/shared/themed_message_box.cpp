@@ -81,19 +81,6 @@ void showThemedWarningBox(
         ignoringChoice(std::move(on_dismissed)));
 }
 
-void showThemedInfoBox(
-    juce::Component* associated_component, const juce::String& title, const juce::String& message,
-    std::function<void()> on_dismissed)
-{
-    showThemedButtonBox(
-        associated_component,
-        juce::MessageBoxIconType::InfoIcon,
-        title,
-        message,
-        {"OK"},
-        ignoringChoice(std::move(on_dismissed)));
-}
-
 void showThemedQuestionBox(
     juce::Component* associated_component, const juce::String& title, const juce::String& message,
     const juce::StringArray& buttons, std::function<void(int)> on_choice)
