@@ -49,6 +49,11 @@ PreviewSurface::PreviewSurface(
     , m_playback_clock{playback_clock}
 {
     setOpaque(true);
+    // Hold the preview window's keyboard focus so transport shortcuts (space/F3) reach
+    // PreviewWindow::keyPressed and forward to the editor (44-Q4). The embedded render child is a
+    // DefWindowProc window that never calls SetFocus, so clicking the 3D view does not steal focus
+    // while the preview is active -- focus stays on this surface.
+    setWantsKeyboardFocus(true);
 }
 
 PreviewSurface::~PreviewSurface()
