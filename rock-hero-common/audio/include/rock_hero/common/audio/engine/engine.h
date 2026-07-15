@@ -688,6 +688,12 @@ public:
     [[nodiscard]] std::optional<InputDeviceIdentity> currentInputDeviceIdentity() const override;
 
     /*!
+    \brief Marks whether a settings edit is staging with the device deliberately closed.
+    \param active True while a settings edit holds the device closed for staging.
+    */
+    void setRouteStagingActive(bool active) override;
+
+    /*!
     \brief Registers a listener notified after audio device configuration changes.
     \param listener Listener that should be notified until it is removed.
     */

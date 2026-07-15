@@ -251,11 +251,15 @@ private:
     // Coalesces JUCE audio-device callbacks so Tracktion route repair runs after callback unwinds.
     bool m_audio_device_configuration_refresh_pending{false};
 
-    // Whether the saved device route's hardware was attached at the last configuration refresh.
-    // enforceNoFallbackDevicePolicy() re-applies the saved route only on an absent -> present
-    // transition of this flag, so a replug reopens the user's device while deliberate closed
-    // states (a staging settings edit) and failed reopen attempts never enter a retry loop.
-    bool m_saved_device_present{false};
+    // True while a settings edit deliberately holds the device closed for staging.
+    // enforceNoFallbackDevicePolicy() suppresses its auto-reopen for the whole edit so nothing
+    // grabs the device under the open settings window.
+    bool m_route_staging_active{false};
+
+    // True after a failed policy reopen attempt, whose initialise() posts its own change message.
+    // The next policy pass consumes this flag instead of attempting again, bounding retries to
+    // one attempt per external device event.
+    bool m_reopen_echo_pending{false};
 
     // Alive token captured by deferred MessageManager::callAsync lambdas so they can detect
     // Engine destruction before re-entering Impl state.
