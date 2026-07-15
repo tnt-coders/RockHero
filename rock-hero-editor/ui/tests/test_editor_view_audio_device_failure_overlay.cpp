@@ -30,7 +30,6 @@ TEST_CASE(
     state.signal_chain = core::SignalChainViewState{};
     state.audio_device_failure_prompt = core::AudioDeviceFailurePrompt{
         .message = "Driver failed to initialize",
-        .device_name = "Interface A",
     };
     view.setState(state);
 
@@ -69,7 +68,6 @@ TEST_CASE(
     state.signal_chain = core::SignalChainViewState{};
     state.audio_device_failure_prompt = core::AudioDeviceFailurePrompt{
         .message = "Disconnected",
-        .device_name = "Interface A",
     };
     view.setState(state);
 

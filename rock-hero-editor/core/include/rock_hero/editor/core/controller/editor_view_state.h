@@ -247,9 +247,6 @@ struct AudioDeviceFailurePrompt
     /*! \brief Reason no device is open: the backend's diagnostic, or "Disconnected". */
     std::string message;
 
-    /*! \brief Display name(s) of the saved route's device the reason is about; may be empty. */
-    std::string device_name;
-
     /*!
     \brief Compares two failure prompt requests by their stored values.
     \param lhs Left-hand prompt request.

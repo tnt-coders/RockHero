@@ -86,25 +86,6 @@ namespace
 // backend diagnostic exists to report. Every open attempt records the backend's own text instead.
 constexpr const char* g_disconnected_reason = "Disconnected";
 
-// Extracts the display name(s) of the saved route's device. The saved XML is the only identity
-// that reliably survives a disconnect (JUCE clears the live setup's device names on its failure
-// path); split-device routes join both names.
-[[nodiscard]] std::string savedRouteDeviceNamesFor(const juce::XmlElement& saved)
-{
-    const juce::AudioDeviceManager::AudioDeviceSetup setup = reconstructDeviceSetupFromXml(saved);
-    juce::StringArray device_names;
-    if (setup.inputDeviceName.isNotEmpty())
-    {
-        device_names.addIfNotAlreadyThere(setup.inputDeviceName);
-    }
-    if (setup.outputDeviceName.isNotEmpty())
-    {
-        device_names.addIfNotAlreadyThere(setup.outputDeviceName);
-    }
-
-    return device_names.joinIntoString(", ").toStdString();
-}
-
 } // namespace
 
 void Engine::Impl::scheduleAudioDeviceConfigurationRefresh()
@@ -180,7 +161,6 @@ void Engine::Impl::enforceNoFallbackDevicePolicy()
             "saved choice");
         device_manager.closeAudioDevice();
         m_device_unavailable_reason = g_disconnected_reason;
-        m_device_unavailable_device_name = savedRouteDeviceNamesFor(*saved);
         return;
     }
 
@@ -189,7 +169,6 @@ void Engine::Impl::enforceNoFallbackDevicePolicy()
     {
         // The open device is the saved device (a fallback was ruled out above).
         m_device_unavailable_reason.clear();
-        m_device_unavailable_device_name.clear();
         return;
     }
 
@@ -198,7 +177,6 @@ void Engine::Impl::enforceNoFallbackDevicePolicy()
         // Closed without a recorded open failure -- the saved device vanished with nothing to
         // fall back to, so JUCE closed it without an error string to keep.
         m_device_unavailable_reason = g_disconnected_reason;
-        m_device_unavailable_device_name = savedRouteDeviceNamesFor(*saved);
     }
 }
 
@@ -264,7 +242,6 @@ std::expected<DeviceRestoreOutcome, AudioDeviceConfigurationError> Engine::
     if (activeDeviceMatchesSerializedState(device_manager, *xml))
     {
         m_impl->m_device_unavailable_reason.clear();
-        m_impl->m_device_unavailable_device_name.clear();
         return DeviceRestoreOutcome::Opened;
     }
 
@@ -285,12 +262,10 @@ std::expected<DeviceRestoreOutcome, AudioDeviceConfigurationError> Engine::
         // disconnect does, so the synchronous monitoring rebuild below is correctly skipped on
         // this branch.
         m_impl->m_device_unavailable_reason = error_text.toStdString();
-        m_impl->m_device_unavailable_device_name = savedRouteDeviceNamesFor(*xml);
         return DeviceRestoreOutcome::DeviceUnavailable;
     }
 
     m_impl->m_device_unavailable_reason.clear();
-    m_impl->m_device_unavailable_device_name.clear();
     auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
     if (!route_result.has_value())
     {
@@ -337,7 +312,6 @@ AudioDeviceStatus Engine::currentDeviceStatus() const
 {
     AudioDeviceStatus closed_status;
     closed_status.unavailable_reason = m_impl->m_device_unavailable_reason;
-    closed_status.unavailable_device_name = m_impl->m_device_unavailable_device_name;
 
     auto* const current_device =
         m_impl->m_engine->getDeviceManager().deviceManager.getCurrentAudioDevice();

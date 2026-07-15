@@ -257,10 +257,6 @@ private:
     // prompt can name the real cause.
     std::string m_device_unavailable_reason;
 
-    // Display name(s) of the saved route's device, maintained alongside the unavailable reason
-    // from the saved state XML so failure reporting can say which device the reason is about.
-    std::string m_device_unavailable_device_name;
-
     // Alive token captured by deferred MessageManager::callAsync lambdas so they can detect
     // Engine destruction before re-entering Impl state.
     std::shared_ptr<bool> m_alive{std::make_shared<bool>(true)};
