@@ -46,20 +46,6 @@ void showThemedWarningBox(
     std::function<void()> on_dismissed = {});
 
 /*!
-\brief Shows the editor's themed informational box with a single OK button.
-
-\param associated_component Component whose top-level window the box is positioned over; may be
-       null for a screen-centered box.
-\param title Window title naming what is being reported.
-\param message Canonical user-facing text to display.
-\param on_dismissed Called exactly once when the box is dismissed through any path (the OK button,
-       Return, or Escape); may be empty.
-*/
-void showThemedInfoBox(
-    juce::Component* associated_component, const juce::String& title, const juce::String& message,
-    std::function<void()> on_dismissed = {});
-
-/*!
 \brief Shows the editor's themed multiple-choice question box.
 
 Buttons appear in the given order, with the keyboard rules fixed here for every question box:
