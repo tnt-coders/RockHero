@@ -52,11 +52,20 @@ struct AudioDeviceStatus
     /*!
     \brief Why no device is open, when known.
 
-    Carries the backend's open-failure text after a failed route application, or a composed
-    disconnect notice after the saved device vanished. Empty while a device is open, and on a
+    Carries the backend's open-failure text after a failed route application, or the plain
+    "Disconnected" notice after the saved device vanished. Empty while a device is open, and on a
     first run with no saved route.
     */
     std::string unavailable_reason;
+
+    /*!
+    \brief Display name(s) of the saved route's device while no device is open.
+
+    Derived from the saved route (the only identity that survives a disconnect) whenever
+    unavailable_reason is set, so failure reporting can name the device the reason is about.
+    Empty while a device is open.
+    */
+    std::string unavailable_device_name;
 
     /*!
     \brief Compares two device snapshots by their stored values.

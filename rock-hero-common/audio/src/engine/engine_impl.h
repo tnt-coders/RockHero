@@ -252,10 +252,14 @@ private:
     bool m_audio_device_configuration_refresh_pending{false};
 
     // Why no device is open, when known: the backend's open-failure text recorded by a failed
-    // restore, or the composed disconnect notice set by the no-fallback policy. Cleared whenever
+    // restore, or the plain "Disconnected" notice set by the no-fallback policy. Cleared whenever
     // a device is observed open. Published through currentDeviceStatus() so the editor's failure
     // prompt can name the real cause.
     std::string m_device_unavailable_reason;
+
+    // Display name(s) of the saved route's device, maintained alongside the unavailable reason
+    // from the saved state XML so failure reporting can say which device the reason is about.
+    std::string m_device_unavailable_device_name;
 
     // Alive token captured by deferred MessageManager::callAsync lambdas so they can detect
     // Engine destruction before re-entering Impl state.

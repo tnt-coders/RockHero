@@ -524,7 +524,9 @@ public:
     Retry re-applies the active source's saved route behind the busy overlay; a device that still
     fails to open re-stages the prompt with a fresh reason. OpenSettings clears the prompt only:
     the view follows the decision by opening the audio device settings window, whose suppression
-    then owns the prompt until the window tears down.
+    then owns the prompt until the window tears down. ExitEditor runs the regular exit flow
+    (unsaved-changes prompting included) so a user with no working audio device is never trapped
+    behind the persistent modal.
 
     \param decision Decision selected by the user.
     */
