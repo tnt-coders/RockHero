@@ -427,9 +427,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] std::expected<void, GameAudioSourceError> applyAudioSourceAndRoute(
         AudioSourceSelection selection, std::function<void(bool)> set_applying);
 
-    // The one evaluation deciding whether the audio-device failure prompt should be staged;
-    // stage-if-absent with a monotonic generation so repeat device events never re-present a
-    // staged prompt while Retry/settings flows re-stage a fresh generation.
+    // The one evaluation deciding whether the audio-device failure prompt should be staged; the
+    // blocking overlay rendering it follows the staged value directly, so the prompt is simply
+    // re-derived (and its reason text live-updated) whenever the editor is deviceless and no
+    // other flow owns the situation.
     void refreshAudioDeviceFailurePrompt();
     void recordSettingsResultBestEffort(
         std::expected<void, EditorSettingsError> result, std::string_view context);
@@ -543,12 +544,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // Standing failure notice staged by refreshAudioDeviceFailurePrompt() while the editor runs
     // without an open audio device and no other flow owns the situation. Cleared when a device
-    // opens, when the settings window takes over, or when the user answers the prompt.
+    // opens, when the settings window takes over, or when the user answers the overlay.
     std::optional<AudioDeviceFailurePrompt> m_audio_device_failure_prompt{};
-
-    // Monotonic staging counter carried on the prompt so a re-staging (failed Retry, settings
-    // window closed still-broken) reads as a new prompt to the view's present-once tracking.
-    std::uint64_t m_audio_device_failure_generation{0};
 
     // Non-owning view binding installed by attachView(); null before the first attachment.
     // updateView() and reportError() tolerate the null window because the constructor's

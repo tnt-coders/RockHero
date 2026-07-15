@@ -101,42 +101,29 @@ void EditorController::Impl::onAudioDeviceSettingsTeardownComplete()
     updateView();
 }
 
-// Applies the user's answer to the audio-device failure prompt. Retry re-applies the active
+// Applies the user's answer to the audio-device failure overlay. Retry re-applies the active
 // source's saved route; the no-op applying presentation routes the genuine reopen through the
-// busy overlay, and the busy-clear evaluation re-stages the prompt with a fresh generation when
-// the device is still closed. OpenSettings clears the prompt only: the view follows by opening
-// the settings window, whose suppression owns the prompt until teardown. ExitEditor runs the
-// regular exit flow (unsaved-changes prompting included) -- the escape hatch for a user with no
-// working audio device at all.
+// busy overlay, and the busy-clear evaluation re-stages the prompt when the device is still
+// closed. OpenSettings clears the prompt only: the view follows by opening the settings window,
+// whose suppression owns the prompt until teardown. Exiting needs no decision of its own -- the
+// overlay is not a modal, so the main window's close controls keep working above it.
 void EditorController::Impl::onAudioDeviceFailureDecision(AudioDeviceFailureDecision decision)
 {
     m_audio_device_failure_prompt.reset();
 
-    switch (decision)
+    if (decision == AudioDeviceFailureDecision::Retry)
     {
-        case AudioDeviceFailureDecision::Retry:
-        {
-            static_cast<void>(applyAudioSourceAndRoute(AudioSourceSelection::Current, [](bool) {}));
-            return;
-        }
-        case AudioDeviceFailureDecision::OpenSettings:
-        {
-            break;
-        }
-        case AudioDeviceFailureDecision::ExitEditor:
-        {
-            onExitRequested();
-            return;
-        }
+        static_cast<void>(applyAudioSourceAndRoute(AudioSourceSelection::Current, [](bool) {}));
+        return;
     }
 
     updateView();
 }
 
-// The one evaluation deciding whether the audio-device failure prompt should be staged.
-// Stage-if-absent: repeat device events never re-bump a staged prompt (no modal flicker), while
-// the Retry and settings flows clear the member first so their re-evaluation stages a fresh
-// generation that the view's present-once tracking re-presents.
+// The one evaluation deciding whether the audio-device failure prompt should be staged. The
+// blocking overlay follows the staged value directly, so past the ownership gates the prompt is
+// simply re-derived from the current status -- a repeat device event with a fresher reason
+// live-updates the overlay's text, and an opened device retracts it.
 void EditorController::Impl::refreshAudioDeviceFailurePrompt()
 {
     const common::audio::AudioDeviceStatus status = m_audio_devices.currentDeviceStatus();
@@ -180,17 +167,11 @@ void EditorController::Impl::refreshAudioDeviceFailurePrompt()
         return;
     }
 
-    if (m_audio_device_failure_prompt.has_value())
-    {
-        return;
-    }
-
     m_audio_device_failure_prompt = AudioDeviceFailurePrompt{
         .message = !status.unavailable_reason.empty()
                        ? status.unavailable_reason
                        : std::string{g_generic_device_failure_reason},
         .device_name = status.unavailable_device_name,
-        .generation = ++m_audio_device_failure_generation,
     };
 }
 

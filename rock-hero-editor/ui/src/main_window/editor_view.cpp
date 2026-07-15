@@ -372,6 +372,15 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     m_busy_overlay.setPaintCallback([this] { handleBusyOverlayPainted(); });
     m_busy_overlay.setCancelCallback([this] { m_controller.onBusyCancelRequested(); });
 
+    m_audio_device_failure_overlay.setComponentID("audio_device_failure_overlay");
+    m_audio_device_failure_overlay.setRetryCallback([this] {
+        m_controller.onAudioDeviceFailureDecision(core::AudioDeviceFailureDecision::Retry);
+    });
+    m_audio_device_failure_overlay.setOpenSettingsCallback([this] {
+        m_controller.onAudioDeviceFailureDecision(core::AudioDeviceFailureDecision::OpenSettings);
+        showAudioDeviceSettingsWindow();
+    });
+
     m_arrangement_view.setThumbnailFactory(audio_ports.thumbnail_factory);
 
     addAndMakeVisible(m_menu_bar);
@@ -404,6 +413,9 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     // The history inspector floats above the track stack but below the busy overlay; it starts
     // hidden and the user reveals it on demand.
     addChildComponent(m_undo_history_overlay);
+    // The failure overlay sits above the editor content; the busy overlay is added after it so a
+    // Retry reopen paints its busy presentation on top.
+    addChildComponent(m_audio_device_failure_overlay);
     addChildComponent(m_busy_overlay);
     m_track_viewport->setProjectLoaded(m_state.project_loaded);
     // Zoom is app-local resume state like the cursor; the controller persists it per project.
@@ -426,6 +438,8 @@ EditorView::~EditorView()
     m_audio_device_settings_window_reset_pending = false;
     m_busy_overlay.setPaintCallback({});
     m_busy_overlay.setCancelCallback({});
+    m_audio_device_failure_overlay.setRetryCallback({});
+    m_audio_device_failure_overlay.setOpenSettingsCallback({});
     m_menu_bar.setLookAndFeel(nullptr);
     m_menu_bar.setModel(nullptr);
 }
@@ -606,9 +620,9 @@ void EditorView::setState(const core::EditorViewState& state)
     presentRestoreInterruptedPromptIfNeeded(m_state.restore_interrupted_prompt);
     presentGameAudioUnavailablePromptIfNeeded(m_state.game_audio_unavailable_prompt);
     presentGameAudioRecommendationIfNeeded(m_state.game_audio_recommendation_prompt);
-    presentAudioDeviceFailurePromptIfNeeded(m_state.audio_device_failure_prompt);
     presentInputCalibrationPromptIfNeeded(m_state.input_calibration_prompt);
     presentPluginBrowserIfNeeded(m_state.plugin_browser);
+    m_audio_device_failure_overlay.setPrompt(m_state.audio_device_failure_prompt);
     m_busy_overlay.setBusyState(m_state.busy);
     repaint();
 }
@@ -757,6 +771,7 @@ void EditorView::resized()
     }
     m_track_viewport->setBounds(bottom_area);
     m_signal_chain_panel.setBounds(signal_chain_panel_bounds);
+    m_audio_device_failure_overlay.setBounds(getLocalBounds());
     m_busy_overlay.setBounds(getLocalBounds());
 
     // Pin the history inspector to the top-right, below the transport strip, tall enough to list a
@@ -1652,77 +1667,6 @@ void EditorView::presentGameAudioRecommendationIfNeeded(bool prompt_requested)
                 view->m_controller.onGameAudioRecommendationDecision(decision, suppress_future);
             }
         });
-}
-
-// Presents the persistent audio-device failure modal. Each staged generation presents once; a
-// failed Retry re-stages a fresh generation, which re-presents through the same tracking, so the
-// modal is persistent without any dialog-lifetime bookkeeping. Built directly on the shared modal
-// launcher because the keyboard rules are bespoke: Return maps to Retry and Escape to Open Audio
-// Settings, while Exit Editor -- the escape hatch for a user with no working device at all, since
-// the modal blocks the main window's own close controls -- is deliberately click-only so a
-// reflexive keypress can never quit the app.
-void EditorView::presentAudioDeviceFailurePromptIfNeeded(
-    const std::optional<core::AudioDeviceFailurePrompt>& prompt)
-{
-    if (!prompt.has_value())
-    {
-        m_last_audio_device_failure_prompt.reset();
-        return;
-    }
-
-    if (m_last_audio_device_failure_prompt == prompt)
-    {
-        return;
-    }
-
-    m_last_audio_device_failure_prompt = prompt;
-
-    juce::String message;
-    if (!prompt->device_name.empty())
-    {
-        message << "Audio device \"" << juce::String::fromUTF8(prompt->device_name.c_str())
-                << "\" unavailable\n\n";
-    }
-    message << "Failed to open audio device: " << juce::String::fromUTF8(prompt->message.c_str());
-
-    auto window = std::make_unique<juce::AlertWindow>(
-        "Audio device unavailable", message, juce::MessageBoxIconType::WarningIcon, this);
-    window->addButton("Retry", 1, juce::KeyPress{juce::KeyPress::returnKey});
-    window->addButton("Open Audio Settings", 2, juce::KeyPress{juce::KeyPress::escapeKey});
-    window->addButton("Exit Editor", 3);
-
-    const juce::Component::SafePointer<EditorView> safe_this{this};
-    showThemedDialogModally(std::move(window), [safe_this](int result) {
-        if (safe_this == nullptr)
-        {
-            return;
-        }
-
-        switch (result)
-        {
-            case 1:
-            {
-                safe_this->m_controller.onAudioDeviceFailureDecision(
-                    core::AudioDeviceFailureDecision::Retry);
-                break;
-            }
-            case 3:
-            {
-                safe_this->m_controller.onAudioDeviceFailureDecision(
-                    core::AudioDeviceFailureDecision::ExitEditor);
-                break;
-            }
-            default:
-            {
-                // Result 0 is AlertWindow's built-in Escape exit, which shares the Open Audio
-                // Settings meaning with button 2.
-                safe_this->m_controller.onAudioDeviceFailureDecision(
-                    core::AudioDeviceFailureDecision::OpenSettings);
-                safe_this->showAudioDeviceSettingsWindow();
-                break;
-            }
-        }
-    });
 }
 
 // Opens or closes the input calibration prompt from controller-derived state.
