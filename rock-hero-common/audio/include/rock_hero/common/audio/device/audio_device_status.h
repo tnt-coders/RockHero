@@ -50,6 +50,15 @@ struct AudioDeviceStatus
     double output_latency_ms{0.0};
 
     /*!
+    \brief Why no device is open, when known.
+
+    Carries the backend's open-failure text after a failed route application, or a composed
+    disconnect notice after the saved device vanished. Empty while a device is open, and on a
+    first run with no saved route.
+    */
+    std::string unavailable_reason;
+
+    /*!
     \brief Compares two device snapshots by their stored values.
     \param lhs Left-hand device snapshot.
     \param rhs Right-hand device snapshot.

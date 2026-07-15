@@ -846,7 +846,6 @@ TEST_CASE("EditorView Ctrl-click forwards free timeline position", "[ui][editor-
                     .stop_enabled = false,
                     .play_pause_shows_pause_icon = false,
                 },
-            .audio_devices_available = false,
             .visible_timeline =
                 common::core::TimeRange{
                     .start = common::core::TimePosition{},

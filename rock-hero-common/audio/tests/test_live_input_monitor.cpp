@@ -88,9 +88,6 @@ public:
         return identity;
     }
 
-    void setRouteStagingActive(bool) override
-    {}
-
     void addListener(Listener&) override
     {}
 

@@ -40,3 +40,15 @@ it's done — git history is the record.
   the notes (our board view has no depth writes); revisit only if it reads wrong in practice.
 - Eyeball the un-witnessed Phase 4 technique renders — hammer-on/pull-off/tap icons, harmonic
   heads, arpeggio brackets, tremolo wobble — on a legato/harmonic-heavy chart.
+- Evaluate the engine ctor's unconditional auto-detect `initialise(1, 2)` followed by the
+  editor's saved-route restore (a double device open at startup) — needs its own design and
+  touches game startup too.
+- Evaluate `handleAudioDeviceConfigurationRefresh` ordering: it detaches instrument monitoring
+  before `dispatchPendingUpdates()` rebuilds Tracktion's wave list, churning playback contexts
+  against a stale device list (crash hypothesis H3 from the 2026-07-14 reconnect investigation;
+  much tamer now that the policy no longer reopens devices mid-pass).
+- Evaluate gating `audioMeterSnapshot()` on `m_audio_device_configuration_refresh_pending` the
+  way `currentInputDeviceIdentity()` already is (H4 from the same investigation; largely
+  mitigated by the stable structural meter plugins).
+- Decide UX for the audio-device failure popup vs. the input-calibration prompt appearing
+  together (device disconnect while the calibration prompt is up) — modals currently just stack.

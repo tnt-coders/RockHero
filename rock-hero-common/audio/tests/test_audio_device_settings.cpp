@@ -874,25 +874,6 @@ TEST_CASE(
     CHECK(settings.state().staged_device_error.has_value());
 }
 
-// The settings edit marks route staging for its entire lifetime so the backend's no-fallback
-// policy never auto-reopens the saved route under the open settings window; the flag clears on
-// destruction so replug handling resumes once the window is gone.
-TEST_CASE(
-    "AudioDeviceSettings marks route staging while the edit is alive",
-    "[audio][audio-device-settings]")
-{
-    const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    testing::ConfigurableAudioDeviceConfiguration audio_devices;
-    openInitialRoute(audio_devices);
-
-    {
-        const AudioDeviceSettings settings{audio_devices};
-        CHECK(audio_devices.route_staging_active);
-    }
-
-    CHECK_FALSE(audio_devices.route_staging_active);
-}
-
 // After a failed no-fallback restore of a missing device, JUCE's live setup no longer names the
 // user's choice (the failure clears the setup's device names on its way out), so seeding the edit
 // from the live setup would snap it to the driver's default device. The user's actual choice

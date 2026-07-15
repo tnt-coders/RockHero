@@ -78,7 +78,7 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK(empty_state.transport.stop_enabled == false);
     CHECK(empty_state.transport.play_pause_shows_pause_icon == false);
     CHECK(empty_state.audio_device_status_text == "[audio device closed]");
-    CHECK(empty_state.audio_devices_available == false);
+    CHECK_FALSE(empty_state.audio_device_failure_prompt.has_value());
     CHECK(empty_state.visible_timeline == common::core::TimeRange{});
     CHECK(empty_state.grid_note_value == common::core::Fraction{1, 4});
     CHECK_FALSE(empty_state.arrangement.hasAudio());
@@ -119,7 +119,6 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
                 .play_pause_shows_pause_icon = true,
             },
         .audio_device_status_text = "[48kHz 24bit: 8/8ch 128spls ~5.1/8.5ms ASIO]",
-        .audio_devices_available = true,
         .visible_timeline = loadedTimelineRange(180.0),
         .arrangement =
             ArrangementViewState{
@@ -170,7 +169,6 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
 
     CHECK(loaded_state.arrangement.audio_asset == std::optional{audio_asset});
     CHECK(loaded_state.audio_device_status_text == "[48kHz 24bit: 8/8ch 128spls ~5.1/8.5ms ASIO]");
-    CHECK(loaded_state.audio_devices_available);
     CHECK(loaded_state.undo_enabled);
     CHECK(loaded_state.undo_label == std::optional<std::string>{"Move Plugin"});
     CHECK(loaded_state.redo_enabled);
@@ -299,7 +297,6 @@ TEST_CASE("EditorController publishes current audio device", "[core][editor-cont
     if (view.last_state.has_value())
     {
         const EditorViewState& state = view.last_state.value();
-        CHECK(state.audio_devices_available);
         CHECK(state.audio_device_status_text == "[48kHz 24bit: 2/2ch 128spls ~4.5/7.5ms ASIO]");
     }
 }
@@ -371,7 +368,6 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[core][ed
         CHECK(state.transport.play_pause_enabled == false);
         CHECK(state.transport.stop_enabled == false);
         CHECK(state.transport.play_pause_shows_pause_icon == false);
-        CHECK(state.audio_devices_available);
         CHECK(state.audio_device_status_text == "[audio device closed]");
         CHECK(state.visible_timeline == common::core::TimeRange{});
         CHECK_FALSE(state.arrangement.hasAudio());
