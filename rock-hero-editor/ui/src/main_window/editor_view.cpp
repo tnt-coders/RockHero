@@ -1474,15 +1474,9 @@ void EditorView::presentToneImportPromptIfNeeded(
     const juce::String message =
         "Importing replaces this tone's rig and removes automation on " + parameter_count +
         (prompt->automation_parameter_count == 1 ? " parameter." : " parameters.");
-    const juce::Component::SafePointer<EditorView> safe_this{this};
     showThemedQuestionBox(
-        this, "Import Tone", message, {"Import", "Cancel"}, [safe_this](int button_index) {
-            if (safe_this == nullptr)
-            {
-                return;
-            }
-
-            safe_this->m_controller.onToneImportDecision(
+        this, "Import Tone", message, {"Import", "Cancel"}, [this](int button_index) {
+            m_controller.onToneImportDecision(
                 button_index == 0 ? core::ToneImportDecision::Import
                                   : core::ToneImportDecision::Cancel);
         });
@@ -1504,36 +1498,27 @@ void EditorView::presentUnsavedChangesPromptIfNeeded(
     }
 
     m_last_presented_unsaved_changes_prompt = prompt;
-    const juce::Component::SafePointer<EditorView> safe_this{this};
     showThemedQuestionBox(
         this,
         "Unsaved changes",
         unsavedChangesPromptMessage(prompt->prompted_action, m_state.tone_designer.active),
         {"Save", "Discard", "Cancel"},
-        [safe_this](int button_index) {
-            if (safe_this == nullptr)
-            {
-                return;
-            }
-
+        [this](int button_index) {
             switch (button_index)
             {
                 case 0:
                 {
-                    safe_this->m_controller.onUnsavedChangesDecision(
-                        core::UnsavedChangesDecision::Save);
+                    m_controller.onUnsavedChangesDecision(core::UnsavedChangesDecision::Save);
                     break;
                 }
                 case 1:
                 {
-                    safe_this->m_controller.onUnsavedChangesDecision(
-                        core::UnsavedChangesDecision::Discard);
+                    m_controller.onUnsavedChangesDecision(core::UnsavedChangesDecision::Discard);
                     break;
                 }
                 default:
                 {
-                    safe_this->m_controller.onUnsavedChangesDecision(
-                        core::UnsavedChangesDecision::Cancel);
+                    m_controller.onUnsavedChangesDecision(core::UnsavedChangesDecision::Cancel);
                     break;
                 }
             }
@@ -1581,23 +1566,17 @@ void EditorView::presentRestoreInterruptedPromptIfNeeded(
     }
 
     m_last_presented_restore_interrupted_prompt = prompt;
-    const juce::Component::SafePointer<EditorView> safe_this{this};
     showThemedQuestionBox(
         this,
         "Project did not finish opening",
         juce::String{"The previous project did not finish opening:\n\n"} +
             common::core::juceStringFromPath(prompt->project_file) + "\n\nTry opening it again?",
         {"OK", "Cancel"},
-        [safe_this](int button_index) {
-            if (safe_this == nullptr)
-            {
-                return;
-            }
-
+        [this](int button_index) {
             const core::RestoreInterruptedDecision decision =
                 button_index == 0 ? core::RestoreInterruptedDecision::Retry
                                   : core::RestoreInterruptedDecision::Cancel;
-            safe_this->m_controller.onRestoreInterruptedDecision(decision);
+            m_controller.onRestoreInterruptedDecision(decision);
         });
 }
 
@@ -1618,19 +1597,13 @@ void EditorView::presentGameAudioUnavailablePromptIfNeeded(
     }
 
     m_last_game_audio_unavailable_prompt = prompt;
-    const juce::Component::SafePointer<EditorView> safe_this{this};
     showThemedWarningBox(
         this,
         "Game audio settings unavailable",
         juce::String::fromUTF8(prompt->error.message.c_str()),
-        [safe_this] {
-            if (safe_this == nullptr)
-            {
-                return;
-            }
-
-            safe_this->m_controller.onGameAudioUnavailablePromptDismissed();
-            safe_this->showAudioDeviceSettingsWindow();
+        [this] {
+            m_controller.onGameAudioUnavailablePromptDismissed();
+            showAudioDeviceSettingsWindow();
         });
 }
 
@@ -1651,21 +1624,17 @@ void EditorView::presentGameAudioRecommendationIfNeeded(bool prompt_requested)
     }
 
     m_game_audio_recommendation_presented = true;
-    const juce::Component::SafePointer<EditorView> safe_this{this};
     GameAudioRecommendationDialog::show(
-        *this, [safe_this](core::GameAudioRecommendationDecision decision, bool suppress_future) {
-            if (auto* view = safe_this.getComponent())
+        *this, [this](core::GameAudioRecommendationDecision decision, bool suppress_future) {
+            // The decline button reads "Open Audio Settings", so it lands the user in the audio
+            // device settings window. The window opens BEFORE the decision is reported: the
+            // settings-open state then suppresses the closed-device failure prompt that the
+            // decision handler would otherwise stage under the opening window.
+            if (decision == core::GameAudioRecommendationDecision::UseCustomSettings)
             {
-                // The decline button reads "Open Audio Settings", so it lands the user in the audio
-                // device settings window. The window opens BEFORE the decision is reported: the
-                // settings-open state then suppresses the closed-device failure prompt that the
-                // decision handler would otherwise stage under the opening window.
-                if (decision == core::GameAudioRecommendationDecision::UseCustomSettings)
-                {
-                    view->showAudioDeviceSettingsWindow();
-                }
-                view->m_controller.onGameAudioRecommendationDecision(decision, suppress_future);
+                showAudioDeviceSettingsWindow();
             }
+            m_controller.onGameAudioRecommendationDecision(decision, suppress_future);
         });
 }
 
@@ -2193,7 +2162,9 @@ void EditorView::createToneMarkerAt(common::core::GridPosition position)
     menu.addItem(create_new_id, "New tone");
 
     menu.showMenuAsync(
-        juce::PopupMenu::Options{}.withMousePosition(),
+        // Force a cancel result if this view is deleted while the menu is open, so the callback
+        // never touches a dangling controller (JUCE reports result 0 for a deleted watch target).
+        juce::PopupMenu::Options{}.withMousePosition().withDeletionCheck(*this),
         [this, position, reuse_refs, create_new_id](int result) {
             if (result == create_new_id)
             {

@@ -63,7 +63,9 @@ void GameAudioRecommendationDialog::show(juce::Component& anchor, DecisionCallba
     auto window = std::make_unique<RecommendationAlertWindow>(anchor.getTopLevelComponent());
     RecommendationAlertWindow* const window_ptr = window.get();
     showThemedDialogModally(
-        std::move(window), [window_ptr, owned_on_decision = std::move(on_decision)](int result) {
+        std::move(window),
+        &anchor,
+        [window_ptr, owned_on_decision = std::move(on_decision)](int result) {
             if (!owned_on_decision)
             {
                 return;

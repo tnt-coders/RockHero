@@ -180,6 +180,9 @@ void installSinks(std::vector<std::shared_ptr<quill::Sink>> sinks)
         file_config.set_open_mode('a');
         file_config.set_rotation_max_file_size(config.max_file_size_bytes);
         file_config.set_max_backup_files(static_cast<std::uint32_t>(config.max_backup_files));
+        // Quill takes the log filename only as a std::string sink name, so it is narrowed here; on
+        // Windows that is the active-code-page form (see the non-ASCII log-path watch item). The
+        // path itself is built losslessly at the app roots.
         return quill::Frontend::create_or_get_sink<quill::RotatingFileSink>(
             config.log_file.string(), file_config);
     }

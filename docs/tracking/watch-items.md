@@ -180,6 +180,27 @@ folds into the baseline. (Closed out of `docs/plans/in-progress/` on 2026-07-08 
   change while the transport is idle (`tracktion_AutomatableParameter.cpp:1439-1441`). Unlikely
   (meter params are not the ones users automate) but adjacent to this subsystem.
 
+## Logging (Windows paths)
+
+### Quill narrows log paths to the active code page — trigger: a log path needs non-ACP characters
+
+RockHero now builds its log-file paths losslessly as UTF-16 (`editorLogFile`/`gameLogFile` go
+through `common::core::pathFromJuceFile`), but Quill only accepts a log filename as a `std::string`
+sink name (`Frontend::create_or_get_sink(std::string const& sink_name, …)`), so `Logger::init`
+narrows it with `.string()` (`rock-hero-common/core/src/shared/logger.cpp`); Quill then reconstructs
+an `fs::path` from that string and opens it with `::_fsopen(filename.string().data(), …)` in
+`FileSink::open_file` (`quill/sinks/FileSink.h`). Both the API boundary and the open call narrow to
+the active code page. A log path is therefore
+written correctly only where its characters are ACP-representable; a path with characters outside
+the active code page (for example a CJK Windows username on a Latin-1 install) still fails to open.
+Only the **log file** is affected — the session workspace and game audio-config paths flow through
+`juce::File`/`std::filesystem` wide APIs and are correct for all Unicode. **Trigger:** a real
+non-ACP log path is hit (a bug report, or CI on a non-Latin locale), or a decision to guarantee
+fully-Unicode log paths. **Remedy:** shadow-patch Quill's `FileSink::open_file` to open via a wide
+call (`_wfsopen` / the path's native `wchar_t` representation), or drop in a custom sink that opens
+with `_wfopen`/`CreateFileW`; a lightweight stopgap is to redirect logs to an ASCII-safe directory.
+Recorded 2026-07-15 alongside the JUCE→`std::filesystem::path` conversion fix at the app roots.
+
 ---
 
 ## Retired
