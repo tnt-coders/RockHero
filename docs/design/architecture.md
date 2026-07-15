@@ -72,7 +72,7 @@ RockHero/
     core/               - game-specific pure gameplay behavior
     audio/              - game-specific audio analysis and gameplay plumbing
     ui/                 - game-specific presentation and rendering
-  docs/                 - Doxygen configuration
+  docs/                 - design docs, developer guide, user docs, plans, Doxygen config
   external/
     tracktion_engine/   - Git submodule: Tracktion Engine + JUCE 8
   project-config/       - Git submodule: CMake presets, Conan 2.x, Doxygen theme, lint
@@ -373,43 +373,39 @@ Loads a `Song` and starts a playback session. Displays the note highway and scor
 
 # Architecture Diagram
 
-\code{.txt}
-┌───────────────────────────────┐   ┌───────────────────────────────┐
-│     rock-hero-editor          │   │     rock-hero                 │
-│                               │   │                               │
-│  ┌─────────────────────────┐  │   │  ┌─────────────────────────┐  │
-│  │    Editor Window        │  │   │  │    Game Window          │  │
-│  │    (JUCE Components)    │  │   │  │    (SDL3 + bgfx)        │  │
-│  │                         │  │   │  │                         │  │
-│  │  • Waveform display     │  │   │  │  • 3D note highway      │  │
-│  │  • Signal chain panel   │  │   │  │  • Score display        │  │
-│  │  • Automation envelopes │  │   │  │  • Hit feedback/effects │  │
-│  │  • Transport controls   │  │   │  │  • Fretboard view       │  │
-│  └───────────┬─────────────┘  │   │  └──────────┬──────────────┘  │
-│              │                │   │             │                 │
-│  ┌───────────┴─────────────┐  │   │  ┌──────────┴──────────────┐  │
-│  │  common/audio           │  │   │  │  common/audio           │  │
-│  │  (Tracktion Engine)     │  │   │  │  (Tracktion Engine)     │  │
-│  │                         │  │   │  │                         │  │
-│  │  Backing Audio Lane     │  │   │  │  Backing Audio Lane     │  │
-│  │  Guitar FX Lane         │  │   │  │  Guitar FX Lane         │  │
-│  │  Transport + Automation │  │   │  │  Transport + Automation │  │
-│  └─────────────────────────┘  │   │  └─────────────────────────┘  │
-│                               │   │                               │
-│  ┌─────────────────────────┐  │   │  ┌─────────────────────────┐  │
-│  │  common/core            │  │   │  │  common/core            │  │
-│  │    Song/Arrangement     │  │   │  │    Song/Arrangement     │  │
-│  └─────────────────────────┘  │   │  │  + Scoring logic        │  │
-│                               │   │  └─────────────────────────┘  │
-└───────────────────────────────┘   │                               │
-                                    │  ┌─────────────────────────┐  │
-                                    │  │  Gameplay Systems       │  │
-                                    │  │  • Pitch detection      │  │
-                                    │  │  • Note matching        │  │
-                                    │  │  • Latency calibration  │  │
-                                    │  └─────────────────────────┘  │
-                                    └───────────────────────────────┘
-\endcode
+```mermaid
+flowchart TB
+    subgraph editor["rock-hero-editor"]
+        direction TB
+        editor_window["`**Editor Window** (JUCE Components)
+        waveform display · signal chain panel
+        automation envelopes · transport controls`"]
+        editor_audio["`**common/audio** (Tracktion Engine)
+        backing audio lane · guitar FX lane
+        transport + automation`"]
+        editor_core["`**common/core**
+        Song / Arrangement`"]
+        editor_window --> editor_audio
+        editor_audio ~~~ editor_core
+    end
+    subgraph game["rock-hero"]
+        direction TB
+        game_window["`**Game Window** (SDL3 + bgfx)
+        3D note highway · score display
+        hit feedback/effects · fretboard view`"]
+        game_audio["`**common/audio** (Tracktion Engine)
+        backing audio lane · guitar FX lane
+        transport + automation`"]
+        game_core["`**common/core**
+        Song / Arrangement + scoring logic`"]
+        gameplay["`**Gameplay Systems**
+        pitch detection · note matching
+        latency calibration`"]
+        game_window --> game_audio
+        game_audio ~~~ game_core
+        game_core ~~~ gameplay
+    end
+```
 
 Both executables link scope-level umbrella targets as static libraries. The final shape is
 `rock_hero::common + rock_hero::editor` for the editor executable and
@@ -468,17 +464,15 @@ frame loop reads song time exclusively through the playback-clock port's publish
 
 ## Thread Communication
 
-\code{.txt}
-Audio Thread                Analysis Thread            UI / Game Thread
-     │                            │                           │
-     │  raw input samples         │                           │
-     ├──► [lock-free ring buf] ──►│                           │
-     │                            │  pitch/onset results      │
-     │                            ├──► [lock-free struct] ───►│
-     │  transport position        │                           │
-     ├──► [std::atomic] ──────────┼──────────────────────────►│
-     │                            │                           │
-\endcode
+```mermaid
+flowchart LR
+    audio["Audio Thread"]
+    analysis["Analysis Thread"]
+    ui["UI / Game Thread"]
+    audio -- "raw input samples<br/>lock-free ring buffer" --> analysis
+    analysis -- "pitch/onset results<br/>lock-free struct" --> ui
+    audio -- "transport position<br/>std::atomic" --> ui
+```
 
 All communication from the audio thread is lock-free. The audio thread's only outputs are the ring buffer (samples), the atomic transport position, and its normal audio output to the speakers. No mutexes, no blocking, no exceptions.
 

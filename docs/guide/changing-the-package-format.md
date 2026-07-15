@@ -21,6 +21,25 @@ identical field vocabulary. Most format bugs are a field taught to one reader an
   version**. The migration/tolerance ladder that will eventually replace the hard gate is planned
   in `docs/plans/roadmap/10-format-versioning-and-chart-identity.md`.
 
+```mermaid
+flowchart LR
+    writer["`rock_song_package_write.cpp
+    writer`"]
+    package["`.rock package
+    song.json + assets`"]
+    full["`rock_song_package_read.cpp
+    full reader — opening a song`"]
+    peek["`package_description.cpp
+    peek reader — library scan`"]
+    shared["`song_document_json.cpp
+    shared vocabulary + the single version gate`"]
+    writer --> package
+    package --> full
+    package --> peek
+    full --> shared
+    peek --> shared
+```
+
 # Part A — The compiler walks you through these {#package_format_part_a}
 
 Change the domain model first — the field's home in

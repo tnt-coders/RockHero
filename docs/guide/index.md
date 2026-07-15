@@ -31,6 +31,18 @@ Dependencies flow one way: product code may use `common`, never the reverse, and
 game never depend on each other. Inside a scope, `app` composes `ui`, `core`, and `audio`. The
 full rules live in \ref design_architectural_principles.
 
+```mermaid
+flowchart LR
+    editor["`rock-hero-editor
+    app · ui · core · audio`"]
+    game["`rock-hero-game
+    app · ui · core · audio`"]
+    common["`rock-hero-common
+    core · audio · ui`"]
+    editor --> common
+    game --> common
+```
+
 Each deep-dive page in this guide is tagged with where it applies:
 
 - **Editor-only** — the machinery exists only in `rock-hero-editor`.
