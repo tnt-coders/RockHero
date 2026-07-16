@@ -60,11 +60,13 @@ struct RulerSectionLabel
 \brief Draws the pinned bars-and-beats ruler above the scrollable timeline content.
 
 The ruler stays fixed while the timeline content scrolls under it: the measure-number bar sits on
-top with the ruler's solid grid ticks, and below it the grid header region shares the bar's ruler
-chrome and extends the canvas's dotted tempo grid up to the bar, carrying the section, tempo, and
-signature chip rows on that grid. Callers push the current view geometry and the shared
-visible-span grid lines; the ruler renders everything from that one scan result. Clicks convert
-into the same snapped cursor-placement intent as timeline-content clicks.
+top, and below it the grid header region shares the bar's ruler chrome and carries the section,
+tempo, and signature chip rows. The ruler's solid grid ticks span the whole header — full-height
+measure lines keep the numbers attached to their downbeats and give the chips the columns their
+left edges sit on, with beat and shorter subdivision ticks hanging from the bottom edge. Callers
+push the current view geometry and the shared visible-span grid lines; the ruler renders
+everything from that one scan result. Clicks convert into the same snapped cursor-placement
+intent as timeline-content clicks.
 */
 class TimelineRuler final : public juce::Component
 {
@@ -181,8 +183,7 @@ private:
     // section at the left edge, sharing the header rows' pin gate.
     void refreshSectionBand(const juce::Font& font, std::optional<double> pinned_left_seconds);
 
-    // Draws the number bar's grid ticks: bar-height measures, short beats, and shorter
-    // subdivision ticks.
+    // Draws visible grid ticks: full-height measures, short beats, and shorter subdivision ticks.
     void drawBeatTicks(juce::Graphics& g);
 
     // Draws one cached row of overlap-suppressed labels in the current color at a fixed vertical
@@ -232,15 +233,9 @@ private:
     // m_view_x, so the lines must be re-pushed after every view change.
     std::vector<core::TempoGridLine> m_grid_lines{};
 
-    // Precomputed number-bar tick rectangles in local ruler coordinates, cached so paint() only
-    // issues one fillRectList call instead of rebuilding geometry on every repaint.
+    // Precomputed tick rectangles in local ruler coordinates, cached so paint() only issues one
+    // fillRectList call instead of rebuilding geometry on every repaint.
     juce::RectangleList<float> m_tick_rects{};
-
-    // Per-rank grid-column x positions in local ruler coordinates, cached so paint() hands them
-    // straight to the shared dotted-grid painter for the grid header region.
-    std::vector<int> m_subdivision_columns{};
-    std::vector<int> m_beat_columns{};
-    std::vector<int> m_measure_columns{};
 
     // Measure-number row of the ruler body: the pinned active measure at the left edge, then
     // the numbers that survived overlap suppression, with widths already measured. Kept out of
