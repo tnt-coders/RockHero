@@ -107,8 +107,8 @@ automation plan (`docs/plans/in-progress/tone-parameter-automation-plan.md`).*
 # Chart document — `charts/<uuid>.chart.json`
 
 Owned by `common/core/chart/chart_document.cpp`. Grid tokens are `"m:b"` or `"m:b+n/d"`;
-fractions are `"n/d"` (or `"n"`). One caveat: `formatVersion: 1` is **written but never checked
-on read** — the chart document currently has no version gate.
+fractions are `"n/d"` (or `"n"`). `formatVersion` must be `1` — the parser's single version gate,
+like every other format.
 
 | key | type | req | meaning (default) |
 |---|---|---|---|
@@ -130,7 +130,7 @@ on read** — the chart document currently has no version gate.
 | `notes[].slides[]` | object[] | opt | `{offset: <fraction> req, fret (-1), unpitched (false)}`. |
 | `shapes[]` | object[] | opt | `{position, sustain, chord}` all req; chord indexes `chords[]`. |
 | `fhps[]` | object[] | opt | `{position req, fret (0), width (4; omitted when 4)}`. |
-| `sections[]` | object[] | opt | `{position req, type ("")}`. |
+| `sections[]` | object[] | opt | `{position req, name ("")}`. |
 
 Unknown enum tokens are hard read errors; chart *rules* (ordering against the tempo map) are
 validated after load, not by the parser.
@@ -183,9 +183,8 @@ never in the manifest (see \ref guide_project_lifecycle).
 # Cross-format invariants
 
 - **One version gate per format**, each in exactly one function (`song_document_json.cpp` for
-  song.json; the tone-document parser; `project_io.cpp`) — no other call site may test a
-  version. The migration ladder that replaces the hard gates is roadmap plan 10. The chart
-  document is the known exception (writes a version, checks nothing).
+  song.json; the chart parser; the tone-document parser; `project_io.cpp`) — no other call site
+  may test a version. The migration ladder that replaces the hard gates is roadmap plan 10.
 - **Normalize, don't reject**: save is publish, so readers repair what they can (blank metadata,
   dropped-incomplete normalization, missing catalogs, defaulted fields) and reject only
   structural violations (bad ids, missing referenced files, malformed tokens, unknown enums,

@@ -360,6 +360,13 @@ std::expected<Chart, ChartError> parseChartDocument(const std::string& text)
     Chart chart;
     const juce::var& root = *document;
 
+    // The single chart-document version gate, mirroring the other formats: formatVersion 1 is the
+    // only supported revision, and no other call site may test the chart version.
+    if (Json::readOptionalInt(root, "formatVersion", 0) != 1)
+    {
+        return std::unexpected{malformed("chart document formatVersion must be 1")};
+    }
+
     const juce::var& tuning_json = Json::value(root, "tuning");
     const juce::var& strings_json = Json::value(tuning_json, "strings");
     if (!strings_json.isArray())
@@ -482,7 +489,7 @@ std::expected<Chart, ChartError> parseChartDocument(const std::string& text)
             chart.sections.push_back(
                 ChartSection{
                     .position = *position,
-                    .type = Json::readOptionalString(section_json, "type", ""),
+                    .name = Json::readOptionalString(section_json, "name", ""),
                 });
         }
     }
@@ -554,8 +561,8 @@ std::string chartDocumentText(const Chart& chart)
     });
     append_array("sections", chart.sections, [](const ChartSection& section) {
         std::string line =
-            R"({ "position": ")" + formatGridPositionToken(section.position) + R"(", "type": )";
-        appendJsonString(line, section.type);
+            R"({ "position": ")" + formatGridPositionToken(section.position) + R"(", "name": )";
+        appendJsonString(line, section.name);
         line += " }";
         return line;
     });

@@ -130,8 +130,8 @@ namespace
         FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 7, .width = 5},
     };
     chart.sections = {
-        ChartSection{.position = GridPosition{.measure = 1, .beat = 1}, .type = "verse"},
-        ChartSection{.position = GridPosition{.measure = 3, .beat = 1}, .type = "chorus"},
+        ChartSection{.position = GridPosition{.measure = 1, .beat = 1}, .name = "verse"},
+        ChartSection{.position = GridPosition{.measure = 3, .beat = 1}, .name = "chorus"},
     };
     return chart;
 }
@@ -200,21 +200,36 @@ TEST_CASE("Chart document round-trips every construct", "[core][chart]")
     CHECK(validateChartRules(chart, makeTempoMap()).has_value());
 }
 
+TEST_CASE("Chart document rejects unsupported versions", "[core][chart]")
+{
+    // Missing and non-1 versions are both rejected by the single chart version gate.
+    CHECK_FALSE(parseChartDocument(R"({ "tuning": { "strings": ["E2"] } })").has_value());
+    CHECK_FALSE(parseChartDocument(R"({ "formatVersion": 2, "tuning": { "strings": ["E2"] } })")
+                    .has_value());
+
+    const auto rejected =
+        parseChartDocument(R"({ "formatVersion": 2, "tuning": { "strings": ["E2"] } })");
+    REQUIRE_FALSE(rejected.has_value());
+    CHECK(rejected.error().message.find("formatVersion") != std::string::npos);
+}
+
 TEST_CASE("Chart document rejects malformed elements", "[core][chart]")
 {
     CHECK_FALSE(parseChartDocument("not json").has_value());
-    CHECK_FALSE(parseChartDocument(R"({ "tuning": { "strings": 3 } })").has_value());
+    CHECK_FALSE(
+        parseChartDocument(R"({ "formatVersion": 1, "tuning": { "strings": 3 } })").has_value());
     CHECK_FALSE(parseChartDocument(
-                    R"({ "tuning": { "strings": ["E2"] }, "notes": [ { "position": "bad" } ] })")
+                    R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
+                    R"( "notes": [ { "position": "bad" } ] })")
                     .has_value());
     CHECK_FALSE(
         parseChartDocument(
-            R"({ "tuning": { "strings": ["E2"] },)"
+            R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
             R"( "notes": [ { "position": "1:1", "string": 1, "fret": 0, "attack": "chug" } ] })")
             .has_value());
     CHECK_FALSE(
         parseChartDocument(
-            R"({ "tuning": { "strings": ["E2"] },)"
+            R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
             R"( "notes": [ { "position": "1:1", "string": 1, "fret": 0, "bend": [[0, 1]] } ] })")
             .has_value());
 }
