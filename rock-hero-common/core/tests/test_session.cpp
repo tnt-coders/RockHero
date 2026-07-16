@@ -1,5 +1,6 @@
 ﻿#include <catch2/catch_test_macros.hpp>
 #include <filesystem>
+#include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/session/session.h>
 #include <rock_hero/common/core/song/audio_asset.h>
 #include <rock_hero/common/core/song/song.h>
@@ -280,6 +281,31 @@ TEST_CASE("Session loadSong rejects invalid replacement data", "[core][session]"
                                   .start = TimePosition{},
                                   .end = TimePosition{4.0},
                               });
+}
+
+// The fourth narrow mutation surface: currentChart hands out the loaded chart and every non-null
+// acquisition advances the revision that keys projection caches, so an edit can never leave a
+// stale projection behind. Null returns (no project, no chart) must not advance it.
+TEST_CASE("Session currentChart advances the chart revision", "[core][session]")
+{
+    Session session;
+    CHECK(session.currentChart() == nullptr);
+    CHECK(session.chartRevision() == 0);
+
+    REQUIRE(session.loadSong(
+        makeSongWithAudio(std::filesystem::path{"mix.wav"}, TimeDuration{4.0}), 0));
+    CHECK(session.currentChart() == nullptr);
+    CHECK(session.chartRevision() == 0);
+
+    Song song_with_chart = makeSongWithAudio(std::filesystem::path{"mix.wav"}, TimeDuration{4.0});
+    song_with_chart.arrangements.front().chart = Chart{};
+    REQUIRE(session.loadSong(std::move(song_with_chart), 0));
+
+    Chart* const chart = session.currentChart();
+    REQUIRE(chart != nullptr);
+    CHECK(session.chartRevision() == 1);
+    CHECK(session.currentChart() == chart);
+    CHECK(session.chartRevision() == 2);
 }
 
 } // namespace rock_hero::common::core

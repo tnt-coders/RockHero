@@ -1289,6 +1289,102 @@ TEST_CASE("Rock song package write rejects missing chart documents", "[core][roc
     CHECK(written.error().code == SongPackageErrorCode::InvalidSongDocument);
 }
 
+// The mutable-chart pipeline (plan 40 Phase 2): saving serializes the in-memory chart back
+// through its reference, so an edit made after load survives save and reload instead of the save
+// silently keeping the stale on-disk document.
+TEST_CASE("Rock song package save persists an edited in-memory chart", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temp;
+    const std::filesystem::path package_directory = temp.path() / "package";
+    const std::filesystem::path source_audio = package_directory / "audio" / "backing.flac";
+    writeAudioFile(source_audio);
+
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 1},
+            .string = 3,
+            .fret = 5,
+            .sustain = Fraction{1, 2},
+            .bend = {},
+            .slides = {},
+        },
+    };
+    const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
+    REQUIRE(writeChartDocument(package_directory / chart_ref, chart).has_value());
+
+    // The in-memory chart diverges from the on-disk document exactly the way an edit would make
+    // it: a moved fret plus a new note.
+    Chart edited = chart;
+    edited.notes.front().fret = 7;
+    edited.notes.push_back(
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 3},
+            .string = 4,
+            .fret = 2,
+            .sustain = {},
+            .bend = {},
+            .slides = {},
+        });
+
+    Song song = makeSong(source_audio);
+    song.arrangements.front().chart_ref = chart_ref;
+    song.arrangements.front().chart = edited;
+
+    REQUIRE(writeRockSongPackageDirectory(package_directory, song).has_value());
+
+    const auto loaded = readRockSongPackageDirectory(package_directory);
+    REQUIRE(loaded.has_value());
+    REQUIRE(loaded->arrangements.front().chart.has_value());
+    if (loaded->arrangements.front().chart.has_value())
+    {
+        CHECK(*loaded->arrangements.front().chart == edited);
+    }
+}
+
+// A save with no chart edits must leave the chart document byte-identical: the canonical
+// serializer produced the file, so rewriting the same chart reproduces the same bytes and saved
+// packages never churn (plan 40 Phase 2's stability requirement).
+TEST_CASE("Rock song package save keeps unedited charts byte-stable", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temp;
+    const std::filesystem::path package_directory = temp.path() / "package";
+    const std::filesystem::path source_audio = package_directory / "audio" / "backing.flac";
+    writeAudioFile(source_audio);
+
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {
+        ChartNote{
+            .position = GridPosition{.measure = 2, .beat = 1, .offset = Fraction{1, 3}},
+            .string = 2,
+            .fret = 9,
+            .sustain = Fraction{5, 4},
+            .bend = {},
+            .slides = {},
+        },
+    };
+    const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
+    REQUIRE(writeChartDocument(package_directory / chart_ref, chart).has_value());
+
+    const auto read_document_bytes = [&]() -> std::string {
+        std::ifstream stream{package_directory / chart_ref, std::ios::binary};
+        return std::string{
+            std::istreambuf_iterator<char>{stream}, std::istreambuf_iterator<char>{}
+        };
+    };
+    const std::string bytes_before = read_document_bytes();
+    REQUIRE_FALSE(bytes_before.empty());
+
+    Song song = makeSong(source_audio);
+    song.arrangements.front().chart_ref = chart_ref;
+    song.arrangements.front().chart = chart;
+
+    REQUIRE(writeRockSongPackageDirectory(package_directory, song).has_value());
+    CHECK(read_document_bytes() == bytes_before);
+}
+
 TEST_CASE(
     "Rock song package read rejects charts that violate chart rules", "[core][rock-song-package]")
 {

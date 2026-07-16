@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/timeline/timeline.h>
@@ -88,6 +89,31 @@ public:
     [[nodiscard]] std::vector<ToneParameterAutomation>* currentToneAutomation() noexcept;
 
     /*!
+    \brief Returns mutable access to the current arrangement's chart.
+
+    The fourth narrow mutation surface: chart editing mutates through this accessor while broader
+    arrangement fields stay read-only through this session.
+
+    \note Acquiring mutable access counts as an edit — every non-null return advances
+          chartRevision(), so a projection cache keyed on the revision can never draw a stale
+          chart; the cost of an acquisition that ends up not editing is one lazy rebuild.
+
+    \return Current arrangement's chart, or null when no arrangement or no chart is loaded.
+    */
+    [[nodiscard]] Chart* currentChart() noexcept;
+
+    /*!
+    \brief Returns the chart revision counter that keys chart-projection caches.
+
+    Advances every time currentChart() hands out mutable access. View-state caches pair it with
+    the arrangement id so chart edits invalidate memoized projections without any explicit
+    notification path that could be forgotten.
+
+    \return Monotonic count of mutable chart acquisitions.
+    */
+    [[nodiscard]] std::uint64_t chartRevision() const noexcept;
+
+    /*!
     \brief Replaces the current session song.
 
     The selected arrangement index is stored as session state, not as persistent arrangement
@@ -108,6 +134,11 @@ private:
 
     // Canonical timeline range for the current arrangement content.
     TimeRange m_timeline{};
+
+    // Monotonic count of mutable chart acquisitions; deliberately survives loadSong/reset so it
+    // can never repeat a value a cache might still hold. Projection caches pair it with the
+    // arrangement id.
+    std::uint64_t m_chart_revision{0};
 };
 
 } // namespace rock_hero::common::core

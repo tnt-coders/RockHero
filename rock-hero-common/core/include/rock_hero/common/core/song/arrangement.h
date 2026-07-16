@@ -106,8 +106,9 @@ struct Arrangement
     /*!
     \brief Package-relative chart document reference (`charts/<uuid>.chart.json`), or empty.
 
-    The chart file is the authoritative persisted form; saves validate its presence but do not
-    rewrite it until chart editing exists.
+    The in-memory chart is the authoritative form while a project is open: saves serialize it
+    back through this reference. A reference without a loaded in-memory chart must still resolve
+    to an existing file — a dangling reference refuses to save.
     */
     std::string chart_ref;
 

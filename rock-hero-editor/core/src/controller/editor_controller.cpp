@@ -2135,11 +2135,13 @@ EditorViewState EditorController::Impl::deriveViewState() const
             m_tone_automation);
 
         // The tab projection resolves thousands of positions to seconds, so it is memoized per
-        // displayed arrangement. Charts and the tempo map are immutable while a project is open,
-        // which makes the arrangement id a sufficient cache key. The 3D highway projection rides
-        // the same rule (plan 44): one shared scene-model snapshot per displayed arrangement,
-        // consumed by the preview window exactly as the game consumes it.
-        const bool arrangement_changed = m_tab_arrangement_id != arrangement->id;
+        // displayed arrangement and chart revision: the arrangement id keys which chart is shown,
+        // and the session's chart revision (bumped by every mutable chart acquisition) keys its
+        // edit state, so chart edits invalidate without any explicit notification path. The 3D
+        // highway projection rides the same rule (plan 44): one shared scene-model snapshot per
+        // displayed arrangement, consumed by the preview window exactly as the game consumes it.
+        const bool arrangement_changed = m_tab_arrangement_id != arrangement->id ||
+                                         m_tab_chart_revision != session().chartRevision();
         if (arrangement_changed)
         {
             m_tab_view_state = std::make_shared<const TabViewState>(
@@ -2164,6 +2166,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
             m_highway_min_strings = m_tab_minimum_displayed_strings;
         }
         m_tab_arrangement_id = arrangement->id;
+        m_tab_chart_revision = session().chartRevision();
         state.tab = m_tab_view_state;
         state.highway = m_highway_view_state;
     }
