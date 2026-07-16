@@ -1,8 +1,8 @@
 # Developer Guide Completion Plan
 
-Status: in progress. The census below was taken 2026-07-15 against the current tree and the
-15-page guide (`docs/developer/`). This plan tracks bringing the guide to full coverage of every
-stable area, while explicitly *not* documenting unstable or unbuilt areas.
+Status: census complete, all items executed 2026-07-15 (the guide is 18 pages). The plan stays
+open as the standing coverage registry: it tracks keeping the guide complete over every *stable*
+area while explicitly *not* documenting unstable or unbuilt ones.
 
 ## Documentation policy for stability (binding for guide work)
 
@@ -31,16 +31,17 @@ Gaps, ranked by size × centrality (from the full census):
 | 1 | `common/audio/src/tracktion/` adapter internals | 24 files | **DONE 2026-07-15** | `docs/developer/inside-the-tracktion-adapter.md` — rack assembly, plugin hygiene, timing/automation bridges, device glue, the pure-policy split pattern. Automation parts carry the flux note. |
 | 2 | `editor/core/project/` lifecycle | 15 files | **DONE 2026-07-15** | `docs/developer/the-project-lifecycle.md` — workspace model, .rhp vs .rock, open-flow diagram, deferred-action gate, save-is-publish, importers, startup restore, dirty/fault interactions. View-state flux noted. |
 | 3 | `editor/{core,ui}/audio_device/` + `common/audio/device`+`settings` | 14 files | **DONE 2026-07-15** | `docs/developer/audio-device-settings.md` — staged-settings transaction, the ephemeral sub-MVC + dispatcher, read-only game store, native setup machine. Also covers item 8 (config-store delegation). |
-| 4 | `common/core/chart/` model | 3 files | mentioned | Fold a "chart model" section into \ref guide_musical_time or the package page; full tour **deferred until chart editing is built** (roadmap 40). |
-| 5 | `common/core/shared/` + logging | 4 files | undocumented | Short section (likely in the patterns page or a small "infrastructure" page): logger facade + worker thread, JSON helpers, path bridging. Stable. |
-| 6 | `game/core/{audio,input,menu,frame_clock,diagnostics}` | 6 files | un/mentioned | Extend \ref guide_game with a "supporting systems" section (route→slot mapping, bindings, frame clock already partly covered). Stable but small; GameShell flux note applies. |
-| 7 | `game/ui/{dev,overlay}` dev tooling | 4 files | undocumented | One short "dev tooling" subsection in \ref guide_game (`--dev-package`, hot reload, frame-time overlay). Stable. |
-| 8 | `editor/core/audio` config-store delegation | 2 files | undocumented | One paragraph in the audio-device tour (item 3). |
-| 9 | `common/audio` `mix` + `tone_timeline` ports | 2 files | mentioned | Name them with one line each in the game tour (session ports); no dedicated pages. |
-| 10 | `editor/ui/busy` + `input_calibration` windows | 4 files | mentioned | One paragraph each where their features are already toured. |
+| 4 | `common/core/chart/` model | 3 files | **DONE 2026-07-15** | Brief section in `musical-time.md`; full tour deferred until chart editing is built (roadmap 40). |
+| 5 | `common/core/shared/` + logging | 4 files | **DONE 2026-07-15** | Logging-facade entry added to `cross-cutting-invariants.md`. |
+| 6 | `game/core/{audio,input,menu,frame_clock,diagnostics}` | 6 files | **DONE 2026-07-15** | "Supporting systems" section added to `game-development.md`; game/core/audio covered in `audio-device-settings.md`. |
+| 7 | `game/ui/{dev,overlay}` dev tooling | 4 files | **DONE 2026-07-15** | "Dev tooling" section added to `game-development.md`. |
+| 8 | `editor/core/audio` config-store delegation | 2 files | **DONE 2026-07-15** | Covered in `audio-device-settings.md` (the read-only game store section). |
+| 9 | `common/audio` `mix` + `tone_timeline` ports | 2 files | **DONE 2026-07-15** | Named with roles in `game-development.md` supporting systems. |
+| 10 | `editor/ui/busy` + `input_calibration` windows | 4 files | **DONE 2026-07-15** | Busy overlay named in invariants; calibration window covered in `audio-device-settings.md`. |
 
-Items 1–3 are full pages; 4–10 are sections added to existing pages. Suggested order: 1, 2, 3,
-then the section batch (4–10) as one change set.
+All census items are DONE as of 2026-07-15. This plan stays open as the registry for future
+coverage: new subsystems get a census row (with a stability flag) when they land, and the
+chart-model full tour activates when chart editing (roadmap 40) is built.
 
 ## Verification per batch
 

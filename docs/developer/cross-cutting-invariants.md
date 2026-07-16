@@ -17,7 +17,8 @@ in \ref design_architectural_principles.
 under a busy operation checks `isCurrentToken` against the token captured at submission and
 returns silently if stale — a superseding operation may have made the work meaningless.
 `runWorkerThreadBusyOperation` composes the liveness guard and the token check; prefer it over
-hand-rolling. See "Async Choreography" in \ref design_architectural_principles.
+hand-rolling. The overlay the user sees is `editor/ui/src/busy/busy_overlay.cpp`, rendering
+`BusyViewState`. See "Async Choreography" in \ref design_architectural_principles.
 
 **Pick one of the three async idioms.** *(Editor-only.)* Worker offload with tokened completion;
 paint-fenced message-thread work (`runAfterBusyPresentationReady` — posted messages can starve
@@ -43,6 +44,13 @@ defect. See "Typed Boundary Errors" in \ref design_architectural_principles.
 receives transport positions, frame deltas, and sample rates as inputs. If a test cannot control
 the time your code sees, the boundary is misplaced. See "Time Must Be a Dependency" in
 \ref design_architectural_principles.
+
+**Log through the project facade.** Logging goes through the project-owned logger
+(`common/core/shared/logger.h`, a Quill-backed facade): call sites use
+`RH_LOG_*("category", "message {}", value)`; producers on any thread — including the audio
+thread, via the realtime handle — enqueue without blocking, and one worker thread formats and
+performs file IO. Never use Quill's own macros directly, and never do blocking IO from realtime
+code.
 
 **Naming and documentation are enforced late, not never.** clang-tidy (naming, treated as errors)
 runs on demand, not in pre-commit — write to the convention table in `CLAUDE.md` so the eventual
