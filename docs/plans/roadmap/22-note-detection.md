@@ -8,8 +8,13 @@ event types + tests landed in game/core (the "first game test target" framing be
 adversarially vetted by the dsp-guitar-detection-expert agent with its adjustments folded into the
 budget, matrix, and metrics below, then amended the same day after a three-pass max-effort review
 (see "Phase 1 contract vetting record" for both rounds). **GATE-A CLOSED 2026-07-16: the user
-co-signed the vetted matrix and latency budget jointly with plan 24 — Phases 2+ are unblocked
-(Gate B still stands ahead of Phase 6).**
+co-signed the vetted matrix and latency budget jointly with plan 24 — Phases 2+ are unblocked.**
+**Phase 3 complete 2026-07-16**: the algorithm survey ran through the dsp-guitar-detection-expert
+agent with the user's FFTW/CQT/accuracy-first additions in scope; the selection memo is appended
+after Phase 3 (in-repo NSDF+CMNDF pitch, SuperFlux-style causal onsets, pitch-step legato
+emitter, median+hysteresis tracking, causal mute classifier, Klapuri salience, shared STFT on
+the vendored juce::dsp::FFT, no CQT — with both carried verification items resolved). **GATE-B
+presented, awaiting user sign-off; Phase 6 stays blocked until signed.**
 
 ## Goal
 
@@ -465,6 +470,424 @@ per-algorithm citations and a recommendation resolving open question 2.
 
 **Exit criteria**: **STOP — Gate B: present the selection memo and dependency recommendation for
 user sign-off.** No verification commands (documentation-only phase).
+
+### Phase 3 selection memo (2026-07-16) — Gate B
+
+**Status**: survey complete; decision-ready for user sign-off. Produced by the
+dsp-guitar-detection-expert agent per the Phase 3 mandate, building on the two Phase 1 vetting
+passes. Every load-bearing claim cites a primary source fetched this session, the plan's signed
+vetting record, or a `file:line` in this repository. All latency figures are input-stream
+**sample time**, decomposed as window + hop + lookahead + compute; wall-clock device I/O stays
+plan 13's territory. Detection input is the mono dry DI tap, post-input-gain, pre-effects
+(Phase 1 contract item 3). **User priority directive (2026-07-16) honored throughout: within the
+contract's latency bounds, accuracy is the tiebreaker; genuine conflicts are presented per
+register, never silently resolved.**
+
+Contract numbers this memo selects against (Phase 1 as amended): pitch confirmation p95 ≤
+50/65/90/115 ms for E2/B1/E1/B0; transient onset p95 ≤ 15 ms with a strictly causal peak-picker;
+legato note-starts as back-dated pitch steps bounded per register; onset F1 ≥ 0.95 and latency
+met simultaneously by one configuration; pitch RPA ≥ 0.95 on clean DI; octave errors ≤ 2% (E2+,
+k=1, with the k=2 → E2 ≤ 55 ms tripwire); percussive-mute class lenient with ≥ 0.90 P/R
+promotion trigger; per-onset top-8 `PolyphonicSalience` within per-register latency; sustained
+±50-cent frames with 4–7 Hz vibrato presence; tuner bias within ±1 cent, σ ≤ 2 cents post-glide,
+settle ≤ 300 ms; 30 ms strum coalescing; total analysis ≤ 2 ms per 256-sample hop at 48 kHz on
+one core.
+
+#### §1 Transform front-end (survey item 7 — evaluated first because every other role consumes it)
+
+**§1a FFT engine.** The vendored JUCE ships `juce::dsp::FFT` with a priority-ordered engine
+registry (`external/tracktion_engine/modules/juce/modules/juce_dsp/frequency/juce_FFT.cpp:46-78`).
+On Windows without opt-in macros, only **FFTFallback** compiles: vDSP is Mac/iOS-gated
+(juce_FFT.cpp:443), FFTW requires `JUCE_DSP_USE_SHARED/STATIC_FFTW` (line 550), MKL requires
+`JUCE_DSP_USE_INTEL_MKL` (line 742), IPP requires IPP project flags (line 828). Two measured
+facts about the fallback [implementation accidents, not physics]: (1) power-of-two only,
+radix-4/2 (`jassert (divisor == 1 || divisor == 2 || divisor == 4)`, juce_FFT.cpp:263); (2) its
+"real-only" transform is implemented as a full complex FFT of size N — the real input is copied
+into a complex scratch buffer (juce_FFT.cpp:176-182) — roughly 2× the arithmetic of a
+specialized real FFT, plus a per-instance SpinLock (juce_FFT.cpp:115) that is uncontended on our
+single analysis thread. Precision is float; FFT rounding error (~1e-7 relative) is orders of
+magnitude below anything the ±50-cent frame tolerance or the 1-cent tuner spec can see — tuner
+precision is set by lag-domain interpolation, not FFT precision [engineering analysis].
+
+Our per-hop FFT load is small: at most 2–6 transforms of size ≤ 8192 per 5.33 ms hop (budget
+table below). Even at pessimistic fallback throughput this fits the 2 ms budget; a dedicated
+library would buy headroom, not capability. Dependency verdicts, **licenses and Conan presence
+verified 2026-07-16** against `conan-center-index` recipe files:
+
+| Library | License | ConanCenter | Verdict |
+|---|---|---|---|
+| juce::dsp::FFT (vendored) | AGPLv3 option (juce_FFT.cpp:25-26; repo is AGPL-3.0, `LICENSE:1-2`) | n/a (submodule) | **Selected v1** — zero new dependency; plan-23 microbench gates it |
+| FFTW | **GPL-2-or-later** + MIT commercial dual license ("either version 2 of the License, or (at your option) any later version"; "Non-free versions … available under terms different from those of the General Public License" — https://www.fftw.org/doc/License-and-Copyright.html). GPL-2+ upgrades to GPLv3, which is AGPLv3-combinable — **license-compatible** | `fftw/3.3.10` ✓ | Rejected v1 — heavyweight (planner, wisdom, threads) for 4 fixed pow-2 sizes |
+| pffft | BSD-like (FFTPACK-derived); SSE/AVX/NEON SIMD; "at least 50% as fast as the fastest FFT" by design (https://github.com/marton78/pffft) | `pffft/cci.20210511` ✓ | **Named escape hatch** if the plan-23 perf gate fails on juce fallback |
+| KissFFT | BSD-3 | `kissfft/131.1.0` ✓ | Escape-hatch alternate; slower than pffft, simpler |
+| pocketfft | BSD-3 | `pocketfft/0.0.0.cci.20240801` ✓ | Escape-hatch alternate (header-only C++) |
+
+**§1b Constant-Q / musically spaced analysis.** The CQT window length is definitional
+[fundamental constraint, not a tunable]: N_k = q·f_s / (f_k·(2^(1/B) − 1)) with q ≤ 1 (Schörkhuber
+& Klapuri, "Constant-Q transform toolbox for music processing", SMC 2010, Eq. 6 — PDF fetched
+via https://zenodo.org/records/849741), and the transform's atoms are *centered* on the analysis
+sample (Eq. 1), so a causal realization is delayed by ≥ N_k/2 plus hop. At B = 12 (per-semitone
+Q ≈ 16.8), q = 1, 48 kHz, the **window per bin at our registers**:
+
+| Bin center | N_k (samples) | N_k (ms) | Contract confirmation budget |
+|---|---|---|---|
+| E2 82.4 Hz | 9,797 | 204 ms | ≤ 50 ms |
+| B1 61.7 Hz | 13,084 | 273 ms | ≤ 65 ms |
+| E1 41.2 Hz | 19,594 | 408 ms | ≤ 90 ms |
+| B0 30.9 Hz | 26,125 | 544 ms | ≤ 115 ms |
+
+Per-semitone CQT bins at 30–80 Hz cost **4–5× the entire per-register confirmation budget** in
+window alone. This is the Fourier uncertainty principle — resolving adjacent semitones 1.8 Hz
+apart at B0 requires ~0.5 s of signal — and no implementation (efficient-kernel Brown & Puckette
+1992, the 2010 toolbox, sliding variants) escapes it; q < 1 or VQT's added low-band bandwidth
+(Schörkhuber, Klapuri, Holighaus & Dörfler, AES 2014 — the variable-Q γ term) shortens windows
+only by *destroying exactly the semitone selectivity that was the point* (q = 0.5 at B = 12 has
+the resolution of 6 bins/octave, SMC 2010 §2). Time-domain lag estimators sidestep this
+entirely: measuring one present period needs ~2 cycles (65 ms at B0), not the 0.5 s needed to
+*separate two hypothetical adjacent tones* — which is precisely why the autocorrelation family
+owns the confirmation role.
+
+**Where log-frequency alignment actually pays, it is available without a CQT** [key survey
+finding]: (i) SuperFlux's onset filterbank is already musically spaced — 138 triangular
+quarter-tone filters 27.5 Hz–16 kHz applied over a plain linear STFT (Böck & Widmer, DAFx-13,
+§2.1); (ii) Klapuri's salience runs log-spaced *candidate periods* over a whitened linear STFT
+with adaptive block splitting (Algorithm 1) — semitone-aligned candidates, linear-frequency
+windows of 46/93 ms (Klapuri, ISMIR 2006); (iii) the tuner needs *sub-cent interpolation*, which
+no 12–96 bins/octave grid provides anyway — lag-domain parabolic interpolation does (YIN step 5;
+McLeod & Wyvill's Tartini was built as a live intonation display). **Hybrid verdict**: the honest
+hybrid is time-domain NSDF for pitch confirmation + one shared STFT feeding a log-spaced
+filterbank (onsets) and log-spaced candidate search (salience). A third CQT/VQT front-end adds
+compute and complexity and buys nothing any consumer can use within budget — **rejected for all
+v1 roles**, with a recorded revisit trigger: if plan-23 chord-member P/R stalls below the 0.90
+promotion trigger and error analysis blames STFT bin quantization at low frequencies (not window
+length), evaluate a VQT salience snapshot for the *low registers whose budgets have slack*
+(E1/B0 rows), since q·N_k for E1 at q≈0.22/B=12 ≈ 90 ms — technically inside that row's budget
+at semitone-equivalent-resolution-loss, a genuine per-register accuracy-vs-latency tradeoff the
+user can then judge with data.
+
+#### §2 Monophonic pitch (survey item 1)
+
+**YIN gross-error tables — open verification item RESOLVED.** Primary PDF obtained 2026-07-16
+(the canonical http://audition.ens.fr/adc/pdf/2002_JASA_YIN.pdf now 404s after an ENS site
+reorganization; retrieved via the Internet Archive snapshot of that URL, timestamp 20260426;
+de Cheveigné & Kawahara, JASA 111(4):1917-1930, 2002). Verbatim:
+
+- **Table I** (steps, cumulative; 25 ms window, one-sample hop, 40–800 Hz search, threshold 0.1):
+  Step 1 unbiased autocorrelation **10.0%**; Step 2 difference function **1.95%**; Step 3 CMNDF
+  **1.69%**; Step 4 absolute threshold **0.78%**; Step 5 parabolic interpolation **0.77%**;
+  Step 6 best local estimate **0.50%**.
+- **Table II** (four speech databases, laryngograph ground truth; average gross error): pda 16.8,
+  fxac 15.2, fxcep 6.0, ac 5.1, cc 4.5, shs 8.7, acf 5.0, nacf 4.8, additive 3.1, TEMPO 3.4,
+  **YIN 1.03%** (DB1 0.30 / DB2 1.4 / DB3 2.0 / DB4 1.3; too-low/too-high split 0.37/0.66) —
+  ~3× lower than the best competitors, matching the abstract's claim.
+- **Latency-relevant finding not in the prior passes**: Step 6 is **non-causal** — it searches
+  d′ minima for u in [t − T_max/2, t + T_max/2] (paper §II.F), i.e. **+T_max/2 lookahead**
+  (+6.1 ms at E2 … +16.2 ms at B0 for our registers). Steps 1–5 are causal given the window.
+  Caveat: Tables I/II are speech, not guitar DI [dataset accident]; the clean-DI guitar prior is
+  ~98% onset/multipitch on IDMT-SMT-Guitar (Kehling et al., DAFx-14; this plan's vetting record).
+
+**MPM/McLeod (NSDF)**: normalized square-difference + clarity peak picking, explicitly designed
+to return pitch "with as little as two periods" and built for live feedback in Tartini (McLeod &
+Wyvill 2005). The two-period floor is the physics the signed latency budget is built on (this
+plan's "Latency budget"). NSDF's clarity value maps directly onto `PitchFrame::clarity`.
+
+**pYIN**: YIN candidates under a threshold-prior + HMM, **Viterbi-decoded over the full track**
+(Mauch & Dixon, ICASSP 2014, §2). Pinned numbers (30+ hours synthesized singing from RWC F0
+tracks): octave errors **0.5% / 0.9% / 1.7%** across its three parameter distributions, voicing
+recall 92.5–95.0%, F ≈ 0.950–0.960 vs plain YIN's 0.858–0.917; "additional computational
+complexity … over YIN is low". The full-sequence Viterbi decode is offline-flavored
+[implementation property, not physics]; a bounded-lag online decode trades accuracy for latency
+by an amount **no published figure covers — NEEDS VERIFICATION** (plan-23 A/B if v1 octave
+errors force smoothing).
+
+**SWIPE′**: sawtooth-spectrum matching with prime-harmonic subharmonic suppression; excellent on
+clean signals (Camacho & Harris, JASA 124(3):1638, 2008). Its analysis windows are pitch-matched
+(multiple periods) and its per-frame cost is well above the autocorrelation family; window
+physics puts its low-register latency in the same class as ours with no latency advantage
+[derived from window physics — per-frame numbers not re-fetched this session].
+
+**Neural**: CREPE — 22M parameters, >90% RPA at 10-cent tolerance, but centered 1024-sample
+frames at 16 kHz give ~32 ms of intrinsic lookahead and heavy CPU cost — unsuitable live (Kim et
+al. 2018; real-time limits documented in SwiftF0, Nieradzik 2025). PESTO — 130k parameters,
+streamable VQT front-end, reported <5 ms latency (Riou et al.) — is the credible neural
+candidate, but it is trained on voice/stem corpora and its VQT front-end inherits §1b's
+low-frequency window cost at exactly our problem registers; guitar-DI accuracy at 30–90 Hz is
+**NEEDS VERIFICATION** (plan-23 benchmark once the fixture corpus exists). Not v1.
+
+**Selection — pitch confirmation + tuner: in-repo MPM/NSDF core with YIN-style CMNDF cross-check,
+FFT-accelerated, per-register dual windows.** Fast path W = 2048 (42.7 ms) for arrangements whose
+lowest sounding pitch (after capo/cent_offset, chart_rules.cpp:15-16) is ≥ E2-class; low path
+W = 4096 (85.3 ms, ≥ 2.63 periods of B0 — above MPM's two-period floor) engaged only when the
+`ChartTuning` floor demands it. Estimated confirmation p95 (2 new-note periods + 5–8 ms attack
+dead time + 5.3 ms hop + ≤2 ms compute; k = 1) [engineering estimates — plan 23 is the
+acceptance authority]:
+
+| Register | Estimate | Contract | k=2 (+5.3 ms) | + step-6-style lookahead (+T_max/2) |
+|---|---|---|---|---|
+| E2 | ~37–44 ms | ≤ 50 ✓ | ~49 ms — inside even the un-revised target | +6.1 → ~50 ms (would consume all slack; off at v1) |
+| B1 | ~45–50 ms | ≤ 65 ✓ | ~55 ✓ | +8.1 → ~58 ✓ |
+| E1 | ~61–66 ms | ≤ 90 ✓ | ~71 ✓ | +12.1 → ~78 ✓ |
+| B0 | ~77–82 ms | ≤ 115 ✓ | ~87 ✓ | +16.2 → ~103 ✓ |
+
+**Accuracy-vs-latency menu per register (user directive)**: v1 default is k = 1, no lookahead,
+with zero-latency accuracy defenses — clarity gating, a dual-lag octave check (NSDF value at τ
+vs τ/2), and a harmonic cross-check against the salience spectrum. If plan-23 measures octave
+errors > 2% at E2+, the pre-agreed ladder is: (1) fire the signed k = 2 tripwire (E2 → ≤ 55 ms);
+(2) enable step-6-style local-estimate refinement **only on E1/B0 rows**, whose budgets hold the
++12–16 ms lookahead (YIN's own data prices that step at 0.77% → 0.50% gross error); (3) evaluate
+bounded-lag pYIN-style smoothing as the last resort (accuracy under bounded lag unpublished —
+measure, don't assume). Each rung is a recorded budget decision, never a silent trade. Tuner:
+`PitchFrame` at 187.5 Hz ≥ 10 Hz ✓; settle ≤ 300 ms allows ~40 post-glide frames of
+trimmed-mean/median; 1 cent at E2 = 0.34 samples of lag — parabolic interpolation on clean
+sustained NSDF peaks resolves well below that (YIN step 5 exists precisely to reduce fine error;
+Tartini's purpose-built intonation display; corroborating sub-cent anecdote on synthetic C4:
+cycfi bitstream-autocorrelation article, labeled anecdote-grade). Bias within ±1 cent and σ ≤ 2
+cents are expected to pass on synthetic fixtures immediately; real-guitar verification is
+Phase 7's exit criterion.
+
+#### §3 Onset detection (survey item 2)
+
+Spectral flux is the best simple detector (Dixon, DAFx 2006); complex-domain adds soft-onset
+sensitivity but its per-bin phase bookkeeping mainly benefits material whose soft onsets we
+instead route through the PitchStep emitter (Bello et al. 2005; Duxbury et al. 2003); HFC biases
+percussive (Bello et al. 2005) and survives as a *feature* in our character classifier rather
+than a second detector. **SuperFlux** (Böck & Widmer, DAFx-13) is selected: log-magnitude STFT →
+138 quarter-tone triangular filters (27.5 Hz–16 kHz) → maximum-filter trajectory tracking →
+µ-frame flux (µ = 2 at 200 fps) → **strictly causal online peak-picking (post_max = post_avg =
+0; "tracking is strictly causal, and the offline mode only differs in the peak-picking
+settings")**. Pinned numbers: online on the 27k-onset Böck set F = 0.820 (P 0.855 / R 0.787),
+statistically matching the RNN OnsetDetectorLL's 0.821 at a fraction of the compute; on the
+vibrato-heavy strings subset online FPs drop 185 → 118 (36%, up to 60% claimed in the abstract)
+with *more* onsets found. Its evaluation convention — annotations combined within 30 ms, ±25 ms
+matching — is literally our contract's convention (and the paper's own `combination_width` =
+30 ms mirrors our strum-coalescing window; the tremolo re-onset gap stays ≥ 60 ms per the signed
+2× rule). Those F ≈ 0.82 figures are on hard polyphonic mixed-instrument audio [dataset
+context]; the clean solo-DI prior is ~98% (Kehling et al., DAFx-14, IDMT-SMT-Guitar — this
+plan's vetting record), so **F1 ≥ 0.95 and p95 ≤ 15 ms simultaneously on clean DI is a supported
+expectation, not a hope**: detection-function peaks under µ-frame flux sit "much closer to the
+actual onset positions, which renders lag compensation … unnecessary" (DAFx-13 §2), and our
+187.5 fps hop is bracketed by the paper's 100/200 fps settings. Palm-muted chugs are *easier*
+for flux (strong broadband attacks; the quarter-tone bands catch the low-band energy step); the
+true soft-onset gap (hammer-ons/pull-offs) is not asked of this stage at all — that is §4's job
+by contract (`OnsetOrigin::PitchStep`). Timestamp sharpening: within the winning frame, a cheap
+time-domain energy-derivative argmax localizes the transient to sub-hop precision [engineering
+choice; time-domain-only detection rejected as primary — FP-prone on finger noise, no spectral
+character evidence].
+
+#### §4 Legato / pitch-step note starts (survey item 3)
+
+Pitch-track segmentation outperforms energy-based detectors on soft onsets (Collins, ISMIR 2005
+— this plan's max-effort amendment (1)); the contract already froze the emitter semantics: f0
+step ≥ 1 semitone within ≤ 2 hops, k consistent frames, no intermediate-glide occupancy,
+back-dated to the first new-pitch frame, suppressed 30 ms after a Transient (Phase 1 item 1).
+Achievable latency = tracker re-lock (~1–2 periods of the *new* pitch) + k·hop; at E2 with k = 3
+that is ~40 ms, inside the register row that bounds PitchStep onsets by contract. Recall on DI
+guitar has **no published figure for exactly this detector class — NEEDS VERIFICATION**, with
+the adjacent prior being IDMT expression-class accuracies ~83–93% (vetting record); plan 23's
+legato etudes (already a recorded open item there) are the measurement. Design note: k and the
+step threshold are the knobs that trade double-fire risk against recall; both are plan-23-tuned
+constants, not architecture.
+
+#### §5 Sustained-pitch tracking (survey item 4)
+
+Selected: per-hop `PitchFrame` stream (never skipped, zero-confidence frames included) + short
+median trail (length 5 ≈ 10.6 ms effective lag at 187.5 fps) + hysteresis state machine for
+glide-vs-step discrimination: a *glide* occupies intermediate cents values monotonically
+(bends/slides — scored against `BendPoint`/`SlideWaypoint` curves); a *step* jumps ≥ 100 cents
+within ≤ 2 hops without intermediate occupancy (feeds §4). Vibrato presence: autocorrelation of
+the cents trail over a 300–500 ms window detecting 4–7 Hz modulation (2-cycle bound per the
+amended contract row). Full HMM tracking (pYIN-style) is deliberately *not* v1: its accuracy win
+targets octave flips that §2's zero-latency defenses already address, and its decode lag is a
+per-register spend we reserve for the §2 ladder. Median+hysteresis is causal, deterministic,
+and replay-stable [engineering choice within the ±50-cent frame tolerance].
+
+#### §6 Percussive/harmonic discrimination for full mutes (survey item 5)
+
+Selected features, all computable from spectra and NSDF values already in hand at onset time:
+spectral flatness (Wiener), periodicity/clarity from the post-onset NSDF frames, and high-band
+decay ratio (HFC-flavored) → `OnsetCharacter::{Pitched, Percussive, Unknown}`. HPSS is
+**rejected for this decision point on causality grounds** [fundamental for the onset-time
+decision]: median filtering across *time* frames (Fitzgerald, DAFx 2010) needs future frames —
+tens of ms of added lag or non-causality — and the class must ride the onset event. Expected
+performance: the best published prior for expression-class detection on clean electric guitar
+is ~83% (dead-notes among IDMT-SMT-Guitar classes; vetting record), below the 0.90 promotion
+trigger — so the matrix's Lenient tier with pitched-evidence-never-penalizes stands, and
+promotion is strictly a plan-23 measured event. P/R on our corpus is **NEEDS VERIFICATION** by
+design (it *is* the promotion trigger).
+
+#### §7 Multi-f0 / PolyphonicSalience (survey item 6)
+
+**Klapuri ISMIR 2006 error-vs-polyphony — open verification item RESOLVED, with a caveat this
+plan must record**: the paper publishes its results as **bar charts (Fig. 4), not numeric
+tables** — exact decimals do not exist in print. PDF obtained (DOI 10.5281/zenodo.1416740;
+figure read at high zoom). Pinned facts: test data = random mixtures from 2842 samples / 32
+instruments (McGill, Iowa, IRCAM SOL, own acoustic-guitar recordings), F0 40–2100 Hz; Hanning
+frames of 46 ms and 93 ms zero-padded 2×. Multiple-F0 error rates (polyphony given), read from
+Fig. 4: 93 ms frame — iterative/joint ≈ **4–5% at polyphony 1, ~6–8% at 2, ~13% at 4, ~21–22%
+at 6**; 46 ms frame roughly doubles those (≈ 8–9 / 13–14 / 27 / 36–40%); both variants match
+reference [5] (Klapuri 2005 auditory model) and clearly beat Tolonen-Karjalainen [3] and Klapuri
+2003 [4]. Predominant-F0 error at 93 ms stays ≤ ~10% through polyphony 6 (joint best). Textual
+pins: "the error rates are practically the same for the proposed iterative and joint methods and
+the reference method [5]"; the proposed methods are "considerably simpler and computationally
+more efficient"; and — directly at our problem — **"In monophonic cases (polyph. 1), about 50%
+of the errors are caused by F0s between 40 and 65 Hz"**, which is exactly the B0–E1 territory
+our per-register 4096 window exists for. Parameters were re-optimized per frame size (α 27 Hz →
+52 Hz between 46/93 ms), so our two window classes each need their own constants
+[implementation detail with a published recipe].
+
+**Real-time fixed-basis NMF** (Dessein, Cont & Lemaitre, ISMIR 2010): "about three times faster
+than real-time" in MATLAB on a 2.40 GHz laptop at 10 ms hops with pre-learned note templates —
+comfortable feasibility in C++ [corroborates the vetting record]. Its cost: per-note templates
+want per-instrument calibration (the online guitar NMF work calibrates from a preliminary
+performance — https://ieeexplore.ieee.org/document/7015078/), a real UX tax and a mismatch risk
+on arbitrary player rigs, whereas harmonic summation is calibration-free. Basic Pitch stays
+file-oriented with unverified causality (Bittner et al. 2022). Blind full transcription remains
+research-grade; our contract only needs the chart-blind top-8 evidence carrier, and scoring's
+staged any-member rule tolerates octave spurs by construction.
+
+**Selection: Klapuri-style whitened harmonic-sum salience, direct + iterative cancellation,
+top-8 extraction, event-driven per onset.** Runs on the existing STFT (2048 window for E2-class
+rows; 4096 for low rows — the contract's own sizing note), log-spaced candidate search via
+Algorithm 1's block subdivision, ~8 cancellation rounds → ranked `(f0, salience)` candidates.
+Latency: window fill + compute lands inside the same per-register confirmation rows the contract
+binds salience to; compute is amortized (one snapshot per onset) and sub-millisecond-class in
+C++ given the 2010 MATLAB 3×-real-time datum — **≤ 2 ms/hop class ✓, exact figure NEEDS plan-23
+microbench**. NMF-with-calibration is the recorded upgrade path if member-verification P/R
+misses 0.90 on the plan-23 corpus.
+
+#### §8 Library scan (survey item 8) — licenses and Conan availability verified, not assumed
+
+| Candidate | License | ConanCenter (verified 2026-07-16) | Verdict |
+|---|---|---|---|
+| aubio | GPL-3 (compatible) | **absent** (recipes/aubio → 404) | Reject as shipped dep: C API, custom recipe burden, and our event semantics (back-dating, per-register windows, sample-time anchors) need custom cores anyway. Keep as plan-23 offline cross-check |
+| Essentia | AGPL-3 (compatible) | **absent** | Reject: large dependency tree, offline-flavored extractors |
+| cycfi/Q | **BSL-1.0** (repo README; earlier "MIT" belief corrected), C++20 | **absent**; pulls PortAudio/PortMidi via CMake downloads | Reject as dep (packaging model conflicts with our Conan+submodule policy). Its bitstream-autocorrelation idea (2-cycle latency, XOR/popcount kernels) is a recorded *optimization idea* if NSDF compute ever needs cutting |
+| madmom | Python (models CC-BY-NC) | n/a | Unusable in-product; plan-23 reference cross-check only |
+| Basic Pitch | Apache-2.0, model-based | n/a | Reject v1: file-oriented, causality unverified |
+| PESTO | research code, streamable | n/a | Benchmark candidate in plan 23, not a v1 dependency |
+| FFT libs | see §1a | fftw ✓ / kissfft ✓ / pffft ✓ / pocketfft ✓ | Escape hatches only |
+
+**In-repo implementation cost per selected algorithm** (LOC class, pure functions per
+docs/design/architectural-principles.md "Keep Threading at the Boundary"): NSDF/MPM core +
+interpolation + clarity ≈ 300; per-register orchestration + confirmation state ≈ 200; SuperFlux
+onset ≈ 250; pitch-step emitter ≈ 150; sustained tracker + vibrato ≈ 200; percussive classifier
+≈ 100; Klapuri salience ≈ 350. Total ≈ 1,500–1,600 LOC plus tests — squarely this plan's "a few
+hundred lines each", every core deterministic and threadless for plan-23 replay.
+
+#### (a) Selected v1 algorithm set and compute budget
+
+| Pipeline role | Selection | Expected vs contract |
+|---|---|---|
+| Front-end | One shared STFT (Hann; 2048 always, 4096 when tuning floor is below E2-class) on vendored `juce::dsp::FFT`; log-spaced filterbank/candidates on top; no CQT | ≤ 2 ms/hop with margin (table below); plan-23 microbench gates |
+| Transient onset | SuperFlux-style causal flux + adaptive causal peak-pick, 30 ms combine, sub-hop energy localization | F1 ≥ 0.95 on clean DI (prior ~98% guitar; 0.82 online on hard polyphonic); p95 ≤ 15 ms via zero-lookahead picking |
+| Mono pitch confirmation | MPM/NSDF (FFT-accelerated) + CMNDF cross-check, dual per-register windows, k = 1 | p95 ≈ 37–82 ms across E2→B0 vs 50/65/90/115 budgets; RPA ≥ 0.95 (YIN speech prior 1.03% gross error; MPM two-period design) |
+| Octave-error control | Clarity gate + dual-lag check + salience cross-check (zero latency); ladder: k=2 tripwire → per-register step-6 lookahead (E1/B0) → bounded-lag HMM | ≤ 2% target; ladder pre-priced per register above |
+| Legato note starts | Contract's pitch-step emitter over the sustained tracker, back-dated | Bounded by register rows; recall measured (plan-23 etudes) |
+| Sustained/bends/vibrato | Median-5 trail + hysteresis glide/step; 4–7 Hz vibrato autocorrelation on cents trail | ±50-cent frames ✓; vibrato per amended 2-cycle rule |
+| Percussive-mute class | Flatness + periodicity + band-decay at onset time (causal); no HPSS | ~0.83 prior → Lenient stands; 0.90 trigger measured |
+| Polyphonic salience | Klapuri direct+iterative harmonic sum, whitened STFT, top-8, per onset | Predominant-F0 error ≤ ~10% @93 ms to poly 6 (Fig. 4); member-verification easier than blind multi-F0; per-register latency rows ✓ |
+| Tuner | NSDF interpolated lag, post-glide trimmed median over ≤ 300 ms | bias within ±1 cent, σ ≤ 2 cents expected; Phase 7 hardware check is the authority |
+
+**Compute budget per 256-sample hop at 48 kHz, one core** [engineering estimates; the plan-23
+harness adds a per-hop timing gate — these rows become measured numbers there]:
+
+| Stage | Typical | Worst case |
+|---|---|---|
+| Windowing, copies, RMS | 0.01 ms | 0.02 ms |
+| STFT 2048 (fallback real-via-complex) | 0.05 ms | 0.15 ms |
+| STFT 4096 (low-tuning charts only) | 0.10 ms | 0.30 ms |
+| SuperFlux bands + max-filter + flux + peak pick | 0.02 ms | 0.05 ms |
+| NSDF fast path (W 2048: FFT-4096 ×2 + O(W)) | 0.20 ms | 0.40 ms |
+| NSDF low path (W 4096: FFT-8192 ×2 + O(W); low-tuning charts) | 0.40 ms | 0.80 ms |
+| Trackers, classifiers, tuner state | 0.01 ms | 0.03 ms |
+| Salience snapshot (amortized, ≤ 1/onset) | 0.10 ms | 0.30 ms |
+| **Total — standard-tuning chart** | **~0.4 ms** | **~1.0 ms** |
+| **Total — low-tuned chart (both paths)** | **~0.9 ms** | **~2.0 ms** |
+
+Worst case touches the 2 ms line only with every pessimistic estimate simultaneously on a
+low-tuned chart; two pre-priced relief valves exist (run the low NSDF path every 2nd hop:
++5.3 ms on E1/B0 confirmations, still ≥ 20 ms under their budgets; or swap the FFT to pffft:
+≥ 2× transform headroom, one Conan line).
+
+#### (b) Rejected alternatives (one line each)
+
+- **CQT/VQT front-end**: 204–544 ms per-semitone windows at our registers — uncertainty-principle
+  physics, 4–5× over budget; log-spacing obtained free via filterbank/candidates (§1b).
+- **FFTW/KissFFT/pocketfft now**: capability not needed; adds a dependency to solve an unmeasured
+  problem (pffft stays the named hatch).
+- **Plain YIN as primary**: NSDF's clarity + two-period design fit the contract better; CMNDF
+  retained as cross-check (its Table I steps 2–5 are causal and cheap).
+- **pYIN as v1 tracker**: full-track Viterbi is offline; bounded-lag accuracy unpublished —
+  ladder rung 3, not a default.
+- **SWIPE′**: no latency advantage at low registers, higher cost, no live pedigree.
+- **CREPE**: 22M params + ~32 ms non-causal lookahead — disqualified live.
+- **PESTO / SwiftF0 / Basic Pitch**: benchmark-later; guitar-DI generalization and causality
+  unverified.
+- **Complex-domain onset as primary**: its soft-onset niche is served by PitchStep; flux wins on
+  simplicity and vibrato robustness with the max-filter.
+- **Time-domain-only transient detection**: FP-prone, characterless; kept only as sub-hop
+  timestamp sharpening.
+- **HPSS for mute class**: time-median needs future frames — non-causal at the decision point.
+- **Fixed-basis NMF at v1**: needs per-rig template calibration; Klapuri summation is
+  calibration-free at equal evidence quality for member checking (recorded upgrade path).
+- **aubio / Essentia / cycfi Q as dependencies**: not on ConanCenter (verified), packaging
+  friction, and our event semantics need custom cores regardless.
+- **Tolonen-Karjalainen 2-channel ACF multipitch**: measurably worse than harmonic summation in
+  Klapuri's own Fig. 4.
+
+#### (c) Open question 2 (DSP dependency policy) — recommendation
+
+**Confirm the plan's lean: (a) in-repo for v1**, now with evidence: every selected algorithm is
+a few hundred lines of pure, testable code; the only heavy primitive (FFT) is already vendored
+(`juce::dsp::FFT`, AGPLv3 option) and adequate for our 4 power-of-two sizes within budget;
+license-compatible libraries exist but none is on ConanCenter except FFT backends we don't yet
+need (fftw 3.3.10 / pffft / kissfft / pocketfft verified present; aubio/Essentia/Q verified
+absent). The FFTW/CQT additions to the question resolve the same way: FFTW is license-compatible
+(GPL-2-or-later + commercial dual) but unwarranted; a CQT dependency is physics-rejected for
+latency-bound roles. Adopt-a-library remains the recorded fallback only if plan-23 measurement
+contradicts the estimates above.
+
+#### (d) Resolution of the two carried verification items
+
+1. **YIN gross-error tables**: RESOLVED — exact numbers pinned verbatim in §2 (Table I:
+   10.0/1.95/1.69/0.78/0.77/0.50%; Table II: YIN 1.03% avg vs 3.1% best competitor), from the
+   JASA 2002 PDF retrieved via the Internet Archive snapshot of the canonical (now-404) ENS URL.
+   Definitive fallback citation: J. Acoust. Soc. Am. 111(4):1917-1930, doi:10.1121/1.1458024.
+   Bonus finding: step 6 is +T_max/2 non-causal.
+2. **Klapuri ISMIR 2006 error-vs-polyphony**: RESOLVED with a factual correction — the paper
+   contains **no numeric tables**; results are Fig. 4 bar charts. Values read from the figure
+   and all quantitative textual claims are pinned in §7 (93 ms iterative/joint ≈ 4–5/6–8/13/
+   21–22% at polyphony 1/2/4/6; 46 ms ≈ double; 50% of monophonic errors from 40–65 Hz F0s).
+   Canonical copy: doi:10.5281/zenodo.1416740.
+
+#### (e) Risks and advised Phase 6 implementation order
+
+Risks: (1) octave errors at k = 1 on real DI — mitigated by the zero-latency defenses and the
+pre-priced per-register ladder (§2); (2) legato recall unpublished — plan-23 etudes measure
+before any tier promotion; (3) salience constants re-tuned for 48 kHz windows (Klapuri's own α
+shift shows the sensitivity) — synthetic sweeps first; (4) JUCE-fallback FFT throughput —
+microbench gate + pffft hatch; (5) B0 low path holds 2.63 periods (above the 2-period floor but
+thin margin) — if clarity sags on -1200-cent corpus material, the sanctioned degradation is the
+plan's recorded onset-weighted-scoring fallback, never a silent window growth past budget;
+(6) PitchStep/Transient double-fire tuning around the 30 ms suppression window — plan-23
+per-origin metrics expose it.
+
+Phase 6 order (each step lands with its plan-23 synthetic metric tests): (1) shared STFT
+front-end + SuperFlux onset → unlocks onset F1/latency metrics and plan 24's provisional hits;
+(2) NSDF fast path + `PitchConfirmation` + `PitchFrame` stream → unlocks the Phase 7 tuner
+(milestone-0 de-risk); (3) low-register path + per-register confirmation; (4) sustained tracker +
+pitch-step emitter; (5) percussive-mute classifier; (6) Klapuri salience top-8. Rationale:
+consumer-unblocking order, and each stage's metrics become the regression net for the next.
+
+**Open uncertainties (consolidated, each with its verification plan)**: bounded-lag pYIN accuracy
+(plan-23 A/B, only if the ladder reaches rung 3); legato recall/latency on DI (plan-23 etudes);
+full-mute P/R vs 0.90 trigger (plan-23 corpus); per-voicing chord-member P/R vs 0.90 (plan-23
+corpus); PESTO guitar-DI accuracy at 30–90 Hz (plan-23 benchmark, non-blocking); per-hop compute
+of every stage on target hardware (plan-23 microbench gate); strum-spread p95 vs the 30 ms
+window (plan-23 real-player data, already recorded).
+
+**STOP — Gate B**: this memo recommends the §(a) algorithm set and the §(c) in-repo dependency
+policy for user sign-off; Phase 6 remains blocked until signed.
 
 ### Phase 4 — Tuning pitch math in common/core (pure)
 
