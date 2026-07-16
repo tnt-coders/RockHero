@@ -5,12 +5,13 @@ build; backing audibility/normalization/start-offset, live guitar through the au
 tone switches at region boundaries, restart + mid-song seek tone correctness, pause/resume, and
 a full zero-dropout playthrough all passed by ear; mix-control independence stands
 witnessed-by-test — the dev shell exposes no live mix keys; the missing-plugin refusal
-spot-check is deferred until a package referencing an uninstalled plugin is at hand). **Defect
-found during the soak (outside this plan's checklist, tracked for immediate fix): the game never
-applies tone parameter automation** — song.json's `tone_automation` is read into the
-arrangement, but `GameplaySession` has no `IToneAutomation` port and no equivalent of the
-editor's post-rig-load `rebuildToneAutomationCurves()`, so derived playback curves are never
-rebuilt and plugins play with static parameters. Phase 6 — session wired into the SDL shell per the
+spot-check is deferred until a package referencing an uninstalled plugin is at hand). Defect
+found during the soak (outside this plan's checklist), **FIXED same day @ 72d0e79a and verified
+by ear**: the game never applied tone parameter automation — `GameplaySession` had no
+`IToneAutomation` port and no equivalent of the editor's post-rig-load curve rebuild. The fix
+extracted the rebuild into shared `common::audio::rebuildToneAutomationCurves()`
+(tone_automation_rebuild.h), the editor delegates to it, and the session invokes it at rig-load
+completion before reporting Ready. Phase 6 — session wired into the SDL shell per the
 decided inject-from-app watch item (main.cpp owns the JUCE runtime, Engine, and GameplaySession;
 the shell receives non-owning pointers and only drives them; plugin-scan child-process hook
 mirrored from the editor), `--dev-package` now plays for real: Space toggles play/pause, R
