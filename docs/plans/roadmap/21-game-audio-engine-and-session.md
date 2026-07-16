@@ -1,7 +1,16 @@
 # Plan 21 — Game Audio Engine and GameplaySession
 
-Status: **Phases 1–6 code-complete (Phases 1–3: 2026-07-11; Phases 4–6: 2026-07-12); Phase 6's
-witnessed soak checklist AWAITS THE USER.** Phase 6 — session wired into the SDL shell per the
+Status: **Phases 1–6 complete; Phase 6's witnessed soak SIGNED OFF 2026-07-16** (fresh full
+build; backing audibility/normalization/start-offset, live guitar through the authored tone,
+tone switches at region boundaries, restart + mid-song seek tone correctness, pause/resume, and
+a full zero-dropout playthrough all passed by ear; mix-control independence stands
+witnessed-by-test — the dev shell exposes no live mix keys; the missing-plugin refusal
+spot-check is deferred until a package referencing an uninstalled plugin is at hand). **Defect
+found during the soak (outside this plan's checklist, tracked for immediate fix): the game never
+applies tone parameter automation** — song.json's `tone_automation` is read into the
+arrangement, but `GameplaySession` has no `IToneAutomation` port and no equivalent of the
+editor's post-rig-load `rebuildToneAutomationCurves()`, so derived playback curves are never
+rebuilt and plugins play with static parameters. Phase 6 — session wired into the SDL shell per the
 decided inject-from-app watch item (main.cpp owns the JUCE runtime, Engine, and GameplaySession;
 the shell receives non-owning pointers and only drives them; plugin-scan child-process hook
 mirrored from the editor), `--dev-package` now plays for real: Space toggles play/pause, R
@@ -10,10 +19,8 @@ arrangement id feeds the session so display and audio always agree, and the real
 drives the highway (stand-in clock only without a session). Automated soak evidence (scripted
 smoke over a repackaged corpus song): session Loading→Ready→Playing via posted keys, song time
 advancing on a ~7 ms-fresh clock mirror at 144 fps, restart exercised, clean exit; captures +
-script in the session scratchpad. REMAINING for the user (witnessed checklist): backing
-audibility/normalization/start-offset by ear, live guitar through the authored tone, audible
-tone switches at region boundaries, pause/resume cleanliness, mix-control independence, and a
-missing-plugin refusal spot-check. Stale "JUCE game shell" wording reconciled via the Phase 2
+script in the session scratchpad. The witnessed checklist was signed off 2026-07-16 (outcomes
+recorded in the Status head above). Stale "JUCE game shell" wording reconciled via the Phase 2
 inventory correction. clang-tidy pending user trigger. Phase 5 —
 latency stance: PDC disabled at edit construction for BOTH products (engine.cpp, full rationale
 comment; aligned with the tone plan's 2026-07-05 latency amendment — one live path + backing

@@ -5,6 +5,10 @@ Small fixes and evaluations to do when there's time — short entries, not plans
 that needs a design or multiple steps belongs in a `docs/plans/todo/` plan instead. Delete an
 entry when it's done — git history is the record.
 
+- Game F1 diagnostics overlay: the per-frame values line updates so fast it is unreadable while
+  playing (witnessed during the 2026-07-16 milestone-0 soak — clock drift could not be read).
+  Throttle the readout refresh (~2-4 Hz) and/or use fixed-width numerals so values stop
+  jumping.
 - Tone changes should switch SLIGHTLY before the tone region begins (~100 ms ahead?) so the
   transition still feels seamless for players who are a little out of time — needs evaluation and
   tuning.
