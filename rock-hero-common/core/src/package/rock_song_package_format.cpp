@@ -1,5 +1,7 @@
 #include "rock_song_package_format.h"
 
+#include <algorithm>
+#include <cctype>
 #include <charconv>
 #include <cmath>
 #include <cstdint>
@@ -77,6 +79,15 @@ constexpr double g_timing_epsilon = 1.0e-9;
     return std::ranges::none_of(path, [](const std::filesystem::path& part) {
         return part.empty() || part == "." || part == "..";
     });
+}
+
+[[nodiscard]] bool hasFlacExtension(const std::filesystem::path& path)
+{
+    std::string extension = path.extension().string();
+    std::ranges::transform(extension, extension.begin(), [](unsigned char character) {
+        return static_cast<char>(std::tolower(character));
+    });
+    return extension == ".flac";
 }
 
 [[nodiscard]] std::expected<void, SongPackageError> validateTempoMap(const TempoMap& tempo_map)

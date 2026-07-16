@@ -30,9 +30,10 @@ or case-insensitive duplicate names are rejected on read. Audio filenames are sa
 (`[alnum . - _]` only) and uniquified with `-2`, `-3`, ... suffixes. There is no cover-art file
 yet (roadmap plan 43). Archives are rewritten in place on save (no atomic temp-then-rename).
 
-**The FLAC rule is read-side only** — the writer copies audio with its source extension; the
-reader rejects anything that is not `.flac`. Editor flows transcode before this point, but the
-asymmetry is real: the writer can produce a package the reader refuses.
+**The FLAC rule is enforced on both sides** with one shared predicate (`hasFlacExtension` in
+`rock_song_package_format.cpp`): the writer rejects a non-`.flac` audio asset before copying
+anything, and the reader rejects it on load. Editor flows transcode to FLAC upstream; this rule
+is the loud failure if anything slips past.
 
 # song.json
 

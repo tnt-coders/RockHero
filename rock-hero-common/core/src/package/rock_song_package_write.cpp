@@ -633,6 +633,16 @@ struct SongDocumentForSave
 
         std::filesystem::path relative_audio_path;
         const std::filesystem::path& source_path = arrangement.audio_asset.path;
+        // FLAC is enforced at write time with the same rule the reader applies on load, and before
+        // the import copy below, so a save can never produce a package the reader would refuse.
+        if (!hasFlacExtension(source_path))
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidAudioAsset,
+                "audio asset must be FLAC, RockHero's canonical package format: " +
+                    source_path.generic_string(),
+            }};
+        }
         if (const auto workspace_path = relativeWorkspacePath(workspace_directory, source_path);
             workspace_path.has_value())
         {
