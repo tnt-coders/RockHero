@@ -668,7 +668,7 @@ void EditorController::Impl::finishToneImport(
             });
         m_tone_plugin_bindings.insert_or_assign(
             minted_id,
-            ToneAutomationBinding{
+            common::audio::ToneAutomationBinding{
                 .instance_id = plugin.instance_id,
                 .tone_document_ref = tone_ref,
             });

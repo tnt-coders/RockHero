@@ -33,6 +33,7 @@ definitions, no state added just to make a translation-unit split work.
 #include <memory>
 #include <optional>
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
+#include <rock_hero/common/audio/automation/tone_automation_rebuild.h>
 #include <rock_hero/common/audio/device/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/input/live_input_monitor.h>
 #include <rock_hero/common/audio/live_rig/i_live_rig.h>
@@ -605,7 +606,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Reverse association from durable plugin ids to the CURRENTLY live instance and owning tone.
     // Replaced wholesale at every rig-load completion (reloads recreate every instance id) and
     // extended at plugin insert; automation lanes and derived-curve rebuilds resolve through it.
-    std::unordered_map<std::string, ToneAutomationBinding> m_tone_plugin_bindings{};
+    std::unordered_map<std::string, common::audio::ToneAutomationBinding> m_tone_plugin_bindings{};
 
     // Tone references the loaded rig currently hosts as branches, from the last load result.
     // Undo/redo can restore model references to tones a later reload dropped (reset repoints and

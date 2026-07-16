@@ -37,6 +37,7 @@ add_executable(
     test_plugin_state_hygiene.cpp
     test_tempo_mirror.cpp
     test_tone_automation_curve.cpp
+    test_tone_automation_rebuild.cpp
     test_tone_branch_gain_plugin.cpp
     test_tone_file.cpp
     test_thumbnail_source.cpp

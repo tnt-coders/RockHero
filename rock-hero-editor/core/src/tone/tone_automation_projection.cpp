@@ -11,16 +11,13 @@ namespace rock_hero::editor::core
 double secondsAtGridPosition(
     const common::core::TempoMap& tempo_map, const common::core::GridPosition& position)
 {
-    const double global_beat =
-        static_cast<double>(tempo_map.globalBeatIndex(position.measure, position.beat)) +
-        position.offset.toDouble();
-    return tempo_map.secondsAtGlobalBeatPosition(global_beat);
+    return tempo_map.secondsAtNote(position.measure, position.beat, position.offset);
 }
 
 ToneAutomationViewState makeToneAutomationViewState(
     const common::core::Arrangement& arrangement, const common::core::TempoMap& tempo_map,
     const std::string& selected_tone_document_ref,
-    const std::unordered_map<std::string, ToneAutomationBinding>& bindings,
+    const std::unordered_map<std::string, common::audio::ToneAutomationBinding>& bindings,
     const std::vector<OpenAutomationLane>& open_lanes,
     const common::audio::IToneAutomation& tone_automation)
 {

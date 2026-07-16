@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <memory>
 #include <ranges>
+#include <rock_hero/common/audio/automation/tone_automation_rebuild.h>
 #include <rock_hero/common/core/package/rock_song_package.h>
 #include <system_error>
 #include <utility>
@@ -40,12 +41,13 @@ namespace
 GameplaySession::GameplaySession(
     common::audio::ISongAudio& song_audio, common::audio::ITransport& transport,
     common::audio::ILiveRig& live_rig, common::audio::IToneTimelinePlayer& tone_timeline,
-    common::audio::IMixControls& mix_controls, const common::audio::IPlaybackClock& clock,
-    common::audio::LiveInputMonitor& live_input_monitor)
+    common::audio::IToneAutomation& tone_automation, common::audio::IMixControls& mix_controls,
+    const common::audio::IPlaybackClock& clock, common::audio::LiveInputMonitor& live_input_monitor)
     : m_song_audio{song_audio}
     , m_transport{transport}
     , m_live_rig{live_rig}
     , m_tone_timeline{tone_timeline}
+    , m_tone_automation{tone_automation}
     , m_mix_controls{mix_controls}
     , m_clock{clock}
     , m_live_input_monitor{live_input_monitor}
@@ -434,6 +436,18 @@ void GameplaySession::onRigLoadCompleted(
         };
         return;
     }
+
+    // Rebuild the derived plugin-parameter playback curves from the arrangement's persisted
+    // musical automation — the exact analogue of the editor's post-load rebuild, because the
+    // curves are deliberately stripped from persisted plugin state (the model is the truth).
+    // Best-effort by the shared contract: a failed write plays that parameter static and logs,
+    // never blocking readiness. The rig loads once per session and tone switching is branch-gain
+    // only, so the instance bindings stay valid until close().
+    common::audio::rebuildToneAutomationCurves(
+        m_tone_automation,
+        m_song.arrangements[m_arrangement_index].tone_automation,
+        m_song.tempo_map,
+        common::audio::makeToneAutomationBindings(result->tone_chains));
 
     // The pre-song preload guarantee: Ready is reported only now, after the completion fired,
     // so no plugin instantiation can happen once gameplay is allowed to start.

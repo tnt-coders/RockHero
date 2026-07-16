@@ -18,11 +18,15 @@
 #include <rock_hero/common/audio/song/i_song_audio.h>
 #include <rock_hero/common/audio/testing/configurable_audio_device_configuration.h>
 #include <rock_hero/common/audio/testing/fake_live_input.h>
+#include <rock_hero/common/audio/testing/fake_tone_automation.h>
 #include <rock_hero/common/audio/testing/in_memory_audio_config_store.h>
 #include <rock_hero/common/audio/tone_timeline/i_tone_timeline_player.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/core/package/rock_song_package.h>
 #include <rock_hero/common/core/song/song.h>
+#include <rock_hero/common/core/timeline/fraction.h>
+#include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/common/core/tone/tone_automation.h>
 #include <rock_hero/game/core/session/gameplay_session.h>
 #include <span>
 #include <string>
@@ -39,11 +43,13 @@ namespace
 
 using common::audio::testing::ConfigurableAudioDeviceConfiguration;
 using common::audio::testing::FakeLiveInput;
+using common::audio::testing::FakeToneAutomation;
 using common::audio::testing::InMemoryAudioConfigStore;
 using common::audio::testing::LiveInputSetterCall;
 using common::audio::testing::setCalibrationInputMonitoringCall;
 using common::audio::testing::setInputGainCall;
 using common::audio::testing::setLiveInputMonitoringCall;
+using common::audio::testing::ToneAutomationWriteCall;
 
 // Arrangement ids are canonical UUIDs (package validation rejects anything else); these two are
 // the fixture's "lead" and "bass" arrangements in that order.
@@ -145,17 +151,22 @@ void writeAudioFile(const std::filesystem::path& path)
     return song;
 }
 
+// Writes a real `.rock` archive holding the supplied song.
+[[nodiscard]] std::filesystem::path writePackage(
+    const TemporarySessionDirectory& directory, const common::core::Song& song)
+{
+    const std::filesystem::path staging = directory.path() / "staging";
+    const std::filesystem::path package_path = directory.path() / "song.rock";
+    REQUIRE(common::core::writeRockSongPackage(package_path, staging, song).has_value());
+    return package_path;
+}
+
 // Writes a real `.rock` archive the session's Loading stage can extract and parse.
 [[nodiscard]] std::filesystem::path writePackage(const TemporarySessionDirectory& directory)
 {
     const std::filesystem::path audio_path = directory.path() / "source.flac";
     writeAudioFile(audio_path);
-    const std::filesystem::path staging = directory.path() / "staging";
-    const std::filesystem::path package_path = directory.path() / "song.rock";
-    REQUIRE(
-        common::core::writeRockSongPackage(package_path, staging, makeSong(audio_path))
-            .has_value());
-    return package_path;
+    return writePackage(directory, makeSong(audio_path));
 }
 
 // Fake song-audio boundary: fills durations on prepare and records activation order.
@@ -482,9 +493,16 @@ public:
     // Fires the captured completion with a successful (empty) result.
     void completeSuccessfully()
     {
+        completeSuccessfully(common::audio::LiveRigLoadResult{});
+    }
+
+    // Fires the captured completion with the supplied result (e.g. carrying tone-chain
+    // identities for the automation rebuild).
+    void completeSuccessfully(common::audio::LiveRigLoadResult result)
+    {
         REQUIRE(pending_completion);
         auto completion = std::exchange(pending_completion, nullptr);
-        completion(common::audio::LiveRigLoadResult{});
+        completion(std::move(result));
     }
 
     // Fires the captured completion with a typed failure.
@@ -624,6 +642,7 @@ struct SessionHarness
     FakeSessionTransport transport{};
     FakeLiveRig live_rig{};
     FakeToneTimeline tone_timeline{};
+    FakeToneAutomation tone_automation{};
     FakeMixControls mix_controls{};
     FakePlaybackClock clock{};
 
@@ -635,7 +654,14 @@ struct SessionHarness
     common::audio::LiveInputMonitor live_input_monitor{live_input, devices, config_store};
 
     GameplaySession session{
-        song_audio, transport, live_rig, tone_timeline, mix_controls, clock, live_input_monitor
+        song_audio,
+        transport,
+        live_rig,
+        tone_timeline,
+        tone_automation,
+        mix_controls,
+        clock,
+        live_input_monitor,
     };
 
     // Points the device configuration at a fixed route and seeds a matching calibration, so
@@ -1034,6 +1060,103 @@ TEST_CASE("Gameplay session keeps monitoring armed across replay", "[core][sessi
     // No rig reload happened, so the gate was never re-driven and monitoring stayed enabled.
     CHECK(harness.live_rig.load_call_count == 1);
     CHECK(harness.live_input.live_input_monitoring_enabled);
+}
+
+// Verifies the rig-completion automation rebuild: the package's persisted musical automation
+// reaches the automation boundary as derived edit-timeline seconds, resolved through the
+// load-reported plugin identities; entries whose durable plugin id no loaded plugin reports are
+// skipped (they stay persisted and reconcile on a later load).
+TEST_CASE(
+    "Gameplay session rebuilds derived tone automation curves at rig completion", "[core][session]")
+{
+    SessionHarness harness;
+
+    const std::filesystem::path audio_path = harness.directory.path() / "source.flac";
+    writeAudioFile(audio_path);
+    common::core::Song song = makeSong(audio_path);
+    song.tempo_map = common::core::TempoMap::defaultMap(common::core::TimeDuration{4.0});
+    song.arrangements.front().tone_automation = {
+        common::core::ToneParameterAutomation{
+            .plugin_id = "3f8a2b1c-4d5e-4f60-8a9b-0c1d2e3f4a5b",
+            .param_id = "gain",
+            .points =
+                {
+                    common::core::ToneAutomationPoint{
+                        .position =
+                            common::core::GridPosition{.measure = 1, .beat = 1, .offset = {}},
+                        .norm_value = 0.25F,
+                        .curve_shape = 0.0F,
+                    },
+                    // A sub-beat position exercises the full musical-to-seconds conversion.
+                    common::core::ToneAutomationPoint{
+                        .position =
+                            common::core::GridPosition{
+                                .measure = 2,
+                                .beat = 3,
+                                .offset = common::core::Fraction{1, 2},
+                            },
+                        .norm_value = 0.75F,
+                        .curve_shape = -0.5F,
+                    },
+                },
+        },
+        // No loaded plugin reports this durable id, so the entry must be skipped.
+        common::core::ToneParameterAutomation{
+            .plugin_id = "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d",
+            .param_id = "mix",
+            .points = {
+                common::core::ToneAutomationPoint{
+                    .position = common::core::GridPosition{.measure = 1, .beat = 2, .offset = {}},
+                    .norm_value = 0.5F,
+                    .curve_shape = 0.0F,
+                },
+            },
+        },
+    };
+    const common::core::TempoMap tempo_map = song.tempo_map;
+
+    REQUIRE(harness.session
+                .start(
+                    GameplaySessionRequest{
+                        .package_path = writePackage(harness.directory, song),
+                        .arrangement_id = {},
+                        .workspace_directory = harness.directory.path() / "workspace",
+                    })
+                .has_value());
+
+    harness.live_rig.completeSuccessfully(
+        common::audio::LiveRigLoadResult{
+            .plugins = {},
+            .output_gain = {},
+            .tone_chains = {
+                common::audio::LoadedToneChainIdentities{
+                    .tone_document_ref = "tones/x/tone.json",
+                    .plugins =
+                        {
+                            common::audio::LoadedTonePluginIdentity{
+                                .instance_id = "instance-1",
+                                .stable_id = "3f8a2b1c-4d5e-4f60-8a9b-0c1d2e3f4a5b",
+                            },
+                        },
+                    .summed_reported_latency_seconds = 0.0,
+                },
+            },
+        });
+    REQUIRE(harness.session.stage() == GameplaySessionStage::Ready);
+
+    REQUIRE(harness.tone_automation.write_calls.size() == 1);
+    const ToneAutomationWriteCall& call = harness.tone_automation.write_calls.front();
+    CHECK(call.tone_document_ref == "tones/x/tone.json");
+    CHECK(call.instance_id == "instance-1");
+    CHECK(call.param_id == "gain");
+    REQUIRE(call.points.size() == 2);
+    CHECK(call.points.front().seconds == Catch::Approx(tempo_map.secondsAtNote(1, 1, {})));
+    CHECK(std::is_eq(call.points.front().norm_value <=> 0.25F));
+    CHECK(
+        call.points.back().seconds ==
+        Catch::Approx(tempo_map.secondsAtNote(2, 3, common::core::Fraction{1, 2})));
+    CHECK(std::is_eq(call.points.back().norm_value <=> 0.75F));
+    CHECK(std::is_eq(call.points.back().curve_shape <=> -0.5F));
 }
 
 } // namespace rock_hero::game::core

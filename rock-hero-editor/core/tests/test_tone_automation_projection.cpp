@@ -151,13 +151,13 @@ TEST_CASE(
     StubToneAutomation port;
     port.parameters.push_back(makeParam("instance-a", "gain", "Gain"));
 
-    const std::unordered_map<std::string, ToneAutomationBinding> bindings{
+    const std::unordered_map<std::string, common::audio::ToneAutomationBinding> bindings{
         {"plugin-a",
-         ToneAutomationBinding{
+         common::audio::ToneAutomationBinding{
              .instance_id = "instance-a", .tone_document_ref = "tones/x/tone.json"
          }},
         {"plugin-other-tone",
-         ToneAutomationBinding{
+         common::audio::ToneAutomationBinding{
              .instance_id = "instance-b", .tone_document_ref = "tones/y/tone.json"
          }},
     };
@@ -184,9 +184,9 @@ TEST_CASE(
     const common::core::Arrangement arrangement = makeArrangement();
     const StubToneAutomation port; // No parameters listed: the plugin failed to resolve.
 
-    const std::unordered_map<std::string, ToneAutomationBinding> bindings{
+    const std::unordered_map<std::string, common::audio::ToneAutomationBinding> bindings{
         {"plugin-a",
-         ToneAutomationBinding{
+         common::audio::ToneAutomationBinding{
              .instance_id = "instance-a", .tone_document_ref = "tones/x/tone.json"
          }},
     };
