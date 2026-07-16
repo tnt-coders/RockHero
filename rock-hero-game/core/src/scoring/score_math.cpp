@@ -50,7 +50,9 @@ int sustainScoreForHold(
     return static_cast<int>(std::lround(credit));
 }
 
-// Stars are 1 plus the number of satisfied ascending ratio thresholds.
+// Stars are the count of satisfied ascending ratio thresholds (0..N): the lowest cutoff is the
+// 1-star line, so a ratio below it scores 0 — the no-fail floor. A NaN ratio satisfies nothing
+// and scores 0.
 int starsForScoreRatio(const ScoringRuleset& ruleset, double score_to_max_base_ratio) noexcept
 {
     int satisfied = 0;
@@ -61,7 +63,7 @@ int starsForScoreRatio(const ScoringRuleset& ruleset, double score_to_max_base_r
             ++satisfied;
         }
     }
-    return 1 + satisfied;
+    return satisfied;
 }
 
 } // namespace rock_hero::game::core

@@ -25,7 +25,7 @@ TEST_CASE("Multiplier ladder rises at the committed streak thresholds", "[core][
 }
 
 // A ruleset with no thresholds is a degenerate but well-defined configuration: the ladder never
-// rises and the star award floors at one.
+// rises (multiplier floors at 1) and the star count floors at zero (nothing to satisfy).
 TEST_CASE("Empty ruleset thresholds pin the ladder and star floors", "[core][scoring]")
 {
     ScoringRuleset ruleset{};
@@ -33,7 +33,7 @@ TEST_CASE("Empty ruleset thresholds pin the ladder and star floors", "[core][sco
     ruleset.star_ratio_thresholds.clear();
     CHECK(multiplierForStreak(ruleset, 1000, false) == 1);
     CHECK(multiplierForStreak(ruleset, 1000, true) == 2);
-    CHECK(starsForScoreRatio(ruleset, 100.0) == 1);
+    CHECK(starsForScoreRatio(ruleset, 100.0) == 0);
 }
 
 // Star power doubles whatever rung the ladder is on, up to the GH-style 8x ceiling.
@@ -81,21 +81,25 @@ TEST_CASE("Non-finite held fractions earn no sustain credit", "[core][scoring]")
             ruleset, common::core::Fraction{2, 1}, std::numeric_limits<double>::infinity()) == 0);
 }
 
-// Star awards under rh-score-1: 2/3/4/5 stars at score-to-max-base ratios 0.6/1.2/2.0/2.8,
-// thresholds inclusive, with 1 star as the floor below every threshold (including degenerate
-// negative or NaN ratios, which satisfy nothing).
+// Star awards under rh-score-1: 1/2/3/4/5 stars at score-to-max-base ratios 0.2/0.6/1.2/2.0/2.8,
+// thresholds inclusive, with 0 stars below the lowest cutoff — the no-fail floor. A completed
+// no-fail run that plays at a failing level can land on 0 or 1 star; a degenerate negative or
+// NaN ratio satisfies nothing and scores 0.
 TEST_CASE("Star award counts the satisfied ratio thresholds", "[core][scoring]")
 {
     const ScoringRuleset ruleset{};
-    CHECK(starsForScoreRatio(ruleset, 0.0) == 1);
+    CHECK(starsForScoreRatio(ruleset, 0.0) == 0);
+    CHECK(starsForScoreRatio(ruleset, 0.19) == 0);
+    CHECK(starsForScoreRatio(ruleset, 0.2) == 1);
+    CHECK(starsForScoreRatio(ruleset, 0.5) == 1);
     CHECK(starsForScoreRatio(ruleset, 0.59) == 1);
     CHECK(starsForScoreRatio(ruleset, 0.6) == 2);
     CHECK(starsForScoreRatio(ruleset, 1.2) == 3);
     CHECK(starsForScoreRatio(ruleset, 2.0) == 4);
     CHECK(starsForScoreRatio(ruleset, 2.8) == 5);
     CHECK(starsForScoreRatio(ruleset, 4.0) == 5);
-    CHECK(starsForScoreRatio(ruleset, -1.0) == 1);
-    CHECK(starsForScoreRatio(ruleset, std::numeric_limits<double>::quiet_NaN()) == 1);
+    CHECK(starsForScoreRatio(ruleset, -1.0) == 0);
+    CHECK(starsForScoreRatio(ruleset, std::numeric_limits<double>::quiet_NaN()) == 0);
 }
 
 // The default-constructed ruleset IS rh-score-1: the version string is part of the covenant
