@@ -195,8 +195,13 @@ Downstream (consume this plan):
 
 Decisions **established as normative by this plan** (restate when citing this plan):
 
-- **No-fail is ON by default**; failing out is opt-in. No-fail runs are labeled in the score
-  record (`modifiers.noFail`).
+- **No-fail is ON by default; the player opts out via a persisted setting** (settled with the
+  user 2026-07-16 — do not re-litigate: the fail-enabled-default alternative was raised and
+  rejected; no-fail stays the default for real-guitar accessibility). The opt-out is a durable
+  user preference persisted through plan 27's `IGameSettings` and surfaced in options / the
+  pre-song flow, never a per-run accident. Opting out makes the run fail-enabled, which lands it
+  in the fail-enabled scoring category (below); the default no-fail runs stay in the no-fail
+  category. No-fail runs are labeled in the score record (`modifiers.noFail`).
 - **No-fail runs are a separate scoring category, recorded separately** (user decision
   2026-07-16). `modifiers.noFail` is a partition key, not merely a label: a no-fail run and a
   fail-enabled run of the same chart never share a personal-best slot or a leaderboard entry.

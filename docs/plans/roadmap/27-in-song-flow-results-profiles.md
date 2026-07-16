@@ -143,7 +143,8 @@ Inbound (this plan consumes):
 Outbound (other plans consume this plan):
 
 - docs/plans/roadmap/21 (mix-volume persistence), docs/plans/roadmap/25 (lefty toggle persistence),
-  docs/plans/roadmap/26 (first-run flag, video settings persistence) → Phase 1's IGameSettings.
+  docs/plans/roadmap/26 (first-run flag, video settings persistence),
+  docs/plans/roadmap/24 (no-fail opt-out / fail-enable preference) → Phase 1's IGameSettings.
 - docs/plans/roadmap/29-online-leaderboards.md → Phase 2's score store: the persisted record file is the
   upload unit, byte-for-byte.
 - docs/plans/roadmap/28-practice-mode.md → Phase 3's flow machine leaves explicit seams (see Phase 3).
@@ -152,8 +153,12 @@ Outbound (other plans consume this plan):
 
 Restated from their source documents (never from conversation):
 
-- **No-fail is ON by default; failing is opt-in** — docs/plans/roadmap/24-scoring-star-power-failure.md.
-  The fail flow in this plan only activates when the player opted in; results label no-fail runs.
+- **No-fail is ON by default; failing is opt-in via a persisted setting** —
+  docs/plans/roadmap/24-scoring-star-power-failure.md (settled with the user 2026-07-16). The
+  fail-enable preference is an `IGameSettings` key (Phase 1) read by this plan's pre-song flow;
+  the fail flow only activates when the player opted out of no-fail, and results label the run's
+  mode. A no-fail run and a fail-enabled run are separate scoring categories (plan 24 §6), so
+  this plan's bests and history keep them apart.
 - **The score-record format is owned by plan 24** (per-note verdict log with hit/miss, timing
   delta, detected pitch, confidence; scoring-ruleset version; detection-engine version; chart
   hash; calibration offsets; modifiers) — docs/plans/roadmap/24-scoring-star-power-failure.md. This plan
