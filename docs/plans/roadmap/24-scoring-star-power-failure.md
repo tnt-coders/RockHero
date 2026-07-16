@@ -36,7 +36,9 @@ refinement 2026-07-16: 5 GOLD stars for a 100% FC — the GH2-era presentation �
 6th star; same predicate, different rendering), star-ratio
 provenance labels, the tighter-window tuning direction (~±70 ms by ruleset version), the
 legato no-combo-gate deviation (recorded with rationale), and the live star-meter HUD note in
-§8. Gate A presented, awaiting user sign-off.
+§8. **GATE-A CLOSED 2026-07-16: the user co-signed the contract jointly with plan 22 — Phase 2
+(the provisional-hit machine) is unblocked; Phases 3–4 were already gate-independent; Phases 5–6
+still wait on 24-Q1..Q5.**
 
 ## 1. Goal
 

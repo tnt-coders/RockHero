@@ -7,8 +7,9 @@ event types + tests landed in game/core (the "first game test target" framing be
 `rock_hero_game_core_tests` already existed; the detection folder joined it), and the contract was
 adversarially vetted by the dsp-guitar-detection-expert agent with its adjustments folded into the
 budget, matrix, and metrics below, then amended the same day after a three-pass max-effort review
-(see "Phase 1 contract vetting record" for both rounds). Gate A presented, awaiting user
-sign-off.
+(see "Phase 1 contract vetting record" for both rounds). **GATE-A CLOSED 2026-07-16: the user
+co-signed the vetted matrix and latency budget jointly with plan 24 — Phases 2+ are unblocked
+(Gate B still stands ahead of Phase 6).**
 
 ## Goal
 
