@@ -4,14 +4,14 @@ Welcome! This page gets you from a fresh clone to a reviewable change. It is the
 documentation tiers:
 
 1. **This file** — build, test, and submit.
-2. **The [Developer Guide](docs/guide/index.md)** — plain-language introductions to the core
+2. **The [Developer Guide](docs/developer/index.md)** — plain-language introductions to the core
    concepts (ports, the audio engine, editor actions, view state, undo) plus step-by-step
    checklists for the most common kinds of change, framed so nothing is left half-wired.
 3. **The [design documents](docs/design/index.md)** — the binding rules for architecture,
    structure, coding style, and documentation. When anything disagrees, these win.
 
 New to the codebase? Read the Developer Guide's Core Concepts and its
-[Anatomy of an Editor Action](docs/guide/anatomy-of-an-editor-action.md) walkthrough first — the
+[Anatomy of an Editor Action](docs/developer/anatomy-of-an-editor-action.md) walkthrough first — the
 codebase is built from one repeating pattern, and that page teaches it.
 
 ## Quick start
@@ -60,7 +60,7 @@ pre-commit run --all-files      # formatting (clang-format + cmake-format) and c
 | `rock-hero-editor/` | The chart-authoring editor |
 | `rock-hero-game/` | The playable game |
 | `docs/design/` | Binding architecture and convention rules |
-| `docs/guide/` | The Developer Guide |
+| `docs/developer/` | The Developer Guide |
 | `docs/plans/` | Product roadmap and plan lifecycle (roadmap / in-progress / todo / completed) |
 | `docs/tracking/` | Standing registries: `backlog.md`, `watch-items.md` |
 | `external/` | Tracktion Engine + JUCE (git submodule) |

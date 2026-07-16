@@ -1031,7 +1031,7 @@ INPUT                  = @CMAKE_SOURCE_DIR@/README.md \
                          @CMAKE_SOURCE_DIR@/rock-hero-editor \
                          @CMAKE_SOURCE_DIR@/rock-hero-game \
                          @CMAKE_SOURCE_DIR@/docs/design \
-                         @CMAKE_SOURCE_DIR@/docs/guide \
+                         @CMAKE_SOURCE_DIR@/docs/developer \
                          @CMAKE_SOURCE_DIR@/docs/user
 
 # This tag can be used to specify the character encoding of the source files

@@ -9,9 +9,11 @@
   makes architecture, layering, coding-style, testing, or documentation decisions that require
   them. Re-read only the relevant document(s) if the prior context may be stale, the file changed,
   or the task raises a design question not already covered by current context.
-- Consult the developer guide (`docs/guide/index.md`) for procedural recipes when adding an
+- Consult the developer guide (`docs/developer/index.md`) for procedural recipes when adding an
   editor action, audio-port method, UI view, source file, or package-format field — its "silent
-  steps" checklists list the touchpoints that produce no compile error when forgotten. It is not
+  steps" checklists list the touchpoints that produce no compile error when forgotten. Its area
+  tours (2D timeline views, shared 3D highway, game side) and design-pattern catalog locate the
+  seams and exemplars for anything else. It is not
   a source of truth for rules; the design documents win on any conflict. Update the guide in the
   same change set when a change touches anything it names.
 - Trivial renames, formatting-only edits, factual answers, status checks, and narrow mechanical

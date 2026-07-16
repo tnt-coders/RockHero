@@ -7,7 +7,7 @@ provides checklists for the most common kinds of change so that nothing is left 
 The documentation has three tiers:
 
 1. **`CONTRIBUTING.md`** (repository root) — how to build, test, and submit a change.
-2. **This guide** (`docs/guide/`) — what the moving parts are, why they exist, and the exact
+2. **This guide** (`docs/developer/`) — what the moving parts are, why they exist, and the exact
    touchpoints each common change must visit.
 3. **The design documents** (\ref design) — the binding rules: architecture, structural
    constraints, coding conventions, and documentation conventions.
@@ -201,17 +201,58 @@ in `audio`, `ui`, and `app`.
 Deeper: "Library Roles" and "Core JUCE Utility Use" in \ref design_architectural_principles;
 \ref design_architecture for the full system shape.
 
+# Where Does Your Feature Go?
+
+Match what you want to build against this table; it names the pages to read and the checklist to
+follow. Whatever the feature, \ref guide_patterns shows the building blocks it should be made of,
+and \ref guide_add_file answers where its files live.
+
+| You want to... | Read | Then follow |
+|---|---|---|
+| Add/change an editor operation | \ref guide_action_anatomy | \ref guide_add_action |
+| Add UI to the editor's timeline stack | \ref guide_2d_views | \ref guide_add_view |
+| Add any other editor UI | \ref guide_action_anatomy | \ref guide_add_view |
+| Work on plugins or the signal chain | \ref guide_signal_chain | its extension checklist |
+| Change what the 3D highway shows | \ref guide_3d_highway | its extension checklists |
+| Give the engine a new audio capability | the Engine concept above | \ref guide_add_port |
+| Add or change persisted song/package data | \ref guide_package_format | its two-reader checklist |
+| Touch anything timing- or tempo-related | \ref guide_musical_time | \ref guide_2d_views |
+| Make something undoable | \ref guide_undo | its silent steps |
+| Build game-side behavior (menus, session, library) | \ref guide_game | the recipes it maps |
+| Touch busy operations or async work | \ref guide_invariants | \ref guide_patterns |
+
 # Deep Dives
 
-Start with the walkthrough — it turns the concepts above into one concrete story — then use the
-recipes as checklists while you work:
+Start with the walkthrough — it turns the concepts above into one concrete story — then the area
+tours, then use the recipes as checklists while you work:
+
+**Walkthrough and building blocks**
 
 - \subpage guide_action_anatomy — one feature traced end to end. *(Editor-only)*
-- \subpage guide_add_action — checklist for a new editor operation. *(Editor-only)*
-- \subpage guide_add_port — checklist for new audio-engine capability. *(Repo-wide)*
-- \subpage guide_add_file — where files go and what registers them. *(Repo-wide)*
-- \subpage guide_package_format — checklist for song/package format changes. *(Repo-wide)*
-- \subpage guide_add_view — checklist for a new editor UI component. *(Editor-only)*
-- \subpage guide_game — what is different on the game side. *(Game)*
-- \subpage guide_invariants — the cross-cutting rules that prevent whole bug classes.
+- \subpage guide_patterns — every deliberate pattern, with real code and where it recurs.
   *(Repo-wide)*
+
+**Area tours**
+
+- \subpage guide_2d_views — the editor's timeline rows: waveform, tab, tone track, automation.
+  *(Editor-only)*
+- \subpage guide_3d_highway — the shared 3D renderer and how both products consume it.
+  *(Repo-wide)*
+- \subpage guide_signal_chain — the plugin rack across all three layers. *(Editor + engine)*
+- \subpage guide_musical_time — grid positions, the tempo map, and the playback clock.
+  *(Repo-wide)*
+- \subpage guide_undo — the unified memento history and the engine's capture machinery.
+  *(Editor-only)*
+- \subpage guide_game — what is different on the game side. *(Game)*
+
+**Recipes**
+
+- \subpage guide_add_action — checklist for a new editor operation. *(Editor-only)*
+- \subpage guide_add_view — checklist for a new editor UI component. *(Editor-only)*
+- \subpage guide_add_port — checklist for new audio-engine capability. *(Repo-wide)*
+- \subpage guide_package_format — checklist for song/package format changes. *(Repo-wide)*
+- \subpage guide_add_file — where files go and what registers them. *(Repo-wide)*
+
+**Rules that prevent bug classes**
+
+- \subpage guide_invariants — the cross-cutting reminders. *(Repo-wide)*
