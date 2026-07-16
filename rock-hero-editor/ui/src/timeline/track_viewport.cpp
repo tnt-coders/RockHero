@@ -4,6 +4,7 @@
 #include "tab/tab_view.h"
 #include "timeline/arrangement_view.h"
 #include "timeline/cursor_overlay.h"
+#include "timeline/tempo_grid_dots.h"
 #include "timeline/timeline_cursor.h"
 #include "tone/tone_automation_lanes_view.h"
 #include "tone/tone_track_view.h"
@@ -25,8 +26,6 @@ constexpr int g_tracks_visible_at_default_size{3};
 constexpr int g_tone_track_height{30};
 constexpr double g_mouse_wheel_zoom_factor{1.2};
 constexpr float g_min_mouse_wheel_delta{std::numeric_limits<float>::epsilon()};
-constexpr int g_tempo_grid_dot_size{1};
-constexpr int g_tempo_grid_dot_gap{1};
 
 // Playback-follow tuning: the cursor travels across a stationary window and may reach the
 // trigger fraction of the view width before the window glides forward far enough to drop it
@@ -41,92 +40,6 @@ constexpr double g_follow_shift_duration_seconds{0.3};
 [[nodiscard]] bool hasMouseWheelDelta(float delta) noexcept
 {
     return std::abs(delta) > g_min_mouse_wheel_delta;
-}
-
-// Returns the first dotted-grid row in the current paint clip, preserving the pattern's content
-// origin so partial cursor repaints do not make dots shimmer vertically.
-[[nodiscard]] int firstTempoGridDotYInClip(
-    juce::Rectangle<int> bounds, juce::Rectangle<int> visible_clip) noexcept
-{
-    constexpr int dot_stride = g_tempo_grid_dot_size + g_tempo_grid_dot_gap;
-    const int first_visible_y = std::max(bounds.getY(), visible_clip.getY());
-    const int offset = (first_visible_y - bounds.getY()) % dot_stride;
-    return offset == 0 ? first_visible_y : first_visible_y + dot_stride - offset;
-}
-
-// Appends the visible 1px dots of one vertical tempo-grid line to a shared list, clipped to the
-// visible repaint span. The caller batches the dots into a single fillRectList per color so a
-// wide, line-dense repaint (zooming, or clicking the cursor while zoomed out) costs one edge-table
-// fill instead of one Graphics::fillRect per dot.
-void appendDottedTempoGridLine(
-    juce::RectangleList<float>& dots, int x, juce::Rectangle<int> bounds,
-    juce::Rectangle<int> visible_clip)
-{
-    constexpr int dot_stride = g_tempo_grid_dot_size + g_tempo_grid_dot_gap;
-    const int bottom = std::min(bounds.getBottom(), visible_clip.getBottom());
-
-    for (int y = firstTempoGridDotYInClip(bounds, visible_clip); y < bottom; y += dot_stride)
-    {
-        dots.addWithoutMerging(
-            juce::Rectangle<int>{x, y, g_tempo_grid_dot_size, g_tempo_grid_dot_size}.toFloat());
-    }
-}
-
-// Draws subdivision, beat, and measure grid dots from cached column positions, restricted to the
-// current paint's repaint clip. The clip only trims which cached columns and dot rows get drawn;
-// it does not change the geometry itself, so results stay stable regardless of how much of the
-// canvas repaints.
-void drawTempoGridDots(
-    juce::Graphics& g, const std::vector<int>& subdivision_grid_x,
-    const std::vector<int>& beat_grid_x, const std::vector<int>& measure_grid_x,
-    juce::Rectangle<int> bounds)
-{
-    if (bounds.isEmpty())
-    {
-        return;
-    }
-
-    const juce::Rectangle<int> visible_clip = g.getClipBounds();
-
-    // Collect dots per color, then issue one batched fill each. Separating the colors keeps the
-    // fills homogeneous; the alternative of one fill per line scaled the draw-call count by the
-    // dot count per line, which is what made zoomed-out repaints lag.
-    juce::RectangleList<float> subdivision_dots;
-    juce::RectangleList<float> beat_dots;
-    juce::RectangleList<float> measure_dots;
-    const auto append_columns = [&](const std::vector<int>& columns,
-                                    juce::RectangleList<float>& dots) {
-        for (const int x : columns)
-        {
-            const int absolute_x = bounds.getX() + x;
-            if (absolute_x < visible_clip.getX() || absolute_x >= visible_clip.getRight())
-            {
-                continue;
-            }
-
-            appendDottedTempoGridLine(dots, absolute_x, bounds, visible_clip);
-        }
-    };
-
-    append_columns(subdivision_grid_x, subdivision_dots);
-    append_columns(beat_grid_x, beat_dots);
-    append_columns(measure_grid_x, measure_dots);
-
-    if (!subdivision_dots.isEmpty())
-    {
-        g.setColour(editorTheme().grid_subdivision);
-        g.fillRectList(subdivision_dots);
-    }
-    if (!beat_dots.isEmpty())
-    {
-        g.setColour(editorTheme().grid_beat);
-        g.fillRectList(beat_dots);
-    }
-    if (!measure_dots.isEmpty())
-    {
-        g.setColour(editorTheme().grid_measure);
-        g.fillRectList(measure_dots);
-    }
 }
 
 } // namespace
@@ -362,15 +275,8 @@ void TrackViewport::setTabDisplayedStrings(int displayed_strings)
     layoutScaledCanvas();
 }
 
-// Forwards the tab-derived chord/arpeggio name chips to the pinned ruler, which renders them
-// in its bottom tick band directly above the tablature lane.
-void TrackViewport::setShapeLabels(std::vector<RulerShapeLabel> labels)
-{
-    m_timeline_ruler.setShapeLabels(std::move(labels));
-}
-
-// Forwards the chart-derived section names to the pinned ruler's top band and their start times to
-// the cursor overlay, which draws them as faint full-height boundary lines through the notes.
+// Forwards the song's section names to the pinned ruler's section chip row and their start times
+// to the cursor overlay, which draws them as faint full-height boundary lines through the notes.
 void TrackViewport::setSectionLabels(std::vector<RulerSectionLabel> labels)
 {
     // Read the boundary times before the labels move into the ruler.
@@ -447,8 +353,9 @@ int TrackViewport::toneTrackHeight() const noexcept
 
 // Sizes the waveform row so tablature lanes keep the six-string reference density at any count.
 // Without a chart the row stays at one third of the usable viewport for a plain waveform; with a
-// chart the row scales to the string count, so a four-string bass shrinks the row to fit its
-// lanes and an eight-string display grows it (the vertical scrollbar absorbs the overflow).
+// chart the row scales to the string count plus the tab's chip strip, so a four-string bass
+// shrinks the row to fit its lanes and an eight-string display grows it (the vertical scrollbar
+// absorbs the overflow).
 int TrackViewport::primaryTrackHeight() const noexcept
 {
     const int reference_height =
@@ -458,7 +365,10 @@ int TrackViewport::primaryTrackHeight() const noexcept
         return reference_height;
     }
 
-    return std::max(1, reference_height * m_tab_displayed_strings / g_tab_reference_string_count);
+    return std::max(
+        1,
+        reference_height * m_tab_displayed_strings / g_tab_reference_string_count +
+            g_tab_chip_strip_height);
 }
 
 // Converts the current pixel density into the width of the full timeline content.
@@ -519,8 +429,12 @@ void TrackViewport::layoutScaledCanvas()
     clampZoomToTimeline();
     const int content_width = scaledContentWidth();
     m_content.setSize(content_width, scaledContentHeight(content_width));
-    m_arrangement_view.setBounds(0, 0, m_content.getWidth(), primaryTrackHeight());
-    m_tab_view.setBounds(m_arrangement_view.getBounds());
+    // With a chart, the tab reserves its chip strip at the row's top; the waveform starts below
+    // it so chord chips sit on the row's grid-dotted background rather than on waveform pixels.
+    const int chip_strip = m_tab_displayed_strings > 0 ? g_tab_chip_strip_height : 0;
+    m_arrangement_view.setBounds(
+        0, chip_strip, m_content.getWidth(), primaryTrackHeight() - chip_strip);
+    m_tab_view.setBounds(0, 0, m_content.getWidth(), primaryTrackHeight());
     m_tone_track_view.setBounds(0, primaryTrackHeight(), m_content.getWidth(), toneTrackHeight());
     m_tone_automation_lanes_view.setBounds(
         0,

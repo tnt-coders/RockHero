@@ -58,6 +58,15 @@ struct EditorTheme
     /*! \brief Downbeat tempo grid dots and the ruler's measure ticks. */
     juce::Colour grid_measure{0xff6d7283};
 
+    /*! \brief Song-section chip fill in the ruler's grid header. */
+    juce::Colour section_chip{0xff2e7d52};
+
+    /*! \brief Tempo-marking chip fill in the ruler's grid header, muted to read as metadata. */
+    juce::Colour tempo_chip{0xff3a5a78};
+
+    /*! \brief Time-signature chip fill in the ruler's grid header, muted to read as metadata. */
+    juce::Colour signature_chip{0xff77602f};
+
     /*! \brief Waveform fill; Charter's muted teal sits behind notes without fighting them. */
     juce::Colour waveform{0xff408080};
 

@@ -139,7 +139,8 @@ TEST_CASE("TabView draws string-colored note heads", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TabView view;
-    view.setBounds(0, 0, 200, 120);
+    // The view reserves its name-chip strip at the top, so the string area spans y 12..132.
+    view.setBounds(0, 0, 200, 120 + g_tab_chip_strip_height);
     view.setVisibleTimeline(
         common::core::TimeRange{
             .start = common::core::TimePosition{},
@@ -149,23 +150,24 @@ TEST_CASE("TabView draws string-colored note heads", "[ui][tab-view]")
 
     // A software image keeps pixel readback meaningful: the platform-native image type on
     // Windows is Direct2D-backed and does not rasterize in headless test runs.
-    const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 200, 120, true)};
+    const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 200, 132, true)};
     juce::Graphics graphics{image};
     view.paint(graphics);
 
-    // String 1 (low E) sits in the bottom lane of six: center y = 110; onset 1.0s → x = 10.
-    // Sample left of center so the fret numeral drawn over the head cannot cover the probe.
-    // The head fill is Charter's derivation from the red base: x0.8, brightened, darkened twice.
-    CHECK(image.getPixelAt(6, 110) == juce::Colour{0xff7c0000});
+    // String 1 (low E) sits in the bottom lane of six: center y = 110 + the strip → 122; onset
+    // 1.0s → x = 10. Sample left of center so the fret numeral drawn over the head cannot cover
+    // the probe. The head fill is Charter's derivation from the red base: x0.8, brightened,
+    // darkened twice.
+    CHECK(image.getPixelAt(6, 122) == juce::Colour{0xff7c0000});
 
     // Its nine-second sustain tail reaches most of the width at the same lane center.
-    CHECK(image.getPixelAt(80, 110).getARGB() != 0);
+    CHECK(image.getPixelAt(80, 122).getARGB() != 0);
 
     // The string line runs the full width in the lane color (the red base at 80%).
-    CHECK(image.getPixelAt(160, 110) == juce::Colour{0xffbd0000});
+    CHECK(image.getPixelAt(160, 122) == juce::Colour{0xffbd0000});
 
     // The space between lanes stays untouched.
-    CHECK(image.getPixelAt(10, 20).getARGB() == 0);
+    CHECK(image.getPixelAt(10, 32).getARGB() == 0);
 }
 
 // Techniques, shape spans, and fret-hand positions all draw without touching empty lanes.
@@ -234,7 +236,8 @@ TEST_CASE("TabView draws techniques, shapes, and fret-hand positions", "[ui][tab
     };
 
     TabView view;
-    view.setBounds(0, 0, 400, 240);
+    // The view reserves its name-chip strip at the top, so the string area spans y 12..252.
+    view.setBounds(0, 0, 400, 240 + g_tab_chip_strip_height);
     view.setVisibleTimeline(
         common::core::TimeRange{
             .start = common::core::TimePosition{},
@@ -242,69 +245,119 @@ TEST_CASE("TabView draws techniques, shapes, and fret-hand positions", "[ui][tab
         });
     view.setState(std::make_shared<const core::TabViewState>(std::move(state)), 0);
 
-    const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
+    const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 252, true)};
     juce::Graphics graphics{image};
     view.paint(graphics);
 
-    // The strummed A5 span rails the lane's top and bottom edges in the brightened hand-shape
-    // blue (base x1.5) inside its range and not outside it, and no longer tints the lane
-    // interior. The probe column sits at 4.5s, inside the span.
-    CHECK(image.getPixelAt(90, 1) == juce::Colour{0xff4982fa});
-    CHECK(image.getPixelAt(90, 238) == juce::Colour{0xff4982fa});
-    CHECK(image.getPixelAt(90, 5).getARGB() == 0);
-    CHECK(image.getPixelAt(150, 1).getARGB() == 0);
-    CHECK(image.getPixelAt(150, 238).getARGB() == 0);
+    // The strummed A5 span rails the string area's top and bottom edges in the brightened
+    // hand-shape blue (base x1.5) inside its range and not outside it, and no longer tints the
+    // lane interior. The probe column sits at 4.5s, inside the span.
+    CHECK(image.getPixelAt(90, 13) == juce::Colour{0xff4982fa});
+    CHECK(image.getPixelAt(90, 250) == juce::Colour{0xff4982fa});
+    CHECK(image.getPixelAt(90, 17).getARGB() == 0);
+    CHECK(image.getPixelAt(150, 13).getARGB() == 0);
+    CHECK(image.getPixelAt(150, 250).getARGB() == 0);
 
     // The arpeggio span's rails are the purple at its own gentler brightness (base x1.3, user
     // tuned darker than the chord blue's x1.5).
-    CHECK(image.getPixelAt(220, 1) == juce::Colour{0xffac73ed});
-    CHECK(image.getPixelAt(220, 238) == juce::Colour{0xffac73ed});
+    CHECK(image.getPixelAt(220, 13) == juce::Colour{0xffac73ed});
+    CHECK(image.getPixelAt(220, 250) == juce::Colour{0xffac73ed});
 
-    // Shape names draw in the timeline ruler's bottom band, not in the lane, so nothing but
-    // the rails and the FHP marker touches the lane's top edge here.
+    // The A5 name chip sits in the strip above its span's leading edge (2.0s → x = 40), flush
+    // with the strip bottom; the probe sits in the chip's left margin at the chip's mid-height.
+    CHECK(image.getPixelAt(42, 6) == juce::Colour{0xff4982fa});
 
     // Onsets carry no vertical bars anymore: the columns between lanes at the strummed onset
     // (3.0s) and the arpeggio start (10.0s) stay empty.
-    CHECK(image.getPixelAt(60, 110).getARGB() == 0);
-    CHECK(image.getPixelAt(200, 110).getARGB() == 0);
+    CHECK(image.getPixelAt(60, 122).getARGB() == 0);
+    CHECK(image.getPixelAt(200, 122).getARGB() == 0);
 
     // The arpeggio start marks every posture string with square brackets hugging the head
     // ring — probed on the right bracket's vertical (x ~214.7 from the lane center at 200),
-    // clear of string lines, serifs, and text: the unsounded string 5 (lane center y = 60)
-    // and the sounded string 3 (y = 140) both wear them.
-    CHECK(image.getPixelAt(214, 55).getARGB() != 0);
-    CHECK(image.getPixelAt(214, 135).getARGB() != 0);
+    // clear of string lines, serifs, and text: the unsounded string 5 (lane center y = 72)
+    // and the sounded string 3 (y = 152) both wear them.
+    CHECK(image.getPixelAt(214, 67).getARGB() != 0);
+    CHECK(image.getPixelAt(214, 147).getARGB() != 0);
 
     // Inside the brackets the head area stays empty (no backing disc), and the sounded string
     // draws no held fret number — its full head comes from the note pass instead.
-    CHECK(image.getPixelAt(206, 52).getARGB() == 0);
-    CHECK(image.getPixelAt(197, 136).getARGB() == 0);
+    CHECK(image.getPixelAt(206, 64).getARGB() == 0);
+    CHECK(image.getPixelAt(197, 148).getARGB() == 0);
 
     // The string line hides between the brackets (probed right of the fret number, left of the
     // bracket's vertical) and resumes past them.
-    CHECK(image.getPixelAt(208, 60).getARGB() == 0);
-    CHECK(image.getPixelAt(220, 60).getARGB() != 0);
+    CHECK(image.getPixelAt(208, 72).getARGB() == 0);
+    CHECK(image.getPixelAt(220, 72).getARGB() != 0);
 
     // The tremolo strip stays clipped to its sustain: nothing straggles past the note end.
-    // String 2 lane of six in 240px: center y = 180. Note ends at 6.0s → x = 120. The probe row
-    // sits above the string line (which now runs the full width) but inside the tremolo band.
+    // String 2 lane of six below the strip: center y = 192. Note ends at 6.0s → x = 120. The
+    // probe row sits above the string line (which runs the full width) but inside the tremolo
+    // band.
     bool tremolo_inside = false;
     for (int x = 62; x < 118; ++x)
     {
-        tremolo_inside = tremolo_inside || image.getPixelAt(x, 174).getARGB() != 0;
+        tremolo_inside = tremolo_inside || image.getPixelAt(x, 186).getARGB() != 0;
     }
     CHECK(tremolo_inside);
     for (int x = 123; x < 240; ++x)
     {
-        CHECK(image.getPixelAt(x, 174).getARGB() == 0);
+        CHECK(image.getPixelAt(x, 186).getARGB() == 0);
     }
 
     // The vibrato-and-slide note still anchors its head at the onset on the bottom lane.
-    CHECK(image.getPixelAt(33, 220).getARGB() != 0);
+    CHECK(image.getPixelAt(33, 232).getARGB() != 0);
 
-    // The five-fret-wide FHP at 14.0s (x = 280) draws its "3-7" range marker box along the top
-    // edge; the probe sits inside the box fill, left of the centered text.
-    CHECK(image.getPixelAt(282, 7) == juce::Colour{0xff2a2f36});
+    // The five-fret-wide FHP at 14.0s (x = 280) draws its "3-7" range marker box along the
+    // string area's top edge; the probe sits inside the box fill, left of the centered text.
+    CHECK(image.getPixelAt(282, 19) == juce::Colour{0xff2a2f36});
+}
+
+// The chord/arpeggio name chips draw in the strip the view reserves at its top — blue for
+// chords, purple for arpeggios — flush with the strip's bottom edge, above the span rails.
+TEST_CASE("TabView draws shape name chips in its top strip", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::TabViewState state;
+    state.string_count = 6;
+    state.shapes = {
+        core::TabShapeView{
+            .start_seconds = 1.0,
+            .end_seconds = 2.0,
+            .name = "Am",
+            .arpeggio = false,
+            .arpeggio_notes = {},
+        },
+        core::TabShapeView{
+            .start_seconds = 3.0,
+            .end_seconds = 3.5,
+            .name = "Dm",
+            .arpeggio = true,
+            .arpeggio_notes = {},
+        },
+    };
+
+    TabView view;
+    view.setBounds(0, 0, 400, 120 + g_tab_chip_strip_height);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{0.0},
+            .end = common::core::TimePosition{4.0},
+        });
+    view.setState(std::make_shared<const core::TabViewState>(std::move(state)), 0);
+
+    const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 132, true)};
+    juce::Graphics graphics{image};
+    view.paint(graphics);
+
+    // Four seconds across 400px map seconds * 100: the chord chip starts at x = 100 and the
+    // arpeggio chip at x = 300. Probes sit in each chip's left margin at the strip's mid-height,
+    // clear of the centered glyphs and rounded corners, in the same brightened hand-shape colors
+    // as the span rails below.
+    CHECK(image.getPixelAt(102, 6) == juce::Colour{0xff4982fa});
+    CHECK(image.getPixelAt(302, 6) == juce::Colour{0xffac73ed});
+
+    // The strip holds nothing where no named span starts.
+    CHECK(image.getPixelAt(50, 6).getARGB() == 0);
 }
 
 // A null projection draws nothing and never dereferences missing chart data.

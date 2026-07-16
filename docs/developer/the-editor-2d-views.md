@@ -60,6 +60,14 @@ Three consequences keep the rows pixel-aligned:
   points. Ctrl bypasses to the 1/960-beat fine grid. New gestures must go through it, or their
   snapping will disagree with everyone else's.
 
+The pinned ruler is a two-part header: the measure-number row on top, then a grid header region
+that extends the canvas's dark backdrop and dotted tempo grid up to the ruler — through the same
+shared painter, `timeline/tempo_grid_dots.h`, so the grid reads as one continuous surface — and
+carries the **song-level** chip rows: sections, tempo markings, and time signatures, each chip's
+left edge on its grid column, with the active value pinned to the left edge while the song
+scrolls. Tab-owned content stays out of the ruler: the chord/arpeggio name chips draw in a strip
+`TabView` reserves at the top of its own row (below).
+
 # How rows get data: push for content, sample for live
 
 Two channels exist, and choosing the right one matters:
@@ -106,7 +114,10 @@ gestures fall through to the cursor overlay. Its data is a seconds-resolved proj
 per edit in editor core (`tab_projection.cpp`, `makeTabViewState(arrangement, tempo_map)`), so
 painting never queries musical positions. Because sustains overlap, it keeps a prefix-max index
 of note end times and binary-searches the visible note range each paint instead of scanning the
-whole chart.
+whole chart. The view reserves a `g_tab_chip_strip_height` strip at the top of its row for the
+chord/arpeggio name chips (`TrackViewport` adds the strip to the row height and starts the
+waveform below it), so the chips sit on the row's grid-dotted background directly above the top
+span rail.
 
 String colors come from the **shared palette** in
 `rock-hero-common/ui/string_colors/string_color_palette.h` — a JUCE-free authority (colors are

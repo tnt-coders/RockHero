@@ -1,3 +1,4 @@
+#include "shared/editor_theme.h"
 #include "timeline/timeline_cursor.h"
 #include "timeline/timeline_ruler.h"
 
@@ -67,8 +68,9 @@ namespace
 
 } // namespace
 
-// Verifies ruler measure ticks span from the top while beat ticks stay in the lower quarter.
-TEST_CASE("TimelineRuler draws full measure and short beat ticks", "[ui][timeline-ruler]")
+// Verifies the grid header draws the shared dotted grid with per-rank colors: the measure
+// column reads brighter than the beat columns, and rows between dots stay plain backdrop.
+TEST_CASE("TimelineRuler draws measure and beat grid dots", "[ui][timeline-ruler]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     constexpr common::core::TimeRange one_measure_window{
@@ -88,18 +90,16 @@ TEST_CASE("TimelineRuler draws full measure and short beat ticks", "[ui][timelin
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
 
-    // Ticks live in the ruler body below the section, tempo, and signature bands: the measure
-    // tick at x = 0 spans the whole body while the beat tick at x = 75 fills only the bottom band;
-    // y = 47 is in the measure-number row, clear of measure 1's label glyphs.
-    const juce::Colour measure_body = image.getPixelAt(0, 47);
-    const juce::Colour beat_body = image.getPixelAt(75, 47);
-    const juce::Colour beat_bottom = image.getPixelAt(75, g_timeline_ruler_height - 1);
-    CHECK(measure_body != beat_body);
-    CHECK(beat_bottom != beat_body);
+    // One measure across 101px maps seconds * 25: the measure column sits at x = 0 and the beat
+    // at 3.0s at x = 75. The dot pattern anchors at the grid region's top (y = 16, stride 2), so
+    // y = 30 is a dot row between the section and tempo chip rows and y = 29 a gap row.
+    CHECK(image.getPixelAt(0, 30) == editorTheme().grid_measure);
+    CHECK(image.getPixelAt(75, 30) == editorTheme().grid_beat);
+    CHECK(image.getPixelAt(75, 29) == editorTheme().timeline_backdrop);
 }
 
-// Verifies subdivision ticks draw shorter than beat ticks so beats stay readable on fine grids.
-TEST_CASE("TimelineRuler draws shorter subdivision ticks", "[ui][timeline-ruler]")
+// Verifies subdivision columns take the dimmest rank color so beats stay readable on fine grids.
+TEST_CASE("TimelineRuler draws subdivision grid dots dimmer than beats", "[ui][timeline-ruler]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     constexpr common::core::TimeRange one_measure_window{
@@ -119,58 +119,15 @@ TEST_CASE("TimelineRuler draws shorter subdivision ticks", "[ui][timeline-ruler]
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
 
-    // The half-beat subdivision at 3.5s (x = 175) fills only the shorter bottom band, while the
-    // beat at 3.0s (x = 150) also fills the taller 10px beat band above it. These columns sit far
-    // from any labels so glyph pixels cannot affect the sampling.
-    const int bottom_y = g_timeline_ruler_height - 1;
-    const int beat_band_y = g_timeline_ruler_height - 10;
-    CHECK(image.getPixelAt(175, bottom_y) == image.getPixelAt(150, bottom_y));
-    CHECK(image.getPixelAt(175, beat_band_y) != image.getPixelAt(150, beat_band_y));
+    // The half-beat subdivision at 3.5s (x = 175) takes the subdivision rank color while the
+    // beat at 3.0s (x = 150) takes the beat rank color; y = 30 is a dot row between chip rows.
+    CHECK(image.getPixelAt(175, 30) == editorTheme().grid_subdivision);
+    CHECK(image.getPixelAt(150, 30) == editorTheme().grid_beat);
 }
 
-// Verifies the tab-derived chord/arpeggio name chips draw in the ruler's bottom tick band —
-// blue for chords, purple for arpeggios — flush with the bottom edge and below the
-// measure-number row.
-TEST_CASE("TimelineRuler draws shape name chips in the bottom band", "[ui][timeline-ruler]")
-{
-    const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    constexpr common::core::TimeRange one_measure_window{
-        .start = common::core::TimePosition{0.0},
-        .end = common::core::TimePosition{4.0},
-    };
-    const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4.0);
-    constexpr common::core::Fraction grid_note_value{1, 4};
-    TimelineRuler ruler;
-    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
-    ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
-    ruler.setGrid(tempo_map, grid_note_value);
-    ruler.setGridLines(
-        core::visibleTempoGridLines(
-            tempo_map, grid_note_value, one_measure_window, ruler.getWidth(), 0, ruler.getWidth()));
-    ruler.setProjectLoaded(true);
-    ruler.setShapeLabels(
-        std::vector<RulerShapeLabel>{
-            RulerShapeLabel{.seconds = 1.0, .name = "Am", .arpeggio = false},
-            RulerShapeLabel{.seconds = 3.0, .name = "Dm", .arpeggio = true},
-        });
-
-    const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
-
-    // One measure across 401px maps seconds * 100: the chord chip at 1.0s starts at x = 100
-    // and the arpeggio chip at 3.0s at x = 300. Probes sit in each chip's left margin at the
-    // band's mid-height, clear of the centered glyphs and the rounded corners, in the same
-    // brightened hand-shape colors the lane's span rails use.
-    const int chip_y = g_timeline_ruler_height - 5;
-    CHECK(image.getPixelAt(101, chip_y) == juce::Colour{0xff4982fa});
-    CHECK(image.getPixelAt(301, chip_y) == juce::Colour{0xffac73ed});
-
-    // The measure-number row above the band stays chip-free.
-    CHECK(image.getPixelAt(101, 51) != juce::Colour{0xff4982fa});
-}
-
-// Verifies the chart-derived section names draw in the ruler's top band (above the tempo band),
-// left-aligned at each section start, and nowhere a section does not begin.
-TEST_CASE("TimelineRuler draws section names in the top band", "[ui][timeline-ruler]")
+// Verifies the song's section names draw as filled chips in the grid header's top chip row,
+// each chip's left edge on its section start, and nowhere a section does not begin.
+TEST_CASE("TimelineRuler draws section chips in the header", "[ui][timeline-ruler]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     constexpr common::core::TimeRange one_measure_window{
@@ -194,13 +151,14 @@ TEST_CASE("TimelineRuler draws section names in the top band", "[ui][timeline-ru
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
 
-    // One measure across 401px maps seconds * 100, so the "Verse" section at 1.0s starts at x = 100.
-    // Its name and boundary tick land in the top section band (y 0..15, above the tempo band); the
-    // band background is the editor chrome sampled far from the section.
-    const juce::Colour band_background = image.getPixelAt(390, 7);
-    CHECK(countGlyphPixels(image, juce::Rectangle<int>{100, 1, 60, 12}, band_background) > 0);
-    // No section starts near the left edge, so that stretch of the band stays empty.
-    CHECK(countGlyphPixels(image, juce::Rectangle<int>{4, 1, 40, 12}, band_background) == 0);
+    // One measure across 401px maps seconds * 100, so the "Verse" chip's left edge sits on its
+    // grid column at x = 100; the probe sits in the chip's left margin at the row's mid-height,
+    // clear of the centered glyphs and the rounded corners.
+    CHECK(image.getPixelAt(102, 22) == editorTheme().section_chip);
+    // No section starts near the left edge, so that stretch of the row stays chip-free (the
+    // sampled region contains no grid columns, so it is plain backdrop).
+    const juce::Colour row_background = image.getPixelAt(390, 22);
+    CHECK(countGlyphPixels(image, juce::Rectangle<int>{4, 17, 40, 11}, row_background) == 0);
 }
 
 // Verifies the measure-number row pins the active measure to the left edge while scrolled,
@@ -245,11 +203,10 @@ TEST_CASE("TimelineRuler pins the active measure number while scrolled", "[ui][t
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
 
     // The pinned "1" is the only glyph in the left label region of the measure-number row: the
-    // nearest scrolling label (measure 2 at local x 200) and the beat ticks (bottom band only)
-    // cannot reach it. Compare against the ruler body background sampled on the same row far
-    // from any label or downbeat tick.
-    const juce::Colour body_background = image.getPixelAt(390, 51);
-    CHECK(countGlyphPixels(image, juce::Rectangle<int>{4, 46, 20, 10}, body_background) > 0);
+    // nearest scrolling label (measure 2 at local x 200) cannot reach it, and the grid dots stay
+    // below the row. Compare against the ruler chrome sampled on the same row far from any label.
+    const juce::Colour row_background = image.getPixelAt(390, 6);
+    CHECK(countGlyphPixels(image, juce::Rectangle<int>{4, 2, 20, 10}, row_background) > 0);
 }
 
 // Verifies the pinned measure number yields to the incoming downbeat number: once the next
@@ -294,11 +251,11 @@ TEST_CASE(
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
 
     // The pin region at the left inset must be empty because measure 2's number, anchored at
-    // local x 15 and drawn from x 19, has taken over the row; the measure tick at x 15 spans the
-    // body between the two sampled regions and touches neither.
-    const juce::Colour body_background = image.getPixelAt(390, 51);
-    CHECK(countGlyphPixels(image, juce::Rectangle<int>{4, 46, 10, 10}, body_background) == 0);
-    CHECK(countGlyphPixels(image, juce::Rectangle<int>{19, 46, 16, 10}, body_background) > 0);
+    // local x 15 and drawn from x 19, has taken over the row; the row holds nothing but label
+    // glyphs, so the regions compare against the ruler chrome sampled on the same row.
+    const juce::Colour row_background = image.getPixelAt(390, 6);
+    CHECK(countGlyphPixels(image, juce::Rectangle<int>{4, 2, 10, 10}, row_background) == 0);
+    CHECK(countGlyphPixels(image, juce::Rectangle<int>{19, 2, 16, 10}, row_background) > 0);
 }
 
 // Verifies the pinned tempo marking yields to an incoming tempo change's marking the same way
@@ -343,13 +300,13 @@ TEST_CASE(
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
 
-    // The tempo band's pin region must be empty because the incoming "♩=120.00" marking, drawn
-    // from x 28, has taken over the band; ticks and the measure number stay below the band, so
-    // only tempo glyphs can land in the sampled rows. The band background is the editor chrome
-    // sampled right of the incoming marking.
-    const juce::Colour band_background = image.getPixelAt(390, 22);
-    CHECK(countGlyphPixels(image, juce::Rectangle<int>{4, 17, 20, 11}, band_background) == 0);
-    CHECK(countGlyphPixels(image, juce::Rectangle<int>{28, 17, 20, 11}, band_background) > 0);
+    // The tempo row's pin region must be empty because the incoming "♩=120.00" chip, anchored on
+    // its grid column at local x 24, has taken over the row; the sampled regions contain no grid
+    // columns, so only chip pixels can land in them. The row background is the plain backdrop
+    // sampled right of the incoming chip.
+    const juce::Colour row_background = image.getPixelAt(390, 36);
+    CHECK(countGlyphPixels(image, juce::Rectangle<int>{4, 31, 18, 11}, row_background) == 0);
+    CHECK(countGlyphPixels(image, juce::Rectangle<int>{28, 31, 18, 11}, row_background) > 0);
 }
 
 // Verifies the pinned time signature yields to an incoming signature change's label the same way
@@ -394,12 +351,13 @@ TEST_CASE(
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
 
-    // The signature band's pin region must be empty because the incoming "3/4" label, drawn from
-    // x 28, has taken over the band; the band background is the editor chrome sampled right of
-    // the incoming label.
-    const juce::Colour band_background = image.getPixelAt(390, 35);
-    CHECK(countGlyphPixels(image, juce::Rectangle<int>{4, 32, 20, 8}, band_background) == 0);
-    CHECK(countGlyphPixels(image, juce::Rectangle<int>{28, 32, 20, 8}, band_background) > 0);
+    // The signature row's pin region must be empty because the incoming "3/4" chip, anchored on
+    // its grid column at local x 24, has taken over the row; the sampled regions contain no grid
+    // columns, so only chip pixels can land in them. The row background is the plain backdrop
+    // sampled right of the incoming chip.
+    const juce::Colour row_background = image.getPixelAt(390, 50);
+    CHECK(countGlyphPixels(image, juce::Rectangle<int>{4, 45, 18, 11}, row_background) == 0);
+    CHECK(countGlyphPixels(image, juce::Rectangle<int>{28, 45, 18, 11}, row_background) > 0);
 }
 
 // Verifies the transport strip readout shows the REAPER-style measure.beat.hundredths position

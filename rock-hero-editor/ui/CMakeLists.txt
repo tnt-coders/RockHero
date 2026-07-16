@@ -68,6 +68,8 @@ target_sources(
             src/timeline/cursor_overlay.h
             src/timeline/grid_spacing_selector.cpp
             src/timeline/grid_spacing_selector.h
+            src/timeline/tempo_grid_dots.cpp
+            src/timeline/tempo_grid_dots.h
             src/timeline/timeline_cursor.cpp
             src/timeline/timeline_cursor.h
             src/timeline/timeline_ruler.cpp
