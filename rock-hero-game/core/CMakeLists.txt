@@ -21,11 +21,15 @@ add_library(rock_hero::game::core ALIAS rock_hero_game_core)
 # selection then gain calibration: a pure NativeAudioSetupMachine plus a thin adapter that drives
 # the shared staged device-settings workflow and the calibrate-first LiveInputMonitor, captures the
 # applied route into the game's own audio-config store, and writes the slot-0 player-to-route mapping
-# through game/core settings.
+# through game/core settings. Detection feature: the pure detection-event vocabulary — the plan 22
+# Phase 1 contract that scoring consumes without ever touching audio; DSP producers land later in
+# game/audio. Scoring feature: the versioned ruleset, verdict vocabulary, and pure window/ladder
+# math of plan 24 Phase 1; the provisional-hit machine builds on these in a later phase.
 target_sources(
     rock_hero_game_core
     PRIVATE src/audio/native_audio_setup.cpp
             src/audio/native_audio_setup_driver.cpp
+            src/detection/detection_event.cpp
             src/diagnostics/diagnostics.cpp
             src/frame_clock/frame_clock.cpp
             src/input/menu_bindings.cpp
@@ -42,6 +46,8 @@ target_sources(
             src/library/rock_song_package_describer.cpp
             src/menu/song_select_menu.cpp
             src/resources/game_resources.cpp
+            src/scoring/score_math.cpp
+            src/scoring/timing_window.cpp
             src/session/gameplay_session.cpp
             src/session/gameplay_session_error.cpp
             src/settings/game_settings.cpp
