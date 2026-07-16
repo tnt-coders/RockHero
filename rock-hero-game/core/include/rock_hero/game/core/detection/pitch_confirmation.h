@@ -24,10 +24,11 @@ plan 22's contract bounds that gap per register.
 struct PitchConfirmation
 {
     /*!
-    \brief Monotonic stream position where confirmation was reached, in samples.
+    \brief Stream position where confirmation was reached, in samples.
 
-    This is the last frame of the confirming span, so it is also the span's end and the event's
-    stream-ordering key.
+    This is the last sample the confirming evidence consumed (its causal availability point) —
+    the confirming span's end and the event's stream-ordering key. Latency metrics and scoring
+    deadlines are defined against this anchor.
     */
     std::uint64_t input_stream_sample{0};
 

@@ -22,7 +22,14 @@ are never skipped, so frame timestamps advance by the analysis hop size.
 */
 struct PitchFrame
 {
-    /*! \brief Monotonic position of the analyzed hop in the input device stream, in samples. */
+    /*!
+    \brief Stream position of this estimate, in samples.
+
+    This is the last sample the estimate consumed (its causal availability point, the end of the
+    analysis window) — not the window start or center. Latency metrics and scoring deadlines are
+    defined against this anchor, so a producer that stamped any other sample would silently skew
+    every downstream comparison by up to a full analysis window.
+    */
     std::uint64_t input_stream_sample{0};
 
     /*! \brief Input-stream sample rate in Hz, making the timestamp self-describing on replay. */

@@ -16,14 +16,34 @@ enum class NoteVerdictCode
     /*! \brief Onset matched and pitch evidence confirmed the note. */
     Hit,
 
-    /*! \brief Onset matched and the confirmation deadline lapsed without decisive pitch. */
+    /*!
+    \brief Onset matched and the deadline lapsed with supporting but not decisive pitch evidence.
+
+    Confirm-by-default is evidence-gated: the span showed at least weak pitch evidence
+    consistent with the expected pitch (or the note is full-mute-charted, which never needs
+    pitch). Counts as a hit for accuracy and streak.
+    */
     HitOnsetOnly,
 
     /*! \brief The hit window closed without any matching onset. */
     MissNoOnset,
 
-    /*! \brief A provisional hit was revoked by confident contradicting pitch evidence. */
-    MissWrongPitch
+    /*!
+    \brief A provisional hit was revoked by confident contradicting pitch evidence.
+
+    The contradicting pitch is recorded in detected_pitch_cents — it is the results screen's
+    most useful diagnostic for a revoked note.
+    */
+    MissWrongPitch,
+
+    /*!
+    \brief The deadline lapsed with no pitch evidence at all on a pitched-charted note.
+
+    The anti-mash outcome: percussive slapping produces onsets but no periodicity, and silence
+    is not confirmation. Real picked and palm-muted notes always leave weak pitch evidence, so
+    honest play resolves Hit or HitOnsetOnly instead.
+    */
+    MissNoPitchEvidence
 };
 
 /*!
@@ -49,8 +69,10 @@ struct NoteVerdict
     /*!
     \brief Detected sounding pitch in absolute cents (100 times the MIDI note number).
 
-    A4 = 6900. Empty when no pitch evidence resolved the note (missed notes, onset-only hits,
-    and percussive full-mute notes).
+    A4 = 6900. Engaged whenever pitch evidence resolved the note either way: a Hit records the
+    confirming pitch and a MissWrongPitch records the contradicting pitch. Empty when no pitch
+    evidence took part (no-onset misses, evidence-free lapses, onset-only hits, and percussive
+    full-mute notes).
     */
     std::optional<double> detected_pitch_cents;
 
