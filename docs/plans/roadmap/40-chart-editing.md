@@ -16,7 +16,16 @@ common/core (`chart/grid_arithmetic.h`: `advanceGridPosition` with origin clamp,
 the editor timeline grid's semantics — measure-anchored whole-note-fraction note values,
 downbeats always lines, ties to the earlier line; note-value validity policy stays with
 callers). Tests cover signature-change carries, tuplet round-trips, the 7/8-with-1/4-grid
-next-downbeat path, and tie stability.
+next-downbeat path, and tie stability. **Phase 2 complete 2026-07-16**: saves serialize the
+in-memory chart through `writeChartDocument` (dangling refs still refused; stale comments in
+arrangement.h / rock_song_package_write.cpp updated); `Session::currentChart()` added as the
+fourth narrow mutation surface with `chartRevision()` advancing on every mutable acquisition
+(over-invalidates, never under-invalidates — no forgot-to-notify path exists); the tab AND 3D
+highway projection caches key on (arrangement id, chart revision). Tests: edited-chart
+save/reload round-trip, unedited-save byte-stability, session revision semantics. The
+"revision rebuilds the projection" controller-level test is deferred to the phase that adds
+the first chart-mutation intent (Phase 3/4) — no public route can bump the revision until one
+exists; the session-level behavior is covered now.
 
 Open questions Q1–Q4 below have recommended defaults and are mirrored into
 `docs/plans/roadmap/00-roadmap.md` (Decisions needed). Phases 1–3 depend on none of them; later phases

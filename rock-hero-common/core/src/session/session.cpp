@@ -1,6 +1,8 @@
 #include "session/session.h"
 
 #include <algorithm>
+#include <cstdint>
+#include <optional>
 #include <utility>
 
 namespace rock_hero::common::core
@@ -131,6 +133,32 @@ std::vector<ToneParameterAutomation>* Session::currentToneAutomation() noexcept
     }
 
     return &m_song.arrangements[m_current_arrangement_index].tone_automation;
+}
+
+// Returns mutable access to the current arrangement's chart. Handing out the pointer counts as
+// an edit: the revision advances on every non-null return so projection caches keyed on it can
+// never draw a stale chart, and no explicit forgot-to-notify path exists.
+Chart* Session::currentChart() noexcept
+{
+    if (m_current_arrangement_index >= m_song.arrangements.size())
+    {
+        return nullptr;
+    }
+
+    std::optional<Chart>& chart = m_song.arrangements[m_current_arrangement_index].chart;
+    if (!chart.has_value())
+    {
+        return nullptr;
+    }
+
+    ++m_chart_revision;
+    return &*chart;
+}
+
+// Returns the monotonic mutable-chart-acquisition count that keys projection caches.
+std::uint64_t Session::chartRevision() const noexcept
+{
+    return m_chart_revision;
 }
 
 } // namespace rock_hero::common::core

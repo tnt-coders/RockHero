@@ -17,6 +17,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <rock_hero/common/core/chart/chart_document.h>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/common/core/package/archive_io.h>
 #include <rock_hero/common/core/package/package_id.h>
@@ -483,12 +484,15 @@ struct SongDocumentForSave
     return std::expected<void, SongPackageError>{};
 }
 
-// Validates one chart document reference (canonical, safe, present on disk) without writing
-// anything. The chart file stays authoritative while charts are read-only, so saves never
-// rewrite it; they only refuse to persist a dangling reference.
-[[nodiscard]] std::expected<void, SongPackageError> validateChartDocumentOnDisk(
-    const std::filesystem::path& workspace_directory, const std::string& chart_ref)
+// Persists one arrangement's chart document: the in-memory chart is the authoritative form now
+// that chart editing exists, so saves serialize it back through the canonical writer instead of
+// only validating the file's presence. An arrangement carrying a reference without a loaded
+// in-memory chart (peek-shaped loads) still requires the file on disk — a dangling reference is
+// refused, never silently dropped. Path safety is checked before any write.
+[[nodiscard]] std::expected<void, SongPackageError> writeChartDocumentForSave(
+    const std::filesystem::path& workspace_directory, const Arrangement& arrangement)
 {
+    const std::string& chart_ref = arrangement.chart_ref;
     const std::filesystem::path chart_path{chart_ref};
     if (!isSafeRelativePath(chart_path) || !isCanonicalChartDocumentRef(chart_ref))
     {
@@ -498,14 +502,27 @@ struct SongDocumentForSave
         }};
     }
 
-    std::error_code chart_error;
     const std::filesystem::path resolved_chart_path =
         (workspace_directory / chart_path).lexically_normal();
-    if (!std::filesystem::is_regular_file(resolved_chart_path, chart_error))
+    if (!arrangement.chart.has_value())
+    {
+        std::error_code chart_error;
+        if (!std::filesystem::is_regular_file(resolved_chart_path, chart_error))
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidSongDocument,
+                "Cannot save a missing chart document: " + chart_ref,
+            }};
+        }
+        return std::expected<void, SongPackageError>{};
+    }
+
+    if (const auto write_result = writeChartDocument(resolved_chart_path, *arrangement.chart);
+        !write_result.has_value())
     {
         return std::unexpected{SongPackageError{
             SongPackageErrorCode::InvalidSongDocument,
-            "Cannot save a missing chart document: " + chart_ref,
+            "Cannot save chart document " + chart_ref + ": " + write_result.error().message,
         }};
     }
 
@@ -633,7 +650,7 @@ struct SongDocumentForSave
         if (!arrangement.chart_ref.empty())
         {
             if (const auto chart_error =
-                    validateChartDocumentOnDisk(workspace_directory, arrangement.chart_ref);
+                    writeChartDocumentForSave(workspace_directory, arrangement);
                 !chart_error.has_value())
             {
                 return std::unexpected{chart_error.error()};
