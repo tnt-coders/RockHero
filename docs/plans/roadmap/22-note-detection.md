@@ -889,6 +889,30 @@ window (plan-23 real-player data, already recorded).
 **STOP — Gate B**: this memo recommends the §(a) algorithm set and the §(c) in-repo dependency
 policy for user sign-off; Phase 6 remains blocked until signed.
 
+### Gate B review follow-up (recorded 2026-07-16 — gate DEFERRED, not signed)
+
+The user deferred Gate B to a dedicated review session rather than sign without a thorough read.
+Requirements the review must satisfy, in the user's terms:
+
+1. **Dependencies must be DEEPLY considered against alternatives** — the review walks the §8
+   scan and §(b) rejections with the user, not past them; any candidate the user names gets a
+   first-class comparison.
+2. **CQT must be DEFINITIVELY ruled in or out — including a custom/modified CQT of our own.**
+   The §1b physics table covers standard CQT/VQT; the review must additionally price the
+   engineering-variant space (reduced-Q low bins, per-register hybrid Q, sparse-kernel and
+   sliding realizations, warped/log filterbank equivalents) so the ruling is "no variant wins,"
+   not "the textbook transform loses." The user's stated criterion: whatever ACTUALLY performs
+   best, in-repo effort included.
+3. **The FFT-performance question answered with current benchmark evidence**: the user's prior
+   is that FFTW is the fastest FFT — is that still true? The review needs measured comparisons
+   (FFTW vs MKL/IPP vs pffft vs KissFFT/pocketfft vs the vendored juce::dsp fallback) at OUR
+   sizes (real-input 2048–8192, single precision, one thread), plus our own plan-23 microbench
+   on target hardware as the final authority.
+
+A background research pass assembling the benchmark evidence and the custom-CQT variant analysis
+was started the same day; its findings append here as review-prep material when complete. Phase 6
+stays blocked; Phases 2, 4, and 5 are gate-independent and may proceed meanwhile.
+
 ### Phase 4 — Tuning pitch math in common/core (pure)
 
 **Scope**: The math both the tuner and future chart validation (docs/plans/roadmap/42-chart-validation.md)
