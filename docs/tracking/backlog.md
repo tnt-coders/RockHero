@@ -52,3 +52,5 @@ entry when it's done — git history is the record.
   mitigated by the stable structural meter plugins).
 - Decide UX for the audio-device failure popup vs. the input-calibration prompt appearing
   together (device disconnect while the calibration prompt is up) — modals currently just stack.
+- Move section names in the 3D view to the upper-left corner instead of inline with the
+  scrolling tab.
