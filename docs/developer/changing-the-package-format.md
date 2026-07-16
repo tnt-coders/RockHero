@@ -72,3 +72,5 @@ struct consumers. That is where compiler help ends; everything serialization-sha
 8. **Corpus smoke.** After any read-path change, run the local corpus-smoke check (it loads every
    package in the local corpus). It is strictly local — the corpus never enters git or CI — so
    this is a step only you can run, and nothing will remind you.
+9. **The format reference.** Update \ref guide_file_formats in the same commit — it documents
+   every field, and a field it doesn't know about makes it a lie.

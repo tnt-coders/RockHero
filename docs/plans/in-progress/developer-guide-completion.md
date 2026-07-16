@@ -38,6 +38,7 @@ Gaps, ranked by size × centrality (from the full census):
 | 8 | `editor/core/audio` config-store delegation | 2 files | **DONE 2026-07-15** | Covered in `audio-device-settings.md` (the read-only game store section). |
 | 9 | `common/audio` `mix` + `tone_timeline` ports | 2 files | **DONE 2026-07-15** | Named with roles in `game-development.md` supporting systems. |
 | 10 | `editor/ui/busy` + `input_calibration` windows | 4 files | **DONE 2026-07-15** | Busy overlay named in invariants; calibration window covered in `audio-device-settings.md`. |
+| 11 | File-format field reference (post-census addition) | all serializers | **DONE 2026-07-15** | `docs/developer/file-formats.md` — complete field tables for .rock/.rhp/.tone containers, song.json, chart and tone documents, project.json, plus cross-format invariants. Format-change recipe now requires same-commit updates to it. |
 
 All census items are DONE as of 2026-07-15. This plan stays open as the registry for future
 coverage: new subsystems get a census row (with a stability flag) when they land, and the

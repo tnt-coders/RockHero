@@ -95,7 +95,7 @@ entries. During undo/redo restores and monitoring-graph rebuilds, capture is sup
 
 # Tone Designer: a mode, not a second chain
 
-The Tone Designer (editing a standalone `.rocktone` file with no project open) reuses everything
+The Tone Designer (editing a standalone `.tone` file with no project open) reuses everything
 above: the same `SignalChainPanel`, the same `SignalChainWorkflow`, the same audible tone-rack
 branch, and the same undo history (opening a tone file is an undo *entry*, not a reset). The only
 mode-specific state is the small `ToneDesignerState`/`ToneDesignerViewState` slice that re-skins
