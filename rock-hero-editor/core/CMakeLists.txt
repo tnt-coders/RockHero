@@ -61,8 +61,6 @@ target_sources(
             src/signal_chain/signal_chain_workflow.h
             src/tasks/juce_editor_task_runner.cpp
             src/tasks/juce_message_thread_scheduler.cpp
-            src/tab/tab_projection.cpp
-            src/tab/tab_projection.h
             src/timeline/section_projection.cpp
             src/timeline/section_projection.h
             src/timeline/tempo_grid_geometry.cpp

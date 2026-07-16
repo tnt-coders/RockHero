@@ -14,12 +14,12 @@ namespace
 {
 
 // Builds a projection with three notes: a long sustain, a short note inside it, and a late note.
-[[nodiscard]] std::shared_ptr<const core::TabViewState> makeTabState()
+[[nodiscard]] std::shared_ptr<const common::core::TabViewState> makeTabState()
 {
-    core::TabViewState state;
+    common::core::TabViewState state;
     state.string_count = 6;
     state.notes = {
-        core::TabNoteView{
+        common::core::TabNoteView{
             .start_seconds = 1.0,
             .end_seconds = 9.0,
             .string = 1,
@@ -27,7 +27,7 @@ namespace
             .bend = {},
             .slides = {},
         },
-        core::TabNoteView{
+        common::core::TabNoteView{
             .start_seconds = 2.0,
             .end_seconds = 2.5,
             .string = 4,
@@ -35,7 +35,7 @@ namespace
             .bend = {},
             .slides = {},
         },
-        core::TabNoteView{
+        common::core::TabNoteView{
             .start_seconds = 12.0,
             .end_seconds = 12.0,
             .string = 6,
@@ -44,7 +44,7 @@ namespace
             .slides = {},
         },
     };
-    return std::make_shared<const core::TabViewState>(std::move(state));
+    return std::make_shared<const common::core::TabViewState>(std::move(state));
 }
 
 // Running maximum of the fixture's note ends, matching TabView's internal index.
@@ -172,10 +172,10 @@ TEST_CASE("TabView draws string-colored note heads", "[ui][tab-view]")
 TEST_CASE("TabView draws techniques, shapes, and fret-hand positions", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    core::TabViewState state;
+    common::core::TabViewState state;
     state.string_count = 6;
     state.notes = {
-        core::TabNoteView{
+        common::core::TabNoteView{
             .start_seconds = 2.0,
             .end_seconds = 8.0,
             .string = 1,
@@ -184,10 +184,10 @@ TEST_CASE("TabView draws techniques, shapes, and fret-hand positions", "[ui][tab
             .mute = common::core::NoteMute::Palm,
             .vibrato = true,
             .accent = true,
-            .bend = {core::TabBendPointView{.seconds = 4.0, .semitones = 2.0}},
-            .slides = {core::TabSlideView{.seconds = 7.0, .fret = 9, .unpitched = false}},
+            .bend = {common::core::TabBendPointView{.seconds = 4.0, .semitones = 2.0}},
+            .slides = {common::core::TabSlideView{.seconds = 7.0, .fret = 9, .unpitched = false}},
         },
-        core::TabNoteView{
+        common::core::TabNoteView{
             .start_seconds = 3.0,
             .end_seconds = 6.0,
             .string = 2,
@@ -197,7 +197,7 @@ TEST_CASE("TabView draws techniques, shapes, and fret-hand positions", "[ui][tab
             .bend = {},
             .slides = {},
         },
-        core::TabNoteView{
+        common::core::TabNoteView{
             .start_seconds = 3.0,
             .end_seconds = 3.0,
             .string = 3,
@@ -209,28 +209,28 @@ TEST_CASE("TabView draws techniques, shapes, and fret-hand positions", "[ui][tab
         },
     };
     state.shapes = {
-        core::TabShapeView{
+        common::core::TabShapeView{
             .start_seconds = 2.0,
             .end_seconds = 6.0,
             .name = "A5",
             .arpeggio = false,
             .arpeggio_notes = {},
         },
-        core::TabShapeView{
+        common::core::TabShapeView{
             .start_seconds = 10.0,
             .end_seconds = 12.0,
             .name = "Dm",
             .arpeggio = true,
             .arpeggio_notes = {
-                core::TabArpeggioNoteView{.string = 3, .fret = 7, .sounded = true},
-                core::TabArpeggioNoteView{.string = 5, .fret = 8, .sounded = false},
+                common::core::TabArpeggioNoteView{.string = 3, .fret = 7, .sounded = true},
+                common::core::TabArpeggioNoteView{.string = 5, .fret = 8, .sounded = false},
             },
         },
     };
     state.fret_hand_positions = {
-        core::TabFhpView{.seconds = 2.0, .fret = 5, .width = 4},
+        common::core::TabFhpView{.seconds = 2.0, .fret = 5, .width = 4},
         // Wider than the standard four-fret hand: the marker spells out the inclusive range.
-        core::TabFhpView{.seconds = 14.0, .fret = 3, .width = 5},
+        common::core::TabFhpView{.seconds = 14.0, .fret = 3, .width = 5},
     };
 
     TabView view;
@@ -240,7 +240,7 @@ TEST_CASE("TabView draws techniques, shapes, and fret-hand positions", "[ui][tab
             .start = common::core::TimePosition{},
             .end = common::core::TimePosition{20.0},
         });
-    view.setState(std::make_shared<const core::TabViewState>(std::move(state)), 0);
+    view.setState(std::make_shared<const common::core::TabViewState>(std::move(state)), 0);
 
     const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 400, 240, true)};
     juce::Graphics graphics{image};

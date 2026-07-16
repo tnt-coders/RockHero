@@ -8,8 +8,8 @@
 #include <cstddef>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
+#include <rock_hero/common/core/tab/tab_view_state.h>
 #include <rock_hero/common/core/timeline/timeline.h>
-#include <rock_hero/editor/core/tab/tab_view_state.h>
 #include <utility>
 #include <vector>
 
@@ -101,8 +101,9 @@ short note inside the range may end before the span begins.
 \return Half-open [first, last) index range of candidate notes.
 */
 [[nodiscard]] std::pair<std::size_t, std::size_t> tabVisibleNoteRange(
-    const std::vector<core::TabNoteView>& notes, const std::vector<double>& prefix_max_end_seconds,
-    double span_start_seconds, double span_end_seconds) noexcept;
+    const std::vector<common::core::TabNoteView>& notes,
+    const std::vector<double>& prefix_max_end_seconds, double span_start_seconds,
+    double span_end_seconds) noexcept;
 
 /*!
 \brief Renders the chart tablature over the arrangement waveform lane in Charter's visual style.
@@ -135,7 +136,8 @@ public:
     \param tab Seconds-resolved tab projection, or null when the arrangement has no chart.
     \param minimum_displayed_strings User minimum lane count; zero means match the chart.
     */
-    void setState(std::shared_ptr<const core::TabViewState> tab, int minimum_displayed_strings);
+    void setState(
+        std::shared_ptr<const common::core::TabViewState> tab, int minimum_displayed_strings);
 
     /*!
     \brief Draws the visible notes and sustains onto the lane.
@@ -148,7 +150,7 @@ private:
     void rebuildVisibilityIndex();
 
     // Seconds-resolved tab projection shared with the controller; null without a chart.
-    std::shared_ptr<const core::TabViewState> m_tab{};
+    std::shared_ptr<const common::core::TabViewState> m_tab{};
 
     // User minimum lane count; zero means match the chart's string count.
     int m_minimum_displayed_strings{0};

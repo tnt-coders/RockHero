@@ -2,11 +2,18 @@
 
 ## 1. Status
 
-Ready — **30-Q1/Q2/Q3 all answered 2026-07-11** (recommendations approved; Q3 amended by the
+Executing — **30-Q1/Q2/Q3 all answered 2026-07-11** (recommendations approved; Q3 amended by the
 user to add a simultaneous 2D+3D display mode — see §7/§8). The 30-Q1 design-doc amendment is
 LANDED in docs/design/architectural-principles.md ("UI Modules"), so Phases 1–5 are executable
 in order; Phase 6 is gated on docs/plans/roadmap/24-scoring-star-power-failure.md's event feed and
 docs/plans/roadmap/25-note-highway-3d.md Phase 5's feedback-state reduction. Date: 2026-07-11.
+**Phase 1 complete 2026-07-16**: `TabViewState` + `makeTabViewState` promoted to
+`rock-hero-common/core` `tab/` (namespace `rock_hero::common::core`; `tab_projection.h` public
+per the highway precedent), editor repointed (controller impl/state, view-state header, TabView
+and its pixel tests), projection tests moved to `rock_hero_common_core_tests`, and the
+do-not-unify-with-`HighwayViewState` watch item recorded in docs/tracking/watch-items.md with
+its trigger. Sequenced per 30-Q2 ahead of plan 40 Phase 3 (chart editing paused at its Phase 2,
+complete, waiting on this plan's Phase 2).
 Baseline: `master @ 7ba93b90`. Promoted from docs/plans/todo/game-2d-tab-view.md after a multi-angle
 design review (adopted/rejected record in §7); the architecture decision is settled — do not
 re-litigate the rejected options without new evidence.

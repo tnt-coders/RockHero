@@ -1,38 +1,34 @@
-#include "tab/tab_projection.h"
-
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <rock_hero/common/core/song/arrangement.h>
+#include <rock_hero/common/core/tab/tab_projection.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 
-namespace rock_hero::editor::core
+namespace rock_hero::common::core
 {
 
 namespace
 {
 
-using common::core::Fraction;
-using common::core::GridPosition;
-
 // A 4/4 default map: measure 1 beat 1 sits at zero and beats last half a second at 120 BPM.
-[[nodiscard]] common::core::TempoMap makeTempoMap()
+[[nodiscard]] TempoMap makeTempoMap()
 {
-    return common::core::TempoMap::defaultMap(common::core::TimeDuration{16.0});
+    return TempoMap::defaultMap(TimeDuration{16.0});
 }
 
-[[nodiscard]] common::core::Arrangement makeArrangementWithChart()
+[[nodiscard]] Arrangement makeArrangementWithChart()
 {
-    common::core::Chart chart;
+    Chart chart;
     chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
     chart.templates = {
-        common::core::ChordTemplate{
+        ChordTemplate{
             .name = "F5",
             .frets = {1, 3, 3, std::nullopt, std::nullopt, std::nullopt},
             .fingers = {1, 3, 4, std::nullopt, std::nullopt, std::nullopt},
         },
         // Held posture for the arpeggio span; string 4 is struck at the bracket start, so its
         // entry is the only sounded one.
-        common::core::ChordTemplate{
+        ChordTemplate{
             .name = "Dm7",
             .frets = {std::nullopt, 5, std::nullopt, 7, 8, std::nullopt},
             .fingers = {std::nullopt, 1, std::nullopt, 3, 4, std::nullopt},
@@ -40,7 +36,7 @@ using common::core::GridPosition;
     };
     chart.notes = {
         // Simultaneous pair at 2:1 under the shape span: reads as a chord box.
-        common::core::ChartNote{
+        ChartNote{
             .position = GridPosition{.measure = 2, .beat = 1},
             .string = 1,
             .fret = 1,
@@ -48,46 +44,44 @@ using common::core::GridPosition;
             .bend = {},
             .slides = {},
         },
-        common::core::ChartNote{
+        ChartNote{
             .position = GridPosition{.measure = 2, .beat = 1},
             .string = 2,
             .fret = 3,
             .bend = {},
             .slides = {},
         },
-        common::core::ChartNote{
+        ChartNote{
             .position = GridPosition{.measure = 3, .beat = 1, .offset = Fraction{1, 2}},
             .string = 4,
             .fret = 7,
             .sustain = Fraction{2},
-            .bend = {common::core::BendPoint{.offset = Fraction{1}, .semitones = 2.0}},
-            .slides = {common::core::SlideWaypoint{.offset = Fraction{2}, .fret = 9}},
+            .bend = {BendPoint{.offset = Fraction{1}, .semitones = 2.0}},
+            .slides = {SlideWaypoint{.offset = Fraction{2}, .fret = 9}},
         },
     };
     chart.shapes = {
-        common::core::ChartShape{
+        ChartShape{
             .position = GridPosition{.measure = 2, .beat = 1},
             .sustain = Fraction{1},
             .chord = 0,
         },
         // Only one onset at 3:1+1/2, so this span reads as an arpeggio bracket.
-        common::core::ChartShape{
+        ChartShape{
             .position = GridPosition{.measure = 3, .beat = 1, .offset = Fraction{1, 2}},
             .sustain = Fraction{2},
             .chord = 1,
         },
     };
     chart.fret_hand_positions = {
-        common::core::FretHandPosition{
-            .position = GridPosition{.measure = 2, .beat = 1}, .fret = 1, .width = 4
-        },
+        FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 1, .width = 4},
     };
-    return common::core::Arrangement{
+    return Arrangement{
         .id = "4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4",
-        .part = common::core::Part::Lead,
-        .difficulty = common::core::DifficultyRating{},
+        .part = Part::Lead,
+        .difficulty = DifficultyRating{},
         .audio_asset = {},
-        .audio_duration = common::core::TimeDuration{16.0},
+        .audio_duration = TimeDuration{16.0},
         .tones = {},
         .tone_track = {},
         .tone_automation = {},
@@ -100,7 +94,7 @@ using common::core::GridPosition;
 
 TEST_CASE("Tab projection resolves chart positions to seconds", "[editor-core][tab]")
 {
-    const common::core::TempoMap tempo_map = makeTempoMap();
+    const TempoMap tempo_map = makeTempoMap();
     const TabViewState state = makeTabViewState(makeArrangementWithChart(), tempo_map);
 
     CHECK(state.string_count == 6);
@@ -148,7 +142,7 @@ TEST_CASE("Tab projection resolves chart positions to seconds", "[editor-core][t
 
 TEST_CASE("Tab projection is empty without a chart", "[editor-core][tab]")
 {
-    common::core::Arrangement arrangement = makeArrangementWithChart();
+    Arrangement arrangement = makeArrangementWithChart();
     arrangement.chart.reset();
 
     const TabViewState state = makeTabViewState(arrangement, makeTempoMap());
@@ -158,4 +152,4 @@ TEST_CASE("Tab projection is empty without a chart", "[editor-core][tab]")
     CHECK(state.fret_hand_positions.empty());
 }
 
-} // namespace rock_hero::editor::core
+} // namespace rock_hero::common::core

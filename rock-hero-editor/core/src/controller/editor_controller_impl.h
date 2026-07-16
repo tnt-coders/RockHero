@@ -622,7 +622,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // deriveViewState for the cache rule (keyed by arrangement id plus the session's chart
     // revision, so chart edits rebuild both projections). Mutable because the caches refresh
     // lazily inside the const view-state derivation.
-    mutable std::shared_ptr<const TabViewState> m_tab_view_state{};
+    mutable std::shared_ptr<const common::core::TabViewState> m_tab_view_state{};
     mutable std::shared_ptr<const common::core::HighwayViewState> m_highway_view_state{};
     mutable std::string m_tab_arrangement_id{};
     mutable std::uint64_t m_tab_chart_revision{0};
