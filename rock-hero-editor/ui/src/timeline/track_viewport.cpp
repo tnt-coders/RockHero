@@ -282,18 +282,9 @@ void TrackViewport::setShapeLabels(std::vector<RulerShapeLabel> labels)
     m_timeline_ruler.setShapeLabels(std::move(labels));
 }
 
-// Forwards the song's section names to the pinned ruler's section chip row and their start times
-// to the cursor overlay, which draws them as faint full-height boundary lines through the notes.
+// Forwards the song's section names to the pinned ruler's section chip row.
 void TrackViewport::setSectionLabels(std::vector<RulerSectionLabel> labels)
 {
-    // Read the boundary times before the labels move into the ruler.
-    std::vector<double> boundaries;
-    boundaries.reserve(labels.size());
-    for (const RulerSectionLabel& label : labels)
-    {
-        boundaries.push_back(label.seconds);
-    }
-    m_cursor_overlay.setSectionBoundaries(std::move(boundaries));
     m_timeline_ruler.setSectionLabels(std::move(labels));
 }
 
