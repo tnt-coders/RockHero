@@ -27,6 +27,24 @@ TEST_CASE("Fraction collapses a zero denominator", "[core][fraction]")
     CHECK(Fraction{3, 0}.denominator == 1);
 }
 
+// Verifies addition and subtraction stay exact and return normalized rationals, including the
+// tuplet denominators the chart corpus uses.
+TEST_CASE("Fraction adds and subtracts exactly", "[core][fraction]")
+{
+    CHECK(Fraction{1, 3} + Fraction{1, 6} == Fraction{1, 2});
+    CHECK(Fraction{3, 5} + Fraction{2, 5} == Fraction{1});
+    CHECK(Fraction{1, 7} + Fraction{1, 5} == Fraction{12, 35});
+    CHECK(Fraction{5, 12} + Fraction{} == Fraction{5, 12});
+    CHECK(Fraction{1, 2} - Fraction{3, 4} == Fraction{-1, 4});
+    CHECK(Fraction{7, 9} - Fraction{7, 9} == Fraction{});
+    CHECK(Fraction{-1, 4} + Fraction{-1, 4} == Fraction{-1, 2});
+
+    // The result is normalized like every constructed Fraction: reduced, positive denominator.
+    const Fraction sum = Fraction{1, 4} + Fraction{1, 4};
+    CHECK(sum.numerator == 1);
+    CHECK(sum.denominator == 2);
+}
+
 // Verifies ordering compares by value, not by stored fields.
 TEST_CASE("Fraction orders by value", "[core][fraction]")
 {

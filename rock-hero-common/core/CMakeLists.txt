@@ -7,6 +7,7 @@ target_sources(
     PRIVATE src/chart/chart_document.cpp
             src/chart/chart_rules.cpp
             src/chart/chart_tokens.cpp
+            src/chart/grid_arithmetic.cpp
             src/highway/highway_camera.cpp
             src/highway/highway_projection.cpp
             src/highway/highway_tail.cpp

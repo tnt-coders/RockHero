@@ -1,6 +1,22 @@
 # Plan 40 — Chart Editing
 
-**Status:** Ready — 2026-07-06 — baseline `refactor @ 3c7febe0`.
+**Status:** Executing — started 2026-07-16 (baseline `refactor @ 3c7febe0`; authored 2026-07-06).
+**Pre-execution re-verification (2026-07-16):** the load-bearing inventory claims hold at today's
+tree (arrangement.h "do not rewrite" comment, validate-only chart save path in
+`rock_song_package_write.cpp`, arrangement-id-keyed projection cache "because charts are
+immutable", `TabView` still pointer-inert via `setInterceptsMouseClicks(false, false)` — line
+numbers drifted, semantics intact). Phase 2's blocker is cleared: the in-flight tone-track work
+committed long ago (milestone 0 plays tone automation through it). Standing sequencing note: per
+30-Q2 (answered 2026-07-11), plan 30 Phase 2 (shared notation paint core + layout manifest) runs
+BEFORE this plan's Phase 3 adds interaction — the execution order is Phases 1–2 here, then plan
+30 Phases 1–2, then Phases 3+ here. **Phase 1 complete 2026-07-16**: exact `Fraction`
+operator+/operator- (64-bit intermediates, normalized results) and the grid-arithmetic unit in
+common/core (`chart/grid_arithmetic.h`: `advanceGridPosition` with origin clamp,
+`beatDistance` as its exact inverse, `sustainEndPosition`, and `snapGridPosition` reproducing
+the editor timeline grid's semantics — measure-anchored whole-note-fraction note values,
+downbeats always lines, ties to the earlier line; note-value validity policy stays with
+callers). Tests cover signature-change carries, tuplet round-trips, the 7/8-with-1/4-grid
+next-downbeat path, and tie stability.
 
 Open questions Q1–Q4 below have recommended defaults and are mirrored into
 `docs/plans/roadmap/00-roadmap.md` (Decisions needed). Phases 1–3 depend on none of them; later phases
