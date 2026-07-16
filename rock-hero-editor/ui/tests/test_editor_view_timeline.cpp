@@ -68,9 +68,9 @@ namespace
 
 } // namespace
 
-// Verifies the grid header draws the shared dotted grid with per-rank colors: the measure
-// column reads brighter than the beat columns, and rows between dots stay plain backdrop.
-TEST_CASE("TimelineRuler draws measure and beat grid dots", "[ui][timeline-ruler]")
+// Verifies measure lines span the full ruler height (keeping the numbers attached to their
+// downbeats) while beat ticks stay in the bottom band above the divider.
+TEST_CASE("TimelineRuler draws full measure lines and short beat ticks", "[ui][timeline-ruler]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     constexpr common::core::TimeRange one_measure_window{
@@ -90,16 +90,18 @@ TEST_CASE("TimelineRuler draws measure and beat grid dots", "[ui][timeline-ruler
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
 
-    // One measure across 101px maps seconds * 25: the measure column sits at x = 0 and the beat
-    // at 3.0s at x = 75. The dot pattern anchors at the grid region's top (y = 16, stride 2), so
-    // y = 30 is a dot row between the section and tempo chip rows and y = 29 a gap row.
+    // One measure across 101px maps seconds * 25: the measure line sits at x = 0 and the beat
+    // at 3.0s at x = 75. The measure line crosses the number row and the whole grid region
+    // (y = 6 and y = 30), while the beat tick fills only the bottom band (y = 52), leaving the
+    // region's mid-height as plain backdrop.
+    CHECK(image.getPixelAt(0, 6) == editorTheme().grid_measure);
     CHECK(image.getPixelAt(0, 30) == editorTheme().grid_measure);
-    CHECK(image.getPixelAt(75, 30) == editorTheme().grid_beat);
-    CHECK(image.getPixelAt(75, 29) == editorTheme().timeline_backdrop);
+    CHECK(image.getPixelAt(75, 30) == editorTheme().timeline_backdrop);
+    CHECK(image.getPixelAt(75, 52) == editorTheme().grid_measure);
 }
 
-// Verifies subdivision columns take the dimmest rank color so beats stay readable on fine grids.
-TEST_CASE("TimelineRuler draws subdivision grid dots dimmer than beats", "[ui][timeline-ruler]")
+// Verifies subdivision ticks draw shorter than beat ticks so beats stay readable on fine grids.
+TEST_CASE("TimelineRuler draws shorter subdivision ticks", "[ui][timeline-ruler]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     constexpr common::core::TimeRange one_measure_window{
@@ -119,10 +121,12 @@ TEST_CASE("TimelineRuler draws subdivision grid dots dimmer than beats", "[ui][t
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
 
-    // The half-beat subdivision at 3.5s (x = 175) takes the subdivision rank color while the
-    // beat at 3.0s (x = 150) takes the beat rank color; y = 30 is a dot row between chip rows.
-    CHECK(image.getPixelAt(175, 30) == editorTheme().grid_subdivision);
-    CHECK(image.getPixelAt(150, 30) == editorTheme().grid_beat);
+    // The half-beat subdivision at 3.5s (x = 175) fills only the shorter bottom band while the
+    // beat at 3.0s (x = 150) also fills the taller 10px beat band above it; both columns sit far
+    // from any chips so only tick pixels can land on the probes.
+    CHECK(image.getPixelAt(150, 50) == editorTheme().grid_measure);
+    CHECK(image.getPixelAt(175, 50) == editorTheme().timeline_backdrop);
+    CHECK(image.getPixelAt(175, 55) == editorTheme().grid_measure);
 }
 
 // Verifies the song's section names draw as filled chips in the grid header's top chip row,

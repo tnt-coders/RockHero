@@ -1,6 +1,6 @@
 /*!
 \file tempo_grid_dots.h
-\brief Shared dotted tempo-grid painter for the timeline canvas and the pinned ruler.
+\brief Dotted tempo-grid painter for the scrolling timeline canvas.
 */
 
 #pragma once
@@ -16,9 +16,8 @@ namespace rock_hero::editor::ui
 
 One dot column per grid line, restricted to the current paint's repaint clip: the clip only trims
 which columns and dot rows get drawn, never the geometry itself, so results stay stable regardless
-of how much of the surface repaints. The scrolling canvas and the pinned ruler's grid header both
-draw through this one painter, which is what keeps the header reading as a seamless continuation
-of the canvas grid.
+of how much of the canvas repaints. The pinned ruler deliberately does not draw through this — it
+keeps its own solid ticks so the header reads as a ruler rather than more content.
 
 \param g Graphics context of the component being painted.
 \param subdivision_grid_x Subdivision-rank column x positions relative to the bounds' left edge.

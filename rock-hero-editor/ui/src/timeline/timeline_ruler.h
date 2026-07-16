@@ -60,11 +60,11 @@ struct RulerSectionLabel
 \brief Draws the pinned bars-and-beats ruler above the scrollable timeline content.
 
 The ruler stays fixed while the timeline content scrolls under it: the measure-number row sits on
-top, and below it the grid header region extends the canvas's dark backdrop and dotted tempo grid
-up to the ruler, carrying the section, tempo, and signature chip rows on that grid. Callers push
-the current view geometry and the shared visible-span grid lines; the ruler renders everything
-from that one scan result. Clicks convert into the same snapped cursor-placement intent as
-timeline-content clicks.
+top, and below it the grid header region extends the canvas's dark backdrop up to the ruler,
+draws the ruler's own solid grid ticks over it, and carries the section, tempo, and signature
+chip rows. Callers push the current view geometry and the shared visible-span grid lines; the
+ruler renders everything from that one scan result. Clicks convert into the same snapped
+cursor-placement intent as timeline-content clicks.
 */
 class TimelineRuler final : public juce::Component
 {
@@ -138,7 +138,7 @@ public:
     void setSectionLabels(std::vector<RulerSectionLabel> labels);
 
     /*!
-    \brief Paints the measure-number row and the grid header's dotted grid and chip rows.
+    \brief Paints the measure-number row and the grid header's ticks and chip rows.
     \param g Graphics context used for drawing.
     */
     void paint(juce::Graphics& g) override;
@@ -180,6 +180,9 @@ private:
     // Rebuilds the section chip row: one label per visible section start plus the pinned active
     // section at the left edge, sharing the header rows' pin gate.
     void refreshSectionBand(const juce::Font& font, std::optional<double> pinned_left_seconds);
+
+    // Draws visible grid ticks: full-height measures, short beats, and shorter subdivision ticks.
+    void drawBeatTicks(juce::Graphics& g);
 
     // Draws one cached row of overlap-suppressed labels in the current color at a fixed vertical
     // band. The font must match the one the row's widths were measured with.
@@ -224,15 +227,13 @@ private:
     CursorPlacementCallback m_cursor_placement_callback{};
 
     // Tempo-grid lines for the current visible span, pushed by the owning view so the ruler and
-    // the track content share one tempo-map scan. Stored in content coordinates; the per-rank
-    // columns below subtract m_view_x, so the lines must be re-pushed after every view change.
+    // the track content share one tempo-map scan. Stored in content coordinates; ticks subtract
+    // m_view_x, so the lines must be re-pushed after every view change.
     std::vector<core::TempoGridLine> m_grid_lines{};
 
-    // Per-rank grid-column x positions in local ruler coordinates, cached so paint() hands them
-    // straight to the shared dotted-grid painter instead of rebuilding geometry on every repaint.
-    std::vector<int> m_subdivision_columns{};
-    std::vector<int> m_beat_columns{};
-    std::vector<int> m_measure_columns{};
+    // Precomputed tick rectangles in local ruler coordinates, cached so paint() only issues one
+    // fillRectList call instead of rebuilding geometry on every repaint.
+    juce::RectangleList<float> m_tick_rects{};
 
     // Measure-number row of the ruler body: the pinned active measure at the left edge, then
     // the numbers that survived overlap suppression, with widths already measured. Kept out of
