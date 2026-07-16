@@ -214,7 +214,9 @@ and \ref guide_add_file answers where its files live.
 | Add any other editor UI | \ref guide_action_anatomy | \ref guide_add_view |
 | Work on plugins or the signal chain | \ref guide_signal_chain | its extension checklist |
 | Change what the 3D highway shows | \ref guide_3d_highway | its extension checklists |
-| Give the engine a new audio capability | the Engine concept above | \ref guide_add_port |
+| Give the engine a new audio capability | \ref guide_tracktion_adapter | \ref guide_add_port |
+| Touch project open/save/import/publish | \ref guide_project_lifecycle | its silent steps |
+| Change device routing or config persistence | \ref guide_audio_device | its silent steps |
 | Add or change persisted song/package data | \ref guide_package_format | its two-reader checklist |
 | Touch anything timing- or tempo-related | \ref guide_musical_time | \ref guide_2d_views |
 | Make something undoable | \ref guide_undo | its silent steps |
@@ -239,6 +241,10 @@ tours, then use the recipes as checklists while you work:
 - \subpage guide_3d_highway — the shared 3D renderer and how both products consume it.
   *(Repo-wide)*
 - \subpage guide_signal_chain — the plugin rack across all three layers. *(Editor + engine)*
+- \subpage guide_tracktion_adapter — the framework units behind the engine. *(Repo-wide)*
+- \subpage guide_audio_device — device routing, the settings sub-MVC, and the config stores.
+  *(Editor + game)*
+- \subpage guide_project_lifecycle — open/save/import/publish and the dirty gate. *(Editor-only)*
 - \subpage guide_musical_time — grid positions, the tempo map, and the playback clock.
   *(Repo-wide)*
 - \subpage guide_undo — the unified memento history and the engine's capture machinery.
