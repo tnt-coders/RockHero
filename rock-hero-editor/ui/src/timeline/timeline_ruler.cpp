@@ -21,12 +21,12 @@ namespace
 
 const juce::Colour g_timeline_ruler_text_color{210, 210, 210};
 
-// Vertical layout: the measure-number bar sits on top with the ruler chrome and the ruler's
-// solid grid ticks — bar-height measure ticks keep the numbers attached to their downbeats,
-// with short beat and shorter subdivision ticks hanging from the bar's bottom edge. Below it
-// the grid header region extends the canvas's dark backdrop and dotted tempo grid up to the
-// bar, carrying three chip rows — sections, tempo markings, time signatures — each chip's left
-// edge on its grid column. All three rows pin the active value to the left edge while the song
+// Vertical layout: the measure-number bar sits on top with the ruler's solid grid ticks —
+// bar-height measure ticks keep the numbers attached to their downbeats, with short beat and
+// shorter subdivision ticks hanging from the bar's bottom edge. Below it the grid header region
+// shares the bar's ruler chrome and extends the canvas's dotted tempo grid up to the bar,
+// carrying three chip rows — sections, tempo markings, time signatures — each chip's left edge
+// on its grid column. All three rows pin the active value to the left edge while the song
 // scrolls. The heights fold into g_timeline_ruler_height; change them together.
 constexpr int g_measure_row_y{1};
 constexpr int g_grid_region_top{16};
@@ -206,16 +206,13 @@ void TimelineRuler::setCursorPlacementCallback(CursorPlacementCallback callback)
     m_cursor_placement_callback = std::move(callback);
 }
 
-// Paints the measure-number bar with its ticks, then the grid header region: dark backdrop,
-// dotted grid columns, and the section, tempo, and signature chip rows on top.
+// Paints the measure-number bar with its ticks, then the grid header region: dotted grid
+// columns and the section, tempo, and signature chip rows on top.
 void TimelineRuler::paint(juce::Graphics& g)
 {
-    // The measure-number bar keeps the ruler chrome; the region below extends the canvas's dark
-    // backdrop up to it so the chip rows read as sitting on the same grid as the content.
-    g.setColour(editorTheme().timeline_ruler_background);
-    g.fillRect(0, 0, getWidth(), g_grid_region_top);
-    g.setColour(editorTheme().timeline_backdrop);
-    g.fillRect(0, g_grid_region_top, getWidth(), getHeight() - g_grid_region_top);
+    // One ruler-chrome fill for the whole header, so the number bar and the grid header region
+    // read as a single surface distinct from the darker content scrolling under it.
+    g.fillAll(editorTheme().timeline_ruler_background);
     // A crisp division along the bottom edge so the header reads as its own surface above the
     // rows scrolling under it.
     g.setColour(editorTheme().grid_measure);
