@@ -57,7 +57,12 @@ banks the partial credit earned before the drop.
     double held_fraction) noexcept;
 
 /*!
-\brief Resolves the star award for a completed run.
+\brief Resolves the ratio-based star award for a completed run.
+
+This is the 1–5 star scale only: the WoR-baseline 6th star is a strict full-combo predicate
+(every note hit, zero qualifying overstrums) the state machine awards from run evidence, not a
+score ratio.
+
 \param ruleset Constants defining the ascending ratio thresholds.
 \param score_to_max_base_ratio Final score divided by the chart's maximum base (unmultiplied)
        score.
