@@ -5,6 +5,7 @@ include(Catch)
 
 add_executable(
     rock_hero_game_core_tests
+    test_detection_event.cpp
     test_diagnostics.cpp
     test_frame_clock.cpp
     test_game_audio_config.cpp
@@ -17,7 +18,9 @@ add_executable(
     test_library_scan_plan.cpp
     test_library_scan_roots.cpp
     test_menu_bindings.cpp
-    test_song_select_menu.cpp)
+    test_score_math.cpp
+    test_song_select_menu.cpp
+    test_timing_window.cpp)
 
 # Shared test fakes (the null settings port) live under tests/include, mirroring editor/core.
 target_include_directories(rock_hero_game_core_tests PRIVATE include)

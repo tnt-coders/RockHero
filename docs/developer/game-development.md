@@ -45,6 +45,14 @@ Small headless pieces every game feature ends up touching:
   state machine.
 - **`diagnostics`** (`core/diagnostics/`) — headless dev-diagnostics state, typed intents, and
   the chart-source change detector.
+- **`detection`** (`core/detection/`) — the pure detection-event vocabulary (`OnsetEvent`,
+  `PitchFrame`, `PitchConfirmation`, the `DetectionEvent` variant): plain trivially-copyable
+  values timestamped in input-stream sample time, defined ahead of any DSP so scoring and the
+  replay harness build against a frozen contract (plan 22 Phase 1).
+- **`scoring`** (`core/scoring/`) — the versioned `ScoringRuleset` (rh-score-1), the
+  `NoteVerdict` vocabulary, and pure ladder/window math; hit windows keep a constant real-time
+  width across playback speeds and apply plan 13's effective-offset contract at consumption
+  (plan 24 Phase 1). The provisional-hit state machine lands here in a later phase.
 - The session's port set also includes `IMixControls` (master/backing mix gains) and
   `IToneTimelinePlayer` (transport-driven scheduled tone switching) — both implemented by the
   shared `Engine`.

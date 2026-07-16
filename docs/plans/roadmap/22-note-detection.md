@@ -2,7 +2,12 @@
 
 **Status**: Decision-gated (Gate A: detectability matrix + latency budget sign-off inside Phase 1;
 Gate B: algorithm/dependency selection sign-off ending Phase 3). Date: 2026-07-06. Baseline
-`refactor @ 3c7febe0`.
+`refactor @ 3c7febe0`. **Phase 1 executed 2026-07-16** jointly with plan 24 Phase 1: detection
+event types + tests landed in game/core (the "first game test target" framing below is obsolete —
+`rock_hero_game_core_tests` already existed; the detection folder joined it), and the contract was
+adversarially vetted by the dsp-guitar-detection-expert agent with its adjustments folded into the
+budget, matrix, and metrics below (see "Phase 1 contract vetting record"). Gate A presented,
+awaiting user sign-off.
 
 ## Goal
 
@@ -199,54 +204,105 @@ wide tolerance / partial verification; Cosmetic = rendered but not verified at v
 
 | Chart field | v1 tier | Basis |
 |---|---|---|
-| Note onset/timing | Scored | Onset detection is the most reliable signal available |
+| Note onset/timing | Scored | Onset detection is the most reliable signal available (picked/plucked attacks; hammer/pull/tap notes take their row's lenient onset path) |
 | Single-note pitch | Scored | Sounding pitch only; string/fret identity is not observable |
 | Chords (multi-string) | Lenient | Onset + polyphonic salience check; exact voicing unverified |
 | Sustain hold | Scored | Sustained-pitch tracking with decay-aware confidence leniency |
 | Bend (`bend[]`) | Lenient | Endpoint pitch scored ± tolerance; curve shape cosmetic at v1 |
 | Slide waypoints | Lenient | Glide direction + terminal pitch; `unpitched` slides cosmetic |
-| Vibrato | Lenient | Periodic f0 modulation presence; depth/rate unverified |
+| Vibrato | Lenient | Periodic f0 modulation presence; needs ~2 modulation cycles, so only verifiable on sustains ≥ ~300 ms — shorter vibrato stays cosmetic; depth/rate unverified |
 | Tremolo | Lenient | Re-onset rate above threshold; exact count unverified |
 | Hammer/Pull/Tap attack | Lenient | Pitch change without strong pick transient; picked also accepted |
 | Pop/Slap attack | Cosmetic | Spectral cues too rig-dependent at v1 |
 | Palm mute | Cosmetic (mute quality) | Note itself Scored as a pitched onset |
-| Full mute | Scored | Percussive-unpitched onset class; no pitch required |
+| Full mute | Scored (onset timing); class check Lenient | Onset timing scores; the percussive-unpitched class check confirms early when present but stays lenient (best published prior ~83% on clean guitar) — promotion to a scored class check requires plan 23 measuring per-class P/R ≥ 0.90; pitched evidence never penalizes a mute-charted note |
 | Natural harmonic | Lenient | Expected sounding pitch computed from `touch`/node; wide tolerance |
 | Pinch harmonic | Cosmetic (timbre) | Overtone selection is chaotic across rigs; onset Scored |
-| Accent | Cosmetic | Dynamics are rig/compressor-dependent |
+| Accent | Cosmetic | Player/instrument absolute-level variability defeats a portable threshold (the pre-effects tap sees no compressor, so relative dynamics ARE observable — a measured upgrade path exists) |
 | Shapes / fingerings / FHP | Cosmetic (permanently) | Not acoustically observable |
 
-**Latency budget** — worst-case pitch-confirmation floor is physics: an autocorrelation-family
-estimator needs roughly 2–3 fundamental periods of signal. Sounding pitch includes `cent_offset`
-(-1200 cents is a validated, corpus-real practice — chart_rules.cpp:15-16):
+**Latency budget** — the hard floor is physics: an autocorrelation-family estimator fundamentally
+needs ~**2 fundamental periods** of signal (MPM/NSDF is designed for two-period windows; YIN's
+difference-function structure implies the same bound). The third period in the table is
+engineering margin (confidence gating, normalization warm-up), and the pluck attack adds dead
+time before the usable-period clock starts — attack transients are aperiodic and carry an initial
+sharp pitch glide from tension modulation, so budget 5–8 ms of transient allowance. Sounding pitch
+includes `cent_offset` (-1200 cents is a validated, corpus-real practice — chart_rules.cpp:15-16):
 
-| Lowest sounding pitch | f0 | Period | 3 periods | Confirmation target (p95) |
+| Lowest sounding pitch | f0 | Period | 3 periods | Confirmation target (p95, sample time) |
 |---|---|---|---|---|
-| E2 (standard guitar) | 82.4 Hz | 12.1 ms | 36 ms | ≤ 45 ms |
+| E2 (standard guitar) | 82.4 Hz | 12.1 ms | 36 ms | ≤ 50 ms |
 | B1 (7-string / drop B) | 61.7 Hz | 16.2 ms | 49 ms | ≤ 65 ms |
-| E1 (bass standard; guitar chart at -1200c) | 41.2 Hz | 24.3 ms | 73 ms | ≤ 85 ms |
-| B0 (5-string bass; 7-string at -1200c) | 30.9 Hz | 32.4 ms | 97 ms | ≤ 110 ms |
+| E1 (bass standard; guitar chart at -1200c) | 41.2 Hz | 24.3 ms | 73 ms | ≤ 90 ms |
+| B0 (5-string bass; 7-string at -1200c) | 30.9 Hz | 32.4 ms | 97 ms | ≤ 115 ms |
 
-Pipeline overhead on top of the estimator window: device buffer (2.7 ms at 128 samples / 48 kHz),
-hop quantum (5.3 ms at 256-sample hop), analysis compute (budget ≤ 2 ms per hop). Onset events do
-not wait for pitch: **onset p95 ≤ 15 ms** after the physical transient. These two numbers — fast
-onset, slow pitch — are exactly why plan 24's provisional-hit state machine is mandatory, not
-optional: pitch confirmation on low strings consumes most of a GH-style hit window.
+Decomposition on top of the estimator window: attack-transient dead time (5–8 ms), hop quantum
+(5.3 ms at a 256-sample hop), analysis compute (budget ≤ 2 ms per hop), and multi-frame
+confirmation gating ((k−1) × hop when confirmation requires k agreeing hops; k = 1 at v1 until
+measurement argues otherwise). All targets are defined in **input-stream sample time** —
+confirmation-event sample position minus true onset sample position — so plan 23 measures them
+deterministically from replay logs. Device I/O buffering (device buffer plus driver safety
+offsets) affects only the player's wall-clock experience; it is plan 13's measured-calibration
+territory and is never assumed from the buffer size. Onset events do not wait for pitch:
+**onset p95 ≤ 15 ms** after the physical transient (sample time), which requires a strictly
+causal peak-picker — a single frame of lookahead spends 5.3 ms of that budget. The onset F1
+target and the onset latency target must be met simultaneously by one configuration, never traded
+against each other across separate runs. These two numbers — fast onset, slow pitch — are exactly
+why plan 24's provisional-hit state machine is mandatory, not optional: pitch confirmation on low
+strings consumes most of a GH-style hit window.
 
 **Accuracy metrics** (defined here; plan 23 measures every one of them in CI):
 
-- Onset: precision / recall / F1 against annotations with ±25 ms matching tolerance; detection
-  latency distribution p50/p95.
-- Pitch: raw pitch accuracy (within ±50 cents of annotation), gross-error rate, octave-error rate;
-  time-to-confirmation p50/p95 bucketed per register class (E2+, B1, E1, B0).
+- Onset: precision / recall / F1 against annotations with ±25 ms matching tolerance and strict
+  one-to-one counting (each annotation matched at most once; merged-onset counting inflates
+  scores). ±25 ms is deliberate — the literature argues it over the older ±50 ms convention for
+  online detection, and a rhythm game whose whole hit window is ~±100 ms cannot grade itself with
+  a ±50 ms ruler; F1 at ±50 ms is dual-reported for literature comparability only. Detection
+  latency distribution p50/p95 in sample time.
+- Pitch: frame-level raw pitch accuracy (within ±50 cents of annotation, over voiced frames — the
+  form sustain/bend tracking is graded on) and note-level confirmed-pitch accuracy (per onset —
+  the form scoring is graded on), reported separately; gross-error rate; octave-error rate
+  bucketed per register class — ≤ 2% is binding for E2+, and the E1/B0 buckets are provisional
+  until plan 23's synthetic low-register sweeps set evidence-based bounds (octave errors
+  concentrate exactly where fundamentals are weak); time-to-confirmation p50/p95 bucketed per
+  register class (E2+, B1, E1, B0).
 - Sustain: fraction of annotated sustain span with in-tolerance tracked f0.
 - Technique classifiers: per-class precision / recall (percussive-mute class, harmonic presence,
-  vibrato presence, tremolo re-onset detection).
-- Tuner: cents bias and standard deviation on steady tones (|bias| ≤ 1 cent, σ ≤ 2 cents), update
-  rate ≥ 10 Hz, settle time ≤ 300 ms after pluck.
-- v1 targets: onset F1 ≥ 0.95 and pitch RPA ≥ 0.95 on clean DI single notes; octave errors ≤ 2%;
-  latency within the budget table. Plan 29's leaderboard gate additionally requires these numbers
-  stable (no regression > 1 point) across three consecutive plan-23 corpus runs.
+  vibrato presence, tremolo re-onset detection). The percussive-mute numbers carry the full-mute
+  matrix row's promotion trigger (≥ 0.90).
+- Tuner: cents bias and standard deviation on settled steady tones (|bias| ≤ 1 cent, σ ≤ 2 cents),
+  update rate ≥ 10 Hz, settle time ≤ 300 ms after pluck. Bias is referenced to the fundamental
+  partial of the post-glide steady state — plucked attacks run systematically sharp while the
+  tension-modulation glide decays, so readings taken during the attack are excluded from the bias
+  metric by definition, and inharmonicity-stretched upper partials make "the pitch" ambiguous
+  unless the fundamental is named as the reference.
+- v1 targets: onset F1 ≥ 0.95 and pitch RPA ≥ 0.95 on clean DI single notes; octave errors ≤ 2%
+  (E2+); latency within the budget table, met simultaneously with the accuracy targets by one
+  configuration. Plan 29's leaderboard gate additionally requires these numbers stable (no
+  regression > 1 point) across three consecutive plan-23 corpus runs.
+
+**Phase 1 contract vetting record (2026-07-16)** — the dsp-guitar-detection-expert agent
+adversarially reviewed the draft budget, matrix, and metrics against primary literature before
+Gate A. Five adjustments were folded into the text above: (1) the 2-period estimator floor is the
+physics, the third period is margin, and attack-transient dead time (5–8 ms) plus k-frame
+confirmation gating were added to the decomposition — E2/E1/B0 confirmation targets moved to
+50/90/115 ms because the draft's own components summed past its E2 target; (2) all latency
+targets are sample-time (replay-measurable), with device I/O split out to plan 13's wall-clock
+calibration; (3) the full-mute class check demoted to Lenient with a ≥ 0.90 P/R promotion trigger
+(best published prior for expression-class detection on clean guitar is ~83%, versus ~98% for
+onsets); (4) the accent rationale corrected — the pre-effects tap sees no compressor, the real
+constraint is player/instrument level variability; (5) metric addenda — strict onset counting
+named, ±50 ms dual-reporting, frame-level vs note-level pitch accuracy split, per-register
+octave-error buckets, tuner bias referenced to the post-glide fundamental. Everything else was
+confirmed as drafted, including ±25 ms matching and the 15 ms onset p95 (as sample-time with a
+strictly causal peak-picker). Key sources: McLeod & Wyvill 2005 (MPM/NSDF two-period windows);
+Böck, Krebs & Schedl, ISMIR 2012 (online onset detection, ±25 ms evaluation); Kehling et al.,
+DAFx-14 + IDMT-SMT-Guitar (~98% onset/multipitch, ~83–93% expression classes on clean electric
+guitar); Bello et al. 2005 (onset-detection tutorial; soft-onset weakness); de Cheveigné &
+Kawahara 2002 (YIN) and Mauch & Dixon 2014 (pYIN) for octave-error rates. Open verification
+items carried into Phase 3 / plan 23: exact YIN gross-error tables (primary PDF unreachable
+during vetting), full-mute per-class P/R on our corpus (the promotion trigger), and sub-E2
+octave-error bounds from the synthetic sweeps.
 
 **Files touched**: new headers under rock-hero-game/core include tree; new test target
 `rock_hero_game_core_tests` (first game test target; links `rock_hero::game::core` per the

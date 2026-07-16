@@ -3,6 +3,14 @@
 **Status:** Decision-gated (star-power earning model Q1, star-power rescue Q2, IMidiTrigger
 placement Q3, meter visual direction Q4, vendored-JUCE bug handling Q5); Phases 1–3 are
 gate-independent and executable now. Date 2026-07-06; baseline `refactor @ 13e82fb0`.
+**Phase 1 executed 2026-07-16** jointly with plan 22 Phase 1 (Gate A): the scoring feature folder
+landed in game/core — `ScoringRuleset` (rh-score-1 constants), the `NoteVerdict` vocabulary, the
+ladder/chord/sustain/star math, and the hit-window math implementing plan 13's effective-offset
+contract with real-time-constant windows across playback speeds — with pure tests in
+`rock_hero_game_core_tests` (the plan's "first game test target" framing predates plans 20/21/26;
+the target already existed). Plan 22 Phase 1 defined the DetectionEvent value types first, as
+planned; Phase 2 consumes them. The full-mute matrix row below carries Gate A's vetting
+adjustment. Gate A presented, awaiting user sign-off.
 
 ## 1. Goal
 
@@ -300,7 +308,7 @@ docs/plans/roadmap/22-note-detection.md Phase 1 and co-authored there; chart fie
 | Note onset+pitch | scored | Core verdict via state machine above |
 | Sustain | scored | Held fraction from sustained-pitch tracking; pro-rated credit |
 | Chords (simultaneous notes/shapes) | scored, lenient | One verdict per chord; hit when the detected pitch set is consistent (≥ 2 member pitches, no strong contradiction — thresholds from 22's contract); score = sum of member notes |
-| `NoteMute::Full` | scored (onset-only) | Percussive-mute classification confirms; no pitch requirement |
+| `NoteMute::Full` | scored (onset-only) | Onset timing scores; percussive-class evidence confirms early when present but is lenient (22's vetted contract: ~83% published prior, promotion trigger per-class P/R ≥ 0.90); absent class evidence resolves confirm-by-default at the deadline, and pitched evidence never revokes a mute-charted note |
 | `NoteMute::Palm` | scored, lenient | Pitch verdict as normal; damped-timbre check lenient |
 | `NoteAttack` Hammer/Pull/Tap | scored, lenient | Lowered onset-confidence threshold in-window; attack kind itself cosmetic |
 | `NoteAttack` Pop/Slap | scored | As normal notes; attack kind cosmetic |
