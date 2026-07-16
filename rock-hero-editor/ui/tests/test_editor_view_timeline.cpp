@@ -68,9 +68,10 @@ namespace
 
 } // namespace
 
-// Verifies measure lines span the full ruler height (keeping the numbers attached to their
-// downbeats) while beat ticks stay in the bottom band above the divider.
-TEST_CASE("TimelineRuler draws full measure lines and short beat ticks", "[ui][timeline-ruler]")
+// Verifies the number bar's measure ticks span the whole bar (keeping the numbers attached to
+// their downbeats) while beat ticks stay short, and that the grid header region below continues
+// the canvas's dotted grid with per-rank colors.
+TEST_CASE("TimelineRuler draws bar ticks and header grid dots", "[ui][timeline-ruler]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     constexpr common::core::TimeRange one_measure_window{
@@ -90,17 +91,21 @@ TEST_CASE("TimelineRuler draws full measure lines and short beat ticks", "[ui][t
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
 
-    // One measure across 101px maps seconds * 25: the measure line sits at x = 0 and the beat
-    // at 3.0s at x = 75. The measure line crosses the number row and the whole grid region
-    // (y = 6 and y = 30), while the beat tick fills only the bottom band (y = 52), leaving the
-    // region's mid-height as plain backdrop.
-    CHECK(image.getPixelAt(0, 6) == editorTheme().grid_measure);
+    // One measure across 101px maps seconds * 25: the measure column sits at x = 0 and the beat
+    // at 3.0s at x = 75. In the number bar the measure tick spans the whole bar (y = 2) while
+    // the beat tick fills only its lower 10px (y = 8, empty at y = 2). In the grid region the
+    // dot pattern anchors at the region's top (y = 16, stride 2), so y = 30 is a dot row between
+    // the section and tempo chip rows and y = 29 a gap row.
+    CHECK(image.getPixelAt(0, 2) == editorTheme().grid_measure);
+    CHECK(image.getPixelAt(75, 2) == editorTheme().timeline_ruler_background);
+    CHECK(image.getPixelAt(75, 8) == editorTheme().grid_measure);
     CHECK(image.getPixelAt(0, 30) == editorTheme().grid_measure);
-    CHECK(image.getPixelAt(75, 30) == editorTheme().timeline_backdrop);
-    CHECK(image.getPixelAt(75, 52) == editorTheme().grid_measure);
+    CHECK(image.getPixelAt(75, 30) == editorTheme().grid_beat);
+    CHECK(image.getPixelAt(75, 29) == editorTheme().timeline_backdrop);
 }
 
-// Verifies subdivision ticks draw shorter than beat ticks so beats stay readable on fine grids.
+// Verifies subdivision ticks draw shorter than beat ticks so beats stay readable on fine grids,
+// and that the header's dots take the dimmest rank color for subdivisions.
 TEST_CASE("TimelineRuler draws shorter subdivision ticks", "[ui][timeline-ruler]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -121,12 +126,14 @@ TEST_CASE("TimelineRuler draws shorter subdivision ticks", "[ui][timeline-ruler]
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
 
-    // The half-beat subdivision at 3.5s (x = 175) fills only the shorter bottom band while the
-    // beat at 3.0s (x = 150) also fills the taller 10px beat band above it; both columns sit far
-    // from any chips so only tick pixels can land on the probes.
-    CHECK(image.getPixelAt(150, 50) == editorTheme().grid_measure);
-    CHECK(image.getPixelAt(175, 50) == editorTheme().timeline_backdrop);
-    CHECK(image.getPixelAt(175, 55) == editorTheme().grid_measure);
+    // In the number bar, the half-beat subdivision at 3.5s (x = 175) fills only its shorter 5px
+    // band while the beat at 3.0s (x = 150) also fills the taller 10px band above it (y = 8);
+    // in the grid region both columns carry dots in their own rank colors (y = 30, a dot row).
+    CHECK(image.getPixelAt(150, 8) == editorTheme().grid_measure);
+    CHECK(image.getPixelAt(175, 8) == editorTheme().timeline_ruler_background);
+    CHECK(image.getPixelAt(175, 13) == editorTheme().grid_measure);
+    CHECK(image.getPixelAt(150, 30) == editorTheme().grid_beat);
+    CHECK(image.getPixelAt(175, 30) == editorTheme().grid_subdivision);
 }
 
 // Verifies the song's section names draw as filled chips in the grid header's top chip row,
