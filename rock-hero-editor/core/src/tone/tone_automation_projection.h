@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <rock_hero/common/audio/automation/tone_automation_rebuild.h>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -13,23 +14,8 @@
 #include <unordered_map>
 #include <vector>
 
-namespace rock_hero::common::audio
-{
-class IToneAutomation;
-} // namespace rock_hero::common::audio
-
 namespace rock_hero::editor::core
 {
-
-/*! \brief Runtime binding of one durable plugin id to its live instance and owning tone. */
-struct ToneAutomationBinding
-{
-    /*! \brief Live plugin instance id; empty when the plugin is not currently loaded. */
-    std::string instance_id;
-
-    /*! \brief Tone document whose chain the plugin belongs to. */
-    std::string tone_document_ref;
-};
 
 /*!
 \brief One session-scoped open automation lane that has no authored points yet.
@@ -92,7 +78,7 @@ open lane whose parameter already has a model entry is subsumed by it.
 [[nodiscard]] ToneAutomationViewState makeToneAutomationViewState(
     const common::core::Arrangement& arrangement, const common::core::TempoMap& tempo_map,
     const std::string& selected_tone_document_ref,
-    const std::unordered_map<std::string, ToneAutomationBinding>& bindings,
+    const std::unordered_map<std::string, common::audio::ToneAutomationBinding>& bindings,
     const std::vector<OpenAutomationLane>& open_lanes,
     const common::audio::IToneAutomation& tone_automation);
 

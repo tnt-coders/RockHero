@@ -917,7 +917,7 @@ void EditorController::Impl::mergeToneChainIdentities(
                 });
             m_tone_plugin_bindings.insert_or_assign(
                 plugin_id,
-                ToneAutomationBinding{
+                common::audio::ToneAutomationBinding{
                     .instance_id = plugin.instance_id,
                     .tone_document_ref = chain.tone_document_ref,
                 });
@@ -927,8 +927,8 @@ void EditorController::Impl::mergeToneChainIdentities(
 
 // Rewrites every derived playback curve from the arrangement's musical automation. Runs after a
 // rig load (the curves were stripped from persisted plugin state) and would run after any future
-// tempo-map edit; entries whose plugin is not currently loaded are skipped and reconcile on the
-// next load that resolves them.
+// tempo-map edit; the shared rebuild skips entries whose plugin is not currently loaded, which
+// reconcile on the next load that resolves them.
 void EditorController::Impl::rebuildToneAutomationCurves()
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
@@ -937,21 +937,11 @@ void EditorController::Impl::rebuildToneAutomationCurves()
         return;
     }
 
-    const EditorEditContext context = editContext();
-    for (const common::core::ToneParameterAutomation& entry : arrangement->tone_automation)
-    {
-        const auto binding = m_tone_plugin_bindings.find(entry.plugin_id);
-        if (binding == m_tone_plugin_bindings.end())
-        {
-            continue;
-        }
-        rewriteDerivedToneCurve(
-            context,
-            binding->second.tone_document_ref,
-            binding->second.instance_id,
-            entry.param_id,
-            entry.points);
-    }
+    common::audio::rebuildToneAutomationCurves(
+        editContext().tone_automation,
+        arrangement->tone_automation,
+        session().song().tempo_map,
+        m_tone_plugin_bindings);
 }
 
 // Replaces a tone-chain plugin parameter's automation and records its inverse. The arrangement's

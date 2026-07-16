@@ -13,8 +13,12 @@ it does not edit it.
   machine (`GameplaySessionStage`: `Idle` → `Loading` → `PreparingRig` → `Ready` →
   `Playing`/`Paused`, plus finished and failed stages) that loads a package, prepares the live
   rig, and drives playback. It consumes the *same* common audio ports as the editor
-  (`ISongAudio`, `ITransport`, `ILiveRig`, `IToneTimelinePlayer`, `IPlaybackClock`,
-  `IMixControls`) — there is one audio engine, shared by both products.
+  (`ISongAudio`, `ITransport`, `ILiveRig`, `IToneTimelinePlayer`, `IToneAutomation`,
+  `IPlaybackClock`, `IMixControls`) — there is one audio engine, shared by both products. At rig
+  completion it rebuilds the derived plugin-parameter playback curves from the arrangement's
+  persisted musical automation through the shared
+  `common::audio::rebuildToneAutomationCurves()` — the game-side analogue of the editor's
+  post-load rebuild.
 - **The library subsystem** (`rock-hero-game/core/src/library/`) scans package directories using
   the fast peek reader (`PackageDescription`) and projects entries for the menus.
 - **`rock-hero-game/ui`** is SDL3 + bgfx, not JUCE: the game window, menus, overlays, and the 3D

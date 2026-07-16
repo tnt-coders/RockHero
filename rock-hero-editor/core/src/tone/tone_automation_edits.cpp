@@ -1,11 +1,8 @@
 #include "tone/tone_automation_edits.h"
 
-#include "tone/tone_automation_projection.h"
-
 #include <algorithm>
-#include <rock_hero/common/audio/automation/i_tone_automation.h>
+#include <rock_hero/common/audio/automation/tone_automation_rebuild.h>
 #include <rock_hero/common/core/session/session.h>
-#include <rock_hero/common/core/shared/logger.h>
 #include <string>
 #include <vector>
 
@@ -55,32 +52,15 @@ void rewriteDerivedToneCurve(
     const std::string& instance_id, const std::string& param_id,
     const std::vector<common::core::ToneAutomationPoint>& points)
 {
-    const common::core::TempoMap& tempo_map = context.session.song().tempo_map;
-    std::vector<common::audio::AutomationCurvePoint> curve_points;
-    curve_points.reserve(points.size());
-    for (const common::core::ToneAutomationPoint& point : points)
-    {
-        curve_points.push_back(
-            common::audio::AutomationCurvePoint{
-                .seconds = secondsAtGridPosition(tempo_map, point.position),
-                .norm_value = point.norm_value,
-                .curve_shape = point.curve_shape,
-            });
-    }
-
-    const auto written = context.tone_automation.writeParameterCurve(
-        tone_document_ref, instance_id, param_id, curve_points);
-    if (!written.has_value())
-    {
-        // Best-effort by design: the model is the truth and the next load rebuild reconciles the
-        // cache, but a failed rewrite is still worth a trace.
-        RH_LOG_WARNING(
-            "editor.tone",
-            "Could not rewrite derived automation curve tone={:?} param={:?} detail={:?}",
-            tone_document_ref,
-            param_id,
-            written.error().message);
-    }
+    // Thin context adapter over the shared derive-and-write (the same conversion the game's
+    // post-load rebuild uses, so both products bake identical curves).
+    common::audio::writeDerivedToneCurve(
+        context.tone_automation,
+        context.session.song().tempo_map,
+        tone_document_ref,
+        instance_id,
+        param_id,
+        points);
 }
 
 std::expected<void, EditorUndoFailureCode> ToneAutomationPointsEdit::undo(

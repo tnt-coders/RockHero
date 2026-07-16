@@ -328,6 +328,7 @@ try
         audio_engine,
         audio_engine,
         audio_engine,
+        audio_engine,
         live_input_monitor
     };
 

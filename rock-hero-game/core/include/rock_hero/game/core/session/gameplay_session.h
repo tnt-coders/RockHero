@@ -11,6 +11,7 @@
 #include <filesystem>
 #include <memory>
 #include <optional>
+#include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <rock_hero/common/audio/clock/i_playback_clock.h>
 #include <rock_hero/common/audio/input/live_input_monitor.h>
 #include <rock_hero/common/audio/live_rig/i_live_rig.h>
@@ -83,8 +84,10 @@ struct GameplaySessionRequest
 Consumes only project-owned ports, so it is fully testable with fakes: package loading and audio
 preparation run through ISongAudio, tone preloading through ILiveRig (the pre-song preload
 guarantee: the session never reports Ready until the rig completion fires, so no plugin
-instantiation can happen after Ready), scheduled tone switching through IToneTimelinePlayer, and
-playback through ITransport with song time exposed via the wait-free IPlaybackClock.
+instantiation can happen after Ready), scheduled tone switching through IToneTimelinePlayer,
+persisted plugin-parameter automation rebuilt into playback curves through IToneAutomation at rig
+completion, and playback through ITransport with song time exposed via the wait-free
+IPlaybackClock.
 
 All methods are message-thread operations (the ports it drives require it). Loading work inside
 start() is synchronous on the calling thread; composition decides where that runs.
@@ -99,6 +102,7 @@ public:
     \param transport Playback transport the session drives.
     \param live_rig Tone preloading boundary; also owns the player-monitor gain.
     \param tone_timeline Scheduled tone switching boundary.
+    \param tone_automation Automation boundary the persisted parameter curves are rebuilt through.
     \param mix_controls Master and backing-track gain boundary.
     \param clock Wait-free playback clock handed to gameplay consumers.
     \param live_input_monitor Shared calibrate-first live-input monitoring gate the session drives
@@ -107,7 +111,8 @@ public:
     GameplaySession(
         common::audio::ISongAudio& song_audio, common::audio::ITransport& transport,
         common::audio::ILiveRig& live_rig, common::audio::IToneTimelinePlayer& tone_timeline,
-        common::audio::IMixControls& mix_controls, const common::audio::IPlaybackClock& clock,
+        common::audio::IToneAutomation& tone_automation, common::audio::IMixControls& mix_controls,
+        const common::audio::IPlaybackClock& clock,
         common::audio::LiveInputMonitor& live_input_monitor);
 
     /*! \brief Closes the session, releasing the arrangement and deleting the scratch workspace. */
@@ -261,6 +266,7 @@ private:
     common::audio::ITransport& m_transport;
     common::audio::ILiveRig& m_live_rig;
     common::audio::IToneTimelinePlayer& m_tone_timeline;
+    common::audio::IToneAutomation& m_tone_automation;
     common::audio::IMixControls& m_mix_controls;
     const common::audio::IPlaybackClock& m_clock;
 
