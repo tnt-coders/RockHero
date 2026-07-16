@@ -60,14 +60,15 @@ Three consequences keep the rows pixel-aligned:
   points. Ctrl bypasses to the 1/960-beat fine grid. New gestures must go through it, or their
   snapping will disagree with everyone else's.
 
-The pinned ruler is a two-part header on one ruler-chrome surface: the measure-number bar on top,
-then a grid header region carrying the **song-level** chip rows — sections, tempo markings, and
-time signatures, each chip's left edge on its grid column, with the active value pinned to the
-left edge while the song scrolls. The ruler's solid grid ticks span the whole header: full-height
-measure lines keep the numbers attached to their downbeats and mark the chip columns, while beat
-and shorter subdivision ticks hang from the bottom edge, above a 1px divider that separates the
+The pinned ruler is one ruler-chrome surface: the **song-level** chip rows on top — sections,
+tempo markings, and time signatures, with the active value pinned to the left edge while the song
+scrolls — and the ruler body below them with the measure-number row and tick band. Each chip
+drops a dotted leader line in its own color down to the ruler body so its exact position stays
+readable (leaders draw for every event, even where a chip was suppressed on a dense map, and
+every chip paints above every leader). A 1px divider along the ruler's bottom edge separates the
 header from the rows scrolling under it. Tab-owned content stays out of the ruler: the
-chord/arpeggio name chips draw in a strip `TabView` reserves at the top of its own row (below).
+chord/arpeggio name chips draw in a strip `TabView` reserves at the top of its own row (below),
+flush against the ruler's bottom edge.
 
 # How rows get data: push for content, sample for live
 
