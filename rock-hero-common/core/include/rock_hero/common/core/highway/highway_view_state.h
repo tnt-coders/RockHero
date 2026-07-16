@@ -253,8 +253,8 @@ struct HighwaySectionView
     /*! \brief Absolute position the section starts at. */
     double seconds{0.0};
 
-    /*! \brief Section kind, such as "verse" or "chorus". */
-    std::string type;
+    /*! \brief Free-form section name, such as "verse" or "chorus". */
+    std::string name;
 
     /*!
     \brief Compares two section views by their stored fields.

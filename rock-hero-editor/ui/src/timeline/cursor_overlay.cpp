@@ -8,6 +8,10 @@
 namespace rock_hero::editor::ui
 {
 
+// Faint full-height line marking a song-section start; mirrors the ruler's section-lane color
+// (timeline_ruler.cpp g_timeline_section_color) so a boundary reads as the same structure cue.
+const juce::Colour g_section_boundary_color{juce::Colour{150, 205, 170}.withAlpha(0.28f)};
+
 // Starts vblank-driven cursor refresh against the injected read-only transport. The tempo map
 // used to snap clicks is referenced (not copied) from the owning view's state, which owns it and
 // outlives this overlay, so it is never null.
@@ -39,6 +43,21 @@ void CursorOverlay::setGridNoteValue(common::core::Fraction grid_note_value) noe
 // Draws only the cursor; static waveform content remains in ArrangementView below it.
 void CursorOverlay::paint(juce::Graphics& g)
 {
+    // Section boundaries draw first so the transport cursor and any snap guide sit above them.
+    if (!m_section_boundaries.empty())
+    {
+        g.setColour(g_section_boundary_color);
+        for (const double seconds : m_section_boundaries)
+        {
+            const std::optional<float> x = cursorXForTimelinePosition(
+                common::core::TimePosition{seconds}, m_visible_timeline, getWidth());
+            if (x.has_value())
+            {
+                g.drawLine(*x, 0.0f, *x, static_cast<float>(getHeight()), 1.0f);
+            }
+        }
+    }
+
     drawTimelineCursor(g, *this, m_cursor_x, 0);
 
     if (m_snap_guide.has_value())
@@ -68,6 +87,19 @@ void CursorOverlay::setSnapGuide(std::optional<TimelineSnapGuide> guide)
     }
 
     m_snap_guide = std::move(guide);
+    repaint();
+}
+
+// Stores the section-start times pushed by EditorView::setState(), drawn as faint full-height
+// boundary lines so the song's structure reads against the notes.
+void CursorOverlay::setSectionBoundaries(std::vector<double> section_seconds)
+{
+    if (m_section_boundaries == section_seconds)
+    {
+        return;
+    }
+
+    m_section_boundaries = std::move(section_seconds);
     repaint();
 }
 

@@ -206,7 +206,7 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
     const ChartSection* previous_section = nullptr;
     for (const ChartSection& section : chart.sections)
     {
-        if (section.type.empty() || !isValidGridPosition(section.position, tempo_map))
+        if (section.name.empty() || !isValidGridPosition(section.position, tempo_map))
         {
             return std::unexpected{ChartError{
                 .code = ChartErrorCode::InvalidSection,

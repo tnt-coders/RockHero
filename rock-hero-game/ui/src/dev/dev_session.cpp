@@ -150,9 +150,9 @@ void DevSession::seekToSection(const std::size_t section_index, const std::chron
         now - std::chrono::nanoseconds{static_cast<std::int64_t>(target_seconds * 1.0e9)};
     RH_LOG_INFO(
         "game.dev",
-        "seek to section index={} type={:?} song_time_s={:.3f}",
+        "seek to section index={} name={:?} song_time_s={:.3f}",
         section_index,
-        m_sections[section_index].type,
+        m_sections[section_index].name,
         target_seconds);
 }
 

@@ -152,6 +152,17 @@ TabViewState makeTabViewState(
             });
     }
 
+    state.sections.reserve(chart.sections.size());
+    for (const common::core::ChartSection& section : chart.sections)
+    {
+        state.sections.push_back(
+            TabSectionView{
+                .seconds = tempo_map.secondsAtGlobalBeatPosition(
+                    globalBeatPosition(tempo_map, section.position)),
+                .name = section.name,
+            });
+    }
+
     return state;
 }
 

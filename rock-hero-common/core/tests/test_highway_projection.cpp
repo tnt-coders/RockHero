@@ -86,7 +86,7 @@ namespace
         FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 1, .width = 4},
     };
     chart.sections = {
-        ChartSection{.position = GridPosition{.measure = 2, .beat = 1}, .type = "verse"},
+        ChartSection{.position = GridPosition{.measure = 2, .beat = 1}, .name = "verse"},
     };
 
     return Arrangement{
@@ -159,7 +159,7 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
 
     REQUIRE(state.sections.size() == 1);
     CHECK(state.sections[0].seconds == Catch::Approx(4.0 * beat));
-    CHECK(state.sections[0].type == "verse");
+    CHECK(state.sections[0].name == "verse");
 }
 
 // The displayed-string minimum (the editor's "show at least N strings") raises the lane count and

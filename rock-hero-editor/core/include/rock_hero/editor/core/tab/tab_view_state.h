@@ -182,6 +182,24 @@ struct TabFhpView
         default;
 };
 
+/*! \brief One song-section marker resolved to a timeline second. */
+struct TabSectionView
+{
+    /*! \brief Absolute position the section starts at. */
+    double seconds{0.0};
+
+    /*! \brief Free-form section name shown as the lane label. */
+    std::string name;
+
+    /*!
+    \brief Compares two section views by their stored fields.
+    \param lhs Left-hand view.
+    \param rhs Right-hand view.
+    \return True when both views store equal values.
+    */
+    friend bool operator==(const TabSectionView& lhs, const TabSectionView& rhs) = default;
+};
+
 /*!
 \brief Seconds-resolved chart content for the current arrangement's tablature lane.
 
@@ -201,6 +219,9 @@ struct TabViewState
 
     /*! \brief Fret-hand position markers in ascending order. */
     std::vector<TabFhpView> fret_hand_positions;
+
+    /*! \brief Song-section markers in ascending order. */
+    std::vector<TabSectionView> sections;
 
     /*!
     \brief Compares two tab view states by their stored fields.

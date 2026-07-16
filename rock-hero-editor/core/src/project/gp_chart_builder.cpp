@@ -450,7 +450,7 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
             chart.sections.push_back(
                 ChartSection{
                     .position = GridPosition{.measure = static_cast<int>(measure) + 1, .beat = 1},
-                    .type = master_bars[measure].section,
+                    .name = master_bars[measure].section,
                 });
         }
     }
