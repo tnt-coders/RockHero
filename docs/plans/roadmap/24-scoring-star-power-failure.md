@@ -19,13 +19,14 @@ contract (committed-only counters), and the accuracy definition; Phase 3's schem
 missNoPitchEvidence, overstrumCount, and unmatchedOnsetCount; Phase 4 records GH's +1/−3 meter
 convention with chords as one meter unit. The ruleset grew sustain_tolerance_cents,
 overstrum_breaks_streak, overstrum_strength_threshold, and lapse_evidence_min_confidence — all
-still rh-score-1 (pre-ship). **No-fail refinements (user, 2026-07-16):** no-fail is a separate
-scoring category recorded separately (`modifiers.noFail` is a partition key — plan 27 keys bests
-on fail-mode, plan 29 boards keep it a distinct modifier class); the star scale is now 0–5
-(`starsForScoreRatio` counts cutoffs `{0.2, 0.6, 1.2, 2.0, 2.8}` instead of flooring at 1), so
-0/1 stars are reachable on completed no-fail runs while a failed/incomplete run is 0★ by
-override; and `result.wouldHaveFailed` was added to the record so a no-fail run is
-self-describing about whether it was passing-grade. **Feel baseline named 2026-07-16: Guitar
+still rh-score-1 (pre-ship). **No-fail refinements (user, 2026-07-16):** fail is ON by default,
+no-fail is the opt-in accessibility modifier (a same-day no-fail-default draft was corrected —
+§6 is authoritative); no-fail is a separate scoring category recorded separately
+(`modifiers.noFail` is a partition key — plan 27 keys bests on fail-mode, plan 29 boards keep it
+a distinct modifier class); the star scale is now 0–5 (`starsForScoreRatio` counts cutoffs
+`{0.2, 0.6, 1.2, 2.0, 2.8}` instead of flooring at 1), so 0/1 stars are reachable on completed
+no-fail runs while a failed/incomplete run is 0★ by override; and `result.wouldHaveFailed` was
+added to the record so a no-fail run is self-describing about whether it was passing-grade. **Feel baseline named 2026-07-16: Guitar
 Hero Warriors of Rock**
 (user decision) — a sourced WoR mechanics survey confirmed the core economy matches what is
 built (50/note, chord = sum, 25/beat, 10/20/30 ladder, 25%/50%/2x SP, +1/−3 meter with
@@ -42,7 +43,8 @@ legato no-combo-gate deviation (recorded with rationale), and the live star-mete
 A player plugging in a real guitar gets honest, responsive scoring: every chart note receives a
 verdict (hit/miss, timing delta, detected pitch, confidence), a GH-style 4x multiplier ladder and
 streak, star power deployed hands-free via a MIDI foot controller, and a failure meter tuned
-toward GH-expert feel with **no-fail ON by default**. **The named feel baseline is Guitar Hero:
+toward GH-expert feel with **fail ON by default** (no-fail is an opt-in accessibility modifier).
+**The named feel baseline is Guitar Hero:
 Warriors of Rock** (user decision 2026-07-16): where GH versions differ, model WoR's documented
 behavior; numbers cited from other eras (GH3/ScoreHero) are proxies, labeled as such, pending
 WoR verification. Every completed run emits a versioned score
@@ -195,13 +197,16 @@ Downstream (consume this plan):
 
 Decisions **established as normative by this plan** (restate when citing this plan):
 
-- **No-fail is ON by default; the player opts out via a persisted setting** (settled with the
-  user 2026-07-16 — do not re-litigate: the fail-enabled-default alternative was raised and
-  rejected; no-fail stays the default for real-guitar accessibility). The opt-out is a durable
-  user preference persisted through plan 27's `IGameSettings` and surfaced in options / the
-  pre-song flow, never a per-run accident. Opting out makes the run fail-enabled, which lands it
-  in the fail-enabled scoring category (below); the default no-fail runs stay in the no-fail
-  category. No-fail runs are labeled in the score record (`modifiers.noFail`).
+- **Fail is ON by default; no-fail is the opt-in accessibility modifier** (settled with the user
+  2026-07-16 — do not re-litigate: a no-fail-default draft was written the same day and then
+  corrected; the shipped default once the meter system exists is fail-enabled, matching the
+  genre norm, with no-fail available for players who want it). The no-fail preference is a
+  durable user setting persisted through plan 27's `IGameSettings` and surfaced in options / the
+  pre-song flow, never a per-run accident. This is the *shipped* default: milestone 0 has no
+  failure meter at all, so it is trivially no-fail until Phase 4 lands the meter (roadmap §4).
+  Enabling no-fail makes the run non-competitive and lands it in the no-fail scoring category
+  (below); default (fail-enabled) runs are the competitive category. No-fail runs are labeled in
+  the score record (`modifiers.noFail`).
 - **No-fail runs are a separate scoring category, recorded separately** (user decision
   2026-07-16). `modifiers.noFail` is a partition key, not merely a label: a no-fail run and a
   fail-enabled run of the same chart never share a personal-best slot or a leaderboard entry.
@@ -526,13 +531,14 @@ Series documentation also has the meter recovering faster per hit while SP is ac
 WoR-authentic Q2 data point for the extension point below. A qualifying overstrum (§6) applies
 the same miss-sized delta. WoR-verification gaps recorded for tuning: exact WoR step weights
 and any difficulty scaling of the miss penalty are undocumented — the replay-harness tuning in
-this phase is the arbiter, not folklore precision. No-fail ON by default: meter runs and
-displays but never ends the song; `result.failed`/`modifiers.noFail` recorded, and
-`result.wouldHaveFailed` is latched true if the committed meter ever reaches zero (the meter
-runs in both modes, so this signal is free). Because a no-fail run always completes, its stars
-are fully ratio-determined including the 0/1-star floor (§6) — a no-fail run whose meter
-bottomed out typically lands at 0 stars with `wouldHaveFailed: true`, the honest record of a
-song limped through. Failure evaluation reads only the committed ledger (Phase 2). If Q2 = yes,
+this phase is the arbiter, not folklore precision. Fail is ON by default; no-fail is the opt-in
+modifier (§6). In fail mode the meter ends the song at zero (`result.failed: true`); in no-fail
+the meter runs and displays but never ends the song. Either way `result.failed`/`modifiers.noFail`
+are recorded, and `result.wouldHaveFailed` is latched true if the committed meter ever reaches
+zero (the meter runs in both modes, so this signal is free). Because a no-fail run always
+completes, its stars are fully ratio-determined including the 0/1-star floor (§6) — a no-fail run
+whose meter bottomed out typically lands at 0 stars with `wouldHaveFailed: true`, the honest
+record of a song limped through. Failure evaluation reads only the committed ledger (Phase 2). If Q2 = yes,
 star-power deploy applies an immediate +0.15 and 2x meter gain while active (constants land in
 Phase 6; this phase leaves a named extension point).
 **Files/testing**: rock-hero-game/core + unit/replay tests (meter trajectories under fixture
