@@ -29,6 +29,30 @@ it does not edit it.
 leaving the shell only the frame loop and input wiring. Don't build against the current
 composition shape.*
 
+# Supporting systems
+
+Small headless pieces every game feature ends up touching:
+
+- **`FrameClock`** (`core/frame_clock/`) — pure per-frame consumption of the playback clock plus
+  frame-pacing statistics; the one place a frame's song time comes from (see
+  \ref guide_musical_time).
+- **`menu_bindings`** (`core/input/`) — maps raw input triggers to menu actions, with rebinding
+  and conflict handling; **`song_select_menu`** (`core/menu/`) is the song/arrangement selection
+  state machine.
+- **`diagnostics`** (`core/diagnostics/`) — headless dev-diagnostics state, typed intents, and
+  the chart-source change detector.
+- The session's port set also includes `IMixControls` (master/backing mix gains) and
+  `IToneTimelinePlayer` (transport-driven scheduled tone switching) — both implemented by the
+  shared `Engine`.
+
+# Dev tooling
+
+`rock-hero-game/ui/src/dev/dev_session.cpp` implements `--dev-package`: load a package straight
+from disk with hot reload and a stand-in clock — the fastest loop for iterating on highway
+rendering. `ui/src/overlay/diagnostics_overlay.cpp` draws the screen-space frame-time graph over
+the scene (fed by `FrameClock`'s pacing stats). Both are dev-only surfaces; neither participates
+in the shipped menu flow.
+
 # Which recipes apply here
 
 - \ref guide_add_port — fully. The game consumes the ports, and its session fakes (in

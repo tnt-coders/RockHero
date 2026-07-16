@@ -17,6 +17,14 @@ author; **seconds** are what renderers and audio consume. Exactly one type conve
   the exact musical address every authored thing uses (notes, tone boundaries, automation
   points). Fully ordered, so positions sort and compare exactly.
 
+# The chart model, briefly
+
+The chart itself — "the true tab" of notes, hand shapes, and postures — is the arrangement-owned
+model in `common/core/chart/chart.h`, addressed entirely in `GridPosition`s and consumed by the
+tab and highway projections and by package IO. It gets no full tour yet on purpose: chart
+*editing* is unbuilt roadmap work (`docs/plans/roadmap/40-chart-editing.md`), and the model's
+editing-facing surface will be documented when that lands.
+
 # The TempoMap
 
 `TempoMap` (`timeline/tempo_map.h`) is the **sole durable timing authority**. Its authored data
