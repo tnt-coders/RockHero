@@ -27,15 +27,6 @@ instead of compressing the lanes or leaving empty margins.
 inline constexpr int g_tab_reference_string_count{6};
 
 /*!
-\brief Height in pixels of the chord/arpeggio name-chip strip the tab reserves at its row's top.
-
-The strip sits above the lane's top shape rail, on the row's grid-dotted background; the host
-adds it to the row height and starts the waveform below it (see TrackViewport), so the chips
-never sit on waveform pixels. Zero-height when no chart is displayed.
-*/
-inline constexpr int g_tab_chip_strip_height{12};
-
-/*!
 \brief Returns the number of string lanes the tablature lane should draw.
 
 The chart's own string count is the floor: a user minimum only ever adds empty lanes below the
@@ -66,11 +57,12 @@ palette data and Charter's fixed derivation multipliers live in rock-hero-common
 [[nodiscard]] juce::Colour tabStringColor(int displayed_string, int displayed_string_count);
 
 /*!
-\brief Returns the hand-shape mark color shared by the span rails and the name chips.
+\brief Returns the hand-shape mark color shared by the tab lane and the ruler's name chips.
 
 The Charter hand-shape base brightened so the narrow span rails and the chord/arpeggio name
-chips in the strip above them read clearly against dark chrome; sharing one authority keeps a
-chip visually belonging to the rails below it.
+chips read clearly against dark chrome. The tablature lane (rails) and the timeline ruler
+(name chips derived from the same tab projection) must agree on it so a chip visually belongs
+to the rails below it.
 
 \param arpeggio True for arpeggio spans (purple); false for chord spans (blue).
 \return Opaque mark color.
@@ -117,11 +109,10 @@ short note inside the range may end before the span begins.
 
 The view draws string lines with Charter's modern-theme note presentation — layered circular
 note heads (diamonds for harmonics) with fret numbers, bordered sustain tails, technique icons,
-slide and bend lines with label chips, and hand-shape spans with their name chips in the strip
-at the row's top — from the controller's seconds-resolved tab projection, mapping time to pixels
-with the same visible-timeline convention as the waveform beneath it. It is purely
-presentational and never intercepts the pointer, so timeline seeking keeps working through the
-lane.
+slide and bend lines with label chips, and hand-shape spans — from the controller's
+seconds-resolved tab projection, mapping time to pixels with the same visible-timeline
+convention as the waveform beneath it. It is purely presentational and never intercepts the
+pointer, so timeline seeking keeps working through the lane.
 */
 class TabView final : public juce::Component
 {
@@ -167,11 +158,6 @@ private:
 
     // Running maximum of note end times, aligned with the projection's note order.
     std::vector<double> m_prefix_max_end_seconds{};
-
-    // Name-chip pixel widths aligned with the projection's shape order (zero for unnamed
-    // shapes), measured once per projection so scroll-strip repaints never re-run
-    // GlyphArrangement layout per chip.
-    std::vector<float> m_shape_chip_widths{};
 };
 
 } // namespace rock_hero::editor::ui

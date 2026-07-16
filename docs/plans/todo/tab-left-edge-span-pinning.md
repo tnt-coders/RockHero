@@ -1,8 +1,11 @@
 # Tab left-edge span-identity pinning
 
 *Status: deferred (designed 2026-07-15, not built). Per the `docs/plans/todo/` rules, re-verify
-against the current code before executing — especially the chord-chip location, which moves from
-the ruler into `TabView` in the ruler-redesign change set this plan was split from.*
+against the current code before executing. NOTE (2026-07-16): after visual comparison the chord
+chips went BACK to ruler rendering (`RulerShapeLabel` / `TrackViewport::setShapeLabels`) — the
+in-ruler look won, and viewport children cannot paint over the pinned ruler. Item 1 below
+therefore pins in the ruler (which already owns pinned-row machinery), not in `TabView`; items
+2–3 stay TabView features.*
 
 ## Goal
 

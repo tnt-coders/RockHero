@@ -60,15 +60,17 @@ Three consequences keep the rows pixel-aligned:
   points. Ctrl bypasses to the 1/960-beat fine grid. New gestures must go through it, or their
   snapping will disagree with everyone else's.
 
-The pinned ruler is one ruler-chrome surface: the **song-level** chip rows on top — sections,
-tempo markings, and time signatures, with the active value pinned to the left edge while the song
-scrolls — and the ruler body below them with the measure-number row and tick band. Each chip
-drops a dotted leader line in its own color down to the ruler body so its exact position stays
-readable (leaders draw for every event, even where a chip was suppressed on a dense map, and
-every chip paints above every leader). A 1px divider along the ruler's bottom edge separates the
-header from the rows scrolling under it. Tab-owned content stays out of the ruler: the
-chord/arpeggio name chips draw in a strip `TabView` reserves at the top of its own row (below),
-flush against the ruler's bottom edge.
+The pinned ruler stacks the **song-level** chip rows on top — sections, tempo markings, and time
+signatures on the editor chrome, with the active value pinned to the left edge while the song
+scrolls — above the ruler body with its measure-number row and tick band. Each chip drops a
+dotted leader line in its own color down through the body to the ruler's bottom edge (under the
+ticks, so it never covers a beat or measure tick), marking its exact position; leaders draw for
+every event, even where a chip was suppressed on a dense map, and every chip paints above every
+leader. The tab's chord/arpeggio name chips render in the ruler's bottom tick band, flush with
+the bottom edge on the tab's top rail — they are tab data the ruler merely renders (fed via
+`TrackViewport::setShapeLabels`), the same relationship the tempo row has to the tempo map,
+because viewport children cannot paint over the pinned ruler. A 1px divider along the bottom edge
+separates the ruler from the rows scrolling under it.
 
 # How rows get data: push for content, sample for live
 
@@ -116,10 +118,9 @@ gestures fall through to the cursor overlay. Its data is a seconds-resolved proj
 per edit in editor core (`tab_projection.cpp`, `makeTabViewState(arrangement, tempo_map)`), so
 painting never queries musical positions. Because sustains overlap, it keeps a prefix-max index
 of note end times and binary-searches the visible note range each paint instead of scanning the
-whole chart. The view reserves a `g_tab_chip_strip_height` strip at the top of its row for the
-chord/arpeggio name chips (`TrackViewport` adds the strip to the row height and starts the
-waveform below it), so the chips sit on the row's grid-dotted background directly above the top
-span rail.
+whole chart. Its chord/arpeggio name chips are rendered by the timeline ruler (see above), not by
+this view — the lane has no clean room for names, and viewport children cannot paint over the
+pinned ruler.
 
 String colors come from the **shared palette** in
 `rock-hero-common/ui/string_colors/string_color_palette.h` — a JUCE-free authority (colors are

@@ -41,9 +41,6 @@ constexpr float g_min_note_height_for_text{9.0f};
 // Height of the hand-shape label bar and its bold name text (Charter chartTextHeight).
 constexpr float g_shape_label_height{10.0f};
 constexpr float g_shape_rail_height{3.0f};
-// Height of the chord/arpeggio name chips drawn in the strip above the lane's top rail, matching
-// the timeline ruler's header chips so both read as one family.
-constexpr float g_shape_chip_height{11.0f};
 // Chord marks brighten more than arpeggio marks: at the chord multiplier the purple's clamped
 // blue channel read too loud next to the blue, so the user tuned the arpeggio purple darker.
 constexpr double g_shape_mark_brightness{1.5};
@@ -781,52 +778,9 @@ void drawShapeSpan(
         });
     g.fillRect(juce::Rectangle<float>{start_x, bottom_rail_y, width, g_shape_rail_height});
 
-    // The template name is not drawn here: the name chips live in the strip the view reserves
-    // above the top rail (drawShapeNameChips), directly on this span's leading edge.
-}
-
-// Chip text face shared with the timeline ruler's header chips.
-[[nodiscard]] juce::Font shapeChipFont()
-{
-    return juce::Font{juce::FontOptions{10.0f}.withStyle("Bold")};
-}
-
-// Draws the chord/arpeggio name chips in the strip above the lane's top rail (moved here from
-// the timeline ruler when the header became song-level rows: the chips are tab data, and the
-// strip sits on the same grid-dotted row background). Chips draw left to right in span order,
-// so where shape changes crowd tighter than a name's width the later span's chip wins locally
-// instead of being suppressed entirely; the cached widths cull chips that cannot intersect the
-// repaint clip without re-measuring text.
-void drawShapeNameChips(
-    juce::Graphics& g, const TabLaneMetrics& metrics, juce::Rectangle<int> strip,
-    const std::vector<core::TabShapeView>& shapes, const std::vector<float>& chip_widths,
-    juce::Rectangle<int> clip)
-{
-    const juce::Font chip_font = shapeChipFont();
-    const float chip_top = static_cast<float>(strip.getBottom()) - g_shape_chip_height;
-    for (std::size_t index = 0; index < shapes.size(); ++index)
-    {
-        const float chip_width = chip_widths[index];
-        if (chip_width <= 0.0f)
-        {
-            continue;
-        }
-
-        const core::TabShapeView& shape = shapes[index];
-        const float x = metrics.x(shape.start_seconds);
-        if (x > static_cast<float>(clip.getRight()) ||
-            x + chip_width < static_cast<float>(clip.getX()))
-        {
-            continue;
-        }
-
-        const juce::Rectangle<float> chip{x, chip_top, chip_width, g_shape_chip_height};
-        g.setColour(tabShapeMarkColor(shape.arpeggio));
-        g.fillRoundedRectangle(chip, 2.0f);
-        g.setColour(juce::Colours::white);
-        g.setFont(chip_font);
-        g.drawText(juce::String{shape.name}, chip, juce::Justification::centred);
-    }
+    // The template name is not drawn here: the same tab projection feeds the timeline ruler's
+    // shape-label band, which shows the name directly above this span in the ruler's vertical
+    // space (user-directed placement; the lane itself has no clean room for names).
 }
 
 // Draws one fret-hand-position marker: a small boxed fret label along the lane's top edge.
@@ -968,11 +922,7 @@ void TabView::paint(juce::Graphics& g)
         return;
     }
 
-    // The name-chip strip comes off the top before the lane metrics form, so every lane, rail,
-    // and FHP box shifts below it; the host adds the strip to the row height, keeping the lane
-    // spacing at the reference density.
-    juce::Rectangle<int> bounds = getLocalBounds();
-    const juce::Rectangle<int> chip_strip = bounds.removeFromTop(g_tab_chip_strip_height);
+    const juce::Rectangle<int> bounds = getLocalBounds();
     const double duration = m_visible_timeline.duration().seconds;
     if (bounds.isEmpty() || duration <= 0.0)
     {
@@ -1173,16 +1123,12 @@ void TabView::paint(juce::Graphics& g)
             drawFhpMarker(g, metrics, fhp);
         }
     }
-
-    drawShapeNameChips(g, metrics, chip_strip, m_tab->shapes, m_shape_chip_widths, clip);
 }
 
-// Rebuilds the prefix-maximum sustain-end table and the cached name-chip widths after the
-// projection changes.
+// Rebuilds the prefix-maximum sustain-end table after the projection changes.
 void TabView::rebuildVisibilityIndex()
 {
     m_prefix_max_end_seconds.clear();
-    m_shape_chip_widths.clear();
     if (m_tab == nullptr)
     {
         return;
@@ -1194,18 +1140,6 @@ void TabView::rebuildVisibilityIndex()
     {
         running_max = std::max(running_max, note.end_seconds);
         m_prefix_max_end_seconds.push_back(running_max);
-    }
-
-    // Chip widths are measured once per projection (the chip font is fixed) so paint can cull
-    // chips against the repaint clip without re-running GlyphArrangement layout per chip.
-    m_shape_chip_widths.reserve(m_tab->shapes.size());
-    const juce::Font chip_font = shapeChipFont();
-    for (const core::TabShapeView& shape : m_tab->shapes)
-    {
-        m_shape_chip_widths.push_back(
-            shape.name.empty()
-                ? 0.0f
-                : static_cast<float>(textWidth(chip_font, juce::String{shape.name})) + 6.0f);
     }
 }
 

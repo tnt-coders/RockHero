@@ -591,9 +591,28 @@ void EditorView::setState(const core::EditorViewState& state)
         m_state.tab != nullptr ? m_state.tab->string_count : 0,
         m_state.tab_minimum_displayed_strings));
 
+    // The ruler's bottom band shows the tab projection's named chord/arpeggio spans directly
+    // above the lane's rails; unnamed shapes get no chip by design.
+    std::vector<RulerShapeLabel> shape_labels;
+    if (m_state.tab != nullptr)
+    {
+        for (const core::TabShapeView& shape : m_state.tab->shapes)
+        {
+            if (!shape.name.empty())
+            {
+                shape_labels.push_back(
+                    RulerShapeLabel{
+                        .seconds = shape.start_seconds,
+                        .name = juce::String{shape.name},
+                        .arpeggio = shape.arpeggio,
+                    });
+            }
+        }
+    }
+    m_track_viewport->setShapeLabels(std::move(shape_labels));
+
     // The ruler's section chip row shows the song's section markers as a pinned marker lane; the
-    // cursor overlay draws the same starts as boundary lines through the notes. The tab's
-    // chord/arpeggio name chips need no feed here: TabView draws them from its own state.
+    // cursor overlay draws the same starts as boundary lines through the notes.
     std::vector<RulerSectionLabel> section_labels;
     section_labels.reserve(m_state.sections.size());
     for (const core::SongSectionView& section : m_state.sections)
