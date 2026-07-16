@@ -129,10 +129,6 @@ namespace
         FretHandPosition{.position = GridPosition{.measure = 1, .beat = 1}, .fret = 5},
         FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 7, .width = 5},
     };
-    chart.sections = {
-        ChartSection{.position = GridPosition{.measure = 1, .beat = 1}, .name = "verse"},
-        ChartSection{.position = GridPosition{.measure = 3, .beat = 1}, .name = "chorus"},
-    };
     return chart;
 }
 

@@ -50,9 +50,7 @@ enum class ChartErrorCode : std::uint8_t
     /*! \brief A shape span is empty, unsorted, or references a missing template. */
     InvalidShape,
     /*! \brief A fret-hand position entry is out of range or unsorted. */
-    InvalidFretHandPosition,
-    /*! \brief A section entry is unnamed or unsorted. */
-    InvalidSection
+    InvalidFretHandPosition
 };
 
 /*! \brief Chart validation failure with stable code and display diagnostic. */
@@ -66,14 +64,25 @@ struct [[nodiscard]] ChartError
 };
 
 /*!
+\brief Reports whether a grid position names a real place on the tempo map's grid.
+
+Shared with song-level validation (section markers live on the same grid), so the on-grid rule
+cannot drift between chart and song documents.
+
+\param position Grid position to test.
+\param tempo_map Song tempo map defining the grid.
+\return True when the position's measure, beat, and sub-beat offset are all usable.
+*/
+[[nodiscard]] bool isValidGridPosition(const GridPosition& position, const TempoMap& tempo_map);
+
+/*!
 \brief Validates the chart's structural rules against the song's tempo map.
 
 Enforces the corpus-validated rule set: a usable tuning; template arrays matching the string
 count; notes sorted by (position, string) with no duplicate onsets, on valid grid positions,
 with strings and frets in range; positive sustains; slide offsets strictly positive, ascending,
 and within the sustain; bend offsets non-negative, ascending, and within the sustain; shape
-spans positive, sorted, and referencing existing templates; sorted fret-hand positions and
-sections.
+spans positive, sorted, and referencing existing templates; and sorted fret-hand positions.
 
 \param chart Chart to validate.
 \param tempo_map Song tempo map the chart's positions must lie on.

@@ -22,7 +22,6 @@ namespace
 using common::core::BendPoint;
 using common::core::Chart;
 using common::core::ChartNote;
-using common::core::ChartSection;
 using common::core::Fraction;
 using common::core::GridPosition;
 using common::core::NoteAttack;
@@ -433,8 +432,7 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
 
 // Builds one track's chart: tie merging, technique mapping, bends, and slide resolution.
 [[nodiscard]] Chart buildChart(
-    const GpTrack& track, const MeasureGrid& grid, const std::vector<GpMasterBar>& master_bars,
-    std::vector<std::string>& notes)
+    const GpTrack& track, const MeasureGrid& grid, std::vector<std::string>& notes)
 {
     Chart chart;
     for (const int midi : track.tuning_midi)
@@ -442,18 +440,6 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
         chart.tuning.strings.push_back(midiNoteName(midi));
     }
     chart.tuning.capo = track.capo;
-
-    for (std::size_t measure = 0; measure < master_bars.size(); ++measure)
-    {
-        if (!master_bars[measure].section.empty())
-        {
-            chart.sections.push_back(
-                ChartSection{
-                    .position = GridPosition{.measure = static_cast<int>(measure) + 1, .beat = 1},
-                    .name = master_bars[measure].section,
-                });
-        }
-    }
 
     const std::vector<NoteEvent> events = collectEvents(track, grid, notes);
 
@@ -699,6 +685,20 @@ std::expected<GpBuiltSong, SongImportError> buildGpSong(const GpScore& score)
     const MeasureGrid grid = makeMeasureGrid(score);
     song.tempo_map = buildTempoMap(score, grid, song.notes);
 
+    // Section markers live on the master bars shared by every track, so they build once at the
+    // song level rather than being duplicated into each track's chart.
+    for (std::size_t measure = 0; measure < score.master_bars.size(); ++measure)
+    {
+        if (!score.master_bars[measure].section.empty())
+        {
+            song.sections.push_back(
+                common::core::SongSection{
+                    .position = GridPosition{.measure = static_cast<int>(measure) + 1, .beat = 1},
+                    .name = score.master_bars[measure].section,
+                });
+        }
+    }
+
     int whammy_beats = 0;
     int grace_beats = 0;
     for (const GpTrack& track : score.tracks)
@@ -736,7 +736,7 @@ std::expected<GpBuiltSong, SongImportError> buildGpSong(const GpScore& score)
         {
             seen_non_bass = true;
         }
-        arrangement.chart = buildChart(track, grid, score.master_bars, song.notes);
+        arrangement.chart = buildChart(track, grid, song.notes);
 
         if (auto validation = common::core::validateChartRules(arrangement.chart, song.tempo_map);
             !validation.has_value())

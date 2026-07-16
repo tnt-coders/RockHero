@@ -63,6 +63,8 @@ target_sources(
             src/tasks/juce_message_thread_scheduler.cpp
             src/tab/tab_projection.cpp
             src/tab/tab_projection.h
+            src/timeline/section_projection.cpp
+            src/timeline/section_projection.h
             src/timeline/tempo_grid_geometry.cpp
             src/timeline/timeline_geometry.cpp
             src/timeline/transport_readout_text.cpp

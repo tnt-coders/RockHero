@@ -42,6 +42,7 @@ add_executable(
     test_input_calibration_text.cpp
     test_plugin_catalog_workflow.cpp
     test_plugin_display_type.cpp
+    test_section_projection.cpp
     test_tab_projection.cpp
     test_tone_automation_projection.cpp
     test_tone_track_projection.cpp

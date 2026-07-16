@@ -48,6 +48,7 @@ for a subset, the game's peek reader (`package_description.cpp` — reads `forma
 | `metadata.title` / `.artist` / `.album` | string | opt | (`""`) |
 | `metadata.year` | int | opt | (`0`) |
 | `tempoMap` | object | req | See below. Not read by the peek reader. |
+| `sections` | array | opt | Song-structure markers; see below. Not read by the peek reader. |
 | `audioAssets` | array ≥1 | req | The audio files; arrangements reference by id. |
 | `arrangements` | array ≥1 | req | See below. |
 
@@ -64,6 +65,18 @@ for a subset, the game's peek reader (`package_description.cpp` — reads `forma
 Anchor invariants: at least two anchors (start + terminal); the first must be `1:1` but its
 seconds **may be non-zero**; strictly increasing in both beats and seconds; the terminal anchor
 must land on a downbeat.
+
+## sections[]
+
+Song-level structure markers (moved out of the chart documents: sections describe the song, not
+one arrangement's tab). Every arrangement and the 3D highway share this one list.
+
+| key | type | req | meaning |
+|---|---|---|---|
+| `position` | string | req | Grid token `"m:b"` / `"m:b+n/d"`; must be on the tempo-map grid. |
+| `name` | string | req | Free-form non-empty label, verbatim from import. |
+
+Sections must be sorted ascending by position; the reader rejects unsorted or unnamed entries.
 
 ## audioAssets[]
 
@@ -130,7 +143,6 @@ like every other format.
 | `notes[].slides[]` | object[] | opt | `{offset: <fraction> req, fret (-1), unpitched (false)}`. |
 | `shapes[]` | object[] | opt | `{position, sustain, chord}` all req; chord indexes `chords[]`. |
 | `fhps[]` | object[] | opt | `{position req, fret (0), width (4; omitted when 4)}`. |
-| `sections[]` | object[] | opt | `{position req, name ("")}`. |
 
 Unknown enum tokens are hard read errors; chart *rules* (ordering against the tempo map) are
 validated after load, not by the parser.

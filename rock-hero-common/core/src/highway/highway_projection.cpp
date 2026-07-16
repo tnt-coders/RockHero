@@ -21,10 +21,24 @@ namespace
 } // namespace
 
 HighwayViewState makeHighwayViewState(
-    const Arrangement& arrangement, const TempoMap& tempo_map, HighwayDisplayOptions options)
+    const Arrangement& arrangement, const TempoMap& tempo_map,
+    const std::vector<SongSection>& sections, HighwayDisplayOptions options)
 {
     HighwayViewState state;
     state.options = options;
+
+    // Sections are song-level structure, so they resolve even when the arrangement has no chart.
+    state.sections.reserve(sections.size());
+    for (const SongSection& section : sections)
+    {
+        state.sections.push_back(
+            HighwaySectionView{
+                .seconds = tempo_map.secondsAtGlobalBeatPosition(
+                    globalBeatPosition(tempo_map, section.position)),
+                .name = section.name,
+            });
+    }
+
     if (!arrangement.chart.has_value())
     {
         return state;
@@ -163,17 +177,6 @@ HighwayViewState makeHighwayViewState(
             HighwayBeatView{
                 .seconds = beat_cursor.secondsAt(static_cast<double>(index)),
                 .measure_downbeat = tempo_map.beatAtGlobalIndex(index).second == 1,
-            });
-    }
-
-    state.sections.reserve(chart.sections.size());
-    for (const ChartSection& section : chart.sections)
-    {
-        state.sections.push_back(
-            HighwaySectionView{
-                .seconds = tempo_map.secondsAtGlobalBeatPosition(
-                    globalBeatPosition(tempo_map, section.position)),
-                .name = section.name,
             });
     }
 

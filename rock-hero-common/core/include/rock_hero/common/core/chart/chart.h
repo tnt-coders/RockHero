@@ -291,24 +291,6 @@ struct FretHandPosition
         const FretHandPosition& lhs, const FretHandPosition& rhs) noexcept = default;
 };
 
-/*! \brief Navigation/practice marker naming the passage that starts at a position. */
-struct ChartSection
-{
-    /*! \brief Musical position the section starts at. */
-    GridPosition position;
-
-    /*! \brief Free-form section name, such as "verse" or "chorus", taken verbatim from import. */
-    std::string name;
-
-    /*!
-    \brief Compares two sections by their stored fields.
-    \param lhs Left-hand section.
-    \param rhs Right-hand section.
-    \return True when both sections store equal values.
-    */
-    friend bool operator==(const ChartSection& lhs, const ChartSection& rhs) = default;
-};
-
 /*! \brief Instrument tuning for one arrangement. */
 struct ChartTuning
 {
@@ -362,9 +344,6 @@ struct Chart
 
     /*! \brief Fret-hand positions, sorted by position. */
     std::vector<FretHandPosition> fret_hand_positions;
-
-    /*! \brief Section markers, sorted by position. */
-    std::vector<ChartSection> sections;
 
     /*!
     \brief Compares two charts by their stored fields.
