@@ -60,14 +60,15 @@ Three consequences keep the rows pixel-aligned:
   points. Ctrl bypasses to the 1/960-beat fine grid. New gestures must go through it, or their
   snapping will disagree with everyone else's.
 
-The pinned ruler is a two-part header: the measure-number row on top, then a grid header region
-that extends the canvas's dark backdrop up to the ruler and draws the ruler's own solid grid
-ticks over it (measure lines run the full height so the numbers stay attached to their downbeats;
-beat and shorter subdivision ticks hang from the bottom edge, above a 1px divider that separates
-the header from the rows scrolling under it). The region carries the **song-level** chip rows:
-sections, tempo markings, and time signatures, each chip's left edge on its grid column, with the
-active value pinned to the left edge while the song scrolls. Tab-owned content stays out of the
-ruler: the chord/arpeggio name chips draw in a strip `TabView` reserves at the top of its own row
+The pinned ruler is a two-part header: the measure-number bar on top with the ruler's solid grid
+ticks (bar-height measure ticks keep the numbers attached to their downbeats; beat and shorter
+subdivision ticks hang from the bar's bottom edge), then a grid header region that extends the
+canvas's dark backdrop and dotted tempo grid up to the bar — through the same shared painter,
+`timeline/tempo_grid_dots.h` — and carries the **song-level** chip rows: sections, tempo
+markings, and time signatures, each chip's left edge on its grid column, with the active value
+pinned to the left edge while the song scrolls. A 1px divider along the ruler's bottom edge
+separates the header from the rows scrolling under it. Tab-owned content stays out of the ruler:
+the chord/arpeggio name chips draw in a strip `TabView` reserves at the top of its own row
 (below).
 
 # How rows get data: push for content, sample for live

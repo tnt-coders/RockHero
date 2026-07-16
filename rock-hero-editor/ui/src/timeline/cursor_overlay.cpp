@@ -3,14 +3,16 @@
 #include "shared/editor_theme.h"
 #include "timeline/timeline_cursor.h"
 
+#include <algorithm>
+#include <cmath>
 #include <utility>
 
 namespace rock_hero::editor::ui
 {
 
-// Faint full-height line marking a song-section start; mirrors the ruler's section-lane color
-// (timeline_ruler.cpp g_timeline_section_color) so a boundary reads as the same structure cue.
-const juce::Colour g_section_boundary_color{juce::Colour{150, 205, 170}.withAlpha(0.28f)};
+// Alpha for the faint full-height lines marking song-section starts; the hue comes from the
+// theme's section-chip fill so a boundary reads as the same structure cue as the ruler's chips.
+constexpr float g_section_boundary_alpha{0.4f};
 
 // Starts vblank-driven cursor refresh against the injected read-only transport. The tempo map
 // used to snap clicks is referenced (not copied) from the owning view's state, which owns it and
@@ -46,14 +48,18 @@ void CursorOverlay::paint(juce::Graphics& g)
     // Section boundaries draw first so the transport cursor and any snap guide sit above them.
     if (!m_section_boundaries.empty())
     {
-        g.setColour(g_section_boundary_color);
+        g.setColour(editorTheme().section_chip.withAlpha(g_section_boundary_alpha));
         for (const double seconds : m_section_boundaries)
         {
             const std::optional<float> x = cursorXForTimelinePosition(
                 common::core::TimePosition{seconds}, m_visible_timeline, getWidth());
             if (x.has_value())
             {
-                g.drawLine(*x, 0.0f, *x, static_cast<float>(getHeight()), 1.0f);
+                // Snapped to the rounded pixel column — the same rounding the tempo-grid lines
+                // and the ruler's section chips use — so a boundary lands exactly on its grid
+                // column instead of antialiasing half a pixel beside it.
+                const int column = std::clamp(static_cast<int>(std::round(*x)), 0, getWidth() - 1);
+                g.fillRect(column, 0, 1, getHeight());
             }
         }
     }
