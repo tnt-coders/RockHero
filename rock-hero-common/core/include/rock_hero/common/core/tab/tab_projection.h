@@ -6,10 +6,10 @@
 #pragma once
 
 #include <rock_hero/common/core/song/arrangement.h>
+#include <rock_hero/common/core/tab/tab_view_state.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
-#include <rock_hero/editor/core/tab/tab_view_state.h>
 
-namespace rock_hero::editor::core
+namespace rock_hero::common::core
 {
 
 /*!
@@ -24,6 +24,6 @@ an empty state (string_count zero), which renders nothing.
 \return Render state for the tablature lane.
 */
 [[nodiscard]] TabViewState makeTabViewState(
-    const common::core::Arrangement& arrangement, const common::core::TempoMap& tempo_map);
+    const Arrangement& arrangement, const TempoMap& tempo_map);
 
-} // namespace rock_hero::editor::core
+} // namespace rock_hero::common::core

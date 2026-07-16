@@ -303,7 +303,7 @@ void drawTremoloTail(
 // strip variant, and the vibrato sine overlay.
 void drawNoteTail(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const core::TabNoteView& note, float onset_x, float center_y)
+    const common::core::TabNoteView& note, float onset_x, float center_y)
 {
     const float end_x = metrics.x(note.end_seconds);
     const float length = end_x - onset_x;
@@ -388,7 +388,7 @@ void fillHeadShape(
 // end, exactly as Charter labels unpitched slides.
 void drawSlideLines(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const core::TabNoteView& note, float onset_x, float center_y,
+    const common::core::TabNoteView& note, float onset_x, float center_y,
     std::vector<LabelChip>& slide_labels)
 {
     if (note.slides.empty())
@@ -400,7 +400,7 @@ void drawSlideLines(
     const TailSpan span = tailSpan(metrics, center_y);
     float from_x = onset_x + metrics.note_height / 4.0f;
     int previous_fret = note.fret;
-    for (const core::TabSlideView& waypoint : note.slides)
+    for (const common::core::TabSlideView& waypoint : note.slides)
     {
         const bool upward = waypoint.fret >= previous_fret;
         const float from_y =
@@ -436,9 +436,9 @@ void drawSlideLines(
 // waypoints are exactly where Charter's linked heads sit.
 void drawSlideWaypointHeads(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const core::TabNoteView& note, float center_y)
+    const common::core::TabNoteView& note, float center_y)
 {
-    for (const core::TabSlideView& waypoint : note.slides)
+    for (const common::core::TabSlideView& waypoint : note.slides)
     {
         if (waypoint.unpitched)
         {
@@ -465,7 +465,7 @@ void drawSlideWaypointHeads(
 // (white text on the string's lane color darkened twice).
 void drawBendLines(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const core::TabNoteView& note, float onset_x, float center_y,
+    const common::core::TabNoteView& note, float onset_x, float center_y,
     std::vector<LabelChip>& bend_chips)
 {
     if (note.bend.empty())
@@ -484,7 +484,7 @@ void drawBendLines(
     const float end_x = metrics.x(note.end_seconds);
     juce::Point<float> last{onset_x, bend_y(0.0)};
     g.setColour(juce::Colours::white);
-    for (const core::TabBendPointView& point : note.bend)
+    for (const common::core::TabBendPointView& point : note.bend)
     {
         const juce::Point<float> to{metrics.x(point.seconds), bend_y(point.semitones)};
         g.drawLine(last.x, last.y, to.x, to.y, 2.0f);
@@ -628,8 +628,8 @@ void drawTriangleIcon(
 // Draws the attack technique icon in Charter's position and style: hammer-ons, pull-offs, and
 // taps sit left of the head; slaps and pops sit right of it.
 void drawAttackIcon(
-    juce::Graphics& g, const TabLaneMetrics& metrics, const core::TabNoteView& note, float center_x,
-    float center_y)
+    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::TabNoteView& note,
+    float center_x, float center_y)
 {
     const float left_x = center_x - metrics.note_height / 2.0f;
     const float right_x = center_x + metrics.note_height / 2.0f;
@@ -693,7 +693,7 @@ void drawAttackIcon(
 // pinch-harmonic edge line, mute icon, fret number, then the attack icon.
 void drawNoteHead(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const core::TabNoteView& note, float onset_x, float center_y)
+    const common::core::TabNoteView& note, float onset_x, float center_y)
 {
     // Charter renders heads one pixel larger than the configured height so they get a center
     // pixel on the string line.
@@ -758,7 +758,7 @@ void drawNoteHead(
 // rides a small chip against the bottom rail at the span start: the bottom edge is where the
 // name has always lived, and the top edge belongs to the FHP markers.
 void drawShapeSpan(
-    juce::Graphics& g, const TabLaneMetrics& metrics, const core::TabShapeView& shape)
+    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::TabShapeView& shape)
 {
     const float start_x = metrics.x(shape.start_seconds);
     const float end_x = metrics.x(shape.end_seconds);
@@ -789,7 +789,8 @@ void drawShapeSpan(
 // FHP display treatment is decided. The standard four-fret hand shows just the index-finger
 // fret; a wider or narrower placement spells out its full inclusive range ("3-7") because the
 // unusual span is exactly what the player needs to see.
-void drawFhpMarker(juce::Graphics& g, const TabLaneMetrics& metrics, const core::TabFhpView& fhp)
+void drawFhpMarker(
+    juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::TabFhpView& fhp)
 {
     if (!metrics.draw_text)
     {
@@ -858,12 +859,13 @@ float tabLaneCenterY(
 // its start, because every note before the first index whose running maximum reaches the span
 // ends strictly before the span.
 std::pair<std::size_t, std::size_t> tabVisibleNoteRange(
-    const std::vector<core::TabNoteView>& notes, const std::vector<double>& prefix_max_end_seconds,
-    double span_start_seconds, double span_end_seconds) noexcept
+    const std::vector<common::core::TabNoteView>& notes,
+    const std::vector<double>& prefix_max_end_seconds, double span_start_seconds,
+    double span_end_seconds) noexcept
 {
     const auto begin_it = std::ranges::lower_bound(prefix_max_end_seconds, span_start_seconds);
     const auto end_it = std::ranges::upper_bound(
-        notes, span_end_seconds, std::ranges::less{}, [](const core::TabNoteView& note) {
+        notes, span_end_seconds, std::ranges::less{}, [](const common::core::TabNoteView& note) {
             return note.start_seconds;
         });
 
@@ -893,7 +895,8 @@ void TabView::setVisibleTimeline(common::core::TimeRange visible_timeline)
 
 // Applies the current tab projection and lane-count preference; the projection pointer only
 // changes when the displayed arrangement changes, so pointer identity gates the index rebuild.
-void TabView::setState(std::shared_ptr<const core::TabViewState> tab, int minimum_displayed_strings)
+void TabView::setState(
+    std::shared_ptr<const common::core::TabViewState> tab, int minimum_displayed_strings)
 {
     const bool tab_changed = tab != m_tab;
     const bool lanes_changed = minimum_displayed_strings != m_minimum_displayed_strings;
@@ -956,7 +959,7 @@ void TabView::paint(juce::Graphics& g)
     // on a clean background.
     std::vector<std::vector<juce::Range<float>>> line_exclusions(
         static_cast<std::size_t>(metrics.displayed_count));
-    for (const core::TabShapeView& shape : m_tab->shapes)
+    for (const common::core::TabShapeView& shape : m_tab->shapes)
     {
         if (!shape.arpeggio || shape.start_seconds < span_start || shape.start_seconds > span_end)
         {
@@ -964,7 +967,7 @@ void TabView::paint(juce::Graphics& g)
         }
 
         const float start_x = metrics.x(shape.start_seconds);
-        for (const core::TabArpeggioNoteView& arpeggio_note : shape.arpeggio_notes)
+        for (const common::core::TabArpeggioNoteView& arpeggio_note : shape.arpeggio_notes)
         {
             const int displayed = arpeggio_note.string + metrics.extra_lanes;
             if (displayed >= 1 && displayed <= metrics.displayed_count)
@@ -977,7 +980,7 @@ void TabView::paint(juce::Graphics& g)
 
     drawStringLines(g, metrics, line_exclusions);
 
-    for (const core::TabShapeView& shape : m_tab->shapes)
+    for (const common::core::TabShapeView& shape : m_tab->shapes)
     {
         if (shape.end_seconds >= span_start && shape.start_seconds <= span_end)
         {
@@ -995,7 +998,7 @@ void TabView::paint(juce::Graphics& g)
     // Tails first so heads always cover their own tail starts (Charter's noteTails layer).
     for (std::size_t index = first; index < last; ++index)
     {
-        const core::TabNoteView& note = m_tab->notes[index];
+        const common::core::TabNoteView& note = m_tab->notes[index];
         if (note.end_seconds < span_start)
         {
             continue;
@@ -1012,7 +1015,7 @@ void TabView::paint(juce::Graphics& g)
     // Arpeggio spans draw RS-style "( fret )" bracket marks around every posture string at the
     // bracket start. Onsets carry no vertical bars — the heads themselves already mark them, so
     // the span rails and these brackets are the only shape furniture (user-directed).
-    for (const core::TabShapeView& shape : m_tab->shapes)
+    for (const common::core::TabShapeView& shape : m_tab->shapes)
     {
         if (!shape.arpeggio || shape.start_seconds < span_start || shape.start_seconds > span_end)
         {
@@ -1020,7 +1023,7 @@ void TabView::paint(juce::Graphics& g)
         }
 
         const float start_x = metrics.x(shape.start_seconds);
-        for (const core::TabArpeggioNoteView& arpeggio_note : shape.arpeggio_notes)
+        for (const common::core::TabArpeggioNoteView& arpeggio_note : shape.arpeggio_notes)
         {
             // Left and right square brackets hugging the head's ring, in the head's muted
             // interior color so they mark the posture without competing with real heads. A
@@ -1073,7 +1076,7 @@ void TabView::paint(juce::Graphics& g)
 
     for (std::size_t index = first; index < last; ++index)
     {
-        const core::TabNoteView& note = m_tab->notes[index];
+        const common::core::TabNoteView& note = m_tab->notes[index];
         if (note.end_seconds < span_start)
         {
             continue;
@@ -1116,7 +1119,7 @@ void TabView::paint(juce::Graphics& g)
         draw_chips(bend_chips, metrics.bend_font, 2.0f);
     }
 
-    for (const core::TabFhpView& fhp : m_tab->fret_hand_positions)
+    for (const common::core::TabFhpView& fhp : m_tab->fret_hand_positions)
     {
         if (fhp.seconds >= span_start && fhp.seconds <= span_end)
         {
@@ -1136,7 +1139,7 @@ void TabView::rebuildVisibilityIndex()
 
     m_prefix_max_end_seconds.reserve(m_tab->notes.size());
     double running_max = -std::numeric_limits<double>::infinity();
-    for (const core::TabNoteView& note : m_tab->notes)
+    for (const common::core::TabNoteView& note : m_tab->notes)
     {
         running_max = std::max(running_max, note.end_seconds);
         m_prefix_max_end_seconds.push_back(running_max);

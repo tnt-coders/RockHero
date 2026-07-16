@@ -108,6 +108,18 @@ destruction; hiding only stops vblank ticks). If a future need for genuine re-in
 (multiple independent bgfx surfaces, teardown/rebuild), the remedy is a recipe-shadow patch
 resetting `s_renderFrameCalled` in `shutdown`, or per-window framebuffers under one device.
 
+## Shared scene models
+
+### Tab and highway scene models stay un-unified — trigger: a third consumer or a padding-semantics bug
+
+`common::core::TabViewState` (promoted from editor/core by plan 30 Phase 1, 2026-07-16) and
+`HighwayViewState` deliberately keep separate note-view semantics: `HighwayNoteView` bakes
+display padding into `note.string` at projection time while the tab core pads at draw time via
+`extra_lanes` — merging them is a real refactor across two shipped views with no payoff today
+(plan 30 §7, decided 2026-07-11). **Trigger**: a third consumer needs a shared note-view shape,
+or a bug traces to the padding-semantics divergence. **Remedy**: design one note-view semantic
+(probably draw-time padding), migrate both projections behind their tests, and retire this item.
+
 ## Editor 3D preview
 
 ### JUCE peer-recreation paths are unreachable today — trigger: any path recreates the peer

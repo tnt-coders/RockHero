@@ -160,10 +160,11 @@ painting never does musical math.
     const std::string& active_region_id, const std::string& selected_region_id);
 ```
 
-Recurring: `tab_projection`, `tone_track_projection`, `tone_automation_projection`,
+Recurring: `tone_track_projection`, `tone_automation_projection`,
 `input_calibration_projection` (editor core), `library_entry_projection` (game core),
-`highway_projection` (common core — feeds the 3D renderer in both products). Projections are
-where headless tests live; write one for anything a view will draw.
+`highway_projection` and `tab_projection` (common core — each feeds its renderer in both
+products; tab promoted by plan 30 Phase 1). Projections are where headless tests live; write one
+for anything a view will draw.
 
 ## View-state push
 

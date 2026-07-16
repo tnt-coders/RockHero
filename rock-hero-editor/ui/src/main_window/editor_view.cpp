@@ -596,7 +596,7 @@ void EditorView::setState(const core::EditorViewState& state)
     std::vector<RulerShapeLabel> shape_labels;
     if (m_state.tab != nullptr)
     {
-        for (const core::TabShapeView& shape : m_state.tab->shapes)
+        for (const common::core::TabShapeView& shape : m_state.tab->shapes)
         {
             if (!shape.name.empty())
             {

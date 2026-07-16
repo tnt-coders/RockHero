@@ -15,7 +15,6 @@
 #include "signal_chain/plugin_catalog_workflow.h"
 #include "signal_chain/signal_chain_edits.h"
 #include "signal_chain/signal_chain_workflow.h"
-#include "tab/tab_projection.h"
 #include "timeline/section_projection.h"
 #include "tone/tone_automation_projection.h"
 #include "tone/tone_track_projection.h"
@@ -45,6 +44,7 @@
 #include <rock_hero/common/core/highway/highway_projection.h>
 #include <rock_hero/common/core/shared/cancellation_token.h>
 #include <rock_hero/common/core/shared/logger.h>
+#include <rock_hero/common/core/tab/tab_projection.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/editor/core/busy/busy_view_state.h>
 #include <rock_hero/editor/core/controller/i_editor_view.h>
@@ -2144,8 +2144,8 @@ EditorViewState EditorController::Impl::deriveViewState() const
                                          m_tab_chart_revision != session().chartRevision();
         if (arrangement_changed)
         {
-            m_tab_view_state = std::make_shared<const TabViewState>(
-                makeTabViewState(*arrangement, state.tempo_map));
+            m_tab_view_state = std::make_shared<const common::core::TabViewState>(
+                common::core::makeTabViewState(*arrangement, state.tempo_map));
         }
         // The 3D projection bakes in the displayed-string minimum (the shared palette must anchor
         // exactly as the 2D tab's), so it rebuilds on an arrangement change OR a minimum change —

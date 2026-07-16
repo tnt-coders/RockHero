@@ -115,8 +115,10 @@ comes from the asset's normalization gain (`pow(10.0, gain_db / 20.0)`).
 
 `TabView` (`ui/src/tab/tab_view.cpp`) is purely presentational — it intercepts no mouse clicks;
 gestures fall through to the cursor overlay. Its data is a seconds-resolved projection built once
-per edit in editor core (`tab_projection.cpp`, `makeTabViewState(arrangement, tempo_map)`), so
-painting never queries musical positions. Because sustains overlap, it keeps a prefix-max index
+per edit in **common/core** (`tab/tab_projection.cpp`,
+`common::core::makeTabViewState(arrangement, tempo_map)` — promoted from editor/core by plan 30
+Phase 1 so the game's 2D tab view shares the same scene model), so painting never queries musical
+positions. Because sustains overlap, it keeps a prefix-max index
 of note end times and binary-searches the visible note range each paint instead of scanning the
 whole chart. Its chord/arpeggio name chips are rendered by the timeline ruler (see above), not by
 this view — the lane has no clean room for names, and viewport children cannot paint over the

@@ -1,20 +1,18 @@
-#include "tab/tab_projection.h"
-
 #include <algorithm>
 #include <cstddef>
 #include <functional>
 #include <optional>
+#include <rock_hero/common/core/tab/tab_projection.h>
 #include <vector>
 
-namespace rock_hero::editor::core
+namespace rock_hero::common::core
 {
 
 namespace
 {
 
 // Converts a chart grid position onto the tempo map's fractional global beat axis.
-[[nodiscard]] double globalBeatPosition(
-    const common::core::TempoMap& tempo_map, const common::core::GridPosition& position)
+[[nodiscard]] double globalBeatPosition(const TempoMap& tempo_map, const GridPosition& position)
 {
     return static_cast<double>(tempo_map.globalBeatIndex(position.measure, position.beat)) +
            position.offset.toDouble();
@@ -22,8 +20,7 @@ namespace
 
 } // namespace
 
-TabViewState makeTabViewState(
-    const common::core::Arrangement& arrangement, const common::core::TempoMap& tempo_map)
+TabViewState makeTabViewState(const Arrangement& arrangement, const TempoMap& tempo_map)
 {
     TabViewState state;
     if (!arrangement.chart.has_value())
@@ -31,15 +28,15 @@ TabViewState makeTabViewState(
         return state;
     }
 
-    const common::core::Chart& chart = *arrangement.chart;
+    const Chart& chart = *arrangement.chart;
     state.string_count = static_cast<int>(chart.tuning.strings.size());
 
     // Note onsets ascend, so the forward cursor resolves them in amortized constant time.
     // Sustain ends and intra-note payload offsets can jump past later onsets, so those use the
     // plain resolver instead of a second cursor.
-    common::core::TempoMap::ForwardBeatTimeCursor onset_cursor{tempo_map};
+    TempoMap::ForwardBeatTimeCursor onset_cursor{tempo_map};
     state.notes.reserve(chart.notes.size());
-    for (const common::core::ChartNote& note : chart.notes)
+    for (const ChartNote& note : chart.notes)
     {
         const double onset_beat = globalBeatPosition(tempo_map, note.position);
         TabNoteView view;
@@ -57,7 +54,7 @@ TabViewState makeTabViewState(
         view.tremolo = note.tremolo;
         view.accent = note.accent;
         view.bend.reserve(note.bend.size());
-        for (const common::core::BendPoint& point : note.bend)
+        for (const BendPoint& point : note.bend)
         {
             view.bend.push_back(
                 TabBendPointView{
@@ -67,7 +64,7 @@ TabViewState makeTabViewState(
                 });
         }
         view.slides.reserve(note.slides.size());
-        for (const common::core::SlideWaypoint& waypoint : note.slides)
+        for (const SlideWaypoint& waypoint : note.slides)
         {
             view.slides.push_back(
                 TabSlideView{
@@ -81,14 +78,14 @@ TabViewState makeTabViewState(
     }
 
     state.shapes.reserve(chart.shapes.size());
-    for (const common::core::ChartShape& shape : chart.shapes)
+    for (const ChartShape& shape : chart.shapes)
     {
         const double start_beat = globalBeatPosition(tempo_map, shape.position);
         // A span whose start carries two or more simultaneous onsets reads as a strummed chord
         // box; a single onset at the start means the shape's notes arrive sequentially — an
         // arpeggio bracket. Chart notes are sorted, so the onsets at the start are contiguous.
         const auto first_at_start = std::ranges::lower_bound(
-            chart.notes, shape.position, std::ranges::less{}, &common::core::ChartNote::position);
+            chart.notes, shape.position, std::ranges::less{}, &ChartNote::position);
         std::size_t simultaneous = 0;
         for (auto it = first_at_start; it != chart.notes.end() && it->position == shape.position;
              ++it)
@@ -106,7 +103,7 @@ TabViewState makeTabViewState(
         std::vector<TabArpeggioNoteView> arpeggio_notes;
         if (arpeggio && shape.chord < chart.templates.size())
         {
-            const common::core::ChordTemplate& chord_template = chart.templates[shape.chord];
+            const ChordTemplate& chord_template = chart.templates[shape.chord];
             for (std::size_t index = 0; index < chord_template.frets.size(); ++index)
             {
                 // Bound to a local so the optional check and the access are provably the same
@@ -141,7 +138,7 @@ TabViewState makeTabViewState(
     }
 
     state.fret_hand_positions.reserve(chart.fret_hand_positions.size());
-    for (const common::core::FretHandPosition& fhp : chart.fret_hand_positions)
+    for (const FretHandPosition& fhp : chart.fret_hand_positions)
     {
         state.fret_hand_positions.push_back(
             TabFhpView{
@@ -155,4 +152,4 @@ TabViewState makeTabViewState(
     return state;
 }
 
-} // namespace rock_hero::editor::core
+} // namespace rock_hero::common::core

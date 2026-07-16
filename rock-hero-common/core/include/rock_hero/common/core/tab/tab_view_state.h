@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-namespace rock_hero::editor::core
+namespace rock_hero::common::core
 {
 
 /*! \brief One bend curve point resolved to an absolute timeline second. */
@@ -69,13 +69,13 @@ struct TabNoteView
     int fret{0};
 
     /*! \brief How the onset is produced. */
-    common::core::NoteAttack attack{common::core::NoteAttack::Pick};
+    NoteAttack attack{NoteAttack::Pick};
 
     /*! \brief Muting applied to the note. */
-    common::core::NoteMute mute{common::core::NoteMute::None};
+    NoteMute mute{NoteMute::None};
 
     /*! \brief Harmonic timbre applied to the note. */
-    common::core::NoteHarmonic harmonic{common::core::NoteHarmonic::None};
+    NoteHarmonic harmonic{NoteHarmonic::None};
 
     /*! \brief True when the note is played with vibrato. */
     bool vibrato{false};
@@ -211,4 +211,4 @@ struct TabViewState
     friend bool operator==(const TabViewState& lhs, const TabViewState& rhs) = default;
 };
 
-} // namespace rock_hero::editor::core
+} // namespace rock_hero::common::core
