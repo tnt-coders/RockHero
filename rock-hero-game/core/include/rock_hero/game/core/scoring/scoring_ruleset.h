@@ -100,9 +100,10 @@ struct ScoringRuleset
     \brief Ascending score-to-max-base-score ratio thresholds that award stars.
 
     Stars are 1 plus the number of satisfied thresholds, so `{0.6, 1.2, 2.0, 2.8}` awards
-    2 stars at a 0.6 ratio up through 5 stars at 2.8. Ratio stars cap at 5: the WoR-baseline
-    6th star is a strict full-combo predicate over the whole run (every note hit, zero
-    qualifying overstrums), awarded by the state machine — never by a ratio.
+    2 stars at a 0.6 ratio up through 5 stars at 2.8. Ratio stars are the whole scale: a strict
+    full combo (every note hit, zero qualifying overstrums) is a separate predicate the state
+    machine records as `fullCombo`, and presentation renders it as 5 GOLD stars — never a sixth
+    star, and never decided by a ratio.
     */
     std::vector<double> star_ratio_thresholds{0.6, 1.2, 2.0, 2.8};
 };

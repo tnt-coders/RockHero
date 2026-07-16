@@ -59,9 +59,9 @@ banks the partial credit earned before the drop.
 /*!
 \brief Resolves the ratio-based star award for a completed run.
 
-This is the 1–5 star scale only: the WoR-baseline 6th star is a strict full-combo predicate
-(every note hit, zero qualifying overstrums) the state machine awards from run evidence, not a
-score ratio.
+This is the whole 1–5 star scale. A strict full combo (every note hit, zero qualifying
+overstrums) is a separate machine-recorded predicate rendered as 5 GOLD stars by presentation —
+it never changes the count this function returns.
 
 \param ruleset Constants defining the ascending ratio thresholds.
 \param score_to_max_base_ratio Final score divided by the chart's maximum base (unmultiplied)

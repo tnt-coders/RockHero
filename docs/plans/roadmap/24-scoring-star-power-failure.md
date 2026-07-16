@@ -23,7 +23,9 @@ still rh-score-1 (pre-ship). **Feel baseline named 2026-07-16: Guitar Hero Warri
 (user decision) — a sourced WoR mechanics survey confirmed the core economy matches what is
 built (50/note, chord = sum, 25/beat, 10/20/30 ladder, 25%/50%/2x SP, +1/−3 meter with
 overstrum penalty) and folded in the WoR deltas: SP refillable while active, measure-based
-drain, the 6★ strict-full-combo predicate over the recorded overstrum evidence, star-ratio
+drain, the gold-stars strict-full-combo award over the recorded overstrum evidence (user
+refinement 2026-07-16: 5 GOLD stars for a 100% FC — the GH2-era presentation — instead of WoR's
+6th star; same predicate, different rendering), star-ratio
 provenance labels, the tighter-window tuning direction (~±70 ms by ruleset version), the
 legato no-combo-gate deviation (recorded with rationale), and the live star-meter HUD note in
 §8. Gate A presented, awaiting user sign-off.
@@ -295,11 +297,15 @@ defaults 5★ ≥ 2.8, 4★ ≥ 2.0, 3★ ≥ 1.2, 2★ ≥ 0.6 — tunable by r
 provenance under the WoR baseline: the 4★ = 2.0 / 5★ = 2.8 ratios are the documented GH-era
 values community-assumed to carry into WoR (never formally measured there — a recorded proxy);
 the 0.6 / 1.2 lower rungs are RockHero-chosen fill-ins for the sub-3★ floor the GH5/WoR system
-made possible (GH3 had no ratings below 3★). WoR additionally awards a **6th star for a strict
-full combo — every note hit AND zero stray strums**; that star is a predicate over the run
-(all verdicts hits, `overstrumCount == 0`), not a ratio threshold, and is awarded by the state
-machine, not by `starsForScoreRatio` (which caps at 5). The overstrum evidence §6 records is
-exactly what makes the 6★ judgment possible. Chord sustains pay per member note (the only
+made possible (GH3 had no ratings below 3★). WoR additionally rewards a strict full combo —
+every note hit AND zero stray strums; per the user's decision (2026-07-16) RockHero renders
+that achievement as **5 GOLD stars** (the GH2-era presentation) rather than WoR's 6th star. The
+FC judgment is a predicate over the run (all verdicts hits, `overstrumCount == 0`), never a
+ratio threshold: the state machine sets `result.fullCombo`, ratio stars stay on the 1–5 scale
+from `starsForScoreRatio`, and presentation renders 5 gold whenever `fullCombo` is true — a
+100% FC is by definition the maximum achievable score for that chart, so gold overrides the
+ratio count even on degenerate short charts whose maximum ratio sits below the 5★ threshold.
+The overstrum evidence §6 records is exactly what makes the FC judgment possible. Chord sustains pay per member note (the only
 formally measured GH behavior, GH1/2-era; WoR's own choice is undocumented and CH pays flat —
 recorded as a tunable). Default onset window ±100 ms around the calibrated expected time
 (ruleset constant); WoR's window is community-attested tighter than GH3's (no published ms —
@@ -438,8 +444,8 @@ rock-hero-game/core:
   "integrity": { "cleanRun": true, "pauseCount": 0, "pausedTotalMs": 0.0 },
   "profileId": "<uuid, plan 27>",
   "result": { "score": 0, "maxStreak": 0, "accuracyPercent": 0.0, "stars": 0,
-              "failed": false, "completed": true, "starPowerDeployments": 0,
-              "overstrumCount": 0, "unmatchedOnsetCount": 0 },
+              "fullCombo": false, "failed": false, "completed": true,
+              "starPowerDeployments": 0, "overstrumCount": 0, "unmatchedOnsetCount": 0 },
   "verdicts": [[0, "hit", -12.5, 6420, 0.93, 1.0], [1, "missNoOnset", null, null, null, 0.0]]
 }
 ```
@@ -448,12 +454,13 @@ rock-hero-game/core:
 confidence, sustainHeldFraction]`; verdict codes: `hit`, `hitOnsetOnly`, `missNoOnset`,
 `missWrongPitch` (revoked; detectedPitchCents records the contradicting pitch),
 `missNoPitchEvidence` (evidence-free deadline lapse — the anti-mash outcome).
-`accuracyPercent` counts `hit` + `hitOnsetOnly` over all notes. `result.stars` ranges 1–6 under
-the WoR baseline: 1–5 from the ratio thresholds, 6 awarded by the machine for a strict full
-combo (every verdict a hit AND `overstrumCount == 0` — WoR's stray-strum rule). `overstrumCount`
-counts qualifying streak-breaking overstrums; `unmatchedOnsetCount` counts every unmatched onset
-including sub-threshold noise — together they are the recorded evidence for walking the
-overstrum policy in either direction by ruleset version, and the 6★ predicate's input. Per-section aggregates are derived by
+`accuracyPercent` counts `hit` + `hitOnsetOnly` over all notes. `result.stars` stays on the 1–5
+ratio scale; `result.fullCombo` is the strict-FC predicate (every verdict a hit AND
+`overstrumCount == 0` — WoR's stray-strum rule), and presentation renders 5 gold stars whenever
+it is true. `overstrumCount` counts qualifying streak-breaking overstrums; `unmatchedOnsetCount`
+counts every unmatched onset including sub-threshold noise — together they are the recorded
+evidence for walking the overstrum policy in either direction by ruleset version, and the FC
+predicate's input. Per-section aggregates are derived by
 27 from verdicts + chart sections, not stored. Size: compact arrays keep dense charts in the low tens of KB — fine for
 local storage and upload. Chart hash/algorithm fields are written as `null` until
 docs/plans/roadmap/10-format-versioning-and-chart-identity.md lands, and the record format version does
