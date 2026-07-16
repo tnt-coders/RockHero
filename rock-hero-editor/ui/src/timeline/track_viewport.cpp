@@ -275,6 +275,13 @@ void TrackViewport::setTabDisplayedStrings(int displayed_strings)
     layoutScaledCanvas();
 }
 
+// Forwards the tab-derived chord/arpeggio name chips to the pinned ruler, which renders them
+// in its bottom tick band directly above the tablature lane.
+void TrackViewport::setShapeLabels(std::vector<RulerShapeLabel> labels)
+{
+    m_timeline_ruler.setShapeLabels(std::move(labels));
+}
+
 // Forwards the song's section names to the pinned ruler's section chip row and their start times
 // to the cursor overlay, which draws them as faint full-height boundary lines through the notes.
 void TrackViewport::setSectionLabels(std::vector<RulerSectionLabel> labels)
@@ -353,9 +360,8 @@ int TrackViewport::toneTrackHeight() const noexcept
 
 // Sizes the waveform row so tablature lanes keep the six-string reference density at any count.
 // Without a chart the row stays at one third of the usable viewport for a plain waveform; with a
-// chart the row scales to the string count plus the tab's chip strip, so a four-string bass
-// shrinks the row to fit its lanes and an eight-string display grows it (the vertical scrollbar
-// absorbs the overflow).
+// chart the row scales to the string count, so a four-string bass shrinks the row to fit its
+// lanes and an eight-string display grows it (the vertical scrollbar absorbs the overflow).
 int TrackViewport::primaryTrackHeight() const noexcept
 {
     const int reference_height =
@@ -365,10 +371,7 @@ int TrackViewport::primaryTrackHeight() const noexcept
         return reference_height;
     }
 
-    return std::max(
-        1,
-        reference_height * m_tab_displayed_strings / g_tab_reference_string_count +
-            g_tab_chip_strip_height);
+    return std::max(1, reference_height * m_tab_displayed_strings / g_tab_reference_string_count);
 }
 
 // Converts the current pixel density into the width of the full timeline content.
@@ -429,12 +432,8 @@ void TrackViewport::layoutScaledCanvas()
     clampZoomToTimeline();
     const int content_width = scaledContentWidth();
     m_content.setSize(content_width, scaledContentHeight(content_width));
-    // With a chart, the tab reserves its chip strip at the row's top; the waveform starts below
-    // it so chord chips sit on the row's grid-dotted background rather than on waveform pixels.
-    const int chip_strip = m_tab_displayed_strings > 0 ? g_tab_chip_strip_height : 0;
-    m_arrangement_view.setBounds(
-        0, chip_strip, m_content.getWidth(), primaryTrackHeight() - chip_strip);
-    m_tab_view.setBounds(0, 0, m_content.getWidth(), primaryTrackHeight());
+    m_arrangement_view.setBounds(0, 0, m_content.getWidth(), primaryTrackHeight());
+    m_tab_view.setBounds(m_arrangement_view.getBounds());
     m_tone_track_view.setBounds(0, primaryTrackHeight(), m_content.getWidth(), toneTrackHeight());
     m_tone_automation_lanes_view.setBounds(
         0,

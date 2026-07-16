@@ -2,6 +2,7 @@
 
 #include "shared/editor_theme.h"
 #include "shared/text_metrics.h"
+#include "tab/tab_view.h"
 #include "timeline/timeline_cursor.h"
 
 #include <cmath>
@@ -34,9 +35,13 @@ constexpr int g_measure_row_y{45};
 constexpr int g_label_row_height{12};
 constexpr int g_beat_tick_height{10};
 constexpr int g_subdivision_tick_height{5};
-// Chip height matches the tab lane's chord/arpeggio name chips so the header rows and the tab's
-// chip strip read as one family.
+// Chip height shared by every ruler chip row and the chord/arpeggio name chips so they read as
+// one family.
 constexpr int g_chip_height{11};
+// Tab-derived chord/arpeggio name chips fill the tick band below the measure-number row, flush
+// with the bottom edge so each chip reads as sitting directly on the tablature lane's top rail
+// beneath it.
+constexpr int g_shape_chip_height{11};
 
 // Shared ruler text face. Cached label widths are measured with the same face they are drawn
 // with, so measurement and drawing must both go through these helpers.
@@ -204,14 +209,16 @@ void TimelineRuler::setCursorPlacementCallback(CursorPlacementCallback callback)
     m_cursor_placement_callback = std::move(callback);
 }
 
-// Paints the chip rows with their dotted leaders, then the ruler body's measure-number row and
-// tick band.
+// Paints the chip rows with their dotted leaders, the ruler body's measure-number row and tick
+// band, and the chord/arpeggio name chips along the bottom edge.
 void TimelineRuler::paint(juce::Graphics& g)
 {
-    // One ruler-chrome fill for the whole header, so the chip rows and the ruler body read as a
-    // single surface distinct from the darker content scrolling under it.
-    g.fillAll(editorTheme().timeline_ruler_background);
-    // A crisp division along the bottom edge so the header reads as its own surface above the
+    // The chip rows blend into the editor chrome so they read as sitting above the ruler; only
+    // the body below them gets the ruler background.
+    g.fillAll(editorTheme().window_background);
+    g.setColour(editorTheme().timeline_ruler_background);
+    g.fillRect(0, g_ruler_body_top, getWidth(), getHeight() - g_ruler_body_top);
+    // A crisp division along the bottom edge so the ruler reads as its own surface above the
     // rows scrolling under it.
     g.setColour(editorTheme().grid_measure);
     g.fillRect(0, getHeight() - 1, getWidth(), 1);
@@ -222,20 +229,23 @@ void TimelineRuler::paint(juce::Graphics& g)
         return;
     }
 
+    // Leaders run under the ticks all the way down to the tab, so a chip's exact position reads
+    // through the body without ever covering a beat or measure tick; every chip row draws after
+    // every leader row, so any chip covers a leader crossing it.
+    drawChipLeaders(g, m_section_leader_xs, g_section_row_y, editorTheme().section_chip);
+    drawChipLeaders(g, m_tempo_leader_xs, g_tempo_row_y, editorTheme().tempo_chip);
+    drawChipLeaders(g, m_signature_leader_xs, g_signature_row_y, editorTheme().signature_chip);
+
     drawBeatTicks(g);
 
     g.setColour(g_timeline_ruler_text_color.withAlpha(0.82f));
     drawLabelRow(g, m_measure_labels, rulerFont(), g_measure_row_y, g_label_row_height);
 
-    // Every leader row draws before every chip row, so any chip covers a leader crossing it.
-    drawChipLeaders(g, m_section_leader_xs, g_section_row_y, editorTheme().section_chip);
-    drawChipLeaders(g, m_tempo_leader_xs, g_tempo_row_y, editorTheme().tempo_chip);
-    drawChipLeaders(g, m_signature_leader_xs, g_signature_row_y, editorTheme().signature_chip);
-
     drawChipRow(g, m_section_labels, editorTheme().section_chip, g_section_row_y);
     drawTempoChips(g);
     drawChipRow(g, m_signature_labels, editorTheme().signature_chip, g_signature_row_y);
 
+    drawShapeChips(g);
     drawCursor(g);
 }
 
@@ -266,6 +276,19 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& event)
     {
         m_cursor_placement_callback(*position);
     }
+}
+
+// Stores the tab-derived chord/arpeggio name chips for the bottom tick band. An unchanged list
+// returns early because every controller state push repeats it.
+void TimelineRuler::setShapeLabels(std::vector<RulerShapeLabel> labels)
+{
+    if (m_shape_labels == labels)
+    {
+        return;
+    }
+
+    m_shape_labels = std::move(labels);
+    repaint();
 }
 
 // Stores the song's section names for the section chip row. The names cache a pinned,
@@ -622,10 +645,11 @@ void TimelineRuler::drawBeatTicks(juce::Graphics& g)
     }
 }
 
-// Draws one chip row's dotted leaders: a 1px dotted column from the row's chip bottom to the
-// ruler body at every visible event position. The leaders come from the cached event columns
-// rather than the placed chips, so a chip suppressed on a dense map still marks its position
-// and a pinned chip (whose anchor is off-screen) never draws one.
+// Draws one chip row's dotted leaders: a 1px dotted column from the row's chip bottom down to
+// the ruler's bottom edge (where the tab begins) at every visible event position. The leaders
+// come from the cached event columns rather than the placed chips, so a chip suppressed on a
+// dense map still marks its position and a pinned chip (whose anchor is off-screen) never draws
+// one. Leaders paint before the ticks, so they never cover a beat or measure tick they cross.
 void TimelineRuler::drawChipLeaders(
     juce::Graphics& g, const std::vector<int>& anchor_xs, int row_y, juce::Colour color)
 {
@@ -637,7 +661,7 @@ void TimelineRuler::drawChipLeaders(
     juce::RectangleList<float> dots;
     for (const int x : anchor_xs)
     {
-        for (int y = row_y + g_chip_height; y < g_ruler_body_top; y += 2)
+        for (int y = row_y + g_chip_height; y < getHeight() - 1; y += 2)
         {
             dots.addWithoutMerging(juce::Rectangle<int>{x, y, 1, 1}.toFloat());
         }
@@ -712,6 +736,42 @@ void TimelineRuler::drawTempoChips(juce::Graphics& g)
             digits.text,
             chip.withTrimmedLeft(static_cast<float>(glyph.width) + 3.0f),
             juce::Justification::centredLeft);
+    }
+}
+
+// Draws the chord/arpeggio name chips flush with the ruler's bottom edge, directly above the
+// tablature lane's top rail (user-directed placement: the lane has no clean room for names, and
+// this band overlaps only ticks — the measure-number row above stays clear). Chips draw left to
+// right in span order, so where shape changes crowd tighter than a name's width the later
+// span's chip wins locally instead of being suppressed entirely.
+void TimelineRuler::drawShapeChips(juce::Graphics& g)
+{
+    if (m_shape_labels.empty())
+    {
+        return;
+    }
+
+    const juce::Font chip_font = chipFont();
+    for (const RulerShapeLabel& label : m_shape_labels)
+    {
+        const std::optional<float> local_x = localXForSeconds(label.seconds);
+        if (!local_x.has_value())
+        {
+            continue;
+        }
+
+        const float chip_width = static_cast<float>(textWidth(chip_font, label.name)) + 6.0f;
+        const juce::Rectangle<float> chip{
+            *local_x,
+            static_cast<float>(getHeight() - g_shape_chip_height),
+            chip_width,
+            static_cast<float>(g_shape_chip_height)
+        };
+        g.setColour(tabShapeMarkColor(label.arpeggio));
+        g.fillRoundedRectangle(chip, 2.0f);
+        g.setColour(juce::Colours::white);
+        g.setFont(chip_font);
+        g.drawText(label.name, chip, juce::Justification::centred);
     }
 }
 
