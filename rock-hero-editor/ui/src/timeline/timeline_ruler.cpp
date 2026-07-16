@@ -2,7 +2,6 @@
 
 #include "shared/editor_theme.h"
 #include "shared/text_metrics.h"
-#include "timeline/tempo_grid_dots.h"
 #include "timeline/timeline_cursor.h"
 
 #include <cmath>
@@ -21,13 +20,13 @@ namespace
 
 const juce::Colour g_timeline_ruler_text_color{210, 210, 210};
 
-// Vertical layout: the measure-number bar sits on top with the ruler's solid grid ticks —
-// bar-height measure ticks keep the numbers attached to their downbeats, with short beat and
-// shorter subdivision ticks hanging from the bar's bottom edge. Below it the grid header region
-// shares the bar's ruler chrome and extends the canvas's dotted tempo grid up to the bar,
-// carrying three chip rows — sections, tempo markings, time signatures — each chip's left edge
-// on its grid column. All three rows pin the active value to the left edge while the song
-// scrolls. The heights fold into g_timeline_ruler_height; change them together.
+// Vertical layout: the measure-number bar sits on top; below it the grid header region shares
+// the bar's ruler chrome and carries three chip rows — sections, tempo markings, time
+// signatures — each chip's left edge on its grid column. The ruler's solid grid ticks span the
+// whole header: full-height measure lines keep the numbers attached to their downbeats and give
+// the chips their columns, while beat and shorter subdivision ticks hang from the bottom edge.
+// All three chip rows pin the active value to the left edge while the song scrolls. The heights
+// fold into g_timeline_ruler_height; change them together.
 constexpr int g_measure_row_y{1};
 constexpr int g_grid_region_top{16};
 constexpr int g_section_row_y{17};
@@ -206,8 +205,8 @@ void TimelineRuler::setCursorPlacementCallback(CursorPlacementCallback callback)
     m_cursor_placement_callback = std::move(callback);
 }
 
-// Paints the measure-number bar with its ticks, then the grid header region: dotted grid
-// columns and the section, tempo, and signature chip rows on top.
+// Paints the measure-number bar, then the grid header region: the ruler's grid ticks and the
+// section, tempo, and signature chip rows on top.
 void TimelineRuler::paint(juce::Graphics& g)
 {
     // One ruler-chrome fill for the whole header, so the number bar and the grid header region
@@ -225,14 +224,6 @@ void TimelineRuler::paint(juce::Graphics& g)
     }
 
     drawBeatTicks(g);
-
-    // The same dotted columns the canvas draws, so the header grid continues it seamlessly.
-    drawTempoGridDots(
-        g,
-        m_subdivision_columns,
-        m_beat_columns,
-        m_measure_columns,
-        juce::Rectangle<int>{0, g_grid_region_top, getWidth(), getHeight() - g_grid_region_top});
 
     g.setColour(g_timeline_ruler_text_color.withAlpha(0.82f));
     drawLabelRow(g, m_measure_labels, rulerFont(), g_measure_row_y, g_label_row_height);
@@ -318,9 +309,6 @@ std::optional<float> TimelineRuler::localXForSeconds(double seconds) const noexc
 void TimelineRuler::refreshRulerGeometry()
 {
     m_tick_rects.clear();
-    m_subdivision_columns.clear();
-    m_beat_columns.clear();
-    m_measure_columns.clear();
     m_measure_labels.clear();
 
     const juce::Font font = rulerFont();
@@ -386,47 +374,25 @@ void TimelineRuler::refreshRulerGeometry()
         }
     }
 
-    // Number-bar ticks hang from the bar's bottom edge: subdivision ticks stay half the beat
-    // height so the bar reads which short ticks are real beats even when a fine grid fills the
-    // space between them, while measure ticks span the whole bar and carry their number. The
-    // same columns also feed the grid header's dotted grid, per rank.
+    // Subdivision ticks stay half the beat height so the ruler reads which short ticks are real
+    // beats even when a fine grid fills the space between them; measure lines run the full ruler
+    // height, keeping the numbers attached to their downbeats and giving the chip rows the
+    // columns their left edges sit on.
     for (const core::TempoGridLine& line : m_grid_lines)
     {
         const int x = line.x - m_view_x;
-        switch (line.rank)
+        if (line.rank != core::TempoGridLineRank::Measure)
         {
-            case core::TempoGridLineRank::Subdivision:
-            {
-                m_subdivision_columns.push_back(x);
-                m_tick_rects.addWithoutMerging(
-                    juce::Rectangle<int>{
-                        x,
-                        g_grid_region_top - g_subdivision_tick_height,
-                        1,
-                        g_subdivision_tick_height
-                    }
-                        .toFloat());
-                break;
-            }
-            case core::TempoGridLineRank::Beat:
-            {
-                m_beat_columns.push_back(x);
-                m_tick_rects.addWithoutMerging(
-                    juce::Rectangle<int>{
-                        x, g_grid_region_top - g_beat_tick_height, 1, g_beat_tick_height
-                    }
-                        .toFloat());
-                break;
-            }
-            case core::TempoGridLineRank::Measure:
-            {
-                m_measure_columns.push_back(x);
-                m_tick_rects.addWithoutMerging(
-                    juce::Rectangle<int>{x, 0, 1, g_grid_region_top}.toFloat());
-                place_measure(x, line.measure);
-                break;
-            }
+            const int tick_height = line.rank == core::TempoGridLineRank::Beat
+                                        ? g_beat_tick_height
+                                        : g_subdivision_tick_height;
+            m_tick_rects.addWithoutMerging(
+                juce::Rectangle<int>{x, getHeight() - tick_height, 1, tick_height}.toFloat());
+            continue;
         }
+
+        m_tick_rects.addWithoutMerging(juce::Rectangle<int>{x, 0, 1, getHeight()}.toFloat());
+        place_measure(x, line.measure);
     }
 }
 
@@ -632,8 +598,8 @@ void TimelineRuler::refreshSectionBand(
     }
 }
 
-// Draws the number bar's grid ticks, with measure ticks promoted to the bar's full height so
-// the measure numbers stay visually attached to their downbeats.
+// Draws visible grid ticks, with measure lines promoted to the full ruler height so the
+// measure numbers stay visually attached to their downbeats.
 void TimelineRuler::drawBeatTicks(juce::Graphics& g)
 {
     if (!m_tick_rects.isEmpty())
