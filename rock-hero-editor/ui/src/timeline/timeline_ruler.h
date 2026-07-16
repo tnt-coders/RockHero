@@ -21,11 +21,11 @@ namespace rock_hero::editor::ui
 /*!
 \brief Fixed ruler component height in pixels.
 
-The vertical layout this height accommodates — the measure-number row on top, then the grid
-header region's section, tempo, and signature chip rows — is private to timeline_ruler.cpp;
-change this constant only together with those row constants.
+The vertical layout this height accommodates — the section, tempo, and signature chip rows on
+top, then the ruler body with the measure-number row and tick band — is private to
+timeline_ruler.cpp; change this constant only together with those row constants.
 */
-inline constexpr int g_timeline_ruler_height{58};
+inline constexpr int g_timeline_ruler_height{68};
 
 /*!
 \brief One song-section name shown as a chip at the section's start.
@@ -59,14 +59,13 @@ struct RulerSectionLabel
 /*!
 \brief Draws the pinned bars-and-beats ruler above the scrollable timeline content.
 
-The ruler stays fixed while the timeline content scrolls under it: the measure-number bar sits on
-top, and below it the grid header region shares the bar's ruler chrome and carries the section,
-tempo, and signature chip rows. The ruler's solid grid ticks span the whole header — full-height
-measure lines keep the numbers attached to their downbeats and give the chips the columns their
-left edges sit on, with beat and shorter subdivision ticks hanging from the bottom edge. Callers
-push the current view geometry and the shared visible-span grid lines; the ruler renders
-everything from that one scan result. Clicks convert into the same snapped cursor-placement
-intent as timeline-content clicks.
+The ruler stays fixed while the timeline content scrolls under it: the section, tempo, and
+signature chip rows sit on top, and the ruler body below them holds the measure-number row and
+the tick band. Each chip drops a dotted leader line in its own color down to the ruler body so
+its exact position stays readable, with every chip drawn above every leader. Callers push the
+current view geometry and the shared visible-span grid lines; the ruler renders everything from
+that one scan result. Clicks convert into the same snapped cursor-placement intent as
+timeline-content clicks.
 */
 class TimelineRuler final : public juce::Component
 {
@@ -183,8 +182,15 @@ private:
     // section at the left edge, sharing the header rows' pin gate.
     void refreshSectionBand(const juce::Font& font, std::optional<double> pinned_left_seconds);
 
-    // Draws visible grid ticks: full-height measures, short beats, and shorter subdivision ticks.
+    // Draws visible grid ticks: body-height measures, short beats, and shorter subdivision ticks.
     void drawBeatTicks(juce::Graphics& g);
+
+    // Draws one chip row's dotted leader lines from the row's bottom down to the ruler body,
+    // marking each event's exact position — even where its chip was suppressed, and never for a
+    // pinned chip, whose anchor is off-screen. Every chip row draws after every leader row, so a
+    // chip always covers a leader passing through it.
+    void drawChipLeaders(
+        juce::Graphics& g, const std::vector<int>& anchor_xs, int row_y, juce::Colour color);
 
     // Draws one cached row of overlap-suppressed labels in the current color at a fixed vertical
     // band. The font must match the one the row's widths were measured with.
@@ -236,6 +242,12 @@ private:
     // Precomputed tick rectangles in local ruler coordinates, cached so paint() only issues one
     // fillRectList call instead of rebuilding geometry on every repaint.
     juce::RectangleList<float> m_tick_rects{};
+
+    // Visible event columns per chip row in local ruler coordinates, cached alongside the label
+    // rows so paint() draws each row's dotted leaders without re-resolving positions.
+    std::vector<int> m_section_leader_xs{};
+    std::vector<int> m_tempo_leader_xs{};
+    std::vector<int> m_signature_leader_xs{};
 
     // Measure-number row of the ruler body: the pinned active measure at the left edge, then
     // the numbers that survived overlap suppression, with widths already measured. Kept out of

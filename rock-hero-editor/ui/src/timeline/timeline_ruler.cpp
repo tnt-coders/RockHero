@@ -20,18 +20,17 @@ namespace
 
 const juce::Colour g_timeline_ruler_text_color{210, 210, 210};
 
-// Vertical layout: the measure-number bar sits on top; below it the grid header region shares
-// the bar's ruler chrome and carries three chip rows — sections, tempo markings, time
-// signatures — each chip's left edge on its grid column. The ruler's solid grid ticks span the
-// whole header: full-height measure lines keep the numbers attached to their downbeats and give
-// the chips their columns, while beat and shorter subdivision ticks hang from the bottom edge.
-// All three chip rows pin the active value to the left edge while the song scrolls. The heights
-// fold into g_timeline_ruler_height; change them together.
-constexpr int g_measure_row_y{1};
-constexpr int g_grid_region_top{16};
-constexpr int g_section_row_y{17};
-constexpr int g_tempo_row_y{31};
-constexpr int g_signature_row_y{45};
+// Vertical layout: three chip rows sit on top — sections, tempo markings, time signatures —
+// each pinning the active value to the left edge while the song scrolls, and each chip dropping
+// a dotted leader line down to the ruler body so its exact position stays readable. The ruler
+// body below them holds the measure-number row above the tick band; measure ticks run the
+// body's full height so the numbers stay attached to their downbeats. The heights fold into
+// g_timeline_ruler_height; change them together.
+constexpr int g_section_row_y{2};
+constexpr int g_tempo_row_y{16};
+constexpr int g_signature_row_y{30};
+constexpr int g_ruler_body_top{43};
+constexpr int g_measure_row_y{45};
 constexpr int g_label_row_height{12};
 constexpr int g_beat_tick_height{10};
 constexpr int g_subdivision_tick_height{5};
@@ -205,12 +204,12 @@ void TimelineRuler::setCursorPlacementCallback(CursorPlacementCallback callback)
     m_cursor_placement_callback = std::move(callback);
 }
 
-// Paints the measure-number bar, then the grid header region: the ruler's grid ticks and the
-// section, tempo, and signature chip rows on top.
+// Paints the chip rows with their dotted leaders, then the ruler body's measure-number row and
+// tick band.
 void TimelineRuler::paint(juce::Graphics& g)
 {
-    // One ruler-chrome fill for the whole header, so the number bar and the grid header region
-    // read as a single surface distinct from the darker content scrolling under it.
+    // One ruler-chrome fill for the whole header, so the chip rows and the ruler body read as a
+    // single surface distinct from the darker content scrolling under it.
     g.fillAll(editorTheme().timeline_ruler_background);
     // A crisp division along the bottom edge so the header reads as its own surface above the
     // rows scrolling under it.
@@ -227,6 +226,11 @@ void TimelineRuler::paint(juce::Graphics& g)
 
     g.setColour(g_timeline_ruler_text_color.withAlpha(0.82f));
     drawLabelRow(g, m_measure_labels, rulerFont(), g_measure_row_y, g_label_row_height);
+
+    // Every leader row draws before every chip row, so any chip covers a leader crossing it.
+    drawChipLeaders(g, m_section_leader_xs, g_section_row_y, editorTheme().section_chip);
+    drawChipLeaders(g, m_tempo_leader_xs, g_tempo_row_y, editorTheme().tempo_chip);
+    drawChipLeaders(g, m_signature_leader_xs, g_signature_row_y, editorTheme().signature_chip);
 
     drawChipRow(g, m_section_labels, editorTheme().section_chip, g_section_row_y);
     drawTempoChips(g);
@@ -375,9 +379,8 @@ void TimelineRuler::refreshRulerGeometry()
     }
 
     // Subdivision ticks stay half the beat height so the ruler reads which short ticks are real
-    // beats even when a fine grid fills the space between them; measure lines run the full ruler
-    // height, keeping the numbers attached to their downbeats and giving the chip rows the
-    // columns their left edges sit on.
+    // beats even when a fine grid fills the space between them; measure ticks span the whole
+    // body and carry their number.
     for (const core::TempoGridLine& line : m_grid_lines)
     {
         const int x = line.x - m_view_x;
@@ -391,7 +394,8 @@ void TimelineRuler::refreshRulerGeometry()
             continue;
         }
 
-        m_tick_rects.addWithoutMerging(juce::Rectangle<int>{x, 0, 1, getHeight()}.toFloat());
+        m_tick_rects.addWithoutMerging(
+            juce::Rectangle<int>{x, g_ruler_body_top, 1, getHeight() - g_ruler_body_top}.toFloat());
         place_measure(x, line.measure);
     }
 }
@@ -412,7 +416,9 @@ void TimelineRuler::refreshHeaderBands(
 {
     m_tempo_prefix_labels.clear();
     m_tempo_labels.clear();
+    m_tempo_leader_xs.clear();
     m_signature_labels.clear();
+    m_signature_leader_xs.clear();
 
     // The quarter-note glyph is U+2669, supplied as escaped UTF-8 so source-file encoding cannot
     // corrupt it; text shaping falls back to a symbol font when the UI font lacks the glyph.
@@ -477,7 +483,9 @@ void TimelineRuler::refreshHeaderBands(
         const auto local_x = localXForSeconds(anchors[index].seconds);
         if (local_x.has_value())
         {
-            place_marking(static_cast<int>(std::round(*local_x)), anchors[index].seconds);
+            const int anchor_x = static_cast<int>(std::round(*local_x));
+            m_tempo_leader_xs.push_back(anchor_x);
+            place_marking(anchor_x, anchors[index].seconds);
         }
     }
 
@@ -528,7 +536,9 @@ void TimelineRuler::refreshHeaderBands(
         const auto local_x = localXForSeconds(m_tempo_map.secondsAtBeat(change.measure, 1));
         if (local_x.has_value())
         {
-            place_signature(static_cast<int>(std::round(*local_x)), change);
+            const int anchor_x = static_cast<int>(std::round(*local_x));
+            m_signature_leader_xs.push_back(anchor_x);
+            place_signature(anchor_x, change);
         }
     }
 }
@@ -541,6 +551,7 @@ void TimelineRuler::refreshSectionBand(
     const juce::Font& font, std::optional<double> pinned_left_seconds)
 {
     m_section_labels.clear();
+    m_section_leader_xs.clear();
 
     RulerRowPlacement section_row{getWidth(), 0};
     const auto place_section = [&](int anchor_x, const juce::String& name) {
@@ -593,13 +604,15 @@ void TimelineRuler::refreshSectionBand(
     {
         if (const auto local_x = localXForSeconds(section.seconds))
         {
-            place_section(static_cast<int>(std::round(*local_x)), section.name);
+            const int anchor_x = static_cast<int>(std::round(*local_x));
+            m_section_leader_xs.push_back(anchor_x);
+            place_section(anchor_x, section.name);
         }
     }
 }
 
-// Draws visible grid ticks, with measure lines promoted to the full ruler height so the
-// measure numbers stay visually attached to their downbeats.
+// Draws visible grid ticks, with measure ticks promoted to the ruler body's full height so the
+// measure-number row stays visually attached to its downbeats.
 void TimelineRuler::drawBeatTicks(juce::Graphics& g)
 {
     if (!m_tick_rects.isEmpty())
@@ -607,6 +620,30 @@ void TimelineRuler::drawBeatTicks(juce::Graphics& g)
         g.setColour(editorTheme().grid_measure);
         g.fillRectList(m_tick_rects);
     }
+}
+
+// Draws one chip row's dotted leaders: a 1px dotted column from the row's chip bottom to the
+// ruler body at every visible event position. The leaders come from the cached event columns
+// rather than the placed chips, so a chip suppressed on a dense map still marks its position
+// and a pinned chip (whose anchor is off-screen) never draws one.
+void TimelineRuler::drawChipLeaders(
+    juce::Graphics& g, const std::vector<int>& anchor_xs, int row_y, juce::Colour color)
+{
+    if (anchor_xs.empty())
+    {
+        return;
+    }
+
+    juce::RectangleList<float> dots;
+    for (const int x : anchor_xs)
+    {
+        for (int y = row_y + g_chip_height; y < g_ruler_body_top; y += 2)
+        {
+            dots.addWithoutMerging(juce::Rectangle<int>{x, y, 1, 1}.toFloat());
+        }
+    }
+    g.setColour(color);
+    g.fillRectList(dots);
 }
 
 // Draws one cached row of overlap-suppressed labels in the current color at a fixed vertical
@@ -678,11 +715,11 @@ void TimelineRuler::drawTempoChips(juce::Graphics& g)
     }
 }
 
-// Draws the same transport cursor through the full ruler height for vertical alignment: the
-// grid header region reads as content, so the cursor runs through it like it does the canvas.
+// Draws the same transport cursor through the ruler body for vertical alignment. The cursor
+// starts at the body's top edge instead of y 0 so it does not cut through the chip rows above.
 void TimelineRuler::drawCursor(juce::Graphics& g)
 {
-    drawTimelineCursor(g, *this, m_cursor_x, 0);
+    drawTimelineCursor(g, *this, m_cursor_x, g_ruler_body_top);
 }
 
 } // namespace rock_hero::editor::ui
