@@ -36,6 +36,13 @@ inline constexpr int g_timing_decimals = 3;
 [[nodiscard]] bool isSafeRelativePath(const std::filesystem::path& path);
 
 /*!
+\brief Reports whether an audio path names a FLAC file, RockHero's only package audio format.
+\param path Package-relative or source audio path.
+\return True when the extension is `.flac`, compared case-insensitively.
+*/
+[[nodiscard]] bool hasFlacExtension(const std::filesystem::path& path);
+
+/*!
 \brief Validates the structural tempo-map rules shared by package read and write.
 \param tempo_map Parsed or about-to-be-persisted tempo map.
 \return Empty success, or the format violation to report.

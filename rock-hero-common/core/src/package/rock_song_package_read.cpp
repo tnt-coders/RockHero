@@ -170,17 +170,6 @@ namespace
     };
 }
 
-// Reports whether a package-relative audio path names a FLAC file, RockHero's only supported package
-// audio format. Compared case-insensitively so a differently-cased extension still matches.
-[[nodiscard]] bool hasFlacExtension(const std::string& relative_path)
-{
-    std::string extension = std::filesystem::path{relative_path}.extension().string();
-    std::ranges::transform(extension, extension.begin(), [](unsigned char character) {
-        return static_cast<char>(std::tolower(character));
-    });
-    return extension == ".flac";
-}
-
 [[nodiscard]] std::expected<std::unordered_map<std::string, AudioAsset>, SongPackageError>
 readAudioAssets(const std::filesystem::path& directory, const juce::var& song_document)
 {

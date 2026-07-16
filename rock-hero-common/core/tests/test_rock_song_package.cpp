@@ -339,6 +339,22 @@ TEST_CASE("Rock song package write rejects non-UUID arrangement IDs", "[core][ro
     CHECK_FALSE(std::filesystem::exists(package_directory / "audio" / "source.flac"));
 }
 
+// Verifies the writer enforces the FLAC rule the reader applies, before any file is copied.
+TEST_CASE("Rock song package write rejects non-FLAC audio", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path source_audio = temporary_directory.path() / "source.wav";
+    writeAudioFile(source_audio);
+
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    const auto written = writeRockSongPackageDirectory(package_directory, makeSong(source_audio));
+
+    REQUIRE_FALSE(written.has_value());
+    CHECK(written.error().code == SongPackageErrorCode::InvalidAudioAsset);
+    CHECK(written.error().message.find("FLAC") != std::string::npos);
+    CHECK_FALSE(std::filesystem::exists(package_directory / "audio" / "source.wav"));
+}
+
 // Verifies package directory persistence keeps arrangement tone-document references.
 TEST_CASE("Rock song package directory preserves tone refs", "[core][rock-song-package]")
 {
