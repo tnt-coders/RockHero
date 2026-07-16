@@ -61,11 +61,12 @@ Three consequences keep the rows pixel-aligned:
   snapping will disagree with everyone else's.
 
 The pinned ruler stacks the **song-level** chip rows on top — sections, tempo markings, and time
-signatures on the content's dark surface, with the active value pinned to the left edge while
-the song scrolls — above the framed ruler body with its measure-number row and tick band. Each
-chip drops a dotted leader line in its own color down to the top of the body, marking its exact
-position (the body's own ticks take over from there); leaders draw for every event, even where a
-chip was suppressed on a dense map, and every chip paints above every leader. The tab's chord/arpeggio name chips render in the ruler's bottom tick band, flush with
+signatures on the editor chrome, with the active value pinned to the left edge while the song
+scrolls — above the ruler body with its measure-number row and tick band; the color steps alone
+divide chrome, body, and the content scrolling under it. Each chip drops a dotted leader line in
+its own color down to the top of the body, marking its exact position (the body's own ticks take
+over from there); leaders draw for every event, even where a chip was suppressed on a dense map,
+and every chip paints above every leader. The tab's chord/arpeggio name chips render in the ruler's bottom tick band, flush with
 the bottom edge on the tab's top rail — they are tab data the ruler merely renders (fed via
 `TrackViewport::setShapeLabels`), the same relationship the tempo row has to the tempo map,
 because viewport children cannot paint over the pinned ruler. A 1px divider along the bottom edge
