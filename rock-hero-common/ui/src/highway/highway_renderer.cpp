@@ -2475,7 +2475,7 @@ void HighwayRenderer::Impl::draw(
             {
                 continue;
             }
-            std::string label = section.type;
+            std::string label = section.name;
             std::ranges::transform(label, label.begin(), [](const char c) {
                 return static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
             });

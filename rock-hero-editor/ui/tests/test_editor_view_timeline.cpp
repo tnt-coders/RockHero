@@ -88,11 +88,11 @@ TEST_CASE("TimelineRuler draws full measure and short beat ticks", "[ui][timelin
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
 
-    // Ticks live in the ruler body below the tempo and signature bands: the measure tick at
-    // x = 0 spans the whole body while the beat tick at x = 75 fills only the bottom band;
-    // y = 32 is in the measure-number row, clear of measure 1's label glyphs.
-    const juce::Colour measure_body = image.getPixelAt(0, 32);
-    const juce::Colour beat_body = image.getPixelAt(75, 32);
+    // Ticks live in the ruler body below the section, tempo, and signature bands: the measure
+    // tick at x = 0 spans the whole body while the beat tick at x = 75 fills only the bottom band;
+    // y = 47 is in the measure-number row, clear of measure 1's label glyphs.
+    const juce::Colour measure_body = image.getPixelAt(0, 47);
+    const juce::Colour beat_body = image.getPixelAt(75, 47);
     const juce::Colour beat_bottom = image.getPixelAt(75, g_timeline_ruler_height - 1);
     CHECK(measure_body != beat_body);
     CHECK(beat_bottom != beat_body);
@@ -165,7 +165,42 @@ TEST_CASE("TimelineRuler draws shape name chips in the bottom band", "[ui][timel
     CHECK(image.getPixelAt(301, chip_y) == juce::Colour{0xffac73ed});
 
     // The measure-number row above the band stays chip-free.
-    CHECK(image.getPixelAt(101, 36) != juce::Colour{0xff4982fa});
+    CHECK(image.getPixelAt(101, 51) != juce::Colour{0xff4982fa});
+}
+
+// Verifies the chart-derived section names draw in the ruler's top band (above the tempo band),
+// left-aligned at each section start, and nowhere a section does not begin.
+TEST_CASE("TimelineRuler draws section names in the top band", "[ui][timeline-ruler]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    constexpr common::core::TimeRange one_measure_window{
+        .start = common::core::TimePosition{0.0},
+        .end = common::core::TimePosition{4.0},
+    };
+    const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4.0);
+    constexpr common::core::Fraction grid_note_value{1, 4};
+    TimelineRuler ruler;
+    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
+    ruler.setGrid(tempo_map, grid_note_value);
+    ruler.setGridLines(
+        core::visibleTempoGridLines(
+            tempo_map, grid_note_value, one_measure_window, ruler.getWidth(), 0, ruler.getWidth()));
+    ruler.setProjectLoaded(true);
+    ruler.setSectionLabels(
+        std::vector<RulerSectionLabel>{
+            RulerSectionLabel{.seconds = 1.0, .name = "Verse"},
+        });
+
+    const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
+
+    // One measure across 401px maps seconds * 100, so the "Verse" section at 1.0s starts at x = 100.
+    // Its name and boundary tick land in the top section band (y 0..15, above the tempo band); the
+    // band background is the editor chrome sampled far from the section.
+    const juce::Colour band_background = image.getPixelAt(390, 7);
+    CHECK(countGlyphPixels(image, juce::Rectangle<int>{100, 1, 60, 12}, band_background) > 0);
+    // No section starts near the left edge, so that stretch of the band stays empty.
+    CHECK(countGlyphPixels(image, juce::Rectangle<int>{4, 1, 40, 12}, band_background) == 0);
 }
 
 // Verifies the measure-number row pins the active measure to the left edge while scrolled,
@@ -213,8 +248,8 @@ TEST_CASE("TimelineRuler pins the active measure number while scrolled", "[ui][t
     // nearest scrolling label (measure 2 at local x 200) and the beat ticks (bottom band only)
     // cannot reach it. Compare against the ruler body background sampled on the same row far
     // from any label or downbeat tick.
-    const juce::Colour body_background = image.getPixelAt(390, 36);
-    CHECK(countGlyphPixels(image, juce::Rectangle<int>{4, 31, 20, 10}, body_background) > 0);
+    const juce::Colour body_background = image.getPixelAt(390, 51);
+    CHECK(countGlyphPixels(image, juce::Rectangle<int>{4, 46, 20, 10}, body_background) > 0);
 }
 
 // Verifies the pinned measure number yields to the incoming downbeat number: once the next
@@ -261,9 +296,9 @@ TEST_CASE(
     // The pin region at the left inset must be empty because measure 2's number, anchored at
     // local x 15 and drawn from x 19, has taken over the row; the measure tick at x 15 spans the
     // body between the two sampled regions and touches neither.
-    const juce::Colour body_background = image.getPixelAt(390, 36);
-    CHECK(countGlyphPixels(image, juce::Rectangle<int>{4, 31, 10, 10}, body_background) == 0);
-    CHECK(countGlyphPixels(image, juce::Rectangle<int>{19, 31, 16, 10}, body_background) > 0);
+    const juce::Colour body_background = image.getPixelAt(390, 51);
+    CHECK(countGlyphPixels(image, juce::Rectangle<int>{4, 46, 10, 10}, body_background) == 0);
+    CHECK(countGlyphPixels(image, juce::Rectangle<int>{19, 46, 16, 10}, body_background) > 0);
 }
 
 // Verifies the pinned tempo marking yields to an incoming tempo change's marking the same way
@@ -312,9 +347,9 @@ TEST_CASE(
     // from x 28, has taken over the band; ticks and the measure number stay below the band, so
     // only tempo glyphs can land in the sampled rows. The band background is the editor chrome
     // sampled right of the incoming marking.
-    const juce::Colour band_background = image.getPixelAt(390, 7);
-    CHECK(countGlyphPixels(image, juce::Rectangle<int>{4, 2, 20, 11}, band_background) == 0);
-    CHECK(countGlyphPixels(image, juce::Rectangle<int>{28, 2, 20, 11}, band_background) > 0);
+    const juce::Colour band_background = image.getPixelAt(390, 22);
+    CHECK(countGlyphPixels(image, juce::Rectangle<int>{4, 17, 20, 11}, band_background) == 0);
+    CHECK(countGlyphPixels(image, juce::Rectangle<int>{28, 17, 20, 11}, band_background) > 0);
 }
 
 // Verifies the pinned time signature yields to an incoming signature change's label the same way
@@ -362,9 +397,9 @@ TEST_CASE(
     // The signature band's pin region must be empty because the incoming "3/4" label, drawn from
     // x 28, has taken over the band; the band background is the editor chrome sampled right of
     // the incoming label.
-    const juce::Colour band_background = image.getPixelAt(390, 20);
-    CHECK(countGlyphPixels(image, juce::Rectangle<int>{4, 17, 20, 8}, band_background) == 0);
-    CHECK(countGlyphPixels(image, juce::Rectangle<int>{28, 17, 20, 8}, band_background) > 0);
+    const juce::Colour band_background = image.getPixelAt(390, 35);
+    CHECK(countGlyphPixels(image, juce::Rectangle<int>{4, 32, 20, 8}, band_background) == 0);
+    CHECK(countGlyphPixels(image, juce::Rectangle<int>{28, 32, 20, 8}, band_background) > 0);
 }
 
 // Verifies the transport strip readout shows the REAPER-style measure.beat.hundredths position

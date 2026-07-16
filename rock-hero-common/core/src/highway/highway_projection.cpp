@@ -173,7 +173,7 @@ HighwayViewState makeHighwayViewState(
             HighwaySectionView{
                 .seconds = tempo_map.secondsAtGlobalBeatPosition(
                     globalBeatPosition(tempo_map, section.position)),
-                .type = section.type,
+                .name = section.name,
             });
     }
 

@@ -611,6 +611,26 @@ void EditorView::setState(const core::EditorViewState& state)
     }
     m_track_viewport->setShapeLabels(std::move(shape_labels));
 
+    // The ruler's top band shows the chart projection's section names as a pinned marker lane; the
+    // cursor overlay draws the same starts as boundary lines through the notes.
+    std::vector<RulerSectionLabel> section_labels;
+    if (m_state.tab != nullptr)
+    {
+        section_labels.reserve(m_state.tab->sections.size());
+        for (const core::TabSectionView& section : m_state.tab->sections)
+        {
+            if (!section.name.empty())
+            {
+                section_labels.push_back(
+                    RulerSectionLabel{
+                        .seconds = section.seconds,
+                        .name = juce::String{section.name},
+                    });
+            }
+        }
+    }
+    m_track_viewport->setSectionLabels(std::move(section_labels));
+
     m_tone_track_view.setVisibleTimeline(m_state.visible_timeline);
     m_tone_track_view.setGridNoteValue(m_state.grid_note_value);
     m_tone_track_view.setState(m_state.tone_track);

@@ -297,8 +297,8 @@ struct ChartSection
     /*! \brief Musical position the section starts at. */
     GridPosition position;
 
-    /*! \brief Section kind, such as "verse" or "chorus"; repeat numbering is derived. */
-    std::string type;
+    /*! \brief Free-form section name, such as "verse" or "chorus", taken verbatim from import. */
+    std::string name;
 
     /*!
     \brief Compares two sections by their stored fields.

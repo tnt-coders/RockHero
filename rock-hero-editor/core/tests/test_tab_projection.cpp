@@ -82,6 +82,14 @@ using common::core::GridPosition;
             .position = GridPosition{.measure = 2, .beat = 1}, .fret = 1, .width = 4
         },
     };
+    chart.sections = {
+        common::core::ChartSection{
+            .position = GridPosition{.measure = 1, .beat = 1}, .name = "intro"
+        },
+        common::core::ChartSection{
+            .position = GridPosition{.measure = 3, .beat = 1}, .name = "verse"
+        },
+    };
 
     return common::core::Arrangement{
         .id = "4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4",
@@ -145,6 +153,13 @@ TEST_CASE("Tab projection resolves chart positions to seconds", "[editor-core][t
 
     REQUIRE(state.fret_hand_positions.size() == 1);
     CHECK(state.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
+
+    // Measure 1 beat 1 sits at zero; measure 3 beat 1 is beat index 8.
+    REQUIRE(state.sections.size() == 2);
+    CHECK(state.sections[0].seconds == Catch::Approx(0.0));
+    CHECK(state.sections[0].name == "intro");
+    CHECK(state.sections[1].seconds == Catch::Approx(8.0 * beat));
+    CHECK(state.sections[1].name == "verse");
 }
 
 TEST_CASE("Tab projection is empty without a chart", "[editor-core][tab]")
@@ -157,6 +172,7 @@ TEST_CASE("Tab projection is empty without a chart", "[editor-core][tab]")
     CHECK(state.notes.empty());
     CHECK(state.shapes.empty());
     CHECK(state.fret_hand_positions.empty());
+    CHECK(state.sections.empty());
 }
 
 } // namespace rock_hero::editor::core

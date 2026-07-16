@@ -22,22 +22,27 @@ namespace
 const juce::Colour g_timeline_ruler_text_color{210, 210, 210};
 const juce::Colour g_timeline_tempo_color{180, 218, 255};
 const juce::Colour g_timeline_signature_color{255, 214, 140};
+const juce::Colour g_timeline_section_color{150, 205, 170};
 
-// Vertical layout: the tempo band sits on top, holding every tempo change at its timeline
-// position like a DAW tempo lane; the signature band directly below it holds every signature
-// change at its downbeat. Both bands pin the active value to the left edge while the song
-// scrolls. The ruler body below them holds the measure-number row above the tick band; measure
-// ticks run the body's full height so the numbers stay attached to their downbeats.
-constexpr int g_tempo_row_y{1};
-constexpr int g_tempo_band_bottom{15};
-constexpr int g_signature_row_y{15};
-constexpr int g_ruler_body_top{28};
-constexpr int g_measure_row_y{30};
+// Vertical layout: the song-section lane sits on top, holding each section name at its start like
+// a DAW marker lane; the tempo band is directly below it, holding every tempo change at its
+// timeline position; the signature band below that holds every signature change at its downbeat.
+// All three pin the active value to the left edge while the song scrolls. The ruler body below
+// them holds the measure-number row above the tick band; measure ticks run the body's full height
+// so the numbers stay attached to their downbeats. The section band's height shifts every band
+// below it down and is folded into g_timeline_ruler_height; change them together.
+constexpr int g_section_row_y{1};
+constexpr int g_section_band_bottom{15};
+constexpr int g_tempo_row_y{16};
+constexpr int g_tempo_band_bottom{30};
+constexpr int g_signature_row_y{30};
+constexpr int g_ruler_body_top{43};
+constexpr int g_measure_row_y{45};
 constexpr int g_label_row_height{12};
 constexpr int g_beat_tick_height{10};
 constexpr int g_subdivision_tick_height{5};
 // Tab-derived chord/arpeggio name chips fill the tick band below the measure-number row (which
-// ends at g_measure_row_y + g_label_row_height = 42 of the 53px ruler), flush with the bottom
+// ends at g_measure_row_y + g_label_row_height = 57 of the 68px ruler), flush with the bottom
 // edge so each chip reads as sitting directly on the tablature lane's top rail beneath it.
 constexpr int g_shape_chip_height{11};
 
@@ -224,9 +229,17 @@ void TimelineRuler::paint(juce::Graphics& g)
     g.setColour(g_timeline_signature_color);
     drawLabelRow(g, m_signature_labels, label_font, g_signature_row_y, g_label_row_height);
     g.setColour(g_timeline_tempo_color);
-    drawLabelRow(g, m_tempo_prefix_labels, noteGlyphFont(), 0, g_tempo_band_bottom);
+    // The enlarged glyph centers in the full tempo-band height (g_section_band_bottom..
+    // g_tempo_band_bottom) so its extra size hangs evenly around the digit row.
+    drawLabelRow(
+        g,
+        m_tempo_prefix_labels,
+        noteGlyphFont(),
+        g_section_band_bottom,
+        g_tempo_band_bottom - g_section_band_bottom);
     drawLabelRow(g, m_tempo_labels, label_font, g_tempo_row_y, g_label_row_height);
 
+    drawSectionLane(g);
     drawShapeChips(g);
     drawCursor(g);
 }
@@ -273,6 +286,21 @@ void TimelineRuler::setShapeLabels(std::vector<RulerShapeLabel> labels)
     repaint();
 }
 
+// Stores the chart-derived song-section names for the top band. Unlike the shape chips, the
+// section names cache a pinned, overlap-suppressed label row, so a changed list rebuilds ruler
+// geometry; an unchanged list returns early because every controller state push repeats it.
+void TimelineRuler::setSectionLabels(std::vector<RulerSectionLabel> labels)
+{
+    if (m_section_source == labels)
+    {
+        return;
+    }
+
+    m_section_source = std::move(labels);
+    refreshRulerGeometry();
+    repaint();
+}
+
 // Draws the chord/arpeggio name chips flush with the ruler's bottom edge, directly above the
 // tablature lane's top rail (user-directed placement: the lane has no clean room for names, and
 // this band overlaps only ticks — the measure-number row above stays clear). Chips draw left to
@@ -307,6 +335,25 @@ void TimelineRuler::drawShapeChips(juce::Graphics& g)
         g.setFont(chip_font);
         g.drawText(label.name, chip, juce::Justification::centred);
     }
+}
+
+// Draws the chart-derived song-section names in the ruler's top band: a boundary tick at every
+// visible section start (even where the name was suppressed), then the pinned, overlap-suppressed
+// name row so the active section stays labeled at the left edge while the song scrolls.
+void TimelineRuler::drawSectionLane(juce::Graphics& g)
+{
+    g.setColour(g_timeline_section_color.withAlpha(0.5f));
+    for (const RulerSectionLabel& section : m_section_source)
+    {
+        const std::optional<float> local_x = localXForSeconds(section.seconds);
+        if (local_x.has_value())
+        {
+            g.fillRect(*local_x, 0.0f, 1.0f, static_cast<float>(g_section_band_bottom));
+        }
+    }
+
+    g.setColour(g_timeline_section_color);
+    drawLabelRow(g, m_section_labels, rulerFont(), g_section_row_y, g_label_row_height);
 }
 
 // Maps an absolute timeline second to this pinned ruler's local x coordinate.
@@ -355,6 +402,7 @@ void TimelineRuler::refreshRulerGeometry()
         pinnable ? std::optional{view_left_time->seconds} : std::nullopt;
 
     refreshHeaderBands(font, pinned_left_seconds);
+    refreshSectionBand(font, pinned_left_seconds);
 
     // Subdivision ticks stay half the beat height so the ruler reads which short ticks are real
     // beats even when a fine grid fills the space between them; measure ticks span the whole
@@ -557,6 +605,71 @@ void TimelineRuler::refreshHeaderBands(
         if (local_x.has_value())
         {
             place_signature(static_cast<int>(std::round(*local_x)), change);
+        }
+    }
+}
+
+// Rebuilds the top section band: one label per visible section start plus the pinned active
+// section (the last one starting at or before the view edge) at the left edge, sharing the header
+// bands' pin gate. Section starts come from the chart projection, not the tempo map, so positions
+// resolve through localXForSeconds like the shape chips.
+void TimelineRuler::refreshSectionBand(
+    const juce::Font& font, std::optional<double> pinned_left_seconds)
+{
+    m_section_labels.clear();
+
+    RulerRowPlacement section_row{getWidth()};
+    const auto place_section = [&](int anchor_x, const juce::String& name) {
+        if (name.isEmpty() || !section_row.accepts(anchor_x))
+        {
+            return;
+        }
+
+        const int width = textWidth(font, name) + g_label_width_pad;
+        if (const std::optional<int> label_x = section_row.reserve(anchor_x, width))
+        {
+            m_section_labels.push_back(RulerLabel{.x = *label_x, .text = name, .width = width});
+        }
+    };
+
+    // The first section starting at or right of the view edge decides whether the pin yields.
+    std::optional<int> first_section_anchor_x;
+    for (const RulerSectionLabel& section : m_section_source)
+    {
+        if (const auto local_x = localXForSeconds(section.seconds))
+        {
+            first_section_anchor_x = static_cast<int>(std::round(*local_x));
+            break;
+        }
+    }
+
+    if (pinned_left_seconds.has_value())
+    {
+        // Sections ascend by start, so the active one is the last starting at or before the edge.
+        const RulerSectionLabel* active = nullptr;
+        for (const RulerSectionLabel& section : m_section_source)
+        {
+            if (section.seconds > *pinned_left_seconds)
+            {
+                break;
+            }
+            active = &section;
+        }
+        if (active != nullptr)
+        {
+            const int pinned_width = textWidth(font, active->name) + g_label_width_pad;
+            if (!pinYieldsToIncomingLabel(pinned_width, first_section_anchor_x))
+            {
+                place_section(0, active->name);
+            }
+        }
+    }
+
+    for (const RulerSectionLabel& section : m_section_source)
+    {
+        if (const auto local_x = localXForSeconds(section.seconds))
+        {
+            place_section(static_cast<int>(std::round(*local_x)), section.name);
         }
     }
 }

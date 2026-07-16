@@ -211,7 +211,7 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(chart.tuning.strings == std::vector<std::string>{"E2", "A2", "D3", "G3", "B3", "E4"});
     CHECK(chart.tuning.capo == 2);
     REQUIRE(chart.sections.size() == 1);
-    CHECK(chart.sections[0].type == "verse");
+    CHECK(chart.sections[0].name == "verse");
 
     REQUIRE(chart.notes.size() == 5);
 
