@@ -40,12 +40,8 @@ struct EditorTheme
     /*! \brief Area around and beyond the timeline canvas. */
     juce::Colour timeline_backdrop{0xff121418};
 
-    /*!
-    \brief Timeline ruler body behind measure numbers and ticks; deliberately the window
-    chrome's color so the ruler strip reads as chrome between the dark chip area above it and
-    the dark content below.
-    */
-    juce::Colour timeline_ruler_background{0xff26292e};
+    /*! \brief Timeline ruler body behind measure numbers and ticks. */
+    juce::Colour timeline_ruler_background{0xff171a1f};
 
     /*! \brief Waveform track row band; Charter's lane background, so tablature reads on it. */
     juce::Colour waveform_row_background{0xff141517};

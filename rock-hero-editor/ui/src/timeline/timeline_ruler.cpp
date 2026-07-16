@@ -213,20 +213,12 @@ void TimelineRuler::setCursorPlacementCallback(CursorPlacementCallback callback)
 // band, and the chord/arpeggio name chips along the bottom edge.
 void TimelineRuler::paint(juce::Graphics& g)
 {
-    // The chip rows sit on the waveform row's dark surface — the same color under the tab — so
-    // the chips and their leaders read as floating over the content; only the body below them
-    // gets the ruler background.
-    g.fillAll(editorTheme().waveform_row_background);
+    // The chip rows blend into the editor chrome so the chips and their leaders read as part of
+    // the header rather than more content; the body below them gets the ruler background, and
+    // the color steps alone divide chrome, body, and the content scrolling under it.
+    g.fillAll(editorTheme().window_background);
     g.setColour(editorTheme().timeline_ruler_background);
     g.fillRect(0, g_ruler_body_top, getWidth(), getHeight() - g_ruler_body_top);
-    // A crisp frame around the ruler body: lines above and below it (the top one where the chip
-    // area's dark surface meets the body chrome, the bottom one separating the ruler from the
-    // rows scrolling under it) joined by edge lines at the ruler's left and right sides.
-    g.setColour(editorTheme().grid_measure);
-    g.fillRect(0, g_ruler_body_top - 1, getWidth(), 1);
-    g.fillRect(0, getHeight() - 1, getWidth(), 1);
-    g.fillRect(0, g_ruler_body_top - 1, 1, getHeight() - g_ruler_body_top + 1);
-    g.fillRect(getWidth() - 1, g_ruler_body_top - 1, 1, getHeight() - g_ruler_body_top + 1);
 
     if (!m_project_loaded || getWidth() <= 0 || m_content_width <= 0 ||
         m_timeline_range.duration().seconds <= 0.0)
