@@ -254,6 +254,10 @@ Scope: the smallest service that is honest about what it can verify.
 - **Server-side re-scoring:** recompute the total score from the submitted per-note verdict log
   under the declared ruleset version; mismatch → reject. This catches naive score edits and is
   the strongest check physically available. Store the full record blob plus derived columns.
+  Honest scope limit (recorded 2026-07-16): re-scoring validates the log, so replayed
+  *musically correct* audio — a looper pedal, a DAW take, a better guitarist on the same input —
+  produces a genuinely valid log and passes. Analog input has no attestation path; that residue
+  is a social/streaming-proof problem, not a scoring one, and no re-scoring design closes it.
 - Identity verification per Q2 (signature check for keypair identity); invite-group scoping per
   Q5; ruleset-major board segmentation per Q6.
 - The server never receives chart content, package files, or audio — schema has nowhere to put

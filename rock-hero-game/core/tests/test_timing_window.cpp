@@ -1,5 +1,6 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <limits>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
@@ -31,17 +32,23 @@ TEST_CASE("Onset window spans the ruleset half-width around the expected time", 
     CHECK(window.close_seconds == Catch::Approx(2.1));
 }
 
-// The half-width is a real-time constant, so at half speed it spans half as much song time —
-// the speed factor passes through the window math instead of widening the player's real window.
+// The half-width is a real-time constant, so at half speed it spans half as much song time and
+// at double speed twice as much — the speed factor passes through the window math instead of
+// changing the player's real window.
 TEST_CASE("Onset window keeps its real-time width across playback speeds", "[core][scoring]")
 {
-    const HitWindow window =
+    const HitWindow half_speed =
         makeOnsetWindow(defaultTempoMap(), g_note_position, ScoringRuleset{}, 0.5);
-    CHECK(window.open_seconds == Catch::Approx(1.95));
-    CHECK(window.close_seconds == Catch::Approx(2.05));
+    CHECK(half_speed.open_seconds == Catch::Approx(1.95));
+    CHECK(half_speed.close_seconds == Catch::Approx(2.05));
+
+    const HitWindow double_speed =
+        makeOnsetWindow(defaultTempoMap(), g_note_position, ScoringRuleset{}, 2.0);
+    CHECK(double_speed.open_seconds == Catch::Approx(1.8));
+    CHECK(double_speed.close_seconds == Catch::Approx(2.2));
 }
 
-// Window bounds are inclusive: an edge hit is a hit.
+// Window bounds are inclusive: an edge hit is a hit. A NaN observation is never in any window.
 TEST_CASE("Onset window contains its inclusive bounds", "[core][scoring]")
 {
     const HitWindow window{.open_seconds = 1.9, .close_seconds = 2.1};
@@ -50,6 +57,7 @@ TEST_CASE("Onset window contains its inclusive bounds", "[core][scoring]")
     CHECK(window.contains(2.1));
     CHECK_FALSE(window.contains(1.89));
     CHECK_FALSE(window.contains(2.11));
+    CHECK_FALSE(window.contains(std::numeric_limits<double>::quiet_NaN()));
 }
 
 // The plan-13 effective-offset contract: the player's intent is the observed time minus the
@@ -71,8 +79,8 @@ TEST_CASE("Timing delta reports signed real milliseconds", "[core][scoring]")
     CHECK(timingDeltaMs(2.0, 2.0, 1.0) == Catch::Approx(0.0).margin(1e-9));
 }
 
-// End-to-end shift: a calibrated late observation lands exactly on the expected time, so the
-// window verdict and the recorded delta agree with what the player actually played.
+// End-to-end shift: after calibration a raw out-of-window observation lands inside the window
+// and records the player's genuine +50 ms lateness — verdict and delta agree on the same play.
 TEST_CASE("Calibration shift maps a late observation into the window", "[core][scoring]")
 {
     const HitWindow window =

@@ -10,7 +10,16 @@ contract with real-time-constant windows across playback speeds — with pure te
 `rock_hero_game_core_tests` (the plan's "first game test target" framing predates plans 20/21/26;
 the target already existed). Plan 22 Phase 1 defined the DetectionEvent value types first, as
 planned; Phase 2 consumes them. The full-mute matrix row below carries Gate A's vetting
-adjustment. Gate A presented, awaiting user sign-off.
+adjustment. **Amended same day after a three-pass max-effort review plus user decisions**
+(22's vetting record has the detection side): §6 overstrum policy reversed to GH streak-break
+behind a noise gate and one walk-back flag; §9 Phase 2 gained revoke-to-Armed, the
+evidence-gated lapse rule with MissNoPitchEvidence, the v1 mono chord rule (staged to
+PolyphonicSalience), legato PitchStep arming, the sustain trajectory tolerance, the display
+contract (committed-only counters), and the accuracy definition; Phase 3's schema gained
+missNoPitchEvidence, overstrumCount, and unmatchedOnsetCount; Phase 4 records GH's +1/−3 meter
+convention with chords as one meter unit. The ruleset grew sustain_tolerance_cents,
+overstrum_breaks_streak, overstrum_strength_threshold, and lapse_evidence_min_confidence — all
+still rh-score-1 (pre-ship). Gate A presented, awaiting user sign-off.
 
 ## 1. Goal
 
@@ -179,9 +188,19 @@ Decisions **established as normative by this plan** (restate when citing this pl
   responsiveness, late pitch evidence confirms or revokes them, and all authoritative accounting
   happens on a committed ledger (below). The displayed score may visibly self-correct on
   revocation; that is the honest cost of real-guitar physics and we do not hide it.
-- **Unmatched onsets are not penalized in ruleset v1.** Real guitars produce string noise, ghost
-  onsets, and mid-phrase mutes; GH-style overstrum penalties would punish normal playing. Logged
-  in the record, revisited by ruleset version if abuse appears.
+- **Overstrum breaks the streak in ruleset v1 (GH feel), behind a noise gate and one walk-back
+  flag** (user decision 2026-07-16, superseding the earlier no-penalty stance). A *qualifying*
+  unmatched onset — `Transient` origin, not strum-coalesced, strength ≥
+  `overstrum_strength_threshold` — resets the committed streak and applies the miss-sized meter
+  delta, exactly like GH's overstrum (hit +1 / miss-or-overstrum −3 needle steps in GH3). It
+  never marks any chart note missed and never counts against accuracy. The noise gate exists
+  because real guitars produce string noise, scrapes, and handling ghosts that must not kill
+  streaks: the strength threshold is tuned against plan 23's noise-floor fixtures before the
+  penalty is trusted, and `PitchStep` onsets never qualify (legato is not strumming). The whole
+  behavior is deliberately **one ruleset flag** (`overstrum_breaks_streak`) so it can be walked
+  back to RS-style no-penalty play with a version bump and zero state-machine changes. Every
+  unmatched onset (qualifying or not) is counted in the score record so the walk-back decision —
+  either direction — is made from recorded evidence.
 - **All tunables are ruleset-versioned**: hit windows, ladder thresholds, meter constants, star
   thresholds live in one `ScoringRuleset` value (initial id `rh-score-1`); any constant change
   bumps the version; every record carries it.
@@ -249,16 +268,17 @@ docs/plans/roadmap/25-note-highway-3d.md HUD requirement:
 ### Phase 1 — Scoring domain model and ruleset (gate-independent)
 
 **Scope**: pure value types and functions in rock-hero-game/core: `NoteVerdict` (hit, miss,
-onset-only-hit, revoked-wrong-pitch, with timing delta ms, detected pitch cents, confidence,
-sustain-held fraction), `ScoringRuleset` (versioned constants), timing-window math (expected
-note time from tempo map + calibration offsets per
-docs/plans/roadmap/13-audio-device-settings-and-calibration.md's contract), the GH ladder (1x/2x/3x/4x
-at streaks 0/10/20/30; star power doubles to 8x), base scoring (50/note; chords = sum of member
-notes; sustains 25 per beat pro-rated by held fraction), star thresholds on
-score/max-base-score ratio (v1 defaults 5★ ≥ 2.8, 4★ ≥ 2.0, 3★ ≥ 1.2, 2★ ≥ 0.6 — tunable by
-ruleset version). Default onset window ±100 ms around the calibrated expected time (ruleset
-constant), verdict timing delta always recorded signed (negative = early) for 27's tendency
-display.
+onset-only-hit, revoked-wrong-pitch, no-pitch-evidence lapse, with timing delta ms, detected
+pitch cents, confidence, sustain-held fraction), `ScoringRuleset` (versioned constants,
+including the sustain trajectory tolerance, the overstrum flag + strength gate, and the lapse
+evidence threshold), timing-window math (expected note time from tempo map + calibration
+offsets per docs/plans/roadmap/13-audio-device-settings-and-calibration.md's contract), the GH
+ladder (1x/2x/3x/4x at streaks 0/10/20/30; star power doubles to 8x), base scoring (50/note;
+chords = sum of member notes, so a 2-note chord banks 100 and a 3-note chord 150; sustains 25
+per beat pro-rated by held fraction), star thresholds on score/max-base-score ratio (v1
+defaults 5★ ≥ 2.8, 4★ ≥ 2.0, 3★ ≥ 1.2, 2★ ≥ 0.6 — tunable by ruleset version). Default onset
+window ±100 ms around the calibrated expected time (ruleset constant), verdict timing delta
+always recorded signed (negative = early) for 27's tendency display.
 **Files**: new `rock-hero-game/core/include/rock_hero/game/core/scoring/` headers +
 `rock-hero-game/core/src/scoring/` + `rock-hero-game/core/tests/` (new test target
 `rock_hero_game_core_tests`, replacing reliance on `placeholder.cpp`). Include form per
@@ -281,18 +301,46 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
 
 - `Pending → Armed` when the calibrated window opens.
 - `Armed + onset` (nearest-unclaimed matching by |timing delta|; simultaneous candidates
-  disambiguated by early pitch evidence when present) `→ Provisional` — streak/multiplier/HUD
-  update *optimistically*, score not banked.
+  disambiguated by early pitch evidence when present) `→ Provisional` — per-gem hit feedback
+  fires *optimistically*, score not banked. Legato-charted notes (Hammer/Pull/Tap) accept
+  `Transient` or `PitchStep` origin onsets; back-dated PitchStep timestamps make the same hit
+  window apply to both.
 - `Provisional + consistent pitch → Confirmed`; sustained notes proceed to `Holding` with
-  sustained-pitch tracking; drop banks partial sustain credit.
+  sustained-pitch tracking; drop banks partial sustain credit. Sustain "held" means the tracked
+  f0 stays within the ruleset's `sustain_tolerance_cents` of the **charted pitch trajectory** —
+  base pitch plus interpolated bend curve plus slide waypoints, with vibrato excursions allowed —
+  never the bare base pitch, so a correctly executed bend cannot dock its own sustain credit.
 - `Provisional + confident contradicting pitch → Revoked`: the onset is released and re-matched
-  against other `Armed` notes whose expected pitch fits (an early next note claims it);
-  otherwise the note commits as a miss (reason wrong-pitch).
-- `Provisional` deadline lapse (onset + per-tuning confirmation budget from
-  docs/plans/roadmap/22-note-detection.md Phase 1, no decisive pitch) → **confirm by default** (favor
-  the player; false positives beat false negatives for fun; ruleset-versioned policy). Full
-  mutes are onset-only by design and always resolve this way.
+  against other `Armed` notes whose expected pitch fits (an early next note claims it). **A
+  revoked note whose window is still open returns to `Armed`** — the player's real pick for it
+  may still be coming (one pick scrape must never convert a correctly played note into a miss);
+  it commits as MissWrongPitch only when its window closes unclaimed.
+- `Provisional` deadline lapse (onset + per-register confirmation budget from
+  docs/plans/roadmap/22-note-detection.md Phase 1, no decisive pitch) → **confirm by default,
+  evidence-gated** (ruleset-versioned policy): confirmation-by-lapse requires at least one
+  in-span pitch frame at or above `lapse_evidence_min_confidence` whose f0 is
+  octave-insensitively consistent with the expected pitch — favoring the player on weak evidence
+  (false positives beat false negatives for fun) while refusing to mint hits from silence.
+  Full-mute-charted notes are exempt (onset-only by design; they always lapse-confirm). A
+  pitched-charted note whose entire span shows no pitch evidence at all commits as
+  **MissNoPitchEvidence** — the anti-mash rule: rhythmic muted slapping produces onsets but no
+  periodicity, and without this gate it would five-star any chart.
 - `Armed` window close without onset `→ Missed`.
+- **Chords (v1 mono rule, staged per 22's matrix)**: one verdict per chord, timed from the strum
+  gesture's first onset (strum-coalesced trailing onsets never match other notes). A confirmed
+  f0 matching any member pitch (octave-insensitively) confirms the chord; a confident persistent
+  non-member revokes; otherwise the evidence-gated lapse rule applies against the member set.
+  When plan 23's member-verification P/R reaches the promotion trigger, `PolyphonicSalience`
+  evidence upgrades this to requiring ≥ 2 distinct non-octave member classes.
+- **Display contract** (the feel rule the ledger exists to serve): per-gem hit feedback is
+  optimistic (onset-time); the streak counter, multiplier, star-power meter, and failure meter
+  render **committed state only** — they trail by at most one confirmation budget, which is
+  imperceptible for counters ticking up, and they never roll back. A revocation surfaces as a
+  late miss cue on the gem, never as a decrement of any displayed counter. GH never took back a
+  streak; neither do we.
+- **Accuracy definition**: `accuracyPercent` counts Hit and HitOnsetOnly as hits over all chart
+  notes; MissNoPitchEvidence and both other miss codes count against it. Star-power phrase
+  completion requires committed hits (either hit code). Overstrums affect streak and meter only.
 
 **Committed ledger**: notes commit in chart order once terminal. Multiplier, streak, star-power
 gain, and the failure meter are computed **only over the committed sequence**; the displayed
@@ -307,10 +355,10 @@ docs/plans/roadmap/22-note-detection.md Phase 1 and co-authored there; chart fie
 |---|---|---|
 | Note onset+pitch | scored | Core verdict via state machine above |
 | Sustain | scored | Held fraction from sustained-pitch tracking; pro-rated credit |
-| Chords (simultaneous notes/shapes) | scored, lenient | One verdict per chord; hit when the detected pitch set is consistent (≥ 2 member pitches, no strong contradiction — thresholds from 22's contract); score = sum of member notes |
+| Chords (simultaneous notes/shapes) | scored, lenient | One verdict per chord, timed from the gesture's first onset; v1 mono rule — confirmed f0 matches any member (octave-insensitive), confident persistent non-member revokes, evidence-gated lapse otherwise; promotes to "≥ 2 distinct non-octave members present in `PolyphonicSalience`" at 22's measured trigger; score = sum of member notes (50 each: a 2-note chord banks 100, a 3-note chord 150) while staying ONE unit for streak, multiplier, and meter |
 | `NoteMute::Full` | scored (onset-only) | Onset timing scores; percussive-class evidence confirms early when present but is lenient (22's vetted contract: ~83% published prior, promotion trigger per-class P/R ≥ 0.90); absent class evidence resolves confirm-by-default at the deadline, and pitched evidence never revokes a mute-charted note |
 | `NoteMute::Palm` | scored, lenient | Pitch verdict as normal; damped-timbre check lenient |
-| `NoteAttack` Hammer/Pull/Tap | scored, lenient | Lowered onset-confidence threshold in-window; attack kind itself cosmetic |
+| `NoteAttack` Hammer/Pull/Tap | scored, lenient | Accepts `Transient` or `PitchStep` origin onsets (back-dated timestamps, same window); attack kind itself cosmetic |
 | `NoteAttack` Pop/Slap | scored | As normal notes; attack kind cosmetic |
 | Harmonics (Natural/Pinch, `touch`) | scored, lenient | Scored by resulting pitch; octave-error leniency |
 | Bends (`BendPoint` curves) | lenient | Onset+initial pitch scored; trajectory-to-target checked at ±50 cents when tracking is available, else cosmetic at v1 |
@@ -360,15 +408,21 @@ rock-hero-game/core:
   "integrity": { "cleanRun": true, "pauseCount": 0, "pausedTotalMs": 0.0 },
   "profileId": "<uuid, plan 27>",
   "result": { "score": 0, "maxStreak": 0, "accuracyPercent": 0.0, "stars": 0,
-              "failed": false, "completed": true, "starPowerDeployments": 0 },
+              "failed": false, "completed": true, "starPowerDeployments": 0,
+              "overstrumCount": 0, "unmatchedOnsetCount": 0 },
   "verdicts": [[0, "hit", -12.5, 6420, 0.93, 1.0], [1, "missNoOnset", null, null, null, 0.0]]
 }
 ```
 
 `verdicts` rows are `[noteIndex, verdictCode, timingDeltaMs, detectedPitchCents,
 confidence, sustainHeldFraction]`; verdict codes: `hit`, `hitOnsetOnly`, `missNoOnset`,
-`missWrongPitch` (revoked). Per-section aggregates are derived by 27 from verdicts + chart
-sections, not stored. Size: compact arrays keep dense charts in the low tens of KB — fine for
+`missWrongPitch` (revoked; detectedPitchCents records the contradicting pitch),
+`missNoPitchEvidence` (evidence-free deadline lapse — the anti-mash outcome).
+`accuracyPercent` counts `hit` + `hitOnsetOnly` over all notes. `overstrumCount` counts
+qualifying streak-breaking overstrums; `unmatchedOnsetCount` counts every unmatched onset
+including sub-threshold noise — together they are the recorded evidence for walking the
+overstrum policy in either direction by ruleset version. Per-section aggregates are derived by
+27 from verdicts + chart sections, not stored. Size: compact arrays keep dense charts in the low tens of KB — fine for
 local storage and upload. Chart hash/algorithm fields are written as `null` until
 docs/plans/roadmap/10-format-versioning-and-chart-identity.md lands, and the record format version does
 NOT change when they start being populated (nullable-by-design). The `integrity` object is the
@@ -386,7 +440,12 @@ reader policy); a full Phase 2 replay ends in a serialized record fixture.
 
 **Scope**: meter in [0, 1], start 0.5; v1 constants (ruleset-versioned): confirmed hit +0.005,
 committed miss −0.02, fail at 0 — tuned toward GH-expert feel via 23's replay harness against
-synthetic miss patterns, not vibes. No-fail ON by default: meter runs and displays but never
+synthetic miss patterns, not vibes. GH-authentic reference points (ScoreHero rock-meter
+documentation): GH3 moves the needle +1 step per hit and −3 per miss OR overstrum, per note
+*event* — a chord is ONE meter unit exactly as it is one streak unit, so missing a chord does
+not drain the meter more than missing a single note (only score scales with chord size); the v1
++0.005/−0.02 pair keeps a GH-like 1:4 asymmetry. A qualifying overstrum (§6) applies the same
+miss-sized delta. No-fail ON by default: meter runs and displays but never
 ends the song; `result.failed`/`modifiers.noFail` recorded. Failure evaluation reads only the
 committed ledger (Phase 2). If Q2 = yes, star-power deploy applies an immediate +0.15 and 2x
 meter gain while active (constants land in Phase 6; this phase leaves a named extension point).

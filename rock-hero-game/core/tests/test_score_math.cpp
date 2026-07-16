@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <limits>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/game/core/scoring/score_math.h>
 #include <rock_hero/game/core/scoring/scoring_ruleset.h>
@@ -7,7 +8,8 @@ namespace rock_hero::game::core
 {
 
 // The GH ladder under rh-score-1: 1x/2x/3x/4x at committed streaks 0/10/20/30, with each
-// threshold inclusive and the top rung open-ended.
+// threshold inclusive and the top rung open-ended. A pre-song negative streak can't exist, but
+// the math treats it as zero rather than misbehaving.
 TEST_CASE("Multiplier ladder rises at the committed streak thresholds", "[core][scoring]")
 {
     const ScoringRuleset ruleset{};
@@ -19,6 +21,19 @@ TEST_CASE("Multiplier ladder rises at the committed streak thresholds", "[core][
     CHECK(multiplierForStreak(ruleset, 29, false) == 3);
     CHECK(multiplierForStreak(ruleset, 30, false) == 4);
     CHECK(multiplierForStreak(ruleset, 500, false) == 4);
+    CHECK(multiplierForStreak(ruleset, -5, false) == 1);
+}
+
+// A ruleset with no thresholds is a degenerate but well-defined configuration: the ladder never
+// rises and the star award floors at one.
+TEST_CASE("Empty ruleset thresholds pin the ladder and star floors", "[core][scoring]")
+{
+    ScoringRuleset ruleset{};
+    ruleset.multiplier_streak_thresholds.clear();
+    ruleset.star_ratio_thresholds.clear();
+    CHECK(multiplierForStreak(ruleset, 1000, false) == 1);
+    CHECK(multiplierForStreak(ruleset, 1000, true) == 2);
+    CHECK(starsForScoreRatio(ruleset, 100.0) == 1);
 }
 
 // Star power doubles whatever rung the ladder is on, up to the GH-style 8x ceiling.
@@ -53,8 +68,22 @@ TEST_CASE("Sustain credit pro-rates by the held fraction", "[core][scoring]")
     CHECK(sustainScoreForHold(ruleset, common::core::Fraction{2, 1}, -0.5) == 0);
 }
 
+// A degenerate sustain tracker can emit 0/0: a non-finite held fraction earns nothing instead
+// of feeding lround an unspecified value (NaN passes std::clamp untouched).
+TEST_CASE("Non-finite held fractions earn no sustain credit", "[core][scoring]")
+{
+    const ScoringRuleset ruleset{};
+    CHECK(
+        sustainScoreForHold(
+            ruleset, common::core::Fraction{2, 1}, std::numeric_limits<double>::quiet_NaN()) == 0);
+    CHECK(
+        sustainScoreForHold(
+            ruleset, common::core::Fraction{2, 1}, std::numeric_limits<double>::infinity()) == 0);
+}
+
 // Star awards under rh-score-1: 2/3/4/5 stars at score-to-max-base ratios 0.6/1.2/2.0/2.8,
-// thresholds inclusive, with 1 star as the floor below every threshold.
+// thresholds inclusive, with 1 star as the floor below every threshold (including degenerate
+// negative or NaN ratios, which satisfy nothing).
 TEST_CASE("Star award counts the satisfied ratio thresholds", "[core][scoring]")
 {
     const ScoringRuleset ruleset{};
@@ -65,6 +94,15 @@ TEST_CASE("Star award counts the satisfied ratio thresholds", "[core][scoring]")
     CHECK(starsForScoreRatio(ruleset, 2.0) == 4);
     CHECK(starsForScoreRatio(ruleset, 2.8) == 5);
     CHECK(starsForScoreRatio(ruleset, 4.0) == 5);
+    CHECK(starsForScoreRatio(ruleset, -1.0) == 1);
+    CHECK(starsForScoreRatio(ruleset, std::numeric_limits<double>::quiet_NaN()) == 1);
+}
+
+// The default-constructed ruleset IS rh-score-1: the version string is part of the covenant
+// that any constant change bumps the version, so it is pinned like the constants themselves.
+TEST_CASE("Default ruleset carries the rh-score-1 version", "[core][scoring]")
+{
+    CHECK(ScoringRuleset{}.version == "rh-score-1");
 }
 
 } // namespace rock_hero::game::core

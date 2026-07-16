@@ -6,8 +6,9 @@ Gate B: algorithm/dependency selection sign-off ending Phase 3). Date: 2026-07-0
 event types + tests landed in game/core (the "first game test target" framing below is obsolete —
 `rock_hero_game_core_tests` already existed; the detection folder joined it), and the contract was
 adversarially vetted by the dsp-guitar-detection-expert agent with its adjustments folded into the
-budget, matrix, and metrics below (see "Phase 1 contract vetting record"). Gate A presented,
-awaiting user sign-off.
+budget, matrix, and metrics below, then amended the same day after a three-pass max-effort review
+(see "Phase 1 contract vetting record" for both rounds). Gate A presented, awaiting user
+sign-off.
 
 ## Goal
 
@@ -182,17 +183,47 @@ Mirrored into docs/plans/roadmap/00-roadmap.md Decisions-needed:
 
 1. **DetectionEvent types** as pure value headers in rock-hero-game/core, new feature folder
    `rock-hero-game/core/include/rock_hero/game/core/detection/`:
-   - Common timestamp: `input_stream_sample` (uint64, monotonic position in the *input* device
-     stream) + the stream sample rate. Song-time correlation is explicitly out of contract (plan
-     24 does it via plan 12's clock plus plan 13's offsets).
+   - Common timestamp: `input_stream_sample` (uint64, monotonic position on the pipeline's
+     *continuous virtual input stream*) + the stream sample rate. Song-time correlation is
+     explicitly out of contract (plan 24 does it via plan 12's clock plus plan 13's offsets).
+     A mid-session device restart (the Phase 2 tap's generation bump) rebases the virtual stream
+     so positions stay monotonic; events never carry a generation, and whether a run survives a
+     restart is the session's decision. Analysis-derived events (`PitchFrame`,
+     `PitchConfirmation`, `PolyphonicSalience`) are anchored at the **last sample the analysis
+     consumed** (the causal availability point) — never the window start or center — so latency
+     metrics and scoring deadlines are producer-independent.
    - `OnsetEvent`: strength [0,1]; spectral character `Pitched | Percussive | Unknown` (the
-     percussive class is how full mutes score without pitch).
+     percussive class is how full mutes score without pitch); origin
+     `Transient | PitchStep`. **Legato emission rule**: hammer-ons/pull-offs/taps often have no
+     pick transient, so when the sustained-pitch tracker observes a discrete f0 step (≥ 1
+     semitone within ≤ 2 hops, k consistent frames at the new pitch, no intermediate-glide
+     occupancy — glides are bends/slides, not steps) it publishes an OnsetEvent with
+     `origin = PitchStep`, `character = Pitched`, strength = step confidence, **back-dated to
+     the first frame of the new pitch**. A PitchStep onset is suppressed within 30 ms after a
+     Transient onset (the pick's own attack glide must not double-fire). **Strum-coalescing
+     rule**: transients within a 30 ms combine window (the literature's annotation/peak-picking
+     convention) belong to one gesture and publish one onset timestamped at the first transient
+     — chosen because 32nd notes at 240 BPM (31.25 ms) bound the fastest legitimate playing
+     from above; the tremolo re-onset threshold must stay ≥ 2× this window so the two constants
+     cannot drift into conflict. Known, honest bias: first-transient anchoring reads wide slow
+     strums up to ~10–20 ms early if the player centers them on the beat; visible in plan 27's
+     tendency data and re-centerable by a ruleset constant.
    - `PitchFrame`: periodic (per hop) f0 estimate in Hz, confidence [0,1], clarity/periodicity,
-     frame RMS — the tuner and sustain/bend tracking consume the stream form.
+     frame RMS — the tuner and sustain/bend tracking consume the stream form; hops are never
+     skipped (zero-confidence frames still flow), which is what makes scoring's evidence-gated
+     deadline decisions replay-deterministic.
    - `PitchConfirmation`: onset-associated confirmed pitch (f0, confidence, confirming-frame span)
      — what plan 24's provisional-hit state machine waits for.
-   - All types are serializable by design intent (plain values, no handles) so plan 23 can replay
-     event logs deterministically; the serialization format itself lands in plan 23.
+   - `PolyphonicSalience`: the chart-blind chord-evidence carrier — one snapshot per onset with
+     up to 8 detector-ranked (f0, salience) candidates (fixed array, unused slots zeroed).
+     Scoring checks charted member pitches against the candidate set; detection never sees the
+     chart, so replay logs stay re-scoreable against edited charts. Bound by the same
+     per-register confirmation targets as `PitchConfirmation` (a 2048-sample salience window at
+     48 kHz fits the E2 row; the 4096 window low registers need fits theirs).
+   - All types are serializable by design intent (plain values, no handles, trivially copyable
+     including the variant composite) so plan 23 can replay event logs deterministically; the
+     serialization format itself lands in plan 23 and must serialize field-wise (struct tail
+     padding is indeterminate).
 2. **Technique detectability matrix** (draft below) — co-authored with plan 24 Phase 1; the
    normative scored/lenient semantics live in 24, the acoustic-feasibility judgment lives here.
 3. **Dry-signal tap specification**: tap is mono, post-input-gain (so plan 13's gain calibration
@@ -206,11 +237,11 @@ wide tolerance / partial verification; Cosmetic = rendered but not verified at v
 |---|---|---|
 | Note onset/timing | Scored | Onset detection is the most reliable signal available (picked/plucked attacks; hammer/pull/tap notes take their row's lenient onset path) |
 | Single-note pitch | Scored | Sounding pitch only; string/fret identity is not observable |
-| Chords (multi-string) | Lenient | Onset + polyphonic salience check; exact voicing unverified |
+| Chords (multi-string) | Lenient (staged) | v1: onset + mono any-member rule — a confirmed f0 matching any chord member (octave-insensitively) confirms, a confident persistent non-member revokes, else deadline default. Promotion: when plan 23 measures member-verification P/R ≥ 0.90 per voicing class, the `PolyphonicSalience` evidence upgrades the rule to "≥ 2 distinct non-octave member pitch classes present, no confident non-member." Octave doublings are physics-unverifiable (every partial coincides), so octave-dyad chords always use the any-member rule; exact voicing stays unverified permanently |
 | Sustain hold | Scored | Sustained-pitch tracking with decay-aware confidence leniency |
 | Bend (`bend[]`) | Lenient | Endpoint pitch scored ± tolerance; curve shape cosmetic at v1 |
 | Slide waypoints | Lenient | Glide direction + terminal pitch; `unpitched` slides cosmetic |
-| Vibrato | Lenient | Periodic f0 modulation presence; needs ~2 modulation cycles, so only verifiable on sustains ≥ ~300 ms — shorter vibrato stays cosmetic; depth/rate unverified |
+| Vibrato | Lenient | Periodic f0 modulation presence; needs ~2 modulation cycles at the 4–7 Hz vibrato band, so only verifiable on sustains ≥ ~300–500 ms depending on rate — shorter vibrato stays cosmetic; depth/rate unverified |
 | Tremolo | Lenient | Re-onset rate above threshold; exact count unverified |
 | Hammer/Pull/Tap attack | Lenient | Pitch change without strong pick transient; picked also accepted |
 | Pop/Slap attack | Cosmetic | Spectral cues too rig-dependent at v1 |
@@ -237,19 +268,26 @@ includes `cent_offset` (-1200 cents is a validated, corpus-real practice — cha
 | B0 (5-string bass; 7-string at -1200c) | 30.9 Hz | 32.4 ms | 97 ms | ≤ 115 ms |
 
 Decomposition on top of the estimator window: attack-transient dead time (5–8 ms), hop quantum
-(5.3 ms at a 256-sample hop), analysis compute (budget ≤ 2 ms per hop), and multi-frame
-confirmation gating ((k−1) × hop when confirmation requires k agreeing hops; k = 1 at v1 until
-measurement argues otherwise). All targets are defined in **input-stream sample time** —
-confirmation-event sample position minus true onset sample position — so plan 23 measures them
-deterministically from replay logs. Device I/O buffering (device buffer plus driver safety
-offsets) affects only the player's wall-clock experience; it is plan 13's measured-calibration
-territory and is never assumed from the buffer size. Onset events do not wait for pitch:
-**onset p95 ≤ 15 ms** after the physical transient (sample time), which requires a strictly
-causal peak-picker — a single frame of lookahead spends 5.3 ms of that budget. The onset F1
-target and the onset latency target must be met simultaneously by one configuration, never traded
-against each other across separate runs. These two numbers — fast onset, slow pitch — are exactly
-why plan 24's provisional-hit state machine is mandatory, not optional: pitch confirmation on low
-strings consumes most of a GH-style hit window.
+(5.3 ms at a 256-sample hop **at 48 kHz** — every millisecond figure in this decomposition
+assumes that rate; at 44.1 kHz the same hop is 5.8 ms), analysis compute (budget ≤ 2 ms per
+hop), and multi-frame confirmation gating ((k−1) × hop when confirmation requires k agreeing
+hops; k = 1 at v1 until measurement argues otherwise). **Pre-stated tripwire**: the E2 row has
+zero slack for k ≥ 2 — if plan 23's octave-error measurements force k = 2, the E2 target is
+revised to ≤ 55 ms as a recorded budget revision, never discovered as a silent CI failure. All
+targets are defined in **input-stream sample time** — confirmation-event sample position minus
+true onset sample position — so plan 23 measures them deterministically from replay logs.
+Device I/O buffering (device buffer plus driver safety offsets) affects only the player's
+wall-clock experience; it is plan 13's measured-calibration territory and is never assumed from
+the buffer size. Onset events do not wait for pitch: **onset p95 ≤ 15 ms** after the physical
+transient (sample time), which requires a strictly causal peak-picker — a single frame of
+lookahead spends 5.3 ms of that budget. This 15 ms target applies to `Transient`-origin onsets
+only: a `PitchStep` (legato) onset cannot exist before the tracker re-locks on the new pitch, so
+its note-start latency is bounded by the new pitch's register row in the table above instead —
+back-dated timestamps keep its hit-window comparison honest. The onset F1 target and the onset
+latency target must be met simultaneously by one configuration, never traded against each other
+across separate runs. These two numbers — fast onset, slow pitch — are exactly why plan 24's
+provisional-hit state machine is mandatory, not optional: pitch confirmation on low strings
+consumes most of a GH-style hit window.
 
 **Accuracy metrics** (defined here; plan 23 measures every one of them in CI):
 
@@ -257,15 +295,26 @@ strings consumes most of a GH-style hit window.
   one-to-one counting (each annotation matched at most once; merged-onset counting inflates
   scores). ±25 ms is deliberate — the literature argues it over the older ±50 ms convention for
   online detection, and a rhythm game whose whole hit window is ~±100 ms cannot grade itself with
-  a ±50 ms ruler; F1 at ±50 ms is dual-reported for literature comparability only. Detection
-  latency distribution p50/p95 in sample time.
+  a ±50 ms ruler; F1 at ±50 ms is dual-reported for literature comparability only. **Chart notes
+  sharing a GridPosition collapse to one ground-truth onset** (the literature's
+  annotations-combined-within-30 ms convention) — otherwise a correctly merged six-string strum
+  scores five false negatives by definition. Legato note starts (hammer/pull/tap) count as onset
+  annotations, and P/R plus latency are reported per origin class (`Transient` vs `PitchStep`) —
+  the published soft-onset recall gap is precisely what the per-class split must expose.
+  Detection latency distribution p50/p95 in sample time.
 - Pitch: frame-level raw pitch accuracy (within ±50 cents of annotation, over voiced frames — the
   form sustain/bend tracking is graded on) and note-level confirmed-pitch accuracy (per onset —
   the form scoring is graded on), reported separately; gross-error rate; octave-error rate
   bucketed per register class — ≤ 2% is binding for E2+, and the E1/B0 buckets are provisional
   until plan 23's synthetic low-register sweeps set evidence-based bounds (octave errors
   concentrate exactly where fundamentals are weak); time-to-confirmation p50/p95 bucketed per
-  register class (E2+, B1, E1, B0).
+  register class (E2+, B1, E1, B0). The octave-error metric is also the arbiter of the k = 1
+  confirmation policy: single-hop confirmation forgoes the temporal smoothing that reduces
+  octave errors, so if ≤ 2% fails at k = 1, the k = 2 budget tripwire above fires — that loop is
+  closed by design, not accident.
+- Chord evidence: member-verification precision / recall per voicing class (power chords, octave
+  dyads, 4–6-string voicings reported separately) — the promotion trigger (≥ 0.90) for the
+  staged chord rule; plus `PolyphonicSalience` event latency per register.
 - Sustain: fraction of annotated sustain span with in-tolerance tracked f0.
 - Technique classifiers: per-class precision / recall (percussive-mute class, harmonic presence,
   vibrato presence, tremolo re-onset detection). The percussive-mute numbers carry the full-mute
@@ -303,6 +352,30 @@ Kawahara 2002 (YIN) and Mauch & Dixon 2014 (pYIN) for octave-error rates. Open v
 items carried into Phase 3 / plan 23: exact YIN gross-error tables (primary PDF unreachable
 during vetting), full-mute per-class P/R on our corpus (the promotion trigger), and sub-E2
 octave-error bounds from the synthetic sweeps.
+
+**Max-effort review amendments (2026-07-16, same day)** — before Gate A signature, three further
+independent adversarial passes ran (a second DSP literature pass with primary sources fetched, a
+full code review of the frozen headers, and a game-feel walkthrough of concrete scenarios), and
+their converged findings were folded into the contract: (1) `OnsetOrigin` (`Transient` /
+`PitchStep`) added with the legato emission rule, back-dating, per-register legato latency
+bounds, and per-origin metrics — a transient-only vocabulary could not hear hammer-ons at all
+(Collins ISMIR 2005: pitch-track segmentation beats energy detectors on soft onsets);
+(2) `PolyphonicSalience` frozen as the chart-blind chord-evidence carrier with the staged
+any-member → ≥ 2-distinct-members chord rule (real-time multi-f0 salience verified feasible:
+Dessein/Cont/Lemaitre ISMIR 2010 ran fixed-basis NMF 3× real time in MATLAB on 2010 hardware;
+octave members are physics-unverifiable — 2:1 partial coincidence is total); (3) the 30 ms
+strum-coalescing window with first-transient timestamps and the chord ground-truth collapse
+metric rule (Böck & Widmer DAFx-13 and madmom both combine onsets within 30 ms; 32nd notes at
+240 BPM bound legitimate playing at 31.25 ms); (4) analysis-event timestamps pinned to the
+last-consumed-sample anchor and stream positions defined on a continuous virtual stream across
+device restarts — both were producer-dependent ambiguities worth up to a full analysis window;
+(5) the 48 kHz decomposition assumption named, the vibrato bound corrected to ~300–500 ms
+(2 cycles at 4–7 Hz), and the k = 2 → E2 ≤ 55 ms tripwire pre-stated with the octave-error
+metric as its arbiter. Scoring-side counterparts (evidence-gated confirm-by-default, overstrum
+policy, revoke-to-Armed, committed-only display counters, sustain trajectory tolerance) are
+recorded in plan 24 §6/§9. New open items for plan 23: per-voicing chord member P/R (the
+promotion trigger), legato onset recall/latency on DI material, the strum-spread distribution of
+real players (does 30 ms cover p95?), and salience-event latency per register.
 
 **Files touched**: new headers under rock-hero-game/core include tree; new test target
 `rock_hero_game_core_tests` (first game test target; links `rock_hero::game::core` per the

@@ -45,12 +45,13 @@ playback speed), so it is scaled by the speed factor into song-time seconds: at 
 \param tempo_map Tempo map that resolves the note's musical position to song seconds.
 \param position Charted onset position of the note.
 \param ruleset Constants defining the real-time window half-width.
-\param speed_factor Playback speed multiplier; 1.0 is full speed, 0.5 is half speed.
+\param speed_factor Playback speed multiplier; 1.0 is full speed, 0.5 is half speed. Must be
+       positive — zero or negative speeds have no playback meaning and degenerate the window.
 \return The note's inclusive hit window in song-time seconds.
 */
 [[nodiscard]] HitWindow makeOnsetWindow(
     const common::core::TempoMap& tempo_map, common::core::GridPosition position,
-    const ScoringRuleset& ruleset, double speed_factor);
+    const ScoringRuleset& ruleset, double speed_factor) noexcept;
 
 /*!
 \brief Maps an observed onset time to the player's intended song time.
@@ -61,21 +62,22 @@ the speed factor into song-time seconds before subtracting.
 
 \param observed_song_seconds Playback-clock-correlated song time of the detected onset.
 \param audio_offset_ms Effective audio calibration offset in real milliseconds.
-\param speed_factor Playback speed multiplier; 1.0 is full speed, 0.5 is half speed.
+\param speed_factor Playback speed multiplier; 1.0 is full speed, 0.5 is half speed. Must be
+       positive.
 \return The intended song time in seconds, comparable against a note's hit window.
 */
 [[nodiscard]] double playedSongTime(
-    double observed_song_seconds, double audio_offset_ms, double speed_factor);
+    double observed_song_seconds, double audio_offset_ms, double speed_factor) noexcept;
 
 /*!
 \brief Computes the signed real-time timing error of a played note.
-
 \param expected_song_seconds The note's charted song time.
 \param played_song_seconds The player's calibrated intent time from playedSongTime().
-\param speed_factor Playback speed multiplier; 1.0 is full speed, 0.5 is half speed.
+\param speed_factor Playback speed multiplier; 1.0 is full speed, 0.5 is half speed. Must be
+       positive — this conversion divides by it.
 \return Timing error in real milliseconds; negative means the player was early.
 */
 [[nodiscard]] double timingDeltaMs(
-    double expected_song_seconds, double played_song_seconds, double speed_factor);
+    double expected_song_seconds, double played_song_seconds, double speed_factor) noexcept;
 
 } // namespace rock_hero::game::core

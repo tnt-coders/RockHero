@@ -1,6 +1,6 @@
 /*!
 \file onset_event.h
-\brief Detected attack transient in the live input stream (plan 22 detection contract).
+\brief Detected note-start event in the live input stream (plan 22 detection contract).
 */
 
 #pragma once
@@ -25,28 +25,58 @@ enum class OnsetCharacter
     Unknown
 };
 
-/*!
-\brief One detected attack transient, timestamped in input-stream sample time.
+/*! \brief How the detector observed a note start. */
+enum class OnsetOrigin
+{
+    /*! \brief A physical attack transient (picked, plucked, popped, slapped, or muted hit). */
+    Transient,
 
-Onsets are published as soon as the transient is detected and never wait for pitch evidence —
+    /*!
+    \brief A discrete step in the tracked pitch with no attack transient — legato playing.
+
+    Hammer-ons, pull-offs, and taps often produce no transient a flux detector can see; the
+    sustained-pitch tracker publishes the note start instead, back-dated to the first frame of
+    the new pitch. A pitch-step onset always carries Pitched character, is exempt from the
+    transient-onset latency target (it is bounded by the new pitch's register row in the
+    confirmation-budget table instead), and its strength is the step-decision confidence.
+    */
+    PitchStep
+};
+
+/*!
+\brief One detected note start, timestamped in input-stream sample time.
+
+Onsets are published as soon as the note start is detected and never wait for pitch evidence —
 the fast-onset/slow-pitch split is what makes scoring's provisional-hit state machine work.
-Timestamps are monotonic positions in the input device stream, never wall-clock time;
-correlating them to song time is the scoring consumer's job through the playback clock and the
-calibration offsets.
+Timestamps estimate the physical note-start position (back-dated for pitch-step onsets), are
+never wall-clock time, and live on the pipeline's continuous input stream (detection_event.h
+documents the stream and its device-restart semantics); correlating them to song time is the
+scoring consumer's job through the playback clock and the calibration offsets. Transients
+within the strum-coalescing window belong to one gesture and publish one onset, timestamped at
+the first transient.
 */
 struct OnsetEvent
 {
-    /*! \brief Monotonic position of the transient in the input device stream, in samples. */
+    /*! \brief Estimated note-start position in the pipeline's input stream, in samples. */
     std::uint64_t input_stream_sample{0};
 
     /*! \brief Input-stream sample rate in Hz, making the timestamp self-describing on replay. */
     double sample_rate_hz{0.0};
 
-    /*! \brief Normalized onset strength in [0, 1]. */
+    /*!
+    \brief Normalized onset strength in [0, 1].
+
+    Strength distributions are origin-specific (flux magnitude for transients, step-decision
+    confidence for pitch steps) and detector-defined but stable within one detection version, so
+    ruleset thresholds against strength are tuned per origin and per detection version.
+    */
     float strength{0.0F};
 
-    /*! \brief Spectral character classification of the transient. */
+    /*! \brief Spectral character classification of the note start. */
     OnsetCharacter character{OnsetCharacter::Unknown};
+
+    /*! \brief How this note start was observed; PitchStep implies Pitched character. */
+    OnsetOrigin origin{OnsetOrigin::Transient};
 
     /*!
     \brief Compares two onset events by their stored fields.
@@ -61,7 +91,8 @@ struct OnsetEvent
         // free with identical semantics (NaN compares unequal either way).
         return lhs.input_stream_sample == rhs.input_stream_sample &&
                std::is_eq(lhs.sample_rate_hz <=> rhs.sample_rate_hz) &&
-               std::is_eq(lhs.strength <=> rhs.strength) && lhs.character == rhs.character;
+               std::is_eq(lhs.strength <=> rhs.strength) && lhs.character == rhs.character &&
+               lhs.origin == rhs.origin;
     }
 };
 

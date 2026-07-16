@@ -9,7 +9,8 @@ namespace rock_hero::game::core
 
 // The ladder is 1 plus the number of satisfied ascending thresholds; star power multiplies the
 // ladder result rather than adding a rung, so a future ladder change composes with it unchanged.
-int multiplierForStreak(const ScoringRuleset& ruleset, int committed_streak, bool star_power_active)
+int multiplierForStreak(
+    const ScoringRuleset& ruleset, int committed_streak, bool star_power_active) noexcept
 {
     int satisfied = 0;
     for (const int threshold : ruleset.multiplier_streak_thresholds)
@@ -25,16 +26,24 @@ int multiplierForStreak(const ScoringRuleset& ruleset, int committed_streak, boo
 }
 
 // A chord is scored as the sum of its member notes; a single note is a one-member chord.
-int baseScoreForChord(const ScoringRuleset& ruleset, int member_note_count)
+int baseScoreForChord(const ScoringRuleset& ruleset, int member_note_count) noexcept
 {
     return ruleset.base_note_score * member_note_count;
 }
 
-// Pro-rated credit rounds to the nearest point so partial holds bank deterministic integers;
-// the clamp keeps tracker noise (a held fraction slightly past 1) from minting extra score.
+// Pro-rated credit rounds to the nearest point so partial holds bank deterministic integers.
 int sustainScoreForHold(
-    const ScoringRuleset& ruleset, common::core::Fraction sustain_beats, double held_fraction)
+    const ScoringRuleset& ruleset, common::core::Fraction sustain_beats,
+    double held_fraction) noexcept
 {
+    // A NaN fraction would sail through std::clamp (both comparisons false) into lround, whose
+    // result is unspecified — a 0/0 from a degenerate sustain tracker must earn nothing, not an
+    // arbitrary score. std::isfinite, not fmin/fmax: those would silently turn NaN into credit.
+    if (!std::isfinite(held_fraction))
+    {
+        return 0;
+    }
+    // The clamp keeps tracker noise (a held fraction slightly past 1) from minting extra score.
     const double clamped_fraction = std::clamp(held_fraction, 0.0, 1.0);
     const double credit = static_cast<double>(ruleset.sustain_score_per_beat) *
                           sustain_beats.toDouble() * clamped_fraction;
@@ -42,7 +51,7 @@ int sustainScoreForHold(
 }
 
 // Stars are 1 plus the number of satisfied ascending ratio thresholds.
-int starsForScoreRatio(const ScoringRuleset& ruleset, double score_to_max_base_ratio)
+int starsForScoreRatio(const ScoringRuleset& ruleset, double score_to_max_base_ratio) noexcept
 {
     int satisfied = 0;
     for (const double threshold : ruleset.star_ratio_thresholds)

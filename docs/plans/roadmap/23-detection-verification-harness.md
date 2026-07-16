@@ -199,7 +199,11 @@ Phase 6 needs 22's pipeline; Phase 7 needs Phase 6.
   DetectionEvent stream identical in shape to real detector output. Onset seconds come from
   `TempoMap::secondsAtNote(measure, beat, offset)`; technique-to-event mapping follows 22's
   detectability matrix (palm/full mutes → percussive classification, bends/slides/vibrato →
-  sustained-pitch trajectory samples at a configurable rate, chords → simultaneous events).
+  sustained-pitch trajectory samples at a configurable rate, hammer/pull/tap → PitchStep-origin
+  onsets with back-dated timestamps, chords → **one** strum-coalesced OnsetEvent per chord plus
+  per-member pitch evidence and a `PolyphonicSalience` snapshot — the bot must mirror the
+  detector's output shape exactly, or every scoring test exercises an event shape the real
+  pipeline never produces).
   Profiles: `Perfect` (zero jitter — demos, soak, 20's autoplay toggle) and `Humanized` (seeded
   RNG: gaussian timing jitter, fixed latency offset, miss probability, confidence spread) for
   scoring-robustness tests in 24. Deterministic for a fixed seed.
@@ -207,9 +211,10 @@ Phase 6 needs 22's pipeline; Phase 7 needs Phase 6.
   `rock-hero-game/core/tests/test_autoplay_event_source.cpp`.
 - **Public-header impact**: public in game/core — the game app's dev-diagnostics autoplay toggle
   (docs/plans/roadmap/20-game-architecture-and-render-stack.md) consumes it at runtime, not only tests.
-- **Testing plan**: event sample-times match `secondsAtNote` conversions within one sample; chord
-  onsets are simultaneous; every technique class in the detectability matrix produces its mapped
-  event kind; same seed → identical stream; serialized bot output round-trips through Phase 1.
+- **Testing plan**: event sample-times match `secondsAtNote` conversions within one sample; a
+  chord emits one onset (member evidence attached, never one onset per string); every technique
+  class in the detectability matrix produces its mapped event kind; same seed → identical
+  stream; serialized bot output round-trips through Phase 1.
 - **Exit criteria**: 24 can build its provisional-hit and scoring tests entirely on bot streams;
   a bot log for a generated chart is committed as a scoring-test fixture.
 - **Verification**:
