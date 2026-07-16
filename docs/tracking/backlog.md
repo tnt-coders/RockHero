@@ -14,9 +14,6 @@ entry when it's done — git history is the record.
   of a dependency clash with SDL3, but never filed the issue.
 - Evaluate error-header organization: whether each error type gets its own header, or each domain
   gets a single domain-level errors header, to keep error classification organized project-wide.
-- Add the missing chart-document version gate: `chart_document.cpp` writes `formatVersion: 1` but
-  `parseChartDocument` never checks it — the only format without a read-side gate, contradicting
-  the one-gate-per-format rule. Verified 2026-07-15.
 - Generate a modern-C++-expert agent aware of the latest C++ features — it should know the actual
   current standard but give advice for the C++ version the project actually uses.
 - Waveform drawing doesn't always finish before the project finishes loading — evaluate (may be
