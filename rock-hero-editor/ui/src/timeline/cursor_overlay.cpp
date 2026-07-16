@@ -3,16 +3,10 @@
 #include "shared/editor_theme.h"
 #include "timeline/timeline_cursor.h"
 
-#include <algorithm>
-#include <cmath>
 #include <utility>
 
 namespace rock_hero::editor::ui
 {
-
-// Alpha for the faint full-height lines marking song-section starts; the hue comes from the
-// theme's section-chip fill so a boundary reads as the same structure cue as the ruler's chips.
-constexpr float g_section_boundary_alpha{0.4f};
 
 // Starts vblank-driven cursor refresh against the injected read-only transport. The tempo map
 // used to snap clicks is referenced (not copied) from the owning view's state, which owns it and
@@ -45,25 +39,6 @@ void CursorOverlay::setGridNoteValue(common::core::Fraction grid_note_value) noe
 // Draws only the cursor; static waveform content remains in ArrangementView below it.
 void CursorOverlay::paint(juce::Graphics& g)
 {
-    // Section boundaries draw first so the transport cursor and any snap guide sit above them.
-    if (!m_section_boundaries.empty())
-    {
-        g.setColour(editorTheme().section_chip.withAlpha(g_section_boundary_alpha));
-        for (const double seconds : m_section_boundaries)
-        {
-            const std::optional<float> x = cursorXForTimelinePosition(
-                common::core::TimePosition{seconds}, m_visible_timeline, getWidth());
-            if (x.has_value())
-            {
-                // Snapped to the rounded pixel column — the same rounding the tempo-grid lines
-                // and the ruler's section chips use — so a boundary lands exactly on its grid
-                // column instead of antialiasing half a pixel beside it.
-                const int column = std::clamp(static_cast<int>(std::round(*x)), 0, getWidth() - 1);
-                g.fillRect(column, 0, 1, getHeight());
-            }
-        }
-    }
-
     drawTimelineCursor(g, *this, m_cursor_x, 0);
 
     if (m_snap_guide.has_value())
@@ -93,19 +68,6 @@ void CursorOverlay::setSnapGuide(std::optional<TimelineSnapGuide> guide)
     }
 
     m_snap_guide = std::move(guide);
-    repaint();
-}
-
-// Stores the section-start times pushed by EditorView::setState(), drawn as faint full-height
-// boundary lines so the song's structure reads against the notes.
-void CursorOverlay::setSectionBoundaries(std::vector<double> section_seconds)
-{
-    if (m_section_boundaries == section_seconds)
-    {
-        return;
-    }
-
-    m_section_boundaries = std::move(section_seconds);
     repaint();
 }
 

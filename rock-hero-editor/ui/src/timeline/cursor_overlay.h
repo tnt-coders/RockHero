@@ -84,12 +84,6 @@ public:
     void setSnapGuide(std::optional<TimelineSnapGuide> guide);
 
     /*!
-    \brief Stores the section-start times drawn as faint full-height boundary lines.
-    \param section_seconds Section-start times in ascending order; empty clears the lines.
-    */
-    void setSectionBoundaries(std::vector<double> section_seconds);
-
-    /*!
     \brief Installs the predicate that lets track-row pointer targets receive clicks.
 
     The overlay spans the whole canvas above every track row, so by default it consumes
@@ -147,10 +141,6 @@ private:
 
     // Transient snap guide reported by an active track-row drag, if one is showing.
     std::optional<TimelineSnapGuide> m_snap_guide{};
-
-    // Section-start times drawn as faint full-height boundary lines behind the cursor, so the
-    // song's structure reads against the notes; mapped to x per paint like the cursor.
-    std::vector<double> m_section_boundaries{};
 
     // Lets track-row pointer targets beneath the overlay receive clicks.
     std::function<bool(juce::Point<int>)> m_hit_test_pass_through;

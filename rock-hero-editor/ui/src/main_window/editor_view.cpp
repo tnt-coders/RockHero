@@ -611,8 +611,7 @@ void EditorView::setState(const core::EditorViewState& state)
     }
     m_track_viewport->setShapeLabels(std::move(shape_labels));
 
-    // The ruler's section chip row shows the song's section markers as a pinned marker lane; the
-    // cursor overlay draws the same starts as boundary lines through the notes.
+    // The ruler's section chip row shows the song's section markers as a pinned marker lane.
     std::vector<RulerSectionLabel> section_labels;
     section_labels.reserve(m_state.sections.size());
     for (const core::SongSectionView& section : m_state.sections)

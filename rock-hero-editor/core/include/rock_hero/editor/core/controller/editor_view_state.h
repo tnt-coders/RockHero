@@ -432,8 +432,8 @@ struct EditorViewState
     common::core::TempoMap tempo_map{};
 
     /*!
-    \brief Song-structure sections resolved to seconds for the ruler's section lane and the
-    cursor overlay's boundary lines; empty when the song defines none.
+    \brief Song-structure sections resolved to seconds for the ruler's section chip row; empty
+    when the song defines none.
     */
     std::vector<SongSectionView> sections{};
 
