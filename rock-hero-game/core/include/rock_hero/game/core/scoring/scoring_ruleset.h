@@ -99,13 +99,17 @@ struct ScoringRuleset
     /*!
     \brief Ascending score-to-max-base-score ratio thresholds that award stars.
 
-    Stars are 1 plus the number of satisfied thresholds, so `{0.6, 1.2, 2.0, 2.8}` awards
-    2 stars at a 0.6 ratio up through 5 stars at 2.8. Ratio stars are the whole scale: a strict
-    full combo (every note hit, zero qualifying overstrums) is a separate predicate the state
-    machine records as `fullCombo`, and presentation renders it as 5 GOLD stars — never a sixth
-    star, and never decided by a ratio.
+    Stars are the count of satisfied thresholds, so `{0.2, 0.6, 1.2, 2.0, 2.8}` awards 0 stars
+    below 0.2, then 1/2/3/4/5 stars at 0.2/0.6/1.2/2.0/2.8. The lowest cutoff makes 0 and 1 stars
+    reachable — in practice only in no-fail mode, since a fail-enabled run that would score that
+    low fails out before it can complete (plan 24 §6). A failed, incomplete run records 0 stars
+    by override at finalization, independent of these cutoffs. All five values are WoR-baseline
+    proxies (only the upper cutoffs have GH-era documentation; the 0.2 floor is RockHero's,
+    pending plan-23 tuning). Ratio stars cap at 5: a strict full combo (every note hit, zero
+    qualifying overstrums) is a separate predicate the state machine records as `fullCombo`, and
+    presentation renders it as 5 GOLD stars — never a sixth star, and never decided by a ratio.
     */
-    std::vector<double> star_ratio_thresholds{0.6, 1.2, 2.0, 2.8};
+    std::vector<double> star_ratio_thresholds{0.2, 0.6, 1.2, 2.0, 2.8};
 };
 
 } // namespace rock_hero::game::core

@@ -59,14 +59,16 @@ banks the partial credit earned before the drop.
 /*!
 \brief Resolves the ratio-based star award for a completed run.
 
-This is the whole 1–5 star scale. A strict full combo (every note hit, zero qualifying
-overstrums) is a separate machine-recorded predicate rendered as 5 GOLD stars by presentation —
-it never changes the count this function returns.
+This is the whole 0–5 star scale: 0 stars below the lowest cutoff (reachable only in no-fail
+mode, since a fail-enabled run scoring that low fails out first). A failed, incomplete run is
+recorded as 0 stars by override at finalization, not through this function. A strict full combo
+is a separate machine-recorded predicate rendered as 5 GOLD stars by presentation — it never
+changes the count this function returns.
 
 \param ruleset Constants defining the ascending ratio thresholds.
 \param score_to_max_base_ratio Final score divided by the chart's maximum base (unmultiplied)
        score.
-\return Stars from 1 (below every threshold) up to one more than the threshold count.
+\return Stars from 0 (below the lowest cutoff) up to the threshold count.
 */
 [[nodiscard]] int starsForScoreRatio(
     const ScoringRuleset& ruleset, double score_to_max_base_ratio) noexcept;

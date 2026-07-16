@@ -19,7 +19,14 @@ contract (committed-only counters), and the accuracy definition; Phase 3's schem
 missNoPitchEvidence, overstrumCount, and unmatchedOnsetCount; Phase 4 records GH's +1/−3 meter
 convention with chords as one meter unit. The ruleset grew sustain_tolerance_cents,
 overstrum_breaks_streak, overstrum_strength_threshold, and lapse_evidence_min_confidence — all
-still rh-score-1 (pre-ship). **Feel baseline named 2026-07-16: Guitar Hero Warriors of Rock**
+still rh-score-1 (pre-ship). **No-fail refinements (user, 2026-07-16):** no-fail is a separate
+scoring category recorded separately (`modifiers.noFail` is a partition key — plan 27 keys bests
+on fail-mode, plan 29 boards keep it a distinct modifier class); the star scale is now 0–5
+(`starsForScoreRatio` counts cutoffs `{0.2, 0.6, 1.2, 2.0, 2.8}` instead of flooring at 1), so
+0/1 stars are reachable on completed no-fail runs while a failed/incomplete run is 0★ by
+override; and `result.wouldHaveFailed` was added to the record so a no-fail run is
+self-describing about whether it was passing-grade. **Feel baseline named 2026-07-16: Guitar
+Hero Warriors of Rock**
 (user decision) — a sourced WoR mechanics survey confirmed the core economy matches what is
 built (50/note, chord = sum, 25/beat, 10/20/30 ladder, 25%/50%/2x SP, +1/−3 meter with
 overstrum penalty) and folded in the WoR deltas: SP refillable while active, measure-based
@@ -189,8 +196,24 @@ Downstream (consume this plan):
 Decisions **established as normative by this plan** (restate when citing this plan):
 
 - **No-fail is ON by default**; failing out is opt-in. No-fail runs are labeled in the score
-  record (`modifiers.noFail`); leaderboard eligibility is decided later by
-  docs/plans/roadmap/29-online-leaderboards.md, not here.
+  record (`modifiers.noFail`).
+- **No-fail runs are a separate scoring category, recorded separately** (user decision
+  2026-07-16). `modifiers.noFail` is a partition key, not merely a label: a no-fail run and a
+  fail-enabled run of the same chart never share a personal-best slot or a leaderboard entry.
+  Plan 27's local score store keys bests on fail-mode alongside chart/arrangement/profile/ruleset
+  (a no-fail best never overwrites a fail-enabled best); plan 29's boards treat no-fail as a
+  distinct modifier class, default-filtered out of the competitive (unmodified) board. This
+  firms up what plan 29 previously deferred ("eligibility decided later") into a normative
+  separation both consumers honor.
+- **Stars run 0–5, and 0/1 are reachable — in practice only in no-fail mode.** Stars on a
+  completed run are the count of satisfied ratio cutoffs (`{0.2, 0.6, 1.2, 2.0, 2.8}` → 0 below
+  0.2, then 1–5). A fail-enabled run scoring below the 1-star line fails out before it can
+  complete, so 0/1-star *completions* essentially only happen in no-fail, where the song always
+  finishes — exactly the "limp through a song you'd have failed" outcome the mode exists for. A
+  **failed, incomplete run records `stars: 0` by override** at finalization regardless of its
+  partial ratio (`failed: true`, `completed: false`); a full combo still renders 5 gold. The
+  0.2 floor and the 0–5 semantics live in `ScoringRuleset::star_ratio_thresholds` /
+  `starsForScoreRatio` (Phase 1, already built to this shape).
 - **The provisional-hit state machine (section 9, Phase 2) is mandatory, not optional.**
   Rationale, stated explicitly: "GH scoring exactly" assumes deterministic, instantaneous
   plastic-button events. Our observations are probabilistic and latency-delayed — low-string
@@ -292,16 +315,18 @@ evidence threshold), timing-window math (expected note time from tempo map + cal
 offsets per docs/plans/roadmap/13-audio-device-settings-and-calibration.md's contract), the GH
 ladder (1x/2x/3x/4x at streaks 0/10/20/30; star power doubles to 8x), base scoring (50/note;
 chords = sum of member notes, so a 2-note chord banks 100 and a 3-note chord 150; sustains 25
-per beat pro-rated by held fraction), star thresholds on score/max-base-score ratio (v1
-defaults 5★ ≥ 2.8, 4★ ≥ 2.0, 3★ ≥ 1.2, 2★ ≥ 0.6 — tunable by ruleset version). Star-system
-provenance under the WoR baseline: the 4★ = 2.0 / 5★ = 2.8 ratios are the documented GH-era
-values community-assumed to carry into WoR (never formally measured there — a recorded proxy);
-the 0.6 / 1.2 lower rungs are RockHero-chosen fill-ins for the sub-3★ floor the GH5/WoR system
-made possible (GH3 had no ratings below 3★). WoR additionally rewards a strict full combo —
+per beat pro-rated by held fraction), star thresholds on score/max-base-score ratio counted
+0–5 (v1 defaults 5★ ≥ 2.8, 4★ ≥ 2.0, 3★ ≥ 1.2, 2★ ≥ 0.6, 1★ ≥ 0.2, 0★ below 0.2 — tunable by
+ruleset version; a failed/incomplete run is 0★ by override). Star-system provenance under the
+WoR baseline: the 4★ = 2.0 / 5★ = 2.8 ratios are the documented GH-era values community-assumed
+to carry into WoR (never formally measured there — a recorded proxy); the 0.6 / 1.2 / 0.2 lower
+rungs are RockHero-chosen fill-ins for the sub-3★ floor the GH5/WoR system made possible (GH3
+had no ratings below 3★), with the 0.2 one-star cutoff making the 0/1-star no-fail floor
+reachable (§6). WoR additionally rewards a strict full combo —
 every note hit AND zero stray strums; per the user's decision (2026-07-16) RockHero renders
 that achievement as **5 GOLD stars** (the GH2-era presentation) rather than WoR's 6th star. The
 FC judgment is a predicate over the run (all verdicts hits, `overstrumCount == 0`), never a
-ratio threshold: the state machine sets `result.fullCombo`, ratio stars stay on the 1–5 scale
+ratio threshold: the state machine sets `result.fullCombo`, ratio stars stay on the 0–5 scale
 from `starsForScoreRatio`, and presentation renders 5 gold whenever `fullCombo` is true — a
 100% FC is by definition the maximum achievable score for that chart, so gold overrides the
 ratio count even on degenerate short charts whose maximum ratio sits below the 5★ threshold.
@@ -444,7 +469,7 @@ rock-hero-game/core:
   "integrity": { "cleanRun": true, "pauseCount": 0, "pausedTotalMs": 0.0 },
   "profileId": "<uuid, plan 27>",
   "result": { "score": 0, "maxStreak": 0, "accuracyPercent": 0.0, "stars": 0,
-              "fullCombo": false, "failed": false, "completed": true,
+              "fullCombo": false, "failed": false, "completed": true, "wouldHaveFailed": false,
               "starPowerDeployments": 0, "overstrumCount": 0, "unmatchedOnsetCount": 0 },
   "verdicts": [[0, "hit", -12.5, 6420, 0.93, 1.0], [1, "missNoOnset", null, null, null, 0.0]]
 }
@@ -454,13 +479,20 @@ rock-hero-game/core:
 confidence, sustainHeldFraction]`; verdict codes: `hit`, `hitOnsetOnly`, `missNoOnset`,
 `missWrongPitch` (revoked; detectedPitchCents records the contradicting pitch),
 `missNoPitchEvidence` (evidence-free deadline lapse — the anti-mash outcome).
-`accuracyPercent` counts `hit` + `hitOnsetOnly` over all notes. `result.stars` stays on the 1–5
-ratio scale; `result.fullCombo` is the strict-FC predicate (every verdict a hit AND
-`overstrumCount == 0` — WoR's stray-strum rule), and presentation renders 5 gold stars whenever
-it is true. `overstrumCount` counts qualifying streak-breaking overstrums; `unmatchedOnsetCount`
-counts every unmatched onset including sub-threshold noise — together they are the recorded
-evidence for walking the overstrum policy in either direction by ruleset version, and the FC
-predicate's input. Per-section aggregates are derived by
+`accuracyPercent` counts `hit` + `hitOnsetOnly` over all notes. `result.stars` is the 0–5 ratio
+count (0/1 reachable only on completed no-fail runs; a failed/incomplete run is 0 by override);
+`result.fullCombo` is the strict-FC predicate (every verdict a hit AND `overstrumCount == 0` —
+WoR's stray-strum rule), and presentation renders 5 gold stars whenever it is true.
+`result.wouldHaveFailed` is true when the committed failure meter reached zero at least once
+during the run: in fail mode it coincides with `failed`, and in no-fail mode it is the "you
+would have failed" signal the mode masked — it is what makes a no-fail record self-describing
+about whether it was passing-grade, following the same forward-looking-field precedent as the
+`integrity` object below. `modifiers.noFail` is a **partition key**, not just a label: no-fail
+records form a separate scoring category (§6) that plan 27's bests and plan 29's boards never
+intermix with fail-enabled runs. `overstrumCount` counts qualifying streak-breaking overstrums;
+`unmatchedOnsetCount` counts every unmatched onset including sub-threshold noise — together they
+are the recorded evidence for walking the overstrum policy in either direction by ruleset
+version, and the FC predicate's input. Per-section aggregates are derived by
 27 from verdicts + chart sections, not stored. Size: compact arrays keep dense charts in the low tens of KB — fine for
 local storage and upload. Chart hash/algorithm fields are written as `null` until
 docs/plans/roadmap/10-format-versioning-and-chart-identity.md lands, and the record format version does
@@ -489,14 +521,21 @@ Series documentation also has the meter recovering faster per hit while SP is ac
 WoR-authentic Q2 data point for the extension point below. A qualifying overstrum (§6) applies
 the same miss-sized delta. WoR-verification gaps recorded for tuning: exact WoR step weights
 and any difficulty scaling of the miss penalty are undocumented — the replay-harness tuning in
-this phase is the arbiter, not folklore precision. No-fail ON by default: meter runs and displays but never
-ends the song; `result.failed`/`modifiers.noFail` recorded. Failure evaluation reads only the
-committed ledger (Phase 2). If Q2 = yes, star-power deploy applies an immediate +0.15 and 2x
-meter gain while active (constants land in Phase 6; this phase leaves a named extension point).
+this phase is the arbiter, not folklore precision. No-fail ON by default: meter runs and
+displays but never ends the song; `result.failed`/`modifiers.noFail` recorded, and
+`result.wouldHaveFailed` is latched true if the committed meter ever reaches zero (the meter
+runs in both modes, so this signal is free). Because a no-fail run always completes, its stars
+are fully ratio-determined including the 0/1-star floor (§6) — a no-fail run whose meter
+bottomed out typically lands at 0 stars with `wouldHaveFailed: true`, the honest record of a
+song limped through. Failure evaluation reads only the committed ledger (Phase 2). If Q2 = yes,
+star-power deploy applies an immediate +0.15 and 2x meter gain while active (constants land in
+Phase 6; this phase leaves a named extension point).
 **Files/testing**: rock-hero-game/core + unit/replay tests (meter trajectories under fixture
-streams; no-fail never terminates).
+streams; no-fail never terminates; `wouldHaveFailed` latches on a zero-meter touch and the same
+fixture completes in no-fail with 0 stars).
 **Exit criteria**: an expert-shaped fixture (95% accuracy) never approaches fail; a sustained
-30%-accuracy fixture fails within ~40 committed notes with fail opt-in.
+30%-accuracy fixture fails within ~40 committed notes with fail opt-in, and the identical fixture
+in no-fail completes to the end with `wouldHaveFailed: true` and a 0-star result.
 **Verification**: same two invocations as Phase 2.
 
 ### Phase 5 — IMidiTrigger port and JUCE adapter (assumes Q3 = rock-hero-game/audio; Q5 = design-around)

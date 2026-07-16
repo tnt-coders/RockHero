@@ -263,8 +263,12 @@ Mirror all three into docs/plans/roadmap/00-roadmap.md Decisions-needed.
 
 - **Scope**: Append-only, crash-safe persistence and querying of finished-run score records.
   Key tuple: **(chart identity hash — docs/plans/roadmap/10; arrangement id — `Arrangement::id`; profile
-  id — Phase 1; scoring-ruleset version — docs/plans/roadmap/24)**. Layout (private to `src/`, documented
-  in the implementation, rebuildable by scan):
+  id — Phase 1; scoring-ruleset version — docs/plans/roadmap/24; fail-mode — `modifiers.noFail`)**.
+  Fail-mode is part of the best key per plan 24 §6's normative separation: a no-fail run and a
+  fail-enabled run of the same chart occupy distinct best slots and never overwrite each other
+  (`bestFor` takes the mode; history can still show both). Records themselves are stored
+  undivided — the partition is in the derived index, not the on-disk record layout. Layout
+  (private to `src/`, documented in the implementation, rebuildable by scan):
   - `<per-user app data>/Rock Hero/game/scores/<profileId>/records/<utcIso8601>-<uuid>.score.json`
     — the file bytes are exactly plan 24's serialized ScoreRecord, no store wrapper, so
     docs/plans/roadmap/29 uploads the file unchanged.
@@ -277,7 +281,9 @@ Mirror all three into docs/plans/roadmap/00-roadmap.md Decisions-needed.
   - Writes are atomic: temp file in the destination directory, then rename.
   - Retention: keep every record (a few KB each per plan 24); no pruning at v1.
   - Queries: `bestFor(key)`, `historyFor(key)`, `recentPlays(profileId, limit)`. Personal-best
-    comparisons are per ruleset version (older-ruleset records stay visible in history, labeled).
+    comparisons are per ruleset version AND per fail-mode (older-ruleset and cross-mode records
+    stay visible in history, labeled — a no-fail best is never presented as beating a
+    fail-enabled best or vice versa).
 - **Files/modules**: new `rock-hero-game/core/include/rock_hero/game/core/scores/
   {score_record_store.h, score_store_error.h}` + `rock-hero-game/core/src/scores/…`; consumes the
   ScoreRecord type from plan 24's game/core scoring module.

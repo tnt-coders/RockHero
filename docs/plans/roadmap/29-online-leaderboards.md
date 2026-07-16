@@ -134,8 +134,12 @@ Verified against code on 2026-07-06, refactor @ 3c7febe0.
 - The score record format is defined by docs/plans/roadmap/24-scoring-star-power-failure.md and the local
   score store in docs/plans/roadmap/27-in-song-flow-results-profiles.md is keyed so records upload
   unchanged; leaderboards add transport framing only.
-- No-fail is ON by default and runs are labeled (docs/plans/roadmap/24-scoring-star-power-failure.md);
-  boards therefore segregate or flag modifier classes rather than pretending all runs are equal.
+- No-fail is ON by default and runs are labeled (docs/plans/roadmap/24-scoring-star-power-failure.md
+  §6, which makes no-fail a normatively separate scoring category — not a "decide eligibility
+  later" question). No-fail is therefore a distinct `modifierClass`: its runs are never
+  intermixed with fail-enabled competitive scores on the unmodified board, matching plan 27's
+  per-fail-mode personal bests. Boards segregate or flag modifier classes rather than pretending
+  all runs are equal.
 - Corpus strategy: the 39-package .rock corpus and 101-file GP corpus are converted commercial
   content, local-only, never committed or shipped
   (docs/plans/roadmap/23-detection-verification-harness.md); this plan extends the same rule to the
