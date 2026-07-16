@@ -217,7 +217,7 @@ and \ref guide_add_file answers where its files live.
 | Give the engine a new audio capability | \ref guide_tracktion_adapter | \ref guide_add_port |
 | Touch project open/save/import/publish | \ref guide_project_lifecycle | its silent steps |
 | Change device routing or config persistence | \ref guide_audio_device | its silent steps |
-| Add or change persisted song/package data | \ref guide_package_format | its two-reader checklist |
+| Add or change persisted song/package data | \ref guide_file_formats | \ref guide_package_format |
 | Touch anything timing- or tempo-related | \ref guide_musical_time | \ref guide_2d_views |
 | Make something undoable | \ref guide_undo | its silent steps |
 | Build game-side behavior (menus, session, library) | \ref guide_game | the recipes it maps |
@@ -245,6 +245,7 @@ tours, then use the recipes as checklists while you work:
 - \subpage guide_audio_device — device routing, the settings sub-MVC, and the config stores.
   *(Editor + game)*
 - \subpage guide_project_lifecycle — open/save/import/publish and the dirty gate. *(Editor-only)*
+- \subpage guide_file_formats — every serialized format, field by field. *(Repo-wide)*
 - \subpage guide_musical_time — grid positions, the tempo map, and the playback clock.
   *(Repo-wide)*
 - \subpage guide_undo — the unified memento history and the engine's capture machinery.
