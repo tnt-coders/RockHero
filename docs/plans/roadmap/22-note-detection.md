@@ -910,8 +910,69 @@ Requirements the review must satisfy, in the user's terms:
    on target hardware as the final authority.
 
 A background research pass assembling the benchmark evidence and the custom-CQT variant analysis
-was started the same day; its findings append here as review-prep material when complete. Phase 6
-stays blocked; Phases 2, 4, and 5 are gate-independent and may proceed meanwhile.
+was started the same day; its findings follow as review-prep material. Phase 6 stays blocked;
+Phases 2, 4, and 5 are gate-independent and may proceed meanwhile.
+
+#### Review-prep evidence (2026-07-16, background pass — measured + published)
+
+Every number is tagged **[measured]** (run this session on the target machine, an i7-12700K),
+**[published]** (fetched source), or **[derived]** (arithmetic from a published/measured number).
+
+**Q1 — Is FFTW still the fastest FFT?** Answer: **no longer as an outright statement, and it does
+not matter at our scale.** Published cross-library data at our exact workload (1-D real-input
+single-precision single-threaded pow-2; hayguen/pffft_benchmarks, i7-8550U, real-f32 SIMD builds;
+µs per transform derived from the table's MFLOPS convention):
+
+| N | FFTW (measured plan) | FFTW (estimate plan) | pffft (ordered) | pffft (unordered) | pocketfft | KissFFT | FFTPACK (scalar) |
+|---|---|---|---|---|---|---|---|
+| 2048 | **2.10 µs** | 2.77 µs | 2.16 µs | **1.93 µs** | 6.44 µs | 9.91 µs | 6.66 µs |
+| 4096 | *(not run)* | 5.95 µs | 4.95 µs | **4.43 µs** | 13.5 µs | 27.0 µs | 18.0 µs |
+| 8192 | *(not run)* | 14.2 µs | 14.9 µs | **13.6 µs** | 32.9 µs | 46.1 µs | 35.0 µs |
+
+Caveats: the FFTW measured-plan column stops at 2048 in that dataset (estimate plans understate
+FFTW by ~32% there — wisdom-equipped FFTW plausibly ties/beats pffft at 4096–8192). Separately,
+project-gemmi/benchmarking-fft [published] puts **MKL ~50% ahead of FFTW** on x86 (gratis,
+closed, x86-only — forecloses ARM/Apple portability); KFR claims parity but no independent
+numbers at our sizes were obtainable. Measured anchor on the target 12700K [measured]:
+numpy/pocketfft rfft f32 = 15.9/29.2/63.9 µs at 2048/4096/8192 (upper bound for a scalar-ish
+library here). The JUCE FFTFallback has no published benchmark (stays a plan-23 microbench item)
+but bounds to ~6–40 µs per transform on this machine [derived: FFTPACK-class scalar arithmetic
+at complex-N op counts] — **nothing contradicts the memo's 0.05–0.30 ms brackets; they are
+conservative by ~3–8×**. Bottom line: the single-thread pow-2 real-f32 crown belongs to
+platform-specialized SIMD (MKL on x86, vDSP on Apple) with pffft the portable BSD-ish runner-up
+and FFTW the fastest fully portable plan-adaptive library; the entire top tier is within 2× of
+itself while sitting 3–30× beyond our need. §1a's selection stands; pffft stays the hatch.
+
+**Q2 — Custom/modified CQT: definitive ruling.** The deciding principle [fundamental]: window
+length buys *resolution* (separating two hypothetical adjacent tones); it is not needed for
+*estimation* (localizing one present tone — interpolation does that to cents on short windows)
+nor for *discrimination via harmonics* (adjacent-semitone hypotheses displace the k-th partial
+by k× the fundamental spacing). Every CQT variant spends latency on per-bin resolution at the
+fundamental — the one thing no consumer of ours needs. The variant space, priced:
+
+| Variant | Latency at E2/B1/E1/B0 | Resolution retained | Accuracy gain over the selected hybrid | Verdict |
+|---|---|---|---|---|
+| Textbook CQT/VQT (q=1, B=12) | 204/273/408/544 ms windows | full semitone | n/a — 2–5× over every budget | Out (physics, §1b) |
+| Reduced-q fitting the budget | fits by construction | **3.8–4.3-semitone bins** (2.0–2.3 at charitable N_k/2 accounting); [measured]: a semitone two-tone pair merges into ONE peak at all four registers under budget-length Hann windows | none — coarser than the filterbank already selected | **Out** |
+| VQT with per-register γ (AES-2014) | fits by construction | **5.9–6.8-semitone bins** — γ is the knob that CONCEDES selectivity, not an escape from uncertainty | none | **Out** |
+| Sparse-kernel (Brown & Puckette 1992) / sliding CQT | **identical to the underlying (q, B)** — realization changes FLOPs, never atom support/group delay | same as underlying | none — compute was never binding (µs-class per Q1) | **Out, categorically** |
+| Multi-resolution CQT pyramid | semitone Q only above 146–336 Hz; below → the rows above | degenerate at our registers | **none demonstrated** — a CQT is a linear re-binning of the same STFT data; Klapuri's linear-STFT salience already matched his full auditory model (§7 pins) | **Out** — the selected hybrid IS the pyramid, minus the useless low bins |
+| Zero-padded STFT + parabolic interpolation (already selected) | 85 ms (existing 4096 path) | [measured] ≤ 2.7 cents worst-case localization at 30.9 Hz; 1.2 cents at 40–55 Hz; 0.7 above — **19–55× inside** the ±half-semitone assignment margin | n/a — this is the cheap alternative, and it meets the need | **In — already selected** |
+
+**Ruling: no CQT variant — textbook, reduced-q, per-register-γ VQT, sparse-kernel, sliding, or
+pyramid — wins anywhere in the contract, including the E1/B0 slack rows the memo had flagged for
+a possible VQT revisit.** That flagged candidate is now priced: a ~90 ms E1 VQT snapshot delivers
+4.1-semitone-wide bins — unable to say which chord member sounded — while measured interpolation
+on the existing STFT already localizes low tones to ~3 cents and harmonic summation supplies the
+semitone discrimination from upper partials. Consequently the §1b revisit trigger is **amended**:
+if low-register chord-member P/R ever stalls in plan 23, the latency-legal remedy is a **longer
+post-confirmation verification window on the sustain** (sustains outlive the confirmation budget;
+no contract row binds a secondary late snapshot) — not a CQT front-end at any q.
+
+Remaining open items for the review session: JUCE FFTFallback exact per-transform cost on target
+(plan-23 microbench, already the gate); FFTW-PATIENT vs pffft at 4096/8192 (only relevant if the
+pffft hatch fires — add both to the microbench then); KFR (no independent data; same license
+class as FFTW; ignore unless a dependency review reopens).
 
 ### Phase 4 — Tuning pitch math in common/core (pure)
 
