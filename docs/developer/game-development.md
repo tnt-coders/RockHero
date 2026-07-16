@@ -24,6 +24,11 @@ it does not edit it.
   audio adapter yet; planned analysis work (pitch/onset detection) will live there.
 - **`rock-hero-game/app/main.cpp`** composes it all: one `Engine`, the session, the window.
 
+*Design in flux: today the game shell constructs its own adapters and resources; it is decided
+(`docs/tracking/watch-items.md`) that composition moves to `app/main.cpp` with plan 21 Phase 6,
+leaving the shell only the frame loop and input wiring. Don't build against the current
+composition shape.*
+
 # Which recipes apply here
 
 - \ref guide_add_port — fully. The game consumes the ports, and its session fakes (in

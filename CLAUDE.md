@@ -151,9 +151,10 @@ Consult these documents per the [Bootstrap Rules](#bootstrap-rules) above:
 
 `docs/design/index.md` is a table of contents that links the above.
 
-Separately, **`docs/guide/`** is the developer guide: plain-language concept introductions and
-procedural checklists for common changes (new editor action, port method, UI view, package-format
-field), with `docs/guide/index.md` as the hub. It is NOT a source of truth for rules — the design
+Separately, **`docs/developer/`** is the developer guide: plain-language concept introductions, area
+tours (the 2D timeline views, the shared 3D highway, the game side), a design-pattern catalog
+with code exemplars, and procedural checklists for common changes (new editor action, port
+method, UI view, package-format field), with `docs/developer/index.md` as the hub. It is NOT a source of truth for rules — the design
 documents above always win — but consult its recipe checklists when making one of the changes
 they cover, especially the "silent steps" lists of touchpoints that produce no compile error when
 forgotten. `CONTRIBUTING.md` at the repository root is the human-facing entry point that links
@@ -191,7 +192,7 @@ Keep `docs/design/` documents aligned with implemented architecture and durable 
 Before making any significant rule or architecture change in `docs/design/`, confirm with the user
 that they intend to change the design rather than merely make a local implementation adjustment.
 
-`docs/guide/` is maintained like `docs/design/`: if a change touches any file, function, or step
+`docs/developer/` is maintained like `docs/design/`: if a change touches any file, function, or step
 the developer guide names, update the guide in the same change set.
 
 ## Build Commands
