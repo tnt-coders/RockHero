@@ -21,6 +21,7 @@
 #include <rock_hero/editor/core/signal_chain/signal_chain_view_state.h>
 #include <rock_hero/editor/core/tab/tab_view_state.h>
 #include <rock_hero/editor/core/timeline/arrangement_view_state.h>
+#include <rock_hero/editor/core/timeline/section_view_state.h>
 #include <rock_hero/editor/core/tone/tone_automation_view_state.h>
 #include <rock_hero/editor/core/tone/tone_track_view_state.h>
 #include <rock_hero/editor/core/tone_designer/tone_designer_view_state.h>
@@ -429,6 +430,12 @@ struct EditorViewState
 
     /*! \brief Song-level tempo map used to render the editor beat grid. */
     common::core::TempoMap tempo_map{};
+
+    /*!
+    \brief Song-structure sections resolved to seconds for the ruler's section lane and the
+    cursor overlay's boundary lines; empty when the song defines none.
+    */
+    std::vector<SongSectionView> sections{};
 
     /*!
     \brief Grid step as a fraction of a whole note, shared by the track grid, ruler, and snapping.

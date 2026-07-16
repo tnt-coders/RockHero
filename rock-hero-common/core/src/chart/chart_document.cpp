@@ -474,26 +474,6 @@ std::expected<Chart, ChartError> parseChartDocument(const std::string& text)
         }
     }
 
-    const juce::var& sections_json = Json::value(root, "sections");
-    if (sections_json.isArray())
-    {
-        chart.sections.reserve(static_cast<std::size_t>(sections_json.size()));
-        for (int index = 0; index < sections_json.size(); ++index)
-        {
-            const juce::var& section_json = sections_json[index];
-            auto position = readPosition(section_json);
-            if (!position.has_value())
-            {
-                return std::unexpected{std::move(position.error())};
-            }
-            chart.sections.push_back(
-                ChartSection{
-                    .position = *position,
-                    .name = Json::readOptionalString(section_json, "name", ""),
-                });
-        }
-    }
-
     return chart;
 }
 
@@ -556,13 +536,6 @@ std::string chartDocumentText(const Chart& chart)
         {
             line += R"(, "width": )" + std::to_string(fhp.width);
         }
-        line += " }";
-        return line;
-    });
-    append_array("sections", chart.sections, [](const ChartSection& section) {
-        std::string line =
-            R"({ "position": ")" + formatGridPositionToken(section.position) + R"(", "name": )";
-        appendJsonString(line, section.name);
         line += " }";
         return line;
     });

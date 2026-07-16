@@ -185,6 +185,7 @@ std::expected<common::core::Song, SongImportError> GpSongImporter::importSong(
     common::core::Song song;
     song.metadata = std::move(built->metadata);
     song.tempo_map = std::move(built->tempo_map);
+    song.sections = std::move(built->sections);
     for (GpBuiltArrangement& arrangement : built->arrangements)
     {
         const std::string id = common::core::generatePackageId();

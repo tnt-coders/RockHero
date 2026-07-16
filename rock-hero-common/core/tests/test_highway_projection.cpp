@@ -5,8 +5,10 @@
 #include <rock_hero/common/core/highway/highway_projection.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/common/core/song/arrangement.h>
+#include <rock_hero/common/core/song/song.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <utility>
+#include <vector>
 
 namespace rock_hero::common::core
 {
@@ -20,8 +22,16 @@ namespace
     return TempoMap::defaultMap(TimeDuration{16.0});
 }
 
+// Song-level section markers passed beside the arrangement, as the callers pass Song::sections.
+[[nodiscard]] std::vector<SongSection> makeHighwaySections()
+{
+    return {
+        SongSection{.position = GridPosition{.measure = 2, .beat = 1}, .name = "verse"},
+    };
+}
+
 // Mirrors the editor tab-projection fixture (chord pair, sustained slide/bend note, shape spans,
-// one FHP) plus a harmonic touch position and a section marker for the highway-only fields.
+// one FHP) plus a harmonic touch position for the highway-only fields.
 [[nodiscard]] Arrangement makeArrangementWithChart()
 {
     Chart chart;
@@ -85,9 +95,6 @@ namespace
     chart.fret_hand_positions = {
         FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 1, .width = 4},
     };
-    chart.sections = {
-        ChartSection{.position = GridPosition{.measure = 2, .beat = 1}, .name = "verse"},
-    };
 
     return Arrangement{
         .id = "4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4",
@@ -110,7 +117,8 @@ namespace
 TEST_CASE("Highway projection resolves chart positions to seconds", "[core][highway]")
 {
     const TempoMap tempo_map = makeHighwayTempoMap();
-    const HighwayViewState state = makeHighwayViewState(makeArrangementWithChart(), tempo_map, {});
+    const HighwayViewState state =
+        makeHighwayViewState(makeArrangementWithChart(), tempo_map, makeHighwaySections(), {});
 
     CHECK(state.string_count == 6);
     REQUIRE(state.notes.size() == 4);
@@ -171,7 +179,10 @@ TEST_CASE("Highway projection pads the displayed string count", "[core][highway]
 
     // Chart has six strings; ask for eight displayed lanes → a shift of two.
     const HighwayViewState padded = makeHighwayViewState(
-        makeArrangementWithChart(), tempo_map, HighwayDisplayOptions{.minimum_string_count = 8});
+        makeArrangementWithChart(),
+        tempo_map,
+        {},
+        HighwayDisplayOptions{.minimum_string_count = 8});
     CHECK(padded.string_count == 8);
     REQUIRE(padded.notes.size() == 4);
     // Chart strings 1 and 2 (the chord at measure 2) become displayed lanes 3 and 4.
@@ -184,7 +195,10 @@ TEST_CASE("Highway projection pads the displayed string count", "[core][highway]
 
     // A minimum at or below the chart count leaves everything unshifted.
     const HighwayViewState unshifted = makeHighwayViewState(
-        makeArrangementWithChart(), tempo_map, HighwayDisplayOptions{.minimum_string_count = 4});
+        makeArrangementWithChart(),
+        tempo_map,
+        {},
+        HighwayDisplayOptions{.minimum_string_count = 4});
     CHECK(unshifted.string_count == 6);
     CHECK(unshifted.notes[0].string == 1);
 }
@@ -194,7 +208,8 @@ TEST_CASE("Highway projection pads the displayed string count", "[core][highway]
 TEST_CASE("Highway projection resolves the beat grid with downbeats", "[core][highway]")
 {
     const TempoMap tempo_map = makeHighwayTempoMap();
-    const HighwayViewState state = makeHighwayViewState(makeArrangementWithChart(), tempo_map, {});
+    const HighwayViewState state =
+        makeHighwayViewState(makeArrangementWithChart(), tempo_map, {}, {});
 
     const auto expected_count = static_cast<std::size_t>(tempo_map.terminalGlobalBeatIndex()) + 1;
     REQUIRE(state.beats.size() == expected_count);
@@ -211,19 +226,22 @@ TEST_CASE("Highway projection resolves the beat grid with downbeats", "[core][hi
     }
 }
 
-// Without a chart the projection returns an empty state (beat bars included: no chart, no board).
+// Without a chart the projection returns an empty board (beat bars included: no chart, no
+// board), but the song-level sections still resolve — they describe the song, not the chart.
 TEST_CASE("Highway projection is empty without a chart", "[core][highway]")
 {
     Arrangement arrangement = makeArrangementWithChart();
     arrangement.chart.reset();
 
-    const HighwayViewState state = makeHighwayViewState(arrangement, makeHighwayTempoMap(), {});
+    const HighwayViewState state =
+        makeHighwayViewState(arrangement, makeHighwayTempoMap(), makeHighwaySections(), {});
     CHECK(state.string_count == 0);
     CHECK(state.notes.empty());
     CHECK(state.shapes.empty());
     CHECK(state.fret_hand_positions.empty());
     CHECK(state.beats.empty());
-    CHECK(state.sections.empty());
+    REQUIRE(state.sections.size() == 1);
+    CHECK(state.sections[0].name == "verse");
 }
 
 // The lefty mirror is a pure fret-axis reflection: mirrored X is the negation of unmirrored X

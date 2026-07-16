@@ -195,12 +195,12 @@ public:
     void setShapeLabels(std::vector<RulerShapeLabel> labels);
 
     /*!
-    \brief Forwards the chart-derived section names to the pinned ruler's top band and their start
-    times to the cursor overlay's boundary lines.
+    \brief Forwards the song's section names to the pinned ruler's top band and their start times
+    to the cursor overlay's boundary lines.
 
-    Section names are tablature-projection data rendered on the ruler's pinned surface, exactly as
-    the chord/arpeggio chips are; the overlay draws the same starts as faint full-height lines so
-    the structure reads against the notes.
+    Section names are song-level view data rendered on the ruler's pinned surface, exactly as the
+    tempo and signature bands render tempo-map data; the overlay draws the same starts as faint
+    full-height lines so the structure reads against the notes.
 
     \param labels Section names in ascending start order; empty clears both.
     */

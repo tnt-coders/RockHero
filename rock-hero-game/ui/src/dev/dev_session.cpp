@@ -234,6 +234,7 @@ std::optional<common::core::HighwayViewState> DevSession::loadViewState()
         common::core::HighwayViewState state = common::core::makeHighwayViewState(
             *chosen,
             song->tempo_map,
+            song->sections,
             common::core::HighwayDisplayOptions{.mirrored = m_lefty, .invert_string_order = true});
         RH_LOG_INFO(
             "game.highway",

@@ -195,6 +195,11 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(song->tempo_map.secondsAtBeat(1, 1) == Catch::Approx(0.0));
     CHECK(song->tempo_map.secondsAtBeat(2, 1) == Catch::Approx(2.0));
 
+    // Master-bar section markers hoist to the song level rather than into each track's chart.
+    REQUIRE(song->sections.size() == 1);
+    CHECK(song->sections[0].position == GridPosition{.measure = 1, .beat = 1});
+    CHECK(song->sections[0].name == "verse");
+
     REQUIRE(song->arrangements.size() == 1);
     const common::core::Arrangement& arrangement = song->arrangements.front();
     CHECK(arrangement.part == common::core::Part::Lead);
@@ -210,8 +215,6 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     const common::core::Chart& chart = requiredChart(arrangement);
     CHECK(chart.tuning.strings == std::vector<std::string>{"E2", "A2", "D3", "G3", "B3", "E4"});
     CHECK(chart.tuning.capo == 2);
-    REQUIRE(chart.sections.size() == 1);
-    CHECK(chart.sections[0].name == "verse");
 
     REQUIRE(chart.notes.size() == 5);
 

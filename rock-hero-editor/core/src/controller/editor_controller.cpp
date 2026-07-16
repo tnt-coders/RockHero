@@ -16,6 +16,7 @@
 #include "signal_chain/signal_chain_edits.h"
 #include "signal_chain/signal_chain_workflow.h"
 #include "tab/tab_projection.h"
+#include "timeline/section_projection.h"
 #include "tone/tone_automation_projection.h"
 #include "tone/tone_track_projection.h"
 
@@ -2076,6 +2077,9 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.audio_device_failure_prompt = m_audio_device_failure_prompt;
     state.visible_timeline = timeline_range;
     state.tempo_map = session().song().tempo_map;
+    // Song-level, so they resolve here rather than in the per-arrangement tab projection; the
+    // list is small enough that per-push resolution needs no memoization.
+    state.sections = makeSongSectionViews(session().song().sections, state.tempo_map);
     state.grid_note_value = m_grid_note_value;
     state.timeline_zoom_pixels_per_second = m_timeline_zoom_pixels_per_second;
     state.waveform_visible = m_waveform_visible;
@@ -2151,6 +2155,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
                 common::core::makeHighwayViewState(
                     *arrangement,
                     state.tempo_map,
+                    session().song().sections,
                     common::core::HighwayDisplayOptions{
                         .mirrored = false,
                         .invert_string_order = true,

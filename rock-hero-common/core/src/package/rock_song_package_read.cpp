@@ -414,6 +414,62 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
     return tempo_map;
 }
 
+// Reads the optional song-structure section markers and validates them against the tempo map.
+[[nodiscard]] std::expected<std::vector<SongSection>, SongPackageError> readSections(
+    const juce::var& song_document, const TempoMap& tempo_map)
+{
+    std::vector<SongSection> sections;
+    const juce::var& sections_json = Json::value(song_document, "sections");
+    if (sections_json.isVoid() || sections_json.isUndefined())
+    {
+        return sections;
+    }
+
+    if (!sections_json.isArray())
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidSongDocument,
+            "song.json sections must be an array when present",
+        }};
+    }
+
+    sections.reserve(static_cast<std::size_t>(sections_json.size()));
+    for (const juce::var& section_json : *sections_json.getArray())
+    {
+        const auto position_text = Json::tryReadString(section_json, "position");
+        const auto name = Json::tryReadString(section_json, "name");
+        if (!section_json.isObject() || !position_text.has_value() || !name.has_value() ||
+            name->empty())
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidSongDocument,
+                "sections entries require a position and a non-empty name",
+            }};
+        }
+
+        const auto position = parseGridPositionToken(*position_text);
+        if (!position.has_value() || !isValidGridPosition(*position, tempo_map))
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidSongDocument,
+                "sections position is invalid: " + *position_text,
+            }};
+        }
+
+        if (!sections.empty() && *position < sections.back().position)
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidSongDocument,
+                "sections must be sorted at " + *position_text,
+            }};
+        }
+
+        sections.push_back(SongSection{.position = *position, .name = std::move(*name)});
+    }
+
+    return sections;
+}
+
 // Reads one arrangement's optional authored tone track and validates it against the tempo map.
 // The persisted form is a flat "toneChanges" array whose entries reference catalog tones by UUID;
 // region ids are session-scoped and minted here rather than persisted.
@@ -1015,6 +1071,12 @@ std::expected<Song, SongPackageError> readRockSongPackageDirectory(
         return std::unexpected{std::move(tempo_map.error())};
     }
 
+    auto sections = readSections(song_document, *tempo_map);
+    if (!sections.has_value())
+    {
+        return std::unexpected{std::move(sections.error())};
+    }
+
     auto arrangements = readArrangements(directory, song_document, *audio_assets, *tempo_map);
     if (!arrangements.has_value())
     {
@@ -1024,6 +1086,7 @@ std::expected<Song, SongPackageError> readRockSongPackageDirectory(
     Song song;
     song.metadata = readSongDocumentMetadata(song_document);
     song.tempo_map = std::move(*tempo_map);
+    song.sections = std::move(*sections);
     song.arrangements = std::move(*arrangements);
 
     return std::expected<Song, SongPackageError>{std::in_place, std::move(song)};

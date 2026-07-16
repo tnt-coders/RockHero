@@ -38,6 +38,9 @@ struct GpBuiltSong
     /*! \brief Tempo map built from the score's audio sync points. */
     common::core::TempoMap tempo_map;
 
+    /*! \brief Song-structure sections from the score's master-bar markers, in measure order. */
+    std::vector<common::core::SongSection> sections;
+
     /*! \brief One built arrangement per score track, in track order. */
     std::vector<GpBuiltArrangement> arrangements;
 
@@ -46,7 +49,7 @@ struct GpBuiltSong
 };
 
 /*!
-\brief Builds song metadata, the tempo map, and per-track charts from a parsed score.
+\brief Builds song metadata, the tempo map, sections, and per-track charts from a parsed score.
 
 The tempo map comes from the score's audio sync points (bar positions pinned to audio seconds),
 so imported notes line up with the backing audio exactly as they did in Guitar Pro; the base

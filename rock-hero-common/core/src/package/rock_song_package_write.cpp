@@ -171,6 +171,13 @@ constexpr int g_zip_compression_level = 9;
            R"(", "seconds": )" + formatTimingValue(anchor.seconds) + " }";
 }
 
+// Renders one song-structure section marker as a compact object line.
+[[nodiscard]] std::string formatSectionLine(const SongSection& section)
+{
+    return R"({ "position": ")" + formatGridPositionToken(section.position) + R"(", "name": )" +
+           jsonString(section.name) + " }";
+}
+
 // Song-document audio entry retained between validation and final JSON formatting.
 struct AudioAssetDocumentEntry
 {
@@ -355,6 +362,7 @@ struct SongDocumentForSave
 // Renders the full song document while keeping scan-heavy arrays at one object per line.
 [[nodiscard]] std::string songDocumentContents(
     const SongMetadata& metadata, const TempoMap& tempo_map,
+    const std::vector<SongSection>& sections,
     const std::vector<AudioAssetDocumentEntry>& audio_assets,
     const std::vector<ArrangementDocumentEntry>& arrangements)
 {
@@ -382,6 +390,13 @@ struct SongDocumentForSave
     }
     contents += tempo_map.anchors().empty() ? "]\n" : "\n    ]\n";
     contents += "  },\n";
+    contents += "  \"sections\": [";
+    for (std::size_t index = 0; index < sections.size(); ++index)
+    {
+        contents += (index == 0 ? "\n    " : ",\n    ");
+        contents += formatSectionLine(sections[index]);
+    }
+    contents += sections.empty() ? "],\n" : "\n  ],\n";
     contents += "  \"audioAssets\": [";
     for (std::size_t index = 0; index < audio_assets.size(); ++index)
     {
@@ -720,7 +735,8 @@ struct SongDocumentForSave
     }
 
     return SongDocumentForSave{
-        .contents = songDocumentContents(song.metadata, song.tempo_map, audio_assets, arrangements),
+        .contents = songDocumentContents(
+            song.metadata, song.tempo_map, song.sections, audio_assets, arrangements),
         .arrangement_ids = std::move(arrangement_ids),
     };
 }

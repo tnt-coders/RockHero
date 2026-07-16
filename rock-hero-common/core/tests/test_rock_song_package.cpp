@@ -509,6 +509,49 @@ TEST_CASE("Rock song package round-trips audio start offset", "[core][rock-song-
         Catch::Matchers::WithinULP(0.75, 0));
 }
 
+// Verifies song-structure sections round-trip through song.json at the song level.
+TEST_CASE("Rock song package round-trips song sections", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path source_audio = temporary_directory.path() / "source.flac";
+    writeAudioFile(source_audio);
+
+    Song song = makeSong(source_audio);
+    song.sections = {
+        SongSection{.position = GridPosition{.measure = 1, .beat = 1}, .name = "intro"},
+        SongSection{.position = GridPosition{.measure = 2, .beat = 1}, .name = "verse"},
+    };
+
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    REQUIRE(writeRockSongPackageDirectory(package_directory, song).has_value());
+
+    const auto read_song = readRockSongPackageDirectory(package_directory);
+    REQUIRE(read_song.has_value());
+    CHECK(read_song->sections == song.sections);
+}
+
+// Verifies unsorted persisted sections are rejected rather than silently reordered.
+TEST_CASE("Rock song package rejects unsorted sections", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path source_audio = temporary_directory.path() / "source.flac";
+    writeAudioFile(source_audio);
+
+    Song song = makeSong(source_audio);
+    song.sections = {
+        SongSection{.position = GridPosition{.measure = 2, .beat = 1}, .name = "verse"},
+        SongSection{.position = GridPosition{.measure = 1, .beat = 1}, .name = "intro"},
+    };
+
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    REQUIRE(writeRockSongPackageDirectory(package_directory, song).has_value());
+
+    const auto read_song = readRockSongPackageDirectory(package_directory);
+    REQUIRE_FALSE(read_song.has_value());
+    CHECK(read_song.error().code == SongPackageErrorCode::InvalidSongDocument);
+    CHECK(read_song.error().message.find("sorted") != std::string::npos);
+}
+
 // Verifies the persisted "startOffset" key loads, and that packages omitting it (every package
 // written before the field existed) default the offset to zero.
 TEST_CASE("Rock song package reads an explicit audio start offset", "[core][rock-song-package]")

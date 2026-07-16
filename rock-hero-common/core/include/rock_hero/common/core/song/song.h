@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <string>
@@ -12,6 +13,29 @@
 
 namespace rock_hero::common::core
 {
+
+/*!
+\brief Navigation/practice marker naming the song passage that starts at a position.
+
+Song-level because sections describe the song's structure, not one arrangement's tab: every
+arrangement (and the 3D highway) shares the same section list.
+*/
+struct SongSection
+{
+    /*! \brief Musical position the section starts at. */
+    GridPosition position;
+
+    /*! \brief Free-form section name, such as "verse" or "chorus", taken verbatim from import. */
+    std::string name;
+
+    /*!
+    \brief Compares two sections by their stored fields.
+    \param lhs Left-hand section.
+    \param rhs Right-hand section.
+    \return True when both sections store equal values.
+    */
+    friend bool operator==(const SongSection& lhs, const SongSection& rhs) = default;
+};
 
 /*! \brief Descriptive metadata attached to a Song. */
 struct SongMetadata
@@ -48,6 +72,9 @@ struct Song
 
     /*! \brief Song-level beat grid used by tone automation and future chart timing. */
     TempoMap tempo_map;
+
+    /*! \brief Song-structure section markers, sorted by position. */
+    std::vector<SongSection> sections;
 
     /*! \brief Playable part/difficulty-rating variants available for the song. */
     std::vector<Arrangement> arrangements;

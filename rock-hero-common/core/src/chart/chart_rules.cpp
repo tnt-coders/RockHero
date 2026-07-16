@@ -16,19 +16,19 @@ constexpr int g_max_capo{12};
 // guitar strings pitch down a whole octave via -1200 cents (a common charting practice).
 constexpr double g_max_cent_offset{1200.0};
 
-[[nodiscard]] bool isValidGridPosition(const GridPosition& position, const TempoMap& tempo_map)
-{
-    return position.measure >= 1 && position.beat >= 1 &&
-           position.beat <= tempo_map.beatsPerMeasureAt(position.measure) &&
-           position.offset.numerator >= 0 && position.offset < Fraction{1};
-}
-
 [[nodiscard]] std::string positionText(const GridPosition& position)
 {
     return formatGridPositionToken(position);
 }
 
 } // namespace
+
+bool isValidGridPosition(const GridPosition& position, const TempoMap& tempo_map)
+{
+    return position.measure >= 1 && position.beat >= 1 &&
+           position.beat <= tempo_map.beatsPerMeasureAt(position.measure) &&
+           position.offset.numerator >= 0 && position.offset < Fraction{1};
+}
 
 std::expected<void, ChartError> validateChartRules(const Chart& chart, const TempoMap& tempo_map)
 {
@@ -201,26 +201,6 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
             }};
         }
         previous_fhp = &fhp;
-    }
-
-    const ChartSection* previous_section = nullptr;
-    for (const ChartSection& section : chart.sections)
-    {
-        if (section.name.empty() || !isValidGridPosition(section.position, tempo_map))
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidSection,
-                .message = "section is invalid at " + positionText(section.position),
-            }};
-        }
-        if (previous_section != nullptr && section.position < previous_section->position)
-        {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidSection,
-                .message = "sections must be sorted at " + positionText(section.position),
-            }};
-        }
-        previous_section = &section;
     }
 
     return std::expected<void, ChartError>{};

@@ -64,9 +64,9 @@ struct RulerShapeLabel
 /*!
 \brief One song-section name shown at the section's start in the ruler's top band.
 
-Chart-projection data, not ruler data: the tablature projection owns the section names and start
-times, and the ruler renders them in its top band as pinned, bar-line-anchored navigation labels —
-exactly as the tempo and signature bands render tempo-map data.
+Song-level view data, not ruler data: the controller's section projection owns the names and
+start times, and the ruler renders them in its top band as pinned, bar-line-anchored navigation
+labels — exactly as the tempo and signature bands render tempo-map data.
 */
 struct RulerSectionLabel
 {
