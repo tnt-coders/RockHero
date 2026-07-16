@@ -60,11 +60,11 @@ struct RulerSectionLabel
 \brief Draws the pinned bars-and-beats ruler above the scrollable timeline content.
 
 The ruler stays fixed while the timeline content scrolls under it: the measure-number bar sits on
-top with the ruler's solid grid ticks, and below it the grid header region extends the canvas's
-dark backdrop and dotted tempo grid up to the bar, carrying the section, tempo, and signature
-chip rows on that grid. Callers push the current view geometry and the shared visible-span grid
-lines; the ruler renders everything from that one scan result. Clicks convert into the same
-snapped cursor-placement intent as timeline-content clicks.
+top with the ruler's solid grid ticks, and below it the grid header region shares the bar's ruler
+chrome and extends the canvas's dotted tempo grid up to the bar, carrying the section, tempo, and
+signature chip rows on that grid. Callers push the current view geometry and the shared
+visible-span grid lines; the ruler renders everything from that one scan result. Clicks convert
+into the same snapped cursor-placement intent as timeline-content clicks.
 */
 class TimelineRuler final : public juce::Component
 {

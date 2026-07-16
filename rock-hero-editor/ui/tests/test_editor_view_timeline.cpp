@@ -95,13 +95,13 @@ TEST_CASE("TimelineRuler draws bar ticks and header grid dots", "[ui][timeline-r
     // at 3.0s at x = 75. In the number bar the measure tick spans the whole bar (y = 2) while
     // the beat tick fills only its lower 10px (y = 8, empty at y = 2). In the grid region the
     // dot pattern anchors at the region's top (y = 16, stride 2), so y = 30 is a dot row between
-    // the section and tempo chip rows and y = 29 a gap row.
+    // the section and tempo chip rows and y = 29 a gap row of the shared ruler chrome.
     CHECK(image.getPixelAt(0, 2) == editorTheme().grid_measure);
     CHECK(image.getPixelAt(75, 2) == editorTheme().timeline_ruler_background);
     CHECK(image.getPixelAt(75, 8) == editorTheme().grid_measure);
     CHECK(image.getPixelAt(0, 30) == editorTheme().grid_measure);
     CHECK(image.getPixelAt(75, 30) == editorTheme().grid_beat);
-    CHECK(image.getPixelAt(75, 29) == editorTheme().timeline_backdrop);
+    CHECK(image.getPixelAt(75, 29) == editorTheme().timeline_ruler_background);
 }
 
 // Verifies subdivision ticks draw shorter than beat ticks so beats stay readable on fine grids,
