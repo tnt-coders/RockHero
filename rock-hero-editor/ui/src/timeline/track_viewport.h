@@ -184,17 +184,6 @@ public:
     void setTabDisplayedStrings(int displayed_strings);
 
     /*!
-    \brief Forwards the tab-derived chord/arpeggio name chips to the pinned timeline ruler.
-
-    The chips are tablature data rendered on the ruler's pinned surface (its bottom tick band
-    sits directly above the tab lane's top rail), exactly as the tempo and signature bands
-    render tempo-map data.
-
-    \param labels Named shape spans in ascending start order; empty clears the chips.
-    */
-    void setShapeLabels(std::vector<RulerShapeLabel> labels);
-
-    /*!
     \brief Forwards the song's section names to the pinned ruler's top band and their start times
     to the cursor overlay's boundary lines.
 
