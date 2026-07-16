@@ -77,6 +77,42 @@ struct Fraction
     }
 
     /*!
+    \brief Adds two rationals exactly.
+    \param lhs Left-hand rational.
+    \param rhs Right-hand rational.
+    \return Reduced exact sum.
+    */
+    friend constexpr Fraction operator+(const Fraction& lhs, const Fraction& rhs) noexcept
+    {
+        // 64-bit intermediates keep the cross-multiplied sum exact far past the bounded terms the
+        // chart grammar produces (1/960 fine grid, note values ≤ 1/128), then the reduced result
+        // narrows back to int through the normalizing constructor — the same headless-value
+        // stance as the zero-denominator collapse above.
+        const std::int64_t numerator_sum =
+            (static_cast<std::int64_t>(lhs.numerator) * rhs.denominator) +
+            (static_cast<std::int64_t>(rhs.numerator) * lhs.denominator);
+        const std::int64_t denominator_product =
+            static_cast<std::int64_t>(lhs.denominator) * rhs.denominator;
+        // Denominators are positive after normalization, so the gcd is always positive too.
+        const std::int64_t divisor = std::gcd(numerator_sum, denominator_product);
+        return Fraction{
+            static_cast<int>(numerator_sum / divisor),
+            static_cast<int>(denominator_product / divisor)
+        };
+    }
+
+    /*!
+    \brief Subtracts one rational from another exactly.
+    \param lhs Left-hand rational.
+    \param rhs Rational subtracted from lhs.
+    \return Reduced exact difference.
+    */
+    friend constexpr Fraction operator-(const Fraction& lhs, const Fraction& rhs) noexcept
+    {
+        return lhs + Fraction{-rhs.numerator, rhs.denominator};
+    }
+
+    /*!
     \brief Orders two rationals by value using cross-multiplication.
     \param lhs Left-hand rational.
     \param rhs Right-hand rational.

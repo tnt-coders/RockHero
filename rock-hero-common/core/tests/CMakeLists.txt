@@ -12,6 +12,7 @@ add_executable(
     test_application_identity.cpp
     test_difficulty.cpp
     test_fraction.cpp
+    test_grid_arithmetic.cpp
     test_highway_camera.cpp
     test_highway_projection.cpp
     test_highway_tail.cpp
