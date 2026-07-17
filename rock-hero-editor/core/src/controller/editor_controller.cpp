@@ -1690,17 +1690,23 @@ void EditorController::Impl::insertChartNoteAt(const ChartPointerEvent& event)
     note.position = placement->first;
     note.string = placement->second;
     note.fret = std::clamp(m_chart_last_fret, 0, common::core::g_max_fret);
-    // Select exactly the placed note (not a 40-Q2-B-truncated neighbor the plan may also carry);
-    // its selection highlight is the placement feedback.
+    // Select the whole resulting onset group, not just the placed note: placing into an
+    // existing stack forms a chord, and chords are one cohesive unit (settled 2026-07-17).
+    // Group membership is computed from the pre-apply chart — cross-string notes at the onset
+    // survive the insert plan untouched — minus any same-string occupant the plan replaces.
+    std::vector<ChartNoteKey> group = chartOnsetGroupKeys(arrangement->chart->notes, note.position);
+    std::erase_if(group, [&note](const ChartNoteKey& key) { return key.string == note.string; });
+    group.push_back(ChartNoteKey{.position = note.position, .string = note.string});
     static_cast<void>(applyChartEditPlan(
-        planInsertNote(*arrangement->chart, session().song().tempo_map, note),
-        std::vector<ChartNoteKey>{ChartNoteKey{.position = note.position, .string = note.string}}));
+        planInsertNote(*arrangement->chart, session().song().tempo_map, note), std::move(group)));
 }
 
 // Arms the gesture and applies glyph-press selection per the interaction grammar: plain press
-// selects (keeping an existing multi-selection intact so a future drag can move it), Ctrl
-// toggles membership, Shift extends. Alt is the insertion quasimode: the press arms it and the
-// release commits the note at the snapped release point.
+// selects the whole onset group — chords are one cohesive unit (settled 2026-07-17) — keeping
+// an existing multi-selection intact so a future drag can move it; Ctrl toggles the individual
+// note. Shift is reassigned to plan 52's time-range selection and behaves as plain until that
+// lands. Alt is the insertion quasimode: the press arms it and the release commits the note at
+// the snapped release point.
 void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
 {
     const common::core::TabViewState* const tab = displayedTabProjection();
@@ -1740,13 +1746,10 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
     {
         m_chart_selection.toggle(*key);
     }
-    else if (event.modifiers.shift)
-    {
-        m_chart_selection.add(*key);
-    }
     else if (!m_chart_selection.contains(*key))
     {
-        m_chart_selection.replaceWith(*key);
+        m_chart_selection.replaceWith(
+            chartOnsetGroupKeys(session().currentArrangement()->chart->notes, key->position));
     }
     // The selection highlight is the whole feedback for a glyph press (user feedback
     // 2026-07-17: no extra cursor furniture on selection).
@@ -1815,12 +1818,15 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
     {
         const bool clicked = std::abs(event.x - gesture.anchor_x) <= g_chart_click_threshold_px &&
                              std::abs(event.y - gesture.anchor_y) <= g_chart_click_threshold_px;
-        if (clicked && !gesture.modifiers.ctrl && !gesture.modifiers.shift)
+        // A completed plain click on a selected note collapses the selection to its onset
+        // group — the chord unit, not the single note (settled 2026-07-17).
+        if (clicked && !gesture.modifiers.ctrl)
         {
             if (const std::optional<ChartNoteKey> key = chartNoteKeyAt(*gesture.hit_note);
                 key.has_value())
             {
-                m_chart_selection.replaceWith(*key);
+                m_chart_selection.replaceWith(chartOnsetGroupKeys(
+                    session().currentArrangement()->chart->notes, key->position));
             }
         }
         updateView();

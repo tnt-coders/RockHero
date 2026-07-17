@@ -109,11 +109,13 @@ TEST_CASE("EditorController selects a chart note on glyph click", "[core][chart]
     REQUIRE(loadChartArrangement(controller, project_services, audio));
     const int seek_baseline = transport.seek_call_count;
 
+    // A plain click selects the whole onset group: the two measure-2 notes form a chord and
+    // chords are one cohesive unit (settled 2026-07-17).
     click(controller, 40.0f, 220.0f);
 
     REQUIRE(view.last_state.has_value());
     const ChartEditViewState& edit = view.last_state->chart_edit;
-    CHECK(edit.selected_notes == std::vector<std::size_t>{0});
+    CHECK(edit.selected_notes == (std::vector<std::size_t>{0, 1}));
     CHECK(transport.seek_call_count == seek_baseline);
 
     // A sustain-tail click (right of the measure-3 head, inside its one-second tail) selects
@@ -122,7 +124,8 @@ TEST_CASE("EditorController selects a chart note on glyph click", "[core][chart]
     CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{2});
 }
 
-// Ctrl toggles membership and Shift extends, per the settled interaction grammar.
+// Ctrl toggles individual membership while plain clicks act on the chord unit, per the settled
+// selection granularity (2026-07-17).
 TEST_CASE("EditorController toggles and extends the chart selection", "[core][chart]")
 {
     FakeTransport transport;
@@ -140,22 +143,26 @@ TEST_CASE("EditorController toggles and extends the chart selection", "[core][ch
     controller.attachView(view);
     REQUIRE(loadChartArrangement(controller, project_services, audio));
 
+    // The plain click takes the whole chord; Ctrl removes one member from it.
     click(controller, 40.0f, 220.0f);
     click(controller, 40.0f, 180.0f, ChartPointerModifiers{.ctrl = true});
     REQUIRE(view.last_state.has_value());
+    CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{0});
+
+    // Toggling the same note again re-adds it individually.
+    click(controller, 40.0f, 180.0f, ChartPointerModifiers{.ctrl = true});
     CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1}));
 
-    // Toggling the same note again removes it.
-    click(controller, 40.0f, 180.0f, ChartPointerModifiers{.ctrl = true});
-    CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{0});
-
-    // Shift-extend adds without removing.
+    // Shift behaves as plain until plan 52's time-range selection lands: it replaces the
+    // selection with the clicked note's onset group.
     click(controller, 80.0f, 220.0f, ChartPointerModifiers{.shift = true});
-    CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 2}));
+    CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{2});
 
-    // A plain click on one selected note collapses the selection to it.
+    // A plain click on a selected note collapses the selection to that note's onset group.
+    click(controller, 40.0f, 220.0f, ChartPointerModifiers{.ctrl = true});
+    CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 2}));
     click(controller, 40.0f, 220.0f);
-    CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{0});
+    CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1}));
 }
 
 // An empty-lane click seeks the snapped position and clears the selection.
@@ -311,6 +318,14 @@ TEST_CASE("EditorController inserts a chart note via the Alt quasimode", "[core]
     controller.onRedoRequested();
     chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes.size() == 4);
+
+    // Placing into an existing stack selects the whole resulting onset group: the string-3
+    // insert at measure 2 forms a three-note chord with the fixture's two notes.
+    click(controller, 40.0f, 140.0f, alt);
+    chart = &*controller.session().currentArrangement()->chart;
+    REQUIRE(chart->notes.size() == 5);
+    CHECK(chart->notes[2].string == 3);
+    CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1, 2}));
 }
 
 // Inserting inside an earlier sustain truncates it in the same undo entry (40-Q2-B).
@@ -364,8 +379,8 @@ TEST_CASE("EditorController deletes the chart selection undoably", "[core][chart
     controller.attachView(view);
     REQUIRE(loadChartArrangement(controller, project_services, audio));
 
+    // One plain click selects the whole measure-2 chord (both strings).
     click(controller, 40.0f, 220.0f);
-    click(controller, 40.0f, 180.0f, ChartPointerModifiers{.ctrl = true});
     controller.onChartSelectionDeleteRequested();
 
     const auto* chart = &*controller.session().currentArrangement()->chart;
@@ -397,7 +412,8 @@ TEST_CASE("EditorController fret digits combine inside the entry window", "[core
     controller.attachView(view);
     REQUIRE(loadChartArrangement(controller, project_services, audio));
 
-    click(controller, 40.0f, 220.0f);
+    // Ctrl-click isolates the single string-1 note (a plain click would take the whole chord).
+    click(controller, 40.0f, 220.0f, ChartPointerModifiers{.ctrl = true});
     REQUIRE(view.last_state.has_value());
     const std::size_t entries_before = view.last_state->undo_history.labels.size();
 
@@ -446,7 +462,8 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
     controller.attachView(view);
     REQUIRE(loadChartArrangement(controller, project_services, audio));
 
-    click(controller, 40.0f, 220.0f);
+    // Ctrl-click isolates the single string-1 note (a plain click would take the whole chord).
+    click(controller, 40.0f, 220.0f, ChartPointerModifiers{.ctrl = true});
     controller.onChartSustainAdjustRequested(1, false);
     const auto* chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes[0].sustain == common::core::Fraction{1, 1});
@@ -487,7 +504,8 @@ TEST_CASE("EditorController nudges the selection and refuses collisions", "[core
     controller.attachView(view);
     REQUIRE(loadChartArrangement(controller, project_services, audio));
 
-    click(controller, 40.0f, 220.0f);
+    // Ctrl-click isolates the single string-1 note (a plain click would take the whole chord).
+    click(controller, 40.0f, 220.0f, ChartPointerModifiers{.ctrl = true});
 
     // Plain arrows never mutate: with a selection they still step the timeline cursor.
     controller.onChartCursorStepRequested(ChartStepDirection::Right, false);
