@@ -43,8 +43,9 @@ Each modifier has exactly one meaning, everywhere:
 | **Shift** | Extend/constrain: add to selection; axis-lock a 2D drag; composes with Alt for extent resize (Shift+Alt+Left/Right); plain Shift+arrows is reserved for future caret-anchored selection extension |
 
 **Plain keys never mutate** (amended 2026-07-16), the keyboard twin of "a plain click never
-mutates": arrows navigate the surface's focus (the tab caret) and do nothing where no focus
-exists; every keyboard mutation requires Alt. The two designated editing keys — Delete and typed
+mutates": arrows navigate — Left/Right step the ONE timeline cursor along the grid (there is no
+separate editing caret; the playhead is the position concept, user decision 2026-07-17) — and do
+nothing where no navigation meaning exists; every keyboard mutation requires Alt. The two designated editing keys — Delete and typed
 fret digits — are the deliberate exceptions: they are unambiguous editing commands with no
 navigation meaning to collide with. Pointer *drags* mutate without Alt because a drag carries
 its own friction and feedback loop — press, travel past the click threshold, live preview with
@@ -78,7 +79,7 @@ Ctrl = precision. Duplication is Ctrl+D on the selection when it arrives.
 | Delete / Backspace | Delete the selection | Yes |
 | Right-click | Context menu, always; every gesture above has a menu equivalent; never destructive on its own | Via menu |
 | Esc | Cancel the in-flight gesture, restoring pre-gesture state | Reverts preview |
-| Arrow keys | Navigate the surface's focus (the tab caret); nothing where no focus exists — never a mutation (amended 2026-07-16 from "nudge the selection") | No |
+| Arrow keys | Navigate: Left/Right step the ONE timeline cursor to the adjacent grid line (Ctrl fine); never a mutation (amended 2026-07-16/17 — there is no separate editing caret) | No |
 | Alt+arrows | Move the selection by one grid step (Ctrl+Alt by the fine step); the vertical axis is the surface's own (string for notes, value for automation points) | Yes |
 | Shift+Alt+Left/Right | Grow/shrink the selected object's extent by one grid step (Ctrl composes the fine step) | Yes |
 | Shift+arrows | Reserved (unbound): future caret-anchored selection extension | No |
@@ -168,7 +169,7 @@ Verified against the vendored JUCE source — everything needed ships in
   properties of the selection — Guitar Pro-style keyboard entry composes from the same selection
   verbs. Alt+wheel and Shift+Alt+Left/Right set sustain; Alt+arrows move the selection
   (Left/Right by grid step, Up/Down across strings; refused, never clamped, at the neck edge or
-  an occupied slot). Marquee selects runs; plain arrows navigate the editing caret. Pointer
+  an occupied slot). Marquee selects runs; plain Left/Right step the timeline cursor along the grid. Pointer
   drag-move (horizontal with snap, vertical across strings) is the same plain move-drag verb
   points use and lands with the remaining plan 40 Phase 4 slice. **Sustain tail-drag is parked**
   (2026-07-16): the wheel/keyboard verbs cover resizing precisely, and the tail's end zone is a
@@ -212,7 +213,9 @@ Keyboard accelerators form one family: Ctrl+T inserts a tone change at the playh
 Decided with the user during note-editing bring-up and applied the same day to every shipped
 surface:
 
-1. Plain arrows never mutate: the tab lane's arrows navigate the caret unconditionally (they
+1. Plain arrows never mutate: the tab lane's Left/Right step the timeline cursor along the grid
+   — the editing-caret concept was removed entirely the next day (2026-07-17, user: the playhead
+   is the position feedback and a second cursor icon is noise) (they
    briefly shipped as selection-nudges), and the automation lanes' plain-arrow point nudge —
    part of the original 2026-07-09 revamp below — now requires Alt. Where no navigation focus
    exists, plain arrows do nothing; a dead key beats a surprising one.
