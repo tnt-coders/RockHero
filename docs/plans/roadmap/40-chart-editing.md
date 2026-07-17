@@ -92,6 +92,12 @@ could still fit under `g_max_fret` (so first digits 1–3), and typing after the
 starts a fresh value. Also fixed in passing: edits now update the selection as (selection −
 removed keys) + inserted keys, so retyping/resizing a mixed selection no longer shrinks it to
 only the notes that changed.
+**UX feedback round two applied 2026-07-17**: the editing-caret concept was removed entirely —
+the playhead is the ONE position concept; plain Left/Right now step the timeline cursor to the
+adjacent grid line (Ctrl fine) via the renamed `onChartCursorStepRequested` intent, plain
+Up/Down are unbound, and `ChartCaret`/`ChartCaretViewState` and the caret overlay are gone. The
+selection highlight's ring stroke doubled in width (two ring-widths, centered on the ring band)
+so a lit border reads at a glance.
 **Remaining Phase 4 sub-scope (deferred to the next execution slice, before Phase 5):** pointer
 drag-move of selected notes (horizontal with snap, vertical across strings — the same plain
 move-drag verb automation points use), the Alt-held ghost preview + `CopyingCursor` hover
