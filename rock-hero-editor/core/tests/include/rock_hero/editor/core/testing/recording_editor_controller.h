@@ -239,16 +239,16 @@ public:
         chart_pointer_up_count += 1;
     }
 
-    /*! \copydoc IEditorController::onChartCaretMoveRequested */
-    void onChartCaretMoveRequested(ChartCaretDirection direction, bool fine) override
+    /*! \copydoc IEditorController::onChartCursorStepRequested */
+    void onChartCursorStepRequested(ChartStepDirection direction, bool fine) override
     {
-        last_chart_caret_direction = direction;
-        last_chart_caret_fine = fine;
-        chart_caret_move_count += 1;
+        last_chart_cursor_step_direction = direction;
+        last_chart_cursor_step_fine = fine;
+        chart_cursor_step_count += 1;
     }
 
     /*! \copydoc IEditorController::onChartSelectionMoveRequested */
-    void onChartSelectionMoveRequested(ChartCaretDirection direction, bool fine) override
+    void onChartSelectionMoveRequested(ChartStepDirection direction, bool fine) override
     {
         last_chart_selection_move_direction = direction;
         last_chart_selection_move_fine = fine;
@@ -697,17 +697,17 @@ public:
     /*! \brief Number of onChartPointerUp() intents received. */
     int chart_pointer_up_count{0};
 
-    /*! \brief Last caret move direction received. */
-    std::optional<ChartCaretDirection> last_chart_caret_direction{};
+    /*! \brief Last cursor-step direction received. */
+    std::optional<ChartStepDirection> last_chart_cursor_step_direction{};
 
-    /*! \brief Fine-grid flag of the last caret move received. */
-    bool last_chart_caret_fine{false};
+    /*! \brief Fine-grid flag of the last cursor step received. */
+    bool last_chart_cursor_step_fine{false};
 
-    /*! \brief Number of onChartCaretMoveRequested() intents received. */
-    int chart_caret_move_count{0};
+    /*! \brief Number of onChartCursorStepRequested() intents received. */
+    int chart_cursor_step_count{0};
 
     /*! \brief Last selection-move direction received. */
-    std::optional<ChartCaretDirection> last_chart_selection_move_direction{};
+    std::optional<ChartStepDirection> last_chart_selection_move_direction{};
 
     /*! \brief Fine-grid flag of the last selection move received. */
     bool last_chart_selection_move_fine{false};

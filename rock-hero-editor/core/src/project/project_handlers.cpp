@@ -1522,7 +1522,7 @@ std::expected<void, common::audio::SongAudioError> EditorController::Impl::loadS
         m_output_gain_db = 0.0;
         m_output_gain_preview_before.reset();
         m_plugin_catalog.hide();
-        // Chart selection keys and the caret are chart-local; the one commit seam every
+        // Chart selection keys are chart-local; the one commit seam every
         // open/import/restore/arrangement-switch passes through clears them before a different
         // chart can display.
         clearChartEditingState();

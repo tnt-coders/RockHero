@@ -230,8 +230,11 @@ void TabView::paint(juce::Graphics& g)
         }
         const common::core::TabNoteView& note = m_tab->notes[index];
         const common::ui::TabNoteLayout layout = common::ui::tabNoteLayout(metrics, note);
+        // Stroked wider than the ring itself (user feedback 2026-07-17) so the lit border reads
+        // unmistakably at a glance; the stroke stays centered on the ring band's circle.
         const float border = std::max(1.0f, layout.head_size / 15.0f);
         const float extent = layout.head_size - 3.0f * border;
+        const float stroke = border * 2.0f;
         g.setColour(accent);
         if (note.harmonic != common::core::NoteHarmonic::None)
         {
@@ -241,7 +244,7 @@ void TabView::paint(juce::Graphics& g)
             shape.lineTo(layout.onset_x, layout.center_y + extent / 2.0f);
             shape.lineTo(layout.onset_x - extent / 2.0f, layout.center_y);
             shape.closeSubPath();
-            g.strokePath(shape, juce::PathStrokeType{border});
+            g.strokePath(shape, juce::PathStrokeType{stroke});
         }
         else
         {
@@ -250,33 +253,8 @@ void TabView::paint(juce::Graphics& g)
                 layout.center_y - extent / 2.0f,
                 extent,
                 extent,
-                border);
+                stroke);
         }
-    }
-
-    // The editing caret: an accent column spanning its string lane, with serif ticks so it
-    // reads as an insertion point rather than a second playback cursor.
-    if (m_edit.caret.has_value())
-    {
-        const float caret_x = metrics.x(m_edit.caret->seconds);
-        const float center_y = metrics.laneY(m_edit.caret->string);
-        const float top = center_y - metrics.lane_height / 2.0f;
-        constexpr float caret_width = 2.0f;
-        constexpr float serif_width = 7.0f;
-        g.setColour(accent);
-        g.fillRect(
-            juce::Rectangle<float>{
-                caret_x - caret_width / 2.0f, top, caret_width, metrics.lane_height
-            });
-        g.fillRect(
-            juce::Rectangle<float>{caret_x - serif_width / 2.0f, top, serif_width, caret_width});
-        g.fillRect(
-            juce::Rectangle<float>{
-                caret_x - serif_width / 2.0f,
-                top + metrics.lane_height - caret_width,
-                serif_width,
-                caret_width
-            });
     }
 
     // The in-flight marquee: translucent accent fill with a crisp border.

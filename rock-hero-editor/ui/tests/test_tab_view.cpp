@@ -1,3 +1,4 @@
+#include "shared/editor_theme.h"
 #include "tab/tab_view.h"
 
 #include <catch2/catch_approx.hpp>
@@ -236,7 +237,7 @@ TEST_CASE("TabView forwards chart pointer intents when a chart shows", "[ui][tab
     CHECK(last_event->modifiers.ctrl);
 }
 
-// Selection, caret, and marquee overlays render above the notation without asserting.
+// Selection and marquee overlays render above the notation without asserting.
 TEST_CASE("TabView renders chart-editing overlays", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -251,7 +252,6 @@ TEST_CASE("TabView renders chart-editing overlays", "[ui][tab-view]")
     view.setEditState(
         core::ChartEditViewState{
             .selected_notes = {0},
-            .caret = core::ChartCaretViewState{.seconds = 5.0, .string = 2},
             .marquee = core::ChartMarqueeViewState{
                 .start_seconds = 3.0,
                 .end_seconds = 8.0,
@@ -264,8 +264,11 @@ TEST_CASE("TabView renders chart-editing overlays", "[ui][tab-view]")
     juce::Graphics graphics{image};
     view.paint(graphics);
 
-    // The caret column at 5.0s (x = 50) marks the string-2 lane (center y = 90).
-    CHECK(image.getPixelAt(50, 90).getARGB() != 0);
+    // The selection highlight recolors the first note's own head ring in the theme accent:
+    // probe a pixel fully inside the stroke band left of the head center (head at x = 10,
+    // center y = 110, ring radius ~5.7, stroke two ring-widths wide) so antialiasing at the
+    // band edges cannot blend the probe.
+    CHECK(image.getPixelAt(4, 110) == editorTheme().accent);
     // The marquee border's top-left corner at (30, 30).
     CHECK(image.getPixelAt(30, 30).getARGB() != 0);
 }

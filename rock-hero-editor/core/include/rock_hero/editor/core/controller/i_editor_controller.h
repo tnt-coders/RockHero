@@ -211,25 +211,24 @@ public:
     \brief Handles the tablature-lane pointer release that ends the gesture.
 
     An empty-lane click (no drag) seeks the timeline to the snapped click position, clears the
-    selection, and places the editing caret; a marquee release selects the boxed notes.
+    selection; a marquee release selects the boxed notes.
 
     \param event Pointer event in lane-local pixels with the painted lane geometry.
     */
     virtual void onChartPointerUp(const ChartPointerEvent& event) = 0;
 
     /*!
-    \brief Handles a keyboard caret move in the tablature lane.
+    \brief Handles an arrow-key step of the timeline cursor from the tablature lane.
 
     Pure navigation, never a mutation (the interaction model's "plain keys never mutate" rule):
-    Left/Right step the caret along the rendered tempo grid (one grid step; the fine 1/960-beat
-    grid when \p fine is set); Up/Down move it across string lanes, clamped to the chart's
-    strings. With no caret placed yet, the first move places it at the transport position on the
-    lowest string.
+    Left/Right seek the ONE timeline cursor to the adjacent rendered grid line (the fine
+    1/960-beat step when \p fine is set). There is no separate editing caret — the playhead is
+    the position concept — so vertical directions have no navigation meaning and are ignored.
 
-    \param direction Caret move direction.
+    \param direction Step direction; only Left and Right act.
     \param fine True when the precision modifier requests the fine grid.
     */
-    virtual void onChartCaretMoveRequested(ChartCaretDirection direction, bool fine) = 0;
+    virtual void onChartCursorStepRequested(ChartStepDirection direction, bool fine) = 0;
 
     /*!
     \brief Handles a keyboard move of the selected chart notes (the Alt authoring modifier).
@@ -242,7 +241,7 @@ public:
     \param direction Move direction.
     \param fine True when the precision modifier requests the fine grid.
     */
-    virtual void onChartSelectionMoveRequested(ChartCaretDirection direction, bool fine) = 0;
+    virtual void onChartSelectionMoveRequested(ChartStepDirection direction, bool fine) = 0;
 
     /*! \brief Handles a request to delete the selected chart notes as one undo entry. */
     virtual void onChartSelectionDeleteRequested() = 0;

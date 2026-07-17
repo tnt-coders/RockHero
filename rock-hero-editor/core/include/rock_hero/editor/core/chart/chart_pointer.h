@@ -58,8 +58,8 @@ struct ChartPointerEvent
     ChartPointerModifiers modifiers{};
 };
 
-/*! \brief Direction of a keyboard caret move in the tablature lane. */
-enum class ChartCaretDirection : std::uint8_t
+/*! \brief Direction of an arrow-key step in the tablature lane. */
+enum class ChartStepDirection : std::uint8_t
 {
     /*! \brief One grid step earlier. */
     Left,

@@ -1,6 +1,6 @@
 /*!
 \file chart_selection.h
-\brief Headless chart selection and caret state for the tablature editing surface.
+\brief Headless chart selection state for the tablature editing surface.
 */
 
 #pragma once
@@ -46,18 +46,8 @@ struct ChartNoteKey
         default;
 };
 
-/*! \brief Editing caret: a grid-snapped musical position on one string lane. */
-struct ChartCaret
-{
-    /*! \brief Musical position of the caret column. */
-    common::core::GridPosition position{};
-
-    /*! \brief One-based chart string lane the caret sits on. */
-    int string{1};
-};
-
 /*!
-\brief Selected chart notes plus the editing caret, kept sorted in chart note order.
+\brief Selected chart notes, kept sorted in chart note order.
 
 The container enforces the sorted-unique invariant on every mutation so key-to-index resolution
 against the chart's (position, string)-sorted note stream stays a linear merge.
