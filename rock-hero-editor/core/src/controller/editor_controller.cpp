@@ -891,6 +891,11 @@ void EditorController::onChartCaretMoveRequested(ChartCaretDirection direction, 
     m_impl->onChartCaretMoveRequested(direction, fine);
 }
 
+void EditorController::onChartSelectionMoveRequested(ChartCaretDirection direction, bool fine)
+{
+    m_impl->onChartSelectionMoveRequested(direction, fine);
+}
+
 void EditorController::onChartSelectionDeleteRequested()
 {
     m_impl->onChartSelectionDeleteRequested();
@@ -1855,10 +1860,10 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
     updateView();
 }
 
-// Keyboard caret navigation, or a selection nudge when notes are selected (the interaction
-// model's "arrow keys nudge the selection"): Left/Right step the rendered tempo grid (the fine
-// 1/960-beat grid under precision), Up/Down cross string lanes. The first move without a caret
-// places it at the transport position on the lowest string.
+// Keyboard caret navigation - pure, never a mutation ("plain keys never mutate"): Left/Right
+// step the rendered tempo grid (the fine 1/960-beat grid under precision), Up/Down cross string
+// lanes. The first move without a caret places it at the transport position on the lowest
+// string.
 void EditorController::Impl::onChartCaretMoveRequested(ChartCaretDirection direction, bool fine)
 {
     const common::core::TabViewState* const tab = displayedTabProjection();
@@ -1868,52 +1873,6 @@ void EditorController::Impl::onChartCaretMoveRequested(ChartCaretDirection direc
     }
 
     const common::core::TempoMap& tempo_map = session().song().tempo_map;
-
-    if (!m_chart_selection.empty())
-    {
-        const common::core::Arrangement* const arrangement = session().currentArrangement();
-        if (arrangement == nullptr || !arrangement->chart.has_value())
-        {
-            return;
-        }
-        common::core::Fraction beat_delta{};
-        int string_delta = 0;
-        switch (direction)
-        {
-            case ChartCaretDirection::Left:
-            case ChartCaretDirection::Right:
-            {
-                const common::core::GridPosition reference =
-                    m_chart_caret.has_value() ? m_chart_caret->position
-                                              : m_chart_selection.notes().front().position;
-                const common::core::Fraction step = chartGridStepBeats(reference, fine);
-                beat_delta = direction == ChartCaretDirection::Right
-                                 ? step
-                                 : common::core::Fraction{-step.numerator, step.denominator};
-                break;
-            }
-            case ChartCaretDirection::Up:
-            {
-                string_delta = 1;
-                break;
-            }
-            case ChartCaretDirection::Down:
-            {
-                string_delta = -1;
-                break;
-            }
-        }
-        // A refused nudge (edge of the neck, occupied slot, grid origin collision) is a silent
-        // no-op: the selection simply stays put, matching refuse-not-clamp everywhere else.
-        static_cast<void>(applyChartEditPlan(planMoveNotes(
-            *arrangement->chart,
-            tempo_map,
-            m_chart_selection.notes(),
-            beat_delta,
-            string_delta,
-            m_chart_selection.notes().size() == 1 ? "Move Note" : "Move Notes")));
-        return;
-    }
     if (!m_chart_caret.has_value())
     {
         const common::core::TimePosition transport_position = m_transport.position();
@@ -1977,6 +1936,55 @@ void EditorController::Impl::onChartCaretMoveRequested(ChartCaretDirection direc
     }
     m_chart_caret = caret;
     updateView();
+}
+
+// Moves the selection under the Alt authoring modifier: Left/Right by one grid step (Ctrl
+// fine), Up/Down across strings. A refused move (edge of the neck, occupied slot, grid origin
+// collision) is a silent no-op — the selection stays put, matching refuse-not-clamp everywhere
+// else.
+void EditorController::Impl::onChartSelectionMoveRequested(ChartCaretDirection direction, bool fine)
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
+        m_chart_selection.empty())
+    {
+        return;
+    }
+
+    common::core::Fraction beat_delta{};
+    int string_delta = 0;
+    switch (direction)
+    {
+        case ChartCaretDirection::Left:
+        case ChartCaretDirection::Right:
+        {
+            const common::core::GridPosition reference =
+                m_chart_caret.has_value() ? m_chart_caret->position
+                                          : m_chart_selection.notes().front().position;
+            const common::core::Fraction step = chartGridStepBeats(reference, fine);
+            beat_delta = direction == ChartCaretDirection::Right
+                             ? step
+                             : common::core::Fraction{-step.numerator, step.denominator};
+            break;
+        }
+        case ChartCaretDirection::Up:
+        {
+            string_delta = 1;
+            break;
+        }
+        case ChartCaretDirection::Down:
+        {
+            string_delta = -1;
+            break;
+        }
+    }
+    static_cast<void>(applyChartEditPlan(planMoveNotes(
+        *arrangement->chart,
+        session().song().tempo_map,
+        m_chart_selection.notes(),
+        beat_delta,
+        string_delta,
+        m_chart_selection.notes().size() == 1 ? "Move Note" : "Move Notes")));
 }
 
 // Deletes the selected notes as one compound undo entry; the selection empties with them.

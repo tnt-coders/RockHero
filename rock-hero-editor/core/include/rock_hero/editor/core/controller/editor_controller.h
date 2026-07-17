@@ -432,6 +432,9 @@ public:
     /*! \copydoc IEditorController::onChartCaretMoveRequested */
     void onChartCaretMoveRequested(ChartCaretDirection direction, bool fine) override;
 
+    /*! \copydoc IEditorController::onChartSelectionMoveRequested */
+    void onChartSelectionMoveRequested(ChartCaretDirection direction, bool fine) override;
+
     /*! \copydoc IEditorController::onChartSelectionDeleteRequested */
     void onChartSelectionDeleteRequested() override;
 

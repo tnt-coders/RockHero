@@ -918,52 +918,97 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
         return true;
     }
 
-    // Chart-editing keys while a chart is displayed; Ctrl steps the fine grid per the
-    // interaction model's precision modifier. Interim scattered keybinds (recorded for plan
-    // 46's registry): arrows navigate the caret or nudge the selection, Shift+Left/Right
-    // resizes sustains, typed digits retype the selection's fret, Escape cancels the in-flight
-    // lane gesture.
-    if (m_state.tab != nullptr && m_state.tab->string_count > 0)
+    // Arrow-key dispatch under the amended interaction grammar (2026-07-16): plain arrows only
+    // ever navigate (the tab caret; nothing on other surfaces), Shift+arrows is reserved for
+    // future selection extension, and every keyboard mutation requires the Alt authoring
+    // modifier — Alt+arrows moves the selection (a selected automation point first, the more
+    // specific target, then the chart selection), Shift+Alt+Left/Right resizes sustains. Ctrl
+    // composes the fine grid throughout. Interim scattered keybinds (recorded for plan 46's
+    // registry).
     {
         const bool fine = key.getModifiers().isCtrlDown();
         const bool shift = key.getModifiers().isShiftDown();
-        if (key.isKeyCode(juce::KeyPress::leftKey))
+        const bool alt = key.getModifiers().isAltDown();
+        const bool chart_shown = m_state.tab != nullptr && m_state.tab->string_count > 0;
+        const auto arrow_direction = [&key]() -> std::optional<core::ChartCaretDirection> {
+            if (key.isKeyCode(juce::KeyPress::leftKey))
+            {
+                return core::ChartCaretDirection::Left;
+            }
+            if (key.isKeyCode(juce::KeyPress::rightKey))
+            {
+                return core::ChartCaretDirection::Right;
+            }
+            if (key.isKeyCode(juce::KeyPress::upKey))
+            {
+                return core::ChartCaretDirection::Up;
+            }
+            if (key.isKeyCode(juce::KeyPress::downKey))
+            {
+                return core::ChartCaretDirection::Down;
+            }
+            return std::nullopt;
+        }();
+
+        if (arrow_direction.has_value())
         {
+            if (alt)
+            {
+                if (shift)
+                {
+                    // Shift+Alt+Left/Right: sustain resize on the chart selection.
+                    if (chart_shown && !m_state.chart_edit.selected_notes.empty() &&
+                        (*arrow_direction == core::ChartCaretDirection::Left ||
+                         *arrow_direction == core::ChartCaretDirection::Right))
+                    {
+                        m_controller.onChartSustainAdjustRequested(
+                            *arrow_direction == core::ChartCaretDirection::Right ? 1 : -1, fine);
+                        return true;
+                    }
+                    return false;
+                }
+
+                // Alt+arrows: move the selected automation point, else the chart selection.
+                using NudgeDirection = ToneAutomationLanesView::NudgeDirection;
+                const NudgeDirection point_direction =
+                    *arrow_direction == core::ChartCaretDirection::Left    ? NudgeDirection::Earlier
+                    : *arrow_direction == core::ChartCaretDirection::Right ? NudgeDirection::Later
+                    : *arrow_direction == core::ChartCaretDirection::Up    ? NudgeDirection::Up
+                                                                           : NudgeDirection::Down;
+                if (m_tone_automation_lanes_view.nudgeSelectedPoint(point_direction, fine))
+                {
+                    return true;
+                }
+                if (chart_shown && !m_state.chart_edit.selected_notes.empty())
+                {
+                    m_controller.onChartSelectionMoveRequested(*arrow_direction, fine);
+                    return true;
+                }
+                return false;
+            }
+
             if (shift)
             {
-                m_controller.onChartSustainAdjustRequested(-1, fine);
-                return true;
+                // Reserved for future caret-anchored selection extension; deliberately unbound.
+                return false;
             }
-            m_controller.onChartCaretMoveRequested(core::ChartCaretDirection::Left, fine);
-            return true;
-        }
-        if (key.isKeyCode(juce::KeyPress::rightKey))
-        {
-            if (shift)
+
+            if (chart_shown)
             {
-                m_controller.onChartSustainAdjustRequested(1, fine);
+                m_controller.onChartCaretMoveRequested(*arrow_direction, fine);
                 return true;
             }
-            m_controller.onChartCaretMoveRequested(core::ChartCaretDirection::Right, fine);
-            return true;
+            return false;
         }
-        if (key.isKeyCode(juce::KeyPress::upKey))
-        {
-            m_controller.onChartCaretMoveRequested(core::ChartCaretDirection::Up, fine);
-            return true;
-        }
-        if (key.isKeyCode(juce::KeyPress::downKey))
-        {
-            m_controller.onChartCaretMoveRequested(core::ChartCaretDirection::Down, fine);
-            return true;
-        }
-        if (!m_state.chart_edit.selected_notes.empty() && !key.getModifiers().isCtrlDown() &&
+
+        if (chart_shown && !m_state.chart_edit.selected_notes.empty() && !fine && !alt &&
             key.getKeyCode() >= '0' && key.getKeyCode() <= '9')
         {
             m_controller.onChartFretDigitTyped(key.getKeyCode() - '0');
             return true;
         }
-        if (key.isKeyCode(juce::KeyPress::escapeKey) && m_state.chart_edit.marquee.has_value())
+        if (chart_shown && key.isKeyCode(juce::KeyPress::escapeKey) &&
+            m_state.chart_edit.marquee.has_value())
         {
             m_controller.onChartGestureCancelled();
             return true;
@@ -1012,29 +1057,6 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
             return true;
         }
         return m_tone_track_view.cancelActiveGesture();
-    }
-
-    // Arrow keys nudge the selected automation point: Left/Right by one grid step (Ctrl = the
-    // fine step), Up/Down by one value step. They fall through when nothing is selected.
-    {
-        const bool fine = key.getModifiers().isCtrlDown();
-        using NudgeDirection = ToneAutomationLanesView::NudgeDirection;
-        if (key.isKeyCode(juce::KeyPress::leftKey))
-        {
-            return m_tone_automation_lanes_view.nudgeSelectedPoint(NudgeDirection::Earlier, fine);
-        }
-        if (key.isKeyCode(juce::KeyPress::rightKey))
-        {
-            return m_tone_automation_lanes_view.nudgeSelectedPoint(NudgeDirection::Later, fine);
-        }
-        if (key.isKeyCode(juce::KeyPress::upKey))
-        {
-            return m_tone_automation_lanes_view.nudgeSelectedPoint(NudgeDirection::Up, fine);
-        }
-        if (key.isKeyCode(juce::KeyPress::downKey))
-        {
-            return m_tone_automation_lanes_view.nudgeSelectedPoint(NudgeDirection::Down, fine);
-        }
     }
 
     // F8 toggles the undo-history inspector.

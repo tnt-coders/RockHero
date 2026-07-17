@@ -220,6 +220,7 @@ public:
     /*!
     \brief Handles a keyboard caret move in the tablature lane.
 
+    Pure navigation, never a mutation (the interaction model's "plain keys never mutate" rule):
     Left/Right step the caret along the rendered tempo grid (one grid step; the fine 1/960-beat
     grid when \p fine is set); Up/Down move it across string lanes, clamped to the chart's
     strings. With no caret placed yet, the first move places it at the transport position on the
@@ -229,6 +230,19 @@ public:
     \param fine True when the precision modifier requests the fine grid.
     */
     virtual void onChartCaretMoveRequested(ChartCaretDirection direction, bool fine) = 0;
+
+    /*!
+    \brief Handles a keyboard move of the selected chart notes (the Alt authoring modifier).
+
+    Left/Right move the selection by one grid step (the fine 1/960-beat grid when \p fine is
+    set); Up/Down move it across string lanes. Refused, never clamped, when any note would leave
+    the neck or land on an occupied slot; the whole selection moves as one undo entry, with
+    40-Q2-B truncation of any overlaps it creates.
+
+    \param direction Move direction.
+    \param fine True when the precision modifier requests the fine grid.
+    */
+    virtual void onChartSelectionMoveRequested(ChartCaretDirection direction, bool fine) = 0;
 
     /*! \brief Handles a request to delete the selected chart notes as one undo entry. */
     virtual void onChartSelectionDeleteRequested() = 0;
