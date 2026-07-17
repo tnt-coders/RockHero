@@ -106,6 +106,17 @@ the controller's last-used fret), on the hovered lane, tracking Alt-drags, clear
 Alt-release/exit (JUCE's synthetic modifier-change mouse-move keeps it live without pointer
 motion). `TabView` now takes the state's tempo map by reference (the ToneTrackView ghost
 precedent) and repaints only the strips the ghost moves between.
+**UX feedback round three applied 2026-07-17**: (1) ghost repaint shards fixed — the ghost's
+invalidation had reused the one-pixel playhead helper, clipping the incoming ghost and leaving
+fragments of the outgoing one; the lane now invalidates the ghost's real footprint (head plus
+fret-label rect). (2) The full-color labeled ghost KEPT over a plain white ring — the user asked
+whether a white ring would dramatically simplify the code; it would not (the complexity is
+placement/snap/invalidation, which a ring needs too), and the user pre-accepted the current look
+in that case. (3) The selection ring moved outward: the accent stroke's inner edge now sits
+exactly at the head edge (a bit wider than the note shape, reading as the border grown outward),
+deliberately snug rather than out at the accent glow's reach so an accented note keeps a visible
+glow fringe beyond the ring — the user flagged that collision themselves; whether the fringe
+reads well enough in practice is an open feel question.
 **Remaining Phase 4 sub-scope (deferred to the next execution slice, before Phase 5):** pointer
 drag-move of selected notes (horizontal with snap, vertical across strings — the same plain
 move-drag verb automation points use) and Esc canceling an in-flight pointer drag preview.
