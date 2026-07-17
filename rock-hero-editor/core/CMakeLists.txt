@@ -8,6 +8,8 @@ target_sources(
     PRIVATE src/audio/editor_audio_config_store.cpp
             src/audio/game_audio_source_error.cpp
             src/audio_device/audio_device_handlers.cpp
+            src/chart/chart_edits.cpp
+            src/chart/chart_edits.h
             src/chart/chart_hit_testing.cpp
             src/chart/chart_hit_testing.h
             src/chart/chart_selection.cpp

@@ -137,6 +137,23 @@ public:
     */
     void setPointerEventCallback(PointerEventCallback on_pointer_event);
 
+    /*! \brief Sustain-adjust sink for Alt+wheel: direction is +1/-1, fine follows Ctrl. */
+    using SustainWheelCallback = std::function<void(int direction, bool fine)>;
+
+    /*!
+    \brief Installs the sink that receives Alt+wheel sustain adjustments over the lane.
+    \param on_sustain_wheel Callback receiving wheel direction and the precision flag.
+    */
+    void setSustainWheelCallback(SustainWheelCallback on_sustain_wheel);
+
+    /*!
+    \brief Adjusts the selection's sustain on Alt+wheel; other wheel events pass through.
+    \param event Mouse event delivered by JUCE.
+    \param wheel Wheel movement details.
+    */
+    void mouseWheelMove(
+        const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel) override;
+
     /*!
     \brief Applies the chart-editing overlay state (selection, caret, marquee).
     \param edit Overlay state resolved against the same projection instance as setState's tab.
@@ -220,6 +237,9 @@ private:
 
     // Sink receiving the lane's chart pointer intents; empty disables pointer forwarding.
     PointerEventCallback m_on_pointer_event{};
+
+    // Sink receiving Alt+wheel sustain adjustments; empty passes wheel events through.
+    SustainWheelCallback m_on_sustain_wheel{};
 
     // User minimum lane count; zero means match the chart's string count.
     int m_minimum_displayed_strings{0};
