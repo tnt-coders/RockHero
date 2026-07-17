@@ -116,7 +116,7 @@ broader internal generated documentation becomes genuinely uncertain.
 There are no root application tests registered yet, so `ctest` is mainly a guard for future coverage. For tooling changes under `project-config/cmake-conan/`, run the pytest suite from that directory with `pytest -rA`. Add new tests close to the code they validate and follow existing `test_*.py` naming for Python tests.
 
 ## Commit & Pull Request Guidelines
-Recent commits use short, imperative subjects such as `Added CI workflow` and `Repositioned build badge in README`. Keep subjects concise, capitalized, and focused on one change. Pull requests should describe the user-visible impact, list build/test commands run, and link the relevant issue. Include screenshots only for documentation or UI-facing changes.
+Commit subjects use short, imperative form such as `Added CI workflow` and `Repositioned build badge in README`: concise, capitalized, and focused on one change. Follow the subject with a blank line and a descriptive body explaining what changed and why; prefer a body over a bare one-line message for anything beyond a trivial change. Pull requests should describe the user-visible impact, list build/test commands run, and link the relevant issue. Include screenshots only for documentation or UI-facing changes.
 
 ## Configuration Notes
 Conan is wired through `CMakePresets.json` and `conanfile.txt`. Avoid editing generated `build/` artifacts. If you touch preset or submodule wiring, verify a fresh configure from the repository root.
