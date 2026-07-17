@@ -145,6 +145,17 @@ Verified against code on 2026-07-06, refactor @ 13e82fb0.
 - Feature folders earn their folder at the first file; folders are navigation-only, no namespace
   impact (docs/design/architectural-principles.md, "Feature Folders") — justifies the new
   `lint/` feature folder.
+- **Hooks from the 2026-07-17 span/selection settlement**
+  (docs/plans/in-progress/chart-span-and-selection-model.md): (1) degenerate spans (single note
+  total, or repeated identical single notes) are display-dropped and become a validation
+  finding — automatic data removal may graduate later; (2) notes inside a span that do not fit
+  the template are a validation finding, never a classification input; (3) a lone partial
+  strike under a larger template ("hold the Am shape but strike two strings") is a validation
+  nuance the user may sometimes intend — advisory, not an error; (4) once validation lands,
+  consider forcing names for 3+ note chords, with a name-suggestion algorithm (check for an
+  existing chord-naming library before hand-rolling); (5) imported templates wider than the
+  struck strings without arpeggio intent are the importer's normalization obligation — a
+  validation finding here means the importer missed it.
 
 ## Open questions for the user
 

@@ -72,9 +72,10 @@ Verified against code 2026-07-16, branch work-in-progress:
 - **Selection model does not exist yet**: plan 40 Phase 3 (note selection/caret/marquee) and
   plan 47 Phases 2–3 (time selection state + ruler gesture) are both unstarted. This plan
   consumes both. Note the settled interaction grammar **already includes 2D-area
-  multi-select**: the plan 40 Phase 3 marquee is a box over strings × time (empty-lane drag),
-  with Shift extending the selection — the REAPER-style area select the user raised on
-  2026-07-16 is that marquee, not a gap. The two selections are complements, not competitors:
+  multi-select**: the plan 40 Phase 3 marquee is a box over strings × time (empty-lane drag) —
+  the REAPER-style area select the user raised on 2026-07-16 is that marquee, not a gap.
+  (Shift+click was reassigned on 2026-07-17: it now creates this plan's time-range object —
+  see the settled-gesture bullet below.) The two selections are complements, not competitors:
   the marquee picks *objects* (surgical, per-string), the time range picks *a span of the
   chart* (everything, all streams, including step-function context like FHPs that object
   selection cannot express) — the user's own read that whole-span capture suits a tablature
@@ -100,6 +101,14 @@ Verified against code 2026-07-16, branch work-in-progress:
   glyph click selects, empty click seeks, empty drag marquees, Alt = insert quasimode), **41-Q1**
   (signature edits preserve global-beat positions), **47-Q1** (ruler band is the time-selection
   drag surface), **47-Q2 recommendation B** (selection auto-engages looping — interplay in Q7).
+- **Settled 2026-07-17 — the content creation gesture** (from
+  docs/plans/in-progress/chart-span-and-selection-model.md §7): Shift+click in the content
+  area creates this plan's time-range selection object, Guitar Pro-style — one big timespan
+  highlight, **replace** semantics, anchored at the last non-Shift selection action;
+  Shift+clicks while held re-extend from that same anchor; with no prior anchor the first
+  Shift+click acts as a plain click. This settles the creation gesture and display; what
+  operations do with the range (capture, copy, paste, delete) remains this plan's open
+  Q1..Q8 agenda. The ruler drag surface (47-Q1) remains the second creation gesture.
 
 ## 6. Dependencies
 
