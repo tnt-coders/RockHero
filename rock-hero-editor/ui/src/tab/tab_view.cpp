@@ -127,10 +127,10 @@ void TabView::updateGhost(const juce::MouseEvent& event)
     repaintGhostStrip(previous_x, next_x);
 }
 
-// The shared repaintCursorStrip pads for a one-pixel cursor line; the ghost paints up to one
-// head-size on either side of its onset x (the fret-label rect is two head-sizes wide, centered
-// on it), so its strip pads by the style ceiling on that size instead. Anything narrower clips
-// the incoming ghost's draw and leaves stale fragments of the outgoing one behind.
+// The shared repaintCursorStrip pads for a one-pixel cursor line; the ghost ring reaches half a
+// head-size on either side of its onset x, so its strip pads by the style ceiling on that reach
+// instead. Anything narrower clips the incoming ghost's draw and leaves stale fragments of the
+// outgoing one behind.
 void TabView::repaintGhostStrip(std::optional<float> previous_x, std::optional<float> next_x)
 {
     if ((!previous_x.has_value() && !next_x.has_value()) || getWidth() <= 0 || getHeight() <= 0)
@@ -152,7 +152,8 @@ void TabView::repaintGhostStrip(std::optional<float> previous_x, std::optional<f
         right_x = ghost_x;
     }
     constexpr float antialias_padding = 3.0f;
-    const float half_extent = common::ui::TabLaneStyle{}.max_note_height + 1.0f + antialias_padding;
+    const float half_extent =
+        (common::ui::TabLaneStyle{}.max_note_height + 1.0f) / 2.0f + antialias_padding;
     const int left = std::max(0, static_cast<int>(std::floor(left_x - half_extent)));
     const int right = std::min(getWidth(), static_cast<int>(std::ceil(right_x + half_extent)) + 1);
     repaint(left, 0, right - left, getHeight());
@@ -339,12 +340,11 @@ void TabView::paint(juce::Graphics& g)
     // they are editor-shell furniture, not part of what the game's tab strips render.
     const juce::Colour accent = editorTheme().accent;
 
-    // Selection highlight: an accent ring hugging the head's outer edge (user feedback
-    // 2026-07-17 — extend outward from the note, a bit wider than the note shape, rather than
-    // recoloring the head's own border). The stroke's inner edge sits exactly at the head
-    // edge so the ring reads as the note's border grown outward, not a detached halo, and it
-    // stays well inside the accent glow's outer reach so an accented note keeps a visible
-    // glow fringe beyond it; harmonic heads get the matching diamond.
+    // Selection highlight: an accent ring straddling the head's outer edge — the stroke is
+    // centered on the edge so it sits between the head's own border ring and the accent glow
+    // beyond, extending only one border-width outside the head (user feedback 2026-07-17: the
+    // first outward cut buried the glow, so the ring came in a bit to leave the glow annulus
+    // readable on accented notes); harmonic heads get the matching diamond.
     for (const std::size_t index : m_edit.selected_notes)
     {
         if (index >= m_tab->notes.size())
@@ -355,7 +355,7 @@ void TabView::paint(juce::Graphics& g)
         const common::ui::TabNoteLayout layout = common::ui::tabNoteLayout(metrics, note);
         const float border = std::max(1.0f, layout.head_size / 15.0f);
         const float stroke = border * 2.0f;
-        const float extent = layout.head_size + stroke;
+        const float extent = layout.head_size;
         g.setColour(accent);
         if (note.harmonic != common::core::NoteHarmonic::None)
         {
@@ -395,28 +395,16 @@ void TabView::paint(juce::Graphics& g)
         g.drawRect(box, 1.0f);
     }
 
-    // The Alt-held ghost: a translucent head with the fret the insert would carry, at the
-    // snapped position on the hovered lane — exactly what a click would place.
+    // The Alt-held ghost: a faded white ring in the shape of the head a click would insert, at
+    // the snapped position on the hovered lane. A neutral outline, not a full colored note
+    // (user feedback 2026-07-17): the insert always lands at fret 0 and the real fret gets
+    // typed right after, so mirroring color and number would preview a note nobody keeps.
     if (m_ghost.has_value() && m_ghost->string >= 1 && m_ghost->string <= m_tab->string_count)
     {
         const float size = metrics.note_height + 1.0f;
         const float center_y = metrics.laneY(m_ghost->string);
-        const juce::Colour base = metrics.baseColor(m_ghost->string);
-        g.setColour(base.withAlpha(0.35f));
-        g.fillEllipse(m_ghost->x - size / 2.0f, center_y - size / 2.0f, size, size);
-        g.setColour(base.withAlpha(0.6f));
+        g.setColour(juce::Colours::white.withAlpha(0.6f));
         g.drawEllipse(m_ghost->x - size / 2.0f, center_y - size / 2.0f, size, size, 1.5f);
-        if (metrics.draw_text)
-        {
-            g.setColour(juce::Colours::white.withAlpha(0.75f));
-            g.setFont(metrics.fret_font);
-            g.drawText(
-                juce::String{m_edit.insert_fret},
-                juce::Rectangle<float>{
-                    m_ghost->x - size, center_y - size, size * 2.0f, size * 2.0f
-                },
-                juce::Justification::centred);
-        }
     }
 }
 

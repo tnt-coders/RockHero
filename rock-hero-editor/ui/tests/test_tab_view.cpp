@@ -270,11 +270,11 @@ TEST_CASE("TabView renders chart-editing overlays", "[ui][tab-view]")
     juce::Graphics graphics{image};
     view.paint(graphics);
 
-    // The selection highlight rings the first note's head just outside its edge in the theme
+    // The selection highlight rings the first note's head straddling its edge in the theme
     // accent: probe a pixel fully inside the stroke band left of the head (head at x = 10,
-    // center y = 110, head radius ~7.2, band out to ~9.2) so antialiasing at the band edges
+    // center y = 110, head radius ~7.2, band ~6.2 to ~8.2) so antialiasing at the band edges
     // cannot blend the probe.
-    CHECK(image.getPixelAt(1, 110) == editorTheme().accent);
+    CHECK(image.getPixelAt(2, 110) == editorTheme().accent);
     // The marquee border's top-left corner at (30, 30).
     CHECK(image.getPixelAt(30, 30).getARGB() != 0);
 }
@@ -295,10 +295,11 @@ TEST_CASE("TabView shows the Alt insert ghost at the snapped position", "[ui][ta
         });
     view.setState(makeTabState(), 0);
 
-    // Alt-hover at 12.2s over the string-3 lane (center y = 70): the ghost snaps to the
-    // quarter-note grid line at 12.0s (x = 120).
+    // Alt-hover at ~12.35s over the string-3 lane (center y = 70): the ghost snaps to the
+    // nearest quarter-note grid line at 12.5s (x = 125) — the default map's 120 BPM puts grid
+    // lines every 0.5s, and 12.35 is unambiguously nearer 12.5.
     view.mouseMove(
-        testing::makeMouseDownEvent(view, 122.0f, 71.0f, juce::ModifierKeys::altModifier));
+        testing::makeMouseDownEvent(view, 123.0f, 71.0f, juce::ModifierKeys::altModifier));
     CHECK(view.getMouseCursor() == juce::MouseCursor{juce::MouseCursor::CopyingCursor});
 
     {
@@ -306,19 +307,20 @@ TEST_CASE("TabView shows the Alt insert ghost at the snapped position", "[ui][ta
             juce::Image::ARGB, 200, 120, true)};
         juce::Graphics graphics{image};
         view.paint(graphics);
-        // Probe inside the translucent ghost head, left of the centered fret numeral.
-        CHECK(image.getPixelAt(116, 70).getARGB() != 0);
+        // Probe inside the ghost ring's stroke band above the head center (ring radius ~7.2,
+        // stroke 1.5), off the string line so the lane paint cannot satisfy the check.
+        CHECK(image.getPixelAt(125, 62).getARGB() != 0);
     }
 
     // Without Alt the ghost and the copy cursor clear.
-    view.mouseMove(testing::makeMouseDownEvent(view, 122.0f, 71.0f, juce::ModifierKeys{}));
+    view.mouseMove(testing::makeMouseDownEvent(view, 123.0f, 71.0f, juce::ModifierKeys{}));
     CHECK(view.getMouseCursor() == juce::MouseCursor{juce::MouseCursor::NormalCursor});
     {
         const juce::Image image{juce::SoftwareImageType{}.create(
             juce::Image::ARGB, 200, 120, true)};
         juce::Graphics graphics{image};
         view.paint(graphics);
-        CHECK(image.getPixelAt(116, 66).getARGB() == 0);
+        CHECK(image.getPixelAt(120, 62).getARGB() == 0);
     }
 }
 
