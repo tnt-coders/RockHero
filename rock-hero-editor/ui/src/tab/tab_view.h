@@ -6,10 +6,13 @@
 #pragma once
 
 #include <cstddef>
+#include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <rock_hero/common/core/tab/tab_view_state.h>
 #include <rock_hero/common/core/timeline/timeline.h>
+#include <rock_hero/editor/core/chart/chart_pointer.h>
+#include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <utility>
 #include <vector>
 
@@ -112,14 +115,71 @@ The view draws string lines with Charter's modern-theme note presentation — la
 note heads (diamonds for harmonics) with fret numbers, bordered sustain tails, technique icons,
 slide and bend lines with label chips, and hand-shape spans — from the controller's
 seconds-resolved tab projection, mapping time to pixels with the same visible-timeline
-convention as the waveform beneath it. It is purely presentational and never intercepts the
-pointer, so timeline seeking keeps working through the lane.
+convention as the waveform beneath it, then the chart-editing overlays (selection rings, the
+editing caret, and the in-flight marquee) above the notation. While a chart is displayed the
+lane owns its pointer events, converting them to lane-local chart pointer intents; the
+controller decides what a press means (select, seek, or marquee), so empty-lane clicks still
+seek. Without a chart the lane is pointer-transparent as before.
 */
 class TabView final : public juce::Component
 {
 public:
-    /*! \brief Creates an empty tablature lane that ignores pointer events. */
+    /*! \brief One pointer-intent sink receiving every phase of a lane gesture. */
+    using PointerEventCallback =
+        std::function<void(core::ChartPointerPhase, const core::ChartPointerEvent&)>;
+
+    /*! \brief Creates an empty tablature lane. */
     TabView();
+
+    /*!
+    \brief Installs the sink that receives the lane's chart pointer intents.
+    \param on_pointer_event Callback invoked for every gesture phase; empty disables forwarding.
+    */
+    void setPointerEventCallback(PointerEventCallback on_pointer_event);
+
+    /*!
+    \brief Applies the chart-editing overlay state (selection, caret, marquee).
+    \param edit Overlay state resolved against the same projection instance as setState's tab.
+    */
+    void setEditState(core::ChartEditViewState edit);
+
+    /*!
+    \brief Reports whether the lane wants the pointer at a lane-local position.
+
+    The cursor overlay's pass-through predicate queries this: with a chart displayed the lane
+    claims its whole band (the controller still turns empty clicks into seeks), and without one
+    it stays transparent so the overlay's click-to-seek is untouched.
+
+    \param local_point Position in this component's coordinates.
+    \return True when the lane should receive the pointer event.
+    */
+    [[nodiscard]] bool wantsPointerAt(juce::Point<int> local_point) const;
+
+    /*!
+    \brief Claims pointer events exactly where wantsPointerAt does.
+    \param x Pointer x position in local coordinates.
+    \param y Pointer y position in local coordinates.
+    \return True when the lane should receive the pointer event.
+    */
+    bool hitTest(int x, int y) override;
+
+    /*!
+    \brief Forwards a press as a chart pointer Down intent.
+    \param event Mouse event delivered by JUCE.
+    */
+    void mouseDown(const juce::MouseEvent& event) override;
+
+    /*!
+    \brief Forwards held-button movement as a chart pointer Drag intent.
+    \param event Mouse event delivered by JUCE.
+    */
+    void mouseDrag(const juce::MouseEvent& event) override;
+
+    /*!
+    \brief Forwards the release as a chart pointer Up intent.
+    \param event Mouse event delivered by JUCE.
+    */
+    void mouseUp(const juce::MouseEvent& event) override;
 
     /*!
     \brief Stores the visible timeline range used to map note times to pixels.
@@ -149,8 +209,17 @@ private:
     // Rebuilds the prefix-maximum sustain-end table after the projection changes.
     void rebuildVisibilityIndex();
 
+    // Builds the chart pointer event for a mouse event using the currently painted geometry.
+    [[nodiscard]] core::ChartPointerEvent makePointerEvent(const juce::MouseEvent& event) const;
+
     // Seconds-resolved tab projection shared with the controller; null without a chart.
     std::shared_ptr<const common::core::TabViewState> m_tab{};
+
+    // Chart-editing overlay state (selection indices, caret, marquee) pushed by the editor.
+    core::ChartEditViewState m_edit{};
+
+    // Sink receiving the lane's chart pointer intents; empty disables pointer forwarding.
+    PointerEventCallback m_on_pointer_event{};
 
     // User minimum lane count; zero means match the chart's string count.
     int m_minimum_displayed_strings{0};

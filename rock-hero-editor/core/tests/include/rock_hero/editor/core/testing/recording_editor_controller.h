@@ -218,6 +218,35 @@ public:
         last_selected_arrangement_id = std::move(arrangement_id);
     }
 
+    /*! \copydoc IEditorController::onChartPointerDown */
+    void onChartPointerDown(const ChartPointerEvent& event) override
+    {
+        last_chart_pointer_event = event;
+        chart_pointer_down_count += 1;
+    }
+
+    /*! \copydoc IEditorController::onChartPointerDrag */
+    void onChartPointerDrag(const ChartPointerEvent& event) override
+    {
+        last_chart_pointer_event = event;
+        chart_pointer_drag_count += 1;
+    }
+
+    /*! \copydoc IEditorController::onChartPointerUp */
+    void onChartPointerUp(const ChartPointerEvent& event) override
+    {
+        last_chart_pointer_event = event;
+        chart_pointer_up_count += 1;
+    }
+
+    /*! \copydoc IEditorController::onChartCaretMoveRequested */
+    void onChartCaretMoveRequested(ChartCaretDirection direction, bool fine) override
+    {
+        last_chart_caret_direction = direction;
+        last_chart_caret_fine = fine;
+        chart_caret_move_count += 1;
+    }
+
     /*! \copydoc IEditorController::onToneRegionSelected */
     void onToneRegionSelected(std::string region_id) override
     {
@@ -620,6 +649,27 @@ public:
 
     /*! \brief Last arrangement id reported through onArrangementSelected(). */
     std::string last_selected_arrangement_id{};
+
+    /*! \brief Last chart pointer event received on any phase. */
+    std::optional<ChartPointerEvent> last_chart_pointer_event{};
+
+    /*! \brief Number of onChartPointerDown() intents received. */
+    int chart_pointer_down_count{0};
+
+    /*! \brief Number of onChartPointerDrag() intents received. */
+    int chart_pointer_drag_count{0};
+
+    /*! \brief Number of onChartPointerUp() intents received. */
+    int chart_pointer_up_count{0};
+
+    /*! \brief Last caret move direction received. */
+    std::optional<ChartCaretDirection> last_chart_caret_direction{};
+
+    /*! \brief Fine-grid flag of the last caret move received. */
+    bool last_chart_caret_fine{false};
+
+    /*! \brief Number of onChartCaretMoveRequested() intents received. */
+    int chart_caret_move_count{0};
 
     /*! \brief Last tone region id reported through onToneRegionSelected(). */
     std::string last_selected_tone_region_id{};

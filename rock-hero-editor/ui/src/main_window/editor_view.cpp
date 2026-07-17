@@ -376,6 +376,27 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     m_audio_device_button.onClick = [this] { showAudioDeviceSettingsWindow(); };
     m_arrangement_view.setComponentID("arrangement_view");
     m_tab_view.setComponentID("tab_view");
+    m_tab_view.setPointerEventCallback(
+        [this](core::ChartPointerPhase phase, const core::ChartPointerEvent& event) {
+            switch (phase)
+            {
+                case core::ChartPointerPhase::Down:
+                {
+                    m_controller.onChartPointerDown(event);
+                    break;
+                }
+                case core::ChartPointerPhase::Drag:
+                {
+                    m_controller.onChartPointerDrag(event);
+                    break;
+                }
+                case core::ChartPointerPhase::Up:
+                {
+                    m_controller.onChartPointerUp(event);
+                    break;
+                }
+            }
+        });
     m_tone_track_view.setComponentID("tone_track_view");
     m_tone_track_view.setSnapGuideCallback([this](std::optional<TimelineSnapGuide> guide) {
         m_cursor_overlay->setSnapGuide(std::move(guide));
@@ -393,6 +414,14 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
         }
     });
     m_cursor_overlay->setHitTestPassThrough([this](juce::Point<int> position) {
+        // The tab lane claims its whole band while a chart is displayed; its controller-side
+        // gesture policy still turns empty clicks into seeks, so seeking is preserved.
+        const juce::Rectangle<int> tab_bounds = m_tab_view.getBounds();
+        if (tab_bounds.contains(position) &&
+            m_tab_view.wantsPointerAt(position - tab_bounds.getPosition()))
+        {
+            return true;
+        }
         const juce::Rectangle<int> row_bounds = m_tone_track_view.getBounds();
         if (row_bounds.contains(position) &&
             m_tone_track_view.wantsPointerAt(position - row_bounds.getPosition()))
@@ -585,6 +614,7 @@ void EditorView::setState(const core::EditorViewState& state)
 
     m_tab_view.setVisibleTimeline(m_state.visible_timeline);
     m_tab_view.setState(m_state.tab, m_state.tab_minimum_displayed_strings);
+    m_tab_view.setEditState(m_state.chart_edit);
     // The viewport needs the displayed lane count because counts past the six-string reference
     // density grow the waveform row instead of compressing the tablature lanes.
     m_track_viewport->setTabDisplayedStrings(tabDisplayedStringCount(
@@ -883,6 +913,34 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
     {
         m_controller.onPlayPausePressed();
         return true;
+    }
+
+    // Arrow keys navigate the tablature editing caret while a chart is displayed; Ctrl steps
+    // the fine grid per the interaction model's precision modifier. Interim scattered keybind
+    // (recorded for plan 46's registry).
+    if (m_state.tab != nullptr && m_state.tab->string_count > 0)
+    {
+        const bool fine = key.getModifiers().isCtrlDown();
+        if (key.isKeyCode(juce::KeyPress::leftKey))
+        {
+            m_controller.onChartCaretMoveRequested(core::ChartCaretDirection::Left, fine);
+            return true;
+        }
+        if (key.isKeyCode(juce::KeyPress::rightKey))
+        {
+            m_controller.onChartCaretMoveRequested(core::ChartCaretDirection::Right, fine);
+            return true;
+        }
+        if (key.isKeyCode(juce::KeyPress::upKey))
+        {
+            m_controller.onChartCaretMoveRequested(core::ChartCaretDirection::Up, fine);
+            return true;
+        }
+        if (key.isKeyCode(juce::KeyPress::downKey))
+        {
+            m_controller.onChartCaretMoveRequested(core::ChartCaretDirection::Down, fine);
+            return true;
+        }
     }
 
     // Delete targets the selected automation point first (the more specific target), then falls

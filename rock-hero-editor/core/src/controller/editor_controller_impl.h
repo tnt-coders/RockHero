@@ -13,6 +13,7 @@ definitions, no state added just to make a translation-unit split work.
 #pragma once
 
 #include "busy/busy_operation_workflow.h"
+#include "chart/chart_selection.h"
 #include "deferred_project_action_state.h"
 #include "editor_action.h"
 #include "editor_action_availability.h"
@@ -143,6 +144,14 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onWaveformVisibleChangeRequested(bool visible);
     void onTabMinimumDisplayedStringsChangeRequested(int minimum_strings);
     void onArrangementSelected(std::string arrangement_id);
+    void onChartPointerDown(const ChartPointerEvent& event);
+    void onChartPointerDrag(const ChartPointerEvent& event);
+    void onChartPointerUp(const ChartPointerEvent& event);
+    void onChartCaretMoveRequested(ChartCaretDirection direction, bool fine);
+    [[nodiscard]] const common::core::TabViewState* displayedTabProjection() const;
+    [[nodiscard]] std::optional<ChartNoteKey> chartNoteKeyAt(std::size_t projection_index) const;
+    void clearChartEditingState();
+    void placeChartCaret(const ChartPointerEvent& event);
     [[nodiscard]] std::string toneRegionIdAt(common::core::TimePosition position) const;
     [[nodiscard]] std::string activeToneRegionId() const;
     [[nodiscard]] std::string activeToneDocumentRef() const;
@@ -584,6 +593,28 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Stable id of the selected authored tone region; empty when nothing is selected.
     // Cleared on project close and load because ids are project-local.
     std::string m_selected_tone_region_id{};
+
+    // Chart-editing selection and caret for the tablature lane; keys are (position, string) so
+    // they survive unrelated edits. Cleared on project load/close and arrangement switches.
+    ChartSelection m_chart_selection{};
+    std::optional<ChartCaret> m_chart_caret{};
+
+    // In-flight tablature pointer gesture: armed on Down, disambiguated into click vs. marquee by
+    // the drag threshold, resolved on Up. The geometry is the Down event's, so one gesture snaps
+    // consistently even if a state push relayouts mid-drag.
+    struct ChartPointerGesture
+    {
+        common::ui::TabLaneGeometry geometry{};
+        ChartPointerModifiers modifiers{};
+        float anchor_x{};
+        float anchor_y{};
+        float current_x{};
+        float current_y{};
+        bool marquee{false};
+        // Set when Down hit a glyph; the gesture then owns selection instead of click-vs-marquee.
+        std::optional<std::size_t> hit_note{};
+    };
+    std::optional<ChartPointerGesture> m_chart_gesture{};
 
     // Durable automation identity of one live tone-chain plugin instance.
     struct ToneAutomationIdentity

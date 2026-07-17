@@ -17,6 +17,7 @@
 #include <rock_hero/common/core/tone/tone_track.h>
 #include <rock_hero/editor/core/audio/game_audio_source_error.h>
 #include <rock_hero/editor/core/audio/game_audio_source_state.h>
+#include <rock_hero/editor/core/chart/chart_pointer.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <rock_hero/editor/core/signal_chain/plugin_block_assignment.h>
 #include <rock_hero/editor/core/signal_chain/plugin_display_type.h>
@@ -184,6 +185,50 @@ public:
     \param arrangement_id Stable arrangement id selected by the user.
     */
     virtual void onArrangementSelected(std::string arrangement_id) = 0;
+
+    /*!
+    \brief Handles a pointer press inside the tablature lane.
+
+    The controller resolves the hit against the current tab projection: a note-glyph hit starts
+    a selection gesture (plain replaces, Ctrl toggles membership, Shift extends), an empty-lane
+    press arms the click-vs-marquee disambiguation. Nothing mutates the chart.
+
+    \param event Pointer event in lane-local pixels with the painted lane geometry.
+    */
+    virtual void onChartPointerDown(const ChartPointerEvent& event) = 0;
+
+    /*!
+    \brief Handles pointer movement while the tablature-lane button is held.
+
+    Past the click threshold an empty-lane gesture becomes a marquee whose rectangle is
+    published through the view state until release.
+
+    \param event Pointer event in lane-local pixels with the painted lane geometry.
+    */
+    virtual void onChartPointerDrag(const ChartPointerEvent& event) = 0;
+
+    /*!
+    \brief Handles the tablature-lane pointer release that ends the gesture.
+
+    An empty-lane click (no drag) seeks the timeline to the snapped click position, clears the
+    selection, and places the editing caret; a marquee release selects the boxed notes.
+
+    \param event Pointer event in lane-local pixels with the painted lane geometry.
+    */
+    virtual void onChartPointerUp(const ChartPointerEvent& event) = 0;
+
+    /*!
+    \brief Handles a keyboard caret move in the tablature lane.
+
+    Left/Right step the caret along the rendered tempo grid (one grid step; the fine 1/960-beat
+    grid when \p fine is set); Up/Down move it across string lanes, clamped to the chart's
+    strings. With no caret placed yet, the first move places it at the transport position on the
+    lowest string.
+
+    \param direction Caret move direction.
+    \param fine True when the precision modifier requests the fine grid.
+    */
+    virtual void onChartCaretMoveRequested(ChartCaretDirection direction, bool fine) = 0;
 
     /*!
     \brief Handles a deliberate selection of a tone region on the tone track (a click).

@@ -4,20 +4,10 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstdint>
 #include <rock_hero/editor/core/timeline/timeline_geometry.h>
 
 namespace rock_hero::editor::ui
 {
-
-namespace
-{
-
-// The fine placement grid used when Ctrl bypasses the visible grid: 1/960 of a beat keeps every
-// stored position an exact rational at far finer than audible resolution.
-constexpr int g_fine_grid_denominator = 960;
-
-} // namespace
 
 // Converts a timeline position to a bounded subpixel coordinate for the cursor overlay.
 std::optional<float> cursorXForTimelinePosition(
@@ -112,28 +102,12 @@ std::optional<common::core::GridPosition> musicalGridPositionForX(
     return fineGridPositionForBeat(tempo_map, tempo_map.beatPositionAtSeconds(clicked->seconds));
 }
 
+// Thin delegate: the fine-grid quantization moved to editor-core (tempo_grid_geometry) so the
+// controller's headless caret stepping and every UI placement gesture share one authority.
 common::core::GridPosition fineGridPositionForBeat(
     const common::core::TempoMap& tempo_map, double global_beat)
 {
-    // Quantize the fractional beat to the 1/960 fine grid so the stored position stays an exact
-    // rational instead of a raw double; 960 covers every practical straight, triplet, and
-    // quintuplet subdivision at sub-millisecond resolution.
-    double whole_beats = 0.0;
-    const double beat_fraction = std::modf(std::max(0.0, global_beat), &whole_beats);
-    auto beat_index = static_cast<std::int64_t>(whole_beats);
-    int fine_steps =
-        static_cast<int>(std::lround(beat_fraction * static_cast<double>(g_fine_grid_denominator)));
-    if (fine_steps == g_fine_grid_denominator)
-    {
-        beat_index += 1;
-        fine_steps = 0;
-    }
-    const auto [measure, beat] = tempo_map.beatAtGlobalIndex(beat_index);
-    return common::core::GridPosition{
-        .measure = measure,
-        .beat = beat,
-        .offset = common::core::Fraction{fine_steps, g_fine_grid_denominator},
-    };
+    return core::fineGridPositionForBeat(tempo_map, global_beat);
 }
 
 } // namespace rock_hero::editor::ui

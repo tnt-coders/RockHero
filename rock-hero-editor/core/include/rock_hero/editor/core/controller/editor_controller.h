@@ -420,6 +420,18 @@ public:
     /*! \copydoc IEditorController::onArrangementSelected */
     void onArrangementSelected(std::string arrangement_id) override;
 
+    /*! \copydoc IEditorController::onChartPointerDown */
+    void onChartPointerDown(const ChartPointerEvent& event) override;
+
+    /*! \copydoc IEditorController::onChartPointerDrag */
+    void onChartPointerDrag(const ChartPointerEvent& event) override;
+
+    /*! \copydoc IEditorController::onChartPointerUp */
+    void onChartPointerUp(const ChartPointerEvent& event) override;
+
+    /*! \copydoc IEditorController::onChartCaretMoveRequested */
+    void onChartCaretMoveRequested(ChartCaretDirection direction, bool fine) override;
+
     /*! \copydoc IEditorController::onToneRegionSelected */
     void onToneRegionSelected(std::string region_id) override;
 
