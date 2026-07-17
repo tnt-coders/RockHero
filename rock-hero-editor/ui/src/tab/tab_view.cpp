@@ -340,6 +340,12 @@ void TabView::paint(juce::Graphics& g)
     // they are editor-shell furniture, not part of what the game's tab strips render.
     const juce::Colour accent = editorTheme().accent;
 
+    // One stroke width for both edge-straddling rings (selection highlight and Alt ghost), so
+    // the ghost previews exactly the ring dimensions a selected head wears.
+    const auto ring_stroke = [](float head_size) noexcept {
+        return std::max(1.0f, head_size / 15.0f) * 1.5f;
+    };
+
     // Selection highlight: an accent ring straddling the head's outer edge — the stroke is
     // centered on the edge, at one and a half border-widths thick, so it sits between the
     // head's own border ring and the accent glow while leaving the glow annulus readable on
@@ -354,8 +360,7 @@ void TabView::paint(juce::Graphics& g)
         }
         const common::core::TabNoteView& note = m_tab->notes[index];
         const common::ui::TabNoteLayout layout = common::ui::tabNoteLayout(metrics, note);
-        const float border = std::max(1.0f, layout.head_size / 15.0f);
-        const float stroke = border * 1.5f;
+        const float stroke = ring_stroke(layout.head_size);
         const float extent = layout.head_size;
         g.setColour(accent);
         if (note.harmonic != common::core::NoteHarmonic::None)
@@ -396,16 +401,18 @@ void TabView::paint(juce::Graphics& g)
         g.drawRect(box, 1.0f);
     }
 
-    // The Alt-held ghost: a faded white ring in the shape of the head a click would insert, at
-    // the snapped position on the hovered lane. A neutral outline, not a full colored note
-    // (user feedback 2026-07-17): the insert always lands at fret 0 and the real fret gets
-    // typed right after, so mirroring color and number would preview a note nobody keeps.
+    // The Alt-held ghost: a faded white ring with the exact dimensions of the selection ring
+    // on the head a click would insert, at the snapped position on the hovered lane. A neutral
+    // outline, not a full colored note (user feedback 2026-07-17): the insert always lands at
+    // fret 0 and the real fret gets typed right after, so mirroring color and number would
+    // preview a note nobody keeps.
     if (m_ghost.has_value() && m_ghost->string >= 1 && m_ghost->string <= m_tab->string_count)
     {
         const float size = metrics.note_height + 1.0f;
         const float center_y = metrics.laneY(m_ghost->string);
         g.setColour(juce::Colours::white.withAlpha(0.6f));
-        g.drawEllipse(m_ghost->x - size / 2.0f, center_y - size / 2.0f, size, size, 1.5f);
+        g.drawEllipse(
+            m_ghost->x - size / 2.0f, center_y - size / 2.0f, size, size, ring_stroke(size));
     }
 }
 
