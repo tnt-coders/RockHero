@@ -255,8 +255,9 @@ public:
     /*!
     \brief Nudges the selected point by one step, committing one points-edit intent.
 
-    Time nudges move to the adjacent tempo-grid line (or by one 1/960-beat fine step when \p fine
-    is set), clamped strictly between the point's neighbors and inside the editable window. Value
+    Reached through the Alt authoring modifier (Alt+arrows; amended interaction grammar
+    2026-07-16 — plain keys never mutate). Time nudges move to the adjacent tempo-grid line (or
+    by one 1/960-beat fine step when \p fine is set), clamped strictly between the point's neighbors and inside the editable window. Value
     nudges step by 0.01 (0.001 fine); a discrete lane steps one state. The editor routes arrow
     keys here so they can fall through when no point is selected.
 

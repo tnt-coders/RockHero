@@ -149,6 +149,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onChartPointerDrag(const ChartPointerEvent& event);
     void onChartPointerUp(const ChartPointerEvent& event);
     void onChartCaretMoveRequested(ChartCaretDirection direction, bool fine);
+    void onChartSelectionMoveRequested(ChartCaretDirection direction, bool fine);
     void onChartSelectionDeleteRequested();
     void onChartFretDigitTyped(int digit);
     void onChartSustainAdjustRequested(int direction, bool fine);

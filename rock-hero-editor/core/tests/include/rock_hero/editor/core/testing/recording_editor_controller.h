@@ -247,6 +247,14 @@ public:
         chart_caret_move_count += 1;
     }
 
+    /*! \copydoc IEditorController::onChartSelectionMoveRequested */
+    void onChartSelectionMoveRequested(ChartCaretDirection direction, bool fine) override
+    {
+        last_chart_selection_move_direction = direction;
+        last_chart_selection_move_fine = fine;
+        chart_selection_move_count += 1;
+    }
+
     /*! \copydoc IEditorController::onChartSelectionDeleteRequested */
     void onChartSelectionDeleteRequested() override
     {
@@ -697,6 +705,15 @@ public:
 
     /*! \brief Number of onChartCaretMoveRequested() intents received. */
     int chart_caret_move_count{0};
+
+    /*! \brief Last selection-move direction received. */
+    std::optional<ChartCaretDirection> last_chart_selection_move_direction{};
+
+    /*! \brief Fine-grid flag of the last selection move received. */
+    bool last_chart_selection_move_fine{false};
+
+    /*! \brief Number of onChartSelectionMoveRequested() intents received. */
+    int chart_selection_move_count{0};
 
     /*! \brief Number of onChartSelectionDeleteRequested() intents received. */
     int chart_selection_delete_count{0};

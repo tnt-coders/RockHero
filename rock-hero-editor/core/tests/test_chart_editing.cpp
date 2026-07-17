@@ -485,14 +485,22 @@ TEST_CASE("EditorController nudges the selection and refuses collisions", "[core
 
     click(controller, 40.0f, 220.0f);
 
-    // Up would land on the occupied measure-2 string-2 slot: refused, nothing changes.
-    controller.onChartCaretMoveRequested(ChartCaretDirection::Up, false);
+    // Plain arrows never mutate: with a selection they still navigate the caret.
+    controller.onChartCaretMoveRequested(ChartCaretDirection::Right, false);
     const auto* chart = &*controller.session().currentArrangement()->chart;
+    CHECK(chart->notes[0].position == (common::core::GridPosition{.measure = 2, .beat = 1}));
+    REQUIRE(view.last_state.has_value());
+    REQUIRE(view.last_state->chart_edit.caret.has_value());
+    CHECK(view.last_state->chart_edit.caret->seconds == Catch::Approx(2.5));
+
+    // Alt+Up would land on the occupied measure-2 string-2 slot: refused, nothing changes.
+    controller.onChartSelectionMoveRequested(ChartCaretDirection::Up, false);
+    chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes[0].string == 1);
     CHECK(chart->notes[0].position == (common::core::GridPosition{.measure = 2, .beat = 1}));
 
-    // Right moves one quarter-note step; the selection follows the moved note.
-    controller.onChartCaretMoveRequested(ChartCaretDirection::Right, false);
+    // Alt+Right moves one quarter-note step; the selection follows the moved note.
+    controller.onChartSelectionMoveRequested(ChartCaretDirection::Right, false);
     chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes[1].position == (common::core::GridPosition{.measure = 2, .beat = 2}));
     CHECK(chart->notes[1].string == 1);
