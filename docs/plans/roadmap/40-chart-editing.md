@@ -26,6 +26,30 @@ save/reload round-trip, unedited-save byte-stability, session revision semantics
 "revision rebuilds the projection" controller-level test is deferred to the phase that adds
 the first chart-mutation intent (Phase 3/4) — no public route can bump the revision until one
 exists; the session-level behavior is covered now.
+**Phase 3 complete 2026-07-16** (after plan 30 Phase 2 landed the paint core + manifest per
+30-Q2): headless selection/caret in editor-core (`src/chart/chart_selection.{h,cpp}` —
+`ChartNoteKey` (position, string) sorted-unique container with replace/toggle/add/box ops and
+key→projection-index resolution; `chart_hit_testing.{h,cpp}` resolving pixels through the shared
+layout manifest, heads-over-tails with nearest-onset tie-breaks); pointer intents
+`onChartPointerDown/Drag/Up(ChartPointerEvent)` carrying the painted `TabLaneGeometry` (new
+public header `chart/chart_pointer.h`; editor-core now links common::ui) plus
+`onChartCaretMoveRequested(direction, fine)`; the whole gesture policy lives in the controller
+(glyph press selects per the 40-Q3 grammar; empty click seeks + deselects + places the caret;
+empty drag past a 4px threshold marquees, Shift extends the box; Alt reserved for Phase 4;
+selection cleared at the one loadSessionSong commit seam). `fineGridPositionForBeat` moved from
+editor/ui to editor-core tempo_grid_geometry (ui delegates) so caret stepping shares the one
+fine-grid authority. `TabView` claims its band via hitTest/wantsPointerAt only while a chart
+shows (cursor-overlay pass-through extended; empty-lane seeks preserved through the controller),
+forwards lane-local events through a callback, and renders the overlays (accent selection
+halos, lane-height caret with serifs, translucent marquee) above the shared notation — never in
+the paint core. Arrow keys (Ctrl = fine) land in `EditorView::keyPressed` as interim scattered
+keybinds recorded for plan 46. Tests: controller gesture policy (select/toggle/extend/collapse,
+tail clicks, empty-click seek+caret, marquee replace+extend, caret grid/fine/string stepping
+with clamps, selection cleared on reload), pure hit-testing (head-over-tail, overlap
+resolution, zoom extremes 4–400 px/s, marquee boxes), selection-key resolution, TabView wiring
+(pointer forwarding with geometry/modifiers, chart-gated transparency) and overlay rendering
+smoke. Exit criteria met: notes selectable by click/marquee/keyboard, caret visible and
+navigable, seek works on empty space, zero chart mutations.
 
 Open questions Q1–Q4 below have recommended defaults and are mirrored into
 `docs/plans/roadmap/00-roadmap.md` (Decisions needed). Phases 1–3 depend on none of them; later phases
