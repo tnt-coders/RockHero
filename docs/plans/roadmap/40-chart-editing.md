@@ -70,11 +70,20 @@ edit under the new keys; dirty tracking rides the existing clean marker; save pe
 the Phase 2 write-on-save pipeline. Tests: insert/undo/redo round trips, insert-with-truncation
 restored by ONE undo, compound delete, multi-digit fret combining, sustain clamp-and-floor,
 nudge collisions refused, plus the Phase 3 suites re-verified against the nudge semantics.
+**Keyboard grammar amended 2026-07-16** (user decision; full record in
+docs/plans/in-progress/editing-interaction-model.md): plain keys never mutate — plain arrows now
+navigate the caret unconditionally, **Alt+arrows** moves the selection (new
+`onChartSelectionMoveRequested` intent), **Shift+Alt+Left/Right** resizes sustains (Shift+arrows
+is reserved for future selection extension), and the automation lanes' plain-arrow point nudge
+gained the same Alt requirement so the rule holds on every surface. Sustain **tail-drag is
+parked** behind a watch-item trigger (docs/tracking/watch-items.md "Chart editing"); plain-wheel
+zoom affirmed over modifier-gated zoom; timeline panning bindings (Shift+wheel / middle-drag)
+recorded as an open deferred decision in the model doc.
 **Remaining Phase 4 sub-scope (deferred to the next execution slice, before Phase 5):** pointer
-drag-move of selected notes and sustain tail-drag resize (the keyboard/wheel verbs cover move
-and resize meanwhile), the Alt-held ghost preview + `CopyingCursor` hover affordance, Esc
-canceling an in-flight pointer drag preview, and collapsing a multi-digit fret entry into one
-undo entry.
+drag-move of selected notes (horizontal with snap, vertical across strings — the same plain
+move-drag verb automation points use), the Alt-held ghost preview + `CopyingCursor` hover
+affordance, Esc canceling an in-flight pointer drag preview, and collapsing a multi-digit fret
+entry into one undo entry.
 
 Open questions Q1–Q4 below have recommended defaults and are mirrored into
 `docs/plans/roadmap/00-roadmap.md` (Decisions needed). Phases 1–3 depend on none of them; later phases

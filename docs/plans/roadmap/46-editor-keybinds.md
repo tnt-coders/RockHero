@@ -15,6 +15,13 @@ plugin editor windows honoring the user's actual undo/redo/play-pause bindings i
 hardcoded copy. Plans 40/41/44 register their new shortcuts through this system instead of growing
 `EditorView::keyPressed`.
 
+**User-facing keybind documentation rides this plan** (user direction 2026-07-16): shipping the
+rebinding system is also the moment to write the user-facing documentation of the editing
+interaction grammar (docs/plans/in-progress/editing-interaction-model.md is the design-side
+truth). Both are deliberately deferred while the grammar is still being tuned against real
+charting — do not author user docs from the model doc before the user declares the design
+settled.
+
 ## Non-goals
 
 - Chorded/sequenced bindings (Ctrl+K Ctrl+B) and mouse-button bindings — fundamentally outside

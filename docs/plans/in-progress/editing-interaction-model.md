@@ -1,8 +1,11 @@
 # Timeline editing interaction model
 
-Status: **settled direction, 2026-07-09.** Being applied now to the surfaces that already exist
-(tone track, tone-automation lanes). Note authoring and anchor editing adopt this model when they
-are built; their sections here are binding design, not speculation.
+Status: **settled direction, 2026-07-09; keyboard grammar amended 2026-07-16** (with the user,
+during note-editing bring-up): plain keys never mutate — Alt is the authoring modifier for
+keyboard input, arrows are pure navigation, and the original "plain arrows nudge the selection"
+assignments (including the automation lanes' shipped 2026-07-09 behavior) moved under Alt. The
+amendment record is inline below. Note authoring now implements this model; anchor editing
+adopts it when built.
 
 ## Goal
 
@@ -36,8 +39,18 @@ Each modifier has exactly one meaning, everywhere:
 | Modifier | Meaning |
 |---|---|
 | **Ctrl** | Precision: bypass grid snap (placement quantizes to the 1/960-beat fine grid) |
-| **Alt** | Create/author: a held "pencil" quasimode — click inserts, wheel adjusts extent |
-| **Shift** | Extend/constrain: add to selection; axis-lock a 2D drag; keyboard extent resize |
+| **Alt** | Author: the modifier that makes input mutate — a held "pencil" quasimode for the pointer (click inserts, wheel adjusts extent) and the mutation gate for the keyboard (Alt+arrows moves the selection) |
+| **Shift** | Extend/constrain: add to selection; axis-lock a 2D drag; composes with Alt for extent resize (Shift+Alt+Left/Right); plain Shift+arrows is reserved for future caret-anchored selection extension |
+
+**Plain keys never mutate** (amended 2026-07-16), the keyboard twin of "a plain click never
+mutates": arrows navigate the surface's focus (the tab caret) and do nothing where no focus
+exists; every keyboard mutation requires Alt. The two designated editing keys — Delete and typed
+fret digits — are the deliberate exceptions: they are unambiguous editing commands with no
+navigation meaning to collide with. Pointer *drags* mutate without Alt because a drag carries
+its own friction and feedback loop — press, travel past the click threshold, live preview with
+snap guide, Esc to abandon, commit only on release as one undo entry — while a keystroke is a
+single instant that commits before it can be previewed. Deliberateness is the currency: drags
+pay it inherently, keystrokes pay it with Alt.
 
 Quasimodes (active only while held) are the deliberate accident-prevention choice: unlike a
 latched pencil *tool*, a held key cannot be forgotten, so "why did my click just create
@@ -65,8 +78,10 @@ Ctrl = precision. Duplication is Ctrl+D on the selection when it arrives.
 | Delete / Backspace | Delete the selection | Yes |
 | Right-click | Context menu, always; every gesture above has a menu equivalent; never destructive on its own | Via menu |
 | Esc | Cancel the in-flight gesture, restoring pre-gesture state | Reverts preview |
-| Arrow keys | Nudge the selection by one grid step; Ctrl+arrows by the fine grid step | Yes |
-| Shift+Left/Right | Grow/shrink the selected object's extent by one grid step | Yes |
+| Arrow keys | Navigate the surface's focus (the tab caret); nothing where no focus exists — never a mutation (amended 2026-07-16 from "nudge the selection") | No |
+| Alt+arrows | Move the selection by one grid step (Ctrl+Alt by the fine step); the vertical axis is the surface's own (string for notes, value for automation points) | Yes |
+| Shift+Alt+Left/Right | Grow/shrink the selected object's extent by one grid step (Ctrl composes the fine step) | Yes |
+| Shift+arrows | Reserved (unbound): future caret-anchored selection extension | No |
 
 A plain click **never mutates**. Every mutating gesture previews live (snap guide plus a
 "position · value" readout chip), commits exactly once on release as a single undo entry, and can
@@ -140,17 +155,25 @@ Verified against the vendored JUCE source — everything needed ships in
   region's window); plain click on empty lane area seeks and deselects instead of inserting —
   point selection clears on any transport move, the same rule tone-region selection follows.
   Drag moves a point (with a click-jiggle threshold); Shift axis-locks to the dominant axis;
-  arrows nudge the selected point (Left/Right by grid step, Ctrl fine, Up/Down by value step).
+  **Alt+arrows** nudge the selected point (Left/Right by grid step, Ctrl fine, Up/Down by value
+  step — amended 2026-07-16 from plain arrows so the "plain keys never mutate" rule holds on
+  every surface).
   Double-click opens typed exact-value entry in the parameter's native units (parsed through the
   plugin's own text-to-value handler); the point menu carries Delete / Set Value / Reset to
   Default. The lane's pinned name chip is the lane handle: clicking it opens the lane menu, since
   empty lane space now belongs to the seek overlay. Positional menu-insert is tone-strip-only;
   on lanes the insert gesture is Alt itself.
-- **Notes** (future): Alt+click on a string lane places a note carrying the last-used fret; typed
-  digits set the fret of the selection; technique hotkeys set properties of the selection —
-  Guitar Pro-style keyboard entry composes from the same selection verbs. Alt+wheel and
-  Shift+Left/Right set sustain; dragging the sustain tail is the same resize verb regions use.
-  Vertical drag changes string; marquee selects runs.
+- **Notes** (implemented 2026-07-16): Alt+click on a string lane places a note carrying the
+  last-used fret; typed digits set the fret of the selection; technique hotkeys (future) set
+  properties of the selection — Guitar Pro-style keyboard entry composes from the same selection
+  verbs. Alt+wheel and Shift+Alt+Left/Right set sustain; Alt+arrows move the selection
+  (Left/Right by grid step, Up/Down across strings; refused, never clamped, at the neck edge or
+  an occupied slot). Marquee selects runs; plain arrows navigate the editing caret. Pointer
+  drag-move (horizontal with snap, vertical across strings) is the same plain move-drag verb
+  points use and lands with the remaining plan 40 Phase 4 slice. **Sustain tail-drag is parked**
+  (2026-07-16): the wheel/keyboard verbs cover resizing precisely, and the tail's end zone is a
+  small target that competes with drag-move grabs — a watch item in docs/tracking/watch-items.md
+  holds the trigger for revisiting.
 - **Ruler bands** (future): anchors per the section above; time signatures are point objects on
   the signature band with double-click = type the signature.
 
@@ -158,6 +181,21 @@ Keyboard accelerators form one family: Ctrl+T inserts a tone change at the playh
 "insert at playhead" commands follow the same shape for anchors and notes.
 
 ## Deferred decisions
+
+- **Timeline panning bindings.** Plain wheel is horizontal zoom (shipped, REAPER-style, kept by
+  the 2026-07-16 amendment discussion). No wheel or button binding pans yet; the candidates that
+  fit the grammar are Shift+wheel (horizontal pan as "constrain to axis") and middle-button drag
+  (modifier-free). Undecided — pick when charting practice shows panning friction.
+- **Caret-anchored keyboard selection extension** (Shift+arrows sweeping notes into the
+  selection from the caret, text-editor style). Shift+arrows is deliberately kept unbound for
+  this.
+- **Keyboard sustain entry beyond Shift+Alt+arrows** (GP-style +/- keys) — only if practice
+  wants it.
+- **User-facing keybind documentation and rebinding** (user direction 2026-07-16): both are
+  wanted eventually — the rebinding UI is docs/plans/roadmap/46-editor-keybinds.md's scope, and
+  user-facing documentation of this grammar ships alongside it — but neither is to be settled or
+  written while the grammar itself is still being tuned; this doc remains the design-side truth
+  in the interim.
 
 - **Latched pencil mode** (press B to stay in draw mode): charters will want it for long sessions;
   reintroduces persistent-mode errors. Revisit after note authoring exists; if added, it needs a
@@ -169,9 +207,26 @@ Keyboard accelerators form one family: Ctrl+T inserts a tone change at the playh
 - **Arrow-nudging a selected tone region** (moving both of its boundaries as one step): needs a
   compound two-boundary edit to stay one undo entry; deferred until such an edit exists.
 
+## Amendment record — 2026-07-16 keyboard grammar
+
+Decided with the user during note-editing bring-up and applied the same day to every shipped
+surface:
+
+1. Plain arrows never mutate: the tab lane's arrows navigate the caret unconditionally (they
+   briefly shipped as selection-nudges), and the automation lanes' plain-arrow point nudge —
+   part of the original 2026-07-09 revamp below — now requires Alt. Where no navigation focus
+   exists, plain arrows do nothing; a dead key beats a surprising one.
+2. Alt is stated as the general *authoring* modifier (mutation gate), not merely "create":
+   Alt+arrows moves the selection; Shift+Alt+Left/Right resizes extent (replacing the original
+   table's plain Shift+Left/Right, which is now reserved for selection extension).
+3. Sustain tail-drag on notes is parked behind a watch-item trigger rather than built;
+   plain drag-move of whole objects stays a core verb on every surface.
+4. Plain-wheel zoom (shipped) is affirmed over Charter-style modifier-gated zoom.
+
 ## Revamp checklist for existing surfaces
 
-Implemented 2026-07-09 (see the per-surface section above for the shipped behavior):
+Implemented 2026-07-09, amended 2026-07-16 per the record above (see the per-surface section
+for current behavior):
 
 1. Automation lanes: Alt-gated insertion with ghost point + `CopyingCursor`; plain empty-area
    clicks pass through to seek; Shift axis-lock; drag threshold; Esc cancel; arrow-key nudges;
