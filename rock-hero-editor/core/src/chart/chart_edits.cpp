@@ -125,15 +125,6 @@ void normalizeSustainOverlaps(
     return diffNotes(chart.notes, candidate, label);
 }
 
-// Removes the keyed notes from a working stream, returning how many keys matched.
-[[nodiscard]] std::size_t eraseKeyedNotes(
-    std::vector<common::core::ChartNote>& notes, const std::vector<ChartNoteKey>& keys)
-{
-    return std::erase_if(notes, [&keys](const common::core::ChartNote& note) {
-        return std::ranges::binary_search(keys, keyOf(note));
-    });
-}
-
 } // namespace
 
 std::optional<ChartNotesEditPlan> planInsertNote(

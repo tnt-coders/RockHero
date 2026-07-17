@@ -50,6 +50,31 @@ resolution, zoom extremes 4–400 px/s, marquee boxes), selection-key resolution
 (pointer forwarding with geometry/modifiers, chart-gated transparency) and overlay rendering
 smoke. Exit criteria met: notes selectable by click/marquee/keyboard, caret visible and
 navigable, seek works on empty space, zero chart mutations.
+**Phase 4 substantially complete 2026-07-16 — the first chart mutations are live.** One uniform
+edit machinery in editor-core `src/chart/chart_edits.{h,cpp}`: pure planners build the intended
+note stream, apply the 40-Q2-B normalization (any sustain ringing across the next same-string
+onset truncates to exact adjacency, bend/slide payloads clipped with it), and diff into a
+removed/inserted `ChartNotesEditPlan`; `ChartNotesEdit` replays the plan in either direction
+through `Session::currentChart()` (revision bump → every projection rebuilds), so apply, undo,
+and redo are the same primitive and truncations ride the same single undo entry by construction.
+Shipped verbs: **Alt+click/press-drag-release inserts** at the snapped release point carrying
+the last-used fret (occupied slot = replace); **Delete removes the selection** as one compound
+entry (Delete precedence: automation point → chart selection → tone region); **typed digits
+retype the selection's fret** (multi-digit entry window, clamped to g_max_fret; each keystroke
+applies immediately — one undo entry per keystroke is a recorded rough edge for the polish
+pass); **arrow keys nudge the selection** by the grid step (Ctrl fine; refused-not-clamped on
+neck edges and occupied slots) and move the caret only when nothing is selected;
+**Shift+Left/Right and Alt+wheel resize sustains** (floor at zero, growth clamps per Q2-B;
+Ctrl steps the fine grid); **Escape cancels the in-flight marquee**. Selection follows every
+edit under the new keys; dirty tracking rides the existing clean marker; save persists through
+the Phase 2 write-on-save pipeline. Tests: insert/undo/redo round trips, insert-with-truncation
+restored by ONE undo, compound delete, multi-digit fret combining, sustain clamp-and-floor,
+nudge collisions refused, plus the Phase 3 suites re-verified against the nudge semantics.
+**Remaining Phase 4 sub-scope (deferred to the next execution slice, before Phase 5):** pointer
+drag-move of selected notes and sustain tail-drag resize (the keyboard/wheel verbs cover move
+and resize meanwhile), the Alt-held ghost preview + `CopyingCursor` hover affordance, Esc
+canceling an in-flight pointer drag preview, and collapsing a multi-digit fret entry into one
+undo entry.
 
 Open questions Q1–Q4 below have recommended defaults and are mirrored into
 `docs/plans/roadmap/00-roadmap.md` (Decisions needed). Phases 1–3 depend on none of them; later phases
