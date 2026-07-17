@@ -172,4 +172,28 @@ placement keeps the sub-pixel click point's time.
     common::core::TimeRange visible_timeline, int timeline_width, float timeline_x,
     TimelineCursorPlacementMode mode);
 
+/*!
+\brief Denominator of the fine placement grid used when precision bypasses the visible grid.
+
+1/960 of a beat keeps every stored position an exact rational at far finer than audible
+resolution: 960 is the standard MIDI PPQ resolution and divides every practical straight,
+triplet, and quintuplet subdivision.
+*/
+inline constexpr int g_fine_grid_denominator = 960;
+
+/*!
+\brief Quantizes a fractional global-beat position to the exact rational 1/960-beat fine grid.
+
+The seam shared by Ctrl-free click placement, playhead-anchored insertion, and fine caret
+stepping: it turns a seconds- or beat-derived double into a storable position that stays an
+exact rational (never a raw double) at sub-millisecond resolution. A caller that already holds
+an exact musical position should keep it verbatim rather than round-tripping through this.
+
+\param tempo_map Song tempo map supplying the beat-to-measure mapping.
+\param global_beat Global beat position (whole beats plus fractional beat) to quantize.
+\return Exact musical position on the fine grid.
+*/
+[[nodiscard]] common::core::GridPosition fineGridPositionForBeat(
+    const common::core::TempoMap& tempo_map, double global_beat);
+
 } // namespace rock_hero::editor::core

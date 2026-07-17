@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <compare>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -313,6 +314,97 @@ struct UndoHistoryState
     friend bool operator==(const UndoHistoryState& lhs, const UndoHistoryState& rhs) = default;
 };
 
+/*! \brief Editing caret in the tablature lane: a grid position resolved for rendering. */
+struct ChartCaretViewState
+{
+    /*! \brief Absolute timeline position of the caret column. */
+    double seconds{0.0};
+
+    /*! \brief One-based chart string lane the caret sits on. */
+    int string{1};
+
+    /*!
+    \brief Compares two caret states by their stored values.
+    \param lhs Left-hand caret state.
+    \param rhs Right-hand caret state.
+    \return True when both caret states store equal values.
+    */
+    friend constexpr bool operator==(
+        const ChartCaretViewState& lhs, const ChartCaretViewState& rhs) noexcept
+    {
+        // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
+        // floating member. Exact equality is intended; the ordering query expresses it warning-
+        // free with identical semantics (NaN compares unequal either way).
+        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.string == rhs.string;
+    }
+};
+
+/*!
+\brief In-flight marquee selection rectangle over the tablature lane.
+
+Stored resolution-independent — a seconds span plus vertical fractions of the lane height — so
+the view maps it through whatever geometry it is currently painting with.
+*/
+struct ChartMarqueeViewState
+{
+    /*! \brief Earlier edge of the marquee's time span. */
+    double start_seconds{0.0};
+
+    /*! \brief Later edge of the marquee's time span. */
+    double end_seconds{0.0};
+
+    /*! \brief Top edge as a fraction of the lane bounds height, in [0, 1]. */
+    float top_fraction{0.0f};
+
+    /*! \brief Bottom edge as a fraction of the lane bounds height, in [0, 1]. */
+    float bottom_fraction{0.0f};
+
+    /*!
+    \brief Compares two marquee states by their stored values.
+    \param lhs Left-hand marquee state.
+    \param rhs Right-hand marquee state.
+    \return True when both marquee states store equal values.
+    */
+    friend constexpr bool operator==(
+        const ChartMarqueeViewState& lhs, const ChartMarqueeViewState& rhs) noexcept
+    {
+        // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
+        // floating members. Exact equality is intended; the ordering query expresses it warning-
+        // free with identical semantics (NaN compares unequal either way).
+        return std::is_eq(lhs.start_seconds <=> rhs.start_seconds) &&
+               std::is_eq(lhs.end_seconds <=> rhs.end_seconds) &&
+               std::is_eq(lhs.top_fraction <=> rhs.top_fraction) &&
+               std::is_eq(lhs.bottom_fraction <=> rhs.bottom_fraction);
+    }
+};
+
+/*!
+\brief Chart-editing selection state rendered as overlays above the tablature notation.
+
+Selected notes are indices into the current tab projection's note order (which matches the
+chart's note order one to one), valid exactly as long as the \ref EditorViewState::tab instance
+they were derived with; the controller rebuilds both together.
+*/
+struct ChartEditViewState
+{
+    /*! \brief Ascending indices of selected notes in the tab projection's note order. */
+    std::vector<std::size_t> selected_notes{};
+
+    /*! \brief Editing caret, when one has been placed. */
+    std::optional<ChartCaretViewState> caret{};
+
+    /*! \brief In-flight marquee rectangle, while an empty-lane drag is selecting. */
+    std::optional<ChartMarqueeViewState> marquee{};
+
+    /*!
+    \brief Compares two chart-editing states by their stored values.
+    \param lhs Left-hand state.
+    \param rhs Right-hand state.
+    \return True when both states store equal values.
+    */
+    friend bool operator==(const ChartEditViewState& lhs, const ChartEditViewState& rhs) = default;
+};
+
 /*!
 \brief Full message-thread state rendered by the editor view.
 
@@ -471,6 +563,9 @@ struct EditorViewState
     stands in for content equality in view-state comparisons, matching the rebuild rule.
     */
     std::shared_ptr<const common::core::TabViewState> tab{};
+
+    /*! \brief Chart-editing selection, caret, and marquee overlays for the tablature lane. */
+    ChartEditViewState chart_edit{};
 
     /*!
     \brief Seconds-resolved 3D highway projection of the displayed arrangement.

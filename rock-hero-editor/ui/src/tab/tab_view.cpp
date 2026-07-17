@@ -1,7 +1,12 @@
 #include "tab/tab_view.h"
 
+#include "shared/editor_theme.h"
+
+#include <algorithm>
+#include <cstddef>
 #include <memory>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
+#include <rock_hero/common/ui/tab/tab_layout_manifest.h>
 #include <rock_hero/common/ui/tab/tab_paint_core.h>
 #include <utility>
 #include <vector>
@@ -44,10 +49,92 @@ std::pair<std::size_t, std::size_t> tabVisibleNoteRange(
         notes, prefix_max_end_seconds, span_start_seconds, span_end_seconds);
 }
 
-// Pointer events fall through to the cursor overlay's click-to-seek handling.
-TabView::TabView()
+// Interception stays enabled: hitTest() claims the lane only while a chart is displayed, so a
+// chart-less lane stays transparent to the cursor overlay's click-to-seek handling.
+TabView::TabView() = default;
+
+void TabView::setPointerEventCallback(PointerEventCallback on_pointer_event)
 {
-    setInterceptsMouseClicks(false, false);
+    m_on_pointer_event = std::move(on_pointer_event);
+}
+
+// Applies the chart-editing overlay state; skipped repaints keep unrelated pushes cheap.
+void TabView::setEditState(core::ChartEditViewState edit)
+{
+    if (edit == m_edit)
+    {
+        return;
+    }
+
+    m_edit = std::move(edit);
+    repaint();
+}
+
+// With a chart displayed the lane claims its whole band — the controller still turns empty
+// clicks into seeks, so seeking through the lane keeps working. Without a chart the lane is
+// pointer-transparent.
+bool TabView::wantsPointerAt(juce::Point<int> local_point) const
+{
+    return m_on_pointer_event != nullptr && m_tab != nullptr && m_tab->string_count > 0 &&
+           getLocalBounds().contains(local_point) && m_visible_timeline.duration().seconds > 0.0 &&
+           !getLocalBounds().isEmpty();
+}
+
+bool TabView::hitTest(int x, int y)
+{
+    return wantsPointerAt({x, y});
+}
+
+// Builds the chart pointer event carrying the exact geometry the notation painted with, so the
+// controller's hit resolution and the pixels on screen can never disagree.
+core::ChartPointerEvent TabView::makePointerEvent(const juce::MouseEvent& event) const
+{
+    const juce::Rectangle<int> bounds = getLocalBounds();
+    const int displayed_count =
+        tabDisplayedStringCount(m_tab->string_count, m_minimum_displayed_strings);
+    return core::ChartPointerEvent{
+        .geometry = common::ui::makeTabLaneGeometry(
+            static_cast<float>(bounds.getX()),
+            static_cast<float>(bounds.getY()),
+            static_cast<float>(bounds.getWidth()),
+            static_cast<float>(bounds.getHeight()),
+            m_visible_timeline,
+            displayed_count,
+            m_tab->string_count),
+        .x = event.position.x,
+        .y = event.position.y,
+        .modifiers = core::ChartPointerModifiers{
+            .ctrl = event.mods.isCtrlDown(),
+            .shift = event.mods.isShiftDown(),
+            .alt = event.mods.isAltDown(),
+        },
+    };
+}
+
+void TabView::mouseDown(const juce::MouseEvent& event)
+{
+    if (wantsPointerAt(event.getPosition()))
+    {
+        m_on_pointer_event(core::ChartPointerPhase::Down, makePointerEvent(event));
+    }
+}
+
+void TabView::mouseDrag(const juce::MouseEvent& event)
+{
+    // No wantsPointerAt gate: a drag that started inside the lane keeps reporting while the
+    // pointer travels outside it, exactly like any JUCE drag capture.
+    if (m_on_pointer_event != nullptr && m_tab != nullptr && m_tab->string_count > 0)
+    {
+        m_on_pointer_event(core::ChartPointerPhase::Drag, makePointerEvent(event));
+    }
+}
+
+void TabView::mouseUp(const juce::MouseEvent& event)
+{
+    if (m_on_pointer_event != nullptr && m_tab != nullptr && m_tab->string_count > 0)
+    {
+        m_on_pointer_event(core::ChartPointerPhase::Up, makePointerEvent(event));
+    }
 }
 
 // Stores the visible timeline range used to map note times to pixels.
@@ -104,6 +191,72 @@ void TabView::paint(juce::Graphics& g)
     const common::ui::TabLaneMetrics metrics = common::ui::makeTabLaneMetrics(
         bounds, m_visible_timeline, displayed_count, m_tab->string_count);
     common::ui::paintTabLane(g, metrics, *m_tab, m_prefix_max_end_seconds);
+
+    // Chart-editing overlays draw above the shared notation and never enter the paint core:
+    // they are editor-shell furniture, not part of what the game's tab strips render.
+    const juce::Colour accent = editorTheme().accent;
+
+    // Selection rings: the accent outline hugs each selected head, inflated past the ring so it
+    // reads as a halo instead of recoloring the note.
+    for (const std::size_t index : m_edit.selected_notes)
+    {
+        if (index >= m_tab->notes.size())
+        {
+            continue;
+        }
+        const common::ui::TabNoteLayout layout =
+            common::ui::tabNoteLayout(metrics, m_tab->notes[index]);
+        constexpr float inflate = 2.5f;
+        g.setColour(accent);
+        g.drawEllipse(
+            layout.head.x - inflate,
+            layout.head.y - inflate,
+            layout.head.width + inflate * 2.0f,
+            layout.head.height + inflate * 2.0f,
+            2.0f);
+    }
+
+    // The editing caret: an accent column spanning its string lane, with serif ticks so it
+    // reads as an insertion point rather than a second playback cursor.
+    if (m_edit.caret.has_value())
+    {
+        const float caret_x = metrics.x(m_edit.caret->seconds);
+        const float center_y = metrics.laneY(m_edit.caret->string);
+        const float top = center_y - metrics.lane_height / 2.0f;
+        constexpr float caret_width = 2.0f;
+        constexpr float serif_width = 7.0f;
+        g.setColour(accent);
+        g.fillRect(
+            juce::Rectangle<float>{
+                caret_x - caret_width / 2.0f, top, caret_width, metrics.lane_height
+            });
+        g.fillRect(
+            juce::Rectangle<float>{caret_x - serif_width / 2.0f, top, serif_width, caret_width});
+        g.fillRect(
+            juce::Rectangle<float>{
+                caret_x - serif_width / 2.0f,
+                top + metrics.lane_height - caret_width,
+                serif_width,
+                caret_width
+            });
+    }
+
+    // The in-flight marquee: translucent accent fill with a crisp border.
+    if (m_edit.marquee.has_value())
+    {
+        const float left = metrics.x(m_edit.marquee->start_seconds);
+        const float right = metrics.x(m_edit.marquee->end_seconds);
+        const float top = static_cast<float>(bounds.getY()) +
+                          m_edit.marquee->top_fraction * static_cast<float>(bounds.getHeight());
+        const float bottom =
+            static_cast<float>(bounds.getY()) +
+            m_edit.marquee->bottom_fraction * static_cast<float>(bounds.getHeight());
+        const juce::Rectangle<float> box{left, top, right - left, bottom - top};
+        g.setColour(accent.withAlpha(0.15f));
+        g.fillRect(box);
+        g.setColour(accent);
+        g.drawRect(box, 1.0f);
+    }
 }
 
 // Rebuilds the prefix-maximum sustain-end table after the projection changes.

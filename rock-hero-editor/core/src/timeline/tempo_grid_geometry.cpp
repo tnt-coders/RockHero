@@ -15,9 +15,9 @@ namespace
 {
 
 // Inverse of timelineXForPosition's interior mapping: turns a drawing-width column back into
-// seconds. Used only to bound the grid scan conservatively, so it may be loose; the exact per-line
-// column test in visibleTempoGridLines stays the real visibility gate. Callers guarantee
-// width_span > 0 so the division is safe.
+// seconds. Used only to bound the grid scan conservatively, so it may be loose; the exact
+// per-line column test in visibleTempoGridLines stays the real visibility gate. Callers
+// guarantee width_span > 0 so the division is safe.
 double secondsAtColumn(common::core::TimeRange visible_timeline, double width_span, int column)
 {
     return visible_timeline.start.seconds +
@@ -433,6 +433,29 @@ std::optional<common::core::TimePosition> timelineCursorPlacementTime(
     }
 
     return nearestTempoGridTime(tempo_map, grid_note_value, *click_time);
+}
+
+common::core::GridPosition fineGridPositionForBeat(
+    const common::core::TempoMap& tempo_map, double global_beat)
+{
+    // Quantize the fractional beat to the 1/960 fine grid so the stored position stays an exact
+    // rational instead of a raw double.
+    double whole_beats = 0.0;
+    const double beat_fraction = std::modf(std::max(0.0, global_beat), &whole_beats);
+    auto beat_index = static_cast<std::int64_t>(whole_beats);
+    int fine_steps =
+        static_cast<int>(std::lround(beat_fraction * static_cast<double>(g_fine_grid_denominator)));
+    if (fine_steps == g_fine_grid_denominator)
+    {
+        beat_index += 1;
+        fine_steps = 0;
+    }
+    const auto [measure, beat] = tempo_map.beatAtGlobalIndex(beat_index);
+    return common::core::GridPosition{
+        .measure = measure,
+        .beat = beat,
+        .offset = common::core::Fraction{fine_steps, g_fine_grid_denominator},
+    };
 }
 
 } // namespace rock_hero::editor::core

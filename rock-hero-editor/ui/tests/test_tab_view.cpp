@@ -4,6 +4,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
+#include <optional>
+#include <rock_hero/editor/ui/testing/component_test_helpers.h>
 #include <utility>
 #include <vector>
 
@@ -171,6 +173,102 @@ TEST_CASE("TabView draws string-colored note heads", "[ui][tab-view]")
 // The techniques/shapes/FHP pixel coverage moved to the shared paint core's suite
 // (rock-hero-common/ui/tests/test_tab_paint_core.cpp) when the drawers were extracted; the
 // head-drawing case above stays here as the TabView delegation guard.
+
+// With a chart displayed the lane claims its band and forwards lane-local pointer intents with
+// the painted geometry; without one it stays pointer-transparent so seeking is untouched.
+TEST_CASE("TabView forwards chart pointer intents when a chart shows", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TabView view;
+    view.setBounds(0, 0, 200, 120);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        });
+
+    std::optional<core::ChartPointerPhase> last_phase;
+    std::optional<core::ChartPointerEvent> last_event;
+    int event_count = 0;
+    view.setPointerEventCallback(
+        [&](core::ChartPointerPhase phase, const core::ChartPointerEvent& event) {
+            last_phase = phase;
+            last_event = event;
+            ++event_count;
+        });
+
+    // Without a chart the lane declines the pointer entirely.
+    CHECK_FALSE(view.wantsPointerAt({50, 60}));
+    CHECK_FALSE(view.hitTest(50, 60));
+
+    view.setState(makeTabState(), 0);
+    CHECK(view.wantsPointerAt({50, 60}));
+    CHECK(view.hitTest(50, 60));
+
+    const juce::MouseEvent down = testing::makeMouseDownEvent(view, 10.0f, 110.0f);
+    view.mouseDown(down);
+    REQUIRE(event_count == 1);
+    CHECK(last_phase == core::ChartPointerPhase::Down);
+    REQUIRE(last_event.has_value());
+    CHECK(last_event->x == Catch::Approx(10.0f));
+    CHECK(last_event->y == Catch::Approx(110.0f));
+    CHECK(last_event->geometry.displayed_count == 6);
+    CHECK(last_event->geometry.bounds_width == Catch::Approx(200.0f));
+    CHECK(last_event->geometry.visible_timeline.duration().seconds == Catch::Approx(20.0));
+    CHECK_FALSE(last_event->modifiers.ctrl);
+
+    view.mouseDrag(testing::makeMouseDragEvent(view, 40.0f, 110.0f, 10.0f, 110.0f));
+    CHECK(event_count == 2);
+    CHECK(last_phase == core::ChartPointerPhase::Drag);
+    CHECK(last_event->x == Catch::Approx(40.0f));
+
+    view.mouseUp(testing::makeMouseDownEvent(view, 40.0f, 110.0f));
+    CHECK(event_count == 3);
+    CHECK(last_phase == core::ChartPointerPhase::Up);
+
+    // Modifiers travel with the event.
+    view.mouseDown(
+        testing::makeMouseDownEvent(
+            view,
+            10.0f,
+            110.0f,
+            juce::ModifierKeys::leftButtonModifier | juce::ModifierKeys::ctrlModifier));
+    CHECK(last_event->modifiers.ctrl);
+}
+
+// Selection, caret, and marquee overlays render above the notation without asserting.
+TEST_CASE("TabView renders chart-editing overlays", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TabView view;
+    view.setBounds(0, 0, 200, 120);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        });
+    view.setState(makeTabState(), 0);
+    view.setEditState(
+        core::ChartEditViewState{
+            .selected_notes = {0},
+            .caret = core::ChartCaretViewState{.seconds = 5.0, .string = 2},
+            .marquee = core::ChartMarqueeViewState{
+                .start_seconds = 3.0,
+                .end_seconds = 8.0,
+                .top_fraction = 0.25f,
+                .bottom_fraction = 0.75f,
+            },
+        });
+
+    const juce::Image image{juce::SoftwareImageType{}.create(juce::Image::ARGB, 200, 120, true)};
+    juce::Graphics graphics{image};
+    view.paint(graphics);
+
+    // The caret column at 5.0s (x = 50) marks the string-2 lane (center y = 90).
+    CHECK(image.getPixelAt(50, 90).getARGB() != 0);
+    // The marquee border's top-left corner at (30, 30).
+    CHECK(image.getPixelAt(30, 30).getARGB() != 0);
+}
 
 // A null projection draws nothing and never dereferences missing chart data.
 TEST_CASE("TabView draws nothing without a chart", "[ui][tab-view]")

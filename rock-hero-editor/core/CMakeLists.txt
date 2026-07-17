@@ -8,6 +8,10 @@ target_sources(
     PRIVATE src/audio/editor_audio_config_store.cpp
             src/audio/game_audio_source_error.cpp
             src/audio_device/audio_device_handlers.cpp
+            src/chart/chart_hit_testing.cpp
+            src/chart/chart_hit_testing.h
+            src/chart/chart_selection.cpp
+            src/chart/chart_selection.h
             src/audio_device/audio_device_settings_controller.cpp
             src/audio_device/audio_device_status_text.cpp
             src/audio_device/audio_device_status_text.h
@@ -87,10 +91,14 @@ target_include_directories(
     PUBLIC include
     PRIVATE include/rock_hero/editor/core src)
 
-# EditorSettings stores juce::PropertiesFile in its public header, so consumers need this wrapper.
+# EditorSettings stores juce::PropertiesFile in its public header, so consumers need this
+# wrapper. common::ui is PUBLIC because the chart pointer intents carry the framework-free
+# TabLaneGeometry from the shared tab layout headers (hit testing consumes the layout manifest
+# instead of duplicating glyph geometry).
 target_link_libraries(
     rock_hero_editor_core
-    PUBLIC rock_hero::common::core rock_hero::common::audio rock_hero::juce_data_structures
+    PUBLIC rock_hero::common::core rock_hero::common::audio rock_hero::common::ui
+           rock_hero::juce_data_structures
     PRIVATE rock_hero::build_policy rock_hero::juce_core rock_hero::juce_events)
 
 add_subdirectory(tests)

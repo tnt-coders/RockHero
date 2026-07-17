@@ -2,6 +2,7 @@
 
 #include "audio_device/audio_device_status_text.h"
 #include "busy/busy_operation_workflow.h"
+#include "chart/chart_hit_testing.h"
 #include "deferred_project_action_state.h"
 #include "editor_action.h"
 #include "editor_action_availability.h"
@@ -41,6 +42,7 @@
 #include <rock_hero/common/audio/song/i_song_audio.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/highway/highway_projection.h>
 #include <rock_hero/common/core/shared/cancellation_token.h>
 #include <rock_hero/common/core/shared/logger.h>
@@ -869,6 +871,26 @@ void EditorController::onArrangementSelected(std::string arrangement_id)
     m_impl->onArrangementSelected(std::move(arrangement_id));
 }
 
+void EditorController::onChartPointerDown(const ChartPointerEvent& event)
+{
+    m_impl->onChartPointerDown(event);
+}
+
+void EditorController::onChartPointerDrag(const ChartPointerEvent& event)
+{
+    m_impl->onChartPointerDrag(event);
+}
+
+void EditorController::onChartPointerUp(const ChartPointerEvent& event)
+{
+    m_impl->onChartPointerUp(event);
+}
+
+void EditorController::onChartCaretMoveRequested(ChartCaretDirection direction, bool fine)
+{
+    m_impl->onChartCaretMoveRequested(direction, fine);
+}
+
 void EditorController::onToneRegionSelected(std::string region_id)
 {
     m_impl->onToneRegionSelected(std::move(region_id));
@@ -1457,6 +1479,319 @@ void EditorController::Impl::onTabMinimumDisplayedStringsChangeRequested(int min
     recordSettingsResultBestEffort(
         m_settings.setTabMinimumDisplayedStrings(m_tab_minimum_displayed_strings),
         "save tablature string display minimum");
+    updateView();
+}
+
+namespace
+{
+
+// Pointer travel past this distance turns an empty-lane press into a marquee instead of a
+// click-to-seek; small enough that deliberate drags always marquee, large enough that a shaky
+// click never accidentally selects.
+constexpr float g_chart_click_threshold_px = 4.0f;
+
+} // namespace
+
+// The memoized projection deriveViewState pushed is exactly what the lane painted, so pointer
+// events resolve against it; null while no chart is displayed.
+const common::core::TabViewState* EditorController::Impl::displayedTabProjection() const
+{
+    return m_tab_view_state.get();
+}
+
+// Chart notes are sorted by (position, string) and the tab projection preserves that order one
+// to one, so a projection index addresses the chart note directly.
+std::optional<ChartNoteKey> EditorController::Impl::chartNoteKeyAt(
+    std::size_t projection_index) const
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value() ||
+        projection_index >= arrangement->chart->notes.size())
+    {
+        return std::nullopt;
+    }
+
+    const common::core::ChartNote& note = arrangement->chart->notes[projection_index];
+    return ChartNoteKey{.position = note.position, .string = note.string};
+}
+
+void EditorController::Impl::clearChartEditingState()
+{
+    m_chart_selection.clear();
+    m_chart_caret.reset();
+    m_chart_gesture.reset();
+}
+
+// Places the editing caret at the event's snapped musical position on the lane under the
+// pointer, mirroring the timeline's placement rules: plain placement stores the grid line's own
+// exact rational, precision (Ctrl) quantizes to the shared 1/960-beat fine grid.
+void EditorController::Impl::placeChartCaret(const ChartPointerEvent& event)
+{
+    const common::core::TabViewState* const tab = displayedTabProjection();
+    if (tab == nullptr || tab->string_count <= 0 || event.geometry.lane_height <= 0.0f)
+    {
+        return;
+    }
+
+    const common::core::TempoMap& tempo_map = session().song().tempo_map;
+    const std::optional<common::core::TimePosition> clicked = timelineCursorPlacementTime(
+        tempo_map,
+        m_grid_note_value,
+        event.geometry.visible_timeline,
+        static_cast<int>(event.geometry.bounds_width),
+        event.x,
+        TimelineCursorPlacementMode::Free);
+    if (!clicked.has_value())
+    {
+        return;
+    }
+
+    const common::core::GridPosition position =
+        event.modifiers.ctrl
+            ? fineGridPositionForBeat(tempo_map, tempo_map.beatPositionAtSeconds(clicked->seconds))
+            : nearestTempoGridPosition(tempo_map, m_grid_note_value, *clicked);
+
+    // Lanes stack highest string on top; extra user lanes pad below the chart's strings.
+    const float lane = (event.y - event.geometry.bounds_y) / event.geometry.lane_height;
+    const int lane_index =
+        std::clamp(static_cast<int>(lane), 0, event.geometry.displayed_count - 1);
+    const int displayed_string = event.geometry.displayed_count - lane_index;
+    const int string =
+        std::clamp(displayed_string - event.geometry.extra_lanes, 1, tab->string_count);
+    m_chart_caret = ChartCaret{.position = position, .string = string};
+}
+
+// Arms the gesture and applies glyph-press selection per the interaction grammar: plain press
+// selects (keeping an existing multi-selection intact so a future drag can move it), Ctrl
+// toggles membership, Shift extends. Alt is the insertion quasimode and is ignored until note
+// authoring lands.
+void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
+{
+    const common::core::TabViewState* const tab = displayedTabProjection();
+    if (tab == nullptr || tab->string_count <= 0 || isBusy() || event.modifiers.alt)
+    {
+        return;
+    }
+
+    ChartPointerGesture gesture;
+    gesture.geometry = event.geometry;
+    gesture.modifiers = event.modifiers;
+    gesture.anchor_x = event.x;
+    gesture.anchor_y = event.y;
+    gesture.current_x = event.x;
+    gesture.current_y = event.y;
+    gesture.hit_note = chartNoteHitIndex(*tab, event.geometry, event.x, event.y);
+    m_chart_gesture = gesture;
+
+    if (!gesture.hit_note.has_value())
+    {
+        return;
+    }
+
+    const std::optional<ChartNoteKey> key = chartNoteKeyAt(*gesture.hit_note);
+    if (!key.has_value())
+    {
+        return;
+    }
+
+    if (event.modifiers.ctrl)
+    {
+        m_chart_selection.toggle(*key);
+    }
+    else if (event.modifiers.shift)
+    {
+        m_chart_selection.add(*key);
+    }
+    else if (!m_chart_selection.contains(*key))
+    {
+        m_chart_selection.replaceWith(*key);
+    }
+    // The caret follows the pressed note so keyboard editing continues from the click point.
+    m_chart_caret = ChartCaret{.position = key->position, .string = key->string};
+    updateView();
+}
+
+// Disambiguates an empty-lane press into a marquee once the pointer travels past the click
+// threshold and republishes the marquee rectangle while it grows. Glyph-press drags are the
+// future move gesture and do nothing yet.
+void EditorController::Impl::onChartPointerDrag(const ChartPointerEvent& event)
+{
+    if (!m_chart_gesture.has_value())
+    {
+        return;
+    }
+
+    ChartPointerGesture& gesture = *m_chart_gesture;
+    gesture.current_x = event.x;
+    gesture.current_y = event.y;
+    if (gesture.hit_note.has_value())
+    {
+        return;
+    }
+
+    const bool beyond_threshold =
+        std::abs(event.x - gesture.anchor_x) > g_chart_click_threshold_px ||
+        std::abs(event.y - gesture.anchor_y) > g_chart_click_threshold_px;
+    if (!gesture.marquee && !beyond_threshold)
+    {
+        return;
+    }
+
+    gesture.marquee = true;
+    updateView();
+}
+
+// Resolves the gesture: a marquee release selects the boxed notes (Shift extends), an
+// empty-lane click seeks the snapped click position, clears the selection, and places the
+// caret; a plain click-release on an already-selected note collapses the selection to it.
+void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
+{
+    if (!m_chart_gesture.has_value())
+    {
+        return;
+    }
+
+    const ChartPointerGesture gesture = *m_chart_gesture;
+    m_chart_gesture.reset();
+
+    const common::core::TabViewState* const tab = displayedTabProjection();
+    if (tab == nullptr || tab->string_count <= 0)
+    {
+        updateView();
+        return;
+    }
+
+    if (gesture.hit_note.has_value())
+    {
+        const bool clicked = std::abs(event.x - gesture.anchor_x) <= g_chart_click_threshold_px &&
+                             std::abs(event.y - gesture.anchor_y) <= g_chart_click_threshold_px;
+        if (clicked && !gesture.modifiers.ctrl && !gesture.modifiers.shift)
+        {
+            if (const std::optional<ChartNoteKey> key = chartNoteKeyAt(*gesture.hit_note);
+                key.has_value())
+            {
+                m_chart_selection.replaceWith(*key);
+            }
+        }
+        updateView();
+        return;
+    }
+
+    if (gesture.marquee)
+    {
+        const float left = std::min(gesture.anchor_x, event.x);
+        const float right = std::max(gesture.anchor_x, event.x);
+        const float top = std::min(gesture.anchor_y, event.y);
+        const float bottom = std::max(gesture.anchor_y, event.y);
+        const std::vector<std::size_t> boxed =
+            chartNoteIndicesInBox(*tab, gesture.geometry, left, top, right, bottom);
+        std::vector<ChartNoteKey> keys;
+        keys.reserve(boxed.size());
+        for (const std::size_t index : boxed)
+        {
+            if (const std::optional<ChartNoteKey> key = chartNoteKeyAt(index); key.has_value())
+            {
+                keys.push_back(*key);
+            }
+        }
+        m_chart_selection.applyBox(keys, gesture.modifiers.shift);
+        updateView();
+        return;
+    }
+
+    // Empty click: seek + deselect + caret, exactly the overlay's click semantics plus the
+    // editing caret.
+    m_chart_selection.clear();
+    placeChartCaret(event);
+    const std::optional<common::core::TimePosition> seek_time = timelineCursorPlacementTime(
+        session().song().tempo_map,
+        m_grid_note_value,
+        gesture.geometry.visible_timeline,
+        static_cast<int>(gesture.geometry.bounds_width),
+        event.x,
+        event.modifiers.ctrl ? TimelineCursorPlacementMode::Free
+                             : TimelineCursorPlacementMode::SnapToGrid);
+    if (seek_time.has_value())
+    {
+        onTimelineSeekRequested(*seek_time);
+    }
+    updateView();
+}
+
+// Keyboard caret navigation: Left/Right step the rendered tempo grid (the fine 1/960-beat grid
+// under precision), Up/Down cross string lanes. The first move without a caret places it at the
+// transport position on the lowest string.
+void EditorController::Impl::onChartCaretMoveRequested(ChartCaretDirection direction, bool fine)
+{
+    const common::core::TabViewState* const tab = displayedTabProjection();
+    if (tab == nullptr || tab->string_count <= 0 || isBusy())
+    {
+        return;
+    }
+
+    const common::core::TempoMap& tempo_map = session().song().tempo_map;
+    if (!m_chart_caret.has_value())
+    {
+        const common::core::TimePosition transport_position = m_transport.position();
+        m_chart_caret = ChartCaret{
+            .position = nearestTempoGridPosition(tempo_map, m_grid_note_value, transport_position),
+            .string = 1,
+        };
+        updateView();
+        return;
+    }
+
+    ChartCaret caret = *m_chart_caret;
+    switch (direction)
+    {
+        case ChartCaretDirection::Up:
+        {
+            caret.string = std::min(caret.string + 1, tab->string_count);
+            break;
+        }
+        case ChartCaretDirection::Down:
+        {
+            caret.string = std::max(caret.string - 1, 1);
+            break;
+        }
+        case ChartCaretDirection::Left:
+        case ChartCaretDirection::Right:
+        {
+            const int sign = direction == ChartCaretDirection::Right ? 1 : -1;
+            if (fine)
+            {
+                caret.position = common::core::advanceGridPosition(
+                    tempo_map,
+                    caret.position,
+                    common::core::Fraction{sign, g_fine_grid_denominator});
+                break;
+            }
+
+            // One grid step in beats: the note value is a fraction of a whole note and a beat
+            // is one signature-denominator unit, so step_beats = note_value x denominator.
+            const common::core::TimeSignatureChange signature =
+                tempo_map.timeSignatureAt(caret.position.measure);
+            const common::core::Fraction step{
+                sign * m_grid_note_value.numerator * signature.denominator,
+                m_grid_note_value.denominator
+            };
+            common::core::GridPosition candidate =
+                common::core::advanceGridPosition(tempo_map, caret.position, step);
+            candidate = common::core::snapGridPosition(tempo_map, candidate, m_grid_note_value);
+            if (candidate == caret.position)
+            {
+                // A tie or measure-boundary snap can land back on the origin; push one more
+                // step so the caret always makes progress (except at the grid's own clamp).
+                candidate = common::core::snapGridPosition(
+                    tempo_map,
+                    common::core::advanceGridPosition(tempo_map, candidate, step),
+                    m_grid_note_value);
+            }
+            caret.position = candidate;
+            break;
+        }
+    }
+    m_chart_caret = caret;
     updateView();
 }
 
@@ -2169,6 +2504,54 @@ EditorViewState EditorController::Impl::deriveViewState() const
         m_tab_chart_revision = session().chartRevision();
         state.tab = m_tab_view_state;
         state.highway = m_highway_view_state;
+
+        // Chart-editing overlays resolve against exactly the projection instance pushed above:
+        // selection keys re-resolve to indices every push, so keys whose notes vanished simply
+        // drop out instead of pointing at the wrong glyph.
+        if (arrangement->chart.has_value())
+        {
+            state.chart_edit.selected_notes =
+                selectedNoteIndices(arrangement->chart->notes, m_chart_selection);
+            if (m_chart_caret.has_value())
+            {
+                state.chart_edit.caret = ChartCaretViewState{
+                    .seconds = state.tempo_map.secondsAtNote(
+                        m_chart_caret->position.measure,
+                        m_chart_caret->position.beat,
+                        m_chart_caret->position.offset),
+                    .string = m_chart_caret->string,
+                };
+            }
+            if (m_chart_gesture.has_value() && m_chart_gesture->marquee &&
+                m_chart_gesture->geometry.bounds_width > 0.0f &&
+                m_chart_gesture->geometry.bounds_height > 0.0f)
+            {
+                const ChartPointerGesture& gesture = *m_chart_gesture;
+                const double seconds_per_pixel =
+                    gesture.geometry.visible_timeline.duration().seconds /
+                    static_cast<double>(gesture.geometry.bounds_width);
+                const double start_offset =
+                    static_cast<double>(std::min(gesture.anchor_x, gesture.current_x));
+                const double end_offset =
+                    static_cast<double>(std::max(gesture.anchor_x, gesture.current_x));
+                const float top = std::min(gesture.anchor_y, gesture.current_y);
+                const float bottom = std::max(gesture.anchor_y, gesture.current_y);
+                state.chart_edit.marquee = ChartMarqueeViewState{
+                    .start_seconds = gesture.geometry.visible_timeline.start.seconds +
+                                     start_offset * seconds_per_pixel,
+                    .end_seconds = gesture.geometry.visible_timeline.start.seconds +
+                                   end_offset * seconds_per_pixel,
+                    .top_fraction = std::clamp(
+                        (top - gesture.geometry.bounds_y) / gesture.geometry.bounds_height,
+                        0.0f,
+                        1.0f),
+                    .bottom_fraction = std::clamp(
+                        (bottom - gesture.geometry.bounds_y) / gesture.geometry.bounds_height,
+                        0.0f,
+                        1.0f),
+                };
+            }
+        }
     }
     else
     {
