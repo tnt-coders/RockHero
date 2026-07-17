@@ -121,6 +121,12 @@ glow — and now straddles the head edge, sitting between the head's own border 
 accent stays readable on selected notes. Also hardened in passing: the ghost pixel test had
 probed content the lane always paints, at a hover x that mapped to an exact tie between grid
 lines; it now hovers unambiguously and probes the ring's stroke band off the string line.
+**UX feedback round five applied 2026-07-17**: the selection ring stroke thinned from two
+border-widths to one and a half (still edge-centered) — the user confirmed the accent glow now
+reads on selected notes — and the ghost ring adopted the selection ring's exact dimensions via a
+shared stroke-width lambda in TabView::paint, one authority for both edge-straddling rings (the
+ghost had stroked a fixed 1.5px regardless of head size). The overlay test's ring probe became a
+selected-vs-unselected render difference, stable through further stroke tuning.
 **Remaining Phase 4 sub-scope (deferred to the next execution slice, before Phase 5):** pointer
 drag-move of selected notes (horizontal with snap, vertical across strings — the same plain
 move-drag verb automation points use) and Esc canceling an in-flight pointer drag preview.
