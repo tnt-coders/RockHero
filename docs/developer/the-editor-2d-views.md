@@ -128,9 +128,14 @@ String colors come from the **shared palette** in
 `rock-hero-common/ui/string_colors/string_color_palette.h` — a JUCE-free authority (colors are
 `uint32_t`) that derives each string's seven surfaces (lane, borders, tail, accent...) from one
 base color, Charter-style. The 2D tab lane, the 3D highway renderer, and therefore both products
-all color strings through it. The glyph renderer itself currently lives entirely in this editor
-view; promoting a shared tab *paint core* for the game's 2D view is planned work
-(`docs/plans/roadmap/30-game-2d-tab-view.md`), not present reality.
+all color strings through it. The glyph renderer itself is the **shared notation paint core**
+in `rock-hero-common/ui` `tab/` (plan 30 Phase 2): `tab_lane_layout.h` holds the framework-free
+`TabLaneGeometry` and lane math, `tab_layout_manifest.h` answers "where is this note's head/tail
+in pixels" for hit testing, and `tab_paint_core.h` — the one designated juce_graphics-bearing
+common/ui header — exposes `paintTabLane`, which `TabView::paint` calls after deriving metrics.
+The editor keeps thin delegate functions (`tabStringColor`, `tabLaneCenterY`, ...) on its own
+surface so editor widgets and tests are unaffected; the paint core's pixel output is pinned by
+exact-color tests in `rock_hero_common_ui_tests`.
 
 ## Tone track — `ToneTrackView`
 

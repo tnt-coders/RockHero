@@ -14,6 +14,20 @@ and its pixel tests), projection tests moved to `rock_hero_common_core_tests`, a
 do-not-unify-with-`HighwayViewState` watch item recorded in docs/tracking/watch-items.md with
 its trigger. Sequenced per 30-Q2 ahead of plan 40 Phase 3 (chart editing paused at its Phase 2,
 complete, waiting on this plan's Phase 2).
+**Phase 2 complete 2026-07-16**: the shared notation paint core landed in
+`rock-hero-common/ui` `tab/` as three units — `tab_lane_layout.h` (framework-free
+`TabLaneGeometry`/`TabLaneStyle` scale knob defaulting to the 25px cap, lane math, visibility
+index), `tab_layout_manifest.h` (framework-free `tabNoteLayout`: head rect, tail span, glyph
+anchors — plan 40 Phase 3's hit-testing substrate), and `tab_paint_core.h` (the designated
+juce_graphics-bearing header per 30-Q1: `TabLaneMetrics : TabLaneGeometry` + `paintTabLane` with
+the drawers moved verbatim). `TabView::paint` is a guards+metrics+delegate call; the editor's
+free functions stay as thin delegates so its surface and callers are unchanged. Extraction gate
+held: the editor exact-pixel suite passed untouched against the delegated paint before any test
+moved; the techniques/shapes/FHP pixel case then moved to `rock_hero_common_ui_tests`
+(`test_tab_paint_core.cpp`, probe colors unchanged) with new geometry/manifest unit tests
+(`test_tab_lane_layout.cpp`); the head-drawing case stays in the editor suite as the delegation
+guard. juce_graphics became a PUBLIC dependency of `rock_hero::common::ui` (the designated
+header carries juce types to consumers); bgfx isolation unchanged.
 Baseline: `master @ 7ba93b90`. Promoted from docs/plans/todo/game-2d-tab-view.md after a multi-angle
 design review (adopted/rejected record in §7); the architecture decision is settled — do not
 re-litigate the rejected options without new evidence.
