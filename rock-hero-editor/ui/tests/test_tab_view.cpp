@@ -270,11 +270,11 @@ TEST_CASE("TabView renders chart-editing overlays", "[ui][tab-view]")
     juce::Graphics graphics{image};
     view.paint(graphics);
 
-    // The selection highlight recolors the first note's own head ring in the theme accent:
-    // probe a pixel fully inside the stroke band left of the head center (head at x = 10,
-    // center y = 110, ring radius ~5.7, stroke two ring-widths wide) so antialiasing at the
-    // band edges cannot blend the probe.
-    CHECK(image.getPixelAt(4, 110) == editorTheme().accent);
+    // The selection highlight rings the first note's head just outside its edge in the theme
+    // accent: probe a pixel fully inside the stroke band left of the head (head at x = 10,
+    // center y = 110, head radius ~7.2, band out to ~9.2) so antialiasing at the band edges
+    // cannot blend the probe.
+    CHECK(image.getPixelAt(1, 110) == editorTheme().accent);
     // The marquee border's top-left corner at (30, 30).
     CHECK(image.getPixelAt(30, 30).getARGB() != 0);
 }
