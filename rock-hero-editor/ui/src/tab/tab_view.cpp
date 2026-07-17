@@ -4,6 +4,7 @@
 #include "timeline/timeline_cursor.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <memory>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
@@ -116,14 +117,45 @@ void TabView::updateGhost(const juce::MouseEvent& event)
         return;
     }
 
-    // Ghost strips are narrow; repainting only the bands it moved between keeps hover cheap on
-    // wide zoomed content.
+    // Repainting only the strips the ghost moved between keeps hover cheap on wide zoomed
+    // content.
     const std::optional<float> previous_x =
         m_ghost.has_value() ? std::optional{m_ghost->x} : std::nullopt;
     const std::optional<float> next_x =
         next_ghost.has_value() ? std::optional{next_ghost->x} : std::nullopt;
     m_ghost = next_ghost;
-    repaintCursorStrip(*this, previous_x, next_x);
+    repaintGhostStrip(previous_x, next_x);
+}
+
+// The shared repaintCursorStrip pads for a one-pixel cursor line; the ghost paints up to one
+// head-size on either side of its onset x (the fret-label rect is two head-sizes wide, centered
+// on it), so its strip pads by the style ceiling on that size instead. Anything narrower clips
+// the incoming ghost's draw and leaves stale fragments of the outgoing one behind.
+void TabView::repaintGhostStrip(std::optional<float> previous_x, std::optional<float> next_x)
+{
+    if ((!previous_x.has_value() && !next_x.has_value()) || getWidth() <= 0 || getHeight() <= 0)
+    {
+        return;
+    }
+
+    float left_x = 0.0f;
+    float right_x = 0.0f;
+    if (previous_x.has_value() && next_x.has_value())
+    {
+        left_x = std::min(*previous_x, *next_x);
+        right_x = std::max(*previous_x, *next_x);
+    }
+    else
+    {
+        const float ghost_x = previous_x.has_value() ? *previous_x : *next_x;
+        left_x = ghost_x;
+        right_x = ghost_x;
+    }
+    constexpr float antialias_padding = 3.0f;
+    const float half_extent = common::ui::TabLaneStyle{}.max_note_height + 1.0f + antialias_padding;
+    const int left = std::max(0, static_cast<int>(std::floor(left_x - half_extent)));
+    const int right = std::min(getWidth(), static_cast<int>(std::ceil(right_x + half_extent)) + 1);
+    repaint(left, 0, right - left, getHeight());
 }
 
 void TabView::mouseMove(const juce::MouseEvent& event)
@@ -138,7 +170,7 @@ void TabView::mouseExit(const juce::MouseEvent& /*event*/)
     {
         const std::optional<float> previous_x{m_ghost->x};
         m_ghost.reset();
-        repaintCursorStrip(*this, previous_x, std::nullopt);
+        repaintGhostStrip(previous_x, std::nullopt);
     }
 }
 

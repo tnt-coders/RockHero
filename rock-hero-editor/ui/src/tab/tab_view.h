@@ -266,6 +266,10 @@ private:
     // keeps the copy cursor in sync; repaints only the strips the ghost moved between.
     void updateGhost(const juce::MouseEvent& event);
 
+    // Invalidates the full-height strip spanning the old and new ghost positions, padded to the
+    // ghost's real paint footprint (head plus centered fret-label rect).
+    void repaintGhostStrip(std::optional<float> previous_x, std::optional<float> next_x);
+
     // Song tempo map used to snap the ghost exactly like the committed insert.
     const common::core::TempoMap& m_tempo_map;
 
