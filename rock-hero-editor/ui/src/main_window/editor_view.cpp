@@ -618,6 +618,7 @@ void EditorView::setState(const core::EditorViewState& state)
     m_tab_view.setVisibleTimeline(m_state.visible_timeline);
     m_tab_view.setState(m_state.tab, m_state.tab_minimum_displayed_strings);
     m_tab_view.setEditState(m_state.chart_edit);
+    m_tab_view.setGridNoteValue(m_state.grid_note_value);
     // The viewport needs the displayed lane count because counts past the six-string reference
     // density grow the waveform row instead of compressing the tablature lanes.
     m_track_viewport->setTabDisplayedStrings(tabDisplayedStringCount(

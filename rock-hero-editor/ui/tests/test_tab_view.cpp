@@ -141,7 +141,9 @@ TEST_CASE("TabView finds notes intersecting a visible span", "[ui][tab-view]")
 TEST_CASE("TabView draws string-colored note heads", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    TabView view;
+    const common::core::TempoMap tempo_map =
+        common::core::TempoMap::defaultMap(common::core::TimeDuration{30.0});
+    TabView view{tempo_map};
     view.setBounds(0, 0, 200, 120);
     view.setVisibleTimeline(
         common::core::TimeRange{
@@ -180,7 +182,9 @@ TEST_CASE("TabView draws string-colored note heads", "[ui][tab-view]")
 TEST_CASE("TabView forwards chart pointer intents when a chart shows", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    TabView view;
+    const common::core::TempoMap tempo_map =
+        common::core::TempoMap::defaultMap(common::core::TimeDuration{30.0});
+    TabView view{tempo_map};
     view.setBounds(0, 0, 200, 120);
     view.setVisibleTimeline(
         common::core::TimeRange{
@@ -241,7 +245,9 @@ TEST_CASE("TabView forwards chart pointer intents when a chart shows", "[ui][tab
 TEST_CASE("TabView renders chart-editing overlays", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    TabView view;
+    const common::core::TempoMap tempo_map =
+        common::core::TempoMap::defaultMap(common::core::TimeDuration{30.0});
+    TabView view{tempo_map};
     view.setBounds(0, 0, 200, 120);
     view.setVisibleTimeline(
         common::core::TimeRange{
@@ -273,11 +279,56 @@ TEST_CASE("TabView renders chart-editing overlays", "[ui][tab-view]")
     CHECK(image.getPixelAt(30, 30).getARGB() != 0);
 }
 
+// Holding Alt over the lane shows the copy cursor and a snapped ghost of the note a click
+// would insert; releasing Alt (or hovering without it) clears both.
+TEST_CASE("TabView shows the Alt insert ghost at the snapped position", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    const common::core::TempoMap tempo_map =
+        common::core::TempoMap::defaultMap(common::core::TimeDuration{30.0});
+    TabView view{tempo_map};
+    view.setBounds(0, 0, 200, 120);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        });
+    view.setState(makeTabState(), 0);
+
+    // Alt-hover at 12.2s over the string-3 lane (center y = 70): the ghost snaps to the
+    // quarter-note grid line at 12.0s (x = 120).
+    view.mouseMove(
+        testing::makeMouseDownEvent(view, 122.0f, 71.0f, juce::ModifierKeys::altModifier));
+    CHECK(view.getMouseCursor() == juce::MouseCursor{juce::MouseCursor::CopyingCursor});
+
+    {
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 200, 120, true)};
+        juce::Graphics graphics{image};
+        view.paint(graphics);
+        // Probe inside the translucent ghost head, left of the centered fret numeral.
+        CHECK(image.getPixelAt(116, 70).getARGB() != 0);
+    }
+
+    // Without Alt the ghost and the copy cursor clear.
+    view.mouseMove(testing::makeMouseDownEvent(view, 122.0f, 71.0f, juce::ModifierKeys{}));
+    CHECK(view.getMouseCursor() == juce::MouseCursor{juce::MouseCursor::NormalCursor});
+    {
+        const juce::Image image{juce::SoftwareImageType{}.create(
+            juce::Image::ARGB, 200, 120, true)};
+        juce::Graphics graphics{image};
+        view.paint(graphics);
+        CHECK(image.getPixelAt(116, 66).getARGB() == 0);
+    }
+}
+
 // A null projection draws nothing and never dereferences missing chart data.
 TEST_CASE("TabView draws nothing without a chart", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    TabView view;
+    const common::core::TempoMap tempo_map =
+        common::core::TempoMap::defaultMap(common::core::TimeDuration{30.0});
+    TabView view{tempo_map};
     view.setBounds(0, 0, 100, 60);
     view.setVisibleTimeline(
         common::core::TimeRange{

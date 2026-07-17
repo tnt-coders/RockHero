@@ -369,6 +369,14 @@ struct ChartEditViewState
     std::optional<ChartMarqueeViewState> marquee{};
 
     /*!
+    \brief Fret the next inserted note will carry (the last fret typed or placed).
+
+    The Alt-held ghost preview labels itself with this so the ghost shows exactly what a click
+    would insert.
+    */
+    int insert_fret{0};
+
+    /*!
     \brief Compares two chart-editing states by their stored values.
     \param lhs Left-hand state.
     \param rhs Right-hand state.

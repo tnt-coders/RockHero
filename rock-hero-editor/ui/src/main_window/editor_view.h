@@ -471,8 +471,9 @@ private:
     // Waveform track for the currently displayed arrangement, hosted inside the track viewport.
     ArrangementView m_arrangement_view;
 
-    // Tablature lane drawn over the waveform row inside the track viewport.
-    TabView m_tab_view;
+    // Tablature lane drawn over the waveform row inside the track viewport; the state's tempo
+    // map (declared above) snaps its Alt-held ghost preview.
+    TabView m_tab_view{m_state.tempo_map};
 
     // Tone track row hosted below the waveform inside the track viewport.
     ToneTrackView m_tone_track_view;
