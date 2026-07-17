@@ -341,10 +341,11 @@ void TabView::paint(juce::Graphics& g)
     const juce::Colour accent = editorTheme().accent;
 
     // Selection highlight: an accent ring straddling the head's outer edge — the stroke is
-    // centered on the edge so it sits between the head's own border ring and the accent glow
-    // beyond, extending only one border-width outside the head (user feedback 2026-07-17: the
-    // first outward cut buried the glow, so the ring came in a bit to leave the glow annulus
-    // readable on accented notes); harmonic heads get the matching diamond.
+    // centered on the edge, at one and a half border-widths thick, so it sits between the
+    // head's own border ring and the accent glow while leaving the glow annulus readable on
+    // accented notes (user feedback 2026-07-17, twice narrowed: the fully-outward cut buried
+    // the glow and the double-width stroke still covered too much of it); harmonic heads get
+    // the matching diamond.
     for (const std::size_t index : m_edit.selected_notes)
     {
         if (index >= m_tab->notes.size())
@@ -354,7 +355,7 @@ void TabView::paint(juce::Graphics& g)
         const common::core::TabNoteView& note = m_tab->notes[index];
         const common::ui::TabNoteLayout layout = common::ui::tabNoteLayout(metrics, note);
         const float border = std::max(1.0f, layout.head_size / 15.0f);
-        const float stroke = border * 2.0f;
+        const float stroke = border * 1.5f;
         const float extent = layout.head_size;
         g.setColour(accent);
         if (note.harmonic != common::core::NoteHarmonic::None)
