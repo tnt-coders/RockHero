@@ -339,12 +339,12 @@ void TabView::paint(juce::Graphics& g)
     // they are editor-shell furniture, not part of what the game's tab strips render.
     const juce::Colour accent = editorTheme().accent;
 
-    // Selection highlight: recolor the head's OWN border ring in the accent instead of adding
-    // an outer halo (user feedback 2026-07-17 — the highlight should look like the existing
-    // border lit up, not a second border). The stroke retraces the ring band fillHeadShape
-    // paints: border = size/15, ring annulus between radii size/2 - 2*border and size/2 -
-    // border, so the stroked circle of extent size - 3*border at thickness border covers it
-    // exactly; harmonic heads get the matching diamond.
+    // Selection highlight: an accent ring hugging the head's outer edge (user feedback
+    // 2026-07-17 — extend outward from the note, a bit wider than the note shape, rather than
+    // recoloring the head's own border). The stroke's inner edge sits exactly at the head
+    // edge so the ring reads as the note's border grown outward, not a detached halo, and it
+    // stays well inside the accent glow's outer reach so an accented note keeps a visible
+    // glow fringe beyond it; harmonic heads get the matching diamond.
     for (const std::size_t index : m_edit.selected_notes)
     {
         if (index >= m_tab->notes.size())
@@ -353,11 +353,9 @@ void TabView::paint(juce::Graphics& g)
         }
         const common::core::TabNoteView& note = m_tab->notes[index];
         const common::ui::TabNoteLayout layout = common::ui::tabNoteLayout(metrics, note);
-        // Stroked wider than the ring itself (user feedback 2026-07-17) so the lit border reads
-        // unmistakably at a glance; the stroke stays centered on the ring band's circle.
         const float border = std::max(1.0f, layout.head_size / 15.0f);
-        const float extent = layout.head_size - 3.0f * border;
         const float stroke = border * 2.0f;
+        const float extent = layout.head_size + stroke;
         g.setColour(accent);
         if (note.harmonic != common::core::NoteHarmonic::None)
         {
