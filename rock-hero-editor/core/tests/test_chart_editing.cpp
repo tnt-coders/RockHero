@@ -90,7 +90,7 @@ void click(EditorController& controller, float x, float y, ChartPointerModifiers
 
 } // namespace
 
-// A glyph click selects the note, moves the caret to it, and never seeks the transport.
+// A glyph click selects the note and never seeks the transport.
 TEST_CASE("EditorController selects a chart note on glyph click", "[core][chart]")
 {
     FakeTransport transport;
@@ -114,8 +114,6 @@ TEST_CASE("EditorController selects a chart note on glyph click", "[core][chart]
     REQUIRE(view.last_state.has_value());
     const ChartEditViewState& edit = view.last_state->chart_edit;
     CHECK(edit.selected_notes == std::vector<std::size_t>{0});
-    // The selection highlight is the whole feedback: a glyph click never moves the caret.
-    CHECK_FALSE(edit.caret.has_value());
     CHECK(transport.seek_call_count == seek_baseline);
 
     // A sustain-tail click (right of the measure-3 head, inside its one-second tail) selects
@@ -160,9 +158,8 @@ TEST_CASE("EditorController toggles and extends the chart selection", "[core][ch
     CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{0});
 }
 
-// An empty-lane click seeks the snapped position, clears the selection, and places the caret on
-// the lane under the pointer.
-TEST_CASE("EditorController seeks and places the caret on empty click", "[core][chart]")
+// An empty-lane click seeks the snapped position and clears the selection.
+TEST_CASE("EditorController seeks and deselects on empty click", "[core][chart]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -181,15 +178,12 @@ TEST_CASE("EditorController seeks and places the caret on empty click", "[core][
     click(controller, 40.0f, 220.0f);
     const int seek_baseline = transport.seek_call_count;
 
-    // x = 200 is 10.0s (a grid beat at 120 BPM); y = 100 is the string-4 lane.
+    // x = 200 is 10.0s (a grid beat at 120 BPM).
     click(controller, 200.0f, 100.0f);
 
     REQUIRE(view.last_state.has_value());
     const ChartEditViewState& edit = view.last_state->chart_edit;
     CHECK(edit.selected_notes.empty());
-    REQUIRE(edit.caret.has_value());
-    CHECK(edit.caret->seconds == Catch::Approx(10.0));
-    CHECK(edit.caret->string == 4);
     CHECK(transport.seek_call_count == seek_baseline + 1);
     REQUIRE(transport.last_seek_position.has_value());
     CHECK(transport.last_seek_position->seconds == Catch::Approx(10.0));
@@ -237,9 +231,9 @@ TEST_CASE("EditorController marquee selects boxed chart notes", "[core][chart]")
     CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1, 2}));
 }
 
-// Arrow moves step the caret along the grid, across strings, and along the fine grid with the
-// precision modifier.
-TEST_CASE("EditorController caret arrows step grid strings and fine grid", "[core][chart]")
+// Plain Left/Right step the one timeline cursor along the grid (and the fine grid with the
+// precision modifier); vertical arrows have no navigation meaning and are ignored.
+TEST_CASE("EditorController steps the timeline cursor along the grid", "[core][chart]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -256,33 +250,29 @@ TEST_CASE("EditorController caret arrows step grid strings and fine grid", "[cor
     controller.attachView(view);
     REQUIRE(loadChartArrangement(controller, project_services, audio));
 
-    // Place the caret at measure 4 beat 1 (6.0s) on string 1 via an empty click: arrows move
-    // the caret only while nothing is selected (a selection makes them nudge instead).
+    // Park the cursor at measure 4 beat 1 (6.0s) via an empty click.
     click(controller, 120.0f, 220.0f);
+    REQUIRE(transport.last_seek_position.has_value());
+    CHECK(transport.last_seek_position->seconds == Catch::Approx(6.0));
 
     // Right by one quarter-note grid step: 6.0s -> 6.5s at 120 BPM.
-    controller.onChartCaretMoveRequested(ChartCaretDirection::Right, false);
-    REQUIRE(view.last_state.has_value());
-    REQUIRE(view.last_state->chart_edit.caret.has_value());
-    CHECK(view.last_state->chart_edit.caret->seconds == Catch::Approx(6.5));
+    controller.onChartCursorStepRequested(ChartStepDirection::Right, false);
+    REQUIRE(transport.last_seek_position.has_value());
+    CHECK(transport.last_seek_position->seconds == Catch::Approx(6.5));
 
-    controller.onChartCaretMoveRequested(ChartCaretDirection::Left, false);
-    CHECK(view.last_state->chart_edit.caret->seconds == Catch::Approx(6.0));
+    controller.onChartCursorStepRequested(ChartStepDirection::Left, false);
+    CHECK(transport.last_seek_position->seconds == Catch::Approx(6.0));
 
-    // Up moves toward higher strings; Down clamps at the lowest string.
-    controller.onChartCaretMoveRequested(ChartCaretDirection::Up, false);
-    CHECK(view.last_state->chart_edit.caret->string == 2);
-    controller.onChartCaretMoveRequested(ChartCaretDirection::Down, false);
-    controller.onChartCaretMoveRequested(ChartCaretDirection::Down, false);
-    CHECK(view.last_state->chart_edit.caret->string == 1);
+    // Vertical arrows are ignored: no seek fires.
+    const int seek_count = transport.seek_call_count;
+    controller.onChartCursorStepRequested(ChartStepDirection::Up, false);
+    controller.onChartCursorStepRequested(ChartStepDirection::Down, false);
+    CHECK(transport.seek_call_count == seek_count);
 
     // Fine step: one 1/960 beat is 0.5/960 seconds at 120 BPM.
-    controller.onChartCaretMoveRequested(ChartCaretDirection::Right, true);
-    CHECK(
-        view.last_state->chart_edit.caret->seconds ==
-        Catch::Approx(6.0 + 0.5 / 960.0).epsilon(1e-9));
+    controller.onChartCursorStepRequested(ChartStepDirection::Right, true);
+    CHECK(transport.last_seek_position->seconds == Catch::Approx(6.0 + 0.5 / 960.0).epsilon(1e-9));
 }
-
 // Alt+click inserts a note at the snapped point as one undo entry; undo removes it again.
 TEST_CASE("EditorController inserts a chart note via the Alt quasimode", "[core][chart]")
 {
@@ -499,22 +489,20 @@ TEST_CASE("EditorController nudges the selection and refuses collisions", "[core
 
     click(controller, 40.0f, 220.0f);
 
-    // Plain arrows never mutate: with a selection they still navigate the caret (the first
-    // press places it at the snapped transport position instead of touching the chart).
-    controller.onChartCaretMoveRequested(ChartCaretDirection::Right, false);
+    // Plain arrows never mutate: with a selection they still step the timeline cursor.
+    controller.onChartCursorStepRequested(ChartStepDirection::Right, false);
     const auto* chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes[0].position == (common::core::GridPosition{.measure = 2, .beat = 1}));
     REQUIRE(view.last_state.has_value());
-    CHECK(view.last_state->chart_edit.caret.has_value());
 
     // Alt+Up would land on the occupied measure-2 string-2 slot: refused, nothing changes.
-    controller.onChartSelectionMoveRequested(ChartCaretDirection::Up, false);
+    controller.onChartSelectionMoveRequested(ChartStepDirection::Up, false);
     chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes[0].string == 1);
     CHECK(chart->notes[0].position == (common::core::GridPosition{.measure = 2, .beat = 1}));
 
     // Alt+Right moves one quarter-note step; the selection follows the moved note.
-    controller.onChartSelectionMoveRequested(ChartCaretDirection::Right, false);
+    controller.onChartSelectionMoveRequested(ChartStepDirection::Right, false);
     chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes[1].position == (common::core::GridPosition{.measure = 2, .beat = 2}));
     CHECK(chart->notes[1].string == 1);
@@ -528,7 +516,7 @@ TEST_CASE("EditorController nudges the selection and refuses collisions", "[core
     CHECK(chart->notes[0].string == 1);
 }
 
-// Loading a different song clears selection and caret so keys never leak across charts.
+// Loading a different song clears the selection so keys never leak across charts.
 TEST_CASE("EditorController clears chart selection on project load", "[core][chart]")
 {
     FakeTransport transport;
@@ -551,7 +539,6 @@ TEST_CASE("EditorController clears chart selection on project load", "[core][cha
 
     REQUIRE(loadChartArrangement(controller, project_services, audio));
     CHECK(view.last_state->chart_edit.selected_notes.empty());
-    CHECK_FALSE(view.last_state->chart_edit.caret.has_value());
 }
 
 } // namespace rock_hero::editor::core

@@ -886,12 +886,12 @@ void EditorController::onChartPointerUp(const ChartPointerEvent& event)
     m_impl->onChartPointerUp(event);
 }
 
-void EditorController::onChartCaretMoveRequested(ChartCaretDirection direction, bool fine)
+void EditorController::onChartCursorStepRequested(ChartStepDirection direction, bool fine)
 {
-    m_impl->onChartCaretMoveRequested(direction, fine);
+    m_impl->onChartCursorStepRequested(direction, fine);
 }
 
-void EditorController::onChartSelectionMoveRequested(ChartCaretDirection direction, bool fine)
+void EditorController::onChartSelectionMoveRequested(ChartStepDirection direction, bool fine)
 {
     m_impl->onChartSelectionMoveRequested(direction, fine);
 }
@@ -1543,7 +1543,6 @@ std::optional<ChartNoteKey> EditorController::Impl::chartNoteKeyAt(
 void EditorController::Impl::clearChartEditingState()
 {
     m_chart_selection.clear();
-    m_chart_caret.reset();
     m_chart_gesture.reset();
     m_chart_fret_entry.reset();
 }
@@ -1586,16 +1585,6 @@ std::optional<std::pair<common::core::GridPosition, int>> EditorController::Impl
     const int string =
         std::clamp(displayed_string - event.geometry.extra_lanes, 1, tab->string_count);
     return std::pair{position, string};
-}
-
-// Places the editing caret at the event's snapped musical position on the lane under the
-// pointer.
-void EditorController::Impl::placeChartCaret(const ChartPointerEvent& event)
-{
-    if (const auto placement = chartPlacementAt(event); placement.has_value())
-    {
-        m_chart_caret = ChartCaret{.position = placement->first, .string = placement->second};
-    }
 }
 
 // One grid step in beats at a position: the note value is a fraction of a whole note and a beat
@@ -1702,7 +1691,7 @@ void EditorController::Impl::insertChartNoteAt(const ChartPointerEvent& event)
     note.string = placement->second;
     note.fret = std::clamp(m_chart_last_fret, 0, common::core::g_max_fret);
     // Select exactly the placed note (not a 40-Q2-B-truncated neighbor the plan may also carry);
-    // its selection highlight is the placement feedback, so the caret stays where it was.
+    // its selection highlight is the placement feedback.
     static_cast<void>(applyChartEditPlan(
         planInsertNote(*arrangement->chart, session().song().tempo_map, note),
         std::vector<ChartNoteKey>{ChartNoteKey{.position = note.position, .string = note.string}}));
@@ -1759,8 +1748,8 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
     {
         m_chart_selection.replaceWith(*key);
     }
-    // The selection highlight is the whole feedback for a glyph press: the caret deliberately
-    // stays put (user feedback 2026-07-17 — a caret jumping onto the selected note is noise).
+    // The selection highlight is the whole feedback for a glyph press (user feedback
+    // 2026-07-17: no extra cursor furniture on selection).
     updateView();
 }
 
@@ -1796,7 +1785,7 @@ void EditorController::Impl::onChartPointerDrag(const ChartPointerEvent& event)
 
 // Resolves the gesture: a marquee release selects the boxed notes (Shift extends), an
 // empty-lane click seeks the snapped click position, clears the selection, and places the
-// caret; a plain click-release on an already-selected note collapses the selection to it.
+// a plain click-release on an already-selected note collapses the selection to it.
 void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
 {
     if (!m_chart_gesture.has_value())
@@ -1860,10 +1849,8 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
         return;
     }
 
-    // Empty click: seek + deselect + caret, exactly the overlay's click semantics plus the
-    // editing caret.
+    // Empty click: seek + deselect, exactly the overlay's click semantics.
     m_chart_selection.clear();
-    placeChartCaret(event);
     const std::optional<common::core::TimePosition> seek_time = timelineCursorPlacementTime(
         session().song().tempo_map,
         m_grid_note_value,
@@ -1879,89 +1866,64 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
     updateView();
 }
 
-// Keyboard caret navigation - pure, never a mutation ("plain keys never mutate"): Left/Right
-// step the rendered tempo grid (the fine 1/960-beat grid under precision), Up/Down cross string
-// lanes. The first move without a caret places it at the transport position on the lowest
-// string.
-void EditorController::Impl::onChartCaretMoveRequested(ChartCaretDirection direction, bool fine)
+// Arrow-key navigation: Left/Right step the ONE timeline cursor (the transport position) along
+// the rendered tempo grid - pure navigation, never a mutation. There is no separate editing
+// caret (user decision 2026-07-17: the playhead is the position feedback, and a second cursor
+// icon is noise). Vertical directions have no navigation meaning and are ignored.
+void EditorController::Impl::onChartCursorStepRequested(ChartStepDirection direction, bool fine)
 {
     const common::core::TabViewState* const tab = displayedTabProjection();
-    if (tab == nullptr || tab->string_count <= 0 || isBusy())
+    if (tab == nullptr || tab->string_count <= 0 || isBusy() ||
+        (direction != ChartStepDirection::Left && direction != ChartStepDirection::Right))
     {
         return;
     }
 
     const common::core::TempoMap& tempo_map = session().song().tempo_map;
-    if (!m_chart_caret.has_value())
+    const int sign = direction == ChartStepDirection::Right ? 1 : -1;
+    const common::core::TimePosition transport_position = m_transport.position();
+    common::core::GridPosition stepped;
+    if (fine)
     {
-        const common::core::TimePosition transport_position = m_transport.position();
-        m_chart_caret = ChartCaret{
-            .position = nearestTempoGridPosition(tempo_map, m_grid_note_value, transport_position),
-            .string = 1,
+        // Precision stepping quantizes the playhead to the shared fine grid, then moves one
+        // fine step.
+        stepped = common::core::advanceGridPosition(
+            tempo_map,
+            fineGridPositionForBeat(
+                tempo_map, tempo_map.beatPositionAtSeconds(transport_position.seconds)),
+            common::core::Fraction{sign, g_fine_grid_denominator});
+    }
+    else
+    {
+        // Snap the playhead onto the grid, then step one grid line; the re-snap-and-push guard
+        // keeps the cursor progressing across measure-anchored grid restarts.
+        const common::core::GridPosition current =
+            nearestTempoGridPosition(tempo_map, m_grid_note_value, transport_position);
+        const common::core::Fraction unsigned_step = chartGridStepBeats(current, false);
+        const common::core::Fraction step{
+            sign * unsigned_step.numerator, unsigned_step.denominator
         };
-        updateView();
-        return;
-    }
-
-    ChartCaret caret = *m_chart_caret;
-    switch (direction)
-    {
-        case ChartCaretDirection::Up:
+        stepped = common::core::snapGridPosition(
+            tempo_map,
+            common::core::advanceGridPosition(tempo_map, current, step),
+            m_grid_note_value);
+        if (stepped == current)
         {
-            caret.string = std::min(caret.string + 1, tab->string_count);
-            break;
-        }
-        case ChartCaretDirection::Down:
-        {
-            caret.string = std::max(caret.string - 1, 1);
-            break;
-        }
-        case ChartCaretDirection::Left:
-        case ChartCaretDirection::Right:
-        {
-            const int sign = direction == ChartCaretDirection::Right ? 1 : -1;
-            if (fine)
-            {
-                caret.position = common::core::advanceGridPosition(
-                    tempo_map,
-                    caret.position,
-                    common::core::Fraction{sign, g_fine_grid_denominator});
-                break;
-            }
-
-            // One grid step in beats: the note value is a fraction of a whole note and a beat
-            // is one signature-denominator unit, so step_beats = note_value x denominator.
-            const common::core::TimeSignatureChange signature =
-                tempo_map.timeSignatureAt(caret.position.measure);
-            const common::core::Fraction step{
-                sign * m_grid_note_value.numerator * signature.denominator,
-                m_grid_note_value.denominator
-            };
-            common::core::GridPosition candidate =
-                common::core::advanceGridPosition(tempo_map, caret.position, step);
-            candidate = common::core::snapGridPosition(tempo_map, candidate, m_grid_note_value);
-            if (candidate == caret.position)
-            {
-                // A tie or measure-boundary snap can land back on the origin; push one more
-                // step so the caret always makes progress (except at the grid's own clamp).
-                candidate = common::core::snapGridPosition(
-                    tempo_map,
-                    common::core::advanceGridPosition(tempo_map, candidate, step),
-                    m_grid_note_value);
-            }
-            caret.position = candidate;
-            break;
+            stepped = common::core::snapGridPosition(
+                tempo_map,
+                common::core::advanceGridPosition(tempo_map, stepped, step),
+                m_grid_note_value);
         }
     }
-    m_chart_caret = caret;
-    updateView();
+    onTimelineSeekRequested(
+        common::core::TimePosition{tempo_map.secondsAtNote(
+            stepped.measure, stepped.beat, stepped.offset)});
 }
-
 // Moves the selection under the Alt authoring modifier: Left/Right by one grid step (Ctrl
 // fine), Up/Down across strings. A refused move (edge of the neck, occupied slot, grid origin
 // collision) is a silent no-op — the selection stays put, matching refuse-not-clamp everywhere
 // else.
-void EditorController::Impl::onChartSelectionMoveRequested(ChartCaretDirection direction, bool fine)
+void EditorController::Impl::onChartSelectionMoveRequested(ChartStepDirection direction, bool fine)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
@@ -1974,24 +1936,22 @@ void EditorController::Impl::onChartSelectionMoveRequested(ChartCaretDirection d
     int string_delta = 0;
     switch (direction)
     {
-        case ChartCaretDirection::Left:
-        case ChartCaretDirection::Right:
+        case ChartStepDirection::Left:
+        case ChartStepDirection::Right:
         {
-            const common::core::GridPosition reference =
-                m_chart_caret.has_value() ? m_chart_caret->position
-                                          : m_chart_selection.notes().front().position;
+            const common::core::GridPosition reference = m_chart_selection.notes().front().position;
             const common::core::Fraction step = chartGridStepBeats(reference, fine);
-            beat_delta = direction == ChartCaretDirection::Right
+            beat_delta = direction == ChartStepDirection::Right
                              ? step
                              : common::core::Fraction{-step.numerator, step.denominator};
             break;
         }
-        case ChartCaretDirection::Up:
+        case ChartStepDirection::Up:
         {
             string_delta = 1;
             break;
         }
-        case ChartCaretDirection::Down:
+        case ChartStepDirection::Down:
         {
             string_delta = -1;
             break;
@@ -2157,9 +2117,7 @@ void EditorController::Impl::onChartSustainAdjustRequested(int direction, bool f
         return;
     }
 
-    const common::core::GridPosition reference = m_chart_caret.has_value()
-                                                     ? m_chart_caret->position
-                                                     : m_chart_selection.notes().front().position;
+    const common::core::GridPosition reference = m_chart_selection.notes().front().position;
     const common::core::Fraction step = chartGridStepBeats(reference, fine);
     const common::core::Fraction delta =
         direction > 0 ? step : common::core::Fraction{-step.numerator, step.denominator};
@@ -2896,16 +2854,6 @@ EditorViewState EditorController::Impl::deriveViewState() const
         {
             state.chart_edit.selected_notes =
                 selectedNoteIndices(arrangement->chart->notes, m_chart_selection);
-            if (m_chart_caret.has_value())
-            {
-                state.chart_edit.caret = ChartCaretViewState{
-                    .seconds = state.tempo_map.secondsAtNote(
-                        m_chart_caret->position.measure,
-                        m_chart_caret->position.beat,
-                        m_chart_caret->position.offset),
-                    .string = m_chart_caret->string,
-                };
-            }
             if (m_chart_gesture.has_value() && m_chart_gesture->marquee &&
                 m_chart_gesture->geometry.bounds_width > 0.0f &&
                 m_chart_gesture->geometry.bounds_height > 0.0f)

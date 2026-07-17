@@ -116,7 +116,7 @@ note heads (diamonds for harmonics) with fret numbers, bordered sustain tails, t
 slide and bend lines with label chips, and hand-shape spans — from the controller's
 seconds-resolved tab projection, mapping time to pixels with the same visible-timeline
 convention as the waveform beneath it, then the chart-editing overlays (selection rings, the
-editing caret, and the in-flight marquee) above the notation. While a chart is displayed the
+and the in-flight marquee) above the notation. While a chart is displayed the
 lane owns its pointer events, converting them to lane-local chart pointer intents; the
 controller decides what a press means (select, seek, or marquee), so empty-lane clicks still
 seek. Without a chart the lane is pointer-transparent as before.
@@ -155,7 +155,7 @@ public:
         const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel) override;
 
     /*!
-    \brief Applies the chart-editing overlay state (selection, caret, marquee).
+    \brief Applies the chart-editing overlay state (selection, marquee).
     \param edit Overlay state resolved against the same projection instance as setState's tab.
     */
     void setEditState(core::ChartEditViewState edit);
@@ -232,7 +232,7 @@ private:
     // Seconds-resolved tab projection shared with the controller; null without a chart.
     std::shared_ptr<const common::core::TabViewState> m_tab{};
 
-    // Chart-editing overlay state (selection indices, caret, marquee) pushed by the editor.
+    // Chart-editing overlay state (selection indices, marquee) pushed by the editor.
     core::ChartEditViewState m_edit{};
 
     // Sink receiving the lane's chart pointer intents; empty disables pointer forwarding.

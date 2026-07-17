@@ -103,7 +103,7 @@ std::optional<common::core::GridPosition> musicalGridPositionForX(
 }
 
 // Thin delegate: the fine-grid quantization moved to editor-core (tempo_grid_geometry) so the
-// controller's headless caret stepping and every UI placement gesture share one authority.
+// controller's headless cursor stepping and every UI placement gesture share one authority.
 common::core::GridPosition fineGridPositionForBeat(
     const common::core::TempoMap& tempo_map, double global_beat)
 {

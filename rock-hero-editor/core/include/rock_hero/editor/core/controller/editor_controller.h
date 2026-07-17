@@ -429,11 +429,11 @@ public:
     /*! \copydoc IEditorController::onChartPointerUp */
     void onChartPointerUp(const ChartPointerEvent& event) override;
 
-    /*! \copydoc IEditorController::onChartCaretMoveRequested */
-    void onChartCaretMoveRequested(ChartCaretDirection direction, bool fine) override;
+    /*! \copydoc IEditorController::onChartCursorStepRequested */
+    void onChartCursorStepRequested(ChartStepDirection direction, bool fine) override;
 
     /*! \copydoc IEditorController::onChartSelectionMoveRequested */
-    void onChartSelectionMoveRequested(ChartCaretDirection direction, bool fine) override;
+    void onChartSelectionMoveRequested(ChartStepDirection direction, bool fine) override;
 
     /*! \copydoc IEditorController::onChartSelectionDeleteRequested */
     void onChartSelectionDeleteRequested() override;

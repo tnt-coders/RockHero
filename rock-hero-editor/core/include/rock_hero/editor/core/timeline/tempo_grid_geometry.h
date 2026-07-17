@@ -184,7 +184,7 @@ inline constexpr int g_fine_grid_denominator = 960;
 /*!
 \brief Quantizes a fractional global-beat position to the exact rational 1/960-beat fine grid.
 
-The seam shared by Ctrl-free click placement, playhead-anchored insertion, and fine caret
+The seam shared by Ctrl-free click placement, playhead-anchored insertion, and fine cursor
 stepping: it turns a seconds- or beat-derived double into a storable position that stays an
 exact rational (never a raw double) at sub-millisecond resolution. A caller that already holds
 an exact musical position should keep it verbatim rather than round-tripping through this.

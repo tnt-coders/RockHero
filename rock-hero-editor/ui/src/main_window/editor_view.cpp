@@ -919,7 +919,7 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
     }
 
     // Arrow-key dispatch under the amended interaction grammar (2026-07-16): plain arrows only
-    // ever navigate (the tab caret; nothing on other surfaces), Shift+arrows is reserved for
+    // ever navigate (stepping the one timeline cursor along the grid), Shift+arrows is reserved for
     // future selection extension, and every keyboard mutation requires the Alt authoring
     // modifier — Alt+arrows moves the selection (a selected automation point first, the more
     // specific target, then the chart selection), Shift+Alt+Left/Right resizes sustains. Ctrl
@@ -930,22 +930,22 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
         const bool shift = key.getModifiers().isShiftDown();
         const bool alt = key.getModifiers().isAltDown();
         const bool chart_shown = m_state.tab != nullptr && m_state.tab->string_count > 0;
-        const auto arrow_direction = [&key]() -> std::optional<core::ChartCaretDirection> {
+        const auto arrow_direction = [&key]() -> std::optional<core::ChartStepDirection> {
             if (key.isKeyCode(juce::KeyPress::leftKey))
             {
-                return core::ChartCaretDirection::Left;
+                return core::ChartStepDirection::Left;
             }
             if (key.isKeyCode(juce::KeyPress::rightKey))
             {
-                return core::ChartCaretDirection::Right;
+                return core::ChartStepDirection::Right;
             }
             if (key.isKeyCode(juce::KeyPress::upKey))
             {
-                return core::ChartCaretDirection::Up;
+                return core::ChartStepDirection::Up;
             }
             if (key.isKeyCode(juce::KeyPress::downKey))
             {
-                return core::ChartCaretDirection::Down;
+                return core::ChartStepDirection::Down;
             }
             return std::nullopt;
         }();
@@ -958,11 +958,11 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
                 {
                     // Shift+Alt+Left/Right: sustain resize on the chart selection.
                     if (chart_shown && !m_state.chart_edit.selected_notes.empty() &&
-                        (*arrow_direction == core::ChartCaretDirection::Left ||
-                         *arrow_direction == core::ChartCaretDirection::Right))
+                        (*arrow_direction == core::ChartStepDirection::Left ||
+                         *arrow_direction == core::ChartStepDirection::Right))
                     {
                         m_controller.onChartSustainAdjustRequested(
-                            *arrow_direction == core::ChartCaretDirection::Right ? 1 : -1, fine);
+                            *arrow_direction == core::ChartStepDirection::Right ? 1 : -1, fine);
                         return true;
                     }
                     return false;
@@ -971,10 +971,10 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
                 // Alt+arrows: move the selected automation point, else the chart selection.
                 using NudgeDirection = ToneAutomationLanesView::NudgeDirection;
                 const NudgeDirection point_direction =
-                    *arrow_direction == core::ChartCaretDirection::Left    ? NudgeDirection::Earlier
-                    : *arrow_direction == core::ChartCaretDirection::Right ? NudgeDirection::Later
-                    : *arrow_direction == core::ChartCaretDirection::Up    ? NudgeDirection::Up
-                                                                           : NudgeDirection::Down;
+                    *arrow_direction == core::ChartStepDirection::Left    ? NudgeDirection::Earlier
+                    : *arrow_direction == core::ChartStepDirection::Right ? NudgeDirection::Later
+                    : *arrow_direction == core::ChartStepDirection::Up    ? NudgeDirection::Up
+                                                                          : NudgeDirection::Down;
                 if (m_tone_automation_lanes_view.nudgeSelectedPoint(point_direction, fine))
                 {
                     return true;
@@ -995,7 +995,7 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
 
             if (chart_shown)
             {
-                m_controller.onChartCaretMoveRequested(*arrow_direction, fine);
+                m_controller.onChartCursorStepRequested(*arrow_direction, fine);
                 return true;
             }
             return false;

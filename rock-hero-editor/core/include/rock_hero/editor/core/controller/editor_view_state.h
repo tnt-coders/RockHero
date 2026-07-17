@@ -314,31 +314,6 @@ struct UndoHistoryState
     friend bool operator==(const UndoHistoryState& lhs, const UndoHistoryState& rhs) = default;
 };
 
-/*! \brief Editing caret in the tablature lane: a grid position resolved for rendering. */
-struct ChartCaretViewState
-{
-    /*! \brief Absolute timeline position of the caret column. */
-    double seconds{0.0};
-
-    /*! \brief One-based chart string lane the caret sits on. */
-    int string{1};
-
-    /*!
-    \brief Compares two caret states by their stored values.
-    \param lhs Left-hand caret state.
-    \param rhs Right-hand caret state.
-    \return True when both caret states store equal values.
-    */
-    friend constexpr bool operator==(
-        const ChartCaretViewState& lhs, const ChartCaretViewState& rhs) noexcept
-    {
-        // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
-        // floating member. Exact equality is intended; the ordering query expresses it warning-
-        // free with identical semantics (NaN compares unequal either way).
-        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.string == rhs.string;
-    }
-};
-
 /*!
 \brief In-flight marquee selection rectangle over the tablature lane.
 
@@ -389,9 +364,6 @@ struct ChartEditViewState
 {
     /*! \brief Ascending indices of selected notes in the tab projection's note order. */
     std::vector<std::size_t> selected_notes{};
-
-    /*! \brief Editing caret, when one has been placed. */
-    std::optional<ChartCaretViewState> caret{};
 
     /*! \brief In-flight marquee rectangle, while an empty-lane drag is selecting. */
     std::optional<ChartMarqueeViewState> marquee{};
@@ -564,7 +536,7 @@ struct EditorViewState
     */
     std::shared_ptr<const common::core::TabViewState> tab{};
 
-    /*! \brief Chart-editing selection, caret, and marquee overlays for the tablature lane. */
+    /*! \brief Chart-editing selection and marquee overlays for the tablature lane. */
     ChartEditViewState chart_edit{};
 
     /*!

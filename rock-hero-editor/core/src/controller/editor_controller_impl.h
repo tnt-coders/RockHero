@@ -148,8 +148,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onChartPointerDown(const ChartPointerEvent& event);
     void onChartPointerDrag(const ChartPointerEvent& event);
     void onChartPointerUp(const ChartPointerEvent& event);
-    void onChartCaretMoveRequested(ChartCaretDirection direction, bool fine);
-    void onChartSelectionMoveRequested(ChartCaretDirection direction, bool fine);
+    void onChartCursorStepRequested(ChartStepDirection direction, bool fine);
+    void onChartSelectionMoveRequested(ChartStepDirection direction, bool fine);
     void onChartSelectionDeleteRequested();
     void onChartFretDigitTyped(int digit);
     void onChartSustainAdjustRequested(int direction, bool fine);
@@ -157,7 +157,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] const common::core::TabViewState* displayedTabProjection() const;
     [[nodiscard]] std::optional<ChartNoteKey> chartNoteKeyAt(std::size_t projection_index) const;
     void clearChartEditingState();
-    void placeChartCaret(const ChartPointerEvent& event);
     [[nodiscard]] std::optional<std::pair<common::core::GridPosition, int>> chartPlacementAt(
         const ChartPointerEvent& event) const;
     [[nodiscard]] common::core::Fraction chartGridStepBeats(
@@ -608,10 +607,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Cleared on project close and load because ids are project-local.
     std::string m_selected_tone_region_id{};
 
-    // Chart-editing selection and caret for the tablature lane; keys are (position, string) so
-    // they survive unrelated edits. Cleared on project load/close and arrangement switches.
+    // Chart-editing selection for the tablature lane; keys are (position, string) so they
+    // survive unrelated edits. Cleared on project load/close and arrangement switches. There is
+    // no separate editing caret: the timeline cursor is the one position concept (user decision
+    // 2026-07-17).
     ChartSelection m_chart_selection{};
-    std::optional<ChartCaret> m_chart_caret{};
 
     // In-flight tablature pointer gesture: armed on Down, disambiguated into click vs. marquee by
     // the drag threshold, resolved on Up. The geometry is the Down event's, so one gesture snaps
