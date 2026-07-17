@@ -98,10 +98,17 @@ adjacent grid line (Ctrl fine) via the renamed `onChartCursorStepRequested` inte
 Up/Down are unbound, and `ChartCaret`/`ChartCaretViewState` and the caret overlay are gone. The
 selection highlight's ring stroke doubled in width (two ring-widths, centered on the ring band)
 so a lit border reads at a glance.
+**Alt ghost preview landed 2026-07-17** (user asked for it directly): hovering the lane with Alt
+held shows the `CopyingCursor` and a translucent ghost head — snapped through the same
+`musicalGridPositionForX` seam the committed insert uses (Ctrl bypasses to the fine grid),
+labeled with the fret the insert would carry (`ChartEditViewState::insert_fret`, published from
+the controller's last-used fret), on the hovered lane, tracking Alt-drags, cleared on
+Alt-release/exit (JUCE's synthetic modifier-change mouse-move keeps it live without pointer
+motion). `TabView` now takes the state's tempo map by reference (the ToneTrackView ghost
+precedent) and repaints only the strips the ghost moves between.
 **Remaining Phase 4 sub-scope (deferred to the next execution slice, before Phase 5):** pointer
 drag-move of selected notes (horizontal with snap, vertical across strings — the same plain
-move-drag verb automation points use), the Alt-held ghost preview + `CopyingCursor` hover
-affordance, and Esc canceling an in-flight pointer drag preview.
+move-drag verb automation points use) and Esc canceling an in-flight pointer drag preview.
 
 Open questions Q1–Q4 below have recommended defaults and are mirrored into
 `docs/plans/roadmap/00-roadmap.md` (Decisions needed). Phases 1–3 depend on none of them; later phases
