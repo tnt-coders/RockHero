@@ -1994,8 +1994,8 @@ void EditorController::Impl::onChartFretDigitTyped(int digit)
 
     // The entry window sits well above deliberate two-digit typing (inter-keystroke ~150-300ms)
     // and below a thinking pause, so "12" combines and "2, pause, 3" stays two values (tuned
-    // down from 1500ms on user feel feedback 2026-07-17).
-    constexpr std::uint32_t entry_window_ms = 800;
+    // down from 1500ms on user feel feedback, settled at 750ms 2026-07-17).
+    constexpr std::uint32_t entry_window_ms = 750;
     const std::uint32_t now_ms = juce::Time::getMillisecondCounter();
 
     // A second digit inside the window WIDENS the in-flight entry: the chart moves to the
