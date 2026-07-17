@@ -52,7 +52,7 @@ editing), plan 42 (validation hooks), plan 52 (time-range selection), and
   with the same template (rendering as a fresh full chord box, not a repeat). Growing a span
   into an adjacent same-template span re-merges them. Split and merge are symmetric.
 
-## 5. Span duration, sustains, and the wheel — OPEN (under active discussion)
+## 5. Span duration, sustains, and the wheel — SETTLED (2026-07-17)
 
 Current rulings (2026-07-17, latest revision — several reverse earlier ones):
 
@@ -71,7 +71,8 @@ Current rulings (2026-07-17, latest revision — several reverse earlier ones):
 - Goal: maximum shared logic between chord and arpeggio span handling; drill until genuinely
   clean.
 
-Candidate unified model — the "explicitness reduction" (awaiting sign-off):
+The unified model — the "explicitness reduction" (signed 2026-07-17 as a solid starting
+point; expect refinement from practice):
 
 - **Display rule (one line):** a note draws its tail iff it carries an explicit sustain.
   Paint computes nothing else — no technique checks, no span inspection. The data is the
@@ -107,8 +108,9 @@ Candidate unified model — the "explicitness reduction" (awaiting sign-off):
   explicitly expected to be revisited after hands-on practice; treat as a standing watch
   item when implemented.
 
-Remaining to settle: sign-off on the explicitness reduction above (display rule +
-materialization + group scoping); everything else in this section is signed.
+Current rulings above that the reduction supersedes in mechanism (not in outcome): the
+"all tails display" phrasing — display is per-group via explicitness, never span-wide by
+fiat.
 
 ## 6. Ghost note rework — SETTLED
 

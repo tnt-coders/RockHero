@@ -40,7 +40,7 @@ Each modifier has exactly one meaning, everywhere:
 |---|---|
 | **Ctrl** | Precision: bypass grid snap (placement quantizes to the 1/960-beat fine grid) |
 | **Alt** | Author: the modifier that makes input mutate — a held "pencil" quasimode for the pointer (click inserts, wheel adjusts extent) and the mutation gate for the keyboard (Alt+arrows moves the selection) |
-| **Shift** | Extend/constrain: add to selection; axis-lock a 2D drag; composes with Alt for extent resize (Shift+Alt+Left/Right); plain Shift+arrows is reserved for future caret-anchored selection extension |
+| **Shift** | Range/constrain: Shift+click selects a time range (Guitar Pro-style, replace semantics, anchored at the last non-Shift selection action — reassigned 2026-07-17, plan 52); axis-lock a 2D drag; composes with Alt for extent resize (Shift+Alt+Left/Right); plain Shift+arrows is reserved for future caret-anchored selection extension |
 
 **Plain keys never mutate** (amended 2026-07-16), the keyboard twin of "a plain click never
 mutates": arrows navigate — Left/Right step the ONE timeline cursor along the grid (there is no
@@ -67,14 +67,14 @@ Ctrl = precision. Duplication is Ctrl+D on the selection when it arrives.
 | Input | Meaning — identical on every surface | Mutates? |
 |---|---|---|
 | Hover | Affordance only: cursor shape, edge highlight; with Alt held, a ghost preview of exactly what a click would insert, at the snapped position | No |
-| Click on object | Select | No |
+| Click on object | Select the cohesive unit (a chord note selects its whole onset group — 2026-07-17); Ctrl+click toggles the individual object; double-click on a span member selects the span's full note set | No |
 | Click on empty | Seek + deselect | No |
 | Drag on object | Move (time, plus value/string when 2D); Shift axis-locks; commits once on release | Yes |
 | Edge-drag on extent | Resize (region boundary, sustain tail, span edge) | Yes |
 | Drag on empty | Marquee select, where multi-select exists | No |
 | Alt+click | Insert at the snapped position — works on occupied space too (splitting a tone region) | Yes |
 | Alt+drag from empty | Insert and place in one press-drag-release gesture | Yes |
-| Alt+wheel | Adjust the selected object's extent by one grid step (note sustain); Ctrl+Alt+wheel steps the fine grid | Yes |
+| Alt+wheel | Adjust the selection's *displayed duration* by one grid step: sustain for bare notes, span extent for a whole chord/arpeggio group, member tails for a proper subset (2026-07-17 — see chart-span-and-selection-model.md); Ctrl+Alt+wheel steps the fine grid; successive ticks coalesce into one undo entry | Yes |
 | Double-click on object | Open its primary property editor (rename/pick tone, type BPM, note properties) | Via editor |
 | Delete / Backspace | Delete the selection | Yes |
 | Right-click | Context menu, always; every gesture above has a menu equivalent; never destructive on its own | Via menu |
@@ -164,14 +164,19 @@ Verified against the vendored JUCE source — everything needed ships in
   Default. The lane's pinned name chip is the lane handle: clicking it opens the lane menu, since
   empty lane space now belongs to the seek overlay. Positional menu-insert is tone-strip-only;
   on lanes the insert gesture is Alt itself.
-- **Notes** (implemented 2026-07-16): Alt+click on a string lane places a note carrying the
-  last-used fret; typed digits set the fret of the selection; technique hotkeys (future) set
-  properties of the selection — Guitar Pro-style keyboard entry composes from the same selection
-  verbs. Alt+wheel and Shift+Alt+Left/Right set sustain; Alt+arrows move the selection
-  (Left/Right by grid step, Up/Down across strings; refused, never clamped, at the neck edge or
-  an occupied slot). Marquee selects runs; plain Left/Right step the timeline cursor along the grid. Pointer
-  drag-move (horizontal with snap, vertical across strings) is the same plain move-drag verb
-  points use and lands with the remaining plan 40 Phase 4 slice. **Sustain tail-drag is parked**
+- **Notes** (implemented 2026-07-16; granularity and span verbs settled 2026-07-17 in
+  docs/plans/in-progress/chart-span-and-selection-model.md): Alt+click on a string lane places
+  a note carrying the last-used fret; typed digits set the fret of the selection; technique
+  hotkeys (future) set properties of the selection — Guitar Pro-style keyboard entry composes
+  from the same selection verbs. Plain click selects the whole onset group (chords are one
+  cohesive unit); Ctrl+click toggles individual notes; marquee stays geometrically precise by
+  design (the deliberate part-of-a-chord tool); Shift+click selects a time range (plan 52).
+  Alt+wheel and Shift+Alt+Left/Right adjust displayed duration (sustain or span extent per the
+  span model); Alt+arrows move the selection (Left/Right by grid step, Up/Down across strings;
+  refused, never clamped, at the neck edge or an occupied slot). Plain Left/Right step the
+  timeline cursor along the grid. Pointer drag-move (horizontal with snap, vertical across
+  strings) is the same plain move-drag verb points use and lands with the remaining plan 40
+  Phase 4 slice. **Sustain tail-drag is parked**
   (2026-07-16): the wheel/keyboard verbs cover resizing precisely, and the tail's end zone is a
   small target that competes with drag-move grabs — a watch item in docs/tracking/watch-items.md
   holds the trigger for revisiting.

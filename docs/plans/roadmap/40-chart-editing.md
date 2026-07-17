@@ -127,6 +127,17 @@ reads on selected notes — and the ghost ring adopted the selection ring's exac
 shared stroke-width lambda in TabView::paint, one authority for both edge-straddling rings (the
 ghost had stroked a fixed 1.5px regardless of head size). The overlay test's ring probe became a
 selected-vs-unselected render difference, stable through further stroke tuning.
+**Span/selection design settlement 2026-07-17** — a full design discussion settled chord/
+arpeggio semantics and reshaped the near-term slices; the authoritative record is
+`docs/plans/in-progress/chart-span-and-selection-model.md` (template-relative classification,
+universal chord boxes, auto-span lifecycle, the duration verb with the explicitness reduction,
+ghost-as-authoring-buffer, chord-unit selection granularity, the arpeggio conversion hotkey,
+Shift+click reassigned to plan 52's time range). It supersedes this plan's white-ring ghost
+record (rounds four/five): the full-note ghost representation returns with Alt+digit fret
+composition. Execution order: (1) chord-unit click + Ctrl precision; (2) classification v2 +
+chord boxes in both projections (+ importer-normalization companion task in the converter
+tool); (3) auto-span lifecycle + duration verb; (4) ghost rework; the pointer drag-move + Esc
+drag-cancel slice slots after (1).
 **Remaining Phase 4 sub-scope (deferred to the next execution slice, before Phase 5):** pointer
 drag-move of selected notes (horizontal with snap, vertical across strings — the same plain
 move-drag verb automation points use) and Esc canceling an in-flight pointer drag preview.
