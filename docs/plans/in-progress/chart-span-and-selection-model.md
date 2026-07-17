@@ -131,6 +131,18 @@ fiat.
 - Plain click selects the whole onset group (chords are one cohesive unit); Ctrl+click
   selects/toggles individual notes; marquee remains geometrically precise by design (the
   deliberate tool for selecting parts of chords).
+- **Focused member (added 2026-07-17, after slice 1 exposed the fret collision):** fret is
+  per-string data — the one property where acting on the whole chord is almost never the
+  intent — so the selection carries a *focus*: the member the last gesture touched (plain
+  click focuses the pressed head while selecting its group; Ctrl toggles focus the touched
+  note; an Alt-placed note takes the focus; evicting the focused key falls back to a
+  remaining member). **Typed fret digits target the focused note only**; delete, move,
+  sustain, and future technique verbs keep acting on the whole selection. Consequence
+  accepted: uniform multi-note fret retype no longer exists as a gesture — same-fret runs are
+  authored via the ghost's sticky fret, and per-note corrections are the focus's job. The
+  focus renders as a caret-style **blinking accent underline** under the focused numeral (the
+  type-here idiom, user choice), drawn only when the selection has more than one member and
+  numerals are visible.
 - Shift+click creates a **time-range selection object** (Guitar Pro-style): one big timespan
   highlight, **replace** semantics, anchored at the last non-Shift selection action;
   Shift+clicks while held re-extend from that anchor; with no prior anchor the first
