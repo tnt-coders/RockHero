@@ -1,4 +1,3 @@
-#include "shared/editor_theme.h"
 #include "tab/tab_view.h"
 
 #include <catch2/catch_approx.hpp>
@@ -270,13 +269,20 @@ TEST_CASE("TabView renders chart-editing overlays", "[ui][tab-view]")
     juce::Graphics graphics{image};
     view.paint(graphics);
 
-    // The selection highlight rings the first note's head straddling its edge in the theme
-    // accent: probe a pixel fully inside the stroke band left of the head (head at x = 10,
-    // center y = 110, head radius ~7.2, band ~6.2 to ~8.2) so antialiasing at the band edges
-    // cannot blend the probe.
-    CHECK(image.getPixelAt(2, 110) == editorTheme().accent);
     // The marquee border's top-left corner at (30, 30).
     CHECK(image.getPixelAt(30, 30).getARGB() != 0);
+
+    // The selection highlight rings the first note's head straddling its edge in the theme
+    // accent. The thin stroke band leaves no pixel free of edge antialiasing at this scale, so
+    // instead of an exact color the probe compares against an unselected render: a band pixel
+    // left of the head (head at x = 10, center y = 110, band straddling radius ~7.2) must
+    // change when the ring is drawn. This stays valid through stroke-weight tuning.
+    view.setEditState(core::ChartEditViewState{});
+    const juce::Image plain_image{juce::SoftwareImageType{}.create(
+        juce::Image::ARGB, 200, 120, true)};
+    juce::Graphics plain_graphics{plain_image};
+    view.paint(plain_graphics);
+    CHECK(image.getPixelAt(2, 110) != plain_image.getPixelAt(2, 110));
 }
 
 // Holding Alt over the lane shows the copy cursor and a snapped ghost of the note a click
