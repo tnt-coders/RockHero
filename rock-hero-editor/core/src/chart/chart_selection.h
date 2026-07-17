@@ -65,6 +65,12 @@ public:
     void replaceWith(const ChartNoteKey& key);
 
     /*!
+    \brief Replaces the whole selection with a batch of notes (onset-group click).
+    \param keys Notes becoming the selection, in any order; duplicates collapse.
+    */
+    void replaceWith(std::vector<ChartNoteKey> keys);
+
+    /*!
     \brief Adds one note to the selection (Shift-extend); already-selected notes stay selected.
     \param key Note to add.
     */
@@ -120,5 +126,19 @@ a chart note resolve to nothing and are skipped.
 */
 [[nodiscard]] std::vector<std::size_t> selectedNoteIndices(
     const std::vector<common::core::ChartNote>& notes, const ChartSelection& selection);
+
+/*!
+\brief Collects the keys of every note sharing one onset — the chord unit a plain click selects.
+
+Chords are one cohesive unit in the selection grammar (settled 2026-07-17,
+docs/plans/in-progress/chart-span-and-selection-model.md): plain-clicking any member selects
+the whole onset group; Ctrl+click and the marquee are the individual-note tools.
+
+\param notes Chart note stream sorted by (position, string).
+\param position Onset whose group is collected.
+\return Keys of every note at the onset, in chart note order.
+*/
+[[nodiscard]] std::vector<ChartNoteKey> chartOnsetGroupKeys(
+    const std::vector<common::core::ChartNote>& notes, common::core::GridPosition position);
 
 } // namespace rock_hero::editor::core

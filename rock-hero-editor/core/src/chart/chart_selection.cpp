@@ -1,6 +1,9 @@
 #include "chart/chart_selection.h"
 
 #include <algorithm>
+#include <functional>
+#include <iterator>
+#include <utility>
 
 namespace rock_hero::editor::core
 {
@@ -13,6 +16,14 @@ void ChartSelection::clear() noexcept
 void ChartSelection::replaceWith(const ChartNoteKey& key)
 {
     m_notes.assign(1, key);
+}
+
+void ChartSelection::replaceWith(std::vector<ChartNoteKey> keys)
+{
+    std::ranges::sort(keys);
+    const auto duplicates = std::ranges::unique(keys);
+    keys.erase(duplicates.begin(), duplicates.end());
+    m_notes = std::move(keys);
 }
 
 void ChartSelection::add(const ChartNoteKey& key)
@@ -83,6 +94,21 @@ std::vector<std::size_t> selectedNoteIndices(
         }
     }
     return indices;
+}
+
+// Chart notes are sorted by (position, string), so an onset group is one contiguous run.
+std::vector<ChartNoteKey> chartOnsetGroupKeys(
+    const std::vector<common::core::ChartNote>& notes, common::core::GridPosition position)
+{
+    const auto group =
+        std::ranges::equal_range(notes, position, std::less{}, &common::core::ChartNote::position);
+    std::vector<ChartNoteKey> keys;
+    keys.reserve(static_cast<std::size_t>(std::ranges::distance(group)));
+    for (const common::core::ChartNote& note : group)
+    {
+        keys.push_back(ChartNoteKey{.position = note.position, .string = note.string});
+    }
+    return keys;
 }
 
 } // namespace rock_hero::editor::core
