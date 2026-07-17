@@ -1545,6 +1545,7 @@ void EditorController::Impl::clearChartEditingState()
     m_chart_selection.clear();
     m_chart_caret.reset();
     m_chart_gesture.reset();
+    m_chart_fret_entry.reset();
 }
 
 // Resolves the event's snapped musical position and the string lane under the pointer,
@@ -1616,7 +1617,8 @@ common::core::Fraction EditorController::Impl::chartGridStepBeats(
 
 // Applies a planned chart-note change through the session's mutable chart (bumping the revision
 // so every projection rebuilds) and records it as one undo entry.
-bool EditorController::Impl::applyChartEditPlan(std::optional<ChartNotesEditPlan> plan)
+bool EditorController::Impl::applyChartEditPlan(
+    std::optional<ChartNotesEditPlan> plan, std::optional<std::vector<ChartNoteKey>> select_exactly)
 {
     if (!plan.has_value())
     {
@@ -1638,21 +1640,40 @@ bool EditorController::Impl::applyChartEditPlan(std::optional<ChartNotesEditPlan
         return false;
     }
 
+    // A typing-style edit interrupts any in-flight fret entry unless the caller re-arms it.
+    m_chart_fret_entry.reset();
+
     // The selection follows the edit: retyped/moved/inserted notes stay selected under their
     // new keys, deleted notes drop out (their keys no longer resolve).
-    std::vector<ChartNoteKey> inserted_keys;
-    inserted_keys.reserve(plan->inserted.size());
-    for (const common::core::ChartNote& note : plan->inserted)
+    if (select_exactly.has_value())
     {
-        inserted_keys.push_back(ChartNoteKey{.position = note.position, .string = note.string});
-    }
-    if (!inserted_keys.empty())
-    {
-        m_chart_selection.applyBox(inserted_keys, false);
+        m_chart_selection.applyBox(*select_exactly, false);
     }
     else
     {
-        m_chart_selection.clear();
+        // (selection - removed keys) + inserted keys: retyped/resized notes stay selected even
+        // when the edit left some of them unchanged, moved notes follow to their new keys, and
+        // deleted notes drop out. Plans never carry unrelated notes, so this never grows the
+        // selection past what the user had plus what the edit produced at new keys.
+        std::vector<ChartNoteKey> next_selection;
+        next_selection.reserve(m_chart_selection.notes().size() + plan->inserted.size());
+        for (const ChartNoteKey& key : m_chart_selection.notes())
+        {
+            const bool removed =
+                std::ranges::any_of(plan->removed, [&key](const common::core::ChartNote& note) {
+                    return ChartNoteKey{.position = note.position, .string = note.string} == key;
+                });
+            if (!removed)
+            {
+                next_selection.push_back(key);
+            }
+        }
+        for (const common::core::ChartNote& note : plan->inserted)
+        {
+            next_selection.push_back(
+                ChartNoteKey{.position = note.position, .string = note.string});
+        }
+        m_chart_selection.applyBox(next_selection, false);
     }
 
     pushUndoEntry(std::make_unique<ChartNotesEdit>(std::move(*plan)));
@@ -1680,13 +1701,11 @@ void EditorController::Impl::insertChartNoteAt(const ChartPointerEvent& event)
     note.position = placement->first;
     note.string = placement->second;
     note.fret = std::clamp(m_chart_last_fret, 0, common::core::g_max_fret);
-    // The caret lands where the note does, before the plan applies, so the same state push that
-    // shows the note shows the caret; a no-op placement still moves the caret like any click.
-    m_chart_caret = ChartCaret{.position = note.position, .string = note.string};
-    if (!applyChartEditPlan(planInsertNote(*arrangement->chart, session().song().tempo_map, note)))
-    {
-        updateView();
-    }
+    // Select exactly the placed note (not a 40-Q2-B-truncated neighbor the plan may also carry);
+    // its selection highlight is the placement feedback, so the caret stays where it was.
+    static_cast<void>(applyChartEditPlan(
+        planInsertNote(*arrangement->chart, session().song().tempo_map, note),
+        std::vector<ChartNoteKey>{ChartNoteKey{.position = note.position, .string = note.string}}));
 }
 
 // Arms the gesture and applies glyph-press selection per the interaction grammar: plain press
@@ -1740,8 +1759,8 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
     {
         m_chart_selection.replaceWith(*key);
     }
-    // The caret follows the pressed note so keyboard editing continues from the click point.
-    m_chart_caret = ChartCaret{.position = key->position, .string = key->string};
+    // The selection highlight is the whole feedback for a glyph press: the caret deliberately
+    // stays put (user feedback 2026-07-17 — a caret jumping onto the selected note is noise).
     updateView();
 }
 
@@ -2017,18 +2036,113 @@ void EditorController::Impl::onChartFretDigitTyped(int digit)
     // a later, unrelated keystroke starts fresh.
     constexpr std::uint32_t entry_window_ms = 1500;
     const std::uint32_t now_ms = juce::Time::getMillisecondCounter();
-    int value = digit;
-    if (m_chart_pending_fret >= 0 && now_ms - m_chart_fret_entry_ms <= entry_window_ms)
-    {
-        const int combined = m_chart_pending_fret * 10 + digit;
-        value = combined <= common::core::g_max_fret ? combined : digit;
-    }
-    m_chart_pending_fret = value;
-    m_chart_fret_entry_ms = now_ms;
 
-    if (applyChartEditPlan(planSetFret(*arrangement->chart, m_chart_selection.notes(), value)))
+    // A second digit inside the window WIDENS the in-flight entry: the chart moves to the
+    // combined value and the just-pushed undo entry is replaced by one spanning from the
+    // pre-entry originals, so the whole typed number undoes as one action. The widen requires
+    // the same selection, a combinable value, and the history top still being our entry (any
+    // interleaved edit or undo moves the position and kills the window).
+    if (m_chart_fret_entry.has_value())
     {
-        m_chart_last_fret = value;
+        const ChartFretEntry entry = *m_chart_fret_entry;
+        const int combined = entry.value * 10 + digit;
+        const bool widenable = now_ms - entry.last_keystroke_ms <= entry_window_ms &&
+                               combined <= common::core::g_max_fret &&
+                               entry.keys == m_chart_selection.notes() &&
+                               m_undo_history.snapshot().position == entry.history_position;
+        if (widenable)
+        {
+            common::core::Chart* const chart = m_session.currentChart();
+            if (chart == nullptr)
+            {
+                return;
+            }
+            if (const auto incremental = planSetFret(*chart, entry.keys, combined);
+                incremental.has_value())
+            {
+                if (!applyChartNotesChange(*chart, incremental->removed, incremental->inserted)
+                         .has_value())
+                {
+                    reportError("Could not apply chart edit: " + incremental->label);
+                    m_chart_fret_entry.reset();
+                    return;
+                }
+            }
+
+            ChartNotesEditPlan widened;
+            widened.label = "Set Fret " + std::to_string(combined);
+            for (const common::core::ChartNote& base : entry.base_notes)
+            {
+                common::core::ChartNote retyped = base;
+                retyped.fret = combined;
+                if (!(retyped == base))
+                {
+                    widened.removed.push_back(base);
+                    widened.inserted.push_back(std::move(retyped));
+                }
+            }
+            bool now_pushed = entry.pushed;
+            if (!widened.removed.empty())
+            {
+                bool replaced = false;
+                if (entry.pushed)
+                {
+                    replaced = m_undo_history.replaceTop(std::make_unique<ChartNotesEdit>(widened))
+                                   .status == EditorUndoTransitionStatus::Applied;
+                }
+                if (!replaced)
+                {
+                    // No entry of ours to widen (the first digit was a no-op) or the history
+                    // refused the swap (for example a save marked the top entry clean mid-
+                    // window): the combined change lands as its own entry instead — two
+                    // undo steps in a rare edge beats a stack that lies about the file.
+                    pushUndoEntry(std::make_unique<ChartNotesEdit>(std::move(widened)));
+                }
+                now_pushed = true;
+            }
+            m_chart_fret_entry = ChartFretEntry{
+                .value = combined,
+                .last_keystroke_ms = now_ms,
+                .base_notes = entry.base_notes,
+                .keys = entry.keys,
+                .pushed = now_pushed,
+                .history_position = m_undo_history.snapshot().position,
+            };
+            m_chart_last_fret = combined;
+            updateView();
+            return;
+        }
+    }
+
+    // Fresh entry: capture the pre-entry values first so a later widen still restores them,
+    // apply the digit as its own undo entry, and open the window only while a second digit
+    // could still fit under the fret cap.
+    std::vector<common::core::ChartNote> base_notes;
+    for (const common::core::ChartNote& note : arrangement->chart->notes)
+    {
+        if (m_chart_selection.contains(
+                ChartNoteKey{.position = note.position, .string = note.string}))
+        {
+            base_notes.push_back(note);
+        }
+    }
+    const std::vector<ChartNoteKey> keys = m_chart_selection.notes();
+    const bool pushed = applyChartEditPlan(planSetFret(*arrangement->chart, keys, digit));
+    m_chart_last_fret = digit;
+    if (digit * 10 <= common::core::g_max_fret)
+    {
+        m_chart_fret_entry = ChartFretEntry{
+            .value = digit,
+            .last_keystroke_ms = now_ms,
+            .base_notes = std::move(base_notes),
+            .keys = keys,
+            .pushed = pushed,
+            .history_position = m_undo_history.snapshot().position,
+        };
+    }
+    else
+    {
+        m_chart_fret_entry.reset();
     }
 }
 

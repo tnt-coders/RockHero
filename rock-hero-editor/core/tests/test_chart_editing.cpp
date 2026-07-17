@@ -114,9 +114,8 @@ TEST_CASE("EditorController selects a chart note on glyph click", "[core][chart]
     REQUIRE(view.last_state.has_value());
     const ChartEditViewState& edit = view.last_state->chart_edit;
     CHECK(edit.selected_notes == std::vector<std::size_t>{0});
-    REQUIRE(edit.caret.has_value());
-    CHECK(edit.caret->seconds == Catch::Approx(2.0));
-    CHECK(edit.caret->string == 1);
+    // The selection highlight is the whole feedback: a glyph click never moves the caret.
+    CHECK_FALSE(edit.caret.has_value());
     CHECK(transport.seek_call_count == seek_baseline);
 
     // A sustain-tail click (right of the measure-3 head, inside its one-second tail) selects
@@ -312,8 +311,6 @@ TEST_CASE("EditorController inserts a chart note via the Alt quasimode", "[core]
     CHECK(chart->notes[3].string == 1);
     REQUIRE(view.last_state.has_value());
     CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{3});
-    REQUIRE(view.last_state->chart_edit.caret.has_value());
-    CHECK(view.last_state->chart_edit.caret->seconds == Catch::Approx(6.0));
     CHECK(view.last_state->undo_label == std::optional<std::string>{"Insert Note"});
 
     controller.onUndoRequested();
@@ -411,17 +408,34 @@ TEST_CASE("EditorController fret digits combine inside the entry window", "[core
     REQUIRE(loadChartArrangement(controller, project_services, audio));
 
     click(controller, 40.0f, 220.0f);
+    REQUIRE(view.last_state.has_value());
+    const std::size_t entries_before = view.last_state->undo_history.labels.size();
+
     controller.onChartFretDigitTyped(1);
     const auto* chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes[0].fret == 1);
 
+    // The second digit inside the window widens the SAME undo entry: one action, fret 12.
     controller.onChartFretDigitTyped(2);
     chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes[0].fret == 12);
+    CHECK(view.last_state->undo_history.labels.size() == entries_before + 1);
+    CHECK(view.last_state->undo_label == std::optional<std::string>{"Set Fret 12"});
 
     // The selection stays on the retyped note under its unchanged key.
-    REQUIRE(view.last_state.has_value());
     CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{0});
+
+    // One undo restores the original fret 3 in one step.
+    controller.onUndoRequested();
+    chart = &*controller.session().currentArrangement()->chart;
+    CHECK(chart->notes[0].fret == 3);
+
+    // An interleaved edit kills the window: the next digit starts a fresh value.
+    controller.onChartFretDigitTyped(2);
+    controller.onChartSustainAdjustRequested(1, false);
+    controller.onChartFretDigitTyped(3);
+    chart = &*controller.session().currentArrangement()->chart;
+    CHECK(chart->notes[0].fret == 3);
 }
 
 // Shift+arrow sustain growth clamps against the next same-string onset (40-Q2-B).
@@ -485,13 +499,13 @@ TEST_CASE("EditorController nudges the selection and refuses collisions", "[core
 
     click(controller, 40.0f, 220.0f);
 
-    // Plain arrows never mutate: with a selection they still navigate the caret.
+    // Plain arrows never mutate: with a selection they still navigate the caret (the first
+    // press places it at the snapped transport position instead of touching the chart).
     controller.onChartCaretMoveRequested(ChartCaretDirection::Right, false);
     const auto* chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes[0].position == (common::core::GridPosition{.measure = 2, .beat = 1}));
     REQUIRE(view.last_state.has_value());
-    REQUIRE(view.last_state->chart_edit.caret.has_value());
-    CHECK(view.last_state->chart_edit.caret->seconds == Catch::Approx(2.5));
+    CHECK(view.last_state->chart_edit.caret.has_value());
 
     // Alt+Up would land on the occupied measure-2 string-2 slot: refused, nothing changes.
     controller.onChartSelectionMoveRequested(ChartCaretDirection::Up, false);

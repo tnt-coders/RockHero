@@ -148,6 +148,39 @@ EditorUndoTransitionResult EditorUndoHistory::push(std::unique_ptr<IEdit> edit)
     };
 }
 
+EditorUndoTransitionResult EditorUndoHistory::replaceTop(std::unique_ptr<IEdit> edit)
+{
+    if (m_pending.has_value())
+    {
+        return nonCommitFailure(EditorUndoFailureCode::TransitionAlreadyPending);
+    }
+
+    // Only the newest entry may coalesce, and only while the cursor sits on it: after any undo
+    // the "top" is history the user already walked away from. A reachable clean marker AT the
+    // top also refuses: the saved state was produced by the entry being replaced, and widening
+    // it would make "return to clean" restore different content than the file holds.
+    if (edit == nullptr || m_entries.empty() || m_position != m_entries.size() ||
+        (m_clean_marker_state == CleanMarkerState::Reachable && m_clean_position == m_position))
+    {
+        return nonCommitFailure(EditorUndoFailureCode::PreflightRejected);
+    }
+
+    std::vector<EditorUndoEvent> events;
+    const std::string label = edit->label();
+    m_entries.back() = std::move(edit);
+    events.push_back(
+        EditorUndoEvent{
+            .type = EditorUndoEventType::EntryPushed,
+            .label = label,
+            .direction = std::nullopt,
+        });
+
+    return EditorUndoTransitionResult{
+        .status = EditorUndoTransitionStatus::Applied,
+        .events = std::move(events),
+    };
+}
+
 EditorUndoBeginResult EditorUndoHistory::beginUndo()
 {
     EditorUndoTransitionResult result = begin(EditorUndoDirection::Undo);

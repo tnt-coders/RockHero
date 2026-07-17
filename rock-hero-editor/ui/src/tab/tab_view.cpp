@@ -216,24 +216,42 @@ void TabView::paint(juce::Graphics& g)
     // they are editor-shell furniture, not part of what the game's tab strips render.
     const juce::Colour accent = editorTheme().accent;
 
-    // Selection rings: the accent outline hugs each selected head, inflated past the ring so it
-    // reads as a halo instead of recoloring the note.
+    // Selection highlight: recolor the head's OWN border ring in the accent instead of adding
+    // an outer halo (user feedback 2026-07-17 — the highlight should look like the existing
+    // border lit up, not a second border). The stroke retraces the ring band fillHeadShape
+    // paints: border = size/15, ring annulus between radii size/2 - 2*border and size/2 -
+    // border, so the stroked circle of extent size - 3*border at thickness border covers it
+    // exactly; harmonic heads get the matching diamond.
     for (const std::size_t index : m_edit.selected_notes)
     {
         if (index >= m_tab->notes.size())
         {
             continue;
         }
-        const common::ui::TabNoteLayout layout =
-            common::ui::tabNoteLayout(metrics, m_tab->notes[index]);
-        constexpr float inflate = 2.5f;
+        const common::core::TabNoteView& note = m_tab->notes[index];
+        const common::ui::TabNoteLayout layout = common::ui::tabNoteLayout(metrics, note);
+        const float border = std::max(1.0f, layout.head_size / 15.0f);
+        const float extent = layout.head_size - 3.0f * border;
         g.setColour(accent);
-        g.drawEllipse(
-            layout.head.x - inflate,
-            layout.head.y - inflate,
-            layout.head.width + inflate * 2.0f,
-            layout.head.height + inflate * 2.0f,
-            2.0f);
+        if (note.harmonic != common::core::NoteHarmonic::None)
+        {
+            juce::Path shape;
+            shape.startNewSubPath(layout.onset_x, layout.center_y - extent / 2.0f);
+            shape.lineTo(layout.onset_x + extent / 2.0f, layout.center_y);
+            shape.lineTo(layout.onset_x, layout.center_y + extent / 2.0f);
+            shape.lineTo(layout.onset_x - extent / 2.0f, layout.center_y);
+            shape.closeSubPath();
+            g.strokePath(shape, juce::PathStrokeType{border});
+        }
+        else
+        {
+            g.drawEllipse(
+                layout.onset_x - extent / 2.0f,
+                layout.center_y - extent / 2.0f,
+                extent,
+                extent,
+                border);
+        }
     }
 
     // The editing caret: an accent column spanning its string lane, with serif ticks so it

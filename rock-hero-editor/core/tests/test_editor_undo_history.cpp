@@ -87,6 +87,39 @@ void commitRedo(EditorUndoHistory& history)
     }
 }
 
+// The coalescing seam: replaceTop widens the newest entry in place, and refuses whenever the
+// cursor is not sitting on an unmarked top entry.
+TEST_CASE("EditorUndoHistory replaceTop widens only an owned top entry", "[core][undo]")
+{
+    EditorUndoHistory history;
+    pushEntry(history, "Set Fret 1");
+    REQUIRE(
+        history.replaceTop(makeEdit("Set Fret 12")).status == EditorUndoTransitionStatus::Applied);
+    CHECK(history.undoDepth() == 1);
+    CHECK(history.undoLabel() == std::optional<std::string>{"Set Fret 12"});
+
+    // After an undo the cursor no longer sits on the top entry: refused.
+    commitUndo(history);
+    CHECK(
+        history.replaceTop(makeEdit("Set Fret 123")).status ==
+        EditorUndoTransitionStatus::NonCommitFailure);
+    commitRedo(history);
+
+    // A reachable clean marker on the top entry refuses too: the saved state was produced by
+    // the entry that would be replaced.
+    markClean(history);
+    CHECK(
+        history.replaceTop(makeEdit("Set Fret 123")).status ==
+        EditorUndoTransitionStatus::NonCommitFailure);
+    CHECK(history.undoLabel() == std::optional<std::string>{"Set Fret 12"});
+
+    // An empty history has nothing to widen.
+    EditorUndoHistory empty;
+    CHECK(
+        empty.replaceTop(makeEdit("anything")).status ==
+        EditorUndoTransitionStatus::NonCommitFailure);
+}
+
 // Returns true when a transition result contains the requested event type.
 [[nodiscard]] bool hasEvent(
     const EditorUndoTransitionResult& result, EditorUndoEventType event_type)

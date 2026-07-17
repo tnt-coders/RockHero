@@ -162,7 +162,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const ChartPointerEvent& event) const;
     [[nodiscard]] common::core::Fraction chartGridStepBeats(
         common::core::GridPosition at, bool fine) const;
-    bool applyChartEditPlan(std::optional<ChartNotesEditPlan> plan);
+    bool applyChartEditPlan(
+        std::optional<ChartNotesEditPlan> plan,
+        std::optional<std::vector<ChartNoteKey>> select_exactly = std::nullopt);
     void insertChartNoteAt(const ChartPointerEvent& event);
     [[nodiscard]] std::string toneRegionIdAt(common::core::TimePosition position) const;
     [[nodiscard]] std::string activeToneRegionId() const;
@@ -634,11 +636,22 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // "last-used fret"). Zero (open string) before any fret has been used.
     int m_chart_last_fret{0};
 
-    // Multi-digit fret entry: the value being built and the tick of its last keystroke, so
-    // typing 1 then 2 inside the window retypes to fret 12 instead of 2. Negative pending means
-    // no entry is in flight.
-    int m_chart_pending_fret{-1};
-    std::uint32_t m_chart_fret_entry_ms{0};
+    // In-flight multi-digit fret entry: the value typed so far, the tick of its last keystroke,
+    // the pre-entry note values (so the widened undo entry still restores the originals), the
+    // selection keys it retypes, whether an undo entry was pushed (a first digit matching every
+    // fret is a no-op that pushes nothing), and the history position holding that entry. A
+    // second digit inside the window widens the entry in place (replaceTop), so typing "2 then
+    // 3" retypes to fret 23 and undoes as ONE action.
+    struct ChartFretEntry
+    {
+        int value{};
+        std::uint32_t last_keystroke_ms{};
+        std::vector<common::core::ChartNote> base_notes{};
+        std::vector<ChartNoteKey> keys{};
+        bool pushed{false};
+        std::size_t history_position{};
+    };
+    std::optional<ChartFretEntry> m_chart_fret_entry{};
 
     // Durable automation identity of one live tone-chain plugin instance.
     struct ToneAutomationIdentity
