@@ -1001,10 +1001,17 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
             return false;
         }
 
+        // Fret digits: the top number row and the numpad both type frets.
+        const int key_code = key.getKeyCode();
+        const int fret_digit =
+            key_code >= '0' && key_code <= '9' ? key_code - '0'
+            : key_code >= juce::KeyPress::numberPad0 && key_code <= juce::KeyPress::numberPad9
+                ? key_code - juce::KeyPress::numberPad0
+                : -1;
         if (chart_shown && !m_state.chart_edit.selected_notes.empty() && !fine && !alt &&
-            key.getKeyCode() >= '0' && key.getKeyCode() <= '9')
+            fret_digit >= 0)
         {
-            m_controller.onChartFretDigitTyped(key.getKeyCode() - '0');
+            m_controller.onChartFretDigitTyped(fret_digit);
             return true;
         }
         if (chart_shown && key.isKeyCode(juce::KeyPress::escapeKey) &&

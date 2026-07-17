@@ -372,6 +372,20 @@ public:
     [[nodiscard]] EditorUndoTransitionResult push(std::unique_ptr<IEdit> edit);
 
     /*!
+    \brief Replaces the newest entry with a widened version of itself.
+
+    The coalescing seam for typing-style gestures (multi-digit fret entry): a keystroke inside
+    the entry window widens the just-pushed entry instead of stacking a second one, so the whole
+    typed value undoes as one action. Refused unless the history cursor sits exactly on top of
+    at least one entry and no transition is pending — the caller proves the top entry is its own
+    (by position bookkeeping) before asking.
+
+    \param edit Replacement entry capturing the widened change from the same starting state.
+    \return Transition result and events for controller logging.
+    */
+    [[nodiscard]] EditorUndoTransitionResult replaceTop(std::unique_ptr<IEdit> edit);
+
+    /*!
     \brief Begins applying the next undo entry without moving the history pointer.
     \return Pending transition and result events, or a non-commit failure.
     */
