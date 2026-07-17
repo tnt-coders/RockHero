@@ -163,6 +163,11 @@ Verified against code on 2026-07-06, refactor @ 3c7febe0.
   this plan adds; the tone track and automation lanes already implement it.
 - `docs/plans/roadmap/11-derived-difficulty-calculator.md` — downstream consumer only: fingerings, FHPs,
   and techniques authored here are its inputs. No gate.
+- `docs/plans/roadmap/52-range-edit-operations.md` — decision-gated (G52-RANGE-EDIT) sibling: the plan
+  47 time selection doubling as an edit range (range copy/cut/paste/delete carrying all four
+  chart streams, paste-overwrite at the cursor, signature-aware rebase). It depends on Phases
+  3–4 here and shares ONE clipboard codec with Phase 9 (coordination note there); Phase 9's
+  note-selection copy/paste scope is otherwise untouched.
 - No sub-plans are registered at this time (see Q4).
 
 ## Decisions already made
@@ -427,7 +432,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
   fret +/- on the selection, refused (not clamped) when any note would leave the tuning/fret
   range — validation-preserving edits only. Bulk property edit generalizes Phase 5's multi-apply.
   Cross-arrangement paste within a project is allowed when string counts are compatible;
-  otherwise refused with a message.
+  otherwise refused with a message. **Single-codec coordination with
+  docs/plans/roadmap/52-range-edit-operations.md** (time-range copy/paste over the plan 47
+  selection, decision-gated): whichever plan executes first lands the clipboard payload codec;
+  the later plan extends it — never two clipboard formats. Plan 52's signed answers to its
+  Q2 (position basis across signature changes) and Q5 (OS-clipboard transport) bind this
+  phase's codec when they exist.
 - **Files**: editor-core `src/chart/` (clipboard codec reusing `chart_document` serialization
   helpers), handlers; `editor_view.cpp` keys.
 - **Public-header impact**: intents only.

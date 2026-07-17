@@ -53,6 +53,7 @@ graph TD
         P48[48 editor audio setup]
         P50[50 tone designer + tone files]
         P51[51 smooth-scroll camera]
+        P52[52 range edit operations GATE]
     end
     subgraph Deferred
         P28[28 practice mode]
@@ -128,6 +129,8 @@ graph TD
     P46 -.non-blocking.-> P47
     P14 -.monitoring-gate coordination.-> P50
     P12 --> P51
+    P47 --> P52
+    P40 --> P52
 ```
 
 Notes on cyclic-looking edges: 26 ↔ 27 is an ordering constraint, not a cycle —
@@ -157,6 +160,7 @@ backend and reducing to test extension.
 | **G43-METADATA** | docs/plans/roadmap/43-song-information-and-art.md Phase 0 | 43-Q1..Q6 sign-off (publish-vs-save split etc.) | 43 Phases 1–5 |
 | **G45-STRINGS** | docs/plans/roadmap/45-editor-theme-and-string-colors.md Phase 5 | Explicit decision to raise `g_max_chart_strings` to 10 (one-way door once 9/10-string content exists); consumer survey + STOP | 45 Phase 5 only; coordinates with 22's latency budget |
 | **G46-KEYMAP** | docs/plans/roadmap/46-editor-keybinds.md Phase 0 | Default keymap + sharing model + mirroring policy sign-off | 46 Phases 1–5 |
+| **G52-RANGE-EDIT** | docs/plans/roadmap/52-range-edit-operations.md Phase 0 | **OPEN DISCUSSION by explicit user direction (2026-07-16): every one of 52-Q1..Q7 requires individual sign-off** — capture boundaries, clipboard position basis across time-signature changes, paste-overwrite mode, template reconciliation, clipboard transport, content scope + command precedence, auto-loop interplay (answer 52-Q7 jointly with 47-Q2) | 52 entirely (Phases 1–3) |
 
 Known tensions from the planning mandate, and where each is resolved (none papered over):
 
@@ -450,6 +454,19 @@ plan's Gate record.**
 - **47-Q2** loop engagement: (A) explicit toggle — Ctrl+L arms a passive selection; (B) auto-on — a selection existing means playback loops it; Escape/click-away clears. **R: B**, with sub-policies: play outside the selection snaps to loop start (verified Tracktion behavior); pause resumes in place; seek inside keeps the loop; seek outside clears it; arrangement switch keeps and re-engages; tempo edits keep musical positions and re-convert.
 - **47-Q3** persistence home: (A) app-local per-project-path `IEditorSettings` records storing two grid-position tokens (the verified cursor/grid/zoom precedent); (B) project.json editorState beside selectedArrangement. **R: A** — the cursor is app-local per project path, not in project.json (verified); (B) would go stale between saves or start dirtying saves for transient UI state.
 
+### docs/plans/roadmap/52-range-edit-operations.md (gates G52-RANGE-EDIT — ALL Qs need sign-off)
+
+Authored 2026-07-16 as an explicit open discussion: recommendations are discussion inputs, never
+silent defaults. Full option analysis in the plan.
+
+- **52-Q1** capture boundary policy: onset-in-`[start,end)` baseline; carry vs truncate sustains ringing past the end; exclude vs clip straddle-in notes/shapes; materialize the active-at-start fret-hand position at offset zero or not. **R (input): carry whole sustains, exclude straddle-in notes/shapes, materialize the active FHP.**
+- **52-Q2** clipboard position basis across signature changes: (A) global-beat distance (cheap; a 4/4 riff pasted into 7/8 plays twice as fast) vs (B) note-value distance walked through source and destination signature maps (eighth notes stay eighth notes; awkward-but-exact sub-beat landings). **R (input): B** — deliberately differs from 41-Q1(A) because relocating content is a different operation from editing a signature under it.
+- **52-Q3** paste mode: (A) replace-range at the cursor (user's stated direction; sub-question: truncate vs leave sustains ringing into the window) vs (B) merge/overlay; (C) ripple insert excluded from v1 as a signed exclusion. **R (input): A, colliding-only truncation, B as a possible later modifier-paste.**
+- **52-Q4** chord-template reconciliation: (A) dedupe-by-value + append + no orphan GC (lint reports residue) vs (B) always append vs (C) dedupe + GC. **R (input): A.**
+- **52-Q5** clipboard transport: (A) in-memory only vs (B) OS clipboard with the versioned JSON payload (cross-project paste; string-count refusal per 40 Phase 9; tuning-difference advisory). **R (input): B.**
+- **52-Q6** "ALL content" scope (chart streams only vs also song-level tone changes/sections) and command precedence (note selection wins over time selection for Ctrl+C/X/Delete, or the reverse). **R (input): chart streams only; note selection wins.**
+- **52-Q7** auto-loop interplay: keep 47-Q2=B (selection auto-loops; accept occasional surprise for copy-only selections) vs flip 47-Q2 to explicit arming now that the selection is dual-use. **R (input): keep B; decide jointly with 47-Q2.**
+
 ### Roadmap-level items
 
 - **RM-1** Licensing audit thread: AGPLv3 network-source obligations (29-Q3), SoundTouch licensing-table row (28-Q1), CC0 fixture tree (23-Q1) — treat as one licensing pass when 28/29 activate.
@@ -534,6 +551,7 @@ One line per plan; update the right-hand cell as phases complete.
 | docs/plans/roadmap/49-game-app-architecture-symmetry.md | **Complete 2026-07-12** | Split GameShell into SDL3Application base + RockHeroGame app + Game content (editor-symmetric layering); renamed RockHeroEditorApplication -> RockHeroEditor | Done 2026-07-12 @ 47947fc8 (editor rename) + 4d61b97b (game restructure); build + 7 suites green |
 | docs/plans/roadmap/50-tone-designer-and-tone-files.md | **Phases 1–5 complete 2026-07-13** — final acceptance bundle pending user-triggered clang-tidy + witnessed manual checklist | Tone Designer idle rig mode (no-project = live signal chain) + portable `.tone` files; designer New/Open/Save/Save As document semantics, project Import/Export copy semantics, undoable opens/imports, automation-drop confirm | All five phases landed 2026-07-13 (container; ILiveRig surface; designer mode core; panel UI + choosers + prompts; project Import/Export with automation confirm and whole-chain undo); build + all 7 suites green |
 | docs/plans/roadmap/51-smooth-scroll-camera.md | **Parked 2026-07-14** | Time-space camera + clock-driven fixed-cursor smooth-scroll follow for the editor timeline | Adoption reversed after live sight-reading (moving tabs harder to read, as predicted); spike removed, shifted window stands; plan retains the decision trail + the designed-but-unbuilt cursor-locked posture display; re-verify inventory before any future execution |
+| docs/plans/roadmap/52-range-edit-operations.md | **OPEN DISCUSSION — decision-gated (G52-RANGE-EDIT, all of 52-Q1..Q7)** | Plan 47's time selection doubles as an edit range: range copy/cut/paste/delete carrying ALL chart content (notes, shapes, templates, fret-hand positions); paste-overwrite at cursor; signature-aware rebase; single clipboard codec shared with 40 Phase 9 | Authored 2026-07-16 at user request; nothing executable until every Q is signed; depends on 47 Phases 2–3 + 40 Phases 3–4 |
 
 Milestone 0: **REACHED 2026-07-16** — docs/plans/roadmap/21-game-audio-engine-and-session.md Phase 6 soak
 checklist and docs/plans/roadmap/25-note-highway-3d.md Phase 3 exit criteria (notes scroll in time

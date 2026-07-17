@@ -24,7 +24,10 @@ plan; both products drive the one backend this plan lands.
   all docs/plans/roadmap/28-practice-mode.md.
 - No note/marquee selection in the tab lane — docs/plans/roadmap/40-chart-editing.md Phase 3 owns chart
   selection; this plan's time selection is a transport concept, deliberately on a different
-  surface (Q1).
+  surface (Q1). Separately, docs/plans/roadmap/52-range-edit-operations.md (decision-gated,
+  G52-RANGE-EDIT) later makes THIS selection double as an edit range for range copy/cut/paste —
+  same selection state, a second consumer, no code in this plan. Its 52-Q7 asks whether dual use
+  changes the Q2 auto-loop answer: **answer Q2 and 52-Q7 together.**
 - No playback-follow changes. The shifted-window follow stays as shipped; the fixed-cursor
   smooth-scroll evaluation (docs/plans/todo/smooth-scroll-follow-evaluation.md) is an owned, pending
   user decision — referenced here exactly as docs/plans/roadmap/44-editor-3d-preview.md does, never
@@ -190,6 +193,9 @@ Verified against code on 2026-07-07, refactor @ 0ffb6efe.
   referenced, never decided (its non-goal 3 phrasing is the template for this plan's non-goal).
 - docs/plans/in-progress/tone-track-tempo-map-plan.md — active tone work; this plan touches none of its
   files, and the ruler surface avoids its gestures (inventory).
+- docs/plans/roadmap/52-range-edit-operations.md — downstream consumer (Phases 2–3 here must land
+  first); it reuses `LoopSelectionViewState` as the edit range and adds copy/cut/paste/delete
+  commands over it. Decision-gated; its 52-Q7 is answered jointly with Q2 below.
 
 ## 7. Decisions already made
 
