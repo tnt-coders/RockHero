@@ -71,24 +71,44 @@ Current rulings (2026-07-17, latest revision — several reverse earlier ones):
 - Goal: maximum shared logic between chord and arpeggio span handling; drill until genuinely
   clean.
 
-Candidate unified model under discussion (not yet signed):
+Candidate unified model — the "explicitness reduction" (awaiting sign-off):
 
-- Two duration modes per span. **Implied-hold** (default): no member carries an explicit
-  sustain; span extent is the authored hold; no tails drawn. **Explicit-tails**: at least one
-  member carries an explicit sustain; all tails drawn; span end derives as the earliest
-  shape-break (per string, that string's last hold end; minimum across strings). Uniform
-  explicit tails equal to the span normalize back to implied on apply (save==publish
-  normalization precedent).
-- One targeting rule for the wheel in both span kinds: selection covering **all** sounded
-  notes of the span → adjust span extent; a **proper subset** → adjust those members' tails
-  (materializing explicit sustains). A chord's single click selects its whole group, so
-  chords get span adjustment for free; arpeggios need a whole-span selection affordance.
-- Shrink-split shared primitive: early termination (from span shrink OR subset release)
-  splits later-onset members into a new same-template span.
+- **Display rule (one line):** a note draws its tail iff it carries an explicit sustain.
+  Paint computes nothing else — no technique checks, no span inspection. The data is the
+  display state.
+- **Explicitness conditions** (all subtlety lives at edit-apply time, not paint time). A
+  note's sustain becomes explicit when: (1) a tail-requiring technique is applied; (2) the
+  user adjusts its sustain; (3) the manual force-show override is toggled; (4) any
+  onset-group sibling becomes explicit — the whole group materializes together, because one
+  visible tail among hidden-but-held siblings would misread as "only this note sustains".
+  Group scoping (not span scoping) is what keeps arpeggios and chugged chord spans from
+  sprouting a forest of tails: an arpeggio member's group is itself alone; a technique on one
+  chug strike lights only that strike's group.
+- **Implied hold definition:** a member without an explicit sustain is held until its
+  string's next onset within the span, else to span end. This is also the value a sibling
+  materializes at when its group goes explicit (chug strikes materialize to next-strike, a
+  single-strike chord's members to span end).
+- **Normalization (signed):** a group whose members are all uniform at their implied hold,
+  technique-free, and override-free collapses back to implied (explicit sustains cleared) on
+  apply — save==publish normalization precedent. Span extent is stored; when a string's
+  final sounding is explicit, normalization clamps the extent to the earliest final
+  hold end (min rule). Mid-span staccato never terminates a span: only shortening a string's
+  last sounding does, so a re-struck shape survives a short strike.
+- **Targeting rule for the wheel** (both span kinds): selection covering all sounded notes of
+  the span → adjust span extent; a proper subset → adjust those members' tails (materializing
+  their group). A chord's single click selects its whole group, so chords get span adjustment
+  for free. **Signed affordance:** double-click any member selects the span's full note set,
+  giving arpeggios the same easy path (rails-click-as-span-object deferred until a
+  delete-span verb needs it).
+- **Shrink-split shared primitive (signed, provisional for arpeggios):** early termination —
+  from span shrink or a final-sounding release — splits later-onset members into a new
+  same-template span; members struck before the break stay, and their tails may legally ring
+  past the span end. For arpeggios this is the most reasonable known behavior but is
+  explicitly expected to be revisited after hands-on practice; treat as a standing watch
+  item when implemented.
 
-Open questions (see discussion): arpeggio whole-span selection affordance; confirmation of
-termination-plus-split for arpeggio subset shrink; technique-bearing members and mixed
-implied/explicit spans; stored-vs-derived span extent representation.
+Remaining to settle: sign-off on the explicitness reduction above (display rule +
+materialization + group scoping); everything else in this section is signed.
 
 ## 6. Ghost note rework — SETTLED
 
