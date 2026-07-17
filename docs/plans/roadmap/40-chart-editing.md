@@ -79,11 +79,23 @@ gained the same Alt requirement so the rule holds on every surface. Sustain **ta
 parked** behind a watch-item trigger (docs/tracking/watch-items.md "Chart editing"); plain-wheel
 zoom affirmed over modifier-gated zoom; timeline panning bindings (Shift+wheel / middle-drag)
 recorded as an open deferred decision in the model doc.
+**UX feedback round one applied 2026-07-17** (user feedback on the shipped verbs): (1) the caret
+no longer follows glyph clicks or Alt-inserts — the selection highlight is the whole feedback,
+and the caret appears only where placed (empty clicks, keyboard); (2) the selection highlight
+recolors the note head's OWN border ring in the accent (stroke retracing fillHeadShape's ring
+band; matching diamond for harmonics) instead of drawing an outer halo; (3) the numpad types
+frets alongside the number row; (4) multi-digit fret entry now coalesces into ONE undo entry —
+a digit inside the 1.5s window widens the just-pushed entry in place via the new
+`EditorUndoHistory::replaceTop` (guarded: refuses when the cursor left the top entry or a save's
+clean marker sits on it, degrading to a fresh push), the window opens whenever a second digit
+could still fit under `g_max_fret` (so first digits 1–3), and typing after the window expires
+starts a fresh value. Also fixed in passing: edits now update the selection as (selection −
+removed keys) + inserted keys, so retyping/resizing a mixed selection no longer shrinks it to
+only the notes that changed.
 **Remaining Phase 4 sub-scope (deferred to the next execution slice, before Phase 5):** pointer
 drag-move of selected notes (horizontal with snap, vertical across strings — the same plain
 move-drag verb automation points use), the Alt-held ghost preview + `CopyingCursor` hover
-affordance, Esc canceling an in-flight pointer drag preview, and collapsing a multi-digit fret
-entry into one undo entry.
+affordance, and Esc canceling an in-flight pointer drag preview.
 
 Open questions Q1–Q4 below have recommended defaults and are mirrored into
 `docs/plans/roadmap/00-roadmap.md` (Decisions needed). Phases 1–3 depend on none of them; later phases
