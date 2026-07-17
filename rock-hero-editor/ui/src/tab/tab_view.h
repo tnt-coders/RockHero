@@ -267,7 +267,7 @@ private:
     void updateGhost(const juce::MouseEvent& event);
 
     // Invalidates the full-height strip spanning the old and new ghost positions, padded to the
-    // ghost's real paint footprint (head plus centered fret-label rect).
+    // ghost ring's real paint footprint.
     void repaintGhostStrip(std::optional<float> previous_x, std::optional<float> next_x);
 
     // Song tempo map used to snap the ghost exactly like the committed insert.
