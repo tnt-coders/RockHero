@@ -1,6 +1,7 @@
 #include "tab/tab_view.h"
 
 #include "shared/editor_theme.h"
+#include "timeline/timeline_cursor.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -51,7 +52,95 @@ std::pair<std::size_t, std::size_t> tabVisibleNoteRange(
 
 // Interception stays enabled: hitTest() claims the lane only while a chart is displayed, so a
 // chart-less lane stays transparent to the cursor overlay's click-to-seek handling.
-TabView::TabView() = default;
+TabView::TabView(const common::core::TempoMap& tempo_map)
+    : m_tempo_map(tempo_map)
+{}
+
+void TabView::setGridNoteValue(common::core::Fraction grid_note_value) noexcept
+{
+    m_grid_note_value = grid_note_value;
+}
+
+// Recomputes the Alt ghost from a hover/drag event: the snapped x comes from the same
+// musicalGridPositionForX seam every placement gesture uses (Ctrl bypasses to the fine grid),
+// so the ghost sits exactly where the committed insert will land. Also keeps the copy cursor
+// in sync — JUCE synthesizes a mouse-move whenever modifiers change, so pressing or releasing
+// Alt updates both without pointer motion.
+void TabView::updateGhost(const juce::MouseEvent& event)
+{
+    const bool insertable = m_tab != nullptr && m_tab->string_count > 0 &&
+                            m_visible_timeline.duration().seconds > 0.0 &&
+                            !getLocalBounds().isEmpty();
+    const bool wants_ghost = insertable && event.mods.isAltDown();
+    setMouseCursor(
+        wants_ghost ? juce::MouseCursor::CopyingCursor : juce::MouseCursor::NormalCursor);
+
+    std::optional<GhostNote> next_ghost;
+    if (wants_ghost)
+    {
+        const std::optional<common::core::GridPosition> position = musicalGridPositionForX(
+            m_tempo_map,
+            m_grid_note_value,
+            m_visible_timeline,
+            getWidth(),
+            event.position.x,
+            event.mods);
+        if (position.has_value())
+        {
+            const double seconds =
+                m_tempo_map.secondsAtNote(position->measure, position->beat, position->offset);
+            const double duration = m_visible_timeline.duration().seconds;
+            const int displayed_count =
+                tabDisplayedStringCount(m_tab->string_count, m_minimum_displayed_strings);
+            const float lane_height =
+                static_cast<float>(getHeight()) / static_cast<float>(displayed_count);
+            const int lane_index = std::clamp(
+                static_cast<int>(event.position.y / lane_height), 0, displayed_count - 1);
+            const int extra_lanes = displayed_count - m_tab->string_count;
+            next_ghost = GhostNote{
+                .x = static_cast<float>(
+                    (seconds - m_visible_timeline.start.seconds) / duration *
+                    static_cast<double>(getWidth())),
+                .string =
+                    std::clamp(displayed_count - lane_index - extra_lanes, 1, m_tab->string_count),
+            };
+        }
+    }
+
+    const bool unchanged =
+        (!next_ghost.has_value() && !m_ghost.has_value()) ||
+        (next_ghost.has_value() && m_ghost.has_value() &&
+         std::is_eq(next_ghost->x <=> m_ghost->x) && next_ghost->string == m_ghost->string);
+    if (unchanged)
+    {
+        return;
+    }
+
+    // Ghost strips are narrow; repainting only the bands it moved between keeps hover cheap on
+    // wide zoomed content.
+    const std::optional<float> previous_x =
+        m_ghost.has_value() ? std::optional{m_ghost->x} : std::nullopt;
+    const std::optional<float> next_x =
+        next_ghost.has_value() ? std::optional{next_ghost->x} : std::nullopt;
+    m_ghost = next_ghost;
+    repaintCursorStrip(*this, previous_x, next_x);
+}
+
+void TabView::mouseMove(const juce::MouseEvent& event)
+{
+    updateGhost(event);
+}
+
+void TabView::mouseExit(const juce::MouseEvent& /*event*/)
+{
+    setMouseCursor(juce::MouseCursor::NormalCursor);
+    if (m_ghost.has_value())
+    {
+        const std::optional<float> previous_x{m_ghost->x};
+        m_ghost.reset();
+        repaintCursorStrip(*this, previous_x, std::nullopt);
+    }
+}
 
 void TabView::setPointerEventCallback(PointerEventCallback on_pointer_event)
 {
@@ -121,6 +210,8 @@ void TabView::mouseDown(const juce::MouseEvent& event)
 
 void TabView::mouseDrag(const juce::MouseEvent& event)
 {
+    // The Alt insert quasimode places at the release point, so its ghost tracks the drag too.
+    updateGhost(event);
     // No wantsPointerAt gate: a drag that started inside the lane keeps reporting while the
     // pointer travels outside it, exactly like any JUCE drag capture.
     if (m_on_pointer_event != nullptr && m_tab != nullptr && m_tab->string_count > 0)
@@ -272,6 +363,30 @@ void TabView::paint(juce::Graphics& g)
         g.fillRect(box);
         g.setColour(accent);
         g.drawRect(box, 1.0f);
+    }
+
+    // The Alt-held ghost: a translucent head with the fret the insert would carry, at the
+    // snapped position on the hovered lane — exactly what a click would place.
+    if (m_ghost.has_value() && m_ghost->string >= 1 && m_ghost->string <= m_tab->string_count)
+    {
+        const float size = metrics.note_height + 1.0f;
+        const float center_y = metrics.laneY(m_ghost->string);
+        const juce::Colour base = metrics.baseColor(m_ghost->string);
+        g.setColour(base.withAlpha(0.35f));
+        g.fillEllipse(m_ghost->x - size / 2.0f, center_y - size / 2.0f, size, size);
+        g.setColour(base.withAlpha(0.6f));
+        g.drawEllipse(m_ghost->x - size / 2.0f, center_y - size / 2.0f, size, size, 1.5f);
+        if (metrics.draw_text)
+        {
+            g.setColour(juce::Colours::white.withAlpha(0.75f));
+            g.setFont(metrics.fret_font);
+            g.drawText(
+                juce::String{m_edit.insert_fret},
+                juce::Rectangle<float>{
+                    m_ghost->x - size, center_y - size, size * 2.0f, size * 2.0f
+                },
+                juce::Justification::centred);
+        }
     }
 }
 
