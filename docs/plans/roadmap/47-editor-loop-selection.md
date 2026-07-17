@@ -268,9 +268,18 @@ Mirror all of these into docs/plans/roadmap/00-roadmap.md (Decisions needed).
    as "time", and never conflicts with note editing.
 2. **Q2 — Loop engagement semantics.** Options: (A) explicit toggle — a selection is passive
    until a loop toggle (Ctrl+L) arms it; (B) auto-on — a selection existing means playback loops
-   it; clearing the selection (Escape, click-away) restores normal playback.
-   **Recommendation: B** — on the ruler the selection has no purpose other than looping, so a
-   separate armed state is a mode without a payoff. Sub-policies under B (accepted defaults
+   it; clearing the selection (Escape, click-away) restores normal playback; (C) **transport-strip
+   Loop button** (added 2026-07-16; the REAPER Repeat model): the selection is always a passive
+   time range, and playback loops it only while a persistent Loop toggle button in the transport
+   strip is engaged — the button state persists app-local alongside the Q3 family, and a
+   selection with the button off is just a highlighted range (which
+   docs/plans/roadmap/52-range-edit-operations.md consumes as the edit range).
+   **User leaning recorded 2026-07-16: C** — "start with the range being just a time range;
+   loop only when a Loop button in the transport strip is selected." Confirm at sign-off, jointly
+   with 52-Q7 (C dissolves that plan's dual-use tension entirely: copying never touches playback
+   behavior). The original recommendation B rested on "the selection has no purpose other than
+   looping," which plan 52 has since falsified. Sub-policies below were written for B; under C
+   they apply only while the Loop button is engaged (accepted defaults
    unless overruled): Play with the cursor outside the selection snaps to loop start
    (Tracktion's verified performPlay behavior); pause inside the loop resumes in place (verified
    no-retrigger); a seek INSIDE the selection keeps the loop; a seek OUTSIDE the selection clears

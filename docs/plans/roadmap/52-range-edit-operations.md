@@ -3,10 +3,10 @@
 ## 1. Status
 
 **OPEN DISCUSSION — decision-gated (G52-RANGE-EDIT). Nothing in this plan is executable yet.**
-Authored 2026-07-16 at the user's request. Every open question below (52-Q1..Q7) carries a
+Authored 2026-07-16 at the user's request. Every open question below (52-Q1..Q8) carries a
 recommendation, but **each individual decision requires explicit user sign-off** — the
 recommendations are discussion inputs, not defaults that activate by silence. The gate closes
-only when all seven questions are answered; partial answers unblock nothing.
+only when all eight questions are answered; partial answers unblock nothing.
 
 ## 2. Goal
 
@@ -71,7 +71,21 @@ Verified against code 2026-07-16, branch work-in-progress:
   `chartRevision()` bump-on-acquisition, write-on-save, revision-keyed tab projection cache.
 - **Selection model does not exist yet**: plan 40 Phase 3 (note selection/caret/marquee) and
   plan 47 Phases 2–3 (time selection state + ruler gesture) are both unstarted. This plan
-  consumes both.
+  consumes both. Note the settled interaction grammar **already includes 2D-area
+  multi-select**: the plan 40 Phase 3 marquee is a box over strings × time (empty-lane drag),
+  with Shift extending the selection — the REAPER-style area select the user raised on
+  2026-07-16 is that marquee, not a gap. The two selections are complements, not competitors:
+  the marquee picks *objects* (surgical, per-string), the time range picks *a span of the
+  chart* (everything, all streams, including step-function context like FHPs that object
+  selection cannot express) — the user's own read that whole-span capture suits a tablature
+  format better than a DAW's object model is the recorded rationale for this plan existing
+  alongside the marquee. Q6 sets the command-precedence rule between them.
+- **Tone model** (for Q8): tones are a song-level UUID catalog; tone changes are the song's
+  flat UUID-keyed list; tone parameter automation is musical-position truth in song.json with
+  a derived Tracktion curve; VST plugin state lives in Tracktion-managed files, not song.json;
+  plan 50 shipped portable `.tone` files (export/import of a tone incl. plugin state). Like
+  fret-hand positions, a tone change is a **step function** — the tone governing a range start
+  usually precedes the range.
 - **Sections and tone changes are song-level**, not chart-level: sections live in song.json as
   the song's list; tone changes are the song's flat UUID-keyed `toneChanges` list. They are not
   part of the `Chart` value and would need separate machinery to participate in range copy
@@ -222,8 +236,9 @@ recommendations below take effect without an explicit answer.
    - Content scope: notes + shapes + templates + FHPs (the four chart streams) is the proposed
      v1 payload. **Sections and tone changes are song-level, not chart-level** — including them
      would give copy/paste write access to song-scoped data from a chart operation. (A) chart
-     streams only in v1; (B) also carry tone changes in-range; (C) also carry section
-     boundaries. **R: A**, with B/C as recorded follow-ups if charting practice demands them.
+     streams only in v1; (B) also carry tone changes in-range — now elevated to its own
+     question, **Q8**, at the user's direction; (C) also carry section boundaries. **R: A for
+     the chart half**; tones/automation are decided under Q8; C stays a recorded follow-up.
    - Command precedence: once both a **note selection** (plan 40 Phase 3) and a **time
      selection** (plan 47) exist, what do Ctrl+C/Ctrl+X/Delete act on? (A) non-empty note
      selection wins; otherwise the time selection; the two are never both "active" for
@@ -231,18 +246,47 @@ recommendations below take effect without an explicit answer.
      the more deliberate, more recent gesture in the 40-Q3 grammar (creating it required
      clicking notes), and it keeps today's Delete semantics unchanged.
 
-7. **52-Q7 — Interplay with 47-Q2 auto-loop.** 47-Q2's recommendation (unsigned, like all of
-   plan 47's Qs) is that a time selection auto-engages looped playback. Once the selection also
-   serves copying, a charter who drags a range merely to copy it changes what Play does.
-   - (A) Keep 47-Q2 = B (auto-loop): the selection only affects playback when playing; while
-     paused, select→copy→click-away costs nothing. Accept the occasional surprise loop and
-     revisit after real use.
-   - (B) Flip 47-Q2 to A (explicit Ctrl+L arm) now that the selection is dual-use, so looping
-     is always deliberate.
-   - **R (discussion input): A** — dual use is exactly why 47-Q2-B's "seek outside clears"
-     escape hatch exists, and adding a mode (armed vs not) costs every loop user to spare the
-     copy user a rare surprise. But this is a feel call the user should make with plan 47's
-     Q2 on the table at the same time; **answer 47-Q2 and 52-Q7 together.**
+7. **52-Q7 — Interplay with 47-Q2 auto-loop.** Once the selection also serves copying, a
+   charter who drags a range merely to copy it would change what Play does under 47-Q2's
+   original auto-loop recommendation.
+   - (A) Keep 47-Q2 = B (auto-loop): the selection only affects playback when playing; accept
+     the occasional surprise loop.
+   - (B) Flip 47-Q2 to an explicit arm so looping is always deliberate.
+   - **User leaning recorded 2026-07-16: (B), specifically 47-Q2's new option C — a persistent
+     Loop toggle button in the transport strip (the REAPER Repeat model).** The selection is
+     then always a plain time range; looping engages only while the button is on. This
+     dissolves the dual-use tension entirely (copying never touches playback behavior), at the
+     cost 47-Q2-B was avoiding (one more transport control). Supersedes this plan's earlier
+     (A) recommendation. **Confirm at sign-off jointly with 47-Q2** — one answer, recorded in
+     both plans.
+
+8. **52-Q8 — Tone and automation-lane copy semantics** (added 2026-07-16: the user wants good
+   copy/paste semantics for tones **including automation lanes** designed, not defaulted).
+   Everything here is song-level data (see §5 tone-model inventory), so this is deliberately a
+   separate question from Q6's chart streams — a chart-range operation writing song-scoped tone
+   data is a real ownership boundary to cross knowingly.
+   - What a tone-aware range copy would carry: tone changes with onsets in-range, automation
+     points in-range per lane, and — the FHP symmetry — optionally a **materialized entry for
+     the tone governing the range start** (tone changes are a step function exactly like
+     fret-hand positions; Q1's materialize-at-start reasoning applies verbatim).
+   - **Within-song paste** is the easy half: tone UUIDs resolve against the song's own catalog;
+     tone changes and automation points re-lay on the Q2 position basis; the overwrite window
+     (Q3) deletes in-range tone changes/points the same way it deletes notes.
+   - **Cross-song paste** is the hard half: the destination song's catalog lacks the UUIDs, so
+     the payload must carry the tone definitions themselves — including VST plugin state, which
+     lives in Tracktion-managed files, not song.json. The natural vehicle already exists:
+     plan 50's portable `.tone` container. A cross-song tone paste would effectively perform a
+     .tone import per carried tone (with the existing dedupe/naming semantics) before wiring
+     the pasted changes. Automation lane identity across songs (plugin_id bindings) needs the
+     same durable-binding treatment the tone catalog model settled.
+   - Options: (A) v1 pastes chart streams only (Q6-A); tone/automation range copy is a signed
+     follow-up phase in THIS plan, designed now, built after the chart half proves out;
+     (B) tone-aware within-song copy in v1, cross-song deferred; (C) full tone-aware copy
+     including cross-song .tone transport in v1.
+   - **R (discussion input): A, with the follow-up phase sketched before the gate closes** so
+     the payload format reserves room for tone sections from day one (a format-version bump is
+     cheap, but designing the chart payload knowing tones are coming avoids a second schema).
+     (B) is the fallback if charting practice needs tone copy sooner than expected.
 
 ## 9. Phased implementation (sketch — BLOCKED until G52-RANGE-EDIT closes)
 
@@ -250,7 +294,7 @@ Phase boundaries will be finalized after sign-off; the expected shape:
 
 ### Phase 0 — Discussion and sign-off (the gate)
 
-Walk 52-Q1..Q7 with the user (52-Q7 jointly with 47-Q2). Record every answer in this file and
+Walk 52-Q1..Q8 with the user (52-Q7 jointly with 47-Q2). Record every answer in this file and
 in docs/plans/roadmap/00-roadmap.md. Re-verify the §5 inventory against current code first —
 plans 40/47 will have moved by then.
 
