@@ -344,9 +344,11 @@ following existing Catch2 `test_*.cpp` naming for C++ tests and `test_*.py` nami
 ## Commit & Pull Request Guidelines
 
 Commit subjects use short, imperative form (e.g., `Added CI workflow`,
-`Repositioned build badge in README`). Keep subjects concise, capitalized, and focused on one
-change. Pull requests should describe the user-visible impact, list build/test commands run, and
-link the relevant issue. Include screenshots only for documentation or UI-facing changes.
+`Repositioned build badge in README`): concise, capitalized, and focused on one change. Follow the
+subject with a blank line and a descriptive body explaining what changed and why; prefer a body
+over a bare one-line message for anything beyond a trivial change. Pull requests should describe
+the user-visible impact, list build/test commands run, and link the relevant issue. Include
+screenshots only for documentation or UI-facing changes.
 
 ## CI
 
