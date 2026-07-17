@@ -108,15 +108,19 @@ motion). `TabView` now takes the state's tempo map by reference (the ToneTrackVi
 precedent) and repaints only the strips the ghost moves between.
 **UX feedback round three applied 2026-07-17**: (1) ghost repaint shards fixed — the ghost's
 invalidation had reused the one-pixel playhead helper, clipping the incoming ghost and leaving
-fragments of the outgoing one; the lane now invalidates the ghost's real footprint (head plus
-fret-label rect). (2) The full-color labeled ghost KEPT over a plain white ring — the user asked
-whether a white ring would dramatically simplify the code; it would not (the complexity is
-placement/snap/invalidation, which a ring needs too), and the user pre-accepted the current look
-in that case. (3) The selection ring moved outward: the accent stroke's inner edge now sits
-exactly at the head edge (a bit wider than the note shape, reading as the border grown outward),
-deliberately snug rather than out at the accent glow's reach so an accented note keeps a visible
-glow fringe beyond the ring — the user flagged that collision themselves; whether the fringe
-reads well enough in practice is an open feel question.
+fragments of the outgoing one; the lane now invalidates the ghost's real footprint. (2) The
+full-color labeled ghost was initially kept over a plain white ring, and (3) the selection ring
+moved outward with its inner edge at the head edge — both revised next round.
+**UX feedback round four applied 2026-07-17**: (1) the ghost became a faded white ring the shape
+of the head a click would insert — the user reasoned the full ghost's fret-0 label previews a
+note nobody keeps (the real fret gets typed right after), and a colored/numbered ghost would only
+earn its keep if inserts could target a specific fret, which no intuitive hotkey shape supports;
+this deleted the `ChartEditViewState::insert_fret` plumbing that existed only for the label.
+(2) The selection ring came in by one border-width — the outward cut visually buried the accent
+glow — and now straddles the head edge, sitting between the head's own border and the glow so
+accent stays readable on selected notes. Also hardened in passing: the ghost pixel test had
+probed content the lane always paints, at a hover x that mapped to an exact tie between grid
+lines; it now hovers unambiguously and probes the ring's stroke band off the string line.
 **Remaining Phase 4 sub-scope (deferred to the next execution slice, before Phase 5):** pointer
 drag-move of selected notes (horizontal with snap, vertical across strings — the same plain
 move-drag verb automation points use) and Esc canceling an in-flight pointer drag preview.
