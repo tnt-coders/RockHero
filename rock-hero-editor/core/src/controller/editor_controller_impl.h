@@ -13,6 +13,7 @@ definitions, no state added just to make a translation-unit split work.
 #pragma once
 
 #include "busy/busy_operation_workflow.h"
+#include "chart/chart_edits.h"
 #include "chart/chart_selection.h"
 #include "deferred_project_action_state.h"
 #include "editor_action.h"
@@ -148,10 +149,20 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onChartPointerDrag(const ChartPointerEvent& event);
     void onChartPointerUp(const ChartPointerEvent& event);
     void onChartCaretMoveRequested(ChartCaretDirection direction, bool fine);
+    void onChartSelectionDeleteRequested();
+    void onChartFretDigitTyped(int digit);
+    void onChartSustainAdjustRequested(int direction, bool fine);
+    void onChartGestureCancelled();
     [[nodiscard]] const common::core::TabViewState* displayedTabProjection() const;
     [[nodiscard]] std::optional<ChartNoteKey> chartNoteKeyAt(std::size_t projection_index) const;
     void clearChartEditingState();
     void placeChartCaret(const ChartPointerEvent& event);
+    [[nodiscard]] std::optional<std::pair<common::core::GridPosition, int>> chartPlacementAt(
+        const ChartPointerEvent& event) const;
+    [[nodiscard]] common::core::Fraction chartGridStepBeats(
+        common::core::GridPosition at, bool fine) const;
+    bool applyChartEditPlan(std::optional<ChartNotesEditPlan> plan);
+    void insertChartNoteAt(const ChartPointerEvent& event);
     [[nodiscard]] std::string toneRegionIdAt(common::core::TimePosition position) const;
     [[nodiscard]] std::string activeToneRegionId() const;
     [[nodiscard]] std::string activeToneDocumentRef() const;
@@ -613,8 +624,20 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         bool marquee{false};
         // Set when Down hit a glyph; the gesture then owns selection instead of click-vs-marquee.
         std::optional<std::size_t> hit_note{};
+        // True for an Alt press: the insert quasimode, committing a note at the release point.
+        bool alt_insert{false};
     };
     std::optional<ChartPointerGesture> m_chart_gesture{};
+
+    // Fret carried by the next inserted note: the last fret typed or placed (interaction model's
+    // "last-used fret"). Zero (open string) before any fret has been used.
+    int m_chart_last_fret{0};
+
+    // Multi-digit fret entry: the value being built and the tick of its last keystroke, so
+    // typing 1 then 2 inside the window retypes to fret 12 instead of 2. Negative pending means
+    // no entry is in flight.
+    int m_chart_pending_fret{-1};
+    std::uint32_t m_chart_fret_entry_ms{0};
 
     // Durable automation identity of one live tone-chain plugin instance.
     struct ToneAutomationIdentity

@@ -137,6 +137,26 @@ void TabView::mouseUp(const juce::MouseEvent& event)
     }
 }
 
+void TabView::setSustainWheelCallback(SustainWheelCallback on_sustain_wheel)
+{
+    m_on_sustain_wheel = std::move(on_sustain_wheel);
+}
+
+// Alt+wheel adjusts the selection's sustain per the interaction model (Ctrl+Alt+wheel steps the
+// fine grid); wheel events without Alt fall through to the hosting viewport's scrolling.
+void TabView::mouseWheelMove(const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel)
+{
+    const bool wants_sustain = m_on_sustain_wheel != nullptr && event.mods.isAltDown() &&
+                               m_tab != nullptr && m_tab->string_count > 0 && wheel.deltaY != 0.0f;
+    if (!wants_sustain)
+    {
+        Component::mouseWheelMove(event, wheel);
+        return;
+    }
+
+    m_on_sustain_wheel(wheel.deltaY > 0.0f ? 1 : -1, event.mods.isCtrlDown());
+}
+
 // Stores the visible timeline range used to map note times to pixels.
 void TabView::setVisibleTimeline(common::core::TimeRange visible_timeline)
 {

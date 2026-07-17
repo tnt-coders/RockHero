@@ -376,6 +376,9 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     m_audio_device_button.onClick = [this] { showAudioDeviceSettingsWindow(); };
     m_arrangement_view.setComponentID("arrangement_view");
     m_tab_view.setComponentID("tab_view");
+    m_tab_view.setSustainWheelCallback([this](int direction, bool fine) {
+        m_controller.onChartSustainAdjustRequested(direction, fine);
+    });
     m_tab_view.setPointerEventCallback(
         [this](core::ChartPointerPhase phase, const core::ChartPointerEvent& event) {
             switch (phase)
@@ -915,19 +918,32 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
         return true;
     }
 
-    // Arrow keys navigate the tablature editing caret while a chart is displayed; Ctrl steps
-    // the fine grid per the interaction model's precision modifier. Interim scattered keybind
-    // (recorded for plan 46's registry).
+    // Chart-editing keys while a chart is displayed; Ctrl steps the fine grid per the
+    // interaction model's precision modifier. Interim scattered keybinds (recorded for plan
+    // 46's registry): arrows navigate the caret or nudge the selection, Shift+Left/Right
+    // resizes sustains, typed digits retype the selection's fret, Escape cancels the in-flight
+    // lane gesture.
     if (m_state.tab != nullptr && m_state.tab->string_count > 0)
     {
         const bool fine = key.getModifiers().isCtrlDown();
+        const bool shift = key.getModifiers().isShiftDown();
         if (key.isKeyCode(juce::KeyPress::leftKey))
         {
+            if (shift)
+            {
+                m_controller.onChartSustainAdjustRequested(-1, fine);
+                return true;
+            }
             m_controller.onChartCaretMoveRequested(core::ChartCaretDirection::Left, fine);
             return true;
         }
         if (key.isKeyCode(juce::KeyPress::rightKey))
         {
+            if (shift)
+            {
+                m_controller.onChartSustainAdjustRequested(1, fine);
+                return true;
+            }
             m_controller.onChartCaretMoveRequested(core::ChartCaretDirection::Right, fine);
             return true;
         }
@@ -941,14 +957,32 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
             m_controller.onChartCaretMoveRequested(core::ChartCaretDirection::Down, fine);
             return true;
         }
+        if (!m_state.chart_edit.selected_notes.empty() && !key.getModifiers().isCtrlDown() &&
+            key.getKeyCode() >= '0' && key.getKeyCode() <= '9')
+        {
+            m_controller.onChartFretDigitTyped(key.getKeyCode() - '0');
+            return true;
+        }
+        if (key.isKeyCode(juce::KeyPress::escapeKey) && m_state.chart_edit.marquee.has_value())
+        {
+            m_controller.onChartGestureCancelled();
+            return true;
+        }
     }
 
-    // Delete targets the selected automation point first (the more specific target), then falls
-    // back to the selected tone region (merging into a neighbor, or resetting the sole region).
+    // Delete targets the selected automation point first (the more specific target), then the
+    // chart note selection, then falls back to the selected tone region (merging into a
+    // neighbor, or resetting the sole region).
     if (key == juce::KeyPress{juce::KeyPress::deleteKey})
     {
         if (m_tone_automation_lanes_view.deleteSelectedPoint())
         {
+            return true;
+        }
+
+        if (!m_state.chart_edit.selected_notes.empty())
+        {
+            m_controller.onChartSelectionDeleteRequested();
             return true;
         }
 

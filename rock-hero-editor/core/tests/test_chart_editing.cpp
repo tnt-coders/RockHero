@@ -257,17 +257,18 @@ TEST_CASE("EditorController caret arrows step grid strings and fine grid", "[cor
     controller.attachView(view);
     REQUIRE(loadChartArrangement(controller, project_services, audio));
 
-    // Place the caret at measure 2 beat 1 (2.0s) on string 1 via a glyph click.
-    click(controller, 40.0f, 220.0f);
+    // Place the caret at measure 4 beat 1 (6.0s) on string 1 via an empty click: arrows move
+    // the caret only while nothing is selected (a selection makes them nudge instead).
+    click(controller, 120.0f, 220.0f);
 
-    // Right by one quarter-note grid step: 2.0s -> 2.5s at 120 BPM.
+    // Right by one quarter-note grid step: 6.0s -> 6.5s at 120 BPM.
     controller.onChartCaretMoveRequested(ChartCaretDirection::Right, false);
     REQUIRE(view.last_state.has_value());
     REQUIRE(view.last_state->chart_edit.caret.has_value());
-    CHECK(view.last_state->chart_edit.caret->seconds == Catch::Approx(2.5));
+    CHECK(view.last_state->chart_edit.caret->seconds == Catch::Approx(6.5));
 
     controller.onChartCaretMoveRequested(ChartCaretDirection::Left, false);
-    CHECK(view.last_state->chart_edit.caret->seconds == Catch::Approx(2.0));
+    CHECK(view.last_state->chart_edit.caret->seconds == Catch::Approx(6.0));
 
     // Up moves toward higher strings; Down clamps at the lowest string.
     controller.onChartCaretMoveRequested(ChartCaretDirection::Up, false);
@@ -280,7 +281,229 @@ TEST_CASE("EditorController caret arrows step grid strings and fine grid", "[cor
     controller.onChartCaretMoveRequested(ChartCaretDirection::Right, true);
     CHECK(
         view.last_state->chart_edit.caret->seconds ==
-        Catch::Approx(2.0 + 0.5 / 960.0).epsilon(1e-9));
+        Catch::Approx(6.0 + 0.5 / 960.0).epsilon(1e-9));
+}
+
+// Alt+click inserts a note at the snapped point as one undo entry; undo removes it again.
+TEST_CASE("EditorController inserts a chart note via the Alt quasimode", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    // x = 120 is 6.0s = measure 4 beat 1; y = 220 is string 1.
+    const ChartPointerModifiers alt{.alt = true};
+    click(controller, 120.0f, 220.0f, alt);
+
+    const auto* chart = &*controller.session().currentArrangement()->chart;
+    REQUIRE(chart->notes.size() == 4);
+    CHECK(chart->notes[3].position == common::core::GridPosition{.measure = 4, .beat = 1});
+    CHECK(chart->notes[3].string == 1);
+    REQUIRE(view.last_state.has_value());
+    CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{3});
+    REQUIRE(view.last_state->chart_edit.caret.has_value());
+    CHECK(view.last_state->chart_edit.caret->seconds == Catch::Approx(6.0));
+    CHECK(view.last_state->undo_label == std::optional<std::string>{"Insert Note"});
+
+    controller.onUndoRequested();
+    chart = &*controller.session().currentArrangement()->chart;
+    CHECK(chart->notes.size() == 3);
+    CHECK(view.last_state->chart_edit.selected_notes.empty());
+
+    controller.onRedoRequested();
+    chart = &*controller.session().currentArrangement()->chart;
+    CHECK(chart->notes.size() == 4);
+}
+
+// Inserting inside an earlier sustain truncates it in the same undo entry (40-Q2-B).
+TEST_CASE("EditorController insert truncates the overlapped sustain", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    // x = 90 is 4.5s = measure 3 beat 2, inside the measure-3 note's two-beat sustain.
+    click(controller, 90.0f, 220.0f, ChartPointerModifiers{.alt = true});
+
+    const auto* chart = &*controller.session().currentArrangement()->chart;
+    REQUIRE(chart->notes.size() == 4);
+    CHECK(chart->notes[2].sustain == common::core::Fraction{1, 1});
+    CHECK(chart->notes[3].position == (common::core::GridPosition{.measure = 3, .beat = 2}));
+
+    // One undo restores both the removed note and the original sustain.
+    controller.onUndoRequested();
+    chart = &*controller.session().currentArrangement()->chart;
+    REQUIRE(chart->notes.size() == 3);
+    CHECK(chart->notes[2].sustain == common::core::Fraction{2, 1});
+}
+
+// Delete removes the whole selection as one entry and undo restores it.
+TEST_CASE("EditorController deletes the chart selection undoably", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    click(controller, 40.0f, 220.0f);
+    click(controller, 40.0f, 180.0f, ChartPointerModifiers{.ctrl = true});
+    controller.onChartSelectionDeleteRequested();
+
+    const auto* chart = &*controller.session().currentArrangement()->chart;
+    REQUIRE(chart->notes.size() == 1);
+    REQUIRE(view.last_state.has_value());
+    CHECK(view.last_state->chart_edit.selected_notes.empty());
+    CHECK(view.last_state->undo_label == std::optional<std::string>{"Delete 2 Notes"});
+
+    controller.onUndoRequested();
+    chart = &*controller.session().currentArrangement()->chart;
+    CHECK(chart->notes.size() == 3);
+}
+
+// Typed digits retype the selection's fret, combining inside the multi-digit window.
+TEST_CASE("EditorController fret digits combine inside the entry window", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    click(controller, 40.0f, 220.0f);
+    controller.onChartFretDigitTyped(1);
+    const auto* chart = &*controller.session().currentArrangement()->chart;
+    CHECK(chart->notes[0].fret == 1);
+
+    controller.onChartFretDigitTyped(2);
+    chart = &*controller.session().currentArrangement()->chart;
+    CHECK(chart->notes[0].fret == 12);
+
+    // The selection stays on the retyped note under its unchanged key.
+    REQUIRE(view.last_state.has_value());
+    CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{0});
+}
+
+// Shift+arrow sustain growth clamps against the next same-string onset (40-Q2-B).
+TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    click(controller, 40.0f, 220.0f);
+    controller.onChartSustainAdjustRequested(1, false);
+    const auto* chart = &*controller.session().currentArrangement()->chart;
+    CHECK(chart->notes[0].sustain == common::core::Fraction{1, 1});
+
+    // Five more quarter-note steps would reach 6 beats, but the measure-3 note on the same
+    // string sits 4 beats later: growth clamps there.
+    for (int step = 0; step < 5; ++step)
+    {
+        controller.onChartSustainAdjustRequested(1, false);
+    }
+    chart = &*controller.session().currentArrangement()->chart;
+    CHECK(chart->notes[0].sustain == common::core::Fraction{4, 1});
+
+    // Shrinking floors at zero.
+    for (int step = 0; step < 6; ++step)
+    {
+        controller.onChartSustainAdjustRequested(-1, false);
+    }
+    chart = &*controller.session().currentArrangement()->chart;
+    CHECK(chart->notes[0].sustain == common::core::Fraction{});
+}
+
+// Arrow keys nudge a selection by the grid step; refused moves (occupied slot) change nothing.
+TEST_CASE("EditorController nudges the selection and refuses collisions", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    click(controller, 40.0f, 220.0f);
+
+    // Up would land on the occupied measure-2 string-2 slot: refused, nothing changes.
+    controller.onChartCaretMoveRequested(ChartCaretDirection::Up, false);
+    const auto* chart = &*controller.session().currentArrangement()->chart;
+    CHECK(chart->notes[0].string == 1);
+    CHECK(chart->notes[0].position == (common::core::GridPosition{.measure = 2, .beat = 1}));
+
+    // Right moves one quarter-note step; the selection follows the moved note.
+    controller.onChartCaretMoveRequested(ChartCaretDirection::Right, false);
+    chart = &*controller.session().currentArrangement()->chart;
+    CHECK(chart->notes[1].position == (common::core::GridPosition{.measure = 2, .beat = 2}));
+    CHECK(chart->notes[1].string == 1);
+    REQUIRE(view.last_state.has_value());
+    CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{1});
+    CHECK(view.last_state->undo_label == std::optional<std::string>{"Move Note"});
+
+    controller.onUndoRequested();
+    chart = &*controller.session().currentArrangement()->chart;
+    CHECK(chart->notes[0].position == (common::core::GridPosition{.measure = 2, .beat = 1}));
+    CHECK(chart->notes[0].string == 1);
 }
 
 // Loading a different song clears selection and caret so keys never leak across charts.

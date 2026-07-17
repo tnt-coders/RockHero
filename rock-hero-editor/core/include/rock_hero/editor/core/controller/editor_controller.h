@@ -432,6 +432,18 @@ public:
     /*! \copydoc IEditorController::onChartCaretMoveRequested */
     void onChartCaretMoveRequested(ChartCaretDirection direction, bool fine) override;
 
+    /*! \copydoc IEditorController::onChartSelectionDeleteRequested */
+    void onChartSelectionDeleteRequested() override;
+
+    /*! \copydoc IEditorController::onChartFretDigitTyped */
+    void onChartFretDigitTyped(int digit) override;
+
+    /*! \copydoc IEditorController::onChartSustainAdjustRequested */
+    void onChartSustainAdjustRequested(int direction, bool fine) override;
+
+    /*! \copydoc IEditorController::onChartGestureCancelled */
+    void onChartGestureCancelled() override;
+
     /*! \copydoc IEditorController::onToneRegionSelected */
     void onToneRegionSelected(std::string region_id) override;
 

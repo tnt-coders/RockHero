@@ -247,6 +247,33 @@ public:
         chart_caret_move_count += 1;
     }
 
+    /*! \copydoc IEditorController::onChartSelectionDeleteRequested */
+    void onChartSelectionDeleteRequested() override
+    {
+        chart_selection_delete_count += 1;
+    }
+
+    /*! \copydoc IEditorController::onChartFretDigitTyped */
+    void onChartFretDigitTyped(int digit) override
+    {
+        last_chart_fret_digit = digit;
+        chart_fret_digit_count += 1;
+    }
+
+    /*! \copydoc IEditorController::onChartSustainAdjustRequested */
+    void onChartSustainAdjustRequested(int direction, bool fine) override
+    {
+        last_chart_sustain_direction = direction;
+        last_chart_sustain_fine = fine;
+        chart_sustain_adjust_count += 1;
+    }
+
+    /*! \copydoc IEditorController::onChartGestureCancelled */
+    void onChartGestureCancelled() override
+    {
+        chart_gesture_cancel_count += 1;
+    }
+
     /*! \copydoc IEditorController::onToneRegionSelected */
     void onToneRegionSelected(std::string region_id) override
     {
@@ -670,6 +697,27 @@ public:
 
     /*! \brief Number of onChartCaretMoveRequested() intents received. */
     int chart_caret_move_count{0};
+
+    /*! \brief Number of onChartSelectionDeleteRequested() intents received. */
+    int chart_selection_delete_count{0};
+
+    /*! \brief Last fret digit received. */
+    int last_chart_fret_digit{-1};
+
+    /*! \brief Number of onChartFretDigitTyped() intents received. */
+    int chart_fret_digit_count{0};
+
+    /*! \brief Last sustain-adjust direction received. */
+    int last_chart_sustain_direction{0};
+
+    /*! \brief Fine-grid flag of the last sustain adjust received. */
+    bool last_chart_sustain_fine{false};
+
+    /*! \brief Number of onChartSustainAdjustRequested() intents received. */
+    int chart_sustain_adjust_count{0};
+
+    /*! \brief Number of onChartGestureCancelled() intents received. */
+    int chart_gesture_cancel_count{0};
 
     /*! \brief Last tone region id reported through onToneRegionSelected(). */
     std::string last_selected_tone_region_id{};

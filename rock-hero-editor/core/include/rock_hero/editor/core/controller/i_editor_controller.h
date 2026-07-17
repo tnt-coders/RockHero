@@ -230,6 +230,34 @@ public:
     */
     virtual void onChartCaretMoveRequested(ChartCaretDirection direction, bool fine) = 0;
 
+    /*! \brief Handles a request to delete the selected chart notes as one undo entry. */
+    virtual void onChartSelectionDeleteRequested() = 0;
+
+    /*!
+    \brief Handles a typed fret digit for the selected chart notes.
+
+    Digits within the multi-digit entry window combine (typing 1 then 2 retypes to fret 12,
+    clamped to the fret cap); a digit outside the window starts a fresh value. Each keystroke
+    applies immediately so the notation always shows the current value.
+
+    \param digit Typed digit in [0, 9].
+    */
+    virtual void onChartFretDigitTyped(int digit) = 0;
+
+    /*!
+    \brief Handles a request to grow or shrink the selected notes' sustains by one grid step.
+
+    Sustains floor at zero and clamp against the next same-string onset (the 40-Q2-B truncation
+    rule); the whole selection adjusts as one undo entry.
+
+    \param direction +1 to grow, -1 to shrink.
+    \param fine True when the precision modifier requests the fine 1/960-beat step.
+    */
+    virtual void onChartSustainAdjustRequested(int direction, bool fine) = 0;
+
+    /*! \brief Handles a request to cancel the in-flight tablature pointer gesture (Escape). */
+    virtual void onChartGestureCancelled() = 0;
+
     /*!
     \brief Handles a deliberate selection of a tone region on the tone track (a click).
 
