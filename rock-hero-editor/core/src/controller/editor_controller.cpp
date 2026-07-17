@@ -1696,9 +1696,18 @@ void EditorController::Impl::insertChartNoteAt(const ChartPointerEvent& event)
     // survive the insert plan untouched — minus any same-string occupant the plan replaces.
     std::vector<ChartNoteKey> group = chartOnsetGroupKeys(arrangement->chart->notes, note.position);
     std::erase_if(group, [&note](const ChartNoteKey& key) { return key.string == note.string; });
-    group.push_back(ChartNoteKey{.position = note.position, .string = note.string});
-    static_cast<void>(applyChartEditPlan(
-        planInsertNote(*arrangement->chart, session().song().tempo_map, note), std::move(group)));
+    const ChartNoteKey placed{.position = note.position, .string = note.string};
+    group.push_back(placed);
+    if (!applyChartEditPlan(
+            planInsertNote(*arrangement->chart, session().song().tempo_map, note),
+            std::move(group)))
+    {
+        return;
+    }
+    // The placed note takes the focus — the fret about to be typed belongs to it, not to a
+    // stack sibling that happened to survive as the previous focus.
+    m_chart_selection.focus(placed);
+    updateView();
 }
 
 // Arms the gesture and applies glyph-press selection per the interaction grammar: plain press
@@ -1746,10 +1755,16 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
     {
         m_chart_selection.toggle(*key);
     }
-    else if (!m_chart_selection.contains(*key))
+    else
     {
-        m_chart_selection.replaceWith(
-            chartOnsetGroupKeys(session().currentArrangement()->chart->notes, key->position));
+        if (!m_chart_selection.contains(*key))
+        {
+            m_chart_selection.replaceWith(
+                chartOnsetGroupKeys(session().currentArrangement()->chart->notes, key->position));
+        }
+        // The pressed member becomes the focus — the note typed digits target — whether the
+        // press replaced the selection or landed on an already-selected note.
+        m_chart_selection.focus(*key);
     }
     // The selection highlight is the whole feedback for a glyph press (user feedback
     // 2026-07-17: no extra cursor furniture on selection).
@@ -1827,6 +1842,7 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
             {
                 m_chart_selection.replaceWith(chartOnsetGroupKeys(
                     session().currentArrangement()->chart->notes, key->position));
+                m_chart_selection.focus(*key);
             }
         }
         updateView();
@@ -1986,14 +2002,16 @@ void EditorController::Impl::onChartSelectionDeleteRequested()
         applyChartEditPlan(planDeleteNotes(*arrangement->chart, m_chart_selection.notes())));
 }
 
-// Retypes the selection's fret from typed digits: keystrokes inside the entry window combine
-// into multi-digit frets, clamped to the fret cap; each keystroke applies immediately so the
-// notation always shows the value being typed.
+// Retypes the FOCUSED note's fret from typed digits (fret is per-string data, so digits target
+// the member the last gesture touched, never the whole chord — settled 2026-07-17): keystrokes
+// inside the entry window combine into multi-digit frets, clamped to the fret cap; each
+// keystroke applies immediately so the notation always shows the value being typed.
 void EditorController::Impl::onChartFretDigitTyped(int digit)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
+    const std::optional<ChartNoteKey> focus = m_chart_selection.focused();
     if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
-        m_chart_selection.empty() || digit < 0 || digit > 9)
+        !focus.has_value() || digit < 0 || digit > 9)
     {
         return;
     }
@@ -2015,7 +2033,7 @@ void EditorController::Impl::onChartFretDigitTyped(int digit)
         const int combined = entry.value * 10 + digit;
         const bool widenable = now_ms - entry.last_keystroke_ms <= entry_window_ms &&
                                combined <= common::core::g_max_fret &&
-                               entry.keys == m_chart_selection.notes() &&
+                               entry.keys == std::vector<ChartNoteKey>{*focus} &&
                                m_undo_history.snapshot().position == entry.history_position;
         if (widenable)
         {
@@ -2081,19 +2099,18 @@ void EditorController::Impl::onChartFretDigitTyped(int digit)
         }
     }
 
-    // Fresh entry: capture the pre-entry values first so a later widen still restores them,
-    // apply the digit as its own undo entry, and open the window only while a second digit
-    // could still fit under the fret cap.
+    // Fresh entry: capture the focused note's pre-entry value first so a later widen still
+    // restores it, apply the digit as its own undo entry, and open the window only while a
+    // second digit could still fit under the fret cap.
     std::vector<common::core::ChartNote> base_notes;
     for (const common::core::ChartNote& note : arrangement->chart->notes)
     {
-        if (m_chart_selection.contains(
-                ChartNoteKey{.position = note.position, .string = note.string}))
+        if (ChartNoteKey{.position = note.position, .string = note.string} == *focus)
         {
             base_notes.push_back(note);
         }
     }
-    const std::vector<ChartNoteKey> keys = m_chart_selection.notes();
+    const std::vector<ChartNoteKey> keys{*focus};
     const bool pushed = applyChartEditPlan(planSetFret(*arrangement->chart, keys, digit));
     m_chart_last_fret = digit;
     if (digit * 10 <= common::core::g_max_fret)
@@ -2861,6 +2878,21 @@ EditorViewState EditorController::Impl::deriveViewState() const
         {
             state.chart_edit.selected_notes =
                 selectedNoteIndices(arrangement->chart->notes, m_chart_selection);
+            if (const std::optional<ChartNoteKey> focus = m_chart_selection.focused();
+                focus.has_value())
+            {
+                const std::vector<common::core::ChartNote>& notes = arrangement->chart->notes;
+                const auto found = std::ranges::lower_bound(
+                    notes, *focus, {}, [](const common::core::ChartNote& note) {
+                        return ChartNoteKey{.position = note.position, .string = note.string};
+                    });
+                if (found != notes.end() &&
+                    ChartNoteKey{.position = found->position, .string = found->string} == *focus)
+                {
+                    state.chart_edit.focused_note =
+                        static_cast<std::size_t>(std::distance(notes.begin(), found));
+                }
+            }
             if (m_chart_gesture.has_value() && m_chart_gesture->marquee &&
                 m_chart_gesture->geometry.bounds_width > 0.0f &&
                 m_chart_gesture->geometry.bounds_height > 0.0f)
