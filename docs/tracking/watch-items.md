@@ -120,6 +120,19 @@ display padding into `note.string` at projection time while the tab core pads at
 or a bug traces to the padding-semantics divergence. **Remedy**: design one note-view semantic
 (probably draw-time padding), migrate both projections behind their tests, and retire this item.
 
+## Chart editing (tab lane)
+
+### Sustain tail-drag resize is deliberately not implemented — trigger: charters reach for the tail
+
+Decided with the user 2026-07-16 (interaction-model amendment record): resizing a note's sustain
+is covered precisely by Alt+wheel and Shift+Alt+Left/Right, and a draggable tail end is a small
+target (the tail strip is ~13–19px tall, its end zone a few pixels) that would compete for grab
+space with drag-move on the same note and get fiddly at low zoom. Direct manipulation loses to
+the wheel here — probably. **Trigger**: watching real charting shows users grabbing sustain
+tails expecting a resize and failing (or asking for it). **Remedy**: implement tail-end drag as
+the standard edge-resize verb with a generous grab zone (hit-test via the shared layout
+manifest's tail rectangle), live preview, Esc cancel, single undo entry.
+
 ## Editor 3D preview
 
 ### JUCE peer-recreation paths are unreachable today — trigger: any path recreates the peer
