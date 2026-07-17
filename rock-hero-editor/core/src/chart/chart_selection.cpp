@@ -11,11 +11,13 @@ namespace rock_hero::editor::core
 void ChartSelection::clear() noexcept
 {
     m_notes.clear();
+    m_focus.reset();
 }
 
 void ChartSelection::replaceWith(const ChartNoteKey& key)
 {
     m_notes.assign(1, key);
+    m_focus = key;
 }
 
 void ChartSelection::replaceWith(std::vector<ChartNoteKey> keys)
@@ -24,6 +26,12 @@ void ChartSelection::replaceWith(std::vector<ChartNoteKey> keys)
     const auto duplicates = std::ranges::unique(keys);
     keys.erase(duplicates.begin(), duplicates.end());
     m_notes = std::move(keys);
+    // A batch replacement carries no single touched note; a surviving focus stays, an evicted
+    // one falls back to the last key so digits always have a target while anything is selected.
+    if (!m_focus.has_value() || !contains(*m_focus))
+    {
+        m_focus = m_notes.empty() ? std::nullopt : std::optional{m_notes.back()};
+    }
 }
 
 void ChartSelection::add(const ChartNoteKey& key)
@@ -33,6 +41,7 @@ void ChartSelection::add(const ChartNoteKey& key)
     {
         m_notes.insert(insert_at, key);
     }
+    m_focus = key;
 }
 
 void ChartSelection::toggle(const ChartNoteKey& key)
@@ -41,13 +50,19 @@ void ChartSelection::toggle(const ChartNoteKey& key)
     if (found != m_notes.end() && *found == key)
     {
         m_notes.erase(found);
+        if (m_focus == key)
+        {
+            m_focus = m_notes.empty() ? std::nullopt : std::optional{m_notes.back()};
+        }
         return;
     }
     m_notes.insert(found, key);
+    m_focus = key;
 }
 
 void ChartSelection::applyBox(const std::vector<ChartNoteKey>& keys, bool extend)
 {
+    const std::optional<ChartNoteKey> previous_focus = m_focus;
     if (!extend)
     {
         m_notes.clear();
@@ -55,6 +70,16 @@ void ChartSelection::applyBox(const std::vector<ChartNoteKey>& keys, bool extend
     for (const ChartNoteKey& key : keys)
     {
         add(key);
+    }
+    // The box has no single touched note: a surviving previous focus wins (so retypes and
+    // selection-follow keep the focus in place), else the last boxed key stands in.
+    if (previous_focus.has_value() && contains(*previous_focus))
+    {
+        m_focus = previous_focus;
+    }
+    else if (m_focus.has_value() && !contains(*m_focus))
+    {
+        m_focus = m_notes.empty() ? std::nullopt : std::optional{m_notes.back()};
     }
 }
 
@@ -71,6 +96,19 @@ const std::vector<ChartNoteKey>& ChartSelection::notes() const noexcept
 bool ChartSelection::empty() const noexcept
 {
     return m_notes.empty();
+}
+
+std::optional<ChartNoteKey> ChartSelection::focused() const noexcept
+{
+    return m_focus;
+}
+
+void ChartSelection::focus(const ChartNoteKey& key) noexcept
+{
+    if (contains(key))
+    {
+        m_focus = key;
+    }
 }
 
 // Both sequences share the (position, string) order, so one linear merge resolves every key.

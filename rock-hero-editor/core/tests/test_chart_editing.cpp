@@ -165,6 +165,50 @@ TEST_CASE("EditorController toggles and extends the chart selection", "[core][ch
     CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1}));
 }
 
+// Fret is per-string data: typed digits target the focused member (the note the last gesture
+// touched), never the whole chord, while group verbs keep acting on the whole selection.
+TEST_CASE("EditorController targets fret typing at the focused member", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    // Clicking the string-2 head selects the whole chord but focuses the clicked member.
+    click(controller, 40.0f, 180.0f);
+    REQUIRE(view.last_state.has_value());
+    CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1}));
+    CHECK(view.last_state->chart_edit.focused_note == std::optional<std::size_t>{1});
+
+    // Digits retype only the focused member; the sibling keeps its fret and the selection
+    // (and focus) survive the edit under unchanged keys.
+    controller.onChartFretDigitTyped(9);
+    const auto* chart = &*controller.session().currentArrangement()->chart;
+    CHECK(chart->notes[1].fret == 9);
+    CHECK(chart->notes[0].fret == 3);
+    CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1}));
+    CHECK(view.last_state->chart_edit.focused_note == std::optional<std::size_t>{1});
+
+    // Evicting the focused member hands the focus to a remaining note so digits keep a target.
+    click(controller, 40.0f, 180.0f, ChartPointerModifiers{.ctrl = true});
+    CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{0});
+    CHECK(view.last_state->chart_edit.focused_note == std::optional<std::size_t>{0});
+    controller.onChartFretDigitTyped(5);
+    chart = &*controller.session().currentArrangement()->chart;
+    CHECK(chart->notes[0].fret == 5);
+    CHECK(chart->notes[1].fret == 9);
+}
+
 // An empty-lane click seeks the snapped position and clears the selection.
 TEST_CASE("EditorController seeks and deselects on empty click", "[core][chart]")
 {
@@ -326,6 +370,8 @@ TEST_CASE("EditorController inserts a chart note via the Alt quasimode", "[core]
     REQUIRE(chart->notes.size() == 5);
     CHECK(chart->notes[2].string == 3);
     CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1, 2}));
+    // The placed note takes the focus: the fret about to be typed belongs to it.
+    CHECK(view.last_state->chart_edit.focused_note == std::optional<std::size_t>{2});
 }
 
 // Inserting inside an earlier sustain truncates it in the same undo entry (40-Q2-B).

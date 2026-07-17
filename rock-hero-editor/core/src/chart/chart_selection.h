@@ -7,6 +7,7 @@
 
 #include <compare>
 #include <cstddef>
+#include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <vector>
 
@@ -47,10 +48,16 @@ struct ChartNoteKey
 };
 
 /*!
-\brief Selected chart notes, kept sorted in chart note order.
+\brief Selected chart notes, kept sorted in chart note order, plus one focused member.
 
 The container enforces the sorted-unique invariant on every mutation so key-to-index resolution
 against the chart's (position, string)-sorted note stream stays a linear merge.
+
+The focus is the specific member the last gesture touched — the note typed fret digits target
+while group verbs (delete, move, sustain) act on the whole selection (settled 2026-07-17,
+docs/plans/in-progress/chart-span-and-selection-model.md). Every mutation keeps the invariant
+that the focus, when set, is a selected key: gestures that add set it, and removals that
+evict the focused key clear it.
 */
 class ChartSelection
 {
@@ -108,9 +115,24 @@ public:
     */
     [[nodiscard]] bool empty() const noexcept;
 
+    /*!
+    \brief The focused member — the note typed fret digits target.
+    \return Focused key, or nothing when the selection is empty or the focus was evicted.
+    */
+    [[nodiscard]] std::optional<ChartNoteKey> focused() const noexcept;
+
+    /*!
+    \brief Sets the focused member; ignored when the key is not selected.
+    \param key Selected note becoming the focus.
+    */
+    void focus(const ChartNoteKey& key) noexcept;
+
 private:
     // Sorted unique by (position, string); every mutation preserves the invariant.
     std::vector<ChartNoteKey> m_notes{};
+
+    // Focused member; always one of m_notes when set.
+    std::optional<ChartNoteKey> m_focus{};
 };
 
 /*!
