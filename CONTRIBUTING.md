@@ -58,20 +58,22 @@ must pass before a pull request can land. Install them before you open a PR.
 
 ## Quick start
 
-With the prerequisites installed, from a fresh clone:
+With the [prerequisites](#prerequisites) installed:
 
 ```sh
-git submodule sync --recursive
-git submodule update --init --recursive
+git clone --recurse-submodules https://github.com/tnt-coders/RockHero.git
+cd RockHero
 
 cmake --preset debug            # configure (Conan resolves dependencies automatically)
 cmake --build --preset debug    # build
-ctest --preset debug            # run the unit-test suites
-pre-commit run --all-files      # formatting (clang-format + cmake-format) and conventions
 ```
 
-`release` and `relwithdebinfo` presets exist alongside `debug`. Generated docs build with
-`cmake --build build/debug --target docs` (requires Doxygen).
+That gets you a working debug build. (Already cloned without `--recurse-submodules`? Run
+`git submodule update --init --recursive` first to fetch Tracktion Engine and JUCE.)
+
+`release` and `relwithdebinfo` presets exist alongside `debug`, and docs build with
+`cmake --build build/debug --target docs` (requires Doxygen). Running the tests and the formatting
+hooks comes later, under [Before you push](#before-you-push).
 
 ## Before you push
 
