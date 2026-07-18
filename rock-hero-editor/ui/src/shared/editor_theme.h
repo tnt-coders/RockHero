@@ -73,6 +73,14 @@ struct EditorTheme
     /*! \brief Playback cursor line in the timeline and the ruler. */
     juce::Colour playback_cursor{0xffffffff};
 
+    /*!
+    \brief Paused play-from-here column drawn behind the track content (the marker model).
+
+    A cool muted step down from the playback white so paused-vs-playing reads instantly and
+    the behind-content column cannot be mistaken for a grid line.
+    */
+    juce::Colour paused_cursor{0xff8fa0a8};
+
     /*! \brief Interaction accent: snap guides, drop indicators, selection borders. */
     juce::Colour accent{0xff87cefa};
 
