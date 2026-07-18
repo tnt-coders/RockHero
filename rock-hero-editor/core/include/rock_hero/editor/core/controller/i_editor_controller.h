@@ -189,9 +189,12 @@ public:
     /*!
     \brief Handles a pointer press inside the tablature lane.
 
-    The controller resolves the hit against the current tab projection: a note-glyph hit starts
-    a selection gesture (plain replaces, Ctrl toggles membership, Shift extends), an empty-lane
-    press arms the click-vs-marquee disambiguation. Nothing mutates the chart.
+    While paused the controller resolves the hit against the current tab projection: a plain
+    note-glyph press selects the note and arms the caret there, Ctrl toggles membership (a
+    multi-select gesture — the caret dissolves in place), a double press selects the whole
+    onset group (likewise dissolving), and an empty-lane press arms the click-vs-marquee
+    disambiguation. While playing every lane press is a plain seek (the marker model — there
+    is no caret to place). Nothing mutates the chart.
 
     \param event Pointer event in lane-local pixels with the painted lane geometry.
     */
@@ -210,8 +213,10 @@ public:
     /*!
     \brief Handles the tablature-lane pointer release that ends the gesture.
 
-    An empty-lane click (no drag) seeks the timeline to the snapped click position, clears the
-    selection; a marquee release selects the boxed notes.
+    An empty-lane click (no drag) arms the caret at the snapped grid slot — never a seek; a
+    plain click-release on a selected note collapses the selection to it and arms there; a
+    marquee release selects the boxed notes and dissolves the caret when the box caught any
+    (an empty box is a complete no-op).
 
     \param event Pointer event in lane-local pixels with the painted lane geometry.
     */

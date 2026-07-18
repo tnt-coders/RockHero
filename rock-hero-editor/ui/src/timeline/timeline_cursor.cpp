@@ -99,15 +99,8 @@ std::optional<common::core::GridPosition> musicalGridPositionForX(
     }
 
     // Ctrl-free placements quantize the fractional beat to the shared 1/960 fine grid.
-    return fineGridPositionForBeat(tempo_map, tempo_map.beatPositionAtSeconds(clicked->seconds));
-}
-
-// Thin delegate: the fine-grid quantization moved to editor-core (tempo_grid_geometry) so the
-// controller's headless cursor stepping and every UI placement gesture share one authority.
-common::core::GridPosition fineGridPositionForBeat(
-    const common::core::TempoMap& tempo_map, double global_beat)
-{
-    return core::fineGridPositionForBeat(tempo_map, global_beat);
+    return core::fineGridPositionForBeat(
+        tempo_map, tempo_map.beatPositionAtSeconds(clicked->seconds));
 }
 
 } // namespace rock_hero::editor::ui

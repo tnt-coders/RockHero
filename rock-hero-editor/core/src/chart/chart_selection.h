@@ -71,7 +71,11 @@ public:
     void replaceWith(std::vector<ChartNoteKey> keys);
 
     /*!
-    \brief Adds one note to the selection (Shift-extend); already-selected notes stay selected.
+    \brief Adds one note to the selection; already-selected notes stay selected.
+
+    Production selection growth goes through \ref applyBox (the marquee) and \ref toggle
+    (Ctrl+click); this remains as their shared primitive and as a test convenience.
+
     \param key Note to add.
     */
     void add(const ChartNoteKey& key);
@@ -128,11 +132,13 @@ a chart note resolve to nothing and are skipped.
     const std::vector<common::core::ChartNote>& notes, const ChartSelection& selection);
 
 /*!
-\brief Collects the keys of every note sharing one onset — the chord unit a plain click selects.
+\brief Collects the keys of every note sharing one onset — the chord unit of the containment
+hierarchy.
 
-Chords are one cohesive unit in the selection grammar (settled 2026-07-17,
-docs/plans/in-progress/chart-span-and-selection-model.md): plain-clicking any member selects
-the whole onset group; Ctrl+click and the marquee are the individual-note tools.
+Selection granularity follows the containment hierarchy (§7 revision, 2026-07-17,
+docs/plans/in-progress/chart-span-and-selection-model.md): a single click selects the
+individual note, a DOUBLE click selects the whole onset group this collects; the caret's
+selection re-derivation also probes group membership through it.
 
 \param notes Chart note stream sorted by (position, string).
 \param position Onset whose group is collected.

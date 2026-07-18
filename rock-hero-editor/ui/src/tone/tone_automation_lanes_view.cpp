@@ -1214,8 +1214,8 @@ bool ToneAutomationLanesView::nudgeSelectedPoint(NudgeDirection direction, bool 
         common::core::GridPosition new_position;
         if (fine)
         {
-            new_position =
-                fineGridPositionForBeat(m_tempo_map, global_beat + (later ? 1.0 : -1.0) / 960.0);
+            new_position = core::fineGridPositionForBeat(
+                m_tempo_map, global_beat + (later ? 1.0 : -1.0) / 960.0);
         }
         else
         {

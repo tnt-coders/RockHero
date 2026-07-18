@@ -133,8 +133,10 @@ std::optional<ChartNotesEditPlan> planInsertNote(
     common::core::ChartNote note)
 {
     std::vector<common::core::ChartNote> candidate = chart.notes;
-    // Placing on an occupied slot replaces the note there (the insert quasimode works on
-    // occupied space, exactly like a tone change splitting a region).
+    // Placing on an occupied slot replaces the note there. Still reachable under the marker
+    // model: undo/redo never move the marker, so undoing a delete can put a note back under
+    // an armed caret with an empty selection — the next typed digit inserts onto that
+    // occupied slot and must replace, not collide.
     std::erase_if(candidate, [&note](const common::core::ChartNote& existing) {
         return keyOf(existing) == keyOf(note);
     });

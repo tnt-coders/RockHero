@@ -415,9 +415,9 @@ struct ChartEditViewState
 
     Rendered as a white rounded square at the caret's slot — on an empty slot it marks where a
     typed digit inserts; on a note it rides the note's selection highlight so the caret stays
-    visible through a single selection. Its presence is also the armed signal that hides the
-    paused playhead (the caret is the position display; the passive cursor line returns when
-    this is absent). Absent while the marker is passive and absent without a chart.
+    visible through a single selection. Its presence also positions the ruler's always-shown
+    play-from-here mark at the caret and re-centers wheel zoom there; while passive (absent)
+    both fall back to the transport position. Absent without a chart.
     */
     std::optional<ChartCaretViewState> caret{};
 
