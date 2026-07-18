@@ -151,7 +151,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onChartCursorStepRequested(ChartStepDirection direction, bool fine);
     void onChartSelectionMoveRequested(ChartStepDirection direction, bool fine);
     void onChartSelectionDeleteRequested();
-    void onChartFretDigitTyped(int digit, bool set_exact);
+    void onChartFretDigitTyped(int digit);
+    void onChartFretShiftRequested(int direction);
     void onChartSustainAdjustRequested(int direction, bool fine);
     void onChartGestureCancelled();
     [[nodiscard]] const common::core::TabViewState* displayedTabProjection() const;
@@ -648,8 +649,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         std::uint32_t last_keystroke_ms{};
         std::vector<common::core::ChartNote> base_notes{};
         std::vector<ChartNoteKey> keys{};
-        // True for the Ctrl set-exact mode; a digit whose mode differs ends the window.
-        bool set_exact{false};
         bool pushed{false};
         std::size_t history_position{};
     };

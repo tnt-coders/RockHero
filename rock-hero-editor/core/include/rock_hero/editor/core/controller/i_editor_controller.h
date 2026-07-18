@@ -249,18 +249,26 @@ public:
     /*!
     \brief Handles a typed fret digit for the selected chart notes.
 
-    Plain typing transposes the selection so its lowest fret lands on the typed number —
-    shape-preserving, so chords reposition, runs transpose, and a single note retypes exactly.
-    Set-exact (Ctrl) assigns the value to every selected note instead. Digits within the
-    multi-digit entry window combine (typing 1 then 2 targets fret 12) while their mode
-    matches; a digit outside the window or in the other mode starts a fresh value. Each
-    keystroke applies immediately so the notation always shows the current value; a member
-    pushed past the fret cap refuses the keystroke, never clamps.
+    Typing sets every selected note to the typed value — what you type is what appears
+    (settled 2026-07-17; shape-preserving movement is the separate fret-shift verb). Digits
+    within the multi-digit entry window combine (typing 1 then 2 retypes to fret 12, capped
+    at the fret maximum); a digit outside the window starts a fresh value. Each keystroke
+    applies immediately so the notation always shows the current value.
 
     \param digit Typed digit in [0, 9].
-    \param set_exact True to set every selected note to the exact value (Ctrl held).
     */
-    virtual void onChartFretDigitTyped(int digit, bool set_exact) = 0;
+    virtual void onChartFretDigitTyped(int digit) = 0;
+
+    /*!
+    \brief Handles a request to shift every selected note's fret by one (Alt+Shift+wheel).
+
+    Shape-preserving by construction: all members move together, so chords and runs keep
+    their intervals. A shift that would push the lowest fret below zero or the highest past
+    the fret cap is refused, never clamped.
+
+    \param direction +1 to shift up, -1 to shift down.
+    */
+    virtual void onChartFretShiftRequested(int direction) = 0;
 
     /*!
     \brief Handles a request to grow or shrink the selected notes' sustains by one grid step.

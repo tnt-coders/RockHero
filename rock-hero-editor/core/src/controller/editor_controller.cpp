@@ -901,9 +901,14 @@ void EditorController::onChartSelectionDeleteRequested()
     m_impl->onChartSelectionDeleteRequested();
 }
 
-void EditorController::onChartFretDigitTyped(int digit, bool set_exact)
+void EditorController::onChartFretDigitTyped(int digit)
 {
-    m_impl->onChartFretDigitTyped(digit, set_exact);
+    m_impl->onChartFretDigitTyped(digit);
+}
+
+void EditorController::onChartFretShiftRequested(int direction)
+{
+    m_impl->onChartFretShiftRequested(direction);
 }
 
 void EditorController::onChartSustainAdjustRequested(int direction, bool fine)
@@ -1986,14 +1991,11 @@ void EditorController::Impl::onChartSelectionDeleteRequested()
         applyChartEditPlan(planDeleteNotes(*arrangement->chart, m_chart_selection.notes())));
 }
 
-// Fret typing has two modes (settled 2026-07-17): plain digits TRANSPOSE the selection so its
-// lowest fret lands on the typed number — shape-preserving, so chords reposition, runs
-// transpose, and a single note retypes exactly — and Ctrl digits SET every selected note to
-// the exact value. Keystrokes inside the entry window combine into multi-digit values (a digit
-// whose mode differs from the in-flight entry starts fresh); each keystroke applies
-// immediately so the notation always shows the value being typed; a member pushed past the
-// fret cap refuses the keystroke, never clamps.
-void EditorController::Impl::onChartFretDigitTyped(int digit, bool set_exact)
+// Typed digits SET every selected note to the typed value — what you type is what appears
+// (settled 2026-07-17; shape-preserving movement is the separate Alt+Shift+wheel fret-shift
+// verb). Keystrokes inside the entry window combine into multi-digit values; each keystroke
+// applies immediately so the notation always shows the value being typed.
+void EditorController::Impl::onChartFretDigitTyped(int digit)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
@@ -2019,16 +2021,13 @@ void EditorController::Impl::onChartFretDigitTyped(int digit, bool set_exact)
         const int combined = entry.value * 10 + digit;
         const bool widenable = now_ms - entry.last_keystroke_ms <= entry_window_ms &&
                                combined <= common::core::g_max_fret &&
-                               entry.set_exact == set_exact &&
                                entry.keys == m_chart_selection.notes() &&
                                m_undo_history.snapshot().position == entry.history_position;
         if (widenable)
         {
-            // The widened whole-entry plan runs from the pre-entry originals; a refusal (the
-            // combined value would push a member past the cap) consumes the keystroke and
-            // leaves the chart and the window state untouched.
+            // The widened whole-entry plan runs from the pre-entry originals.
             const std::optional<ChartNotesEditPlan> widened =
-                planRetypeFrets(entry.base_notes, combined, set_exact);
+                planRetypeFrets(entry.base_notes, combined, /*set_exact=*/true);
             if (!widened.has_value())
             {
                 return;
@@ -2052,7 +2051,7 @@ void EditorController::Impl::onChartFretDigitTyped(int digit, bool set_exact)
                 }
             }
             if (const std::optional<ChartNotesEditPlan> incremental =
-                    planRetypeFrets(current_notes, combined, set_exact);
+                    planRetypeFrets(current_notes, combined, /*set_exact=*/true);
                 incremental.has_value() && !incremental->removed.empty())
             {
                 if (!applyChartNotesChange(*chart, incremental->removed, incremental->inserted)
@@ -2088,7 +2087,6 @@ void EditorController::Impl::onChartFretDigitTyped(int digit, bool set_exact)
                 .last_keystroke_ms = now_ms,
                 .base_notes = entry.base_notes,
                 .keys = entry.keys,
-                .set_exact = set_exact,
                 .pushed = now_pushed,
                 .history_position = m_undo_history.snapshot().position,
             };
@@ -2111,12 +2109,9 @@ void EditorController::Impl::onChartFretDigitTyped(int digit, bool set_exact)
         }
     }
     const std::vector<ChartNoteKey> keys = m_chart_selection.notes();
-    std::optional<ChartNotesEditPlan> plan = planRetypeFrets(base_notes, digit, set_exact);
+    std::optional<ChartNotesEditPlan> plan = planRetypeFrets(base_notes, digit, /*set_exact=*/true);
     if (!plan.has_value())
     {
-        // Refused outright (a member past the cap even at this single digit): no edit and no
-        // window — a wider combined value could only push members further.
-        m_chart_fret_entry.reset();
         return;
     }
     const bool pushed = !plan->removed.empty() && applyChartEditPlan(std::move(plan));
@@ -2128,7 +2123,6 @@ void EditorController::Impl::onChartFretDigitTyped(int digit, bool set_exact)
             .last_keystroke_ms = now_ms,
             .base_notes = std::move(base_notes),
             .keys = keys,
-            .set_exact = set_exact,
             .pushed = pushed,
             .history_position = m_undo_history.snapshot().position,
         };
@@ -2137,6 +2131,41 @@ void EditorController::Impl::onChartFretDigitTyped(int digit, bool set_exact)
     {
         m_chart_fret_entry.reset();
     }
+}
+
+// Shifts every selected note's fret by one (Alt+Shift+wheel), shape-preserving by
+// construction; a shift pushing the lowest fret below zero or the highest past the cap is
+// refused by the planner, never clamped.
+void EditorController::Impl::onChartFretShiftRequested(int direction)
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
+        m_chart_selection.empty() || direction == 0)
+    {
+        return;
+    }
+
+    std::vector<common::core::ChartNote> selected;
+    std::optional<int> lowest;
+    for (const common::core::ChartNote& note : arrangement->chart->notes)
+    {
+        if (m_chart_selection.contains(
+                ChartNoteKey{.position = note.position, .string = note.string}))
+        {
+            selected.push_back(note);
+            if (!lowest.has_value() || note.fret < *lowest)
+            {
+                lowest = note.fret;
+            }
+        }
+    }
+    if (!lowest.has_value())
+    {
+        return;
+    }
+
+    static_cast<void>(applyChartEditPlan(
+        planRetypeFrets(selected, *lowest + (direction > 0 ? 1 : -1), /*set_exact=*/false)));
 }
 
 // Grows or shrinks the selection's sustains by one grid step (fine 1/960 with precision) as one

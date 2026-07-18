@@ -439,7 +439,10 @@ public:
     void onChartSelectionDeleteRequested() override;
 
     /*! \copydoc IEditorController::onChartFretDigitTyped */
-    void onChartFretDigitTyped(int digit, bool set_exact) override;
+    void onChartFretDigitTyped(int digit) override;
+
+    /*! \copydoc IEditorController::onChartFretShiftRequested */
+    void onChartFretShiftRequested(int direction) override;
 
     /*! \copydoc IEditorController::onChartSustainAdjustRequested */
     void onChartSustainAdjustRequested(int direction, bool fine) override;

@@ -379,6 +379,8 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     m_tab_view.setSustainWheelCallback([this](int direction, bool fine) {
         m_controller.onChartSustainAdjustRequested(direction, fine);
     });
+    m_tab_view.setFretShiftWheelCallback(
+        [this](int direction) { m_controller.onChartFretShiftRequested(direction); });
     m_tab_view.setPointerEventCallback(
         [this](core::ChartPointerPhase phase, const core::ChartPointerEvent& event) {
             switch (phase)
@@ -1002,19 +1004,20 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
             return false;
         }
 
-        // Fret digits: the top number row and the numpad both type frets. Plain digits
-        // transpose the selection (its lowest fret lands on the typed number); Ctrl digits set
-        // every selected note to the exact value — Ctrl's precision meaning. Alt stays
-        // excluded: digits while Alt is held belong to the ghost insert quasimode.
+        // Fret digits: the top number row and the numpad both type frets, setting every
+        // selected note to the typed value (what you type is what appears; shape-preserving
+        // movement is Alt+Shift+wheel). Ctrl and Alt stay excluded: Ctrl+digit is unbound and
+        // digits while Alt is held belong to the ghost insert quasimode.
         const int key_code = key.getKeyCode();
         const int fret_digit =
             key_code >= '0' && key_code <= '9' ? key_code - '0'
             : key_code >= juce::KeyPress::numberPad0 && key_code <= juce::KeyPress::numberPad9
                 ? key_code - juce::KeyPress::numberPad0
                 : -1;
-        if (chart_shown && !m_state.chart_edit.selected_notes.empty() && !alt && fret_digit >= 0)
+        if (chart_shown && !m_state.chart_edit.selected_notes.empty() && !fine && !alt &&
+            fret_digit >= 0)
         {
-            m_controller.onChartFretDigitTyped(fret_digit, fine);
+            m_controller.onChartFretDigitTyped(fret_digit);
             return true;
         }
         if (chart_shown && key.isKeyCode(juce::KeyPress::escapeKey) &&
