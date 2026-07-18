@@ -57,8 +57,10 @@ private:
 
         // Stores the paused play-from-here column drawn BEHIND the track content (the marker
         // model: visible in every gap but never over a note), or absence during playback and
-        // without a chart; repaints only the affected strips.
-        void setPausedCursorX(std::optional<float> x);
+        // without a chart; repaints only the affected strips. The optional mask is the armed
+        // caret square's vertical span, cut out of the column so ONLY the cursor hides behind
+        // the caret while the grid and strings keep showing through the square.
+        void setPausedCursorX(std::optional<float> x, std::optional<juce::Range<float>> mask_y);
 
         // Draws the timeline canvas, tempo grid, paused cursor column, waveform row
         // background, and empty-project text.
@@ -84,6 +86,10 @@ private:
         // Paused play-from-here column in content coordinates; absent during playback (the
         // overlay's moving line takes over in front) and without a chart.
         std::optional<float> m_paused_cursor_x{};
+
+        // Vertical span cut out of the column: the armed caret square's outer extent, so the
+        // cursor never shows through the caret.
+        std::optional<juce::Range<float>> m_paused_cursor_mask_y{};
     };
 
     // Viewport subclass that lets the pinned ruler track user-driven scrollbar movement.

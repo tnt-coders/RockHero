@@ -307,9 +307,9 @@ owning an exact grid slot × string. Handoffs:
   every gap, never covering a fret number; muted `paused_cursor` theme color, 1px, same
   rounding as the shared cursor draw so it lands in the ruler mark's exact pixel); while
   **playing**, the overlay's moving line draws in front as before. While a caret is armed
-  the column rides the caret's slot, and the square's interior fills opaque on an empty
-  slot so the cursor never shows through the caret itself (a caret on a note needs no
-  mask — the head covers the column). The **ruler's aligned flag mark is ALWAYS shown**
+  the column rides the caret's slot, with the square's vertical span cut out of the column
+  itself — ONLY the cursor hides behind the caret, so the grid dots and string lines the
+  square overlaps keep showing through it. The **ruler's aligned flag mark is ALWAYS shown**
   (third revision): the moving playhead while playing, else the marker — the armed caret's
   slot (Space seeks there first) or the passive transport rest; the body line (tip-aligned
   flag centered on its exact pixel) takes the paused color while paused so line and column

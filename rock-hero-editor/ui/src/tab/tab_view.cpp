@@ -14,6 +14,19 @@
 namespace rock_hero::editor::ui
 {
 
+namespace
+{
+
+// One stroke width for every edge-straddling overlay outline (selection rings and the caret
+// square), so the editing furniture reads as one family at any head size. The caret-mask query
+// shares it so the mask spans exactly the square's outer stroke edge.
+[[nodiscard]] float overlayRingStroke(float head_size) noexcept
+{
+    return std::max(1.0f, head_size / 15.0f) * 1.5f;
+}
+
+} // namespace
+
 // The notation rasterizer lives in the shared paint core (rock-hero-common/ui tab/), one
 // authority for the editor lane and the game tab strips; these free functions stay on the
 // editor surface as thin delegates so editor widgets and tests keep their existing seam.
@@ -193,12 +206,6 @@ void TabView::paint(juce::Graphics& g)
     // they are editor-shell furniture, not part of what the game's tab strips render.
     const juce::Colour accent = editorTheme().accent;
 
-    // One stroke width for every edge-straddling overlay outline (selection rings and the
-    // caret square), so the editing furniture reads as one family at any head size.
-    const auto ring_stroke = [](float head_size) noexcept {
-        return std::max(1.0f, head_size / 15.0f) * 1.5f;
-    };
-
     // Selection highlight: an accent ring straddling the head's outer edge — the stroke is
     // centered on the edge, at one and a half border-widths thick, so it sits between the
     // head's own border ring and the accent glow while leaving the glow annulus readable on
@@ -213,7 +220,7 @@ void TabView::paint(juce::Graphics& g)
         }
         const common::core::TabNoteView& note = m_tab->notes[index];
         const common::ui::TabNoteLayout layout = common::ui::tabNoteLayout(metrics, note);
-        const float stroke = ring_stroke(layout.head_size);
+        const float stroke = overlayRingStroke(layout.head_size);
         const float extent = layout.head_size;
         g.setColour(accent);
         if (note.harmonic != common::core::NoteHarmonic::None)
@@ -260,30 +267,59 @@ void TabView::paint(juce::Graphics& g)
     // the marker is armed — on an empty slot it marks where a typed digit inserts, on a note
     // it rides the selection highlight so the caret stays visible through a single selection.
     // While the marker is passive the controller publishes nothing here and the ruler's
-    // play-from-here mark is the position display.
-    if (m_edit.caret.has_value() && m_edit.caret->string >= 1 &&
-        m_edit.caret->string <= m_tab->string_count && m_visible_timeline.duration().seconds > 0.0)
+    // play-from-here mark is the position display. The paused play-from-here column behind
+    // the content never shows inside the square: the track viewport cuts caretMaskYRange()
+    // out of it.
+    if (const std::optional<juce::Rectangle<float>> square = caretSquare(metrics))
     {
-        const float x = static_cast<float>(
-            (m_edit.caret->seconds - m_visible_timeline.start.seconds) /
-            m_visible_timeline.duration().seconds * static_cast<double>(getWidth()));
-        const float size = metrics.note_height + 1.0f;
-        const float center_y = metrics.laneY(m_edit.caret->string);
-        const juce::Rectangle<float> square{x - size / 2.0f, center_y - size / 2.0f, size, size};
-        // On an empty slot the square's interior fills opaque with the lane background,
-        // masking the paused play-from-here column that runs behind the content at this same
-        // x — the cursor must never show through the caret (user ruling 2026-07-18). A caret
-        // on a note needs no mask (the opaque head covers the column), and filling there
-        // would cover the note; caret-on-note implies that note is the selection, so an empty
-        // selection identifies the empty slot.
-        if (m_edit.selected_notes.empty())
-        {
-            g.setColour(editorTheme().waveform_row_background);
-            g.fillRoundedRectangle(square, size / 8.0f);
-        }
+        const float size = square->getWidth();
         g.setColour(juce::Colours::white.withAlpha(0.7f));
-        g.drawRoundedRectangle(square, size / 8.0f, ring_stroke(size));
+        g.drawRoundedRectangle(*square, size / 8.0f, overlayRingStroke(size));
     }
+}
+
+// Resolves the caret square against freshly derived metrics, mirroring paint's derivation so
+// the mask always matches the drawn square.
+std::optional<juce::Range<float>> TabView::caretMaskYRange() const
+{
+    const juce::Rectangle<int> bounds = getLocalBounds();
+    if (m_tab == nullptr || m_tab->string_count <= 0 || bounds.isEmpty() ||
+        m_visible_timeline.duration().seconds <= 0.0)
+    {
+        return std::nullopt;
+    }
+
+    const int displayed_count =
+        tabDisplayedStringCount(m_tab->string_count, m_minimum_displayed_strings);
+    const std::optional<juce::Rectangle<float>> square = caretSquare(
+        common::ui::makeTabLaneMetrics(
+            bounds, m_visible_timeline, displayed_count, m_tab->string_count));
+    if (!square.has_value())
+    {
+        return std::nullopt;
+    }
+
+    // The span reaches the square's outer stroke edge, so no cursor pixel survives inside or
+    // under the outline.
+    const float stroke_reach = overlayRingStroke(square->getWidth()) / 2.0f;
+    return juce::Range<float>{square->getY() - stroke_reach, square->getBottom() + stroke_reach};
+}
+
+// The caret square: centered on the caret's slot, one pixel larger than a note head so it
+// reads around a head it rides.
+std::optional<juce::Rectangle<float>> TabView::caretSquare(
+    const common::ui::TabLaneMetrics& metrics) const
+{
+    if (m_tab == nullptr || !m_edit.caret.has_value() || m_edit.caret->string < 1 ||
+        m_edit.caret->string > m_tab->string_count)
+    {
+        return std::nullopt;
+    }
+
+    const float size = metrics.note_height + 1.0f;
+    const float center_y = metrics.laneY(m_edit.caret->string);
+    const float x = metrics.x(m_edit.caret->seconds);
+    return juce::Rectangle<float>{x - size / 2.0f, center_y - size / 2.0f, size, size};
 }
 
 // Rebuilds the prefix-maximum sustain-end table after the projection changes.
