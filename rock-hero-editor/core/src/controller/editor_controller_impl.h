@@ -18,6 +18,7 @@ definitions, no state added just to make a translation-unit split work.
 #include "deferred_project_action_state.h"
 #include "editor_action.h"
 #include "editor_action_availability.h"
+#include "editor_selection.h"
 #include "editor_undo_history.h"
 #include "input_calibration/input_calibration_projection.h"
 #include "project/project_io.h"
@@ -152,6 +153,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onChartCaretStepRequested(ChartStepDirection direction, bool measure);
     void onChartSelectionMoveRequested(ChartStepDirection direction);
     void onChartSelectionDeleteRequested();
+    void onSelectionDeleteRequested();
     void onChartFretDigitTyped(int digit);
     void onChartFretShiftRequested(int direction);
     void onChartSustainAdjustRequested(int direction);
@@ -169,6 +171,18 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // transport to the caret's musical time so the cursor line appears exactly where the caret
     // was (the editing-gesture handoffs: Ctrl+click, double-click, marquee, Esc).
     void dissolveChartCaretInPlace();
+    // The one editor-wide selection lives behind these accessors so every surface's handlers
+    // share the variant's structural exclusivity (editor_selection.h). Reads never change the
+    // held alternative; chart mutation goes through the emplacing accessor so any chart gesture
+    // replaces another surface's selection by construction.
+    [[nodiscard]] const ChartSelection& chartSelection() const;
+    [[nodiscard]] ChartSelection& chartSelectionMutable();
+    [[nodiscard]] std::string selectedToneRegionId() const;
+    [[nodiscard]] const AutomationPointSelection* selectedAutomationPoint() const;
+    void clearSelection();
+    // Clears only the selection kinds that follow the cursor (tone region, automation point);
+    // a chart selection deliberately survives seeks (the marker model's lifecycle split).
+    void clearCursorCoupledSelection();
     [[nodiscard]] std::optional<std::pair<common::core::GridPosition, int>> chartPlacementAt(
         const ChartPointerEvent& event) const;
     [[nodiscard]] common::core::Fraction chartGridStepBeats(common::core::GridPosition at) const;
@@ -207,6 +221,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onSetToneAutomationPoints(
         std::string instance_id, std::string param_id,
         std::vector<common::core::ToneAutomationPoint> points);
+    void onToneAutomationPointSelected(
+        std::string instance_id, std::string param_id, common::core::GridPosition position);
+    // Deletes the selected automation point by replaying its lane's points without it through
+    // onSetToneAutomationPoints (the Delete-key dispatch for the automation alternative).
+    void deleteSelectedAutomationPoint(const AutomationPointSelection& selection);
     void onPluginBrowserRequested();
     void onPluginInsertSlotSelected(std::size_t chain_index, std::size_t block_index);
     void onPluginBrowserClosed();
@@ -618,16 +637,15 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // resume state. Zero means no zoom has been reported or restored (view default applies).
     double m_timeline_zoom_pixels_per_second{0.0};
 
-    // Stable id of the selected authored tone region; empty when nothing is selected.
-    // Cleared on project close and load because ids are project-local.
-    std::string m_selected_tone_region_id{};
-
-    // Chart-editing selection for the tablature lane; keys are (position, string) so they
-    // survive unrelated edits. Cleared on project load/close, arrangement switches, and
-    // playback starts. While the marker is armed the selection is exactly what sits under the
-    // caret (the marker model): arming onto a note selects it, onto an empty slot clears it;
-    // multi-note selections exist only while the marker is passive.
-    ChartSelection m_chart_selection{};
+    // The one editor-wide selection (editor_selection.h): chart notes, a tone region, or an
+    // automation point — never more than one at a time, by construction. Access through the
+    // selection accessors above. Cleared on project load/close and arrangement switches; each
+    // alternative keeps its shipped lifecycle (chart clears on play but survives seeks; the
+    // cursor-coupled kinds clear on any cursor move). While the marker is armed the chart
+    // alternative is exactly what sits under the caret (the marker model): arming onto a note
+    // selects it, onto an empty slot clears it; multi-note selections exist only while the
+    // marker is passive.
+    EditorSelection m_selection{};
 
     // In-flight tablature pointer gesture: armed on Down, disambiguated into click vs. marquee by
     // the drag threshold, resolved on Up. The geometry is the Down event's, so one gesture snaps

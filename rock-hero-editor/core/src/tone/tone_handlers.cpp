@@ -79,9 +79,9 @@ std::string EditorController::Impl::toneRegionIdAt(common::core::TimePosition po
 // the selection is a separate, deliberate concept (the Delete target).
 std::string EditorController::Impl::activeToneRegionId() const
 {
-    if (!m_selected_tone_region_id.empty())
+    if (std::string selected = selectedToneRegionId(); !selected.empty())
     {
-        return m_selected_tone_region_id;
+        return selected;
     }
     return toneRegionIdAt(m_transport.position());
 }
@@ -126,7 +126,19 @@ std::string EditorController::Impl::activeToneName() const
 // white outline, and it becomes the active tone (a preview) until the cursor moves off it.
 void EditorController::Impl::applyToneSelection(std::string region_id)
 {
-    m_selected_tone_region_id = std::move(region_id);
+    if (region_id.empty())
+    {
+        // A region deselect only releases the region alternative; it must not disturb a chart
+        // or automation selection made since (one selection editor-wide, per-kind lifecycles).
+        if (std::holds_alternative<ToneRegionSelection>(m_selection))
+        {
+            m_selection = std::monostate{};
+        }
+    }
+    else
+    {
+        m_selection = ToneRegionSelection{.region_id = std::move(region_id)};
+    }
     syncAudibleTone();
 }
 
@@ -134,7 +146,7 @@ void EditorController::Impl::applyToneSelection(std::string region_id)
 // Delete can never fire from mere cursor movement) and points the rig at the cursor's tone.
 void EditorController::Impl::activateToneAtCursor()
 {
-    m_selected_tone_region_id.clear();
+    clearCursorCoupledSelection();
     syncAudibleTone();
 }
 
@@ -483,7 +495,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::DeleteToneReg
 
     // Selection follows the span: if the deleted region was selected, select the neighbor that now
     // covers it so the signal-chain panel stays bound to an existing region.
-    if (m_selected_tone_region_id == action.region_id)
+    if (selectedToneRegionId() == action.region_id)
     {
         const std::size_t neighbor_index = absorbed_by_prev ? removed_index - 1 : removed_index;
         applyToneSelection(
@@ -1026,6 +1038,66 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetToneAutoma
             std::move(before),
             action.points));
     updateView();
+}
+
+// A deliberate point click: the point becomes THE editor-wide selection, replacing whatever any
+// other surface had selected (one selection, structurally). Direct like the chart pointer
+// intents rather than an action: selection is display policy, not an undoable edit.
+void EditorController::Impl::onToneAutomationPointSelected(
+    std::string instance_id, std::string param_id, common::core::GridPosition position)
+{
+    if (isBusy())
+    {
+        return;
+    }
+    m_selection = AutomationPointSelection{
+        .instance_id = std::move(instance_id),
+        .param_id = std::move(param_id),
+        .position = position,
+    };
+    updateView();
+}
+
+// Deletes the selected point by replaying its lane's point list without it through the one
+// points-edit intent, so removal rides the same undo/curve-rewrite machinery as every lane
+// gesture. The durable selection stays put: it publishes as nothing while the point is gone
+// and lights up again if undo restores it.
+void EditorController::Impl::deleteSelectedAutomationPoint(
+    const AutomationPointSelection& selection)
+{
+    const auto identity = m_tone_plugin_identities.find(selection.instance_id);
+    const std::vector<common::core::ToneParameterAutomation>* const automation =
+        m_session.currentToneAutomation();
+    if (identity == m_tone_plugin_identities.end() || automation == nullptr)
+    {
+        return;
+    }
+
+    const auto entry = std::ranges::find_if(
+        *automation, [&](const common::core::ToneParameterAutomation& candidate) {
+            return candidate.plugin_id == identity->second.plugin_id &&
+                   candidate.param_id == selection.param_id;
+        });
+    if (entry == automation->end())
+    {
+        return;
+    }
+
+    std::vector<common::core::ToneAutomationPoint> remaining;
+    remaining.reserve(entry->points.size());
+    for (const common::core::ToneAutomationPoint& point : entry->points)
+    {
+        if (!(point.position == selection.position))
+        {
+            remaining.push_back(point);
+        }
+    }
+    if (remaining.size() == entry->points.size())
+    {
+        // The selection went stale (the point is already gone); deleting nothing is the answer.
+        return;
+    }
+    onSetToneAutomationPoints(selection.instance_id, selection.param_id, std::move(remaining));
 }
 
 } // namespace rock_hero::editor::core

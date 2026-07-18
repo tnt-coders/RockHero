@@ -437,7 +437,7 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
         m_output_gain_db = 0.0;
         m_grid_note_value = common::core::Fraction{1, 4};
         m_timeline_zoom_pixels_per_second = 0.0;
-        m_selected_tone_region_id.clear();
+        clearSelection();
         m_open_automation_lanes.clear();
         resetUndoHistory("undo.reset.import_live_rig_failed");
         // The teardown above ends project-less; stand the resting rig back up.
@@ -458,7 +458,7 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
     // spacing.
     m_grid_note_value = common::core::Fraction{1, 4};
     m_timeline_zoom_pixels_per_second = 0.0;
-    m_selected_tone_region_id.clear();
+    clearSelection();
     m_open_automation_lanes.clear();
     m_has_untracked_unsaved_changes = false;
     m_session_faulted = false;
@@ -888,7 +888,7 @@ bool EditorController::Impl::closeProject(bool reenter_tone_designer)
         m_session_faulted = false;
         m_grid_note_value = common::core::Fraction{1, 4};
         m_timeline_zoom_pixels_per_second = 0.0;
-        m_selected_tone_region_id.clear();
+        clearSelection();
         m_open_automation_lanes.clear();
         m_plugin_catalog.hide();
         resetUndoHistory("undo.reset.close_project_failed");
@@ -908,7 +908,7 @@ bool EditorController::Impl::closeProject(bool reenter_tone_designer)
     m_session_faulted = false;
     m_grid_note_value = common::core::Fraction{1, 4};
     m_timeline_zoom_pixels_per_second = 0.0;
-    m_selected_tone_region_id.clear();
+    clearSelection();
     m_open_automation_lanes.clear();
     m_plugin_catalog.hide();
     resetUndoHistory("undo.reset.close_project");
@@ -992,7 +992,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::SelectArrange
     m_transport.stop();
     clearLiveRig();
     resetUndoHistory("undo.reset.arrangement_switch");
-    m_selected_tone_region_id.clear();
+    clearSelection();
     m_open_automation_lanes.clear();
     m_project_audio_ready = false;
 

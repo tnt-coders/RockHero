@@ -410,6 +410,11 @@ private:
         std::string instance_id, std::string param_id,
         std::vector<common::core::ToneAutomationPoint> points) override;
 
+    /*! \copydoc ToneAutomationLanesView::Listener::onToneAutomationPointSelectRequested */
+    void onToneAutomationPointSelectRequested(
+        std::string instance_id, std::string param_id,
+        common::core::GridPosition position) override;
+
     // PluginBrowserWindow::Listener implementation.
     void onPluginBrowserScanRequested() override;
 

@@ -902,6 +902,11 @@ void EditorController::onChartSelectionDeleteRequested()
     m_impl->onChartSelectionDeleteRequested();
 }
 
+void EditorController::onSelectionDeleteRequested()
+{
+    m_impl->onSelectionDeleteRequested();
+}
+
 void EditorController::onChartFretDigitTyped(int digit)
 {
     m_impl->onChartFretDigitTyped(digit);
@@ -985,6 +990,12 @@ void EditorController::onSetToneAutomationPoints(
 {
     m_impl->onSetToneAutomationPoints(
         std::move(instance_id), std::move(param_id), std::move(points));
+}
+
+void EditorController::onToneAutomationPointSelected(
+    std::string instance_id, std::string param_id, common::core::GridPosition position)
+{
+    m_impl->onToneAutomationPointSelected(std::move(instance_id), std::move(param_id), position);
 }
 
 void EditorController::onPluginBrowserRequested()
@@ -1554,13 +1565,62 @@ std::optional<ChartNoteKey> EditorController::Impl::chartNoteKeyAt(
 
 void EditorController::Impl::clearChartEditingState()
 {
-    m_chart_selection.clear();
+    clearSelection();
     m_chart_gesture.reset();
     m_chart_fret_entry.reset();
     // A fresh chart-editing context starts passive: the paused cursor at the transport
     // position is the position, and nothing is armed until the first click or arrow (the
     // marker model).
     m_chart_marker = ChartCursor{};
+}
+
+// Read-only view of the chart alternative; any other held kind reads as the empty selection,
+// which is exactly what "no chart selection" means to every chart handler.
+const ChartSelection& EditorController::Impl::chartSelection() const
+{
+    static const ChartSelection empty{};
+    const ChartSelection* const selection = std::get_if<ChartSelection>(&m_selection);
+    return selection != nullptr ? *selection : empty;
+}
+
+// Mutable access emplaces the chart alternative, so any chart-selection gesture structurally
+// replaces a tone-region or automation-point selection (one selection editor-wide).
+ChartSelection& EditorController::Impl::chartSelectionMutable()
+{
+    if (ChartSelection* const selection = std::get_if<ChartSelection>(&m_selection))
+    {
+        return *selection;
+    }
+    return m_selection.emplace<ChartSelection>();
+}
+
+std::string EditorController::Impl::selectedToneRegionId() const
+{
+    const ToneRegionSelection* const selection = std::get_if<ToneRegionSelection>(&m_selection);
+    return selection != nullptr ? selection->region_id : std::string{};
+}
+
+const AutomationPointSelection* EditorController::Impl::selectedAutomationPoint() const
+{
+    return std::get_if<AutomationPointSelection>(&m_selection);
+}
+
+void EditorController::Impl::clearSelection()
+{
+    m_selection = std::monostate{};
+    // A cleared chart selection invalidates any in-flight multi-digit fret entry: the entry is
+    // keyed to the selection it retypes, and leaving it armed against a vanished selection
+    // could widen an undo entry for notes no longer selected.
+    m_chart_fret_entry.reset();
+}
+
+void EditorController::Impl::clearCursorCoupledSelection()
+{
+    if (std::holds_alternative<ToneRegionSelection>(m_selection) ||
+        std::holds_alternative<AutomationPointSelection>(m_selection))
+    {
+        m_selection = std::monostate{};
+    }
 }
 
 // Returns the armed caret, or null while the marker is passive.
@@ -1632,11 +1692,14 @@ void EditorController::Impl::armChartCaret(common::core::GridPosition position, 
             });
     if (on_note)
     {
-        m_chart_selection.replaceWith(key);
+        chartSelectionMutable().replaceWith(key);
     }
     else
     {
-        m_chart_selection.clear();
+        // Arming onto an empty slot empties the selection — through the chart alternative, so
+        // a tone-region or automation-point selection is replaced too (the caret is now the
+        // typing scope).
+        chartSelectionMutable().clear();
     }
 }
 
@@ -1720,7 +1783,7 @@ bool EditorController::Impl::applyChartEditPlan(
     // new keys, deleted notes drop out (their keys no longer resolve).
     if (select_exactly.has_value())
     {
-        m_chart_selection.applyBox(*select_exactly, false);
+        chartSelectionMutable().applyBox(*select_exactly, false);
     }
     else
     {
@@ -1729,8 +1792,8 @@ bool EditorController::Impl::applyChartEditPlan(
         // deleted notes drop out. Plans never carry unrelated notes, so this never grows the
         // selection past what the user had plus what the edit produced at new keys.
         std::vector<ChartNoteKey> next_selection;
-        next_selection.reserve(m_chart_selection.notes().size() + plan->inserted.size());
-        for (const ChartNoteKey& key : m_chart_selection.notes())
+        next_selection.reserve(chartSelection().notes().size() + plan->inserted.size());
+        for (const ChartNoteKey& key : chartSelection().notes())
         {
             const bool removed =
                 std::ranges::any_of(plan->removed, [&key](const common::core::ChartNote& note) {
@@ -1746,7 +1809,7 @@ bool EditorController::Impl::applyChartEditPlan(
             next_selection.push_back(
                 ChartNoteKey{.position = note.position, .string = note.string});
         }
-        m_chart_selection.applyBox(next_selection, false);
+        chartSelectionMutable().applyBox(next_selection, false);
     }
 
     pushUndoEntry(std::make_unique<ChartNotesEdit>(std::move(*plan)));
@@ -1814,7 +1877,7 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
 
     if (event.modifiers.ctrl)
     {
-        m_chart_selection.toggle(*key);
+        chartSelectionMutable().toggle(*key);
         dissolveChartCaretInPlace();
     }
     else if (event.clicks >= 2)
@@ -1822,12 +1885,12 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
         const common::core::Arrangement* const arrangement = session().currentArrangement();
         if (arrangement != nullptr && arrangement->chart.has_value())
         {
-            m_chart_selection.replaceWith(
+            chartSelectionMutable().replaceWith(
                 chartOnsetGroupKeys(arrangement->chart->notes, key->position));
         }
         dissolveChartCaretInPlace();
     }
-    else if (!m_chart_selection.contains(*key))
+    else if (!chartSelection().contains(*key))
     {
         // Arming re-derives the singleton selection from the note under the caret. A press on
         // an already-selected note keeps the standing selection (and marker) untouched until
@@ -1931,7 +1994,7 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
         // has no selection outcome, so an armed caret survives untouched.
         if (!keys.empty())
         {
-            m_chart_selection.applyBox(keys, gesture.modifiers.shift);
+            chartSelectionMutable().applyBox(keys, gesture.modifiers.shift);
             dissolveChartCaretInPlace();
         }
         updateView();
@@ -2032,7 +2095,7 @@ void EditorController::Impl::onChartSelectionMoveRequested(ChartStepDirection di
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
-        m_chart_selection.empty())
+        chartSelection().empty())
     {
         return;
     }
@@ -2044,7 +2107,7 @@ void EditorController::Impl::onChartSelectionMoveRequested(ChartStepDirection di
         case ChartStepDirection::Left:
         case ChartStepDirection::Right:
         {
-            const common::core::GridPosition reference = m_chart_selection.notes().front().position;
+            const common::core::GridPosition reference = chartSelection().notes().front().position;
             const common::core::Fraction step = chartGridStepBeats(reference);
             beat_delta = direction == ChartStepDirection::Right
                              ? step
@@ -2065,10 +2128,10 @@ void EditorController::Impl::onChartSelectionMoveRequested(ChartStepDirection di
     static_cast<void>(applyChartEditPlan(planMoveNotes(
         *arrangement->chart,
         session().song().tempo_map,
-        m_chart_selection.notes(),
+        chartSelection().notes(),
         beat_delta,
         string_delta,
-        m_chart_selection.notes().size() == 1 ? "Move Note" : "Move Notes")));
+        chartSelection().notes().size() == 1 ? "Move Note" : "Move Notes")));
 }
 
 // Deletes the selected notes as one compound undo entry; the selection empties with them.
@@ -2076,13 +2139,35 @@ void EditorController::Impl::onChartSelectionDeleteRequested()
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
-        m_chart_selection.empty())
+        chartSelection().empty())
     {
         return;
     }
 
     static_cast<void>(
-        applyChartEditPlan(planDeleteNotes(*arrangement->chart, m_chart_selection.notes())));
+        applyChartEditPlan(planDeleteNotes(*arrangement->chart, chartSelection().notes())));
+}
+
+// The Delete key's one dispatch: exactly one selection exists editor-wide, so Delete deletes
+// whatever kind it holds. This is dispatch on the variant's alternative, not the retired
+// automation-point → chart → tone-region precedence ladder — once two live selections became
+// unrepresentable, there is nothing to disambiguate.
+void EditorController::Impl::onSelectionDeleteRequested()
+{
+    if (const AutomationPointSelection* const point = selectedAutomationPoint())
+    {
+        deleteSelectedAutomationPoint(*point);
+        return;
+    }
+    if (!chartSelection().empty())
+    {
+        onChartSelectionDeleteRequested();
+        return;
+    }
+    if (std::string region_id = selectedToneRegionId(); !region_id.empty())
+    {
+        onToneRegionDeleteRequested(std::move(region_id));
+    }
 }
 
 // Typed digits SET every selected note to the typed value — what you type is what appears —
@@ -2112,7 +2197,7 @@ void EditorController::Impl::onChartFretDigitTyped(int digit)
         const int combined = entry.value * 10 + digit;
         const bool widenable = now_ms - entry.last_keystroke_ms <= g_fret_entry_window_ms &&
                                combined <= common::core::g_max_fret &&
-                               entry.keys == m_chart_selection.notes() &&
+                               entry.keys == chartSelection().notes() &&
                                m_undo_history.snapshot().position == entry.history_position;
         if (widenable)
         {
@@ -2210,7 +2295,7 @@ void EditorController::Impl::onChartFretDigitTyped(int digit)
     // Fresh insert: with no selection, the typed digit becomes a note at the armed empty
     // caret. While the marker is passive, digits are inert by design (the marker model) — a
     // stray keystroke after listening authors nothing.
-    if (m_chart_selection.empty())
+    if (chartSelection().empty())
     {
         const ChartCaret* const caret = armedChartCaret();
         if (caret == nullptr)
@@ -2254,13 +2339,13 @@ void EditorController::Impl::onChartFretDigitTyped(int digit)
     std::vector<common::core::ChartNote> base_notes;
     for (const common::core::ChartNote& note : arrangement->chart->notes)
     {
-        if (m_chart_selection.contains(
+        if (chartSelection().contains(
                 ChartNoteKey{.position = note.position, .string = note.string}))
         {
             base_notes.push_back(note);
         }
     }
-    const std::vector<ChartNoteKey> keys = m_chart_selection.notes();
+    const std::vector<ChartNoteKey> keys = chartSelection().notes();
     std::optional<ChartNotesEditPlan> plan = planRetypeFrets(base_notes, digit, /*set_exact=*/true);
     if (!plan.has_value())
     {
@@ -2292,7 +2377,7 @@ void EditorController::Impl::onChartFretShiftRequested(int direction)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
-        m_chart_selection.empty() || direction == 0)
+        chartSelection().empty() || direction == 0)
     {
         return;
     }
@@ -2301,7 +2386,7 @@ void EditorController::Impl::onChartFretShiftRequested(int direction)
     std::optional<int> lowest;
     for (const common::core::ChartNote& note : arrangement->chart->notes)
     {
-        if (m_chart_selection.contains(
+        if (chartSelection().contains(
                 ChartNoteKey{.position = note.position, .string = note.string}))
         {
             selected.push_back(note);
@@ -2327,17 +2412,17 @@ void EditorController::Impl::onChartSustainAdjustRequested(int direction)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
-        m_chart_selection.empty() || direction == 0)
+        chartSelection().empty() || direction == 0)
     {
         return;
     }
 
-    const common::core::GridPosition reference = m_chart_selection.notes().front().position;
+    const common::core::GridPosition reference = chartSelection().notes().front().position;
     const common::core::Fraction step = chartGridStepBeats(reference);
     const common::core::Fraction delta =
         direction > 0 ? step : common::core::Fraction{-step.numerator, step.denominator};
     static_cast<void>(applyChartEditPlan(planAdjustSustain(
-        *arrangement->chart, session().song().tempo_map, m_chart_selection.notes(), delta)));
+        *arrangement->chart, session().song().tempo_map, chartSelection().notes(), delta)));
 }
 
 // The Esc ladder (the marker model): an in-flight pointer gesture is abandoned without
@@ -2361,10 +2446,9 @@ void EditorController::Impl::onChartEscapePressed()
         return;
     }
 
-    if (!m_chart_selection.empty())
+    if (!chartSelection().empty())
     {
-        m_chart_selection.clear();
-        m_chart_fret_entry.reset();
+        clearSelection();
         updateView();
     }
 }
@@ -2585,7 +2669,7 @@ void EditorController::Impl::completeUndoTransition(
     // tone again instead of leaving the restored model pointing at missing branches.
     if (m_project.has_value() && m_project_audio_ready && !loadedRigCoversModelTones())
     {
-        reloadLiveRigForToneSet(m_selected_tone_region_id);
+        reloadLiveRigForToneSet(selectedToneRegionId());
         return;
     }
 
@@ -2752,7 +2836,7 @@ void EditorController::Impl::performActionImpl(EditorAction::PlayPause /*action*
                         caret->position.measure, caret->position.beat, caret->position.offset)}));
         }
         disarmChartMarker();
-        m_chart_selection.clear();
+        clearSelection();
         activateToneAtCursor();
         m_transport.play();
         updateView();
@@ -2863,7 +2947,7 @@ void EditorController::Impl::onTransportStateChanged(common::audio::TransportSta
     if (state.playing)
     {
         disarmChartMarker();
-        m_chart_selection.clear();
+        clearSelection();
     }
     updateView();
 }
@@ -3066,14 +3150,15 @@ EditorViewState EditorController::Impl::deriveViewState() const
             .choices = arrangementChoicesFor(session().arrangements(), arrangement->id),
         };
         state.tone_track = makeToneTrackViewState(
-            *arrangement, state.tempo_map, activeToneRegionId(), m_selected_tone_region_id);
+            *arrangement, state.tempo_map, activeToneRegionId(), selectedToneRegionId());
         state.tone_automation = makeToneAutomationViewState(
             *arrangement,
             state.tempo_map,
             activeToneDocumentRef(),
             m_tone_plugin_bindings,
             m_open_automation_lanes,
-            m_tone_automation);
+            m_tone_automation,
+            selectedAutomationPoint());
 
         // The tab projection resolves thousands of positions to seconds, so it is memoized per
         // displayed arrangement and chart revision: the arrangement id keys which chart is shown,
@@ -3117,7 +3202,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
         if (arrangement->chart.has_value())
         {
             state.chart_edit.selected_notes =
-                selectedNoteIndices(arrangement->chart->notes, m_chart_selection);
+                selectedNoteIndices(arrangement->chart->notes, chartSelection());
             // The marker publishes plainly from its state — armed ⟹ paused is structural
             // (play and the transport listener demote), so no transport check re-derives it
             // here. The caret publishes whenever armed, empty slot or note alike: the square

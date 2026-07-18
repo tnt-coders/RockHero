@@ -438,6 +438,9 @@ public:
     /*! \copydoc IEditorController::onChartSelectionDeleteRequested */
     void onChartSelectionDeleteRequested() override;
 
+    /*! \copydoc IEditorController::onSelectionDeleteRequested */
+    void onSelectionDeleteRequested() override;
+
     /*! \copydoc IEditorController::onChartFretDigitTyped */
     void onChartFretDigitTyped(int digit) override;
 
@@ -490,6 +493,11 @@ public:
     void onSetToneAutomationPoints(
         std::string instance_id, std::string param_id,
         std::vector<common::core::ToneAutomationPoint> points) override;
+
+    /*! \copydoc IEditorController::onToneAutomationPointSelected */
+    void onToneAutomationPointSelected(
+        std::string instance_id, std::string param_id,
+        common::core::GridPosition position) override;
 
     /*! \brief Shows the scanned plugin browser and starts an initial catalog scan when needed. */
     void onPluginBrowserRequested() override;

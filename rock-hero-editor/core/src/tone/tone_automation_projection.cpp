@@ -19,7 +19,8 @@ ToneAutomationViewState makeToneAutomationViewState(
     const std::string& selected_tone_document_ref,
     const std::unordered_map<std::string, common::audio::ToneAutomationBinding>& bindings,
     const std::vector<OpenAutomationLane>& open_lanes,
-    const common::audio::IToneAutomation& tone_automation)
+    const common::audio::IToneAutomation& tone_automation,
+    const AutomationPointSelection* selected_point)
 {
     ToneAutomationViewState state;
     state.tone_document_ref = selected_tone_document_ref;
@@ -159,6 +160,33 @@ ToneAutomationViewState makeToneAutomationViewState(
                 .group = parameter.group,
                 .plugin_name = parameter.plugin_name,
             });
+    }
+
+    // Re-resolve the durable selection against the lanes actually published: a selection whose
+    // point vanished (undo, lane removal, tone switch) publishes as nothing instead of pointing
+    // at the wrong glyph — the same self-healing rule chart selection indices follow.
+    if (selected_point != nullptr)
+    {
+        for (std::size_t lane_index = 0; lane_index < state.lanes.size(); ++lane_index)
+        {
+            const ToneAutomationLaneViewState& lane = state.lanes[lane_index];
+            if (lane.instance_id != selected_point->instance_id ||
+                lane.param_id != selected_point->param_id)
+            {
+                continue;
+            }
+            for (std::size_t point_index = 0; point_index < lane.points.size(); ++point_index)
+            {
+                if (lane.points[point_index].position == selected_point->position)
+                {
+                    state.selected_point = ToneAutomationSelectedPointRef{
+                        .lane_index = lane_index, .point_index = point_index
+                    };
+                    break;
+                }
+            }
+            break;
+        }
     }
     return state;
 }
