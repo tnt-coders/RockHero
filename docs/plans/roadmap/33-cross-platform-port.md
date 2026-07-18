@@ -15,6 +15,30 @@ enums, native window handles, macOS bundling — plus the genuinely unknown part
 bring-up and verification on non-Windows machines. The editor 3D preview's embedded child surface
 is the single large item and is deliberately the last, separable phase.
 
+## Guiding principle — platform-specific code is a last resort
+
+User directive (2026-07-18): platform-specific code is limited to the **absolutely essential** —
+things that provably cannot be expressed in an OS-agnostic way. This binds every phase below and
+every future contribution this plan's code hosts:
+
+- The stack's abstraction layers (JUCE, SDL3, bgfx, `std::filesystem`, `std::chrono`) exist
+  precisely so product code stays generic. Before writing any platform guard, exhaust those
+  layers; a guard is admissible only where the abstraction demonstrably ends (native window
+  handles, backend-specific shader binaries, OS hook APIs).
+- **Every platform guard carries a comment stating why no generic expression exists**, so future
+  readers can re-litigate the necessity (`juce_message_pump.cpp`'s mac branch is the model: it
+  documents that JUCE ships no public cross-platform non-blocking dispatch primitive).
+- **One seam per concern**: a platform choice lives in exactly one function or one data table
+  (`defaultRenderBackend()`, the shader-profile table, the SDL property branch). Consumers stay
+  100% generic — a second `#if` for the same concern is a design defect.
+- **Delete before adding**: Phase 1 removes the guards the 2026-07-18 audit proved unnecessary,
+  so the port starts net-negative on platform-guard count.
+- Prefer behavior-preserving generic formulations over parallel branches: a structural check
+  that is self-guarding on every platform (Phase 1's `vst3DisplayPath` shape test) beats a
+  guard; an encoding bridge that is correct everywhere (`u8string`) beats per-OS string paths.
+- The irreducible residue is enumerated in the Current state inventory below; a platform guard
+  outside that list needs explicit justification at review time.
+
 ## Non-goals
 
 - **No OpenGL backend.** `highway_camera.cpp` builds a [0, 1]-clip-depth projection (D3D
@@ -25,12 +49,12 @@ is the single large item and is deliberately the last, separable phase.
   branching; the Windows/D3D11 paths keep their current behavior byte-for-byte.
 - **No new dependencies.** The Conan recipes (bgfx with `tools=True`, SDL3) already carry full
   Linux/macOS support; this plan only consumes what they already provide.
-- **No CI-runner procurement decisions inside the plan.** Phase 7 lays out the verification
+- **No CI-runner procurement decisions inside the plan.** Phases 7-8 lay out the verification
   options (Xvfb + lavapipe in CI vs. real hardware); which machines exist is a user decision
   (33-Q4).
 - **The plugin-window shortcut hook is not ported here.** The Win32 `WH_GETMESSAGE` hook that
   steals Space/Ctrl+Z/Ctrl+Y back from misbehaving VST3 editor windows ships as a documented
-  no-op off Windows (Phase 5); the macOS (`NSEvent` local monitor) and X11 (event filter)
+  no-op off Windows (Phase 6); the macOS (`NSEvent` local monitor) and X11 (event filter)
   equivalents are a recorded follow-up, not v1.
 
 ## Constraints
@@ -94,12 +118,48 @@ spot-checked directly).
 - **Game loop**: plain portable `main()` with `SDL_MAIN_HANDLED`; the per-frame JUCE message
   pump (`rock-hero-game/ui/src/surface/juce_message_pump.cpp`) is already dual-branch —
   `CFRunLoopRunInMode` under `JUCE_MAC`, `juce::detail::dispatchNextMessageOnSystemQueue` for
-  Windows **and** Linux (the symbol exists on JUCE's Linux backend; needs a link check, Phase 5).
+  Windows **and** Linux (the symbol exists on JUCE's Linux backend; needs a link check, Phase 6).
 - **Depth convention**: `rock-hero-common/core/src/highway/highway_camera.cpp:78-83` builds a
   [0, 1]-depth projection — valid unchanged for D3D11, Vulkan, and Metal.
 - **DPI**: `game_window.cpp` already uses `SDL_WINDOW_HIGH_PIXEL_DENSITY` and pixel-size-driven
   resize (`SDL_GetWindowSizeInPixels`, display-scale events); written portably, untested off
   Windows.
+
+### Platform-guard audit (2026-07-18): generalizable vs. irreducible
+
+The complete OS-conditional inventory in project code is seven source files plus two test files.
+Audited guard by guard against the guiding principle:
+
+**Generalizable today — deleted by Phase 1:**
+
+- `rock-hero-common/core/src/shared/juce_path.cpp` (both functions): the `JUCE_WINDOWS`
+  wide-string / POSIX UTF-8 dual branches collapse into one generic UTF-8 bridge via
+  `path::u8string()` and the `std::u8string` path constructor (details in Phase 1).
+- `rock-hero-common/audio/src/shared/audio_path_util.cpp:45` `vst3DisplayPath`: the
+  `#if defined(_WIN32)` guard is unnecessary — the `Contents`-shape check inside it is
+  self-guarding, and VST3 bundles share the same structure on macOS and Linux, so the
+  unconditional form is both more generic and more correct.
+
+**Irreducibly platform-specific — keeps its guard, each with a why-comment:**
+
+- `juce_message_pump.cpp` mac branch: JUCE defines no `dispatchNextMessageOnSystemQueue` on
+  macOS (inter-thread messages ride a CFRunLoopSource) and ships no public cross-platform
+  non-blocking single-message dispatch. Collapses only if JUCE ever adds one — the file's
+  comment already says so.
+- `audio_path_util.cpp` `normalizedPathKey` Windows casefold: a real filesystem-semantics
+  difference (case-insensitive FS), not an abstraction gap.
+- `plugin_window.{h,cpp}` keyboard hook: Win32 `WH_GETMESSAGE` — reclaiming shortcuts from
+  native plugin windows is inherently an OS-hook feature; JUCE cannot see those keys.
+- `preview_surface.cpp` native child window (+ the `WM_SETFOCUS` focus bounce): embedding a
+  foreign GPU swapchain child inside a JUCE peer is native glue by nature; Phase 9 ports it
+  per platform but must keep the platform-specific part to the minimal child-surface
+  primitive set (create/destroy/position/focus-rule) with all lifecycle logic shared.
+- `game_window.cpp` SDL native-handle property query: extracting a native handle is the
+  definitional platform seam; SDL3 names the property per OS.
+- Build-system declarations: `$<$<PLATFORM_ID:Windows>:JUCE_ASIO=1>` (ASIO exists only on
+  Windows), `WIN32_EXECUTABLE`, MSVC-only genexes — declarative, no-op elsewhere.
+- Test fixtures asserting platform behavior (`test_juce_path.cpp` drive-letter round-trip,
+  `test_render_device.cpp` default-backend expectation) follow their production code.
 
 ### The actual gaps (what this plan changes)
 
@@ -146,11 +206,11 @@ spot-checked directly).
      (`SetWindowsHookExW` etc., ~.cpp:255-458) is `#if JUCE_WINDOWS`-gated with no `#else`; on
      other platforms the shortcut-stealing feature silently doesn't exist — needs an explicit
      recorded no-op stance (Non-goals).
-   - `audio_path_util.cpp:45` `vst3DisplayPath` bundle normalization is `_WIN32`-only; macOS
-     VST3 bundles share the `Contents/` structure and want the same normalization (nit).
+   - `audio_path_util.cpp:45` `vst3DisplayPath` bundle normalization is `_WIN32`-only; the
+     guard is unnecessary (see the platform-guard audit above) — Phase 1 deletes it.
    - `rock-hero-common/ui/tests/test_render_device.cpp:52-53` asserts
      `defaultRenderBackend() == Direct3D11` under `_WIN32` — the assertion must grow
-     per-platform expectations when Phase 2 lands.
+     per-platform expectations when Phase 3 lands.
 6. **CI system packages for the windowed stack are unverified on Linux.**
    `install-juce-dependencies: true` installs JUCE's set (X11, ALSA, freetype…); bgfx's
    `xorg/system` + `opengl/system` and SDL3's wayland/xkbcommon dev libs overlap but are not a
@@ -173,16 +233,18 @@ Upstream: none — every prerequisite (render stack, Conan recipes, CI legs, pre
 shipped. Coordination:
 
 - **docs/tracking/watch-items.md** — three items graduate into this plan: "Render child must
-  never hold keyboard focus" (Phase 8 trigger fires), "macOS bundle resource layout" (Phase 4),
-  "editor/ui tests would need the common::ui link" (only if Phase 8 adds preview tests).
+  never hold keyboard focus" (Phase 9 trigger fires), "macOS bundle resource layout" (Phase 5),
+  "editor/ui tests would need the common::ui link" (only if Phase 9 adds preview tests).
 - **plan 20 Gate record** — Phase 0 updates its platform-scope memo to acknowledge the CI legs.
 - **plan 26 Phase 4 (video settings)** — if a backend override setting is ever user-visible it
   lands there, not here; this plan keeps backend choice compile-time-default + dev override only.
 
 ## Phases
 
-Phases 1-3 are independent of each other and may land in any order; Phase 7 needs 1-3 (and 4 on
-macOS). Phase 8 is separable and may be deferred indefinitely without blocking the rest.
+Phase 1 (the generalization pass) lands first — the port starts by deleting platform code, per
+the guiding principle. Phases 2-4 are independent of each other and may land in any order;
+Phase 8 needs 2-4 (and 5 on macOS). Phase 9 is separable and may be deferred indefinitely
+without blocking the rest.
 
 ### Phase 0 — Decisions + memo reconciliation (documentation only)
 
@@ -195,7 +257,39 @@ macOS). Phase 8 is separable and may be deferred indefinitely without blocking t
 
 Verification: none (docs only).
 
-### Phase 1 — Shader pipeline: per-platform profile table
+### Phase 1 — Generalization pass: delete unnecessary platform code first
+
+Remove the two guards the audit proved unnecessary, before any new platform code lands:
+
+1. `rock-hero-common/core/src/shared/juce_path.cpp` — collapse both dual branches into one
+   generic UTF-8 bridge:
+   - `juceStringFromPath`: `juce::String::fromUTF8` over `path.u8string()`. On Windows,
+     `u8string()` performs the correct wide→UTF-8 conversion (never the lossy
+     active-code-page `string()` path — the exact hazard `audio_path_util.cpp`'s
+     `pathToUtf8String` already documents); on POSIX it returns the native bytes the current
+     branch already treats as UTF-8. Behavior-preserving on all platforms.
+   - `pathFromJuceString`: construct `std::filesystem::path` from a `std::u8string` built over
+     the JUCE string's UTF-8 bytes — the `char8_t` constructor treats input as UTF-8 on every
+     platform and converts to the native wide representation on Windows.
+   - Update `test_juce_path.cpp`: the shared UTF-8 round-trip assertions become unconditional;
+     keep a Windows-only drive-letter/wide round-trip case (platform-specific *tests* asserting
+     platform behavior are legitimate).
+   - Mind the `char8_t`↔`char` copies (the `pathToUtf8String` pattern); consider whether that
+     existing audio helper and this bridge should share one core-level utility — decide by the
+     Placement Procedure, do not force it.
+2. `rock-hero-common/audio/src/shared/audio_path_util.cpp` `vst3DisplayPath` — delete the
+   `#if defined(_WIN32)` guard and run the Contents-shape normalization unconditionally: the
+   check is self-guarding (paths not shaped like `<name>.vst3/Contents/<arch>/` pass through
+   unchanged) and VST3 bundles share that structure on macOS and Linux, so the guard-free form
+   is more generic and more correct at once. Extend the function comment beyond "Windows".
+3. Confirm the recorded non-candidates keep their why-comments (`juce_message_pump.cpp` mac
+   branch, `normalizedPathKey` casefold) — no code change, just verify the justifications still
+   read true.
+
+Verification: build + touched tests on Windows (the path round-trip suites are the behavioral
+gate); all three CI legs stay green.
+
+### Phase 2 — Shader pipeline: per-platform profile table
 
 Rework `rock_hero_stage_highway_shaders()` in `cmake/RockHeroRenderStack.cmake`:
 
@@ -214,13 +308,15 @@ Rework `rock_hero_stage_highway_shaders()` in `cmake/RockHeroRenderStack.cmake`:
    per-platform subdirectory.
 4. Watch shaderc flag requirements for Metal (`--platform osx -p metal`) and SPIR-V
    (`--platform linux -p spirv`) against the pinned bgfx revision — exercise both in CI before
-   trusting them (Phase 6 wires the check).
+   trusting them (Phase 7 wires the check).
+5. Guiding-principle note: the profile table is per-platform *data* at one seam — keep it a
+   single table; no consumer of the staged tree may branch on platform.
 
 Verification: Windows build stages `dx11/` exactly as before (byte-identical outputs); Linux and
 macOS CI legs stage non-empty `spirv/`/`metal/` trees (assert non-empty in the build or check the
 packaged artifact).
 
-### Phase 2 — Backend enums + runtime selection
+### Phase 3 — Backend enums + runtime selection
 
 1. `rock-hero-common/ui/.../render_device.h` + `render_device.cpp`:
    - Extend `RenderBackend` with `Vulkan` and `Metal` (keep `Noop` untouched — it is the CI
@@ -241,11 +337,21 @@ packaged artifact).
      common surface if it fights layering).
 4. Update `rock-hero-common/ui/tests/test_render_device.cpp:52-53` to assert the per-platform
    expected default (D3D11 on `_WIN32`, Vulkan on `__linux__`, Metal on `__APPLE__`).
+5. Guiding-principle notes:
+   - `defaultRenderBackend()` is the **one** place platform selection may appear for rendering;
+     every consumer (shader loaders, device creation) derives from it generically.
+   - Alternative considered and rejected, recorded per the principle: letting bgfx auto-select
+     (`bgfx::RendererType::Count`) and deriving the shader directory from
+     `bgfx::getRendererType()` after init would remove the platform switch entirely — but it
+     couples the staged-shader set to a nondeterministic backend choice (bgfx's auto order can
+     prefer other backends per version) and undermines the never-GL depth-convention pin. A
+     three-line deterministic table at one seam is the smaller total complexity; revisit only
+     if the backend set grows.
 
 Verification: Windows behavior unchanged (build + touched tests); Linux/macOS CI compile the new
 enum paths; the Noop headless test still passes on all legs.
 
-### Phase 3 — Native window handles + bgfx platform data
+### Phase 4 — Native window handles + bgfx platform data
 
 1. `rock-hero-game/ui/src/surface/game_window.cpp` (~131-140): branch the property query —
    - Windows: `SDL_PROP_WINDOW_WIN32_HWND_POINTER` (unchanged).
@@ -261,11 +367,15 @@ enum paths; the Noop headless test still passes on all legs.
    is in scope. macOS and Windows keep `nwh`-only.
 3. Recommended 33-Q2 stance: X11 first (SDL's default video driver preference handles selection);
    Wayland rides SDL's XWayland compatibility until explicitly targeted.
+4. Guiding-principle note: the property-name branch in `game_window.cpp` is the one windowing
+   seam; the handle/display pair crosses it as opaque `void*`s and nothing downstream may
+   branch on platform again (the bgfx `platformData` fill keys off which pointers are non-null,
+   not off an `#if` — except where bgfx's own struct demands it).
 
-Verification: Windows unchanged; on a Linux/macOS machine (or Phase 7's harness) window creation
+Verification: Windows unchanged; on a Linux/macOS machine (or Phase 8's harness) window creation
 proceeds past `NativeHandleUnavailable`.
 
-### Phase 4 — Packaging + resources (macOS bundle, Linux verify)
+### Phase 5 — Packaging + resources (macOS bundle, Linux verify)
 
 1. Resolve the "macOS bundle resource layout" watch item: give the resource-root resolver a
    bundle-aware branch (JUCE `File::getSpecialLocation(currentApplicationFile)` +
@@ -278,9 +388,9 @@ proceeds past `NativeHandleUnavailable`.
    them (this shipped for plan 20; verification only).
 
 Verification: packaged artifacts from the macOS CI leg contain the shaders and textures at the
-path the resolver reads; a local macOS run (Phase 7) launches from the bundle.
+path the resolver reads; a local macOS run (Phase 8) launches from the bundle.
 
-### Phase 5 — Audio + shell polish (small items)
+### Phase 6 — Audio + shell polish (small items)
 
 1. `audio_device_settings.cpp` `deviceTypePreferenceRank()`: add `CoreAudio` (macOS) and
    `ALSA`/`JACK` (Linux, ALSA preferred by default) to the ranking table so non-Windows backends
@@ -294,27 +404,27 @@ path the resolver reads; a local macOS run (Phase 7) launches from the bundle.
    is a Windows-only defense; add a short comment at the `#if JUCE_WINDOWS` block naming the
    macOS/X11 equivalents (`NSEvent` local monitor / X11 event filter) as the follow-up, and note
    it in docs/tracking/backlog.md so the feature gap is discoverable.
-4. Optional nit: extend `vst3DisplayPath` (`audio_path_util.cpp:45`) bundle normalization to
-   macOS (`__APPLE__`) since VST3 bundles share the `Contents/` structure.
+(The `vst3DisplayPath` normalization is handled by Phase 1's guard deletion — it runs
+unconditionally on every platform from then on.)
 
 Verification: touched audio tests on Windows; Linux/macOS CI compile + test legs stay green.
 
-### Phase 6 — CI hardening for the windowed stack
+### Phase 7 — CI hardening for the windowed stack
 
 1. Ensure the Linux leg has the system packages the windowed stack needs beyond JUCE's set:
    wayland/EGL dev headers for SDL3/bgfx's `xorg/system` + `opengl/system` resolution. This
    likely means a parameter or step change in the external `tnt-coders/ci-workflows` reusable
    workflow — coordinate there; do not fork the pipeline into this repo.
-2. Add a cheap staged-shader assertion to the pipeline (per Phase 1) so an empty shader tree on
+2. Add a cheap staged-shader assertion to the pipeline (per Phase 2) so an empty shader tree on
    any leg fails loudly instead of shipping a package that cannot draw.
 3. Per 33-Q4, optionally add a headless *windowed* smoke on the Linux leg: Xvfb + lavapipe
    (Mesa's software Vulkan) can create a real window + swapchain without a GPU. This proves
    init/teardown, not performance. Metal has no CI-viable software path — macOS windowed proof
-   stays manual (Phase 7).
+   stays manual (Phase 8).
 
 Verification: all three CI legs green including the new assertions.
 
-### Phase 7 — Runtime bring-up + witnessed verification (the actual risk)
+### Phase 8 — Runtime bring-up + witnessed verification (the actual risk)
 
 The equivalent of plan 20's S1/S2 criteria has only ever run on Windows/D3D11. Budget real
 debugging time here; this is where unknown-unknowns live (driver quirks, swapchain resize
@@ -338,9 +448,14 @@ Per platform (Linux with a real GPU, macOS on real hardware):
 
 Verification: the witnessed checklist, signed per platform.
 
-### Phase 8 — Editor 3D preview embedding port (separable; may stay deferred)
+### Phase 9 — Editor 3D preview embedding port (separable; may stay deferred)
 
-Port `PreviewSurface`'s native child mechanism:
+Port `PreviewSurface`'s native child mechanism. Guiding-principle mandate: before adding the
+second platform, split the file so everything platform-neutral (the attach/suspend/detach
+lifecycle, device/renderer ordering, bounds math, the frame loop) is shared code, and each
+platform implements only a minimal native-child-surface primitive set — create, destroy,
+position, and the never-holds-keyboard-focus rule. The Win32 code becomes the first backend of
+that seam rather than the template to copy per-OS.
 
 - **macOS**: child `NSView` hosting the Metal layer (bgfx accepts an `NSView*`/`CAMetalLayer` as
   `nwh`), embedded in the JUCE peer's view hierarchy, bounds-synced like the Win32
@@ -369,7 +484,7 @@ ported platform; Windows preview unchanged.
 - **33-Q2** Linux windowing scope at v1: (A) X11 native (Wayland via XWayland); (B) native
   Wayland + X11 both wired. **R: A** — SDL handles selection, XWayland covers Wayland desktops,
   and native Wayland can land later as a small extension of the same property branch.
-- **33-Q3** editor 3D preview: (A) defer Phase 8 — ship game + editor-minus-preview first;
+- **33-Q3** editor 3D preview: (A) defer Phase 9 — ship game + editor-minus-preview first;
   (B) include it in the initial port push. **R: A** — it is the single large item, cleanly
   separable, and the preview is an authoring convenience, not a product gate.
 - **33-Q4** verification depth: (A) manual witnessed runs on real hardware per platform +
@@ -382,7 +497,10 @@ ported platform; Windows preview unchanged.
 - Windows: the sanctioned verification bundle (build, touched tests, user-triggered clang-tidy,
   pre-commit) — Windows outputs byte-identical where phases promise it.
 - All three CI legs green including the staged-shader assertions.
-- Phase 7's witnessed checklist signed for Linux and macOS.
+- Phase 8's witnessed checklist signed for Linux and macOS.
+- A platform-guard census against the guiding principle: every surviving guard is on the
+  irreducible list (or carries a reviewed justification), and the Phase 1 deletions stayed
+  deleted.
 - README platform-support note updated to reflect the new support state (it currently declares
   Windows-only, added 2026-07-18).
 - docs/design/architecture.md "Technology Stack"/platform notes updated if the support statement
