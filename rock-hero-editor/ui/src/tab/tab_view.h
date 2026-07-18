@@ -19,6 +19,11 @@
 #include <utility>
 #include <vector>
 
+namespace rock_hero::common::ui
+{
+struct TabLaneMetrics;
+} // namespace rock_hero::common::ui
+
 namespace rock_hero::editor::ui
 {
 
@@ -205,9 +210,26 @@ public:
     */
     void paint(juce::Graphics& g) override;
 
+    /*!
+    \brief Returns the armed caret square's vertical span in local coordinates, if displayed.
+
+    The track viewport cuts this span out of the behind-content paused play-from-here column,
+    so ONLY the cursor hides behind the caret square — the grid dots and string lines the
+    square overlaps keep showing through it (user ruling 2026-07-18).
+
+    \return Outer vertical span of the caret square including its stroke, or empty while no
+    caret square is displayed.
+    */
+    [[nodiscard]] std::optional<juce::Range<float>> caretMaskYRange() const;
+
 private:
     // Rebuilds the prefix-maximum sustain-end table after the projection changes.
     void rebuildVisibilityIndex();
+
+    // The armed caret square's rectangle under the given metrics, when one should draw: the
+    // single geometry authority shared by the paint overlay and the cursor-mask query.
+    [[nodiscard]] std::optional<juce::Rectangle<float>> caretSquare(
+        const common::ui::TabLaneMetrics& metrics) const;
 
     // Builds the chart pointer event for a mouse event using the currently painted geometry.
     [[nodiscard]] core::ChartPointerEvent makePointerEvent(const juce::MouseEvent& event) const;

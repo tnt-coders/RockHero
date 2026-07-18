@@ -98,11 +98,13 @@ void TrackViewport::Content::setGridLines(const std::vector<core::TempoGridLine>
     repaint();
 }
 
-// Stores the paused cursor column and repaints only the strips it leaves and enters — the
-// same narrow-invalidation pattern the overlay and ruler cursors use.
-void TrackViewport::Content::setPausedCursorX(std::optional<float> x)
+// Stores the paused cursor column and its caret-square mask and repaints only the strips the
+// column leaves and enters — the same narrow-invalidation pattern the overlay and ruler
+// cursors use. The full-height strips cover mask-only changes at an unchanged column too.
+void TrackViewport::Content::setPausedCursorX(
+    std::optional<float> x, std::optional<juce::Range<float>> mask_y)
 {
-    if (x == m_paused_cursor_x)
+    if (x == m_paused_cursor_x && mask_y == m_paused_cursor_mask_y)
     {
         return;
     }
@@ -118,6 +120,7 @@ void TrackViewport::Content::setPausedCursorX(std::optional<float> x)
     repaint_strip(m_paused_cursor_x);
     repaint_strip(x);
     m_paused_cursor_x = x;
+    m_paused_cursor_mask_y = mask_y;
 }
 
 // Draws the timeline canvas, tempo grid, waveform row background, and empty-project text.
@@ -154,13 +157,31 @@ void TrackViewport::Content::paint(juce::Graphics& g)
         // editing it shows in every gap without ever covering a note or its fret number.
         // During playback the overlay's moving line takes over in front and this hides. The
         // 1px width and the rounding match drawTimelineCursor exactly, so the column and the
-        // ruler's mark above it land in the same pixel and read as one line.
+        // ruler's mark above it land in the same pixel and read as one line. The armed caret
+        // square's span is cut out rather than painted over: ONLY the cursor hides behind
+        // the caret, so the grid and strings the square overlaps stay visible.
         if (m_paused_cursor_x.has_value())
         {
             const int column = std::clamp(
                 static_cast<int>(std::round(*m_paused_cursor_x)), 0, bounds.getWidth() - 1);
+            const int height = bounds.getHeight();
+            const int mask_top =
+                m_paused_cursor_mask_y.has_value()
+                    ? std::clamp(
+                          static_cast<int>(std::floor(m_paused_cursor_mask_y->getStart())),
+                          0,
+                          height)
+                    : height;
+            const int mask_bottom =
+                m_paused_cursor_mask_y.has_value()
+                    ? std::clamp(
+                          static_cast<int>(std::ceil(m_paused_cursor_mask_y->getEnd())),
+                          mask_top,
+                          height)
+                    : height;
             g.setColour(editorTheme().paused_cursor);
-            g.fillRect(column, 0, 1, bounds.getHeight());
+            g.fillRect(column, 0, 1, mask_top);
+            g.fillRect(column, mask_bottom, 1, height - mask_bottom);
         }
         return;
     }
@@ -878,14 +899,23 @@ void TrackViewport::updateRulerCursor()
     // The same marker position feeds the behind-content paused column: hidden during playback
     // (the overlay's moving line takes over in front) and without a chart (the overlay keeps
     // the chartless paused line as the only indicator). While a caret is armed the column
-    // rides the caret's slot; the caret square masks its own interior so the cursor never
-    // shows through the caret itself.
+    // rides the caret's slot, with the square's own span cut out of it — ONLY the cursor
+    // hides behind the caret; the tab view reports the span since it owns the geometry.
     const bool paused_column_visible = !playing && m_tab_displayed_strings > 0;
+    std::optional<juce::Range<float>> caret_mask_y{};
+    if (paused_column_visible)
+    {
+        if (const std::optional<juce::Range<float>> lane_mask = m_tab_view.caretMaskYRange())
+        {
+            caret_mask_y = *lane_mask + static_cast<float>(m_tab_view.getY());
+        }
+    }
     m_content.setPausedCursorX(
         paused_column_visible
             ? cursorXForTimelinePosition(
                   common::core::TimePosition{mark_seconds}, m_timeline_range, m_content.getWidth())
-            : std::optional<float>{});
+            : std::optional<float>{},
+        caret_mask_y);
 }
 
 } // namespace rock_hero::editor::ui
