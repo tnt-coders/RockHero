@@ -1,5 +1,6 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <rock_hero/common/ui/tab/tab_lane_layout.h>
 #include <rock_hero/common/ui/tab/tab_layout_manifest.h>
 #include <vector>
@@ -150,9 +151,9 @@ TEST_CASE("Tab prefix table tracks the running sustain maximum", "[ui][tab-layou
 
     const std::vector<double> prefix = tabPrefixMaxEndSeconds(notes);
     REQUIRE(prefix.size() == 3);
-    CHECK(prefix[0] == 9.0);
-    CHECK(prefix[1] == 9.0);
-    CHECK(prefix[2] == 12.0);
+    CHECK_THAT(prefix[0], Catch::Matchers::WithinULP(9.0, 0));
+    CHECK_THAT(prefix[1], Catch::Matchers::WithinULP(9.0, 0));
+    CHECK_THAT(prefix[2], Catch::Matchers::WithinULP(12.0, 0));
 
     // The visibility query consumes the table exactly like the paint core does.
     const auto [first, last] = tabVisibleNoteRange(notes, prefix, 5.0, 6.0);
@@ -206,7 +207,7 @@ TEST_CASE("Tab note layout matches the painted head and tail geometry", "[ui][ta
         .slides = {},
     };
     const TabNoteLayout plain_layout = tabNoteLayout(geometry, plain);
-    CHECK(plain_layout.tail.width == 0.0f);
+    CHECK_THAT(plain_layout.tail.width, Catch::Matchers::WithinULP(0.0f, 0));
     CHECK_FALSE(plain_layout.tail.contains(100.0f, 220.0f));
 }
 
