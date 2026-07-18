@@ -126,10 +126,20 @@ void TrackViewport::Content::paint(juce::Graphics& g)
     g.drawText("No Project Loaded", bounds, juce::Justification::centred);
 }
 
-// Converts normal wheel movement over timeline content into horizontal zoom.
+// Converts normal wheel movement over timeline content into horizontal zoom. Alt marks a
+// selection verb, never zoom: Alt-modified wheels route to the shell's selection dispatch and
+// are swallowed either way so the hosting viewport cannot scroll on them.
 void TrackViewport::Content::mouseWheelMove(
-    const juce::MouseEvent& /*event*/, const juce::MouseWheelDetails& wheel)
+    const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel)
 {
+    if (event.mods.isAltDown())
+    {
+        if (m_owner.m_on_selection_wheel != nullptr)
+        {
+            static_cast<void>(m_owner.m_on_selection_wheel(event, wheel));
+        }
+        return;
+    }
     m_owner.handleMouseWheelZoom(wheel);
 }
 
@@ -299,6 +309,12 @@ void TrackViewport::requestCursorFocus()
 void TrackViewport::setZoomChangedCallback(std::function<void(double)> on_zoom_changed)
 {
     m_on_zoom_changed = std::move(on_zoom_changed);
+}
+
+void TrackViewport::setSelectionWheelCallback(
+    std::function<bool(const juce::MouseEvent&, const juce::MouseWheelDetails&)> on_selection_wheel)
+{
+    m_on_selection_wheel = std::move(on_selection_wheel);
 }
 
 // Applies a restored per-project zoom on a fresh load; clamped by layoutScaledCanvas and never

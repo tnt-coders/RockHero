@@ -1151,6 +1151,67 @@ TEST_CASE("EditorView forwards space key to the controller", "[ui][editor-view]"
     CHECK(controller.play_pause_press_count == 1);
 }
 
+// Selection verbs follow the selection, not the pointer: with a chart selection active,
+// Alt+wheel (sustain) and Alt+Shift+wheel (fret shift) act on it over the timeline content
+// (where zoom would otherwise consume the wheel) and anywhere else in the editor window.
+TEST_CASE("EditorView routes selection wheels regardless of pointer position", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    core::EditorViewState state = makeLoadedEditorState(20.0);
+    auto tab = std::make_shared<common::core::TabViewState>();
+    tab->string_count = 6;
+    tab->notes = {
+        common::core::TabNoteView{
+            .start_seconds = 1.0,
+            .end_seconds = 1.0,
+            .string = 1,
+            .fret = 3,
+            .bend = {},
+            .slides = {},
+        },
+    };
+    state.tab = std::move(tab);
+    state.chart_edit.selected_notes = {0};
+    view.setState(state);
+
+    // Over the timeline content, Alt+wheel adjusts sustain instead of zooming.
+    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    const juce::MouseWheelDetails wheel_up{.deltaX = 0.0f, .deltaY = 1.0f};
+    track_content.mouseWheelMove(
+        makeMouseDownEvent(track_content, 20.0f, 20.0f, juce::ModifierKeys::altModifier), wheel_up);
+    CHECK(controller.chart_sustain_adjust_count == 1);
+    CHECK(controller.last_chart_sustain_direction == 1);
+
+    // Alt+Shift+wheel over the content shifts frets.
+    track_content.mouseWheelMove(
+        makeMouseDownEvent(
+            track_content,
+            20.0f,
+            20.0f,
+            juce::ModifierKeys::altModifier | juce::ModifierKeys::shiftModifier),
+        wheel_up);
+    CHECK(controller.chart_fret_shift_count == 1);
+    CHECK(controller.last_chart_fret_shift_direction == 1);
+
+    // Anywhere else in the window, the wheel bubbles to the editor root and still routes.
+    view.mouseWheelMove(
+        makeMouseDownEvent(view, 30.0f, 30.0f, juce::ModifierKeys::altModifier), wheel_up);
+    CHECK(controller.chart_sustain_adjust_count == 2);
+
+    // Without a selection, an Alt wheel is not a selection verb (and never zooms).
+    state.chart_edit.selected_notes = {};
+    view.setState(state);
+    track_content.mouseWheelMove(
+        makeMouseDownEvent(track_content, 20.0f, 20.0f, juce::ModifierKeys::altModifier), wheel_up);
+    CHECK(controller.chart_sustain_adjust_count == 2);
+    CHECK(controller.chart_fret_shift_count == 1);
+}
+
 // Verifies cursor geometry uses a pushed visible range plus a separately read position.
 TEST_CASE("EditorView cursor geometry maps position through visible range", "[ui][editor-view]")
 {

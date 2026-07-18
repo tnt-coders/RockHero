@@ -214,6 +214,19 @@ public:
     void setZoomChangedCallback(std::function<void(double)> on_zoom_changed);
 
     /*!
+    \brief Installs the sink for Alt-modified wheels over the timeline content.
+
+    Alt marks a selection verb, never zoom: the content routes Alt-modified wheels here (the
+    editor shell's selection-wheel dispatch) so the verbs work over the whole timeline, and
+    swallows them either way so the hosting viewport cannot scroll on them.
+
+    \param on_selection_wheel Callback returning true when it handled the wheel.
+    */
+    void setSelectionWheelCallback(
+        std::function<bool(const juce::MouseEvent&, const juce::MouseWheelDetails&)>
+            on_selection_wheel);
+
+    /*!
     \brief Applies a per-project zoom restored from app-local settings.
 
     Called only on a fresh project load, before the cursor recenter, so restored zoom never
@@ -353,6 +366,10 @@ private:
 
     // Reports user-driven zoom changes so the controller can persist them per project.
     std::function<void(double)> m_on_zoom_changed;
+
+    // Receives Alt-modified wheels over the timeline content (selection verbs, never zoom).
+    std::function<bool(const juce::MouseEvent&, const juce::MouseWheelDetails&)>
+        m_on_selection_wheel;
 
     // Full timeline range represented by the current zoomed content width.
     common::core::TimeRange m_timeline_range{};

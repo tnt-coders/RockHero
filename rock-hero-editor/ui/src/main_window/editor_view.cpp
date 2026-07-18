@@ -376,11 +376,6 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     m_audio_device_button.onClick = [this] { showAudioDeviceSettingsWindow(); };
     m_arrangement_view.setComponentID("arrangement_view");
     m_tab_view.setComponentID("tab_view");
-    m_tab_view.setSustainWheelCallback([this](int direction, bool fine) {
-        m_controller.onChartSustainAdjustRequested(direction, fine);
-    });
-    m_tab_view.setFretShiftWheelCallback(
-        [this](int direction) { m_controller.onChartFretShiftRequested(direction); });
     m_tab_view.setPointerEventCallback(
         [this](core::ChartPointerPhase phase, const core::ChartPointerEvent& event) {
             switch (phase)
@@ -491,6 +486,12 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     m_track_viewport->setZoomChangedCallback([this](double pixels_per_second) {
         m_controller.onTimelineZoomChanged(pixels_per_second);
     });
+    // The timeline content consumes wheels for zoom; Alt-modified ones route here so the
+    // selection verbs work over the whole timeline, not just the tab lane.
+    m_track_viewport->setSelectionWheelCallback(
+        [this](const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel) {
+            return dispatchSelectionWheel(event, wheel);
+        });
 
     setSize(1280, 800);
 }
@@ -888,6 +889,43 @@ void EditorView::toggleUndoHistoryPanel()
     {
         m_undo_history_overlay.toFront(false);
     }
+}
+
+// Selection verbs follow the selection, not the pointer (user decision 2026-07-17): with a
+// chart selection active, Alt+wheel (sustain; Ctrl composes the fine grid) and Alt+Shift+wheel
+// (fret shift) act on it wherever the pointer sits inside the editor window.
+bool EditorView::dispatchSelectionWheel(
+    const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel)
+{
+    const bool chart_shown = m_state.tab != nullptr && m_state.tab->string_count > 0;
+    if (!event.mods.isAltDown() || wheel.deltaY == 0.0f || !chart_shown ||
+        m_state.chart_edit.selected_notes.empty())
+    {
+        return false;
+    }
+
+    const int direction = wheel.deltaY > 0.0f ? 1 : -1;
+    if (event.mods.isShiftDown())
+    {
+        m_controller.onChartFretShiftRequested(direction);
+    }
+    else
+    {
+        m_controller.onChartSustainAdjustRequested(direction, event.mods.isCtrlDown());
+    }
+    return true;
+}
+
+// Catches Alt-modified wheels bubbling from surfaces that do not consume wheels themselves
+// (the ruler, the transport strip, empty chrome); the timeline content routes its own through
+// the TrackViewport callback since zoom would otherwise swallow them.
+void EditorView::mouseWheelMove(const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel)
+{
+    if (dispatchSelectionWheel(event, wheel))
+    {
+        return;
+    }
+    juce::Component::mouseWheelMove(event, wheel);
 }
 
 // Routes editor-level keyboard shortcuts through the same controller intents as child widgets.

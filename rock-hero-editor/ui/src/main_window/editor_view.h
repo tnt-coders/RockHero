@@ -173,6 +173,21 @@ public:
     bool keyPressed(const juce::KeyPress& key) override;
 
     /*!
+    \brief Routes Alt-modified wheels bubbled from anywhere in the editor to the selection.
+
+    Selection verbs follow the selection, not the pointer (user decision 2026-07-17): with a
+    chart selection active, Alt+wheel adjusts sustain (Ctrl composes the fine grid) and
+    Alt+Shift+wheel shifts frets wherever the pointer sits. Wheel-consuming surfaces (the
+    timeline zoom) route their Alt-modified wheels here instead of acting on them; unhandled
+    wheels keep bubbling.
+
+    \param event Mouse event delivered by JUCE.
+    \param wheel Wheel movement details.
+    */
+    void mouseWheelMove(
+        const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel) override;
+
+    /*!
     \brief Returns the top-level editor menu names.
     \return Menu names shown by the menu bar.
     */
@@ -200,6 +215,11 @@ private:
         UserSaveAs,
         DeferredAction,
     };
+
+    // Routes an Alt-modified wheel to the chart selection's verbs (sustain, fret shift);
+    // returns false when no chart selection is active or the wheel is not a selection verb.
+    bool dispatchSelectionWheel(
+        const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel);
 
     // Opens the asynchronous project package chooser and forwards accepted selections.
     void showOpenChooser();
