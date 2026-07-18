@@ -418,6 +418,18 @@ an input identity build their OWN LiveInputMonitor over their own fakes and inje
 }
 
 /*!
+\brief Returns a nullable pointer to the loaded chart so tests can satisfy optional-access lint.
+\param controller Editor controller whose session may hold a charted arrangement.
+\return Pointer to the current arrangement's chart, or nullptr.
+*/
+[[nodiscard]] inline const common::core::Chart* chartOrNull(const EditorController& controller)
+{
+    const common::core::Arrangement* const arrangement = controller.session().currentArrangement();
+    return arrangement != nullptr && arrangement->chart.has_value() ? &*arrangement->chart
+                                                                    : nullptr;
+}
+
+/*!
 \brief Extracts live-rig busy states so tests can assert the progress sequence directly.
 \param view Fake view containing pushed state history.
 \return Busy states whose operation is LoadingLiveRig.

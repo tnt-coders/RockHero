@@ -213,20 +213,20 @@ TEST_CASE("EditorController sets frets by typing and shifts them by wheel", "[co
     REQUIRE(state != nullptr);
     CHECK(state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1}));
     controller.onChartFretDigitTyped(9);
-    const auto* chart = &*controller.session().currentArrangement()->chart;
+    const auto* chart = chartOrNull(controller);
     CHECK(chart->notes[0].fret == 9);
     CHECK(chart->notes[1].fret == 9);
     CHECK(state->undo_label == std::optional<std::string>{"Set Fret 9"});
 
     // One undo restores both members in one step.
     controller.onUndoRequested();
-    chart = &*controller.session().currentArrangement()->chart;
+    chart = chartOrNull(controller);
     CHECK(chart->notes[0].fret == 3);
     CHECK(chart->notes[1].fret == 5);
 
     // The fret shift moves the shape as a unit.
     controller.onChartFretShiftRequested(1);
-    chart = &*controller.session().currentArrangement()->chart;
+    chart = chartOrNull(controller);
     CHECK(chart->notes[0].fret == 4);
     CHECK(chart->notes[1].fret == 6);
 
@@ -236,7 +236,7 @@ TEST_CASE("EditorController sets frets by typing and shifts them by wheel", "[co
     {
         controller.onChartFretShiftRequested(-1);
     }
-    chart = &*controller.session().currentArrangement()->chart;
+    chart = chartOrNull(controller);
     CHECK(chart->notes[0].fret == 0);
     CHECK(chart->notes[1].fret == 2);
 
@@ -246,7 +246,7 @@ TEST_CASE("EditorController sets frets by typing and shifts them by wheel", "[co
     {
         controller.onChartFretShiftRequested(1);
     }
-    chart = &*controller.session().currentArrangement()->chart;
+    chart = chartOrNull(controller);
     CHECK(chart->notes[0].fret == 28);
     CHECK(chart->notes[1].fret == 30);
 }
@@ -476,7 +476,7 @@ TEST_CASE("EditorController dissolves the caret while playing", "[core][chart]")
 
     // Typing while passive is inert: a stray digit after listening authors nothing.
     controller.onChartFretDigitTyped(5);
-    const auto* chart = &*controller.session().currentArrangement()->chart;
+    const auto* chart = chartOrNull(controller);
     CHECK(chart->notes.size() == 3);
 
     // The first arrow arms the caret at the paused cursor: nearest grid line (10.0s at the
@@ -588,7 +588,7 @@ TEST_CASE("EditorController inserts a note by typing at the caret", "[core][char
     controller.onChartFretDigitTyped(1);
     controller.onChartFretDigitTyped(2);
 
-    const auto* chart = &*controller.session().currentArrangement()->chart;
+    const auto* chart = chartOrNull(controller);
     REQUIRE(chart->notes.size() == 4);
     CHECK(chart->notes[3].position == common::core::GridPosition{.measure = 4, .beat = 1});
     CHECK(chart->notes[3].string == 1);
@@ -598,12 +598,12 @@ TEST_CASE("EditorController inserts a note by typing at the caret", "[core][char
 
     // ONE undo removes the whole typed insert (never stranding a fret-1 note).
     controller.onUndoRequested();
-    chart = &*controller.session().currentArrangement()->chart;
+    chart = chartOrNull(controller);
     CHECK(chart->notes.size() == 3);
     CHECK(state->chart_edit.selected_notes.empty());
 
     controller.onRedoRequested();
-    chart = &*controller.session().currentArrangement()->chart;
+    chart = chartOrNull(controller);
     CHECK(chart->notes.size() == 4);
 }
 
@@ -632,14 +632,14 @@ TEST_CASE("EditorController insert truncates the overlapped sustain", "[core][ch
     controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
     controller.onChartFretDigitTyped(5);
 
-    const auto* chart = &*controller.session().currentArrangement()->chart;
+    const auto* chart = chartOrNull(controller);
     REQUIRE(chart->notes.size() == 4);
     CHECK(chart->notes[2].sustain == common::core::Fraction{1, 1});
     CHECK(chart->notes[3].position == (common::core::GridPosition{.measure = 3, .beat = 2}));
 
     // One undo restores both the removed note and the original sustain.
     controller.onUndoRequested();
-    chart = &*controller.session().currentArrangement()->chart;
+    chart = chartOrNull(controller);
     REQUIRE(chart->notes.size() == 3);
     CHECK(chart->notes[2].sustain == common::core::Fraction{2, 1});
 }
@@ -666,7 +666,7 @@ TEST_CASE("EditorController deletes the chart selection undoably", "[core][chart
     doubleClick(controller, 40.0f, 220.0f);
     controller.onChartSelectionDeleteRequested();
 
-    const auto* chart = &*controller.session().currentArrangement()->chart;
+    const auto* chart = chartOrNull(controller);
     REQUIRE(chart->notes.size() == 1);
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
@@ -674,7 +674,7 @@ TEST_CASE("EditorController deletes the chart selection undoably", "[core][chart
     CHECK(state->undo_label == std::optional<std::string>{"Delete 2 Notes"});
 
     controller.onUndoRequested();
-    chart = &*controller.session().currentArrangement()->chart;
+    chart = chartOrNull(controller);
     CHECK(chart->notes.size() == 3);
 }
 
@@ -703,12 +703,12 @@ TEST_CASE("EditorController fret digits combine inside the entry window", "[core
     const std::size_t entries_before = state->undo_history.labels.size();
 
     controller.onChartFretDigitTyped(1);
-    const auto* chart = &*controller.session().currentArrangement()->chart;
+    const auto* chart = chartOrNull(controller);
     CHECK(chart->notes[0].fret == 1);
 
     // The second digit inside the window widens the SAME undo entry: one action, fret 12.
     controller.onChartFretDigitTyped(2);
-    chart = &*controller.session().currentArrangement()->chart;
+    chart = chartOrNull(controller);
     CHECK(chart->notes[0].fret == 12);
     CHECK(state->undo_history.labels.size() == entries_before + 1);
     CHECK(state->undo_label == std::optional<std::string>{"Set Fret 12"});
@@ -718,14 +718,14 @@ TEST_CASE("EditorController fret digits combine inside the entry window", "[core
 
     // One undo restores the original fret 3 in one step.
     controller.onUndoRequested();
-    chart = &*controller.session().currentArrangement()->chart;
+    chart = chartOrNull(controller);
     CHECK(chart->notes[0].fret == 3);
 
     // An interleaved edit kills the window: the next digit starts a fresh value.
     controller.onChartFretDigitTyped(2);
     controller.onChartSustainAdjustRequested(1);
     controller.onChartFretDigitTyped(3);
-    chart = &*controller.session().currentArrangement()->chart;
+    chart = chartOrNull(controller);
     CHECK(chart->notes[0].fret == 3);
 }
 
@@ -752,7 +752,7 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
     // A plain click selects just the string-1 note (containment hierarchy).
     click(controller, 40.0f, 220.0f);
     controller.onChartSustainAdjustRequested(1);
-    const auto* chart = &*controller.session().currentArrangement()->chart;
+    const auto* chart = chartOrNull(controller);
     CHECK(chart->notes[0].sustain == common::core::Fraction{1, 1});
 
     // Five more quarter-note steps would reach 6 beats, but the measure-3 note sits 4 beats
@@ -761,7 +761,7 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
     {
         controller.onChartSustainAdjustRequested(1);
     }
-    chart = &*controller.session().currentArrangement()->chart;
+    chart = chartOrNull(controller);
     CHECK(chart->notes[0].sustain == common::core::Fraction{15, 4});
 
     // The margin binds across strings too: the string-2 chord member has no same-string
@@ -771,7 +771,7 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
     {
         controller.onChartSustainAdjustRequested(1);
     }
-    chart = &*controller.session().currentArrangement()->chart;
+    chart = chartOrNull(controller);
     CHECK(chart->notes[1].sustain == common::core::Fraction{15, 4});
 
     // Shrinking floors at zero.
@@ -780,7 +780,7 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
     {
         controller.onChartSustainAdjustRequested(-1);
     }
-    chart = &*controller.session().currentArrangement()->chart;
+    chart = chartOrNull(controller);
     CHECK(chart->notes[0].sustain == common::core::Fraction{});
 }
 
@@ -808,7 +808,7 @@ TEST_CASE("EditorController nudges the selection and refuses collisions", "[core
     // Plain arrows never mutate: they move the caret (deselecting on the empty slot), leaving
     // the chart untouched; re-clicking the note restores the selection for the move test.
     controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
-    const auto* chart = &*controller.session().currentArrangement()->chart;
+    const auto* chart = chartOrNull(controller);
     CHECK(chart->notes[0].position == (common::core::GridPosition{.measure = 2, .beat = 1}));
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
@@ -817,20 +817,20 @@ TEST_CASE("EditorController nudges the selection and refuses collisions", "[core
 
     // Alt+Up would land on the occupied measure-2 string-2 slot: refused, nothing changes.
     controller.onChartSelectionMoveRequested(ChartStepDirection::Up);
-    chart = &*controller.session().currentArrangement()->chart;
+    chart = chartOrNull(controller);
     CHECK(chart->notes[0].string == 1);
     CHECK(chart->notes[0].position == (common::core::GridPosition{.measure = 2, .beat = 1}));
 
     // Alt+Right moves one quarter-note step; the selection follows the moved note.
     controller.onChartSelectionMoveRequested(ChartStepDirection::Right);
-    chart = &*controller.session().currentArrangement()->chart;
+    chart = chartOrNull(controller);
     CHECK(chart->notes[1].position == (common::core::GridPosition{.measure = 2, .beat = 2}));
     CHECK(chart->notes[1].string == 1);
     CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{1});
     CHECK(state->undo_label == std::optional<std::string>{"Move Note"});
 
     controller.onUndoRequested();
-    chart = &*controller.session().currentArrangement()->chart;
+    chart = chartOrNull(controller);
     CHECK(chart->notes[0].position == (common::core::GridPosition{.measure = 2, .beat = 1}));
     CHECK(chart->notes[0].string == 1);
 }

@@ -299,7 +299,10 @@ TEST_CASE("Session currentChart advances the chart revision", "[core][session]")
 
     Song song_with_chart = makeSongWithAudio(std::filesystem::path{"mix.wav"}, TimeDuration{4.0});
     song_with_chart.arrangements.front().chart = Chart{};
-    REQUIRE(session.loadSong(std::move(song_with_chart), 0));
+    // Move outside the assertion macro: REQUIRE re-mentions its expression textually, which
+    // bugprone-use-after-move reads as a use of the moved-from song.
+    const bool loaded = session.loadSong(std::move(song_with_chart), 0);
+    REQUIRE(loaded);
 
     const Chart* const chart = session.currentChart();
     REQUIRE(chart != nullptr);

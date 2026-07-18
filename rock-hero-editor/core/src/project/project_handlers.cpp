@@ -7,6 +7,7 @@
 #include <optional>
 #include <rock_hero/common/core/tone/tone_track_normalize.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
+#include <utility>
 #include <variant>
 
 namespace rock_hero::editor::core
@@ -1439,7 +1440,7 @@ void EditorController::Impl::restoreProjectMarker(const EditorProjectCaret& care
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     const bool string_exists =
         arrangement != nullptr && arrangement->chart.has_value() &&
-        caret.string <= static_cast<int>(arrangement->chart->tuning.strings.size());
+        std::cmp_less_equal(caret.string, arrangement->chart->tuning.strings.size());
     if (string_exists)
     {
         armChartCaret(caret.position, caret.string);
