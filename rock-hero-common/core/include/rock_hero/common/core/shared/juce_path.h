@@ -13,8 +13,12 @@ namespace rock_hero::common::core
 
 /*!
 \brief Converts a standard filesystem path into JUCE text.
+
+Both directions of the bridge go through UTF-8, which round-trips the native representation
+losslessly on every platform (Windows wide paths included).
+
 \param path Path to convert.
-\return JUCE string preserving Windows wide paths and UTF-8 POSIX paths.
+\return JUCE string holding the same path as UTF-8 text.
 */
 [[nodiscard]] juce::String juceStringFromPath(const std::filesystem::path& path);
 
