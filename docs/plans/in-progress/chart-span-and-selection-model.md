@@ -47,7 +47,9 @@ editing), plan 42 (validation hooks), plan 52 (time-range selection), and
 
 - Creating a stack (placing a note onto an existing onset) auto-creates the template and span
   in the same undo entry as the note insertion.
-- Default span extent floor: 1 beat, for tail-less strikes.
+- Default span extent floor: 1 beat, for tail-less strikes — clamped at creation to §10's
+  minimum-note-distance limit (`min(1 beat, next outside onset − margin)`) so auto-creation
+  never mints an extent the duration verb could not have authored (2026-07-18 fold-in audit).
 - Shrinking a span below a following strike splits the span: the remainder becomes a new span
   with the same template (rendering as a fresh full chord box, not a repeat). Growing a span
   into an adjacent same-template span re-merges them. Split and merge are symmetric.
@@ -280,7 +282,7 @@ owning an exact grid slot × string. Handoffs:
 | --- | --- |
 | Plain click on an empty slot or a note (paused) | Armed there; a note click also selects it |
 | Arrow key while passive (paused) | Armed at the cursor — nearest grid line, remembered string; the first press arms in place, later presses move |
-| Ctrl+click, double-click, or marquee | Passive; the cursor takes the caret's place (a paused seek to the caret's musical time), signalling that verbs now act on the highlighted selection, not a caret |
+| Any multi-select gesture — Ctrl+click, double-click, marquee, and every future gesture whose result is a multi-note selection (span-rail click, §5's member double-click, plan 52's range once it selects notes) | Passive; the cursor takes the caret's place (a paused seek to the caret's musical time), signalling that verbs now act on the highlighted selection, not a caret. Dissolution is a *rule over outcomes*, not a closed gesture list (2026-07-18 fold-in audit) |
 | Esc | Armed → passive in place, selection kept; passive with a selection → the selection clears; either rung also ends the multi-digit fret-entry window |
 | Play | Passive — playback dissolves the caret and clears the selection; the cursor is the moving playhead. Space starts playback from the marker in both states |
 | Pause / Stop / paused seek | Passive at the transport position; the cursor rests at the raw stop point — no grid snapping while passive, snapping happens at arming |
@@ -294,9 +296,23 @@ owning an exact grid slot × string. Handoffs:
 - Passive ⟹ the marker's time IS the transport position. Dissolution seeks make this hold,
   so the paused cursor line renders from the transport with no separate position plumbing,
   and Space-resume after any handoff is continuous.
-- The caret square renders iff armed on an empty slot (armed on a note keeps §9's rule: the
-  note's selection highlight is the caret display); the paused playhead line renders iff
-  passive. **Square visible ⟺ typing inserts.**
+- The caret square (white, slightly rounded corners) renders iff armed — on an empty slot it
+  marks where typing inserts, and on a note it rides the selection highlight so the caret
+  stays visible through a single selection (amended 2026-07-18 from square-on-empty-only, on
+  user feedback); the paused playhead line renders iff passive. **Square on an empty slot ⟺
+  typing inserts; square gone ⟺ verbs act on the highlighted selection.**
+- Wheel zoom centers on the marker: the armed caret when one exists, else the transport
+  cursor (the playing playhead or the passive paused cursor) — the position concept and the
+  zoom anchor are always the same thing (amended 2026-07-18).
+- **Undo/redo never move the marker** (2026-07-18 fold-in audit): reveal-on-undo scrolls the
+  viewport to the restored content; it never arms, disarms, or seeks. This keeps the passive
+  invariant from forcing a transport seek on every Ctrl+Z, and an armed caret simply
+  re-renders against whatever undo put under it.
+- **Paste arms the marker** (working answer for plan 40 Phase 9 / plan 52, to be ratified at
+  G52-RANGE-EDIT): pasting while passive first arms at the nearest grid line — snapping
+  happens at arming, exactly as for arrows — then rebases the clip there; the pasted notes
+  become the selection, which (when multi-note) dissolves the marker per the standard rule.
+  Paste never authors off-grid content from a raw passive rest.
 
 **The typing rule** (one rule, no modes): digits retype the selection when one exists — every
 selected note takes the exact typed value, multi-digit widening unchanged — else they insert
@@ -337,6 +353,31 @@ the note selection; the caret persists" (the Esc ladder above); the paused playh
 unconditional absence (it returns while passive). Everything else stands: typing-inserts and
 the widened-insert undo rule, arrow stepping with the measure jump, play-from-the-marker, the
 highway-band seek gate, and chartless behavior (now simply "the marker never arms").
+
+## 10. Minimum note distance — SETTLED (restriction, 2026-07-18); overrides OPEN
+
+Extending a note's tail (the duration verb — and span extents when slice 3 builds them) clamps
+to end at least a **margin before the next onset on ANY string**, not just the same string:
+tails must never crowd another note. The margin is 1/16 of a whole note (a quarter beat in
+x/4) — intended to become configurable, but the setting ships with the override design below,
+not before. Rules:
+
+- Same-onset chord members sit at equal positions and never block each other, and **span
+  siblings never block each other**: notes under a shared shape span are implied-held across
+  each other's onsets (§5), so a member tail extends freely past sibling onsets — the first
+  later onset outside every shared span is the one that binds. (Scoped 2026-07-18 by the
+  fold-in audit: an unscoped any-string clamp would have made §5's member-tail adjustment
+  refuse at one grid step inside every arpeggio.)
+- The clamp is **duration-verb ergonomics, never chart validity**: imported charts keep
+  whatever spacing they have, the insert truncation (40-Q2-B) still truncates an existing
+  tail to end exactly at the inserted note (shortening to make room is not crowding), and
+  moves/merges are unclamped. Promoting the margin to a validity or lint rule would route
+  through plan 42's corpus calibration first. A tail already at or past the limit refuses to
+  grow; it is never shrunk by a grow gesture.
+- **OPEN — override design (deliberately deferred):** the clean ways to intentionally exceed
+  the limit (and the exact cases that justify it), plus the margin's configurability surface,
+  are a separate design discussion. Until it happens the blanket restriction stands as the
+  safe default.
 
 ## Build order (once section 5 settles)
 

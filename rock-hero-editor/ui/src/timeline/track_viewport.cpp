@@ -285,18 +285,19 @@ void TrackViewport::setTabDisplayedStrings(int displayed_strings)
     layoutScaledCanvas();
 }
 
-// Stores the marker's armed flag and refreshes both paused-position indicators (the marker
+// Stores the armed caret's position and refreshes both paused-position indicators (the marker
 // model): the overlay's paused cursor and the ruler's aligned mark hide while armed — the
-// caret is the position display — and return while passive.
-void TrackViewport::setChartMarkerArmed(bool armed)
+// caret is the position display — and return while passive. The stored seconds also become
+// the wheel-zoom center while armed.
+void TrackViewport::setArmedChartCaret(std::optional<double> seconds)
 {
-    if (m_chart_marker_armed == armed)
+    if (m_armed_caret_seconds == seconds)
     {
         return;
     }
 
-    m_chart_marker_armed = armed;
-    m_cursor_overlay.setPausedCursorHidden(m_chart_marker_armed);
+    m_armed_caret_seconds = seconds;
+    m_cursor_overlay.setPausedCursorHidden(m_armed_caret_seconds.has_value());
     updateRulerCursor();
 }
 
@@ -468,7 +469,7 @@ void TrackViewport::layoutScaledCanvas()
     // (tone/lane clicks never move the position), and an armed caret hides the paused
     // playhead — a passive marker keeps it as the position display.
     m_cursor_overlay.setSeekBandHeight(primaryTrackHeight());
-    m_cursor_overlay.setPausedCursorHidden(m_chart_marker_armed);
+    m_cursor_overlay.setPausedCursorHidden(m_armed_caret_seconds.has_value());
     updateRulerView();
     refreshTimelineGrid();
 }
@@ -487,12 +488,14 @@ void TrackViewport::relayoutForContentHeightChange()
     m_cursor_overlay.setBounds(m_content.getLocalBounds());
     m_cursor_overlay.toFront(false);
     m_cursor_overlay.setSeekBandHeight(primaryTrackHeight());
-    m_cursor_overlay.setPausedCursorHidden(m_chart_marker_armed);
+    m_cursor_overlay.setPausedCursorHidden(m_armed_caret_seconds.has_value());
     updateRulerView();
     refreshTimelineGridForViewChange();
 }
 
-// Changes the horizontal timeline scale around the current transport cursor.
+// Changes the horizontal timeline scale around the current position: the armed caret when one
+// exists (the marker model — the caret is the position, so zoom keeps it centered), else the
+// transport cursor (the playing playhead or the passive paused cursor).
 void TrackViewport::handleMouseWheelZoom(const juce::MouseWheelDetails& wheel)
 {
     const float wheel_delta = hasMouseWheelDelta(wheel.deltaY) ? wheel.deltaY : wheel.deltaX;
@@ -502,7 +505,8 @@ void TrackViewport::handleMouseWheelZoom(const juce::MouseWheelDetails& wheel)
         return;
     }
 
-    const common::core::TimePosition cursor_position = m_transport.position();
+    const common::core::TimePosition cursor_position{m_armed_caret_seconds.value_or(
+        m_transport.position().seconds)};
     const double wheel_steps = std::max(1.0, static_cast<double>(std::abs(wheel_delta)) * 4.0);
     const double zoom_factor = std::pow(g_mouse_wheel_zoom_factor, wheel_steps);
     const double next_pixels_per_second =
@@ -727,7 +731,7 @@ void TrackViewport::updateRulerCursor()
     // The ruler mark mirrors the overlay's paused-cursor rule (the marker model): visible
     // during playback and while the marker is passive (the paused cursor at the transport
     // position IS the position); hidden only while an armed caret owns the paused position.
-    const bool cursor_visible = m_transport.state().playing || !m_chart_marker_armed;
+    const bool cursor_visible = m_transport.state().playing || !m_armed_caret_seconds.has_value();
     m_timeline_ruler.setCursorPosition(
         cursor_visible ? std::optional<common::core::TimePosition>{m_transport.position()}
                        : std::nullopt);

@@ -638,9 +638,13 @@ void EditorView::setState(const core::EditorViewState& state)
     m_track_viewport->setTabDisplayedStrings(tabDisplayedStringCount(
         m_state.tab != nullptr ? m_state.tab->string_count : 0,
         m_state.tab_minimum_displayed_strings));
-    // An armed marker hides the paused playhead (the caret is the position display); passive
-    // keeps the paused cursor line at the transport position.
-    m_track_viewport->setChartMarkerArmed(m_state.chart_edit.marker_armed);
+    // An armed caret hides the paused playhead (the caret is the position display) and
+    // becomes the wheel-zoom center; passive keeps the paused cursor line at the transport
+    // position and zooms around it.
+    m_track_viewport->setArmedChartCaret(
+        m_state.chart_edit.caret.has_value()
+            ? std::optional<double>{m_state.chart_edit.caret->seconds}
+            : std::nullopt);
     // The count chip appears from two selected notes up: typing acts on the whole selection,
     // so its size must stay visible even with the highlights scrolled off-screen.
     const std::size_t selected_count = m_state.chart_edit.selected_notes.size();
@@ -1154,7 +1158,7 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
             return true;
         }
         if (m_state.tab != nullptr &&
-            (m_state.chart_edit.marker_armed || !m_state.chart_edit.selected_notes.empty()))
+            (m_state.chart_edit.caret.has_value() || !m_state.chart_edit.selected_notes.empty()))
         {
             m_controller.onChartEscapePressed();
             return true;

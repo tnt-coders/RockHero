@@ -293,11 +293,9 @@ TEST_CASE("TabView renders the empty-slot caret square", "[ui][tab-view]")
         });
     view.setState(makeTabState(), 0);
 
-    // Caret at 12.5s (x = 125) on string 3 (center y = 70); a published caret implies an
-    // armed marker.
+    // Caret at 12.5s (x = 125) on string 3 (center y = 70).
     view.setEditState(
         core::ChartEditViewState{
-            .marker_armed = true,
             .caret = core::ChartCaretViewState{.seconds = 12.5, .string = 3},
         });
     {
@@ -308,9 +306,10 @@ TEST_CASE("TabView renders the empty-slot caret square", "[ui][tab-view]")
         // Probe inside the square's top stroke band above the slot center (half-size ~7.2,
         // stroke 1.5), off the string line so the lane paint cannot satisfy the check.
         CHECK(image.getPixelAt(125, 62).getARGB() != 0);
-        // A corner probe pins the SQUARE shape: the top edge extends to x = 118 at this y,
-        // where a circular ring of the same size would leave the pixel empty.
-        CHECK(image.getPixelAt(119, 63).getARGB() != 0);
+        // A shape probe pins the SQUARE: the top edge stays straight out to x = 120 past the
+        // slight corner rounding (radius ~1.8), where a circular ring of the same size has
+        // already curved well below this row and leaves the pixel empty.
+        CHECK(image.getPixelAt(120, 62).getARGB() != 0);
     }
 
     // No published caret, no square.

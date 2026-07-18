@@ -3112,25 +3112,17 @@ EditorViewState EditorController::Impl::deriveViewState() const
                 selectedNoteIndices(arrangement->chart->notes, m_chart_selection);
             // The marker publishes plainly from its state — armed ⟹ paused is structural
             // (play and the transport listener demote), so no transport check re-derives it
-            // here. The square renders only on an EMPTY slot; on a note the selection
-            // highlight is the caret display, and marker_armed alone hides the paused
-            // playhead.
+            // here. The caret publishes whenever armed, empty slot or note alike: the square
+            // stays visible through a single selection, and its presence is the armed signal
+            // that hides the paused playhead.
             if (const ChartCaret* const caret = armedChartCaret())
             {
-                state.chart_edit.marker_armed = true;
-                const ChartNoteKey caret_key{.position = caret->position, .string = caret->string};
-                const bool on_note = std::ranges::any_of(
-                    chartOnsetGroupKeys(arrangement->chart->notes, caret->position),
-                    [&caret_key](const ChartNoteKey& candidate) { return candidate == caret_key; });
-                if (!on_note)
-                {
-                    const common::core::TempoMap& tempo_map = session().song().tempo_map;
-                    state.chart_edit.caret = ChartCaretViewState{
-                        .seconds = tempo_map.secondsAtNote(
-                            caret->position.measure, caret->position.beat, caret->position.offset),
-                        .string = caret->string,
-                    };
-                }
+                const common::core::TempoMap& tempo_map = session().song().tempo_map;
+                state.chart_edit.caret = ChartCaretViewState{
+                    .seconds = tempo_map.secondsAtNote(
+                        caret->position.measure, caret->position.beat, caret->position.offset),
+                    .string = caret->string,
+                };
             }
             if (m_chart_gesture.has_value() && m_chart_gesture->marquee &&
                 m_chart_gesture->geometry.bounds_width > 0.0f &&
