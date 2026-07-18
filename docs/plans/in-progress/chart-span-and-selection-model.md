@@ -384,6 +384,38 @@ unconditional absence (it returns while passive). Everything else stands: typing
 the widened-insert undo rule, arrow stepping with the measure jump, play-from-the-marker, the
 highway-band seek gate, and chartless behavior (now simply "the marker never arms").
 
+## 9b. The marker's row axis + unified selection — SETTLED (2026-07-18, same-day extension)
+
+Settled with the user hours after §9a; the full grammar record (verb table rows, per-surface
+behavior, amendment record) lives in `editing-interaction-model.md` — this section holds only
+what extends the marker model itself. Being implemented now.
+
+- **Rows, not strings.** The armed caret's vertical coordinate generalizes from a string index
+  to a **row**: the chart strings first, then the visible automation lanes (a lane row is
+  identified by instance + parameter, never display index). Plain Up/Down traverse the whole
+  stack, crossing the tab/lanes boundary in both directions; Left/Right and Ctrl+Left/Right
+  behave identically on every row. Clicking an automation lane seeks and arms the caret at the
+  nearest grid line on that lane. A lane leaving the visible set dissolves an armed caret on it
+  to passive (the §9a demotion posture: never clamp onto a wrong row, never invent a position).
+- **The caret stays grid-native on every row** (§11 extends unchanged). Fine positioning is
+  authoring, not navigation: Ctrl+Alt+arrows fine-step the *point*; the caret never rests
+  between grid lines — the same posture as off-grid imported notes, which are selectable but
+  never caret slots.
+- **The typing rule generalizes by payload** (one rule, no modes): digits at an armed empty
+  slot author the row's payload — a typed fret on a string row, the typed-value editor (seeded
+  with the digit) on a lane row. Alt+arrows at an armed empty lane slot create-then-nudge, with
+  the created point landing **on the curve** (sonically silent until pulled) — the keyboard
+  mirror of the on-curve Alt+click placement. **Insert is the neutral-create verb everywhere**
+  (user addition): fret-0 note / on-curve point at an armed empty slot; no-op on occupied slots
+  and while passive, so Insert never mutates existing objects.
+- **One selection editor-wide.** Chart selection, automation point, and tone region become
+  alternatives of one editor-core sum type — two live selections are unrepresentable, the
+  Delete precedence ladder retires (Delete deletes *the* selection), and the §9a
+  selection-count chip generalizes to the variant's kind. Cross-surface selection changes never
+  touch the marker's armed/passive state: selection and position remain separate concepts.
+- **Supersedes**: the 2026-07-17 "tone/automation surfaces never move the caret" ruling (it
+  predates the caret having rows there) and §9a's implicit string-only row space.
+
 ## 10. Minimum note distance — SETTLED (restriction, 2026-07-18); overrides OPEN
 
 Extending a note's tail (the duration verb — and span extents when slice 3 builds them) clamps
@@ -445,5 +477,7 @@ game chart is a timing bug far more often than an intent.
 5. Shift+click time range — recorded in plan 52; built when 52's operation semantics get
    their sign-offs.
 
-The Phase 4 remainder (pointer drag-move of selected notes + Esc drag-cancel) slots after
-slice 1.
+~~The Phase 4 remainder (pointer drag-move of selected notes + Esc drag-cancel) slots after
+slice 1.~~ *Parked 2026-07-18 (user decision): keyboard moves + Phase 9 copy/paste cover it on
+the grid-native lane; watch item in docs/tracking/watch-items.md ("Chart editing"). Slice 2 is
+the next execution step.*
