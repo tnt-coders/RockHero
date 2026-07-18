@@ -175,6 +175,19 @@ the preview headers (which pull the renderer). The first test that includes
 `preview_surface.h`/`preview_window.h` (or anything transitively pulling the highway renderer)
 must add that link, or it will fail to resolve at link time.
 
+### Render child must never hold keyboard focus — trigger: porting the preview off Windows
+
+Invariant learned the hard way on Windows (2026-07-18): clicking the embedded render child
+handed it OS keyboard focus, and its message loop silently swallowed every keystroke — space/F3
+never reached `PreviewWindow::keyPressed`. The Windows fix bounces `WM_SETFOCUS` back to the
+JUCE peer (`previewChildWindowProc` in `preview_surface.cpp`). The preview ships Windows-only
+today, so nothing else is affected. **Trigger**: porting the embedded preview to macOS or
+Linux. **Remedy**: enforce the same invariant per platform — macOS: a plain `NSView` already
+refuses first responder, but verify whatever view the render backend supplies keeps it that
+way; Linux: a raw X child window never takes input focus by itself, but an SDL-managed window
+would claim it exactly like Windows did, so prefer a focus-inert embedding or replicate the
+bounce.
+
 ## Cross-platform packaging
 
 ### macOS bundle resource layout — trigger: macOS packaging of either product
