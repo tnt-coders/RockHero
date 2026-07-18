@@ -306,16 +306,18 @@ owning an exact grid slot × string. Handoffs:
   draws **behind every track-row component** (over the grid, under the notes — visible in
   every gap, never covering a fret number; muted `paused_cursor` theme color, 1px, same
   rounding as the shared cursor draw so it lands in the ruler mark's exact pixel); while
-  **playing**, the overlay's moving line draws in front as before. The column also hides
-  while a caret is armed — the caret square marks the slot itself, so nothing runs behind
-  it. The **ruler's aligned flag mark is ALWAYS shown** (third revision): the moving
-  playhead while playing, else the marker — the armed caret's slot (Space seeks there
-  first) or the passive transport rest; the whole mark (body line + flag, tip centered on
-  the line's pixel) takes the paused color while paused and the playback white while
-  playing, so mark and column read as one continuous indicator. The lane's only in-front
+  **playing**, the overlay's moving line draws in front as before. While a caret is armed
+  the column rides the caret's slot, and the square's interior fills opaque on an empty
+  slot so the cursor never shows through the caret itself (a caret on a note needs no
+  mask — the head covers the column). The **ruler's aligned flag mark is ALWAYS shown**
+  (third revision): the moving playhead while playing, else the marker — the armed caret's
+  slot (Space seeks there first) or the passive transport rest; the body line (tip-aligned
+  flag centered on its exact pixel) takes the paused color while paused so line and column
+  read as one continuous indicator, while the flag triangle stays playback white in both
+  states so the play-from-here mark never loses visibility. The lane's only in-front
   paused furniture is the caret square. Chartless arrangements keep their in-front paused
-  line as their only indicator. The dissolution seeks stay: they keep Space and the ruler
-  flag at the former caret's spot.
+  line as their only indicator. The dissolution seeks stay: they keep Space, the ruler
+  flag, and the behind-column at the former caret's spot.
 - Wheel zoom centers on the marker: the armed caret when one exists, else the transport
   cursor (the playing playhead or the passive paused cursor) — the position concept and the
   zoom anchor are always the same thing (amended 2026-07-18).

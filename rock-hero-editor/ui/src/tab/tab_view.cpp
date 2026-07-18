@@ -269,11 +269,20 @@ void TabView::paint(juce::Graphics& g)
             m_visible_timeline.duration().seconds * static_cast<double>(getWidth()));
         const float size = metrics.note_height + 1.0f;
         const float center_y = metrics.laneY(m_edit.caret->string);
+        const juce::Rectangle<float> square{x - size / 2.0f, center_y - size / 2.0f, size, size};
+        // On an empty slot the square's interior fills opaque with the lane background,
+        // masking the paused play-from-here column that runs behind the content at this same
+        // x — the cursor must never show through the caret (user ruling 2026-07-18). A caret
+        // on a note needs no mask (the opaque head covers the column), and filling there
+        // would cover the note; caret-on-note implies that note is the selection, so an empty
+        // selection identifies the empty slot.
+        if (m_edit.selected_notes.empty())
+        {
+            g.setColour(editorTheme().waveform_row_background);
+            g.fillRoundedRectangle(square, size / 8.0f);
+        }
         g.setColour(juce::Colours::white.withAlpha(0.7f));
-        g.drawRoundedRectangle(
-            juce::Rectangle<float>{x - size / 2.0f, center_y - size / 2.0f, size, size},
-            size / 8.0f,
-            ring_stroke(size));
+        g.drawRoundedRectangle(square, size / 8.0f, ring_stroke(size));
     }
 }
 
