@@ -112,7 +112,7 @@ Current rulings above that the reduction supersedes in mechanism (not in outcome
 "all tails display" phrasing — display is per-group via explicitness, never span-wide by
 fiat.
 
-## 6. Ghost note rework — SETTLED
+## 6. Ghost note rework — SETTLED (built 2026-07-17)
 
 - The ghost returns to the full-note representation: colored head, fret number, at the
   snapped position (supersedes the white-ring ghost).
@@ -125,6 +125,12 @@ fiat.
 - The ghost carries no sustain; holds are set after placement via the wheel (section 5).
 - Ghost state moves from the view into the controller (published through view state) since
   keys now edit it.
+- As built: the pending fret is `m_chart_last_fret` published through
+  `ChartEditViewState::insert_fret`; Alt+digits compose it via `onChartInsertFretDigitTyped`
+  (no selection required — pure pending state); the Alt release reaches the controller as
+  `onChartInsertSessionEnded` via `EditorView::modifierKeysChanged`, bounding the run
+  accumulation; the ghost's hover position stays view-local (only the fret is
+  keyboard-editable state).
 
 ## 7. Selection granularity — SETTLED
 
