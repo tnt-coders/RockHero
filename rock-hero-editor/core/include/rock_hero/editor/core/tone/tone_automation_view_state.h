@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <cstddef>
+#include <optional>
 #include <rock_hero/common/core/chart/chart.h>
 #include <string>
 #include <vector>
@@ -123,6 +125,26 @@ struct ToneAutomationParamChoice
         const ToneAutomationParamChoice& lhs, const ToneAutomationParamChoice& rhs) = default;
 };
 
+/*! \brief Locates the selected automation point inside a lane list. */
+struct ToneAutomationSelectedPointRef
+{
+    /*! \brief Index of the owning lane in \ref ToneAutomationViewState::lanes. */
+    std::size_t lane_index{0};
+
+    /*! \brief Index of the point in that lane's \ref ToneAutomationLaneViewState::points. */
+    std::size_t point_index{0};
+
+    /*!
+    \brief Compares two selected-point references by their stored values.
+    \param lhs Left-hand reference.
+    \param rhs Right-hand reference.
+    \return True when both references store equal values.
+    */
+    friend bool operator==(
+        const ToneAutomationSelectedPointRef& lhs,
+        const ToneAutomationSelectedPointRef& rhs) = default;
+};
+
 /*! \brief View-facing state for the selected tone's automation lanes. */
 struct ToneAutomationViewState
 {
@@ -131,6 +153,16 @@ struct ToneAutomationViewState
 
     /*! \brief Shown automation lanes for the selected tone, in display order. */
     std::vector<ToneAutomationLaneViewState> lanes;
+
+    /*!
+    \brief The selected point, re-resolved against \ref lanes on every push.
+
+    The editor-wide selection stores the point durably (lane keys plus exact musical position);
+    this reference is the per-push resolution of that selection against the lanes actually
+    published, so a selection whose point vanished simply publishes as nothing instead of
+    pointing at the wrong glyph — the same self-healing rule chart selection indices follow.
+    */
+    std::optional<ToneAutomationSelectedPointRef> selected_point;
 
     /*! \brief Parameters without a lane yet, offered by the empty lane's "+" picker. */
     std::vector<ToneAutomationParamChoice> available_parameters;

@@ -358,6 +358,22 @@ public:
         set_tone_automation_points_call_count += 1;
     }
 
+    /*! \copydoc IEditorController::onToneAutomationPointSelected */
+    void onToneAutomationPointSelected(
+        std::string instance_id, std::string param_id, common::core::GridPosition position) override
+    {
+        last_point_select_instance_id = std::move(instance_id);
+        last_point_select_param_id = std::move(param_id);
+        last_point_select_position = position;
+        point_select_call_count += 1;
+    }
+
+    /*! \copydoc IEditorController::onSelectionDeleteRequested */
+    void onSelectionDeleteRequested() override
+    {
+        selection_delete_call_count += 1;
+    }
+
     /*!
     \brief Records the view-reported timeline zoom.
     \param pixels_per_second Reported horizontal timeline scale.
@@ -766,6 +782,21 @@ public:
 
     /*! \brief Number of onSetToneAutomationPoints() calls received. */
     int set_tone_automation_points_call_count{0};
+
+    /*! \brief Last plugin instance id reported through onToneAutomationPointSelected(). */
+    std::string last_point_select_instance_id{};
+
+    /*! \brief Last parameter id reported through onToneAutomationPointSelected(). */
+    std::string last_point_select_param_id{};
+
+    /*! \brief Last musical position reported through onToneAutomationPointSelected(). */
+    common::core::GridPosition last_point_select_position{};
+
+    /*! \brief Number of onToneAutomationPointSelected() calls received. */
+    int point_select_call_count{0};
+
+    /*! \brief Number of onSelectionDeleteRequested() calls received. */
+    int selection_delete_call_count{0};
 
     /*! \brief Last timeline zoom reported through onTimelineZoomChanged(). */
     std::optional<double> last_timeline_zoom_pixels_per_second{};

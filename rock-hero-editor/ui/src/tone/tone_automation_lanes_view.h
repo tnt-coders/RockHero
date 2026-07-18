@@ -25,7 +25,6 @@ viewport lays the component out, so the cursor overlay and content height stay a
 #include <map>
 #include <optional>
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
-#include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
@@ -76,6 +75,20 @@ public:
         virtual void onToneAutomationLaneRemoveRequested(
             std::string instance_id, std::string param_id) = 0;
 
+        /*!
+        \brief Called when a gesture makes a point the editor-wide selection.
+
+        Selection is controller-owned (one selection editor-wide, 2026-07-18): the view emits
+        the durable point identity and renders whatever selection the next state push
+        publishes back.
+
+        \param instance_id Plugin instance owning the parameter.
+        \param param_id Parameter id within the plugin.
+        \param position Exact musical position of the selected point.
+        */
+        virtual void onToneAutomationPointSelectRequested(
+            std::string instance_id, std::string param_id, common::core::GridPosition position) = 0;
+
     protected:
         /*! \brief Creates the listener interface. */
         Listener() = default;
@@ -112,13 +125,10 @@ public:
     keep it alive for this view's lifetime.
     \param tone_automation Automation port polled read-only at render cadence so lanes without
     authored points track the parameter's live value; referenced for this view's lifetime.
-    \param transport Read-only transport sampled at render cadence so the point selection clears
-    whenever the transport position moves, matching the tone-region selection rule.
     */
     ToneAutomationLanesView(
         Listener& listener, const common::core::TempoMap& tempo_map,
-        const common::audio::IToneAutomation& tone_automation,
-        const common::audio::ITransport& transport);
+        const common::audio::IToneAutomation& tone_automation);
 
     /*!
     \brief Sets the timeline range represented by the full content width.
@@ -215,17 +225,6 @@ public:
     [[nodiscard]] std::optional<juce::String> valueReadoutTextForTest() const;
 
     /*!
-    \brief Removes the currently selected automation point, if any, as one points-edit intent.
-
-    A point is selected by clicking it (see mouseUp); the editor routes the Delete key here before
-    its tone-region delete so a selected point is the more specific target. Reports whether it
-    acted so the editor can fall through when nothing is selected.
-
-    \return True when a selected point existed in the current model and its removal was requested.
-    */
-    [[nodiscard]] bool deleteSelectedPoint();
-
-    /*!
     \brief Cancels the gesture in flight, restoring the pre-gesture state.
 
     The editor routes Esc here so an unwanted drag can be abandoned without committing: a point
@@ -256,10 +255,12 @@ public:
     \brief Nudges the selected point by one step, committing one points-edit intent.
 
     Reached through the Alt authoring modifier (Alt+arrows; amended interaction grammar
-    2026-07-16 — plain keys never mutate). Time nudges move to the adjacent tempo-grid line (or
-    by one 1/960-beat fine step when \p fine is set), clamped strictly between the point's neighbors and inside the editable window. Value
-    nudges step by 0.01 (0.001 fine); a discrete lane steps one state. The editor routes arrow
-    keys here so they can fall through when no point is selected.
+    2026-07-16 — plain keys never mutate). The selected point is the editor-wide selection as
+    published in the view state. Time nudges move to the adjacent tempo-grid line (or by one
+    1/960-beat fine step when \p fine is set), clamped strictly between the point's neighbors
+    and inside the editable window. Value nudges step by 0.01 (0.001 fine); a discrete lane
+    steps one state. The editor routes arrow keys here so they can fall through when no point
+    is selected.
 
     \param direction Nudge direction.
     \param fine True when Ctrl requests the fine step.
@@ -331,9 +332,10 @@ private:
     };
     using Hit = std::variant<PointHit, LaneAreaHit, LaneChipHit, ResizeBandHit, PlusChipHit>;
 
-    // A selected automation point (the keyboard-Delete target), identified durably by lane keys plus
-    // exact musical position so it survives the engine's frequent state pushes, which reorder and
-    // rebuild lanes.
+    // The durable identity of an automation point (lane keys plus exact musical position). The
+    // selection itself is controller-owned (one selection editor-wide); the view resolves the
+    // published \ref core::ToneAutomationViewState::selected_point back to this triple when a
+    // verb needs the durable identity.
     struct SelectedPoint
     {
         std::string instance_id;
@@ -433,20 +435,14 @@ private:
     // Sets or clears the Alt-held insert ghost, repainting only the affected lane.
     void setInsertGhost(std::optional<GhostPoint> ghost);
 
-    // Clears the point selection whenever the transport position moves (seek or playback), the
-    // same rule the tone-region selection follows; sampled at render cadence.
-    void clearSelectionOnTransportMove();
-
-    // Reports whether a specific lane point is the current selection.
+    // Reports whether a specific lane point is the published editor-wide selection.
     [[nodiscard]] bool isPointSelected(
         const core::ToneAutomationLaneViewState& lane,
         const common::core::GridPosition& position) const;
 
-    // Reports whether the current model still contains the point named by a selection.
-    [[nodiscard]] bool selectedPointMatches(const SelectedPoint& selection) const;
-
-    // Reports whether the current selection still resolves to a real point in the model.
-    [[nodiscard]] bool selectedPointPresent() const;
+    // Resolves the published selection reference back to the durable point identity, or empty
+    // when the state publishes no (or a stale) selection.
+    [[nodiscard]] std::optional<SelectedPoint> selectedPointFromState() const;
 
     // Resolves the real lane row (not the trailing "+" lane) containing a local y, or empty.
     [[nodiscard]] std::optional<std::size_t> laneIndexAtY(int y) const;
@@ -510,21 +506,11 @@ private:
     // Transient value readout shown next to the cursor while a point is hovered or dragged.
     std::optional<ValueReadout> m_value_readout{};
 
-    // The selected point (Delete target), or empty when none is selected. Pruned by applyState when
-    // a state push arrives whose new model no longer contains it.
-    std::optional<SelectedPoint> m_selected_point{};
-
     // The Alt-held insert preview, or empty when no insert is possible under the pointer.
     std::optional<GhostPoint> m_insert_ghost{};
 
     // Automation port polled read-only by unauthored tracking lanes; owned by the composition.
     const common::audio::IToneAutomation& m_tone_automation;
-
-    // Read-only transport sampled at render cadence; a position change clears the selection.
-    const common::audio::ITransport& m_transport;
-
-    // Transport seconds seen by the last render tick, so only real movement clears the selection.
-    std::optional<double> m_last_transport_seconds{};
 
     // Shared snap-guide sink; empty publishes clear immediately.
     SnapGuideCallback m_snap_guide_callback{};

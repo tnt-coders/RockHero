@@ -186,6 +186,54 @@ TEST_CASE("EditorController toggles and extends the chart selection", "[core][ch
     CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{0});
 }
 
+// One selection exists editor-wide (2026-07-18): selecting on another surface structurally
+// replaces the chart selection, cross-surface selection changes never touch the marker, and the
+// unified Delete intent deletes whatever kind the selection holds.
+TEST_CASE("EditorController keeps one selection across surfaces", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    click(controller, 40.0f, 220.0f);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{0});
+    const bool caret_before = state->chart_edit.caret.has_value();
+
+    // Selecting an automation point (another surface) replaces the chart selection while the
+    // marker keeps its state — selection and position are separate concepts (§9a/§9b).
+    controller.onToneAutomationPointSelected(
+        "instance-x", "gain", common::core::GridPosition{.measure = 1, .beat = 1, .offset = {}});
+    CHECK(state->chart_edit.selected_notes.empty());
+    CHECK(state->chart_edit.caret.has_value() == caret_before);
+
+    // Delete on the (stale — no such plugin) automation selection removes nothing.
+    const auto* chart = chartOrNull(controller);
+    REQUIRE(chart != nullptr);
+    const std::size_t notes_before = chart->notes.size();
+    controller.onSelectionDeleteRequested();
+    CHECK(chartOrNull(controller)->notes.size() == notes_before);
+
+    // A fresh chart selection then deletes through the very same intent.
+    click(controller, 40.0f, 220.0f);
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{0});
+    controller.onSelectionDeleteRequested();
+    CHECK(chartOrNull(controller)->notes.size() == notes_before - 1);
+    CHECK(state->chart_edit.selected_notes.empty());
+}
+
 // Typed digits set every selected note to the typed value; Alt+Shift+wheel's fret-shift intent
 // moves the whole selection by one, shape-preserving, refusing (never clamping) at fret zero
 // and at the fret cap (settled 2026-07-17).

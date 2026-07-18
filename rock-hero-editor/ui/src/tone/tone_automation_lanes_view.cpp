@@ -135,38 +135,13 @@ private:
 
 ToneAutomationLanesView::ToneAutomationLanesView(
     Listener& listener, const common::core::TempoMap& tempo_map,
-    const common::audio::IToneAutomation& tone_automation,
-    const common::audio::ITransport& transport)
+    const common::audio::IToneAutomation& tone_automation)
     : m_listener(listener)
     , m_tempo_map(tempo_map)
     , m_tone_automation(tone_automation)
-    , m_transport(transport)
-    , m_vblank_attachment(this, [this] {
-        repaintMovedTrackingLanes();
-        clearSelectionOnTransportMove();
-    })
+    , m_vblank_attachment(this, [this] { repaintMovedTrackingLanes(); })
 {
     setOpaque(false);
-}
-
-// Clears the point selection when the transport position moves, mirroring the tone-region rule:
-// a selection is a deliberate paused-editing target, and any seek or playback advance dissolves it
-// so the Delete key can never fire against a stale target.
-void ToneAutomationLanesView::clearSelectionOnTransportMove()
-{
-    const double seconds = m_transport.position().seconds;
-    if (m_last_transport_seconds == std::optional{seconds})
-    {
-        return;
-    }
-    const bool had_previous = m_last_transport_seconds.has_value();
-    m_last_transport_seconds = seconds;
-    // The first sampled tick only records the baseline; it must not clear a fresh selection.
-    if (had_previous && m_selected_point.has_value())
-    {
-        m_selected_point.reset();
-        repaint();
-    }
 }
 
 // Repaints only the unauthored lanes whose live value moved since the last frame, so tracking
@@ -254,12 +229,6 @@ void ToneAutomationLanesView::applyState(const core::ToneAutomationViewState& st
     m_state = state;
     m_value_readout.reset();
     m_insert_ghost.reset();
-    // Drop a point selection the new model no longer contains (it was deleted, or an undo/redo
-    // rewrote the lane); a still-present point stays selected across the engine's routine pushes.
-    if (m_selected_point.has_value() && !selectedPointPresent())
-    {
-        m_selected_point.reset();
-    }
     publishSnapGuide(std::nullopt);
     if (totalHeight() != previous_total_height && m_heights_changed_callback)
     {
@@ -1110,21 +1079,13 @@ void ToneAutomationLanesView::mouseUp(const juce::MouseEvent& /*event*/)
         applyState(pending);
     }
 
-    // Apply the selection last so it outlives the pruning that applyState runs for the commit's own
-    // state push (or an adopted pending snapshot). Keep it only if the point exists in that latest
-    // model (a rare pending snapshot could have dropped it). A lane-resize gesture leaves this empty
-    // and keeps whatever was selected.
+    // Announce the selection last: the controller stores the durable identity and publishes it
+    // resolved in the next state push, which arrives synchronously through the same call. A
+    // stale identity (a rare pending snapshot dropped the point) publishes as no selection.
     if (new_selection.has_value())
     {
-        m_selected_point = std::move(new_selection);
-        if (selectedPointPresent())
-        {
-            repaint();
-        }
-        else
-        {
-            m_selected_point.reset();
-        }
+        m_listener.onToneAutomationPointSelectRequested(
+            new_selection->instance_id, new_selection->param_id, new_selection->position);
     }
 }
 
@@ -1162,11 +1123,12 @@ bool ToneAutomationLanesView::cancelActiveGesture()
 
 bool ToneAutomationLanesView::nudgeSelectedPoint(NudgeDirection direction, bool fine)
 {
-    if (!m_selected_point.has_value() || !selectedPointPresent())
+    const std::optional<SelectedPoint> selected = selectedPointFromState();
+    if (!selected.has_value())
     {
         return false;
     }
-    const SelectedPoint target = *m_selected_point;
+    const SelectedPoint target = *selected;
 
     for (const core::ToneAutomationLaneViewState& lane : m_state.lanes)
     {
@@ -1444,7 +1406,6 @@ void ToneAutomationLanesView::showLaneMenu(std::size_t lane_index)
                 m_listener.onToneAutomationPointsEditRequested(instance_id, param_id, {});
             }
             m_listener.onToneAutomationLaneRemoveRequested(instance_id, param_id);
-            m_selected_point.reset();
         });
 }
 
@@ -1639,63 +1600,45 @@ void ToneAutomationLanesView::requestPointReplace(
                 return edited.position < candidate.position;
             });
         points.insert(insert_at, edited);
-        m_selected_point = SelectedPoint{
-            .instance_id = instance_id,
-            .param_id = param_id,
-            .position = new_position,
-        };
         m_listener.onToneAutomationPointsEditRequested(instance_id, param_id, std::move(points));
+        // Re-announce the selection at the edited point's new identity: the edit's state push
+        // resolved the old position to nothing, and the follow-up push from this intent lights
+        // the point back up where it landed.
+        m_listener.onToneAutomationPointSelectRequested(instance_id, param_id, new_position);
         return;
     }
 }
 
-bool ToneAutomationLanesView::deleteSelectedPoint()
-{
-    if (!m_selected_point.has_value())
-    {
-        return false;
-    }
-    const SelectedPoint target = *m_selected_point;
-    m_selected_point.reset();
-    // If a state push already removed the point, report nothing deleted so the editor's Delete
-    // handler can fall through to its other targets (the selected tone region).
-    if (!selectedPointMatches(target))
-    {
-        return false;
-    }
-    requestPointDelete(target.instance_id, target.param_id, target.position);
-    return true;
-}
-
-// Reports whether a specific lane point is the current selection.
+// Reports whether a specific lane point is the published editor-wide selection.
 bool ToneAutomationLanesView::isPointSelected(
     const core::ToneAutomationLaneViewState& lane, const common::core::GridPosition& position) const
 {
-    return m_selected_point.has_value() && m_selected_point->instance_id == lane.instance_id &&
-           m_selected_point->param_id == lane.param_id && m_selected_point->position == position;
+    const std::optional<SelectedPoint> selected = selectedPointFromState();
+    return selected.has_value() && selected->instance_id == lane.instance_id &&
+           selected->param_id == lane.param_id && selected->position == position;
 }
 
-// Reports whether the current model still contains the point named by a selection.
-bool ToneAutomationLanesView::selectedPointMatches(const SelectedPoint& selection) const
+// Resolves the published selection reference back to the durable point identity, or empty when
+// the state publishes no (or an out-of-range) selection.
+std::optional<ToneAutomationLanesView::SelectedPoint> ToneAutomationLanesView::
+    selectedPointFromState() const
 {
-    for (const core::ToneAutomationLaneViewState& lane : m_state.lanes)
+    if (!m_state.selected_point.has_value())
     {
-        if (lane.instance_id != selection.instance_id || lane.param_id != selection.param_id)
-        {
-            continue;
-        }
-        return std::ranges::any_of(
-            lane.points, [&selection](const core::ToneAutomationPointViewState& point) {
-                return point.position == selection.position;
-            });
+        return std::nullopt;
     }
-    return false;
-}
-
-// Reports whether the current selection still resolves to a real point in the model.
-bool ToneAutomationLanesView::selectedPointPresent() const
-{
-    return m_selected_point.has_value() && selectedPointMatches(*m_selected_point);
+    const core::ToneAutomationSelectedPointRef& ref = *m_state.selected_point;
+    if (ref.lane_index >= m_state.lanes.size() ||
+        ref.point_index >= m_state.lanes[ref.lane_index].points.size())
+    {
+        return std::nullopt;
+    }
+    const core::ToneAutomationLaneViewState& lane = m_state.lanes[ref.lane_index];
+    return SelectedPoint{
+        .instance_id = lane.instance_id,
+        .param_id = lane.param_id,
+        .position = lane.points[ref.point_index].position,
+    };
 }
 
 // Resolves the real lane row (not the trailing "+" lane) containing a local y, or empty.

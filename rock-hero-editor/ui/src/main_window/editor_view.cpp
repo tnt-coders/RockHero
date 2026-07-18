@@ -348,8 +348,7 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     , m_master_output_meter(AudioLevelMeterOrientation::Horizontal, "Master")
     , m_signal_chain_panel(*this)
     , m_tone_track_view(*this, m_state.tempo_map, audio_ports.transport)
-    , m_tone_automation_lanes_view(
-          *this, m_state.tempo_map, audio_ports.tone_automation, audio_ports.transport)
+    , m_tone_automation_lanes_view(*this, m_state.tempo_map, audio_ports.tone_automation)
     , m_cursor_overlay(
           std::make_unique<CursorOverlay>(controller, audio_ports.transport, m_state.tempo_map))
     , m_track_viewport(
@@ -1127,28 +1126,19 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
         }
     }
 
-    // Delete targets the selected automation point first (the more specific target), then the
-    // chart note selection, then falls back to the selected tone region (merging into a
-    // neighbor, or resetting the sole region).
+    // Delete deletes THE selection: one selection exists editor-wide and the controller
+    // dispatches on its kind (the old point → chart → region precedence ladder retired with
+    // the unified selection, 2026-07-18). The view only checks that some selection is
+    // published so an idle Delete keeps propagating to other key consumers.
     if (key == juce::KeyPress{juce::KeyPress::deleteKey})
     {
-        if (m_tone_automation_lanes_view.deleteSelectedPoint())
-        {
-            return true;
-        }
-
-        if (!m_state.chart_edit.selected_notes.empty())
-        {
-            m_controller.onChartSelectionDeleteRequested();
-            return true;
-        }
-
-        const auto selected = std::ranges::find_if(
+        const bool region_selected = std::ranges::any_of(
             m_state.tone_track.regions,
             [](const core::ToneRegionViewState& region) { return region.selected; });
-        if (selected != m_state.tone_track.regions.end() && !selected->id.empty())
+        if (m_state.tone_automation.selected_point.has_value() ||
+            !m_state.chart_edit.selected_notes.empty() || region_selected)
         {
-            m_controller.onToneRegionDeleteRequested(selected->id);
+            m_controller.onSelectionDeleteRequested();
             return true;
         }
     }
@@ -2371,6 +2361,13 @@ void EditorView::onToneAutomationLaneAddRequested(std::string instance_id, std::
 void EditorView::onToneAutomationLaneRemoveRequested(std::string instance_id, std::string param_id)
 {
     m_controller.onToneAutomationLaneRemoveRequested(std::move(instance_id), std::move(param_id));
+}
+
+void EditorView::onToneAutomationPointSelectRequested(
+    std::string instance_id, std::string param_id, common::core::GridPosition position)
+{
+    m_controller.onToneAutomationPointSelected(
+        std::move(instance_id), std::move(param_id), position);
 }
 
 void EditorView::onToneAutomationPointsEditRequested(

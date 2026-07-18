@@ -425,4 +425,75 @@ TEST_CASE(
     }
 }
 
+TEST_CASE(
+    "EditorController owns the automation point selection editor-wide", "[core][tone-automation]")
+{
+    AutomationEditor editor;
+    editor.controller.onSetToneAutomationPoints(
+        g_instance,
+        g_param,
+        {
+            common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.2F},
+            common::core::ToneAutomationPoint{.position = pointAt(2, 1), .norm_value = 0.8F},
+        });
+
+    // The fixture formally selected the tone region; the flag publishes on the tone track.
+    REQUIRE(editor.view.last_state.has_value());
+    if (!editor.view.last_state.has_value())
+    {
+        throw std::logic_error("editor pushed no view state");
+    }
+    REQUIRE(editor.view.last_state->tone_track.regions.size() == 1);
+    CHECK(editor.view.last_state->tone_track.regions.front().selected);
+
+    // Selecting a point makes it THE selection: the published point reference resolves and the
+    // region's selected flag drops (one selection editor-wide — two cannot coexist).
+    editor.controller.onToneAutomationPointSelected(g_instance, g_param, pointAt(2, 1));
+    REQUIRE(editor.automation().selected_point.has_value());
+    CHECK(editor.automation().selected_point->lane_index == 0);
+    CHECK(editor.automation().selected_point->point_index == 1);
+    CHECK_FALSE(editor.view.last_state->tone_track.regions.front().selected);
+
+    // A seek is cursor motion: the cursor-coupled selection clears, exactly like the shipped
+    // tone-region rule.
+    editor.controller.onTimelineSeekRequested(common::core::TimePosition{1.0});
+    CHECK_FALSE(editor.automation().selected_point.has_value());
+}
+
+TEST_CASE(
+    "EditorController deletes the selected automation point through the one Delete dispatch",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor;
+    editor.controller.onSetToneAutomationPoints(
+        g_instance,
+        g_param,
+        {
+            common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.2F},
+            common::core::ToneAutomationPoint{.position = pointAt(2, 1), .norm_value = 0.8F},
+        });
+    editor.controller.onToneAutomationPointSelected(g_instance, g_param, pointAt(2, 1));
+
+    // The unified Delete intent dispatches on the selection's kind and removes exactly the
+    // selected point as one undoable points edit.
+    editor.controller.onSelectionDeleteRequested();
+    REQUIRE(editor.model().size() == 1);
+    REQUIRE(editor.model().front().points.size() == 1);
+    CHECK(editor.model().front().points.front().position == pointAt(1, 1));
+    CHECK_FALSE(editor.automation().selected_point.has_value());
+
+    // The durable selection stays put through the delete, so undoing the removal lights the
+    // restored point back up instead of leaving it unselected.
+    editor.controller.onUndoRequested();
+    REQUIRE(editor.model().front().points.size() == 2);
+    REQUIRE(editor.automation().selected_point.has_value());
+    CHECK(editor.automation().selected_point->point_index == 1);
+
+    // A stale selection (the point already gone) deletes nothing.
+    editor.controller.onSelectionDeleteRequested();
+    editor.controller.onSelectionDeleteRequested();
+    REQUIRE(editor.model().size() == 1);
+    CHECK(editor.model().front().points.size() == 1);
+}
+
 } // namespace rock_hero::editor::core

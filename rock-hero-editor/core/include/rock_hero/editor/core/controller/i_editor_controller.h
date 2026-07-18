@@ -255,6 +255,15 @@ public:
     virtual void onChartSelectionDeleteRequested() = 0;
 
     /*!
+    \brief Handles the Delete key: deletes the one editor-wide selection, whatever its kind.
+
+    Exactly one selection exists across every surface (chart notes, a tone region, or an
+    automation point — interaction model, 2026-07-18), so this dispatches on the selection's
+    kind rather than probing surfaces in precedence order. A no-op when nothing is selected.
+    */
+    virtual void onSelectionDeleteRequested() = 0;
+
+    /*!
     \brief Handles a typed fret digit: retype the selection, or insert at the armed caret.
 
     With a note selection, typing sets every selected note to the typed value — what you type
@@ -424,6 +433,22 @@ public:
     virtual void onSetToneAutomationPoints(
         std::string instance_id, std::string param_id,
         std::vector<common::core::ToneAutomationPoint> points) = 0;
+
+    /*!
+    \brief Handles a deliberate click on an automation point: it becomes the editor-wide
+    selection.
+
+    The point is stored durably (lane keys plus exact musical position) and re-resolved against
+    the published lanes on every state push, so a selection whose point vanished simply shows
+    nothing. Selecting a point replaces any other surface's selection (one selection
+    editor-wide, 2026-07-18).
+
+    \param instance_id Plugin instance owning the parameter.
+    \param param_id Parameter id within the plugin.
+    \param position Exact musical position of the selected point.
+    */
+    virtual void onToneAutomationPointSelected(
+        std::string instance_id, std::string param_id, common::core::GridPosition position) = 0;
 
     /*! \brief Handles a request to show the scanned plugin browser. */
     virtual void onPluginBrowserRequested() = 0;

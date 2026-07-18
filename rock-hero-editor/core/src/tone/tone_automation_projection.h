@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include "controller/editor_selection.h"
+
 #include <rock_hero/common/audio/automation/tone_automation_rebuild.h>
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/song/arrangement.h>
@@ -73,6 +75,9 @@ open lane whose parameter already has a model entry is subsumed by it.
 \param bindings Runtime plugin bindings keyed by durable plugin id.
 \param open_lanes Session-scoped open lanes; entries for other tones are ignored.
 \param tone_automation Audio automation port used for parameter names and metadata.
+\param selected_point Editor-wide automation-point selection to resolve against the built lanes,
+or null when the selection holds another kind; a selection that no longer resolves publishes as
+no selected point.
 \return The automation lanes for the selected tone.
 */
 [[nodiscard]] ToneAutomationViewState makeToneAutomationViewState(
@@ -80,6 +85,7 @@ open lane whose parameter already has a model entry is subsumed by it.
     const std::string& selected_tone_document_ref,
     const std::unordered_map<std::string, common::audio::ToneAutomationBinding>& bindings,
     const std::vector<OpenAutomationLane>& open_lanes,
-    const common::audio::IToneAutomation& tone_automation);
+    const common::audio::IToneAutomation& tone_automation,
+    const AutomationPointSelection* selected_point);
 
 } // namespace rock_hero::editor::core

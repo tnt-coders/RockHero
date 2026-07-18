@@ -163,7 +163,7 @@ TEST_CASE(
     };
 
     const ToneAutomationViewState state = makeToneAutomationViewState(
-        arrangement, tempo_map, "tones/x/tone.json", bindings, {}, port);
+        arrangement, tempo_map, "tones/x/tone.json", bindings, {}, port, nullptr);
 
     CHECK(state.tone_document_ref == "tones/x/tone.json");
     REQUIRE(state.lanes.size() == 1);
@@ -173,6 +173,29 @@ TEST_CASE(
     REQUIRE(state.lanes.front().points.size() == 2);
     CHECK(state.lanes.front().points.back().seconds == Catch::Approx(2.25));
     CHECK(std::is_eq(state.lanes.front().points.back().norm_value <=> 0.8F));
+    CHECK_FALSE(state.selected_point.has_value());
+
+    // A held automation-point selection resolves to indices against the built lanes; a stale
+    // one (no matching point) publishes as no selection instead of a wrong glyph.
+    const AutomationPointSelection selected{
+        .instance_id = "instance-a",
+        .param_id = "gain",
+        .position = arrangement.tone_automation.front().points.back().position,
+    };
+    const ToneAutomationViewState selected_state = makeToneAutomationViewState(
+        arrangement, tempo_map, "tones/x/tone.json", bindings, {}, port, &selected);
+    REQUIRE(selected_state.selected_point.has_value());
+    CHECK(selected_state.selected_point->lane_index == 0);
+    CHECK(selected_state.selected_point->point_index == 1);
+
+    const AutomationPointSelection stale{
+        .instance_id = "instance-a",
+        .param_id = "gain",
+        .position = {.measure = 9, .beat = 1, .offset = {}},
+    };
+    const ToneAutomationViewState stale_state = makeToneAutomationViewState(
+        arrangement, tempo_map, "tones/x/tone.json", bindings, {}, port, &stale);
+    CHECK_FALSE(stale_state.selected_point.has_value());
 }
 
 TEST_CASE(
@@ -192,7 +215,7 @@ TEST_CASE(
     };
 
     const ToneAutomationViewState state = makeToneAutomationViewState(
-        arrangement, tempo_map, "tones/x/tone.json", bindings, {}, port);
+        arrangement, tempo_map, "tones/x/tone.json", bindings, {}, port, nullptr);
 
     REQUIRE(state.lanes.size() == 1);
     CHECK_FALSE(state.lanes.front().resolved);
@@ -207,8 +230,8 @@ TEST_CASE("makeToneAutomationViewState flags failed parameter listings", "[core]
     StubToneAutomation port;
     port.fail_listing = true;
 
-    const ToneAutomationViewState state =
-        makeToneAutomationViewState(arrangement, tempo_map, "tones/x/tone.json", {}, {}, port);
+    const ToneAutomationViewState state = makeToneAutomationViewState(
+        arrangement, tempo_map, "tones/x/tone.json", {}, {}, port, nullptr);
 
     // A failed listing is not the same as an empty tone: the picker reports it distinctly.
     CHECK(state.parameters_unavailable);
@@ -216,7 +239,7 @@ TEST_CASE("makeToneAutomationViewState flags failed parameter listings", "[core]
 
     const StubToneAutomation empty_port;
     const ToneAutomationViewState empty_state = makeToneAutomationViewState(
-        arrangement, tempo_map, "tones/x/tone.json", {}, {}, empty_port);
+        arrangement, tempo_map, "tones/x/tone.json", {}, {}, empty_port, nullptr);
     CHECK_FALSE(empty_state.parameters_unavailable);
 }
 

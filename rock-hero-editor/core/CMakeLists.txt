@@ -30,6 +30,7 @@ target_sources(
             src/controller/editor_action_availability.h
             src/controller/editor_controller.cpp
             src/controller/editor_controller_impl.h
+            src/controller/editor_selection.h
             src/controller/editor_undo_history.cpp
             src/controller/editor_undo_history.h
             src/input_calibration/input_calibration_controller.cpp

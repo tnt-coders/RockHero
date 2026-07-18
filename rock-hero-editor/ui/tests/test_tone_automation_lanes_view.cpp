@@ -4,12 +4,10 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cmath>
-#include <compare>
 #include <expected>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <optional>
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
-#include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
@@ -51,6 +49,15 @@ struct RecordingLanesListener final : public ToneAutomationLanesView::Listener
         remove_count += 1;
     }
 
+    void onToneAutomationPointSelectRequested(
+        std::string instance_id, std::string param_id, common::core::GridPosition position) override
+    {
+        last_select_instance_id = std::move(instance_id);
+        last_select_param_id = std::move(param_id);
+        last_select_position = position;
+        select_count += 1;
+    }
+
     std::string last_add_instance_id;
     std::string last_add_param_id;
     int add_count = 0;
@@ -61,6 +68,10 @@ struct RecordingLanesListener final : public ToneAutomationLanesView::Listener
     std::string last_remove_instance_id;
     std::string last_remove_param_id;
     int remove_count = 0;
+    std::string last_select_instance_id;
+    std::string last_select_param_id;
+    common::core::GridPosition last_select_position{};
+    int select_count = 0;
 };
 
 [[nodiscard]] core::ToneAutomationViewState makeState()
@@ -153,95 +164,6 @@ struct StubToneAutomation final : public common::audio::IToneAutomation
     }
 };
 
-// Manually controlled transport: the lanes view samples position() to clear the selection when
-// the transport moves, so tests drive it explicitly.
-struct StubTransport final : public common::audio::ITransport
-{
-    void play() override
-    {}
-
-    void pause() override
-    {}
-
-    void stop() override
-    {}
-
-    void seek(common::core::TimePosition position_value) override
-    {
-        current_position = position_value;
-    }
-
-    [[nodiscard]] common::audio::TransportState state() const noexcept override
-    {
-        return {};
-    }
-
-    [[nodiscard]] common::core::TimePosition position() const noexcept override
-    {
-        return current_position;
-    }
-
-    // Contract-shaped stub: these view tests never drive speed, so only 1.0 is accepted.
-    [[nodiscard]] std::expected<void, common::audio::TransportError> setPlaybackSpeed(
-        double factor) override
-    {
-        if (std::is_neq(factor <=> 1.0))
-        {
-            return std::unexpected{
-                common::audio::TransportError{common::audio::TransportErrorCode::SpeedNotSupported}
-            };
-        }
-
-        return {};
-    }
-
-    [[nodiscard]] double playbackSpeed() const noexcept override
-    {
-        return 1.0;
-    }
-
-    // Contract-shaped stub storing the normalized region; these view tests never drive loops.
-    [[nodiscard]] std::expected<void, common::audio::TransportError> setLoopRegion(
-        common::core::TimeRange region) override
-    {
-        const common::core::TimeRange normalized{
-            .start = common::core::TimePosition{std::min(region.start.seconds, region.end.seconds)},
-            .end = common::core::TimePosition{std::max(region.start.seconds, region.end.seconds)},
-        };
-        if (normalized.duration().seconds < common::audio::g_minimum_loop_region_duration.seconds)
-        {
-            return std::unexpected{
-                common::audio::TransportError{common::audio::TransportErrorCode::LoopRegionTooShort}
-            };
-        }
-
-        loop_region = normalized;
-        return {};
-    }
-
-    void clearLoopRegion() override
-    {
-        loop_region.reset();
-    }
-
-    [[nodiscard]] std::optional<common::core::TimeRange> loopRegion() const noexcept override
-    {
-        return loop_region;
-    }
-
-    void addListener(Listener& /*listener*/) override
-    {}
-
-    void removeListener(Listener& /*listener*/) override
-    {}
-
-    // Position returned to the view's render-cadence sampling.
-    common::core::TimePosition current_position{};
-
-    // Engaged normalized loop region; nullopt while looping is disengaged.
-    std::optional<common::core::TimeRange> loop_region{};
-};
-
 // Left-button modifiers with Alt held: the insert quasimode's click.
 const juce::ModifierKeys g_alt_click{
     juce::ModifierKeys::leftButtonModifier | juce::ModifierKeys::altModifier
@@ -255,8 +177,7 @@ struct LanesHarness
         common::core::TempoMap::defaultMap(common::core::TimeDuration{8.0});
     RecordingLanesListener listener;
     StubToneAutomation tone_automation;
-    StubTransport transport;
-    ToneAutomationLanesView view{listener, tempo_map, tone_automation, transport};
+    ToneAutomationLanesView view{listener, tempo_map, tone_automation};
 
     LanesHarness()
     {
@@ -288,7 +209,7 @@ TEST_CASE("Lanes view has zero height with no selected tone", "[ui][tone-automat
 {
     LanesHarness harness;
     const ToneAutomationLanesView empty{
-        harness.listener, harness.tempo_map, harness.tone_automation, harness.transport
+        harness.listener, harness.tempo_map, harness.tone_automation
     };
     CHECK(empty.totalHeight() == 0);
     CHECK_FALSE(empty.wantsPointerAt({10, 10}));
@@ -298,9 +219,7 @@ TEST_CASE(
     "Lanes view keeps the plus chip hittable with nothing to offer", "[ui][tone-automation-lanes]")
 {
     LanesHarness harness;
-    ToneAutomationLanesView view{
-        harness.listener, harness.tempo_map, harness.tone_automation, harness.transport
-    };
+    ToneAutomationLanesView view{harness.listener, harness.tempo_map, harness.tone_automation};
     view.setSize(800, 200);
 
     // A selected tone with no lanes and no listable parameters (empty tone, or listing failure)
@@ -319,9 +238,7 @@ TEST_CASE(
     "[ui][tone-automation-lanes]")
 {
     LanesHarness harness;
-    ToneAutomationLanesView view{
-        harness.listener, harness.tempo_map, harness.tone_automation, harness.transport
-    };
+    ToneAutomationLanesView view{harness.listener, harness.tempo_map, harness.tone_automation};
     int heights_changed_count = 0;
     view.setHeightsChangedCallback([&heights_changed_count] { heights_changed_count += 1; });
 
@@ -477,10 +394,12 @@ TEST_CASE("Lanes view nudges the selected point with commits", "[ui][tone-automa
     CHECK_FALSE(
         harness.view.nudgeSelectedPoint(ToneAutomationLanesView::NudgeDirection::Up, false));
 
-    // Select the second point (x 200, y 15, value 0.75) with a plain click.
-    harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 200.0f, 15.0f));
-    harness.view.mouseUp(testing::makeMouseDownEvent(harness.view, 200.0f, 15.0f));
-    CHECK(harness.listener.edit_count == 0);
+    // Selection is controller-owned: the view acts on whatever the published state selects.
+    // Publish the second point (value 0.75) as the editor-wide selection.
+    core::ToneAutomationViewState selected_state = makeState();
+    selected_state.selected_point =
+        core::ToneAutomationSelectedPointRef{.lane_index = 0, .point_index = 1};
+    harness.view.setState(selected_state);
 
     // A value nudge steps 0.01 upward as one committed edit.
     REQUIRE(harness.view.nudgeSelectedPoint(ToneAutomationLanesView::NudgeDirection::Up, false));
@@ -489,15 +408,18 @@ TEST_CASE("Lanes view nudges the selected point with commits", "[ui][tone-automa
     CHECK(std::abs(harness.listener.last_edit_points.back().norm_value - 0.76F) < 0.0001F);
 
     // A time nudge moves to the adjacent grid line (quarter-note grid: measure 2 beat 2). The
-    // commit's synchronous state push is not simulated here, so re-push state to keep the model
-    // and the selection in step before nudging again.
-    harness.view.setState(makeState());
-    harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 200.0f, 15.0f));
-    harness.view.mouseUp(testing::makeMouseDownEvent(harness.view, 200.0f, 15.0f));
+    // commit's synchronous state push is not simulated here, so re-push the selected state to
+    // keep the model and the selection in step before nudging again.
+    harness.view.setState(selected_state);
     REQUIRE(harness.view.nudgeSelectedPoint(ToneAutomationLanesView::NudgeDirection::Later, false));
     REQUIRE(harness.listener.edit_count == 2);
     CHECK(
         harness.listener.last_edit_points.back().position ==
+        common::core::GridPosition{.measure = 2, .beat = 2, .offset = {}});
+    // The committed nudge re-announces the selection at the point's new identity.
+    CHECK(harness.listener.select_count >= 1);
+    CHECK(
+        harness.listener.last_select_position ==
         common::core::GridPosition{.measure = 2, .beat = 2, .offset = {}});
 }
 
@@ -505,9 +427,7 @@ TEST_CASE(
     "Lanes view snaps discrete point drags to the nearest step", "[ui][tone-automation-lanes]")
 {
     LanesHarness harness;
-    ToneAutomationLanesView view{
-        harness.listener, harness.tempo_map, harness.tone_automation, harness.transport
-    };
+    ToneAutomationLanesView view{harness.listener, harness.tempo_map, harness.tone_automation};
     view.setSize(800, 200);
     view.setVisibleTimeline(
         common::core::TimeRange{
@@ -600,31 +520,22 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "Lanes view selects a clicked point and deletes it on request", "[ui][tone-automation-lanes]")
+    "Lanes view announces a clicked point as the selection intent", "[ui][tone-automation-lanes]")
 {
     LanesHarness harness;
 
-    // A plain click (no drag) on the second authored point (x 200, y 15) selects it without
-    // emitting any edit -- selection is distinct from a move.
+    // A plain click (no drag) on the second authored point (x 200, y 15) emits the selection
+    // intent without any edit -- selection is distinct from a move, and the selection itself is
+    // controller-owned (deletion is the controller's Delete dispatch, not a view API).
     harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 200.0f, 15.0f));
     harness.view.mouseUp(testing::makeMouseDownEvent(harness.view, 200.0f, 15.0f));
     CHECK(harness.listener.edit_count == 0);
-
-    // Deleting the selection removes exactly that point (the editor routes the Delete key here),
-    // leaving the first authored point behind.
-    REQUIRE(harness.view.deleteSelectedPoint());
-    REQUIRE(harness.listener.edit_count == 1);
-    CHECK(harness.listener.last_edit_instance_id == "instance-a");
-    CHECK(harness.listener.last_edit_param_id == "gain");
-    REQUIRE(harness.listener.last_edit_points.size() == 1);
+    REQUIRE(harness.listener.select_count == 1);
+    CHECK(harness.listener.last_select_instance_id == "instance-a");
+    CHECK(harness.listener.last_select_param_id == "gain");
     CHECK(
-        harness.listener.last_edit_points.front().position ==
-        common::core::GridPosition{.measure = 1, .beat = 1, .offset = {}});
-
-    // With nothing selected, a further delete request no-ops so the editor can fall through to its
-    // other Delete targets.
-    CHECK_FALSE(harness.view.deleteSelectedPoint());
-    CHECK(harness.listener.edit_count == 1);
+        harness.listener.last_select_position ==
+        common::core::GridPosition{.measure = 2, .beat = 1, .offset = {}});
 }
 
 TEST_CASE("Lanes view paints headlessly", "[ui][tone-automation-lanes]")
