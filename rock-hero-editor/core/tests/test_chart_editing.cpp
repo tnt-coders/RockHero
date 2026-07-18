@@ -374,6 +374,51 @@ TEST_CASE("EditorController steps the caret along the grid and strings", "[core]
     CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{2});
     CHECK_FALSE(view.last_state->chart_edit.caret.has_value());
 }
+
+// Playback dissolves the caret's presence (the caret model, full Guitar Pro posture): play
+// clears the note selection and the caret stops publishing; pause snaps it back to the nearest
+// grid line on the remembered string.
+TEST_CASE("EditorController dissolves the caret while playing", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    // Select the measure-2 string-1 note; the caret co-locates with it.
+    click(controller, 40.0f, 220.0f);
+    REQUIRE(view.last_state.has_value());
+    CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{0});
+
+    // Play: the selection clears immediately, and while the transport reports playing no view
+    // push publishes a caret.
+    controller.onPlayPausePressed();
+    CHECK(view.last_state->chart_edit.selected_notes.empty());
+    transport.setStateAndNotify(common::audio::TransportState{.playing = true});
+    CHECK(view.last_state->chart_edit.selected_notes.empty());
+    CHECK_FALSE(view.last_state->chart_edit.caret.has_value());
+
+    // Pause at 10.2s: the caret snaps to the nearest grid line (10.0s) on the remembered
+    // string and reappears with the next paused state push.
+    transport.current_position = common::core::TimePosition{10.2};
+    controller.onPlayPausePressed();
+    CHECK(transport.pause_call_count == 1);
+    transport.setStateAndNotify(common::audio::TransportState{.playing = false});
+    REQUIRE(view.last_state->chart_edit.caret.has_value());
+    CHECK(view.last_state->chart_edit.caret->seconds == Catch::Approx(10.0));
+    CHECK(view.last_state->chart_edit.caret->string == 1);
+}
+
 // Typing a digit on the empty caret INSERTS a note there with the typed fret (the caret
 // model): a second digit inside the window widens the SAME insert to the combined fret, and
 // one undo removes the note entirely.
