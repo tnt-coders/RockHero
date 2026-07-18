@@ -80,10 +80,29 @@ private:
     class TimelineViewport final : public juce::Viewport
     {
     public:
+        // The timeline is not a keyboard surface: arrows belong to the caret grammar, but
+        // juce::Viewport wants keyboard focus (juce_Viewport.cpp:165) and its keyPressed
+        // turns arrows into scrolling — so any click on focus-less timeline content (the tab
+        // lane, the waveform, a scrollbar) would focus the viewport and silently swap arrow
+        // keys from caret movement to window scrolling. Declining focus keeps clicks landing
+        // focus on the editor view, whose key handler owns the grammar.
+        TimelineViewport()
+        {
+            setWantsKeyboardFocus(false);
+        }
+
         // Notifies the owner whenever JUCE changes the visible content rectangle.
         std::function<void()> on_visible_area_changed;
 
     private:
+        // Declines Viewport's arrow/page-key scrolling for keys that still bubble through
+        // here (a focused child inside the timeline), so they continue up to the editor
+        // grammar instead of scrolling the window.
+        bool keyPressed(const juce::KeyPress& /*key*/) override
+        {
+            return false;
+        }
+
         // Repaints ruler state after scrollbars, wheel scrolling, or programmatic movement.
         void visibleAreaChanged(const juce::Rectangle<int>& new_visible_area) override;
     };
