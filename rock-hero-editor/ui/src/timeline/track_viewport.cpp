@@ -449,6 +449,11 @@ void TrackViewport::layoutScaledCanvas()
         m_tone_automation_lanes_view.totalHeight());
     m_cursor_overlay.setBounds(m_content.getLocalBounds());
     m_cursor_overlay.toFront(false);
+    // The caret model's click and visibility rules: seek clicks stay inside the highway band
+    // (tone/lane clicks never move the position), and a displayed chart hands the paused
+    // position to the caret, hiding the paused playhead.
+    m_cursor_overlay.setSeekBandHeight(primaryTrackHeight());
+    m_cursor_overlay.setPausedCursorHidden(m_tab_displayed_strings > 0);
     updateRulerView();
     refreshTimelineGrid();
 }
@@ -466,6 +471,8 @@ void TrackViewport::relayoutForContentHeightChange()
         m_tone_automation_lanes_view.totalHeight());
     m_cursor_overlay.setBounds(m_content.getLocalBounds());
     m_cursor_overlay.toFront(false);
+    m_cursor_overlay.setSeekBandHeight(primaryTrackHeight());
+    m_cursor_overlay.setPausedCursorHidden(m_tab_displayed_strings > 0);
     updateRulerView();
     refreshTimelineGridForViewChange();
 }
@@ -702,7 +709,13 @@ void TrackViewport::updateRulerCursor()
         return;
     }
 
-    m_timeline_ruler.setCursorPosition(m_transport.position());
+    // The playhead renders only during playback (the caret model): while paused the caret is
+    // the position concept and the ruler shows no cursor. Chartless arrangements have no
+    // caret, so their paused playhead stays visible as the only position indicator.
+    const bool cursor_visible = m_transport.state().playing || m_tab_displayed_strings <= 0;
+    m_timeline_ruler.setCursorPosition(
+        cursor_visible ? std::optional<common::core::TimePosition>{m_transport.position()}
+                       : std::nullopt);
 }
 
 } // namespace rock_hero::editor::ui

@@ -165,10 +165,12 @@ void TimelineRuler::setTimelineView(
     m_view_x = view_x;
 }
 
-// Samples the current transport cursor for the ruler's aligned playhead mark.
-void TimelineRuler::setCursorPosition(common::core::TimePosition cursor_position)
+// Samples the current transport cursor for the ruler's aligned playhead mark; absent while
+// paused — the playhead renders only during playback (the caret model, 2026-07-17).
+void TimelineRuler::setCursorPosition(std::optional<common::core::TimePosition> cursor_position)
 {
-    const auto next_cursor_x = localXForSeconds(cursor_position.seconds);
+    const std::optional<float> next_cursor_x =
+        cursor_position.has_value() ? localXForSeconds(cursor_position->seconds) : std::nullopt;
     if (next_cursor_x == m_cursor_x)
     {
         return;

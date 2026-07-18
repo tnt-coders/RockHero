@@ -201,7 +201,8 @@ TEST_CASE("EditorSettings clears interrupted restore project", "[core][settings]
     CHECK_FALSE(reloaded_settings.interruptedRestoreProject().has_value());
 }
 
-// Project cursor history persists app-local resume state without storing it in project packages.
+// Project caret history persists app-local resume state without storing it in project packages;
+// the exact musical address (including a fine-grid offset) round-trips unchanged.
 TEST_CASE("EditorSettings persists project cursor position", "[core][settings]")
 {
     const ScopedSettingsFile settings_file{"persists_project_cursor.settings"};
@@ -210,21 +211,25 @@ TEST_CASE("EditorSettings persists project cursor position", "[core][settings]")
     const std::filesystem::path other_project_file =
         std::filesystem::path{TEST_SETTINGS_DIR} / "Other Cursor Project.rhp";
 
+    const EditorProjectCaret caret{
+        .position =
+            common::core::GridPosition{
+                .measure = 17, .beat = 3, .offset = common::core::Fraction{1, 960}
+            },
+        .string = 4,
+    };
     {
         EditorSettings settings{settings_file.path()};
-        REQUIRE(settings.saveProjectCursorPosition(project_file, common::core::TimePosition{4.25})
-                    .has_value());
+        REQUIRE(settings.saveProjectCaret(project_file, caret).has_value());
     }
 
     const EditorSettings reloaded_settings{settings_file.path()};
 
-    CHECK(
-        reloaded_settings.projectCursorPositionFor(project_file) ==
-        std::optional{common::core::TimePosition{4.25}});
-    CHECK_FALSE(reloaded_settings.projectCursorPositionFor(other_project_file).has_value());
+    CHECK(reloaded_settings.projectCaretFor(project_file) == std::optional{caret});
+    CHECK_FALSE(reloaded_settings.projectCaretFor(other_project_file).has_value());
 }
 
-// Saving the same project cursor again replaces only that project's resume position.
+// Saving the same project caret again replaces only that project's resume address.
 TEST_CASE("EditorSettings overwrites project cursor position", "[core][settings]")
 {
     const ScopedSettingsFile settings_file{"overwrites_project_cursor.settings"};
@@ -232,14 +237,18 @@ TEST_CASE("EditorSettings overwrites project cursor position", "[core][settings]
         std::filesystem::path{TEST_SETTINGS_DIR} / "overwritten_cursor.rhp";
     EditorSettings settings{settings_file.path()};
 
-    REQUIRE(settings.saveProjectCursorPosition(project_file, common::core::TimePosition{1.0})
-                .has_value());
-    REQUIRE(settings.saveProjectCursorPosition(project_file, common::core::TimePosition{7.5})
-                .has_value());
+    REQUIRE(
+        settings
+            .saveProjectCaret(
+                project_file,
+                EditorProjectCaret{.position = common::core::GridPosition{.measure = 1, .beat = 1}})
+            .has_value());
+    const EditorProjectCaret replacement{
+        .position = common::core::GridPosition{.measure = 4, .beat = 2}, .string = 2
+    };
+    REQUIRE(settings.saveProjectCaret(project_file, replacement).has_value());
 
-    CHECK(
-        settings.projectCursorPositionFor(project_file) ==
-        std::optional{common::core::TimePosition{7.5}});
+    CHECK(settings.projectCaretFor(project_file) == std::optional{replacement});
 }
 
 // The grid note value persists per project path and reloads with exact numerator and denominator.
@@ -386,7 +395,7 @@ TEST_CASE("EditorSettings ignores legacy list-format project records", "[core][s
         juce::String{"<PROJECT_GRID_SPACINGS formatVersion=\"1\"/>"});
 
     const EditorSettings settings{settings_file.path()};
-    CHECK_FALSE(settings.projectCursorPositionFor(project_file).has_value());
+    CHECK_FALSE(settings.projectCaretFor(project_file).has_value());
     CHECK_FALSE(settings.projectGridNoteValueFor(project_file).has_value());
 }
 
@@ -400,7 +409,12 @@ TEST_CASE("EditorSettings reads a corrupt project value as absent", "[core][sett
 
     {
         EditorSettings settings{settings_file.path()};
-        REQUIRE(settings.saveProjectCursorPosition(project_file, common::core::TimePosition{2.0})
+        REQUIRE(settings
+                    .saveProjectCaret(
+                        project_file,
+                        EditorProjectCaret{
+                            .position = common::core::GridPosition{.measure = 2, .beat = 1}
+                        })
                     .has_value());
     }
 
@@ -410,7 +424,7 @@ TEST_CASE("EditorSettings reads a corrupt project value as absent", "[core][sett
     writeRawSetting(settings_file.path(), key.toRawUTF8(), juce::String{"not-a-number"});
 
     const EditorSettings reloaded_settings{settings_file.path()};
-    CHECK_FALSE(reloaded_settings.projectCursorPositionFor(project_file).has_value());
+    CHECK_FALSE(reloaded_settings.projectCaretFor(project_file).has_value());
 }
 
 // Chooser, restore, and test spellings of the same project file normalize to one stored record.

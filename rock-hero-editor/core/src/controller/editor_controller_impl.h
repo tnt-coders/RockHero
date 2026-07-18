@@ -162,6 +162,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Moves the caret and re-derives the selection from what sits under it (a note selects, an
     // empty slot clears).
     void placeChartCaret(common::core::GridPosition position, int string);
+    // Snaps the caret to the nearest grid line at the transport position (pause/stop handoff).
+    void snapChartCaretToTransport();
     [[nodiscard]] std::optional<std::pair<common::core::GridPosition, int>> chartPlacementAt(
         const ChartPointerEvent& event) const;
     [[nodiscard]] common::core::Fraction chartGridStepBeats(
@@ -411,15 +413,15 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void clearDeferredProjectAction() noexcept;
     void clearInterruptedRestoreMarker();
     void clearLastOpenProjectIfMatches(const std::filesystem::path& project_file);
-    [[nodiscard]] common::core::TimePosition cursorPositionForOpenedProject(
+    [[nodiscard]] EditorProjectCaret caretForOpenedProject(
         const std::filesystem::path& project_file) const;
     [[nodiscard]] common::core::Fraction gridNoteValueForOpenedProject(
         const std::filesystem::path& project_file) const;
     [[nodiscard]] double timelineZoomForOpenedProject(
         const std::filesystem::path& project_file) const;
-    void saveCurrentProjectCursorPositionBestEffort(std::string_view context);
-    void saveProjectCursorPositionBestEffort(
-        const std::filesystem::path& project_file, common::core::TimePosition cursor_position,
+    void saveCurrentProjectCaretBestEffort(std::string_view context);
+    void saveProjectCaretBestEffort(
+        const std::filesystem::path& project_file, const EditorProjectCaret& caret,
         std::string_view context);
     [[nodiscard]] std::optional<std::filesystem::path> restorableProjectFileForExit() const;
     [[nodiscard]] std::expected<void, common::audio::SongAudioError> loadSessionSong(

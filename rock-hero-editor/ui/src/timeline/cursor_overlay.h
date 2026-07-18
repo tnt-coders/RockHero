@@ -84,6 +84,27 @@ public:
     void setSnapGuide(std::optional<TimelineSnapGuide> guide);
 
     /*!
+    \brief Hides the paused cursor while a chart's caret owns the paused position.
+
+    With a chart displayed the caret is THE paused position concept (the caret model,
+    2026-07-17), so the overlay draws the playhead only during playback; chartless
+    arrangements keep the paused playhead as their only indicator.
+
+    \param hidden True when a chart (and therefore a caret) is displayed.
+    */
+    void setPausedCursorHidden(bool hidden) noexcept;
+
+    /*!
+    \brief Restricts seek clicks to the highway band (the waveform/tab rows).
+
+    Clicks below the band — the tone strip and automation lanes — are not seeks (the caret
+    model: those surfaces own their clicks and never move the position).
+
+    \param height Highway band height in overlay-local pixels; zero or less disables the gate.
+    */
+    void setSeekBandHeight(int height) noexcept;
+
+    /*!
     \brief Installs the predicate that lets track-row pointer targets receive clicks.
 
     The overlay spans the whole canvas above every track row, so by default it consumes
@@ -144,6 +165,12 @@ private:
 
     // Lets track-row pointer targets beneath the overlay receive clicks.
     std::function<bool(juce::Point<int>)> m_hit_test_pass_through;
+
+    // True while a chart's caret owns the paused position, hiding the paused playhead.
+    bool m_paused_cursor_hidden{false};
+
+    // Highway band height gating seek clicks; zero or less accepts clicks anywhere.
+    int m_seek_band_height{0};
 };
 
 } // namespace rock_hero::editor::ui

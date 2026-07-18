@@ -295,8 +295,7 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
     }
 
     const bool next_has_unsaved_changes = state->project.audioNormalizationUpdatedOnLoad();
-    const common::core::TimePosition next_cursor_position =
-        cursorPositionForOpenedProject(state->file);
+    const EditorProjectCaret next_caret = caretForOpenedProject(state->file);
     m_grid_note_value = gridNoteValueForOpenedProject(state->file);
     m_timeline_zoom_pixels_per_second = timelineZoomForOpenedProject(state->file);
     std::filesystem::path next_project_file{state->file};
@@ -313,7 +312,22 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
     resetUndoHistory("undo.reset.open_project");
     markUndoHistoryClean("undo.mark_clean.open_project");
 
+    // Restore the caret to its exact stored grid slot (clamping the string to the displayed
+    // chart) and park the transport at the same musical time so play-from-caret and the
+    // restored view agree; chartless projects keep the transport position as their resume.
+    const common::core::TimePosition next_cursor_position = session().timeline().clamp(
+        common::core::TimePosition{session().song().tempo_map.secondsAtNote(
+            next_caret.position.measure, next_caret.position.beat, next_caret.position.offset)});
     m_transport.seek(next_cursor_position);
+    if (const common::core::Arrangement* const arrangement = session().currentArrangement();
+        arrangement != nullptr && arrangement->chart.has_value() &&
+        !arrangement->chart->tuning.strings.empty())
+    {
+        placeChartCaret(
+            next_caret.position,
+            std::clamp(
+                next_caret.string, 1, static_cast<int>(arrangement->chart->tuning.strings.size())));
+    }
     // Make the tone under the restored cursor active (without a formal selection) so a reopened
     // project shows its tone from the start; the baseline reaches back to time 0, so a lead-in chart
     // resolves to its default tone.
@@ -852,7 +866,7 @@ bool EditorController::Impl::closeProject(bool reenter_tone_designer)
         return true;
     }
 
-    saveCurrentProjectCursorPositionBestEffort("store project cursor before close");
+    saveCurrentProjectCaretBestEffort("store project caret before close");
     m_transport.stop();
     clearLiveRig();
     clearActiveArrangementBestEffort("close project");
@@ -1256,7 +1270,7 @@ void EditorController::Impl::applyProjectWriteSuccess(const EditorAction::SavePr
 {
     m_has_untracked_unsaved_changes = false;
     markUndoHistoryClean("undo.mark_clean.save_project");
-    saveCurrentProjectCursorPositionBestEffort("store project cursor after save");
+    saveCurrentProjectCaretBestEffort("store project caret after save");
 }
 
 void EditorController::Impl::applyProjectWriteSuccess(const EditorAction::SaveProjectAs& action)
@@ -1266,7 +1280,7 @@ void EditorController::Impl::applyProjectWriteSuccess(const EditorAction::SavePr
     m_displaced_project_file.clear();
     m_has_untracked_unsaved_changes = false;
     markUndoHistoryClean("undo.mark_clean.save_project_as");
-    saveCurrentProjectCursorPositionBestEffort("store project cursor after save-as");
+    saveCurrentProjectCaretBestEffort("store project caret after save-as");
     // Save As is the first moment an imported project has a path (and an existing project adopts
     // a new one), so the active grid note value is persisted here or a selection made before the
     // first save is lost on reopen.
@@ -1394,17 +1408,21 @@ void EditorController::Impl::restoreLastOpenProject()
     runAction(EditorAction::RestoreProject{*project_file});
 }
 
-// Chooses the cursor restored for a project open from app-local resume state.
-common::core::TimePosition EditorController::Impl::cursorPositionForOpenedProject(
+// Chooses the caret restored for a project open from app-local resume state: the exact stored
+// musical address (no time math — no tempo edit can happen without an open session), falling
+// back to the song start for unknown projects.
+EditorProjectCaret EditorController::Impl::caretForOpenedProject(
     const std::filesystem::path& project_file) const
 {
-    if (const auto saved_position = m_settings.projectCursorPositionFor(project_file);
-        saved_position.has_value())
+    if (const auto saved_caret = m_settings.projectCaretFor(project_file); saved_caret.has_value())
     {
-        return session().timeline().clamp(*saved_position);
+        return *saved_caret;
     }
 
-    return session().timeline().start;
+    return EditorProjectCaret{
+        .position = common::core::GridPosition{.measure = 1, .beat = 1, .offset = {}},
+        .string = 1,
+    };
 }
 
 // Chooses the grid note value restored for a project open from app-local editor settings, falling
@@ -1436,21 +1454,37 @@ double EditorController::Impl::timelineZoomForOpenedProject(
     return 0.0;
 }
 
-// Saves the current cursor as app-local resume state for saved projects.
-void EditorController::Impl::saveCurrentProjectCursorPositionBestEffort(std::string_view context)
+// Saves the current caret as app-local resume state for saved projects. Chartless projects
+// persist the nearest grid line to the transport position instead, so they still resume where
+// they were.
+void EditorController::Impl::saveCurrentProjectCaretBestEffort(std::string_view context)
 {
     if (m_project_file.empty())
     {
         return;
     }
 
-    saveProjectCursorPositionBestEffort(m_project_file, m_transport.position(), context);
+    EditorProjectCaret caret{};
+    if (m_chart_caret.has_value())
+    {
+        caret = EditorProjectCaret{
+            .position = m_chart_caret->position, .string = m_chart_caret->string
+        };
+    }
+    else
+    {
+        caret = EditorProjectCaret{
+            .position = nearestTempoGridPosition(
+                session().song().tempo_map, m_grid_note_value, m_transport.position()),
+            .string = 1,
+        };
+    }
+    saveProjectCaretBestEffort(m_project_file, caret, context);
 }
 
-// Records a cursor position outside the .rhp package so cursor movement never makes project
-// content dirty.
-void EditorController::Impl::saveProjectCursorPositionBestEffort(
-    const std::filesystem::path& project_file, common::core::TimePosition cursor_position,
+// Records a caret outside the .rhp package so caret movement never makes project content dirty.
+void EditorController::Impl::saveProjectCaretBestEffort(
+    const std::filesystem::path& project_file, const EditorProjectCaret& caret,
     std::string_view context)
 {
     if (project_file.empty())
@@ -1458,8 +1492,7 @@ void EditorController::Impl::saveProjectCursorPositionBestEffort(
         return;
     }
 
-    recordSettingsResultBestEffort(
-        m_settings.saveProjectCursorPosition(project_file, cursor_position), context);
+    recordSettingsResultBestEffort(m_settings.saveProjectCaret(project_file, caret), context);
 }
 
 // Prepares project audio, activates the selected arrangement, and commits the song to Session.

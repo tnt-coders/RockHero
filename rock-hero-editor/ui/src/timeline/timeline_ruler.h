@@ -130,9 +130,10 @@ public:
 
     /*!
     \brief Samples the current transport cursor for the ruler's aligned playhead mark.
-    \param cursor_position Current transport position on the timeline.
+    \param cursor_position Current transport position, or absent while paused — the playhead
+    renders only during playback (the caret model, 2026-07-17).
     */
-    void setCursorPosition(common::core::TimePosition cursor_position);
+    void setCursorPosition(std::optional<common::core::TimePosition> cursor_position);
 
     /*!
     \brief Stores the tempo map that supplies anchors and click snapping, plus the grid step in
