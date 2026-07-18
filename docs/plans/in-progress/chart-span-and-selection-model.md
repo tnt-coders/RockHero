@@ -299,8 +299,17 @@ owning an exact grid slot × string. Handoffs:
 - The caret square (white, slightly rounded corners) renders iff armed — on an empty slot it
   marks where typing inserts, and on a note it rides the selection highlight so the caret
   stays visible through a single selection (amended 2026-07-18 from square-on-empty-only, on
-  user feedback); the paused playhead line renders iff passive. **Square on an empty slot ⟺
-  typing inserts; square gone ⟺ verbs act on the highlighted selection.**
+  user feedback). **Square on an empty slot ⟺ typing inserts; square gone ⟺ verbs act on
+  the highlighted selection.**
+- The content-spanning cursor line renders **only during playback** (second 2026-07-18
+  revision, on user feedback: the passive line parked itself over selected notes' fret
+  numbers after every dissolution). While paused-passive the position shows in the **ruler's
+  aligned mark only** — it still gives paused ruler-seeks visual feedback and marks where
+  Space plays from, without lane furniture — and the ruler mark hides while armed (the caret
+  is the display). The lane's only paused position furniture is the caret square. Chartless
+  arrangements keep their paused line as their only indicator. The dissolution seeks stay:
+  they keep Space and the ruler mark at the former caret's spot even though no lane line
+  appears there.
 - Wheel zoom centers on the marker: the armed caret when one exists, else the transport
   cursor (the playing playhead or the passive paused cursor) — the position concept and the
   zoom anchor are always the same thing (amended 2026-07-18).

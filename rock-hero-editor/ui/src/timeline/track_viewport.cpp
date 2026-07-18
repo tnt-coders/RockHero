@@ -294,10 +294,11 @@ void TrackViewport::setTabDisplayedStrings(int displayed_strings)
     layoutScaledCanvas();
 }
 
-// Stores the armed caret's position and refreshes both paused-position indicators (the marker
-// model): the overlay's paused cursor and the ruler's aligned mark hide while armed — the
-// caret is the position display — and return while passive. The stored seconds also become
-// the wheel-zoom center while armed.
+// Stores the armed caret's position and refreshes the ruler's aligned mark (the marker
+// model): the mark hides while armed — the caret is the position display — and returns while
+// passive. The stored seconds also become the wheel-zoom center while armed. The overlay's
+// content-spanning line is untouched here: with a chart it renders only during playback, so
+// the lane stays clear of position furniture while editing.
 void TrackViewport::setArmedChartCaret(std::optional<double> seconds)
 {
     if (m_armed_caret_seconds == seconds)
@@ -306,7 +307,6 @@ void TrackViewport::setArmedChartCaret(std::optional<double> seconds)
     }
 
     m_armed_caret_seconds = seconds;
-    m_cursor_overlay.setPausedCursorHidden(m_armed_caret_seconds.has_value());
     updateRulerCursor();
 }
 
@@ -475,10 +475,13 @@ void TrackViewport::layoutScaledCanvas()
     m_cursor_overlay.setBounds(m_content.getLocalBounds());
     m_cursor_overlay.toFront(false);
     // The marker model's click and visibility rules: seek clicks stay inside the highway band
-    // (tone/lane clicks never move the position), and an armed caret hides the paused
-    // playhead — a passive marker keeps it as the position display.
+    // (tone/lane clicks never move the position), and with a chart displayed the
+    // content-spanning cursor line renders only during playback — while paused the position
+    // shows as the caret (armed) or the ruler's mark (passive), keeping the lane clear of
+    // furniture over note numbers. Chartless arrangements keep their paused line as the only
+    // indicator.
     m_cursor_overlay.setSeekBandHeight(primaryTrackHeight());
-    m_cursor_overlay.setPausedCursorHidden(m_armed_caret_seconds.has_value());
+    m_cursor_overlay.setPausedCursorHidden(m_tab_displayed_strings > 0);
     updateRulerView();
     refreshTimelineGrid();
 }
@@ -497,7 +500,7 @@ void TrackViewport::relayoutForContentHeightChange()
     m_cursor_overlay.setBounds(m_content.getLocalBounds());
     m_cursor_overlay.toFront(false);
     m_cursor_overlay.setSeekBandHeight(primaryTrackHeight());
-    m_cursor_overlay.setPausedCursorHidden(m_armed_caret_seconds.has_value());
+    m_cursor_overlay.setPausedCursorHidden(m_tab_displayed_strings > 0);
     updateRulerView();
     refreshTimelineGridForViewChange();
 }

@@ -205,11 +205,12 @@ public:
     /*!
     \brief Stores the armed caret's timeline position, or absence while the marker is passive.
 
-    Armed (present) hides the paused playhead in the cursor overlay and the ruler's aligned
-    mark — the caret square is the position display — and re-centers wheel zoom on the caret
-    instead of the transport cursor. Passive (absent) shows the paused cursor line at the
-    transport position and zooms around it. Chartless arrangements never arm, so their paused
-    playhead stays visible unchanged (the marker model, 2026-07-18).
+    Armed (present) hides the ruler's aligned mark — the caret square is the position
+    display — and re-centers wheel zoom on the caret instead of the transport cursor. Passive
+    (absent) shows the ruler mark at the transport position and zooms around it. The
+    content-spanning cursor line is independent of this: with a chart it renders only during
+    playback, so paused editing never has a line over the notes (the marker model,
+    2026-07-18).
 
     \param seconds Armed caret position on the arrangement timeline, or empty while passive.
     */
@@ -454,8 +455,8 @@ private:
     int m_tab_displayed_strings{0};
 
     // Armed caret's timeline position, absent while the marker is passive. Presence hides the
-    // paused playhead in the overlay and the ruler mark (the caret is the position display)
-    // and re-centers wheel zoom on the caret.
+    // ruler's aligned mark (the caret is the position display) and re-centers wheel zoom on
+    // the caret.
     std::optional<double> m_armed_caret_seconds{};
 
     // Coarse playing flag from core::EditorViewState, used to avoid vblank state polling.

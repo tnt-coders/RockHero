@@ -84,15 +84,15 @@ public:
     void setSnapGuide(std::optional<TimelineSnapGuide> guide);
 
     /*!
-    \brief Hides the paused cursor while the chart's position marker is armed.
+    \brief Hides the paused cursor while a chart is displayed.
 
-    Armed means the editing caret owns the paused position (the marker model, 2026-07-18), so
-    the caret — not this overlay — is the position display. While the marker is passive the
-    paused cursor line IS the position (it rests at the transport position, which dissolution
-    seeks keep authoritative), and during playback the moving playhead always renders.
-    Chartless arrangements never arm, keeping their paused playhead unchanged.
+    With a chart the content-spanning line renders only during playback (the marker model,
+    2026-07-18, revised the same day from passive-shows-the-line on user feedback: the paused
+    line sat over selected notes' fret numbers): while paused the position shows as the armed
+    caret or the ruler's aligned mark, never as lane furniture. Chartless arrangements keep
+    their paused line as the only position indicator.
 
-    \param hidden True while the editing caret owns the paused position.
+    \param hidden True while a chart is displayed.
     */
     void setPausedCursorHidden(bool hidden) noexcept;
 
@@ -168,8 +168,8 @@ private:
     // Lets track-row pointer targets beneath the overlay receive clicks.
     std::function<bool(juce::Point<int>)> m_hit_test_pass_through;
 
-    // True while the chart's marker is armed (the caret owns the paused position), hiding the
-    // paused playhead.
+    // True while a chart is displayed, hiding the paused line (the caret or the ruler mark is
+    // the paused position display then).
     bool m_paused_cursor_hidden{false};
 
     // Highway band height gating seek clicks; zero or less accepts clicks anywhere.
