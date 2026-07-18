@@ -876,11 +876,11 @@ void TrackViewport::updateRulerCursor()
     m_timeline_ruler.setCursorPosition(common::core::TimePosition{mark_seconds}, !playing);
 
     // The same marker position feeds the behind-content paused column: hidden during playback
-    // (the overlay's moving line takes over in front), without a chart (the overlay keeps the
-    // chartless paused line as the only indicator), and while a caret is armed (the caret
-    // square marks the slot itself; a column running behind it would just be clutter).
-    const bool paused_column_visible =
-        !playing && m_tab_displayed_strings > 0 && !m_armed_caret_seconds.has_value();
+    // (the overlay's moving line takes over in front) and without a chart (the overlay keeps
+    // the chartless paused line as the only indicator). While a caret is armed the column
+    // rides the caret's slot; the caret square masks its own interior so the cursor never
+    // shows through the caret itself.
+    const bool paused_column_visible = !playing && m_tab_displayed_strings > 0;
     m_content.setPausedCursorX(
         paused_column_visible
             ? cursorXForTimelinePosition(

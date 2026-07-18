@@ -133,8 +133,9 @@ public:
     \param cursor_position Where playback would start (the marker model, 2026-07-18): the
     moving playhead while playing, else the marker — the armed caret's slot or the passive
     transport rest. Absent only without a loaded project.
-    \param paused True while the transport is paused, so the mark draws in the paused cursor
-    color and reads as one continuous indicator with the content column below it.
+    \param paused True while the transport is paused, so the mark's line draws in the paused
+    cursor color and reads as one continuous indicator with the content column below it; the
+    flag triangle stays playback white in both states.
     */
     void setCursorPosition(std::optional<common::core::TimePosition> cursor_position, bool paused);
 

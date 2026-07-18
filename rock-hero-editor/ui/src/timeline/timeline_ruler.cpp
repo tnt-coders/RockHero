@@ -797,14 +797,15 @@ void TimelineRuler::drawShapeChips(juce::Graphics& g)
 
 // Draws the play-from-here cursor through the ruler body for vertical alignment, topped by the
 // flag triangle. The cursor starts at the body's top edge instead of y 0 so it does not cut
-// through the chip rows above. The whole mark — line and flag — takes the paused or playback
-// color so it reads as one continuous indicator with the cursor in the content below.
+// through the chip rows above. The line takes the paused or playback color so it reads as one
+// continuous indicator with the cursor in the content below; the flag stays playback white in
+// both states so the play-from-here mark never loses visibility (user ruling 2026-07-18).
 void TimelineRuler::drawCursor(juce::Graphics& g)
 {
-    const juce::Colour color =
+    const juce::Colour line_color =
         m_cursor_paused ? editorTheme().paused_cursor : editorTheme().playback_cursor;
     const std::optional<int> column =
-        drawTimelineCursor(g, *this, m_cursor_x, g_ruler_body_top, color);
+        drawTimelineCursor(g, *this, m_cursor_x, g_ruler_body_top, line_color);
     if (!column.has_value())
     {
         return;
@@ -818,7 +819,7 @@ void TimelineRuler::drawCursor(juce::Graphics& g)
     flag.lineTo(tip_x + g_cursor_flag_half_width, static_cast<float>(g_ruler_body_top));
     flag.lineTo(tip_x, static_cast<float>(g_ruler_body_top) + g_cursor_flag_height);
     flag.closeSubPath();
-    g.setColour(color);
+    g.setColour(editorTheme().playback_cursor);
     g.fillPath(flag);
 }
 
