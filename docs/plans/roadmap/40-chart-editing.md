@@ -149,9 +149,11 @@ marker per project (`EditorProjectMarker`). This supersedes the settlement's bui
 (4) — typing at the caret replaced the ghost rework entirely — and the pause-snap,
 caret-always-present, and Alt-ghost records above. Multi-select is confirmed permanent;
 `docs/plans/in-progress/chart-span-and-selection-model.md` §9/§9a is the authoritative record.
-**Remaining Phase 4 sub-scope (deferred to the next execution slice, before Phase 5):** pointer
-drag-move of selected notes (horizontal with snap, vertical across strings — the same plain
-move-drag verb automation points use) and Esc canceling an in-flight pointer drag preview.
+**Phase 4 remainder PARKED 2026-07-18 (user decision):** pointer drag-move of selected notes and
+its Esc drag-cancel are deliberately not implemented — Alt+arrows covers moves precisely on the
+grid-native lane, long moves are Phase 9's copy/paste, and the drag's real bill (live §10/collision
+preview, edge auto-scroll) buys no capability the keyboard lacks. Parked behind a watch item
+beside tail-drag (docs/tracking/watch-items.md "Chart editing"); Phase 4 is complete.
 
 Open questions Q1–Q4 below have recommended defaults and are mirrored into
 `docs/plans/roadmap/00-roadmap.md` (Decisions needed). Phases 1–3 depend on none of them; later phases
