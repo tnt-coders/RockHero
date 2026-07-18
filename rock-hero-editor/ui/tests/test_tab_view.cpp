@@ -330,6 +330,50 @@ TEST_CASE("TabView shows the Alt insert ghost at the snapped position", "[ui][ta
     }
 }
 
+// Alt+wheel routes to the sustain sink and Alt+Shift+wheel to the fret-shift sink; both need a
+// chart displayed.
+TEST_CASE("TabView routes modifier wheels to their chart sinks", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    const common::core::TempoMap tempo_map =
+        common::core::TempoMap::defaultMap(common::core::TimeDuration{30.0});
+    TabView view{tempo_map};
+    view.setBounds(0, 0, 200, 120);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        });
+    view.setState(makeTabState(), 0);
+
+    int sustain_direction = 0;
+    bool sustain_fine = false;
+    int shift_direction = 0;
+    view.setSustainWheelCallback([&](int direction, bool fine) {
+        sustain_direction = direction;
+        sustain_fine = fine;
+    });
+    view.setFretShiftWheelCallback([&](int direction) { shift_direction = direction; });
+
+    const juce::MouseWheelDetails up{.deltaX = 0.0f, .deltaY = 1.0f};
+    view.mouseWheelMove(
+        testing::makeMouseDownEvent(view, 50.0f, 60.0f, juce::ModifierKeys::altModifier), up);
+    CHECK(sustain_direction == 1);
+    CHECK_FALSE(sustain_fine);
+    CHECK(shift_direction == 0);
+
+    const juce::MouseWheelDetails down{.deltaX = 0.0f, .deltaY = -1.0f};
+    view.mouseWheelMove(
+        testing::makeMouseDownEvent(
+            view,
+            50.0f,
+            60.0f,
+            juce::ModifierKeys::altModifier | juce::ModifierKeys::shiftModifier),
+        down);
+    CHECK(shift_direction == -1);
+    CHECK(sustain_direction == 1);
+}
+
 // A null projection draws nothing and never dereferences missing chart data.
 TEST_CASE("TabView draws nothing without a chart", "[ui][tab-view]")
 {

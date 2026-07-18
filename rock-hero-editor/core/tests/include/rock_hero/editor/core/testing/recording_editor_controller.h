@@ -262,11 +262,17 @@ public:
     }
 
     /*! \copydoc IEditorController::onChartFretDigitTyped */
-    void onChartFretDigitTyped(int digit, bool set_exact) override
+    void onChartFretDigitTyped(int digit) override
     {
         last_chart_fret_digit = digit;
-        last_chart_fret_set_exact = set_exact;
         chart_fret_digit_count += 1;
+    }
+
+    /*! \copydoc IEditorController::onChartFretShiftRequested */
+    void onChartFretShiftRequested(int direction) override
+    {
+        last_chart_fret_shift_direction = direction;
+        chart_fret_shift_count += 1;
     }
 
     /*! \copydoc IEditorController::onChartSustainAdjustRequested */
@@ -722,8 +728,11 @@ public:
     /*! \brief Last fret digit received. */
     int last_chart_fret_digit{-1};
 
-    /*! \brief Set-exact (Ctrl) flag of the last fret digit received. */
-    bool last_chart_fret_set_exact{false};
+    /*! \brief Last fret-shift direction received. */
+    int last_chart_fret_shift_direction{0};
+
+    /*! \brief Number of onChartFretShiftRequested() intents received. */
+    int chart_fret_shift_count{0};
 
     /*! \brief Number of onChartFretDigitTyped() intents received. */
     int chart_fret_digit_count{0};

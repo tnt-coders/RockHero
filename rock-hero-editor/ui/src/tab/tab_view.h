@@ -169,6 +169,15 @@ public:
     */
     void setSustainWheelCallback(SustainWheelCallback on_sustain_wheel);
 
+    /*! \brief Fret-shift sink for Alt+Shift+wheel: direction is +1/-1 frets. */
+    using FretShiftWheelCallback = std::function<void(int direction)>;
+
+    /*!
+    \brief Installs the sink that receives Alt+Shift+wheel fret shifts over the lane.
+    \param on_fret_shift_wheel Callback receiving the wheel direction.
+    */
+    void setFretShiftWheelCallback(FretShiftWheelCallback on_fret_shift_wheel);
+
     /*!
     \brief Adjusts the selection's sustain on Alt+wheel; other wheel events pass through.
     \param event Mouse event delivered by JUCE.
@@ -291,6 +300,9 @@ private:
 
     // Sink receiving Alt+wheel sustain adjustments; empty passes wheel events through.
     SustainWheelCallback m_on_sustain_wheel{};
+
+    // Sink receiving Alt+Shift+wheel fret shifts; empty passes wheel events through.
+    FretShiftWheelCallback m_on_fret_shift_wheel{};
 
     // User minimum lane count; zero means match the chart's string count.
     int m_minimum_displayed_strings{0};
