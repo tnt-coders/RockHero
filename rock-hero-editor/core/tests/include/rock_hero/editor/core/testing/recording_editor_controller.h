@@ -248,10 +248,9 @@ public:
     }
 
     /*! \copydoc IEditorController::onChartSelectionMoveRequested */
-    void onChartSelectionMoveRequested(ChartStepDirection direction, bool fine) override
+    void onChartSelectionMoveRequested(ChartStepDirection direction) override
     {
         last_chart_selection_move_direction = direction;
-        last_chart_selection_move_fine = fine;
         chart_selection_move_count += 1;
     }
 
@@ -276,10 +275,9 @@ public:
     }
 
     /*! \copydoc IEditorController::onChartSustainAdjustRequested */
-    void onChartSustainAdjustRequested(int direction, bool fine) override
+    void onChartSustainAdjustRequested(int direction) override
     {
         last_chart_sustain_direction = direction;
-        last_chart_sustain_fine = fine;
         chart_sustain_adjust_count += 1;
     }
 
@@ -716,9 +714,6 @@ public:
     /*! \brief Last selection-move direction received. */
     std::optional<ChartStepDirection> last_chart_selection_move_direction{};
 
-    /*! \brief Fine-grid flag of the last selection move received. */
-    bool last_chart_selection_move_fine{false};
-
     /*! \brief Number of onChartSelectionMoveRequested() intents received. */
     int chart_selection_move_count{0};
 
@@ -739,9 +734,6 @@ public:
 
     /*! \brief Last sustain-adjust direction received. */
     int last_chart_sustain_direction{0};
-
-    /*! \brief Fine-grid flag of the last sustain adjust received. */
-    bool last_chart_sustain_fine{false};
 
     /*! \brief Number of onChartSustainAdjustRequested() intents received. */
     int chart_sustain_adjust_count{0};

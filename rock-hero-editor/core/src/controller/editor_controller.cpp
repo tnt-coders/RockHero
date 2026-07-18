@@ -891,9 +891,9 @@ void EditorController::onChartCaretStepRequested(ChartStepDirection direction, b
     m_impl->onChartCaretStepRequested(direction, measure);
 }
 
-void EditorController::onChartSelectionMoveRequested(ChartStepDirection direction, bool fine)
+void EditorController::onChartSelectionMoveRequested(ChartStepDirection direction)
 {
-    m_impl->onChartSelectionMoveRequested(direction, fine);
+    m_impl->onChartSelectionMoveRequested(direction);
 }
 
 void EditorController::onChartSelectionDeleteRequested()
@@ -911,9 +911,9 @@ void EditorController::onChartFretShiftRequested(int direction)
     m_impl->onChartFretShiftRequested(direction);
 }
 
-void EditorController::onChartSustainAdjustRequested(int direction, bool fine)
+void EditorController::onChartSustainAdjustRequested(int direction)
 {
-    m_impl->onChartSustainAdjustRequested(direction, fine);
+    m_impl->onChartSustainAdjustRequested(direction);
 }
 
 void EditorController::onChartEscapePressed()
@@ -1632,9 +1632,10 @@ void EditorController::Impl::armChartCaret(common::core::GridPosition position, 
     }
 }
 
-// Resolves the event's snapped musical position and the string lane under the pointer,
-// mirroring the timeline's placement rules: plain placement stores the grid line's own exact
-// rational, precision (Ctrl) quantizes to the shared 1/960-beat fine grid.
+// Resolves the event's snapped musical position and the string lane under the pointer. Chart
+// authoring is grid-native (settled 2026-07-18): every placement lands on the displayed
+// grid's own exact rational — there is no fine-grid bypass for notes; tuplet positions come
+// from tuplet grid note values (1/6, 1/12, ...), never from off-grid placement.
 std::optional<std::pair<common::core::GridPosition, int>> EditorController::Impl::chartPlacementAt(
     const ChartPointerEvent& event) const
 {
@@ -1658,9 +1659,7 @@ std::optional<std::pair<common::core::GridPosition, int>> EditorController::Impl
     }
 
     const common::core::GridPosition position =
-        event.modifiers.ctrl
-            ? fineGridPositionForBeat(tempo_map, tempo_map.beatPositionAtSeconds(clicked->seconds))
-            : nearestTempoGridPosition(tempo_map, m_grid_note_value, *clicked);
+        nearestTempoGridPosition(tempo_map, m_grid_note_value, *clicked);
 
     // Lanes stack highest string on top; extra user lanes pad below the chart's strings.
     const float lane = (event.y - event.geometry.bounds_y) / event.geometry.lane_height;
@@ -1673,15 +1672,12 @@ std::optional<std::pair<common::core::GridPosition, int>> EditorController::Impl
 }
 
 // One grid step in beats at a position: the note value is a fraction of a whole note and a beat
-// is one signature-denominator unit, so step_beats = note_value x denominator; the fine step is
-// the shared 1/960-beat precision grid.
+// is one signature-denominator unit, so step_beats = note_value x denominator. Chart verbs are
+// grid-native (settled 2026-07-18) — there is no fine-step tier; finer motion comes from a
+// finer grid note value.
 common::core::Fraction EditorController::Impl::chartGridStepBeats(
-    common::core::GridPosition at, bool fine) const
+    common::core::GridPosition at) const
 {
-    if (fine)
-    {
-        return common::core::Fraction{1, g_fine_grid_denominator};
-    }
     const common::core::TimeSignatureChange signature =
         session().song().tempo_map.timeSignatureAt(at.measure);
     return common::core::Fraction{
@@ -1996,12 +1992,12 @@ void EditorController::Impl::onChartCaretStepRequested(ChartStepDirection direct
     }
     else
     {
-        // Snap the caret onto the rendered grid (a Ctrl-click can leave it on the fine grid),
-        // then step one grid line; the re-snap-and-push guard keeps it progressing across
-        // measure-anchored grid restarts.
+        // Snap the caret onto the rendered grid (a grid note-value switch can leave it off
+        // the new grid), then step one grid line; the re-snap-and-push guard keeps it
+        // progressing across measure-anchored grid restarts.
         const common::core::GridPosition current =
             common::core::snapGridPosition(tempo_map, caret.position, m_grid_note_value);
-        const common::core::Fraction unsigned_step = chartGridStepBeats(current, false);
+        const common::core::Fraction unsigned_step = chartGridStepBeats(current);
         const common::core::Fraction step{
             sign * unsigned_step.numerator, unsigned_step.denominator
         };
@@ -2020,11 +2016,12 @@ void EditorController::Impl::onChartCaretStepRequested(ChartStepDirection direct
     armChartCaret(stepped, caret.string);
     updateView();
 }
-// Moves the selection under the Alt authoring modifier: Left/Right by one grid step (Ctrl
-// fine), Up/Down across strings. A refused move (edge of the neck, occupied slot, grid origin
-// collision) is a silent no-op — the selection stays put, matching refuse-not-clamp everywhere
-// else.
-void EditorController::Impl::onChartSelectionMoveRequested(ChartStepDirection direction, bool fine)
+// Moves the selection under the Alt authoring modifier: Left/Right by one grid step (always a
+// whole step — chart verbs are grid-native, settled 2026-07-18; off-grid imports keep their
+// offsets because the move is relative), Up/Down across strings. A refused move (edge of the
+// neck, occupied slot, grid origin collision) is a silent no-op — the selection stays put,
+// matching refuse-not-clamp everywhere else.
+void EditorController::Impl::onChartSelectionMoveRequested(ChartStepDirection direction)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
@@ -2041,7 +2038,7 @@ void EditorController::Impl::onChartSelectionMoveRequested(ChartStepDirection di
         case ChartStepDirection::Right:
         {
             const common::core::GridPosition reference = m_chart_selection.notes().front().position;
-            const common::core::Fraction step = chartGridStepBeats(reference, fine);
+            const common::core::Fraction step = chartGridStepBeats(reference);
             beat_delta = direction == ChartStepDirection::Right
                              ? step
                              : common::core::Fraction{-step.numerator, step.denominator};
@@ -2316,9 +2313,10 @@ void EditorController::Impl::onChartFretShiftRequested(int direction)
         planRetypeFrets(selected, *lowest + (direction > 0 ? 1 : -1), /*set_exact=*/false)));
 }
 
-// Grows or shrinks the selection's sustains by one grid step (fine 1/960 with precision) as one
-// compound undo entry; 40-Q2-B clamps growth against the next same-string onset.
-void EditorController::Impl::onChartSustainAdjustRequested(int direction, bool fine)
+// Grows or shrinks the selection's sustains by one grid step (always a whole step — chart
+// verbs are grid-native, settled 2026-07-18) as one compound undo entry; growth clamps to the
+// minimum-note-distance margin before the next onset on any string.
+void EditorController::Impl::onChartSustainAdjustRequested(int direction)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
@@ -2328,7 +2326,7 @@ void EditorController::Impl::onChartSustainAdjustRequested(int direction, bool f
     }
 
     const common::core::GridPosition reference = m_chart_selection.notes().front().position;
-    const common::core::Fraction step = chartGridStepBeats(reference, fine);
+    const common::core::Fraction step = chartGridStepBeats(reference);
     const common::core::Fraction delta =
         direction > 0 ? step : common::core::Fraction{-step.numerator, step.denominator};
     static_cast<void>(applyChartEditPlan(planAdjustSustain(

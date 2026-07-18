@@ -401,6 +401,30 @@ not before. Rules:
   are a separate design discussion. Until it happens the blanket restriction stands as the
   safe default.
 
+## 11. Grid-native chart authoring — SETTLED (2026-07-18)
+
+**Notes cannot be placed between the grid.** Every chart-note authoring verb operates on the
+displayed grid's own exact rationals: placement snaps to it, moves step it whole, sustains
+grow and shrink by it. The fine 1/960 tier is gone from chart verbs entirely — finer or
+tuplet positions come from choosing a finer or tuplet grid note value (the free-text grid box
+accepts any fraction with terms in [1, 128]; 1/6, 1/12, and 1/24 joined the presets so
+triplets are one click away). This is the drastic-simplification ruling: the caret was
+already grid-native, GP has no off-grid placement at all, and an off-grid note in a rhythm
+game chart is a timing bug far more often than an intent.
+
+- **Relative moves (user ruling):** grid-step moves of off-grid imported notes keep their
+  offsets — authoring restrictions never silently rewrite existing content (the same posture
+  as §10's margin). The format keeps arbitrary rationals; imports lose nothing.
+- **Ctrl's precision meaning survives where free time is real**: tone-region boundaries,
+  automation points, and ruler seeks keep the 1/960 fine grid. On the chart lane Ctrl means
+  only the selection toggle (Ctrl+click) and the measure jump (Ctrl+Left/Right).
+- **Preset naming (deferred):** the grid dropdown shows raw fractions ("1/12"); provide
+  friendlier REAPER-style names ("1/8 triplet") in a future pass — recorded in the
+  interaction-model doc's deferred decisions.
+- **Supersedes:** §9's "Ctrl bypasses to the fine grid" placement clause and its "fine
+  positioning remains available via Ctrl+click" arrows clause; the caret-step re-snap now
+  exists only for grid note-value switches.
+
 ## Build order (once section 5 settles)
 
 1. Selection granularity — chord-unit click + Ctrl precision (editor-core). *Built.*

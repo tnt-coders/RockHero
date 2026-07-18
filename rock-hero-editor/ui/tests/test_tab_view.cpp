@@ -210,17 +210,24 @@ TEST_CASE("TabView forwards chart pointer intents when a chart shows", "[ui][tab
     REQUIRE(event_count == 1);
     CHECK(last_phase == core::ChartPointerPhase::Down);
     REQUIRE(last_event.has_value());
-    CHECK(last_event->x == Catch::Approx(10.0f));
-    CHECK(last_event->y == Catch::Approx(110.0f));
-    CHECK(last_event->geometry.displayed_count == 6);
-    CHECK(last_event->geometry.bounds_width == Catch::Approx(200.0f));
-    CHECK(last_event->geometry.visible_timeline.duration().seconds == Catch::Approx(20.0));
-    CHECK_FALSE(last_event->modifiers.ctrl);
+    if (last_event.has_value())
+    {
+        CHECK(last_event->x == Catch::Approx(10.0f));
+        CHECK(last_event->y == Catch::Approx(110.0f));
+        CHECK(last_event->geometry.displayed_count == 6);
+        CHECK(last_event->geometry.bounds_width == Catch::Approx(200.0f));
+        CHECK(last_event->geometry.visible_timeline.duration().seconds == Catch::Approx(20.0));
+        CHECK_FALSE(last_event->modifiers.ctrl);
+    }
 
     view.mouseDrag(testing::makeMouseDragEvent(view, 40.0f, 110.0f, 10.0f, 110.0f));
     CHECK(event_count == 2);
     CHECK(last_phase == core::ChartPointerPhase::Drag);
-    CHECK(last_event->x == Catch::Approx(40.0f));
+    REQUIRE(last_event.has_value());
+    if (last_event.has_value())
+    {
+        CHECK(last_event->x == Catch::Approx(40.0f));
+    }
 
     view.mouseUp(testing::makeMouseDownEvent(view, 40.0f, 110.0f));
     CHECK(event_count == 3);
@@ -233,7 +240,11 @@ TEST_CASE("TabView forwards chart pointer intents when a chart shows", "[ui][tab
             10.0f,
             110.0f,
             juce::ModifierKeys::leftButtonModifier | juce::ModifierKeys::ctrlModifier));
-    CHECK(last_event->modifiers.ctrl);
+    REQUIRE(last_event.has_value());
+    if (last_event.has_value())
+    {
+        CHECK(last_event->modifiers.ctrl);
+    }
 }
 
 // Selection and marquee overlays render above the notation without asserting.

@@ -13,7 +13,7 @@ namespace rock_hero::game::core
 {
 
 /*! \brief Spectral character of a detected onset. */
-enum class OnsetCharacter
+enum class OnsetCharacter : std::uint8_t
 {
     /*! \brief The onset leads into periodic, pitched signal. */
     Pitched,
@@ -26,7 +26,7 @@ enum class OnsetCharacter
 };
 
 /*! \brief How the detector observed a note start. */
-enum class OnsetOrigin
+enum class OnsetOrigin : std::uint8_t
 {
     /*! \brief A physical attack transient (picked, plucked, popped, slapped, or muted hit). */
     Transient,

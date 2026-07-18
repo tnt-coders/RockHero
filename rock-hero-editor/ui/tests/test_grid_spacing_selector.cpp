@@ -38,10 +38,12 @@ TEST_CASE("GridSpacingSelector emits chosen presets", "[ui][grid-spacing]")
     GridSpacingSelector selector{listener};
     auto& box = findRequiredDescendant<juce::ComboBox>(selector, "grid_note_value_box");
 
+    // Preset id 2 is the quarter-triplet grid: the ladder interleaves triplet subdivisions
+    // with the power-of-two values (grid-native authoring, 2026-07-18).
     box.setSelectedId(2, juce::sendNotificationSync);
 
     CHECK(listener.chosen_count == 1);
-    CHECK(listener.last_note_value == std::optional{common::core::Fraction{1, 8}});
+    CHECK(listener.last_note_value == std::optional{common::core::Fraction{1, 6}});
 }
 
 // Verifies free fraction entry emits exact custom note values, including triplet-style grids.

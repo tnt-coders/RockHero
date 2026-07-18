@@ -83,12 +83,16 @@ std::vector<std::size_t> selectedNoteIndices(
     for (const ChartNoteKey& key : selection.notes())
     {
         while (note_index < notes.size() &&
-               ChartNoteKey{notes[note_index].position, notes[note_index].string} < key)
+               ChartNoteKey{
+                   .position = notes[note_index].position, .string = notes[note_index].string
+               } < key)
         {
             ++note_index;
         }
         if (note_index < notes.size() &&
-            ChartNoteKey{notes[note_index].position, notes[note_index].string} == key)
+            ChartNoteKey{
+                .position = notes[note_index].position, .string = notes[note_index].string
+            } == key)
         {
             indices.push_back(note_index);
         }

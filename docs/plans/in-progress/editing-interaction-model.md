@@ -38,25 +38,26 @@ Each modifier has exactly one meaning, everywhere:
 
 | Modifier | Meaning |
 |---|---|
-| **Ctrl** | Precision: bypass grid snap (placement quantizes to the 1/960-beat fine grid) |
+| **Ctrl** | Precision: bypass grid snap (placement quantizes to the 1/960-beat fine grid) — on tone boundaries, automation points, and ruler seeks only; **chart-note verbs have no fine tier** (grid-native authoring, 2026-07-18, span/selection model §11): on the tab lane Ctrl means the selection toggle and the measure jump |
 | **Alt** | Author: the modifier that makes input mutate — a held "pencil" quasimode for the pointer (click inserts, wheel adjusts extent) and the mutation gate for the keyboard (Alt+arrows moves the selection) |
 | **Shift** | Range/constrain: Shift+click selects a time range (Guitar Pro-style, replace semantics, anchored at the last non-Shift selection action — reassigned 2026-07-17, plan 52); axis-lock a 2D drag; composes with Alt for extent resize (Shift+Alt+Left/Right); plain Shift+arrows is reserved for future caret-anchored selection extension |
 
-**The caret model** (2026-07-17 evening, the Guitar Pro posture — superseding both the
-one-cursor/no-caret decision and the "plain keys never mutate" foundation): one position
-concept per transport state. While paused, the **caret** (grid position × string) is THE
-position — a white circle on empty slots, the selection highlight on notes, always present,
-placed by clicking the highway band or the ruler (never the tone/automation surfaces), and
-co-located with the note selection. While playing, the **playhead** is THE position; it
-renders only during playback, Space plays from the caret, and pause snaps the caret to the
-nearest grid line on the remembered string. Typing digits on an empty caret INSERTS a note
-with the typed fret (multi-digit window; the widened entry stays one insert); digits on a
-selection retype it. Plain arrows move the caret (Left/Right grid step, Up/Down across
-strings, Ctrl+Left/Right measure jump) and re-derive the selection from what sits under it.
-Deliberateness now comes from the caret itself — typing visibly lands where the caret is —
-rather than from an Alt gate on all keyboard mutation; pointer drags keep their own friction
-rationale (threshold, preview, Esc, single-undo commit). Alt remains the mutation gate for
-move/duration/fret-shift verbs; the Alt insert quasimode and its ghost are retired.
+**The two-state marker** (2026-07-17's caret model re-settled 2026-07-18; the authoritative
+record is `docs/plans/in-progress/chart-span-and-selection-model.md` §9/§9a — superseding
+both the one-cursor/no-caret decision and the "plain keys never mutate" foundation): one
+position marker, **passive** (the transport rest; no lane furniture — the ruler's
+always-shown mark is the play-from-here indicator) or **armed** (the caret, a rounded white
+square at a grid slot × string, riding the selection highlight on notes). Plain clicks and
+arrows arm it; multi-select gestures dissolve it in place; play dissolves and clears the
+selection; pause/stop/seeks rest it passive at raw time; Esc steps gesture → disarm →
+selection clear. Typing inserts at an armed empty-slot caret (multi-digit window; the widened
+entry stays one insert), retypes the selection, and is inert while passive. Plain arrows move
+the caret (whole grid steps, Ctrl+Left/Right measure jump) and re-derive the selection from
+what sits under it; chart authoring is grid-native (§11: no fine tier, tuplets via tuplet
+grids). Deliberateness comes from the caret itself — typing visibly lands where the caret
+is — rather than from an Alt gate on all keyboard mutation; pointer drags keep their own
+friction rationale (threshold, preview, Esc, single-undo commit). Alt remains the mutation
+gate for move/duration/fret-shift verbs; the Alt insert quasimode and its ghost are retired.
 
 Quasimodes (active only while held) are the deliberate accident-prevention choice: unlike a
 latched pencil *tool*, a held key cannot be forgotten, so "why did my click just create
@@ -225,6 +226,11 @@ Keyboard accelerators form one family: Ctrl+T inserts a tone change at the playh
   this.
 - **Keyboard sustain entry beyond Shift+Alt+arrows** (GP-style +/- keys) — only if practice
   wants it.
+- **Friendlier grid-preset names** (user direction 2026-07-18, recorded when the triplet
+  presets landed): the grid dropdown currently labels presets as raw fractions ("1/6",
+  "1/12"); we should probably provide user-friendly names the way REAPER does ("1/4 triplet",
+  "1/8 triplet") in a future pass. Display-only — free fraction entry and the stored value
+  stay raw fractions.
 - **User-facing keybind documentation and rebinding** (user direction 2026-07-16): both are
   wanted eventually — the rebinding UI is docs/plans/roadmap/46-editor-keybinds.md's scope, and
   user-facing documentation of this grammar ships alongside it — but neither is to be settled or

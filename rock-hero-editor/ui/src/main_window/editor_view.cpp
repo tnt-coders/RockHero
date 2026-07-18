@@ -938,8 +938,9 @@ void EditorView::toggleUndoHistoryPanel()
 }
 
 // Selection verbs follow the selection, not the pointer (user decision 2026-07-17): with a
-// chart selection active, Alt+wheel (sustain; Ctrl composes the fine grid) and Alt+Shift+wheel
-// (fret shift) act on it wherever the pointer sits inside the editor window.
+// chart selection active, Alt+wheel (sustain, whole grid steps — chart verbs are grid-native)
+// and Alt+Shift+wheel (fret shift) act on it wherever the pointer sits inside the editor
+// window.
 bool EditorView::dispatchSelectionWheel(
     const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel)
 {
@@ -957,7 +958,7 @@ bool EditorView::dispatchSelectionWheel(
     }
     else
     {
-        m_controller.onChartSustainAdjustRequested(direction, event.mods.isCtrlDown());
+        m_controller.onChartSustainAdjustRequested(direction);
     }
     return true;
 }
@@ -1005,15 +1006,16 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
         return true;
     }
 
-    // Arrow-key dispatch under the amended interaction grammar (2026-07-16): plain arrows only
-    // ever navigate (stepping the one timeline cursor along the grid), Shift+arrows is reserved for
-    // future selection extension, and every keyboard mutation requires the Alt authoring
+    // Arrow-key dispatch under the amended interaction grammar (2026-07-16, grid-native chart
+    // verbs 2026-07-18): plain arrows navigate the marker's caret, Shift+arrows is reserved
+    // for the plan-52 range gesture, and every keyboard mutation requires the Alt authoring
     // modifier — Alt+arrows moves the selection (a selected automation point first, the more
     // specific target, then the chart selection), Shift+Alt+Left/Right resizes sustains. Ctrl
-    // composes the fine grid throughout. Interim scattered keybinds (recorded for plan 46's
+    // means the measure jump on plain arrows and the fine grid only on automation points;
+    // chart verbs have no fine tier. Interim scattered keybinds (recorded for plan 46's
     // registry).
     {
-        const bool fine = key.getModifiers().isCtrlDown();
+        const bool ctrl = key.getModifiers().isCtrlDown();
         const bool shift = key.getModifiers().isShiftDown();
         const bool alt = key.getModifiers().isAltDown();
         const bool chart_shown = m_state.tab != nullptr && m_state.tab->string_count > 0;
@@ -1051,7 +1053,7 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
                          *arrow_direction == core::ChartStepDirection::Right))
                     {
                         m_controller.onChartSustainAdjustRequested(
-                            *arrow_direction == core::ChartStepDirection::Right ? 1 : -1, fine);
+                            *arrow_direction == core::ChartStepDirection::Right ? 1 : -1);
                         return true;
                     }
                     if (chart_shown && !m_state.chart_edit.selected_notes.empty() &&
@@ -1072,13 +1074,13 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
                     : *arrow_direction == core::ChartStepDirection::Right ? NudgeDirection::Later
                     : *arrow_direction == core::ChartStepDirection::Up    ? NudgeDirection::Up
                                                                           : NudgeDirection::Down;
-                if (m_tone_automation_lanes_view.nudgeSelectedPoint(point_direction, fine))
+                if (m_tone_automation_lanes_view.nudgeSelectedPoint(point_direction, ctrl))
                 {
                     return true;
                 }
                 if (chart_shown && !m_state.chart_edit.selected_notes.empty())
                 {
-                    m_controller.onChartSelectionMoveRequested(*arrow_direction, fine);
+                    m_controller.onChartSelectionMoveRequested(*arrow_direction);
                     return true;
                 }
                 return false;
@@ -1093,7 +1095,7 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
             if (chart_shown)
             {
                 // Plain arrows move the caret; Ctrl+Left/Right jump measures (the GP jump).
-                m_controller.onChartCaretStepRequested(*arrow_direction, fine);
+                m_controller.onChartCaretStepRequested(*arrow_direction, ctrl);
                 return true;
             }
             return false;
@@ -1109,7 +1111,7 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
             : key_code >= juce::KeyPress::numberPad0 && key_code <= juce::KeyPress::numberPad9
                 ? key_code - juce::KeyPress::numberPad0
                 : -1;
-        if (chart_shown && !fine && !alt && fret_digit >= 0)
+        if (chart_shown && !ctrl && !alt && fret_digit >= 0)
         {
             m_controller.onChartFretDigitTyped(fret_digit);
             return true;
