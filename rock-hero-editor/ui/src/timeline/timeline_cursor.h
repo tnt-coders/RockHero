@@ -42,7 +42,7 @@ void repaintCursorStrip(
     std::optional<float> next_cursor_x);
 
 /*!
-\brief Draws the one-pixel white transport cursor column shared by every timeline view.
+\brief Draws the one-pixel transport cursor column shared by every timeline view.
 
 The subpixel cursor x rounds and clamps into the component's column range so the cursor stays
 visible at both edges, matching the shared clamping in cursorXForTimelinePosition consumers. The
@@ -53,9 +53,13 @@ rows pass their header height as top.
 \param component Timeline component the cursor is drawn over.
 \param cursor_x Subpixel cursor x, if a cursor is currently mappable.
 \param top Local y where the cursor column starts.
+\param color Cursor color: playback_cursor while playing, paused_cursor for the paused mark.
+\return The pixel column the cursor was drawn in, so adornments (the ruler's flag) can center
+on the exact drawn pixel; empty when nothing was drawn.
 */
-void drawTimelineCursor(
-    juce::Graphics& g, const juce::Component& component, std::optional<float> cursor_x, int top);
+std::optional<int> drawTimelineCursor(
+    juce::Graphics& g, const juce::Component& component, std::optional<float> cursor_x, int top,
+    juce::Colour color);
 
 /*!
 \brief Maps mouse modifiers to the cursor placement mode shared by every timeline click site.

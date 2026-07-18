@@ -133,8 +133,10 @@ public:
     \param cursor_position Where playback would start (the marker model, 2026-07-18): the
     moving playhead while playing, else the marker — the armed caret's slot or the passive
     transport rest. Absent only without a loaded project.
+    \param paused True while the transport is paused, so the mark draws in the paused cursor
+    color and reads as one continuous indicator with the content column below it.
     */
-    void setCursorPosition(std::optional<common::core::TimePosition> cursor_position);
+    void setCursorPosition(std::optional<common::core::TimePosition> cursor_position, bool paused);
 
     /*!
     \brief Stores the tempo map that supplies anchors and click snapping, plus the grid step in
@@ -280,6 +282,9 @@ private:
 
     // Last subpixel cursor x coordinate drawn by the ruler.
     std::optional<float> m_cursor_x{};
+
+    // Whether the mark draws in the paused cursor color instead of the playback color.
+    bool m_cursor_paused{false};
 
     // Callback invoked when the user clicks the ruler to place the transport cursor.
     CursorPlacementCallback m_cursor_placement_callback{};

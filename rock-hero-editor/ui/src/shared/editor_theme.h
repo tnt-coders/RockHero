@@ -74,10 +74,12 @@ struct EditorTheme
     juce::Colour playback_cursor{0xffffffff};
 
     /*!
-    \brief Paused play-from-here column drawn behind the track content (the marker model).
+    \brief Paused play-from-here cursor: the behind-content column and, while paused, the
+    ruler's line-and-flag mark above it (the marker model).
 
     A cool muted step down from the playback white so paused-vs-playing reads instantly and
-    the behind-content column cannot be mistaken for a grid line.
+    the behind-content column cannot be mistaken for a grid line. The ruler mark shares the
+    color while paused so column and mark read as one continuous indicator.
     */
     juce::Colour paused_cursor{0xff8fa0a8};
 
