@@ -42,16 +42,21 @@ Each modifier has exactly one meaning, everywhere:
 | **Alt** | Author: the modifier that makes input mutate — a held "pencil" quasimode for the pointer (click inserts, wheel adjusts extent) and the mutation gate for the keyboard (Alt+arrows moves the selection) |
 | **Shift** | Range/constrain: Shift+click selects a time range (Guitar Pro-style, replace semantics, anchored at the last non-Shift selection action — reassigned 2026-07-17, plan 52); axis-lock a 2D drag; composes with Alt for extent resize (Shift+Alt+Left/Right); plain Shift+arrows is reserved for future caret-anchored selection extension |
 
-**Plain keys never mutate** (amended 2026-07-16), the keyboard twin of "a plain click never
-mutates": arrows navigate — Left/Right step the ONE timeline cursor along the grid (there is no
-separate editing caret; the playhead is the position concept, user decision 2026-07-17) — and do
-nothing where no navigation meaning exists; every keyboard mutation requires Alt. The two designated editing keys — Delete and typed
-fret digits — are the deliberate exceptions: they are unambiguous editing commands with no
-navigation meaning to collide with. Pointer *drags* mutate without Alt because a drag carries
-its own friction and feedback loop — press, travel past the click threshold, live preview with
-snap guide, Esc to abandon, commit only on release as one undo entry — while a keystroke is a
-single instant that commits before it can be previewed. Deliberateness is the currency: drags
-pay it inherently, keystrokes pay it with Alt.
+**The caret model** (2026-07-17 evening, the Guitar Pro posture — superseding both the
+one-cursor/no-caret decision and the "plain keys never mutate" foundation): one position
+concept per transport state. While paused, the **caret** (grid position × string) is THE
+position — a white circle on empty slots, the selection highlight on notes, always present,
+placed by clicking the highway band or the ruler (never the tone/automation surfaces), and
+co-located with the note selection. While playing, the **playhead** is THE position; it
+renders only during playback, Space plays from the caret, and pause snaps the caret to the
+nearest grid line on the remembered string. Typing digits on an empty caret INSERTS a note
+with the typed fret (multi-digit window; the widened entry stays one insert); digits on a
+selection retype it. Plain arrows move the caret (Left/Right grid step, Up/Down across
+strings, Ctrl+Left/Right measure jump) and re-derive the selection from what sits under it.
+Deliberateness now comes from the caret itself — typing visibly lands where the caret is —
+rather than from an Alt gate on all keyboard mutation; pointer drags keep their own friction
+rationale (threshold, preview, Esc, single-undo commit). Alt remains the mutation gate for
+move/duration/fret-shift verbs; the Alt insert quasimode and its ghost are retired.
 
 Quasimodes (active only while held) are the deliberate accident-prevention choice: unlike a
 latched pencil *tool*, a held key cannot be forgotten, so "why did my click just create
@@ -66,25 +71,26 @@ Ctrl = precision. Duplication is Ctrl+D on the selection when it arrives.
 
 | Input | Meaning — identical on every surface | Mutates? |
 |---|---|---|
-| Hover | Affordance only: cursor shape, edge highlight; with Alt held, a ghost preview of exactly what a click would insert, at the snapped position | No |
+| Hover | Affordance only: cursor shape, edge highlight (the chart's Alt ghost retired 2026-07-17 with the caret model; the tone strip keeps its Alt ghost boundary preview) | No |
 | Click on object | Select the individual object; Ctrl+click toggles membership. Chart notes follow the containment hierarchy (2026-07-17): click = note, double-click = its chord, span-rail click = the span's full note set (rides the span slice) | No |
-| Click on empty | Seek + deselect | No |
+| Click on empty | Place the caret (highway band and ruler only; snapped, Ctrl fine) and deselect — with play-from-caret this IS the seek; tone/automation surfaces keep their own click meanings and never move the caret (2026-07-17) | No |
 | Drag on object | Move (time, plus value/string when 2D); Shift axis-locks; commits once on release | Yes |
 | Edge-drag on extent | Resize (region boundary, sustain tail, span edge) | Yes |
 | Drag on empty | Marquee select, where multi-select exists | No |
-| Alt+click | Insert at the snapped position — works on occupied space too (splitting a tone region) | Yes |
-| Alt+drag from empty | Insert and place in one press-drag-release gesture | Yes |
+| Alt+click | Insert at the snapped position — tone-surface objects only (splitting a tone region, placing automation points); chart notes insert via the caret + digits (2026-07-17) | Yes |
+| Alt+drag from empty | Insert and place in one press-drag-release gesture (tone surfaces) | Yes |
 | Alt+wheel | Adjust the selection's *displayed duration* by one grid step: sustain for bare notes, span extent for a whole chord/arpeggio group, member tails for a proper subset (2026-07-17 — see chart-span-and-selection-model.md); Ctrl+Alt+wheel steps the fine grid; successive ticks coalesce into one undo entry | Yes |
 | Alt+Shift+wheel | Shift the selection's frets by one per tick, shape-preserving; refuses at fret zero and the fret cap (2026-07-17) | Yes |
 | Double-click on object | Open its primary property editor (rename/pick tone, type BPM); chart notes diverge — double-click selects the chord (containment hierarchy), a span's future double-click opens its name/fingering editor, and there is no note-properties dialog (2026-07-17: derived-over-authored leaves nothing needing a form; bends get direct manipulation later) | Via editor |
 | Delete / Backspace | Delete the selection | Yes |
 | Right-click | Context menu, always; every gesture above has a menu equivalent; never destructive on its own. (Chart lane: deliberately deferred 2026-07-17 — every v1 candidate was a worse path to a direct gesture; lands when techniques give it non-redundant content) | Via menu |
 | Esc | Cancel the in-flight gesture, restoring pre-gesture state | Reverts preview |
-| Arrow keys | Navigate: Left/Right step the ONE timeline cursor to the adjacent grid line (Ctrl fine); never a mutation (amended 2026-07-16/17 — there is no separate editing caret) | No |
+| Arrow keys | Move the caret: Left/Right by one grid step, Up/Down across strings, Ctrl+Left/Right by one measure (GP jump); selection re-derives from what sits under the caret (2026-07-17 caret model) | No |
+| Shift+arrows | Caret-anchored time selection, text-editor style: extends from the caret's starting grid line while held; release keeps the range; a plain arrow clears it; Shift again resumes (settles plan 52's keyboard creation gesture; builds with the range object) | No |
+| Digits on empty caret | Insert a note at the caret with the typed fret (multi-digit window widens the same insert) | Yes |
 | Alt+arrows | Move the selection by one grid step (Ctrl+Alt by the fine step); the vertical axis is the surface's own (string for notes, value for automation points) | Yes |
 | Shift+Alt+Left/Right | Grow/shrink the selected object's extent by one grid step (Ctrl composes the fine step) | Yes |
 | Shift+Alt+Up/Down | Shift the selection's frets by one, shape-preserving — the Alt+Shift axis rule: horizontal = extent in time, vertical = fret, on arrows and wheel alike (2026-07-17) | Yes |
-| Shift+arrows | Reserved (unbound): future caret-anchored selection extension | No |
 
 A plain click **never mutates**. Every mutating gesture previews live (snap guide plus a
 "position · value" readout chip), commits exactly once on release as a single undo entry, and can
