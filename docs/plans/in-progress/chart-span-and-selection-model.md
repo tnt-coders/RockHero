@@ -236,6 +236,13 @@ first caret. The paused playhead is gone.
 - **Unaffected:** the containment click hierarchy on notes, Ctrl toggle, marquee, Shift+click
   time range (now caret-anchored, matching GP), all Alt / Alt+Shift verbs, delete, undo,
   zoom, the selection-verbs-follow-the-selection rule.
+- **Built 2026-07-17 (stages A and B):** caret core, typing-inserts with the widened-insert
+  undo rule, arrow movement with the measure jump, play-from-caret, pause/stop snap,
+  playback-only playhead (chartless arrangements keep their paused playhead — no caret exists
+  to replace it), highway-band-only seek clicks, paused seeks carrying the caret, and
+  caret-address resume persistence (exact measure:beat:offset + string, per the user's ruling
+  that no time recalculation is ever involved; chartless projects persist the nearest grid
+  line to the transport).
 
 ## Build order (once section 5 settles)
 
