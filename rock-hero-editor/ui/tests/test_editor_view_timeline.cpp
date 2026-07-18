@@ -1151,9 +1151,9 @@ TEST_CASE("EditorView forwards space key to the controller", "[ui][editor-view]"
     CHECK(controller.play_pause_press_count == 1);
 }
 
-// Alt-held digits compose the pending insert fret and the Alt release reports the
-// insert-session boundary; both need a chart displayed and neither needs a selection.
-TEST_CASE("EditorView routes Alt digits and the Alt release", "[ui][editor-view]")
+// Digits route to the fret intent with or without a selection — the controller owns the
+// retype-vs-insert-at-caret branch (the caret model).
+TEST_CASE("EditorView routes digits to the fret intent", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -1167,15 +1167,9 @@ TEST_CASE("EditorView routes Alt digits and the Alt release", "[ui][editor-view]
     state.tab = std::move(tab);
     view.setState(state);
 
-    CHECK(view.keyPressed(juce::KeyPress{'5', juce::ModifierKeys::altModifier, 0}));
-    CHECK(controller.chart_insert_fret_digit_count == 1);
-    CHECK(controller.last_chart_insert_fret_digit == 5);
-    CHECK(controller.chart_fret_digit_count == 0);
-
-    view.modifierKeysChanged(juce::ModifierKeys{juce::ModifierKeys::altModifier});
-    CHECK(controller.chart_insert_session_end_count == 0);
-    view.modifierKeysChanged(juce::ModifierKeys{});
-    CHECK(controller.chart_insert_session_end_count == 1);
+    CHECK(view.keyPressed(juce::KeyPress{'5', juce::ModifierKeys{}, 0}));
+    CHECK(controller.chart_fret_digit_count == 1);
+    CHECK(controller.last_chart_fret_digit == 5);
 }
 
 // Selection verbs follow the selection, not the pointer: with a chart selection active,

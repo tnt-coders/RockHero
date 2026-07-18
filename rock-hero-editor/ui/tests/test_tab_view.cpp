@@ -140,9 +140,7 @@ TEST_CASE("TabView finds notes intersecting a visible span", "[ui][tab-view]")
 TEST_CASE("TabView draws string-colored note heads", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    const common::core::TempoMap tempo_map =
-        common::core::TempoMap::defaultMap(common::core::TimeDuration{30.0});
-    TabView view{tempo_map};
+    TabView view{};
     view.setBounds(0, 0, 200, 120);
     view.setVisibleTimeline(
         common::core::TimeRange{
@@ -181,9 +179,7 @@ TEST_CASE("TabView draws string-colored note heads", "[ui][tab-view]")
 TEST_CASE("TabView forwards chart pointer intents when a chart shows", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    const common::core::TempoMap tempo_map =
-        common::core::TempoMap::defaultMap(common::core::TimeDuration{30.0});
-    TabView view{tempo_map};
+    TabView view{};
     view.setBounds(0, 0, 200, 120);
     view.setVisibleTimeline(
         common::core::TimeRange{
@@ -244,9 +240,7 @@ TEST_CASE("TabView forwards chart pointer intents when a chart shows", "[ui][tab
 TEST_CASE("TabView renders chart-editing overlays", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    const common::core::TempoMap tempo_map =
-        common::core::TempoMap::defaultMap(common::core::TimeDuration{30.0});
-    TabView view{tempo_map};
+    TabView view{};
     view.setBounds(0, 0, 200, 120);
     view.setVisibleTimeline(
         common::core::TimeRange{
@@ -285,14 +279,12 @@ TEST_CASE("TabView renders chart-editing overlays", "[ui][tab-view]")
     CHECK(image.getPixelAt(2, 110) != plain_image.getPixelAt(2, 110));
 }
 
-// Holding Alt over the lane shows the copy cursor and a snapped ghost of the note a click
-// would insert; releasing Alt (or hovering without it) clears both.
-TEST_CASE("TabView shows the Alt insert ghost at the snapped position", "[ui][tab-view]")
+// The controller-published caret renders as a white ring on its empty slot (the caret model);
+// clearing the published caret clears the ring.
+TEST_CASE("TabView renders the empty-slot caret ring", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    const common::core::TempoMap tempo_map =
-        common::core::TempoMap::defaultMap(common::core::TimeDuration{30.0});
-    TabView view{tempo_map};
+    TabView view{};
     view.setBounds(0, 0, 200, 120);
     view.setVisibleTimeline(
         common::core::TimeRange{
@@ -301,32 +293,29 @@ TEST_CASE("TabView shows the Alt insert ghost at the snapped position", "[ui][ta
         });
     view.setState(makeTabState(), 0);
 
-    // Alt-hover at ~12.35s over the string-3 lane (center y = 70): the ghost snaps to the
-    // nearest quarter-note grid line at 12.5s (x = 125) — the default map's 120 BPM puts grid
-    // lines every 0.5s, and 12.35 is unambiguously nearer 12.5.
-    view.mouseMove(
-        testing::makeMouseDownEvent(view, 123.0f, 71.0f, juce::ModifierKeys::altModifier));
-    CHECK(view.getMouseCursor() == juce::MouseCursor{juce::MouseCursor::CopyingCursor});
-
+    // Caret at 12.5s (x = 125) on string 3 (center y = 70).
+    view.setEditState(
+        core::ChartEditViewState{
+            .caret = core::ChartCaretViewState{.seconds = 12.5, .string = 3},
+        });
     {
         const juce::Image image{juce::SoftwareImageType{}.create(
             juce::Image::ARGB, 200, 120, true)};
         juce::Graphics graphics{image};
         view.paint(graphics);
-        // Probe inside the ghost ring's stroke band above the head center (ring radius ~7.2,
-        // stroke 1.5), off the string line so the lane paint cannot satisfy the check.
+        // Probe inside the ring's stroke band above the slot center (ring radius ~7.2, stroke
+        // 1.5), off the string line so the lane paint cannot satisfy the check.
         CHECK(image.getPixelAt(125, 62).getARGB() != 0);
     }
 
-    // Without Alt the ghost and the copy cursor clear.
-    view.mouseMove(testing::makeMouseDownEvent(view, 123.0f, 71.0f, juce::ModifierKeys{}));
-    CHECK(view.getMouseCursor() == juce::MouseCursor{juce::MouseCursor::NormalCursor});
+    // No published caret, no ring.
+    view.setEditState(core::ChartEditViewState{});
     {
         const juce::Image image{juce::SoftwareImageType{}.create(
             juce::Image::ARGB, 200, 120, true)};
         juce::Graphics graphics{image};
         view.paint(graphics);
-        CHECK(image.getPixelAt(120, 62).getARGB() == 0);
+        CHECK(image.getPixelAt(125, 62).getARGB() == 0);
     }
 }
 
@@ -334,9 +323,7 @@ TEST_CASE("TabView shows the Alt insert ghost at the snapped position", "[ui][ta
 TEST_CASE("TabView draws nothing without a chart", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    const common::core::TempoMap tempo_map =
-        common::core::TempoMap::defaultMap(common::core::TimeDuration{30.0});
-    TabView view{tempo_map};
+    TabView view{};
     view.setBounds(0, 0, 100, 60);
     view.setVisibleTimeline(
         common::core::TimeRange{

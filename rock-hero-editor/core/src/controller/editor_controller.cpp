@@ -886,9 +886,9 @@ void EditorController::onChartPointerUp(const ChartPointerEvent& event)
     m_impl->onChartPointerUp(event);
 }
 
-void EditorController::onChartCursorStepRequested(ChartStepDirection direction, bool fine)
+void EditorController::onChartCaretStepRequested(ChartStepDirection direction, bool measure)
 {
-    m_impl->onChartCursorStepRequested(direction, fine);
+    m_impl->onChartCaretStepRequested(direction, measure);
 }
 
 void EditorController::onChartSelectionMoveRequested(ChartStepDirection direction, bool fine)
@@ -909,16 +909,6 @@ void EditorController::onChartFretDigitTyped(int digit)
 void EditorController::onChartFretShiftRequested(int direction)
 {
     m_impl->onChartFretShiftRequested(direction);
-}
-
-void EditorController::onChartInsertFretDigitTyped(int digit)
-{
-    m_impl->onChartInsertFretDigitTyped(digit);
-}
-
-void EditorController::onChartInsertSessionEnded()
-{
-    m_impl->onChartInsertSessionEnded();
 }
 
 void EditorController::onChartSustainAdjustRequested(int direction, bool fine)
@@ -1566,8 +1556,45 @@ void EditorController::Impl::clearChartEditingState()
     m_chart_selection.clear();
     m_chart_gesture.reset();
     m_chart_fret_entry.reset();
-    m_chart_insert_fret_entry.reset();
-    m_chart_insert_session_active = false;
+    resetChartCaret();
+}
+
+// The caret always exists once a chart is displayed (the caret model): reset means the song
+// start on the lowest string, not absence.
+void EditorController::Impl::resetChartCaret()
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value())
+    {
+        m_chart_caret.reset();
+        return;
+    }
+    m_chart_caret = ChartCaret{
+        .position = common::core::GridPosition{.measure = 1, .beat = 1, .offset = {}},
+        .string = 1,
+    };
+}
+
+// Moves the caret and re-derives the selection from what sits under it: a note becomes the
+// selection (the highlight IS the caret display there), an empty slot clears it (the white
+// circle shows where typing will insert).
+void EditorController::Impl::placeChartCaret(common::core::GridPosition position, int string)
+{
+    m_chart_caret = ChartCaret{.position = position, .string = string};
+    const ChartNoteKey key{.position = position, .string = string};
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    const bool on_note = arrangement != nullptr && arrangement->chart.has_value() &&
+                         std::ranges::any_of(
+                             chartOnsetGroupKeys(arrangement->chart->notes, position),
+                             [&key](const ChartNoteKey& candidate) { return candidate == key; });
+    if (on_note)
+    {
+        m_chart_selection.replaceWith(key);
+    }
+    else
+    {
+        m_chart_selection.clear();
+    }
 }
 
 // Resolves the event's snapped musical position and the string lane under the pointer,
@@ -1693,50 +1720,12 @@ bool EditorController::Impl::applyChartEditPlan(
     return true;
 }
 
-// Commits the Alt insert quasimode: a note carrying the last-used fret lands at the snapped
-// release position on the lane under the pointer.
-void EditorController::Impl::insertChartNoteAt(const ChartPointerEvent& event)
-{
-    const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (arrangement == nullptr || !arrangement->chart.has_value())
-    {
-        return;
-    }
-
-    const auto placement = chartPlacementAt(event);
-    if (!placement.has_value())
-    {
-        return;
-    }
-
-    common::core::ChartNote note;
-    note.position = placement->first;
-    note.string = placement->second;
-    note.fret = std::clamp(m_chart_last_fret, 0, common::core::g_max_fret);
-    // Select the placed note (selection granularity is the individual note per the containment
-    // hierarchy). Notes placed during one Alt hold accumulate in the selection (settled
-    // 2026-07-17) so a follow-up wheel adjusts the whole just-entered run; the first placement
-    // of a session replaces the selection.
-    std::vector<ChartNoteKey> placed{
-        ChartNoteKey{.position = note.position, .string = note.string}
-    };
-    if (m_chart_insert_session_active)
-    {
-        const std::vector<ChartNoteKey>& selected = m_chart_selection.notes();
-        placed.insert(placed.end(), selected.begin(), selected.end());
-    }
-    m_chart_insert_session_active = true;
-    static_cast<void>(applyChartEditPlan(
-        planInsertNote(*arrangement->chart, session().song().tempo_map, note), std::move(placed)));
-}
-
 // Arms the gesture and applies glyph-press selection per the containment hierarchy (settled
 // 2026-07-17): a single press selects the individual note — keeping an existing
 // multi-selection intact so a future drag can move it — a double press selects the note's
 // whole onset group (its chord), and Ctrl toggles individual membership. Shift is reassigned
-// to plan 52's time-range selection and behaves as plain until that lands. Alt is the
-// insertion quasimode: the press arms it and the release commits the note at the snapped
-// release point.
+// to plan 52's time-range selection and behaves as plain until that lands. The caret
+// co-locates with every note press (the caret model).
 void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
 {
     const common::core::TabViewState* const tab = displayedTabProjection();
@@ -1752,12 +1741,6 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
     gesture.anchor_y = event.y;
     gesture.current_x = event.x;
     gesture.current_y = event.y;
-    if (event.modifiers.alt)
-    {
-        gesture.alt_insert = true;
-        m_chart_gesture = gesture;
-        return;
-    }
     gesture.hit_note = chartNoteHitIndex(*tab, event.geometry, event.x, event.y);
     m_chart_gesture = gesture;
 
@@ -1785,8 +1768,7 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
     {
         m_chart_selection.replaceWith(*key);
     }
-    // The selection highlight is the whole feedback for a glyph press (user feedback
-    // 2026-07-17: no extra cursor furniture on selection).
+    m_chart_caret = ChartCaret{.position = key->position, .string = key->string};
     updateView();
 }
 
@@ -1803,7 +1785,7 @@ void EditorController::Impl::onChartPointerDrag(const ChartPointerEvent& event)
     ChartPointerGesture& gesture = *m_chart_gesture;
     gesture.current_x = event.x;
     gesture.current_y = event.y;
-    if (gesture.hit_note.has_value() || gesture.alt_insert)
+    if (gesture.hit_note.has_value())
     {
         return;
     }
@@ -1837,14 +1819,6 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
     if (tab == nullptr || tab->string_count <= 0)
     {
         updateView();
-        return;
-    }
-
-    if (gesture.alt_insert)
-    {
-        // The insert quasimode commits at the release point (press-drag-release places in one
-        // gesture; a plain Alt+click inserts where it clicked).
-        insertChartNoteAt(event);
         return;
     }
 
@@ -1888,56 +1862,58 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
         return;
     }
 
-    // Empty click: seek + deselect, exactly the overlay's click semantics.
-    m_chart_selection.clear();
-    const std::optional<common::core::TimePosition> seek_time = timelineCursorPlacementTime(
-        session().song().tempo_map,
-        m_grid_note_value,
-        gesture.geometry.visible_timeline,
-        static_cast<int>(gesture.geometry.bounds_width),
-        event.x,
-        event.modifiers.ctrl ? TimelineCursorPlacementMode::Free
-                             : TimelineCursorPlacementMode::SnapToGrid);
-    if (seek_time.has_value())
+    // Empty click: place the caret at the snapped slot on the clicked string (the caret
+    // model) — with play-from-caret this IS the seek; the selection clears via the caret's
+    // selection re-derivation.
+    if (const auto placement = chartPlacementAt(event); placement.has_value())
     {
-        onTimelineSeekRequested(*seek_time);
+        placeChartCaret(placement->first, placement->second);
     }
     updateView();
 }
 
-// Arrow-key navigation: Left/Right step the ONE timeline cursor (the transport position) along
-// the rendered tempo grid - pure navigation, never a mutation. There is no separate editing
-// caret (user decision 2026-07-17: the playhead is the position feedback, and a second cursor
-// icon is noise). Vertical directions have no navigation meaning and are ignored.
-void EditorController::Impl::onChartCursorStepRequested(ChartStepDirection direction, bool fine)
+// Arrow-key caret movement (the caret model): Left/Right step one grid line on the caret's
+// string — or jump measures under the modifier (the Guitar Pro jump) — and Up/Down move
+// across strings; every move re-derives the selection from what sits under the caret.
+void EditorController::Impl::onChartCaretStepRequested(ChartStepDirection direction, bool measure)
 {
     const common::core::TabViewState* const tab = displayedTabProjection();
-    if (tab == nullptr || tab->string_count <= 0 || isBusy() ||
-        (direction != ChartStepDirection::Left && direction != ChartStepDirection::Right))
+    if (tab == nullptr || tab->string_count <= 0 || isBusy() || !m_chart_caret.has_value())
     {
+        return;
+    }
+
+    const ChartCaret caret = *m_chart_caret;
+    if (direction == ChartStepDirection::Up || direction == ChartStepDirection::Down)
+    {
+        const int next_string = std::clamp(
+            caret.string + (direction == ChartStepDirection::Up ? 1 : -1), 1, tab->string_count);
+        placeChartCaret(caret.position, next_string);
+        updateView();
         return;
     }
 
     const common::core::TempoMap& tempo_map = session().song().tempo_map;
     const int sign = direction == ChartStepDirection::Right ? 1 : -1;
-    const common::core::TimePosition transport_position = m_transport.position();
     common::core::GridPosition stepped;
-    if (fine)
+    if (measure)
     {
-        // Precision stepping quantizes the playhead to the shared fine grid, then moves one
-        // fine step.
-        stepped = common::core::advanceGridPosition(
-            tempo_map,
-            fineGridPositionForBeat(
-                tempo_map, tempo_map.beatPositionAtSeconds(transport_position.seconds)),
-            common::core::Fraction{sign, g_fine_grid_denominator});
+        // The Guitar Pro measure jump: Right goes to the next measure's start; Left to the
+        // current measure's start when mid-measure, else the previous measure's.
+        const bool at_measure_start =
+            caret.position.beat == 1 && caret.position.offset.numerator == 0;
+        const int target_measure = sign > 0           ? caret.position.measure + 1
+                                   : at_measure_start ? std::max(1, caret.position.measure - 1)
+                                                      : caret.position.measure;
+        stepped = common::core::GridPosition{.measure = target_measure, .beat = 1, .offset = {}};
     }
     else
     {
-        // Snap the playhead onto the grid, then step one grid line; the re-snap-and-push guard
-        // keeps the cursor progressing across measure-anchored grid restarts.
+        // Snap the caret onto the rendered grid (a Ctrl-click can leave it on the fine grid),
+        // then step one grid line; the re-snap-and-push guard keeps it progressing across
+        // measure-anchored grid restarts.
         const common::core::GridPosition current =
-            nearestTempoGridPosition(tempo_map, m_grid_note_value, transport_position);
+            common::core::snapGridPosition(tempo_map, caret.position, m_grid_note_value);
         const common::core::Fraction unsigned_step = chartGridStepBeats(current, false);
         const common::core::Fraction step{
             sign * unsigned_step.numerator, unsigned_step.denominator
@@ -1954,9 +1930,8 @@ void EditorController::Impl::onChartCursorStepRequested(ChartStepDirection direc
                 m_grid_note_value);
         }
     }
-    onTimelineSeekRequested(
-        common::core::TimePosition{tempo_map.secondsAtNote(
-            stepped.measure, stepped.beat, stepped.offset)});
+    placeChartCaret(stepped, caret.string);
+    updateView();
 }
 // Moves the selection under the Alt authoring modifier: Left/Right by one grid step (Ctrl
 // fine), Up/Down across strings. A refused move (edge of the neck, occupied slot, grid origin
@@ -2019,15 +1994,16 @@ void EditorController::Impl::onChartSelectionDeleteRequested()
         applyChartEditPlan(planDeleteNotes(*arrangement->chart, m_chart_selection.notes())));
 }
 
-// Typed digits SET every selected note to the typed value — what you type is what appears
-// (settled 2026-07-17; shape-preserving movement is the separate Alt+Shift+wheel fret-shift
-// verb). Keystrokes inside the entry window combine into multi-digit values; each keystroke
-// applies immediately so the notation always shows the value being typed.
+// Typed digits SET every selected note to the typed value — what you type is what appears —
+// or, with no selection, INSERT a note at the empty caret carrying the typed fret (the caret
+// model, 2026-07-17). Keystrokes inside the entry window combine into multi-digit values (a
+// widened insert stays ONE insert, so undo removes the note); each keystroke applies
+// immediately so the notation always shows the value being typed.
 void EditorController::Impl::onChartFretDigitTyped(int digit)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
-        m_chart_selection.empty() || digit < 0 || digit > 9)
+    if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() || digit < 0 ||
+        digit > 9)
     {
         return;
     }
@@ -2049,9 +2025,26 @@ void EditorController::Impl::onChartFretDigitTyped(int digit)
                                m_undo_history.snapshot().position == entry.history_position;
         if (widenable)
         {
-            // The widened whole-entry plan runs from the pre-entry originals.
-            const std::optional<ChartNotesEditPlan> widened =
-                planRetypeFrets(entry.base_notes, combined, /*set_exact=*/true);
+            // The widened whole-entry plan runs from the pre-entry originals: an insert entry
+            // re-plans as the SAME insert carrying the combined fret, a retype entry from the
+            // captured base notes.
+            std::optional<ChartNotesEditPlan> widened;
+            if (entry.insert_plan.has_value())
+            {
+                widened = entry.insert_plan;
+                for (common::core::ChartNote& inserted : widened->inserted)
+                {
+                    if (ChartNoteKey{.position = inserted.position, .string = inserted.string} ==
+                        entry.keys.front())
+                    {
+                        inserted.fret = combined;
+                    }
+                }
+            }
+            else
+            {
+                widened = planRetypeFrets(entry.base_notes, combined, /*set_exact=*/true);
+            }
             if (!widened.has_value())
             {
                 return;
@@ -2088,7 +2081,10 @@ void EditorController::Impl::onChartFretDigitTyped(int digit)
             }
 
             bool now_pushed = entry.pushed;
-            if (!widened->removed.empty())
+            // A pure insert carries no removed notes, so the emptiness check must span both
+            // sides — skipping the swap would leave history holding the first digit's insert
+            // while the chart shows the combined fret, and undo would preflight-fail.
+            if (!widened->removed.empty() || !widened->inserted.empty())
             {
                 bool replaced = false;
                 if (entry.pushed)
@@ -2111,16 +2107,54 @@ void EditorController::Impl::onChartFretDigitTyped(int digit)
                 .last_keystroke_ms = now_ms,
                 .base_notes = entry.base_notes,
                 .keys = entry.keys,
+                .insert_plan = entry.insert_plan.has_value() ? widened : std::nullopt,
                 .pushed = now_pushed,
                 .history_position = m_undo_history.snapshot().position,
             };
-            m_chart_last_fret = combined;
             updateView();
             return;
         }
     }
 
-    // Fresh entry: capture the selection's pre-entry values first so a later widen still
+    // Fresh insert: with no selection, the typed digit becomes a note at the empty caret.
+    if (m_chart_selection.empty())
+    {
+        if (!m_chart_caret.has_value())
+        {
+            return;
+        }
+        common::core::ChartNote note;
+        note.position = m_chart_caret->position;
+        note.string = m_chart_caret->string;
+        note.fret = digit;
+        std::optional<ChartNotesEditPlan> plan =
+            planInsertNote(*arrangement->chart, session().song().tempo_map, note);
+        if (!plan.has_value())
+        {
+            return;
+        }
+        const ChartNotesEditPlan inserted = *plan;
+        const ChartNoteKey key{.position = note.position, .string = note.string};
+        if (!applyChartEditPlan(std::move(plan), std::vector<ChartNoteKey>{key}))
+        {
+            return;
+        }
+        if (digit * 10 <= common::core::g_max_fret)
+        {
+            m_chart_fret_entry = ChartFretEntry{
+                .value = digit,
+                .last_keystroke_ms = now_ms,
+                .base_notes = {},
+                .keys = {key},
+                .insert_plan = inserted,
+                .pushed = true,
+                .history_position = m_undo_history.snapshot().position,
+            };
+        }
+        return;
+    }
+
+    // Fresh retype: capture the selection's pre-entry values first so a later widen still
     // restores them, apply the digit as its own undo entry, and open the window only while a
     // second digit could still fit under the fret cap.
     std::vector<common::core::ChartNote> base_notes;
@@ -2139,7 +2173,6 @@ void EditorController::Impl::onChartFretDigitTyped(int digit)
         return;
     }
     const bool pushed = !plan->removed.empty() && applyChartEditPlan(std::move(plan));
-    m_chart_last_fret = digit;
     if (digit * 10 <= common::core::g_max_fret)
     {
         m_chart_fret_entry = ChartFretEntry{
@@ -2147,6 +2180,7 @@ void EditorController::Impl::onChartFretDigitTyped(int digit)
             .last_keystroke_ms = now_ms,
             .base_notes = std::move(base_notes),
             .keys = keys,
+            .insert_plan = std::nullopt,
             .pushed = pushed,
             .history_position = m_undo_history.snapshot().position,
         };
@@ -2190,47 +2224,6 @@ void EditorController::Impl::onChartFretShiftRequested(int direction)
 
     static_cast<void>(applyChartEditPlan(
         planRetypeFrets(selected, *lowest + (direction > 0 ? 1 : -1), /*set_exact=*/false)));
-}
-
-// Composes the pending insert fret from Alt+digits — the value the ghost preview shows and
-// the next Alt+click placement carries. Same multi-digit window as selection retyping, but
-// nothing mutates and no undo entry exists: the pending fret is transient controller state.
-void EditorController::Impl::onChartInsertFretDigitTyped(int digit)
-{
-    const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() || digit < 0 ||
-        digit > 9)
-    {
-        return;
-    }
-
-    const std::uint32_t now_ms = juce::Time::getMillisecondCounter();
-    int value = digit;
-    if (m_chart_insert_fret_entry.has_value() &&
-        now_ms - m_chart_insert_fret_entry->last_keystroke_ms <= g_fret_entry_window_ms &&
-        m_chart_insert_fret_entry->value * 10 + digit <= common::core::g_max_fret)
-    {
-        value = m_chart_insert_fret_entry->value * 10 + digit;
-    }
-    // The window stays open only while another digit could still fit under the fret cap.
-    if (value * 10 <= common::core::g_max_fret)
-    {
-        m_chart_insert_fret_entry =
-            ChartInsertFretEntry{.value = value, .last_keystroke_ms = now_ms};
-    }
-    else
-    {
-        m_chart_insert_fret_entry.reset();
-    }
-    m_chart_last_fret = value;
-    updateView();
-}
-
-// Ends the Alt insert session: the next placement starts a fresh selection instead of
-// accumulating into the run entered under the released Alt hold.
-void EditorController::Impl::onChartInsertSessionEnded()
-{
-    m_chart_insert_session_active = false;
 }
 
 // Grows or shrinks the selection's sustains by one grid step (fine 1/960 with precision) as one
@@ -2981,8 +2974,28 @@ EditorViewState EditorController::Impl::deriveViewState() const
         {
             state.chart_edit.selected_notes =
                 selectedNoteIndices(arrangement->chart->notes, m_chart_selection);
-            state.chart_edit.insert_fret =
-                std::clamp(m_chart_last_fret, 0, common::core::g_max_fret);
+            // The caret publishes only while it sits on an EMPTY slot — on a note the
+            // selection highlight is the caret display.
+            if (m_chart_caret.has_value())
+            {
+                const ChartNoteKey caret_key{
+                    .position = m_chart_caret->position, .string = m_chart_caret->string
+                };
+                const bool on_note = std::ranges::any_of(
+                    chartOnsetGroupKeys(arrangement->chart->notes, m_chart_caret->position),
+                    [&caret_key](const ChartNoteKey& candidate) { return candidate == caret_key; });
+                if (!on_note)
+                {
+                    const common::core::TempoMap& tempo_map = session().song().tempo_map;
+                    state.chart_edit.caret = ChartCaretViewState{
+                        .seconds = tempo_map.secondsAtNote(
+                            m_chart_caret->position.measure,
+                            m_chart_caret->position.beat,
+                            m_chart_caret->position.offset),
+                        .string = m_chart_caret->string,
+                    };
+                }
+            }
             if (m_chart_gesture.has_value() && m_chart_gesture->marquee &&
                 m_chart_gesture->geometry.bounds_width > 0.0f &&
                 m_chart_gesture->geometry.bounds_height > 0.0f)

@@ -621,7 +621,6 @@ void EditorView::setState(const core::EditorViewState& state)
     m_tab_view.setVisibleTimeline(m_state.visible_timeline);
     m_tab_view.setState(m_state.tab, m_state.tab_minimum_displayed_strings);
     m_tab_view.setEditState(m_state.chart_edit);
-    m_tab_view.setGridNoteValue(m_state.grid_note_value);
     // The viewport needs the displayed lane count because counts past the six-string reference
     // density grow the waveform row instead of compressing the tablature lanes.
     m_track_viewport->setTabDisplayedStrings(tabDisplayedStringCount(
@@ -928,18 +927,6 @@ void EditorView::mouseWheelMove(const juce::MouseEvent& event, const juce::Mouse
     juce::Component::mouseWheelMove(event, wheel);
 }
 
-// The Alt release is the insert-session boundary: notes placed during one Alt hold accumulate
-// in the selection, and releasing Alt means the next placement starts fresh.
-void EditorView::modifierKeysChanged(const juce::ModifierKeys& modifiers)
-{
-    const bool alt_down = modifiers.isAltDown();
-    if (m_alt_held && !alt_down)
-    {
-        m_controller.onChartInsertSessionEnded();
-    }
-    m_alt_held = alt_down;
-}
-
 // Routes editor-level keyboard shortcuts through the same controller intents as child widgets.
 bool EditorView::keyPressed(const juce::KeyPress& key)
 {
@@ -1058,29 +1045,23 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
 
             if (chart_shown)
             {
-                m_controller.onChartCursorStepRequested(*arrow_direction, fine);
+                // Plain arrows move the caret; Ctrl+Left/Right jump measures (the GP jump).
+                m_controller.onChartCaretStepRequested(*arrow_direction, fine);
                 return true;
             }
             return false;
         }
 
-        // Fret digits: the top number row and the numpad both type frets. Plain digits set
-        // every selected note to the typed value (what you type is what appears;
-        // shape-preserving movement is Alt+Shift+wheel); digits while Alt is held compose the
-        // pending insert fret the ghost preview shows; Ctrl+digit stays unbound.
+        // Fret digits: the top number row and the numpad both type frets. With a selection the
+        // typed value retypes it; with none, it INSERTS a note at the caret (the caret model —
+        // the controller owns the branch). Ctrl+digit and Alt+digit stay unbound.
         const int key_code = key.getKeyCode();
         const int fret_digit =
             key_code >= '0' && key_code <= '9' ? key_code - '0'
             : key_code >= juce::KeyPress::numberPad0 && key_code <= juce::KeyPress::numberPad9
                 ? key_code - juce::KeyPress::numberPad0
                 : -1;
-        if (chart_shown && !fine && alt && fret_digit >= 0)
-        {
-            m_controller.onChartInsertFretDigitTyped(fret_digit);
-            return true;
-        }
-        if (chart_shown && !m_state.chart_edit.selected_notes.empty() && !fine && !alt &&
-            fret_digit >= 0)
+        if (chart_shown && !fine && !alt && fret_digit >= 0)
         {
             m_controller.onChartFretDigitTyped(fret_digit);
             return true;

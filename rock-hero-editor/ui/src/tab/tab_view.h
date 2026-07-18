@@ -119,10 +119,10 @@ note heads (diamonds for harmonics) with fret numbers, bordered sustain tails, t
 slide and bend lines with label chips, and hand-shape spans — from the controller's
 seconds-resolved tab projection, mapping time to pixels with the same visible-timeline
 convention as the waveform beneath it, then the chart-editing overlays (selection rings, the
-and the in-flight marquee) above the notation. While a chart is displayed the
-lane owns its pointer events, converting them to lane-local chart pointer intents; the
-controller decides what a press means (select, seek, or marquee), so empty-lane clicks still
-seek. Without a chart the lane is pointer-transparent as before.
+white-circle caret, and the in-flight marquee) above the notation. While a chart is displayed
+the lane owns its pointer events, converting them to lane-local chart pointer intents; the
+controller decides what a press means (select, caret placement, or marquee). Without a chart
+the lane is pointer-transparent as before.
 */
 class TabView final : public juce::Component
 {
@@ -130,29 +130,6 @@ public:
     /*! \brief One pointer-intent sink receiving every phase of a lane gesture. */
     using PointerEventCallback =
         std::function<void(core::ChartPointerPhase, const core::ChartPointerEvent&)>;
-
-    /*!
-    \brief Creates an empty tablature lane.
-    \param tempo_map Song tempo map used to snap the Alt-held ghost preview; referenced, not
-    copied, so the owner must keep it alive for this lane's lifetime.
-    */
-    explicit TabView(const common::core::TempoMap& tempo_map);
-
-    /*!
-    \brief Stores the grid note value so the Alt ghost snaps like every placement gesture.
-    \param grid_note_value Grid step as a fraction of a whole note.
-    */
-    void setGridNoteValue(common::core::Fraction grid_note_value) noexcept;
-
-    /*!
-    \brief Updates the Alt-held ghost preview and the copy cursor as the pointer hovers.
-    \param event Mouse event delivered by JUCE.
-    */
-    void mouseMove(const juce::MouseEvent& event) override;
-
-    /*! \brief Clears the ghost preview when the pointer leaves the lane.
-    \param event Mouse event delivered by JUCE. */
-    void mouseExit(const juce::MouseEvent& event) override;
 
     /*!
     \brief Installs the sink that receives the lane's chart pointer intents.
@@ -234,34 +211,6 @@ private:
 
     // Builds the chart pointer event for a mouse event using the currently painted geometry.
     [[nodiscard]] core::ChartPointerEvent makePointerEvent(const juce::MouseEvent& event) const;
-
-    // Snapped position and lane the Alt insert quasimode would place a note at.
-    struct GhostNote
-    {
-        // Ghost onset x in lane-local pixels, snapped like the insert will be.
-        float x{};
-
-        // One-based chart string lane under the pointer.
-        int string{1};
-    };
-
-    // Recomputes the ghost from a hover/drag event (empty unless Alt is held over a chart) and
-    // keeps the copy cursor in sync; repaints only the strips the ghost moved between.
-    void updateGhost(const juce::MouseEvent& event);
-
-    // Invalidates the full-height strip spanning the old and new ghost positions, padded to the
-    // ghost ring's real paint footprint.
-    void repaintGhostStrip(std::optional<float> previous_x, std::optional<float> next_x);
-
-    // Song tempo map used to snap the ghost exactly like the committed insert.
-    const common::core::TempoMap& m_tempo_map;
-
-    // Grid step as a fraction of a whole note, initialized to the quarter-note default because
-    // the Fraction default of 0/1 is a degenerate step.
-    common::core::Fraction m_grid_note_value{1, 4};
-
-    // Ghost preview of the note an Alt+click would insert, while Alt is held over the lane.
-    std::optional<GhostNote> m_ghost{};
 
     // Seconds-resolved tab projection shared with the controller; null without a chart.
     std::shared_ptr<const common::core::TabViewState> m_tab{};

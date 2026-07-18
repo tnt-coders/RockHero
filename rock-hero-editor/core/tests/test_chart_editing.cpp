@@ -244,8 +244,9 @@ TEST_CASE("EditorController sets frets by typing and shifts them by wheel", "[co
     CHECK(chart->notes[1].fret == 30);
 }
 
-// An empty-lane click seeks the snapped position and clears the selection.
-TEST_CASE("EditorController seeks and deselects on empty click", "[core][chart]")
+// An empty-lane click places the caret at the snapped slot on the clicked string — never a
+// transport seek (the caret model: play-from-caret makes the caret the seek).
+TEST_CASE("EditorController places the caret on empty click", "[core][chart]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -264,15 +265,16 @@ TEST_CASE("EditorController seeks and deselects on empty click", "[core][chart]"
     click(controller, 40.0f, 220.0f);
     const int seek_baseline = transport.seek_call_count;
 
-    // x = 200 is 10.0s (a grid beat at 120 BPM).
+    // x = 200 is 10.0s (a grid beat at 120 BPM); y = 100 is the string-4 lane.
     click(controller, 200.0f, 100.0f);
 
     REQUIRE(view.last_state.has_value());
     const ChartEditViewState& edit = view.last_state->chart_edit;
     CHECK(edit.selected_notes.empty());
-    CHECK(transport.seek_call_count == seek_baseline + 1);
-    REQUIRE(transport.last_seek_position.has_value());
-    CHECK(transport.last_seek_position->seconds == Catch::Approx(10.0));
+    REQUIRE(edit.caret.has_value());
+    CHECK(edit.caret->seconds == Catch::Approx(10.0));
+    CHECK(edit.caret->string == 4);
+    CHECK(transport.seek_call_count == seek_baseline);
 }
 
 // An empty-lane drag past the click threshold marquees instead of seeking; release selects the
@@ -317,9 +319,10 @@ TEST_CASE("EditorController marquee selects boxed chart notes", "[core][chart]")
     CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1, 2}));
 }
 
-// Plain Left/Right step the one timeline cursor along the grid (and the fine grid with the
-// precision modifier); vertical arrows have no navigation meaning and are ignored.
-TEST_CASE("EditorController steps the timeline cursor along the grid", "[core][chart]")
+// Arrows move the caret: Left/Right by one grid step on its string, Up/Down across strings,
+// and the modifier jumps measures (the Guitar Pro jump); the selection re-derives from what
+// sits under the caret.
+TEST_CASE("EditorController steps the caret along the grid and strings", "[core][chart]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -336,31 +339,45 @@ TEST_CASE("EditorController steps the timeline cursor along the grid", "[core][c
     controller.attachView(view);
     REQUIRE(loadChartArrangement(controller, project_services, audio));
 
-    // Park the cursor at measure 4 beat 1 (6.0s) via an empty click.
+    // Park the caret at measure 4 beat 1 (6.0s) on string 1 via an empty click. The caret
+    // itself never seeks the transport.
+    const int seek_baseline = transport.seek_call_count;
     click(controller, 120.0f, 220.0f);
-    REQUIRE(transport.last_seek_position.has_value());
-    CHECK(transport.last_seek_position->seconds == Catch::Approx(6.0));
+    REQUIRE(view.last_state.has_value());
+    CHECK(transport.seek_call_count == seek_baseline);
+    REQUIRE(view.last_state->chart_edit.caret.has_value());
+    CHECK(view.last_state->chart_edit.caret->seconds == Catch::Approx(6.0));
+    CHECK(view.last_state->chart_edit.caret->string == 1);
 
-    // Right by one quarter-note grid step: 6.0s -> 6.5s at 120 BPM.
-    controller.onChartCursorStepRequested(ChartStepDirection::Right, false);
-    REQUIRE(transport.last_seek_position.has_value());
-    CHECK(transport.last_seek_position->seconds == Catch::Approx(6.5));
+    // Right by one quarter-note grid step: 6.0s -> 6.5s at 120 BPM; Left steps back.
+    controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    CHECK(view.last_state->chart_edit.caret->seconds == Catch::Approx(6.5));
+    controller.onChartCaretStepRequested(ChartStepDirection::Left, false);
+    CHECK(view.last_state->chart_edit.caret->seconds == Catch::Approx(6.0));
 
-    controller.onChartCursorStepRequested(ChartStepDirection::Left, false);
-    CHECK(transport.last_seek_position->seconds == Catch::Approx(6.0));
+    // Up/Down move across strings, clamped at the neck.
+    controller.onChartCaretStepRequested(ChartStepDirection::Up, false);
+    CHECK(view.last_state->chart_edit.caret->string == 2);
+    controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
+    controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
+    CHECK(view.last_state->chart_edit.caret->string == 1);
 
-    // Vertical arrows are ignored: no seek fires.
-    const int seek_count = transport.seek_call_count;
-    controller.onChartCursorStepRequested(ChartStepDirection::Up, false);
-    controller.onChartCursorStepRequested(ChartStepDirection::Down, false);
-    CHECK(transport.seek_call_count == seek_count);
+    // The measure jump: Right to measure 5 (8.0s); Left back to measure 4, then measure 3.
+    controller.onChartCaretStepRequested(ChartStepDirection::Right, true);
+    CHECK(view.last_state->chart_edit.caret->seconds == Catch::Approx(8.0));
+    controller.onChartCaretStepRequested(ChartStepDirection::Left, true);
+    CHECK(view.last_state->chart_edit.caret->seconds == Catch::Approx(6.0));
 
-    // Fine step: one 1/960 beat is 0.5/960 seconds at 120 BPM.
-    controller.onChartCursorStepRequested(ChartStepDirection::Right, true);
-    CHECK(transport.last_seek_position->seconds == Catch::Approx(6.0 + 0.5 / 960.0).epsilon(1e-9));
+    // Stepping onto a note selects it and hides the empty-slot caret circle: measure 3 beat 1
+    // holds the sustained string-1 note.
+    controller.onChartCaretStepRequested(ChartStepDirection::Left, true);
+    CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{2});
+    CHECK_FALSE(view.last_state->chart_edit.caret.has_value());
 }
-// Alt+click inserts a note at the snapped point as one undo entry; undo removes it again.
-TEST_CASE("EditorController inserts a chart note via the Alt quasimode", "[core][chart]")
+// Typing a digit on the empty caret INSERTS a note there with the typed fret (the caret
+// model): a second digit inside the window widens the SAME insert to the combined fret, and
+// one undo removes the note entirely.
+TEST_CASE("EditorController inserts a note by typing at the caret", "[core][chart]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -377,18 +394,23 @@ TEST_CASE("EditorController inserts a chart note via the Alt quasimode", "[core]
     controller.attachView(view);
     REQUIRE(loadChartArrangement(controller, project_services, audio));
 
-    // x = 120 is 6.0s = measure 4 beat 1; y = 220 is string 1.
-    const ChartPointerModifiers alt{.alt = true};
-    click(controller, 120.0f, 220.0f, alt);
+    // Place the caret at measure 4 beat 1 (x = 120 is 6.0s) on string 1 and type 1 then 2:
+    // ONE inserted note at fret 12, selected, as ONE undo entry.
+    click(controller, 120.0f, 220.0f);
+    REQUIRE(view.last_state.has_value());
+    const std::size_t entries_before = view.last_state->undo_history.labels.size();
+    controller.onChartFretDigitTyped(1);
+    controller.onChartFretDigitTyped(2);
 
     const auto* chart = &*controller.session().currentArrangement()->chart;
     REQUIRE(chart->notes.size() == 4);
     CHECK(chart->notes[3].position == common::core::GridPosition{.measure = 4, .beat = 1});
     CHECK(chart->notes[3].string == 1);
-    REQUIRE(view.last_state.has_value());
+    CHECK(chart->notes[3].fret == 12);
     CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{3});
-    CHECK(view.last_state->undo_label == std::optional<std::string>{"Insert Note"});
+    CHECK(view.last_state->undo_history.labels.size() == entries_before + 1);
 
+    // ONE undo removes the whole typed insert (never stranding a fret-1 note).
     controller.onUndoRequested();
     chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes.size() == 3);
@@ -397,66 +419,9 @@ TEST_CASE("EditorController inserts a chart note via the Alt quasimode", "[core]
     controller.onRedoRequested();
     chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes.size() == 4);
-
-    // Placing into an existing stack selects just the placed note (containment hierarchy:
-    // selection granularity is the individual note). The session end models a fresh Alt
-    // press, so the earlier placement does not accumulate in.
-    controller.onChartInsertSessionEnded();
-    click(controller, 40.0f, 140.0f, alt);
-    chart = &*controller.session().currentArrangement()->chart;
-    REQUIRE(chart->notes.size() == 5);
-    CHECK(chart->notes[2].string == 3);
-    CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{2});
 }
 
-// Alt+digits compose the pending insert fret (published to the ghost, no undo involvement),
-// placements carry it, and notes placed during one Alt hold accumulate in the selection until
-// the session ends (settled 2026-07-17).
-TEST_CASE("EditorController composes the insert fret and accumulates the run", "[core][chart]")
-{
-    FakeTransport transport;
-    ConfigurableSongAudio audio;
-    FakeProjectServices project_services;
-    EditorController controller{
-        audioPorts(transport, audio),
-        defaultControllerServices(),
-        noopExitFunction(),
-        EditorController::ProjectOperations{
-            .open_function = project_services.openFunction(),
-        }
-    };
-    FakeEditorView view;
-    controller.attachView(view);
-    REQUIRE(loadChartArrangement(controller, project_services, audio));
-    REQUIRE(view.last_state.has_value());
-    const std::size_t entries_before = view.last_state->undo_history.labels.size();
-
-    // Composition combines in the multi-digit window and publishes to the view without
-    // touching the chart or the undo history.
-    controller.onChartInsertFretDigitTyped(1);
-    controller.onChartInsertFretDigitTyped(2);
-    CHECK(view.last_state->chart_edit.insert_fret == 12);
-    CHECK(view.last_state->undo_history.labels.size() == entries_before);
-
-    // Placements carry the composed fret and accumulate while the Alt session runs.
-    const ChartPointerModifiers alt{.alt = true};
-    click(controller, 120.0f, 220.0f, alt);
-    click(controller, 160.0f, 220.0f, alt);
-    const auto* chart = &*controller.session().currentArrangement()->chart;
-    REQUIRE(chart->notes.size() == 5);
-    CHECK(chart->notes[3].fret == 12);
-    CHECK(chart->notes[4].fret == 12);
-    CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{3, 4}));
-
-    // Releasing Alt ends the session: the next placement starts a fresh selection.
-    controller.onChartInsertSessionEnded();
-    click(controller, 200.0f, 220.0f, alt);
-    chart = &*controller.session().currentArrangement()->chart;
-    REQUIRE(chart->notes.size() == 6);
-    CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{5});
-}
-
-// Inserting inside an earlier sustain truncates it in the same undo entry (40-Q2-B).
+// Typing at a caret inside an earlier sustain truncates it in the same undo entry (40-Q2-B).
 TEST_CASE("EditorController insert truncates the overlapped sustain", "[core][chart]")
 {
     FakeTransport transport;
@@ -474,8 +439,12 @@ TEST_CASE("EditorController insert truncates the overlapped sustain", "[core][ch
     controller.attachView(view);
     REQUIRE(loadChartArrangement(controller, project_services, audio));
 
-    // x = 90 is 4.5s = measure 3 beat 2, inside the measure-3 note's two-beat sustain.
-    click(controller, 90.0f, 220.0f, ChartPointerModifiers{.alt = true});
+    // The target slot (measure 3 beat 2, 4.5s) sits inside the measure-3 note's two-beat
+    // sustain, so clicking there would hit the tail and select the note instead of placing
+    // the caret. Reach it via the empty string-2 lane and an arrow down.
+    click(controller, 90.0f, 180.0f);
+    controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
+    controller.onChartFretDigitTyped(5);
 
     const auto* chart = &*controller.session().currentArrangement()->chart;
     REQUIRE(chart->notes.size() == 4);
@@ -635,11 +604,14 @@ TEST_CASE("EditorController nudges the selection and refuses collisions", "[core
     // A plain click selects just the string-1 note (containment hierarchy).
     click(controller, 40.0f, 220.0f);
 
-    // Plain arrows never mutate: with a selection they still step the timeline cursor.
-    controller.onChartCursorStepRequested(ChartStepDirection::Right, false);
+    // Plain arrows never mutate: they move the caret (deselecting on the empty slot), leaving
+    // the chart untouched; re-clicking the note restores the selection for the move test.
+    controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
     const auto* chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes[0].position == (common::core::GridPosition{.measure = 2, .beat = 1}));
     REQUIRE(view.last_state.has_value());
+    CHECK(view.last_state->chart_edit.selected_notes.empty());
+    click(controller, 40.0f, 220.0f);
 
     // Alt+Up would land on the occupied measure-2 string-2 slot: refused, nothing changes.
     controller.onChartSelectionMoveRequested(ChartStepDirection::Up, false);
