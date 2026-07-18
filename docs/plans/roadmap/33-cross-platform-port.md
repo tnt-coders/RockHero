@@ -1,6 +1,7 @@
 # Plan 33 — Cross-Platform Port (Linux + macOS)
 
-Status: Ready (unscheduled — start at user direction) | 2026-07-18 | baseline `master @ e3ce0d1a`
+Status: Phase 1 complete (2026-07-18); Phases 2-9 Ready (unscheduled — start at user direction) |
+2026-07-18 | baseline `master @ e3ce0d1a`
 
 ## Goal
 
@@ -288,6 +289,15 @@ Remove the two guards the audit proved unnecessary, before any new platform code
 
 Verification: build + touched tests on Windows (the path round-trip suites are the behavioral
 gate); all three CI legs stay green.
+
+**EXECUTED 2026-07-18 (same day as authoring):** both guards deleted. `juce_path.cpp` is one
+generic UTF-8 bridge (`u8string()` out, `std::u8string` path constructor in; the reverse leg
+verified against `juce::String::toStdString()`'s UTF-8 contract at juce_String.cpp:2104);
+`vst3DisplayPath` runs its self-guarding shape check unconditionally. `test_juce_path.cpp`
+gained an unconditional non-ASCII UTF-8 round-trip (fixture bytes appended programmatically so
+the source stays pure ASCII — the repo sets no MSVC `/utf-8` flag, so raw non-ASCII literals
+are unsafe) plus the retained Windows-only wide drive-letter case. Build + touched suites
+green. Item 3's why-comments confirmed in place.
 
 ### Phase 2 — Shader pipeline: per-platform profile table
 
