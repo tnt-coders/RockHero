@@ -36,6 +36,14 @@ constexpr double g_follow_shift_trigger_fraction{0.8};
 constexpr double g_follow_shift_pin_fraction{0.05};
 constexpr double g_follow_shift_duration_seconds{0.3};
 
+// The caret glide reveals this fraction of the view past the aligned measure edge, so a note
+// seated exactly ON the revealed boundary — legal here, unlike Guitar Pro — shows its whole
+// head (heads are fixed-pixel, ~25px; 4% clears a full head width at any view past ~650px)
+// plus a sliver of the neighboring measure's interior. A view fraction rather than pixels or
+// musical time keeps the perceived peek constant across window sizes and zoom, in the same
+// unit vocabulary as the trigger/pin fractions above.
+constexpr double g_measure_glide_reveal_fraction{0.04};
+
 // Treats tiny wheel deltas as absent so zoom input stays stable across platforms.
 [[nodiscard]] bool hasMouseWheelDelta(float delta) noexcept
 {
@@ -672,11 +680,12 @@ void TrackViewport::advanceWindowGlide()
 }
 
 // Glides the window until the caret's measure sits fully in view (the marker model's
-// keep-in-view rule): the minimal shift that fits the whole measure — left-aligning a measure
-// starting before the view, right-aligning one ending past it — through the same eased glide
-// playback follow uses. A measure wider than the view falls back to the minimal shift that
-// brings the caret itself into view with a tenth-of-view pad; a fully visible measure moves
-// nothing.
+// keep-in-view rule): the minimal shift that fits the whole measure — aligning a measure
+// starting before the view at the left, one ending past it at the right, each overshooting
+// by the reveal fraction so boundary notes of the neighboring measure show whole — through
+// the same eased glide playback follow uses. A measure wider than the view falls back to the
+// minimal shift that brings the caret itself into view with a tenth-of-view pad; a fully
+// visible measure moves nothing.
 void TrackViewport::ensureMeasureVisible(
     double measure_start_seconds, double measure_end_seconds, double caret_seconds)
 {
@@ -706,13 +715,19 @@ void TrackViewport::ensureMeasureVisible(
     double target_left = view_left;
     if (static_cast<double>(*end_x - *start_x) <= view_width)
     {
+        // The aligned edge overshoots by the reveal fraction so the neighboring measure's
+        // boundary notes show whole; when measure plus reveal cannot both fit, the full
+        // measure wins and the reveal compresses.
+        const double reveal = view_width * g_measure_glide_reveal_fraction;
         if (static_cast<double>(*start_x) < view_left)
         {
-            target_left = static_cast<double>(*start_x);
+            target_left = std::max(
+                static_cast<double>(*start_x) - reveal, static_cast<double>(*end_x) - view_width);
         }
         else if (static_cast<double>(*end_x) > view_right)
         {
-            target_left = static_cast<double>(*end_x) - view_width;
+            target_left = std::min(
+                static_cast<double>(*end_x) + reveal - view_width, static_cast<double>(*start_x));
         }
         else
         {
