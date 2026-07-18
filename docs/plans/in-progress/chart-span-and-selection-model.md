@@ -134,9 +134,27 @@ fiat.
 
 ## 7. Selection granularity — SETTLED
 
-- Plain click selects the whole onset group (chords are one cohesive unit); Ctrl+click
-  selects/toggles individual notes; marquee remains geometrically precise by design (the
-  deliberate tool for selecting parts of chords).
+- **Containment hierarchy (revised 2026-07-17, superseding the chord-unit click):** a single
+  click selects the **individual note**, a double click its whole onset group (its chord), a
+  click on a span's rails/bracket will select every note in the span (rides the span slice),
+  and a double click on the span will open its name/fingering editor (future — the
+  "template editor lite" that also serves forced naming and the fuller-shape arpeggio case).
+  Each click level selects one containment level up: note ⊂ chord ⊂ span. Rationale for the
+  reversal: fret correction on one chord member proved the most common single-note edit and
+  three designs (focused member, transpose typing, Ctrl-isolation) were burned working around
+  a group-selecting click; cohesion lives at the verb level (verbs act on whatever is
+  selected), not in the click. Ctrl+click toggles individual membership; marquee remains
+  geometrically precise; inserting selects the placed note (Alt-session accumulation
+  unchanged).
+- **Right-click context menu deferred (2026-07-17):** every candidate v1 item (Set Fret,
+  Insert Note, Delete, Shift) is a strictly worse path to an existing direct gesture. The
+  grammar's menu promise stands; the menu lands when techniques give it non-redundant content
+  (mute/accent/harmonic toggles). A persistent no-modifier hover ghost was rejected as a lying
+  affordance (plain click seeks, it must not advertise insert); if a menu ever needs a
+  position marker, the white ring appears only while the menu is open.
+- **"Note properties" dialog dropped (2026-07-17):** derived-over-authored leaves no per-note
+  metadata needing a form; techniques become selection toggles; chord metadata lives in the
+  span dialog; bend curves get a direct-manipulation editor when techniques land.
 - **Fret typing = set exact; fret movement = Alt+Shift+wheel (FINAL 2026-07-17,** after two
   superseded designs recorded here for the reasoning trail): slice 1 exposed that fret is
   per-string data. A *focused-member* model (single-member digit targeting, blinking
