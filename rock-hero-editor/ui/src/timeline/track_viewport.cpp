@@ -168,6 +168,7 @@ TrackViewport::TrackViewport(
     , m_content(*this)
     , m_vblank_attachment(this, [this] {
         updatePlaybackFollow();
+        advanceWindowGlide();
         updateRulerCursor();
     })
 {
@@ -571,12 +572,13 @@ void TrackViewport::focusCursorIfPending()
     centerViewportOnTime(m_transport.position().seconds);
 }
 
-// Keeps playback visible using controller-pushed state plus current position reads.
+// Keeps playback visible using controller-pushed state plus current position reads. While
+// paused this deliberately leaves any in-flight glide alone — the caret's keep-measure-visible
+// rule drives paused glides through the same shared machinery.
 void TrackViewport::updatePlaybackFollow()
 {
     if (!m_project_loaded || !m_playback_active || timelineDurationSeconds() <= 0.0)
     {
-        m_window_shift.reset();
         return;
     }
 
@@ -625,18 +627,31 @@ void TrackViewport::followCursorWithWindowShifts(float cursor_x)
         return;
     }
 
+    if (!m_window_shift.has_value() && local_x >= view_width * g_follow_shift_trigger_fraction)
+    {
+        beginWindowGlide(pinnedWindowLeftFor(cursor_x));
+    }
+}
+
+// Starts (or retargets) the eased window glide toward a viewport left edge. The target is
+// captured here rather than chased so the glide always converges; a newer request simply
+// supersedes an in-flight one from the current position.
+void TrackViewport::beginWindowGlide(double target_left)
+{
+    m_window_shift = WindowShift{
+        .start_left = static_cast<double>(m_viewport.getViewPositionX()),
+        .target_left = target_left,
+        .start_seconds = juce::Time::getMillisecondCounterHiRes() * 0.001,
+    };
+}
+
+// Advances the in-flight window glide with the shared cubic ease-out; shared by playback
+// follow and the caret's keep-measure-visible rule, so both motions feel identical.
+void TrackViewport::advanceWindowGlide()
+{
     if (!m_window_shift.has_value())
     {
-        if (local_x < view_width * g_follow_shift_trigger_fraction)
-        {
-            return;
-        }
-
-        m_window_shift = WindowShift{
-            .start_left = static_cast<double>(m_viewport.getViewPositionX()),
-            .target_left = pinnedWindowLeftFor(cursor_x),
-            .start_seconds = juce::Time::getMillisecondCounterHiRes() * 0.001,
-        };
+        return;
     }
 
     const double progress =
@@ -654,6 +669,74 @@ void TrackViewport::followCursorWithWindowShifts(float cursor_x)
         static_cast<int>(std::round(
             m_window_shift->start_left +
             (m_window_shift->target_left - m_window_shift->start_left) * eased)));
+}
+
+// Glides the window until the caret's measure sits fully in view (the marker model's
+// keep-in-view rule): the minimal shift that fits the whole measure — left-aligning a measure
+// starting before the view, right-aligning one ending past it — through the same eased glide
+// playback follow uses. A measure wider than the view falls back to the minimal shift that
+// brings the caret itself into view with a tenth-of-view pad; a fully visible measure moves
+// nothing.
+void TrackViewport::ensureMeasureVisible(
+    double measure_start_seconds, double measure_end_seconds, double caret_seconds)
+{
+    if (!m_project_loaded || timelineDurationSeconds() <= 0.0 || m_viewport.getViewWidth() <= 0 ||
+        m_content.getWidth() <= 0)
+    {
+        return;
+    }
+
+    const auto x_of = [this](double seconds) {
+        const double clamped =
+            std::clamp(seconds, m_timeline_range.start.seconds, m_timeline_range.end.seconds);
+        return cursorXForTimelinePosition(
+            common::core::TimePosition{clamped}, m_timeline_range, m_content.getWidth());
+    };
+    const auto start_x = x_of(measure_start_seconds);
+    const auto end_x = x_of(measure_end_seconds);
+    const auto caret_x = x_of(caret_seconds);
+    if (!start_x.has_value() || !end_x.has_value() || !caret_x.has_value())
+    {
+        return;
+    }
+
+    const auto view_left = static_cast<double>(m_viewport.getViewPositionX());
+    const auto view_width = static_cast<double>(m_viewport.getViewWidth());
+    const double view_right = view_left + view_width;
+    double target_left = view_left;
+    if (static_cast<double>(*end_x - *start_x) <= view_width)
+    {
+        if (static_cast<double>(*start_x) < view_left)
+        {
+            target_left = static_cast<double>(*start_x);
+        }
+        else if (static_cast<double>(*end_x) > view_right)
+        {
+            target_left = static_cast<double>(*end_x) - view_width;
+        }
+        else
+        {
+            return;
+        }
+    }
+    else
+    {
+        const double pad = view_width * 0.1;
+        if (static_cast<double>(*caret_x) < view_left)
+        {
+            target_left = static_cast<double>(*caret_x) - pad;
+        }
+        else if (static_cast<double>(*caret_x) > view_right)
+        {
+            target_left = static_cast<double>(*caret_x) - view_width + pad;
+        }
+        else
+        {
+            return;
+        }
+    }
+
+    beginWindowGlide(target_left);
 }
 
 // Moves the horizontal viewport position while preserving the current vertical scroll. Ruler

@@ -58,9 +58,6 @@ entry when it's done — git history is the record.
   together (device disconnect while the calibration prompt is up) — modals currently just stack.
 - Move section names in the 3D view to the upper-left corner instead of inline with the
   scrolling tab.
-- Chart caret: scroll the 2D viewport to keep the caret visible when arrow movement carries it
-  off-screen (GP does this; playback follow only runs while playing today). Small additive
-  view behavior; found by the 2026-07-18 marker fold-in audit.
 - Evaluate per-(project, arrangement) resume-marker records: the marker settings family is
   per-project today, so switching arrangements loses your spot in the previous one. Additive
   key-shape change in `EditorSettings` whenever it itches in practice.

@@ -369,6 +369,19 @@ struct ChartCaretViewState
     int string{1};
 
     /*!
+    \brief Start of the caret's measure in seconds, for the keep-in-view window glide.
+
+    Caret navigation keeps its whole measure comfortably visible: the view glides until the
+    measure fits (or, when the measure is wider than the view, until the caret itself is in
+    view). Published with the caret so the view never re-derives measure bounds from the
+    tempo map.
+    */
+    double measure_start_seconds{};
+
+    /*! \brief End of the caret's measure (the next measure's start) in seconds. */
+    double measure_end_seconds{};
+
+    /*!
     \brief Compares two caret states by their stored values.
     \param lhs Left-hand state.
     \param rhs Right-hand state.
@@ -376,7 +389,9 @@ struct ChartCaretViewState
     */
     friend bool operator==(const ChartCaretViewState& lhs, const ChartCaretViewState& rhs)
     {
-        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.string == rhs.string;
+        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.string == rhs.string &&
+               std::is_eq(lhs.measure_start_seconds <=> rhs.measure_start_seconds) &&
+               std::is_eq(lhs.measure_end_seconds <=> rhs.measure_end_seconds);
     }
 };
 

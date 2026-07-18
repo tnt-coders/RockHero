@@ -1860,13 +1860,9 @@ void EditorController::Impl::onChartPointerDrag(const ChartPointerEvent& event)
         return;
     }
 
-    // The moment the drag becomes a marquee it is a multi-select gesture, so the caret
-    // dissolves right away (the marker model): the appearing cursor line tells the user the
-    // coming verbs act on the boxed notes, not on a caret.
-    if (!gesture.marquee)
-    {
-        dissolveChartCaretInPlace();
-    }
+    // The in-flight marquee leaves the marker alone: dissolution is a rule over OUTCOMES (the
+    // marker model), and the outcome is unknown until release — an empty box must leave an
+    // armed caret exactly where it was.
     gesture.marquee = true;
     updateView();
 }
@@ -1927,7 +1923,14 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
                 keys.push_back(*key);
             }
         }
-        m_chart_selection.applyBox(keys, gesture.modifiers.shift);
+        // Dissolution is a rule over outcomes (the marker model): a box that caught notes is
+        // a multi-select outcome and demotes the caret to a cursor in its place; an empty box
+        // has no selection outcome, so an armed caret survives untouched.
+        if (!keys.empty())
+        {
+            m_chart_selection.applyBox(keys, gesture.modifiers.shift);
+            dissolveChartCaretInPlace();
+        }
         updateView();
         return;
     }
@@ -3122,6 +3125,10 @@ EditorViewState EditorController::Impl::deriveViewState() const
                     .seconds = tempo_map.secondsAtNote(
                         caret->position.measure, caret->position.beat, caret->position.offset),
                     .string = caret->string,
+                    .measure_start_seconds =
+                        tempo_map.secondsAtNote(caret->position.measure, 1, {}),
+                    .measure_end_seconds =
+                        tempo_map.secondsAtNote(caret->position.measure + 1, 1, {}),
                 };
             }
             if (m_chart_gesture.has_value() && m_chart_gesture->marquee &&

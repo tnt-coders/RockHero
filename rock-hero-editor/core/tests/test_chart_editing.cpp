@@ -321,6 +321,25 @@ TEST_CASE("EditorController marquee selects boxed chart notes", "[core][chart]")
         pointerEvent(95.0f, 239.0f, ChartPointerModifiers{.shift = true}));
     controller.onChartPointerUp(pointerEvent(95.0f, 239.0f, ChartPointerModifiers{.shift = true}));
     CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1, 2}));
+
+    // Dissolution is a rule over outcomes: a marquee whose box catches NOTHING is a complete
+    // no-op — an armed caret survives with no dissolution seek — while a box that catches
+    // notes dissolves the caret to a cursor in its place.
+    click(controller, 240.0f, 100.0f);
+    REQUIRE(view.last_state->chart_edit.caret.has_value());
+    const int armed_seek_baseline = transport.seek_call_count;
+    controller.onChartPointerDown(pointerEvent(300.0f, 60.0f));
+    controller.onChartPointerDrag(pointerEvent(340.0f, 140.0f));
+    controller.onChartPointerUp(pointerEvent(340.0f, 140.0f));
+    REQUIRE(view.last_state->chart_edit.caret.has_value());
+    CHECK(view.last_state->chart_edit.caret->seconds == Catch::Approx(12.0));
+    CHECK(transport.seek_call_count == armed_seek_baseline);
+    controller.onChartPointerDown(pointerEvent(20.0f, 160.0f));
+    controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
+    controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
+    CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1}));
+    CHECK_FALSE(view.last_state->chart_edit.caret.has_value());
+    CHECK(transport.last_seek_position == std::optional{common::core::TimePosition{12.0}});
 }
 
 // Arrows move the caret: Left/Right by one grid step on its string, Up/Down across strings,
@@ -352,6 +371,10 @@ TEST_CASE("EditorController steps the caret along the grid and strings", "[core]
     REQUIRE(view.last_state->chart_edit.caret.has_value());
     CHECK(view.last_state->chart_edit.caret->seconds == Catch::Approx(6.0));
     CHECK(view.last_state->chart_edit.caret->string == 1);
+    // The caret publishes its measure bounds for the keep-in-view glide: measure 4 spans
+    // 6.0s..8.0s at the default 120 BPM 4/4.
+    CHECK(view.last_state->chart_edit.caret->measure_start_seconds == Catch::Approx(6.0));
+    CHECK(view.last_state->chart_edit.caret->measure_end_seconds == Catch::Approx(8.0));
 
     // Right by one quarter-note grid step: 6.0s -> 6.5s at 120 BPM; Left steps back.
     controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
