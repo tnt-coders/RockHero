@@ -275,6 +275,19 @@ public:
         chart_fret_shift_count += 1;
     }
 
+    /*! \copydoc IEditorController::onChartInsertFretDigitTyped */
+    void onChartInsertFretDigitTyped(int digit) override
+    {
+        last_chart_insert_fret_digit = digit;
+        chart_insert_fret_digit_count += 1;
+    }
+
+    /*! \copydoc IEditorController::onChartInsertSessionEnded */
+    void onChartInsertSessionEnded() override
+    {
+        chart_insert_session_end_count += 1;
+    }
+
     /*! \copydoc IEditorController::onChartSustainAdjustRequested */
     void onChartSustainAdjustRequested(int direction, bool fine) override
     {
@@ -733,6 +746,15 @@ public:
 
     /*! \brief Number of onChartFretShiftRequested() intents received. */
     int chart_fret_shift_count{0};
+
+    /*! \brief Last pending-insert fret digit received. */
+    int last_chart_insert_fret_digit{-1};
+
+    /*! \brief Number of onChartInsertFretDigitTyped() intents received. */
+    int chart_insert_fret_digit_count{0};
+
+    /*! \brief Number of onChartInsertSessionEnded() intents received. */
+    int chart_insert_session_end_count{0};
 
     /*! \brief Number of onChartFretDigitTyped() intents received. */
     int chart_fret_digit_count{0};

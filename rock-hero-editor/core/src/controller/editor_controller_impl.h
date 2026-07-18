@@ -153,6 +153,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onChartSelectionDeleteRequested();
     void onChartFretDigitTyped(int digit);
     void onChartFretShiftRequested(int direction);
+    void onChartInsertFretDigitTyped(int digit);
+    void onChartInsertSessionEnded();
     void onChartSustainAdjustRequested(int direction, bool fine);
     void onChartGestureCancelled();
     [[nodiscard]] const common::core::TabViewState* displayedTabProjection() const;
@@ -653,6 +655,20 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         std::size_t history_position{};
     };
     std::optional<ChartFretEntry> m_chart_fret_entry{};
+
+    // In-flight Alt+digit composition of the pending insert fret: the value typed so far and
+    // its last keystroke tick. Unlike ChartFretEntry this touches no chart data and no undo
+    // history — the pending fret lives in m_chart_last_fret until a placement commits it.
+    struct ChartInsertFretEntry
+    {
+        int value{};
+        std::uint32_t last_keystroke_ms{};
+    };
+    std::optional<ChartInsertFretEntry> m_chart_insert_fret_entry{};
+
+    // True while notes placed by the current Alt hold accumulate in the selection; cleared
+    // when the view reports the Alt release (or the editing state resets).
+    bool m_chart_insert_session_active{false};
 
     // Durable automation identity of one live tone-chain plugin instance.
     struct ToneAutomationIdentity

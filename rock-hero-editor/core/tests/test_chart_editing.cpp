@@ -383,12 +383,61 @@ TEST_CASE("EditorController inserts a chart note via the Alt quasimode", "[core]
     CHECK(chart->notes.size() == 4);
 
     // Placing into an existing stack selects the whole resulting onset group: the string-3
-    // insert at measure 2 forms a three-note chord with the fixture's two notes.
+    // insert at measure 2 forms a three-note chord with the fixture's two notes. The session
+    // end models a fresh Alt press, so the earlier placement does not accumulate in.
+    controller.onChartInsertSessionEnded();
     click(controller, 40.0f, 140.0f, alt);
     chart = &*controller.session().currentArrangement()->chart;
     REQUIRE(chart->notes.size() == 5);
     CHECK(chart->notes[2].string == 3);
     CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1, 2}));
+}
+
+// Alt+digits compose the pending insert fret (published to the ghost, no undo involvement),
+// placements carry it, and notes placed during one Alt hold accumulate in the selection until
+// the session ends (settled 2026-07-17).
+TEST_CASE("EditorController composes the insert fret and accumulates the run", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+    REQUIRE(view.last_state.has_value());
+    const std::size_t entries_before = view.last_state->undo_history.labels.size();
+
+    // Composition combines in the multi-digit window and publishes to the view without
+    // touching the chart or the undo history.
+    controller.onChartInsertFretDigitTyped(1);
+    controller.onChartInsertFretDigitTyped(2);
+    CHECK(view.last_state->chart_edit.insert_fret == 12);
+    CHECK(view.last_state->undo_history.labels.size() == entries_before);
+
+    // Placements carry the composed fret and accumulate while the Alt session runs.
+    const ChartPointerModifiers alt{.alt = true};
+    click(controller, 120.0f, 220.0f, alt);
+    click(controller, 160.0f, 220.0f, alt);
+    const auto* chart = &*controller.session().currentArrangement()->chart;
+    REQUIRE(chart->notes.size() == 5);
+    CHECK(chart->notes[3].fret == 12);
+    CHECK(chart->notes[4].fret == 12);
+    CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{3, 4}));
+
+    // Releasing Alt ends the session: the next placement starts a fresh selection.
+    controller.onChartInsertSessionEnded();
+    click(controller, 200.0f, 220.0f, alt);
+    chart = &*controller.session().currentArrangement()->chart;
+    REQUIRE(chart->notes.size() == 6);
+    CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{5});
 }
 
 // Inserting inside an earlier sustain truncates it in the same undo entry (40-Q2-B).

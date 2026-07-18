@@ -444,6 +444,12 @@ public:
     /*! \copydoc IEditorController::onChartFretShiftRequested */
     void onChartFretShiftRequested(int direction) override;
 
+    /*! \copydoc IEditorController::onChartInsertFretDigitTyped */
+    void onChartInsertFretDigitTyped(int digit) override;
+
+    /*! \copydoc IEditorController::onChartInsertSessionEnded */
+    void onChartInsertSessionEnded() override;
+
     /*! \copydoc IEditorController::onChartSustainAdjustRequested */
     void onChartSustainAdjustRequested(int direction, bool fine) override;
 

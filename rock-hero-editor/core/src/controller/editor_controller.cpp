@@ -911,6 +911,16 @@ void EditorController::onChartFretShiftRequested(int direction)
     m_impl->onChartFretShiftRequested(direction);
 }
 
+void EditorController::onChartInsertFretDigitTyped(int digit)
+{
+    m_impl->onChartInsertFretDigitTyped(digit);
+}
+
+void EditorController::onChartInsertSessionEnded()
+{
+    m_impl->onChartInsertSessionEnded();
+}
+
 void EditorController::onChartSustainAdjustRequested(int direction, bool fine)
 {
     m_impl->onChartSustainAdjustRequested(direction, fine);
@@ -1520,6 +1530,12 @@ namespace
 // click never accidentally selects.
 constexpr float g_chart_click_threshold_px = 4.0f;
 
+// The multi-digit fret entry window, shared by selection retyping and pending-insert
+// composition: well above deliberate two-digit typing (inter-keystroke ~150-300ms) and below a
+// thinking pause, so "12" combines and "2, pause, 3" stays two values (tuned down from 1500ms
+// on user feel feedback, settled at 750ms 2026-07-17).
+constexpr std::uint32_t g_fret_entry_window_ms = 750;
+
 } // namespace
 
 // The memoized projection deriveViewState pushed is exactly what the lane painted, so pointer
@@ -1550,6 +1566,8 @@ void EditorController::Impl::clearChartEditingState()
     m_chart_selection.clear();
     m_chart_gesture.reset();
     m_chart_fret_entry.reset();
+    m_chart_insert_fret_entry.reset();
+    m_chart_insert_session_active = false;
 }
 
 // Resolves the event's snapped musical position and the string lane under the pointer,
@@ -1702,6 +1720,15 @@ void EditorController::Impl::insertChartNoteAt(const ChartPointerEvent& event)
     std::vector<ChartNoteKey> group = chartOnsetGroupKeys(arrangement->chart->notes, note.position);
     std::erase_if(group, [&note](const ChartNoteKey& key) { return key.string == note.string; });
     group.push_back(ChartNoteKey{.position = note.position, .string = note.string});
+    // Notes placed during one Alt hold accumulate in the selection (settled 2026-07-17) so a
+    // follow-up wheel adjusts the whole just-entered run; the first placement of a session
+    // replaces the selection as before.
+    if (m_chart_insert_session_active)
+    {
+        const std::vector<ChartNoteKey>& selected = m_chart_selection.notes();
+        group.insert(group.end(), selected.begin(), selected.end());
+    }
+    m_chart_insert_session_active = true;
     static_cast<void>(applyChartEditPlan(
         planInsertNote(*arrangement->chart, session().song().tempo_map, note), std::move(group)));
 }
@@ -2004,10 +2031,6 @@ void EditorController::Impl::onChartFretDigitTyped(int digit)
         return;
     }
 
-    // The entry window sits well above deliberate two-digit typing (inter-keystroke ~150-300ms)
-    // and below a thinking pause, so "12" combines and "2, pause, 3" stays two values (tuned
-    // down from 1500ms on user feel feedback, settled at 750ms 2026-07-17).
-    constexpr std::uint32_t entry_window_ms = 750;
     const std::uint32_t now_ms = juce::Time::getMillisecondCounter();
 
     // A second digit inside the window WIDENS the in-flight entry: the chart moves to the
@@ -2019,7 +2042,7 @@ void EditorController::Impl::onChartFretDigitTyped(int digit)
     {
         const ChartFretEntry entry = *m_chart_fret_entry;
         const int combined = entry.value * 10 + digit;
-        const bool widenable = now_ms - entry.last_keystroke_ms <= entry_window_ms &&
+        const bool widenable = now_ms - entry.last_keystroke_ms <= g_fret_entry_window_ms &&
                                combined <= common::core::g_max_fret &&
                                entry.keys == m_chart_selection.notes() &&
                                m_undo_history.snapshot().position == entry.history_position;
@@ -2166,6 +2189,47 @@ void EditorController::Impl::onChartFretShiftRequested(int direction)
 
     static_cast<void>(applyChartEditPlan(
         planRetypeFrets(selected, *lowest + (direction > 0 ? 1 : -1), /*set_exact=*/false)));
+}
+
+// Composes the pending insert fret from Alt+digits — the value the ghost preview shows and
+// the next Alt+click placement carries. Same multi-digit window as selection retyping, but
+// nothing mutates and no undo entry exists: the pending fret is transient controller state.
+void EditorController::Impl::onChartInsertFretDigitTyped(int digit)
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() || digit < 0 ||
+        digit > 9)
+    {
+        return;
+    }
+
+    const std::uint32_t now_ms = juce::Time::getMillisecondCounter();
+    int value = digit;
+    if (m_chart_insert_fret_entry.has_value() &&
+        now_ms - m_chart_insert_fret_entry->last_keystroke_ms <= g_fret_entry_window_ms &&
+        m_chart_insert_fret_entry->value * 10 + digit <= common::core::g_max_fret)
+    {
+        value = m_chart_insert_fret_entry->value * 10 + digit;
+    }
+    // The window stays open only while another digit could still fit under the fret cap.
+    if (value * 10 <= common::core::g_max_fret)
+    {
+        m_chart_insert_fret_entry =
+            ChartInsertFretEntry{.value = value, .last_keystroke_ms = now_ms};
+    }
+    else
+    {
+        m_chart_insert_fret_entry.reset();
+    }
+    m_chart_last_fret = value;
+    updateView();
+}
+
+// Ends the Alt insert session: the next placement starts a fresh selection instead of
+// accumulating into the run entered under the released Alt hold.
+void EditorController::Impl::onChartInsertSessionEnded()
+{
+    m_chart_insert_session_active = false;
 }
 
 // Grows or shrinks the selection's sustains by one grid step (fine 1/960 with precision) as one
@@ -2916,6 +2980,8 @@ EditorViewState EditorController::Impl::deriveViewState() const
         {
             state.chart_edit.selected_notes =
                 selectedNoteIndices(arrangement->chart->notes, m_chart_selection);
+            state.chart_edit.insert_fret =
+                std::clamp(m_chart_last_fret, 0, common::core::g_max_fret);
             if (m_chart_gesture.has_value() && m_chart_gesture->marquee &&
                 m_chart_gesture->geometry.bounds_width > 0.0f &&
                 m_chart_gesture->geometry.bounds_height > 0.0f)
