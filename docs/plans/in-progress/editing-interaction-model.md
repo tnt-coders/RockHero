@@ -89,6 +89,13 @@ A plain click **never mutates**. Every mutating gesture previews live (snap guid
 "position · value" readout chip), commits exactly once on release as a single undo entry, and can
 be abandoned mid-flight with Esc.
 
+**Selection verbs follow the selection, not the pointer** (2026-07-17): with a selection active,
+its modifier verbs (Alt+wheel, Alt+Shift+wheel, and the keyboard verbs, which never depended on
+the pointer) work anywhere in the focused editor window — the pointer's position gates what a
+*click* means, never what the selection's verbs do. Concretely, Alt marks a wheel as a selection
+verb and never zooms; wheel-consuming surfaces route Alt-modified wheels to the editor shell's
+selection dispatch, and everything else bubbles them there.
+
 ## Snapping
 
 - **Snap is always on.** There is no snap toggle; off-grid placement is possible but deliberately
