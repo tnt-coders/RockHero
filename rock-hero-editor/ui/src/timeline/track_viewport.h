@@ -200,10 +200,12 @@ public:
     \brief Glides the window until the caret's measure sits fully in view (the marker model).
 
     Caret navigation keeps its measure comfortably visible: the minimal shift that fits the
-    whole measure — left-aligning a measure starting before the view, right-aligning one
-    ending past it — using the same eased window shift playback follow uses. A measure wider
-    than the view falls back to the minimal shift that brings the caret itself into view with
-    a small pad. A measure already fully visible moves nothing.
+    whole measure — aligning a measure starting before the view at the left edge, one ending
+    past it at the right, each overshooting by a small reveal so a note seated exactly on the
+    neighboring measure's boundary shows whole — using the same eased window shift playback
+    follow uses. A measure wider than the view falls back to the minimal shift that brings
+    the caret itself into view with a small pad. A measure already fully visible moves
+    nothing.
 
     \param measure_start_seconds Start of the caret's measure on the arrangement timeline.
     \param measure_end_seconds End of the caret's measure (the next measure's start).

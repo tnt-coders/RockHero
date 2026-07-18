@@ -311,8 +311,14 @@ owning an exact grid slot × string. Handoffs:
 - **Caret navigation keeps its measure in view** (settled and built 2026-07-18): whenever the
   caret lands at a new time in a measure that is not fully on screen, the window glides —
   the same eased shift playback follow uses — by the minimal amount that fits the whole
-  measure (left-aligned when it starts before the view, right-aligned when it ends past it).
-  A measure wider than the view keeps the caret itself in view with a small pad instead.
+  measure (left-aligned when it starts before the view, right-aligned when it ends past it),
+  overshooting the aligned edge by a **4%-of-view reveal** so a note seated exactly on the
+  neighboring measure's boundary — legal here, unlike Guitar Pro — shows its whole head plus
+  a sliver of that measure's interior (a view fraction, not pixels or musical time: heads are
+  fixed-pixel so a musical buffer dies at low zoom, and a fraction keeps the perceived peek
+  constant across window sizes; 4% clears a full head width at any realistic view). When the
+  measure plus reveal cannot both fit, the full measure wins and the reveal compresses. A
+  measure wider than the view keeps the caret itself in view with a small pad instead.
   String-only caret moves glide nothing, and the rule fires on caret movement only — a user
   scroll away from the caret is never yanked back.
 - **Paste arms the marker** (working answer for plan 40 Phase 9 / plan 52, to be ratified at
