@@ -5,6 +5,16 @@ Small fixes and evaluations to do when there's time — short entries, not plans
 that needs a design or multiple steps belongs in a `docs/plans/todo/` plan instead. Delete an
 entry when it's done — git history is the record.
 
+- Move the automation-point nudge policy from `ToneAutomationLanesView::nudgeSelectedPoint`
+  into the controller (2026-07-18, noted during the unified-selection work): every other
+  keyboard verb's policy lives in editor-core handlers, and the pieces the nudge needs (grid
+  stepping, lane metadata via the automation port, neighbor/window clamps from the active
+  region span) are all controller-reachable. Fold it into a selection-kind dispatch on
+  `onChartSelectionMoveRequested` (one "move the selection" intent, per the grammar) and
+  delete the view-side routing.
+- Lane-caret keyboard navigation does not glide the viewport the way chart-caret navigation
+  reveals its measure (2026-07-18): stepping a lane caret can walk it off-screen. Extend the
+  caret-measure reveal to the lane caret's published seconds.
 - Game F1 diagnostics overlay: the per-frame values line updates so fast it is unreadable while
   playing (witnessed during the 2026-07-16 milestone-0 soak — clock drift could not be read).
   Throttle the readout refresh (~2-4 Hz) and/or use fixed-width numerals so values stop
