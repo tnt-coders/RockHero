@@ -131,21 +131,21 @@ fiat.
 - Plain click selects the whole onset group (chords are one cohesive unit); Ctrl+click
   selects/toggles individual notes; marquee remains geometrically precise by design (the
   deliberate tool for selecting parts of chords).
-- **Fret typing = transpose (settled 2026-07-17, superseding the short-lived focused-member
-  model):** slice 1 exposed that fret is per-string data — flattening a whole chord to one
-  typed value is almost never the intent. After a focused-member interlude (single-member
-  digit targeting with a blinking underline; built, then rejected for its asymmetry — no way
-  to retype several members at once — and the underline's look), the user chose the cleaner
-  reduction: **plain digits transpose the selection so its lowest fret lands on the typed
-  number** — shape-preserving, so chords reposition (3-5-5 typed to 12 → 12-14-14), runs
-  transpose, and a single note retypes exactly — and **Ctrl digits set every selected note to
-  the exact value** (Ctrl's precision meaning; Alt+digit is reserved for the ghost quasimode,
-  Shift+digit is an input-layer trap). One rule across chords, subsets, and multi-onset
-  selections; the lowest-fret anchor means members can never go below zero, and a member
-  pushed past the fret cap refuses the keystroke, never clamps. The multi-digit window works
-  per mode (a digit in the other mode starts fresh). No second selection concept, no focus
-  indicator: the selection ring is the only selection state, and typing at it is safe.
-  Accepted cost: exact-value entry for one member of a chord means Ctrl-isolating it first.
+- **Fret typing = set exact; fret movement = Alt+Shift+wheel (FINAL 2026-07-17,** after two
+  superseded designs recorded here for the reasoning trail): slice 1 exposed that fret is
+  per-string data. A *focused-member* model (single-member digit targeting, blinking
+  underline) was built then rejected — asymmetric (no multi-member retype) and the indicator
+  never looked right. A *transpose-typing* model (plain digits move the shape's lowest fret
+  to the typed number, Ctrl for exact) was built then rejected — typed-number-differs-from-
+  displayed-number would confuse newcomers, and no modifier assignment survived scrutiny
+  (Ctrl inverted its precision meaning under the flip; Shift+numpad is unfixable at the JUCE
+  level — the Windows NumLock legacy delivers navigation VKs and JUCE discards the lParam
+  that could disambiguate). Final: **typed digits set every selected note to the exact value**
+  (what you type is what appears; multi-digit window unchanged; Ctrl+digit unbound; Alt+digit
+  reserved for the ghost quasimode) and **Alt+Shift+wheel shifts the selection's frets ±1 per
+  tick**, shape-preserving by construction, refusing (never clamping) when the lowest fret
+  would pass zero or the highest the cap. The relative operation lives on the naturally
+  relative gesture; no second selection concept, no focus indicator.
 - Shift+click creates a **time-range selection object** (Guitar Pro-style): one big timespan
   highlight, **replace** semantics, anchored at the last non-Shift selection action;
   Shift+clicks while held re-extend from that anchor; with no prior anchor the first

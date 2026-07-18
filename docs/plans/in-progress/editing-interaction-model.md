@@ -75,6 +75,7 @@ Ctrl = precision. Duplication is Ctrl+D on the selection when it arrives.
 | Alt+click | Insert at the snapped position — works on occupied space too (splitting a tone region) | Yes |
 | Alt+drag from empty | Insert and place in one press-drag-release gesture | Yes |
 | Alt+wheel | Adjust the selection's *displayed duration* by one grid step: sustain for bare notes, span extent for a whole chord/arpeggio group, member tails for a proper subset (2026-07-17 — see chart-span-and-selection-model.md); Ctrl+Alt+wheel steps the fine grid; successive ticks coalesce into one undo entry | Yes |
+| Alt+Shift+wheel | Shift the selection's frets by one per tick, shape-preserving; refuses at fret zero and the fret cap (2026-07-17) | Yes |
 | Double-click on object | Open its primary property editor (rename/pick tone, type BPM, note properties) | Via editor |
 | Delete / Backspace | Delete the selection | Yes |
 | Right-click | Context menu, always; every gesture above has a menu equivalent; never destructive on its own | Via menu |
@@ -171,10 +172,11 @@ Verified against the vendored JUCE source — everything needed ships in
   from the same selection verbs. Plain click selects the whole onset group (chords are one
   cohesive unit); Ctrl+click toggles individual notes; marquee stays geometrically precise by
   design (the deliberate part-of-a-chord tool); Shift+click selects a time range (plan 52).
-  Typed digits TRANSPOSE the selection so its lowest fret lands on the typed number
-  (shape-preserving: chords reposition, runs transpose, a single note retypes exactly);
-  Ctrl+digits SET every selected note to the exact value; a member pushed past the fret cap
-  refuses the keystroke, never clamps (settled 2026-07-17).
+  Typed digits SET every selected note to the exact value — what you type is what appears
+  (multi-digit window; Ctrl+digit unbound; Alt+digit reserved for the ghost quasimode).
+  Alt+Shift+wheel SHIFTS the selection's frets by one per tick, shape-preserving (chords and
+  runs keep their intervals), refusing — never clamping — at fret zero and the fret cap
+  (settled 2026-07-17).
   Alt+wheel and Shift+Alt+Left/Right adjust displayed duration (sustain or span extent per the
   span model); Alt+arrows move the selection (Left/Right by grid step, Up/Down across strings;
   refused, never clamped, at the neck edge or an occupied slot). Plain Left/Right step the
