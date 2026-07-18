@@ -1214,7 +1214,9 @@ TEST_CASE("EditorView routes selection wheels regardless of pointer position", "
 
     // Over the timeline content, Alt+wheel adjusts sustain instead of zooming.
     auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
-    const juce::MouseWheelDetails wheel_up{.deltaX = 0.0f, .deltaY = 1.0f};
+    const juce::MouseWheelDetails wheel_up{
+        .deltaX = 0.0f, .deltaY = 1.0f, .isReversed = false, .isSmooth = false, .isInertial = false
+    };
     track_content.mouseWheelMove(
         makeMouseDownEvent(track_content, 20.0f, 20.0f, juce::ModifierKeys::altModifier), wheel_up);
     CHECK(controller.chart_sustain_adjust_count == 1);
