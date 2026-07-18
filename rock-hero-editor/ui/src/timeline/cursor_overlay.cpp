@@ -39,7 +39,7 @@ void CursorOverlay::setGridNoteValue(common::core::Fraction grid_note_value) noe
 // Draws only the cursor; static waveform content remains in ArrangementView below it.
 void CursorOverlay::paint(juce::Graphics& g)
 {
-    drawTimelineCursor(g, *this, m_cursor_x, 0);
+    static_cast<void>(drawTimelineCursor(g, *this, m_cursor_x, 0, editorTheme().playback_cursor));
 
     if (m_snap_guide.has_value())
     {

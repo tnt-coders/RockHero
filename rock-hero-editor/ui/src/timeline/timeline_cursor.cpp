@@ -52,18 +52,20 @@ void repaintCursorStrip(
 
 // Rounds, clamps, and fills the shared cursor column so every timeline view draws the transport
 // cursor identically.
-void drawTimelineCursor(
-    juce::Graphics& g, const juce::Component& component, std::optional<float> cursor_x, int top)
+std::optional<int> drawTimelineCursor(
+    juce::Graphics& g, const juce::Component& component, std::optional<float> cursor_x, int top,
+    juce::Colour color)
 {
     if (!cursor_x.has_value() || component.getWidth() <= 0)
     {
-        return;
+        return std::nullopt;
     }
 
     const int cursor_column =
         std::clamp(static_cast<int>(std::round(*cursor_x)), 0, component.getWidth() - 1);
-    g.setColour(editorTheme().playback_cursor);
+    g.setColour(color);
     g.fillRect(cursor_column, top, 1, component.getHeight() - top);
+    return cursor_column;
 }
 
 // One mapping for every timeline click site, so the snap-bypass modifier cannot drift between

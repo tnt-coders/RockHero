@@ -152,13 +152,15 @@ void TrackViewport::Content::paint(juce::Graphics& g)
         // The paused play-from-here column (the marker model, behind-content ruling
         // 2026-07-18): drawn over the grid but BEHIND every track-row component, so while
         // editing it shows in every gap without ever covering a note or its fret number.
-        // During playback the overlay's moving line takes over in front and this hides.
+        // During playback the overlay's moving line takes over in front and this hides. The
+        // 1px width and the rounding match drawTimelineCursor exactly, so the column and the
+        // ruler's mark above it land in the same pixel and read as one line.
         if (m_paused_cursor_x.has_value())
         {
             const int column = std::clamp(
                 static_cast<int>(std::round(*m_paused_cursor_x)), 0, bounds.getWidth() - 1);
             g.setColour(editorTheme().paused_cursor);
-            g.fillRect(column, 0, 2, bounds.getHeight());
+            g.fillRect(column, 0, 1, bounds.getHeight());
         }
         return;
     }
@@ -867,16 +869,18 @@ void TrackViewport::updateRulerCursor()
     // slot (Space seeks there before playing) or the passive transport rest. While armed the
     // mark must sit at the caret, not the stale transport position, or it would lie about
     // where Space starts.
+    const bool playing = m_transport.state().playing;
     const double mark_seconds =
-        m_transport.state().playing
-            ? m_transport.position().seconds
-            : m_armed_caret_seconds.value_or(m_transport.position().seconds);
-    m_timeline_ruler.setCursorPosition(common::core::TimePosition{mark_seconds});
+        playing ? m_transport.position().seconds
+                : m_armed_caret_seconds.value_or(m_transport.position().seconds);
+    m_timeline_ruler.setCursorPosition(common::core::TimePosition{mark_seconds}, !playing);
 
     // The same marker position feeds the behind-content paused column: hidden during playback
-    // (the overlay's moving line takes over in front) and without a chart (the overlay keeps
-    // the chartless paused line as the only indicator).
-    const bool paused_column_visible = !m_transport.state().playing && m_tab_displayed_strings > 0;
+    // (the overlay's moving line takes over in front), without a chart (the overlay keeps the
+    // chartless paused line as the only indicator), and while a caret is armed (the caret
+    // square marks the slot itself; a column running behind it would just be clutter).
+    const bool paused_column_visible =
+        !playing && m_tab_displayed_strings > 0 && !m_armed_caret_seconds.has_value();
     m_content.setPausedCursorX(
         paused_column_visible
             ? cursorXForTimelinePosition(

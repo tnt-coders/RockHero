@@ -172,15 +172,18 @@ void TimelineRuler::setTimelineView(
 
 // Positions the ruler's aligned play-from-here mark (the marker model, 2026-07-18): the
 // moving playhead while playing, else the marker — the armed caret's slot or the passive
-// transport rest; absent only without a loaded project.
-void TimelineRuler::setCursorPosition(std::optional<common::core::TimePosition> cursor_position)
+// transport rest; absent only without a loaded project. The paused flag picks the mark's
+// color so it always matches the cursor drawn below it in the content.
+void TimelineRuler::setCursorPosition(
+    std::optional<common::core::TimePosition> cursor_position, bool paused)
 {
     const std::optional<float> next_cursor_x =
         cursor_position.has_value() ? localXForSeconds(cursor_position->seconds) : std::nullopt;
-    if (next_cursor_x == m_cursor_x)
+    if (next_cursor_x == m_cursor_x && paused == m_cursor_paused)
     {
         return;
     }
+    m_cursor_paused = paused;
 
     // The flag is wider than the 1px line the shared strip helper pads for, so the ruler
     // invalidates its own flag-wide strips around the old and new positions.
@@ -794,22 +797,28 @@ void TimelineRuler::drawShapeChips(juce::Graphics& g)
 
 // Draws the play-from-here cursor through the ruler body for vertical alignment, topped by the
 // flag triangle. The cursor starts at the body's top edge instead of y 0 so it does not cut
-// through the chip rows above.
+// through the chip rows above. The whole mark — line and flag — takes the paused or playback
+// color so it reads as one continuous indicator with the cursor in the content below.
 void TimelineRuler::drawCursor(juce::Graphics& g)
 {
-    drawTimelineCursor(g, *this, m_cursor_x, g_ruler_body_top);
-    if (!m_cursor_x.has_value() || getWidth() <= 0)
+    const juce::Colour color =
+        m_cursor_paused ? editorTheme().paused_cursor : editorTheme().playback_cursor;
+    const std::optional<int> column =
+        drawTimelineCursor(g, *this, m_cursor_x, g_ruler_body_top, color);
+    if (!column.has_value())
     {
         return;
     }
 
-    const float x = std::clamp(*m_cursor_x, 0.0f, static_cast<float>(getWidth() - 1));
+    // The flag's tip centers on the exact pixel column the line occupies, so the two can never
+    // land a pixel apart from independent rounding.
+    const float tip_x = static_cast<float>(*column) + 0.5f;
     juce::Path flag;
-    flag.startNewSubPath(x - g_cursor_flag_half_width, static_cast<float>(g_ruler_body_top));
-    flag.lineTo(x + g_cursor_flag_half_width, static_cast<float>(g_ruler_body_top));
-    flag.lineTo(x, static_cast<float>(g_ruler_body_top) + g_cursor_flag_height);
+    flag.startNewSubPath(tip_x - g_cursor_flag_half_width, static_cast<float>(g_ruler_body_top));
+    flag.lineTo(tip_x + g_cursor_flag_half_width, static_cast<float>(g_ruler_body_top));
+    flag.lineTo(tip_x, static_cast<float>(g_ruler_body_top) + g_cursor_flag_height);
     flag.closeSubPath();
-    g.setColour(editorTheme().playback_cursor);
+    g.setColour(color);
     g.fillPath(flag);
 }
 
