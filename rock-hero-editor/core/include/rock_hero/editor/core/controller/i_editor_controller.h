@@ -218,13 +218,15 @@ public:
     virtual void onChartPointerUp(const ChartPointerEvent& event) = 0;
 
     /*!
-    \brief Handles an arrow-key movement of the editing caret (the caret model, 2026-07-17).
+    \brief Handles an arrow key on the position marker (the marker model, 2026-07-18).
 
-    Left/Right step the caret to the adjacent grid line on its string — or to the
+    While the marker is passive, the first press arms the caret at the paused cursor — the
+    nearest grid line to the transport position, on the remembered string — without stepping.
+    While armed, Left/Right step the caret to the adjacent grid line on its string — or to the
     previous/next measure start when \p measure is set (the Guitar Pro jump) — and Up/Down
     move it across strings. Movement re-derives the selection from what sits under the caret:
-    a note becomes selected, an empty slot clears the selection (the white-circle caret shows
-    where typing will insert).
+    a note becomes selected, an empty slot clears the selection (the white square shows where
+    typing will insert). Inert while playing — arming requires a paused transport.
 
     \param direction Step direction.
     \param measure True when Ctrl requests the measure jump (Left/Right only).
@@ -248,14 +250,16 @@ public:
     virtual void onChartSelectionDeleteRequested() = 0;
 
     /*!
-    \brief Handles a typed fret digit: retype the selection, or insert at the empty caret.
+    \brief Handles a typed fret digit: retype the selection, or insert at the armed caret.
 
     With a note selection, typing sets every selected note to the typed value — what you type
-    is what appears. With no selection and the caret on an empty grid slot, typing INSERTS a
-    note there with the typed fret (the caret model, 2026-07-17). Digits within the
-    multi-digit entry window combine (typing 1 then 2 yields fret 12 as ONE undo entry — a
-    widened insert stays an insert); a digit outside the window starts a fresh value. Each
-    keystroke applies immediately so the notation always shows the current value.
+    is what appears. With no selection and an armed caret on an empty grid slot, typing
+    INSERTS a note there with the typed fret. While the marker is passive with no selection,
+    digits are inert — a stray keystroke after listening authors nothing (the marker model,
+    2026-07-18). Digits within the multi-digit entry window combine (typing 1 then 2 yields
+    fret 12 as ONE undo entry — a widened insert stays an insert); a digit outside the window
+    starts a fresh value. Each keystroke applies immediately so the notation always shows the
+    current value.
 
     \param digit Typed digit in [0, 9].
     */
@@ -283,8 +287,15 @@ public:
     */
     virtual void onChartSustainAdjustRequested(int direction, bool fine) = 0;
 
-    /*! \brief Handles a request to cancel the in-flight tablature pointer gesture (Escape). */
-    virtual void onChartGestureCancelled() = 0;
+    /*!
+    \brief Handles Escape on the chart, stepping the editing state down one rung.
+
+    The Esc ladder (the marker model, 2026-07-18): an in-flight pointer gesture (marquee or
+    armed press) is abandoned without mutating; else an armed caret dissolves to the passive
+    cursor in its place, keeping the selection; else a standing note selection clears. Either
+    marker rung also ends the multi-digit fret-entry window.
+    */
+    virtual void onChartEscapePressed() = 0;
 
     /*!
     \brief Handles a deliberate selection of a tone region on the tone track (a click).

@@ -354,11 +354,11 @@ struct ChartMarqueeViewState
 };
 
 /*!
-\brief The editing caret's rendered position while it sits on an empty grid slot.
+\brief The armed caret's rendered position while it sits on an empty grid slot.
 
-One position concept per transport state (the caret model, 2026-07-17): while paused the caret
-is THE position — typing inserts here, play starts here. Published in seconds so the lane maps
-it through the same visible-timeline convention as the notation.
+The marker model (2026-07-18): while the marker is armed the caret is THE paused position —
+typing inserts here, play starts here. Published in seconds so the lane maps it through the
+same visible-timeline convention as the notation.
 */
 struct ChartCaretViewState
 {
@@ -396,11 +396,21 @@ struct ChartEditViewState
     std::optional<ChartMarqueeViewState> marquee{};
 
     /*!
-    \brief The editing caret while it sits on an EMPTY grid slot (the caret model).
+    \brief True while the position marker is armed (the caret owns the paused position).
 
-    Rendered as a white circle at the slot a typed digit would fill. Absent while the caret
-    sits on a note — there the note's selection highlight is the caret display — and absent
-    without a chart.
+    Drives the paused-playhead visibility: armed hides the paused cursor line (the caret — the
+    square below, or the selected note's highlight — is the position display), passive shows
+    it. Implied true whenever \ref caret is present; also true with the caret on a note, where
+    no square publishes.
+    */
+    bool marker_armed{false};
+
+    /*!
+    \brief The armed caret while it sits on an EMPTY grid slot (the marker model).
+
+    Rendered as a white square at the slot a typed digit would fill. Absent while the caret
+    sits on a note — there the note's selection highlight is the caret display — absent while
+    the marker is passive, and absent without a chart.
     */
     std::optional<ChartCaretViewState> caret{};
 

@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <compare>
 #include <expected>
 #include <filesystem>
 #include <optional>
@@ -13,12 +14,40 @@
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/editor/core/settings/editor_settings_error.h>
 #include <string>
+#include <variant>
 
 namespace rock_hero::editor::core
 {
 
 /*!
-\brief The app-local resume caret for one project: its exact musical address plus string.
+\brief The passive resume marker for one project: a plain paused cursor at an exact time.
+
+Seconds are the passive cursor's native coordinate — it rests wherever the transport paused,
+snapped to nothing — so the raw time round-trips losslessly with no grid math at either end
+(the marker model, 2026-07-18).
+*/
+struct EditorProjectCursor
+{
+    /*! \brief Paused transport position in seconds at save time. */
+    double seconds{};
+
+    /*! \brief One-based remembered string that arming the caret lands on. */
+    int string{1};
+
+    /*!
+    \brief Compares two stored cursors for equal value.
+    \param lhs Left-hand cursor.
+    \param rhs Right-hand cursor.
+    \return True when both cursors store equal values.
+    */
+    friend bool operator==(const EditorProjectCursor& lhs, const EditorProjectCursor& rhs)
+    {
+        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.string == rhs.string;
+    }
+};
+
+/*!
+\brief The armed resume marker for one project: the caret's exact musical address plus string.
 
 Persisted as-is (never as a time value) so reopening a project lands the caret on the same grid
 slot it was on — no tempo edit can happen without an open session (the caret model, 2026-07-17).
@@ -39,6 +68,16 @@ struct EditorProjectCaret
     */
     friend bool operator==(const EditorProjectCaret& lhs, const EditorProjectCaret& rhs) = default;
 };
+
+/*!
+\brief The app-local resume marker for one project, in whichever state it was left.
+
+Mirrors the runtime marker's sum shape (the marker model, 2026-07-18): a project resumes either
+passive — a paused cursor at a raw time — or armed — the editing caret on an exact grid slot.
+Exactly one alternative is ever stored, so the illegal "cursor and caret at once" state is as
+unrepresentable in the settings file as it is in the controller.
+*/
+using EditorProjectMarker = std::variant<EditorProjectCursor, EditorProjectCaret>;
 
 /*!
 \brief Stores editor settings that live outside project packages.
@@ -165,26 +204,27 @@ public:
         int minimum_strings) = 0;
 
     /*!
-    \brief Reads the app-local resume caret stored for an editor project path.
+    \brief Reads the app-local resume marker stored for an editor project path.
 
-    The caret persists as its exact musical address — grid position plus string — never as a
-    time value: no tempo edit can happen without an open session, so the address round-trips
-    to the same grid slot it was on (the caret model, 2026-07-17).
+    The marker persists in whichever state it was left (the marker model, 2026-07-18): armed
+    as its exact musical address — grid position plus string, never a time value, so the
+    address round-trips to the same grid slot — or passive as the raw paused transport time,
+    which is the cursor's native coordinate.
 
-    \param project_file Project path whose caret should be restored.
-    \return Stored caret, or absence when none is stored or the stored value is unreadable.
+    \param project_file Project path whose marker should be restored.
+    \return Stored marker, or absence when none is stored or the stored value is unreadable.
     */
-    [[nodiscard]] virtual std::optional<EditorProjectCaret> projectCaretFor(
+    [[nodiscard]] virtual std::optional<EditorProjectMarker> projectMarkerFor(
         const std::filesystem::path& project_file) const = 0;
 
     /*!
-    \brief Stores or replaces the app-local resume caret for an editor project path.
-    \param project_file Project path that owns the caret.
-    \param caret Caret to restore next time this path is opened.
+    \brief Stores or replaces the app-local resume marker for an editor project path.
+    \param project_file Project path that owns the marker.
+    \param marker Marker to restore next time this path is opened.
     \return Empty success, or a typed settings failure.
     */
-    [[nodiscard]] virtual std::expected<void, EditorSettingsError> saveProjectCaret(
-        const std::filesystem::path& project_file, const EditorProjectCaret& caret) = 0;
+    [[nodiscard]] virtual std::expected<void, EditorSettingsError> saveProjectMarker(
+        const std::filesystem::path& project_file, const EditorProjectMarker& marker) = 0;
 
     /*!
     \brief Reads the app-local timeline grid note value stored for an editor project path.

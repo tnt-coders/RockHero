@@ -119,10 +119,10 @@ note heads (diamonds for harmonics) with fret numbers, bordered sustain tails, t
 slide and bend lines with label chips, and hand-shape spans — from the controller's
 seconds-resolved tab projection, mapping time to pixels with the same visible-timeline
 convention as the waveform beneath it, then the chart-editing overlays (selection rings, the
-white-circle caret, and the in-flight marquee) above the notation. While a chart is displayed
-the lane owns its pointer events, converting them to lane-local chart pointer intents; the
-controller decides what a press means (select, caret placement, or marquee). Without a chart
-the lane is pointer-transparent as before.
+white square of the armed caret, and the in-flight marquee) above the notation. While a chart
+is displayed the lane owns its pointer events, converting them to lane-local chart pointer
+intents; the controller decides what a press means (select, caret arming, marquee, or — while
+playing — a plain seek). Without a chart the lane is pointer-transparent as before.
 */
 class TabView final : public juce::Component
 {

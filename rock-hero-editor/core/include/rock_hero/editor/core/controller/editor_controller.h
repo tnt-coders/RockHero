@@ -447,8 +447,8 @@ public:
     /*! \copydoc IEditorController::onChartSustainAdjustRequested */
     void onChartSustainAdjustRequested(int direction, bool fine) override;
 
-    /*! \copydoc IEditorController::onChartGestureCancelled */
-    void onChartGestureCancelled() override;
+    /*! \copydoc IEditorController::onChartEscapePressed */
+    void onChartEscapePressed() override;
 
     /*! \copydoc IEditorController::onToneRegionSelected */
     void onToneRegionSelected(std::string region_id) override;

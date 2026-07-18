@@ -60,6 +60,7 @@ definitions, no state added just to make a translation-unit split work.
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <variant>
 #include <vector>
 
 namespace rock_hero::editor::core
@@ -154,16 +155,21 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onChartFretDigitTyped(int digit);
     void onChartFretShiftRequested(int direction);
     void onChartSustainAdjustRequested(int direction, bool fine);
-    void onChartGestureCancelled();
+    void onChartEscapePressed();
     [[nodiscard]] const common::core::TabViewState* displayedTabProjection() const;
     [[nodiscard]] std::optional<ChartNoteKey> chartNoteKeyAt(std::size_t projection_index) const;
     void clearChartEditingState();
-    void resetChartCaret();
-    // Moves the caret and re-derives the selection from what sits under it (a note selects, an
-    // empty slot clears).
-    void placeChartCaret(common::core::GridPosition position, int string);
-    // Snaps the caret to the nearest grid line at the transport position (pause/stop handoff).
-    void snapChartCaretToTransport();
+    void resetChartMarker();
+    // Arms the caret at a slot and re-derives the selection from what sits under it (a note
+    // selects, an empty slot clears).
+    void armChartCaret(common::core::GridPosition position, int string);
+    // Demotes an armed caret to the passive cursor, leaving the transport where it is (the
+    // transport-motion handoffs: play, external playback, paused seeks).
+    void disarmChartMarker();
+    // Demotes an armed caret to the passive cursor "in its place": a paused seek moves the
+    // transport to the caret's musical time so the cursor line appears exactly where the caret
+    // was (the editing-gesture handoffs: Ctrl+click, double-click, marquee, Esc).
+    void dissolveChartCaretInPlace();
     [[nodiscard]] std::optional<std::pair<common::core::GridPosition, int>> chartPlacementAt(
         const ChartPointerEvent& event) const;
     [[nodiscard]] common::core::Fraction chartGridStepBeats(
@@ -171,7 +177,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     bool applyChartEditPlan(
         std::optional<ChartNotesEditPlan> plan,
         std::optional<std::vector<ChartNoteKey>> select_exactly = std::nullopt);
-    void insertChartNoteAtCaret(int fret);
     [[nodiscard]] std::string toneRegionIdAt(common::core::TimePosition position) const;
     [[nodiscard]] std::string activeToneRegionId() const;
     [[nodiscard]] std::string activeToneDocumentRef() const;
@@ -413,15 +418,20 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void clearDeferredProjectAction() noexcept;
     void clearInterruptedRestoreMarker();
     void clearLastOpenProjectIfMatches(const std::filesystem::path& project_file);
-    [[nodiscard]] EditorProjectCaret caretForOpenedProject(
+    [[nodiscard]] std::optional<EditorProjectMarker> markerForOpenedProject(
         const std::filesystem::path& project_file) const;
+    // Typed restore of the stored resume marker (one overload per marker state): both seek
+    // the transport, and the caret overload re-arms — or demotes to passive when its string
+    // no longer exists on the loaded chart.
+    void restoreProjectMarker(const EditorProjectCursor& cursor);
+    void restoreProjectMarker(const EditorProjectCaret& caret);
     [[nodiscard]] common::core::Fraction gridNoteValueForOpenedProject(
         const std::filesystem::path& project_file) const;
     [[nodiscard]] double timelineZoomForOpenedProject(
         const std::filesystem::path& project_file) const;
-    void saveCurrentProjectCaretBestEffort(std::string_view context);
-    void saveProjectCaretBestEffort(
-        const std::filesystem::path& project_file, const EditorProjectCaret& caret,
+    void saveCurrentProjectMarkerBestEffort(std::string_view context);
+    void saveProjectMarkerBestEffort(
+        const std::filesystem::path& project_file, const EditorProjectMarker& marker,
         std::string_view context);
     [[nodiscard]] std::optional<std::filesystem::path> restorableProjectFileForExit() const;
     [[nodiscard]] std::expected<void, common::audio::SongAudioError> loadSessionSong(
@@ -615,9 +625,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     std::string m_selected_tone_region_id{};
 
     // Chart-editing selection for the tablature lane; keys are (position, string) so they
-    // survive unrelated edits. Cleared on project load/close and arrangement switches. The
-    // selection stays co-located with the caret (the caret model): clicking or arrowing onto a
-    // note selects it, onto an empty slot clears it.
+    // survive unrelated edits. Cleared on project load/close, arrangement switches, and
+    // playback starts. While the marker is armed the selection is exactly what sits under the
+    // caret (the marker model): arming onto a note selects it, onto an empty slot clears it;
+    // multi-note selections exist only while the marker is passive.
     ChartSelection m_chart_selection{};
 
     // In-flight tablature pointer gesture: armed on Down, disambiguated into click vs. marquee by
@@ -658,15 +669,35 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     };
     std::optional<ChartFretEntry> m_chart_fret_entry{};
 
-    // The editing caret (the caret model, 2026-07-17): THE paused position — grid slot and
-    // string where typing inserts and play starts. Present whenever a chart is displayed;
-    // reset to the song start on chart load.
+    // The paused-position marker's passive state: the plain paused cursor. The transport
+    // position IS the position (dissolutions seek so this always holds), so only the string
+    // the next arming lands on is remembered here.
+    struct ChartCursor
+    {
+        int string{1};
+    };
+
+    // The marker's armed state: the editing caret owning an exact grid slot and string —
+    // where typing inserts and play starts.
     struct ChartCaret
     {
         common::core::GridPosition position{};
         int string{1};
     };
-    std::optional<ChartCaret> m_chart_caret{};
+
+    // The two-state position marker (the marker model, 2026-07-18): always present, exactly
+    // one state at a time — passive cursor or armed caret — so "cursor and caret at once" is
+    // unrepresentable. Armed implies paused (playback demotes via the transport listener) and
+    // implies the selection is what sits under the caret; chartless arrangements simply never
+    // arm.
+    using ChartMarker = std::variant<ChartCursor, ChartCaret>;
+    ChartMarker m_chart_marker{ChartCursor{}};
+
+    // Returns the armed caret, or null while the marker is passive.
+    [[nodiscard]] const ChartCaret* armedChartCaret() const noexcept;
+
+    // Returns the marker's remembered string in either state.
+    [[nodiscard]] int chartMarkerString() const noexcept;
 
     // Durable automation identity of one live tone-chain plugin instance.
     struct ToneAutomationIdentity

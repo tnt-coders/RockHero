@@ -1,6 +1,7 @@
 #include "settings/editor_settings.h"
 
 #include <algorithm>
+#include <array>
 #include <charconv>
 #include <cmath>
 #include <cstdint>
@@ -14,6 +15,7 @@
 #include <string_view>
 #include <system_error>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace rock_hero::editor::core
@@ -94,7 +96,7 @@ constexpr const char* g_tab_minimum_displayed_strings_key{"tabMinimumDisplayedSt
 // One flat settings property per (family, project): key = "<family>:" + normalized project path,
 // value = one string. Each project's value is independent, so a corrupt or missing entry resets
 // only that value rather than a shared list. Family names double as the stored key prefix.
-constexpr std::string_view g_project_cursor_family{"projectCursor"};
+constexpr std::string_view g_project_marker_family{"projectMarker"};
 constexpr std::string_view g_project_grid_note_value_family{"projectGridNoteValue"};
 constexpr std::string_view g_project_timeline_zoom_family{"projectTimelineZoom"};
 constexpr std::string_view g_project_selected_arrangement_family{"projectSelectedArrangement"};
@@ -372,13 +374,57 @@ std::expected<void, EditorSettingsError> EditorSettings::setTabMinimumDisplayedS
     return saveIfNeeded(m_properties, "Could not save tablature string display setting.");
 }
 
-// Reads the app-local resume caret associated with one project path: the exact musical address
-// encoded as "measure:beat:offset_numerator/offset_denominator:string". A missing or
-// unparseable entry (including any pre-caret-model seconds value) reads as absent.
-std::optional<EditorProjectCaret> EditorSettings::projectCaretFor(
+namespace
+{
+
+// Formats seconds with shortest-round-trip precision (std::to_chars) so a stored passive
+// marker reloads at exactly the paused time; parseFiniteDouble reads it back.
+[[nodiscard]] juce::String formatExactSeconds(double seconds)
+{
+    std::array<char, 32> buffer{};
+    const std::to_chars_result result =
+        std::to_chars(buffer.data(), buffer.data() + buffer.size(), seconds);
+    return juce::String{std::string{buffer.data(), result.ptr}};
+}
+
+// Encodes the passive marker state as "cursor:seconds:string"; empty when the state is invalid.
+[[nodiscard]] std::optional<juce::String> encodeProjectMarker(const EditorProjectCursor& cursor)
+{
+    if (!std::isfinite(cursor.seconds) || cursor.seconds < 0.0 || cursor.string < 1)
+    {
+        return std::nullopt;
+    }
+
+    return juce::String{"cursor:"} + formatExactSeconds(cursor.seconds) + ":" +
+           juce::String(cursor.string);
+}
+
+// Encodes the armed marker state as "caret:measure:beat:num/den:string" (the exact musical
+// address, never a time value); empty when the address is invalid.
+[[nodiscard]] std::optional<juce::String> encodeProjectMarker(const EditorProjectCaret& caret)
+{
+    if (caret.position.measure < 1 || caret.position.beat < 1 ||
+        caret.position.offset.denominator <= 0 || caret.position.offset.numerator < 0 ||
+        caret.string < 1)
+    {
+        return std::nullopt;
+    }
+
+    return juce::String{"caret:"} + juce::String(caret.position.measure) + ":" +
+           juce::String(caret.position.beat) + ":" + juce::String(caret.position.offset.numerator) +
+           "/" + juce::String(caret.position.offset.denominator) + ":" + juce::String(caret.string);
+}
+
+} // namespace
+
+// Reads the app-local resume marker associated with one project path: a state-tagged value —
+// armed as "caret:measure:beat:offset_numerator/offset_denominator:string" (the exact musical
+// address), passive as "cursor:seconds:string" (the raw paused time). A missing or unparseable
+// entry reads as absent.
+std::optional<EditorProjectMarker> EditorSettings::projectMarkerFor(
     const std::filesystem::path& project_file) const
 {
-    const juce::String key = projectSettingKey(g_project_cursor_family, project_file);
+    const juce::String key = projectSettingKey(g_project_marker_family, project_file);
     if (key.isEmpty() || !m_properties.containsKey(key))
     {
         return std::nullopt;
@@ -386,11 +432,24 @@ std::optional<EditorProjectCaret> EditorSettings::projectCaretFor(
 
     const juce::StringArray parts =
         juce::StringArray::fromTokens(m_properties.getValue(key), ":", "");
-    if (parts.size() != 4)
+    if (parts.size() == 3 && parts[0] == "cursor")
+    {
+        const std::optional<double> seconds = parseFiniteDouble(parts[1]);
+        const EditorProjectCursor cursor{
+            .seconds = seconds.value_or(-1.0), .string = parts[2].getIntValue()
+        };
+        if (!seconds.has_value() || cursor.seconds < 0.0 || cursor.string < 1)
+        {
+            return std::nullopt;
+        }
+        return EditorProjectMarker{cursor};
+    }
+
+    if (parts.size() != 5 || parts[0] != "caret")
     {
         return std::nullopt;
     }
-    const juce::StringArray offset_parts = juce::StringArray::fromTokens(parts[2], "/", "");
+    const juce::StringArray offset_parts = juce::StringArray::fromTokens(parts[3], "/", "");
     if (offset_parts.size() != 2)
     {
         return std::nullopt;
@@ -399,47 +458,42 @@ std::optional<EditorProjectCaret> EditorSettings::projectCaretFor(
     const EditorProjectCaret caret{
         .position =
             common::core::GridPosition{
-                .measure = parts[0].getIntValue(),
-                .beat = parts[1].getIntValue(),
+                .measure = parts[1].getIntValue(),
+                .beat = parts[2].getIntValue(),
                 .offset =
                     common::core::Fraction{
                         offset_parts[0].getIntValue(), offset_parts[1].getIntValue()
                     },
             },
-        .string = parts[3].getIntValue(),
+        .string = parts[4].getIntValue(),
     };
-    if (caret.position.measure < 1 || caret.position.beat < 1 ||
-        caret.position.offset.denominator <= 0 || caret.position.offset.numerator < 0 ||
-        caret.string < 1)
+    if (!encodeProjectMarker(caret).has_value())
     {
         return std::nullopt;
     }
-    return caret;
+    return EditorProjectMarker{caret};
 }
 
-// Stores one project's app-local resume caret under its own flat key, as the exact musical
-// address (never a time value: no tempo edit can happen without an open session, so the
-// address always lands the caret back on the same grid slot).
-std::expected<void, EditorSettingsError> EditorSettings::saveProjectCaret(
-    const std::filesystem::path& project_file, const EditorProjectCaret& caret)
+// Stores one project's app-local resume marker under its own flat key, tagged by state: armed
+// as the exact musical address (never a time value: no tempo edit can happen without an open
+// session, so the address always lands the caret back on the same grid slot), passive as the
+// raw paused transport time.
+std::expected<void, EditorSettingsError> EditorSettings::saveProjectMarker(
+    const std::filesystem::path& project_file, const EditorProjectMarker& marker)
 {
-    const juce::String key = projectSettingKey(g_project_cursor_family, project_file);
-    if (key.isEmpty() || caret.position.measure < 1 || caret.position.beat < 1 ||
-        caret.position.offset.denominator <= 0 || caret.position.offset.numerator < 0 ||
-        caret.string < 1)
+    const juce::String key = projectSettingKey(g_project_marker_family, project_file);
+    const std::optional<juce::String> encoded =
+        std::visit([](const auto& state) { return encodeProjectMarker(state); }, marker);
+    if (key.isEmpty() || !encoded.has_value())
     {
         return std::unexpected{EditorSettingsError{
             EditorSettingsErrorCode::InvalidSettingValue,
-            "Cannot save a project caret for an invalid project path or address."
+            "Cannot save a project marker for an invalid project path or marker state."
         }};
     }
 
-    m_properties.setValue(
-        key,
-        juce::String(caret.position.measure) + ":" + juce::String(caret.position.beat) + ":" +
-            juce::String(caret.position.offset.numerator) + "/" +
-            juce::String(caret.position.offset.denominator) + ":" + juce::String(caret.string));
-    return saveNow(m_properties, "Could not save project caret setting.");
+    m_properties.setValue(key, *encoded);
+    return saveNow(m_properties, "Could not save project marker setting.");
 }
 
 // Reads the app-local timeline grid note value associated with one project path.

@@ -156,21 +156,21 @@ public:
     }
 
     /*!
-    \brief Reports that no app-local project caret is stored.
+    \brief Reports that no app-local project marker is stored.
     \return Always empty optional success.
     */
-    [[nodiscard]] std::optional<EditorProjectCaret> projectCaretFor(
+    [[nodiscard]] std::optional<EditorProjectMarker> projectMarkerFor(
         const std::filesystem::path&) const override
     {
         return std::nullopt;
     }
 
     /*!
-    \brief Ignores app-local project caret writes.
+    \brief Ignores app-local project marker writes.
     \return Always empty success.
     */
-    [[nodiscard]] std::expected<void, EditorSettingsError> saveProjectCaret(
-        const std::filesystem::path&, const EditorProjectCaret&) override
+    [[nodiscard]] std::expected<void, EditorSettingsError> saveProjectMarker(
+        const std::filesystem::path&, const EditorProjectMarker&) override
     {
         return {};
     }

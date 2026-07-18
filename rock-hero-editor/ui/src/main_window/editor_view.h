@@ -464,6 +464,11 @@ private:
     // are not repeated here: the timeline ruler's header bands pin them to their left edge.
     juce::Label m_position_display;
 
+    // Read-only "N notes" readout beside the position display while two or more chart notes
+    // are selected (the marker model's count chip): typing acts on the whole selection, so
+    // its size must stay visible even when the highlighted notes are scrolled off-screen.
+    juce::Label m_selection_count_display;
+
     // Transport position behind the current m_position_display text, so vblank frames where the
     // transport holds position skip re-formatting the readout strings. Seconds alone identify
     // the text because the other readout inputs (project-loaded flag, tempo map) change only
@@ -491,8 +496,7 @@ private:
     // Waveform track for the currently displayed arrangement, hosted inside the track viewport.
     ArrangementView m_arrangement_view;
 
-    // Tablature lane drawn over the waveform row inside the track viewport; the state's tempo
-    // map (declared above) snaps its Alt-held ghost preview.
+    // Tablature lane drawn over the waveform row inside the track viewport.
     TabView m_tab_view{};
 
     // Tone track row hosted below the waveform inside the track viewport.

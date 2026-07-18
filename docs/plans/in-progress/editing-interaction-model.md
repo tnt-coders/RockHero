@@ -179,25 +179,32 @@ Verified against the vendored JUCE source — everything needed ships in
   Default. The lane's pinned name chip is the lane handle: clicking it opens the lane menu, since
   empty lane space now belongs to the seek overlay. Positional menu-insert is tone-strip-only;
   on lanes the insert gesture is Alt itself.
-- **Notes** (implemented 2026-07-16; granularity and span verbs settled 2026-07-17 in
-  docs/plans/in-progress/chart-span-and-selection-model.md): Alt+click on a string lane places
-  a note carrying the last-used fret; typed digits set the fret of the selection; technique
-  hotkeys (future) set properties of the selection — Guitar Pro-style keyboard entry composes
-  from the same selection verbs. Selection follows the containment hierarchy (note ⊂ chord ⊂
-  span, 2026-07-17): click selects the note, double-click its chord, span-rail click the whole
-  span; Ctrl+click toggles individual notes; marquee stays geometrically precise by design;
-  Shift+click selects a time range (plan 52).
+- **Notes** (implemented 2026-07-16; granularity and span verbs settled 2026-07-17, the
+  two-state marker 2026-07-18, both in
+  docs/plans/in-progress/chart-span-and-selection-model.md §7/§9/§9a): the lane carries one
+  position marker — the **passive cursor** (the paused playhead line at the transport
+  position) or the **armed caret** (an exact grid slot × string). A plain click arms the
+  caret (on a note it also selects it); an arrow while passive arms it at the cursor; typed
+  digits insert a note at an armed empty-slot caret, retype the selection when one exists,
+  and are inert while passive with no selection. Any multi-select gesture — Ctrl+click,
+  double-click, marquee — dissolves the caret back into a cursor in its place, so the visible
+  glyph always states the typing scope (square = insert here; highlights + line = verbs act
+  on the selection). Esc steps down: armed → passive, then selection → cleared. Selection
+  follows the containment hierarchy (note ⊂ chord ⊂ span, 2026-07-17): click selects the
+  note, double-click its chord, span-rail click the whole span; Ctrl+click toggles individual
+  notes; marquee stays geometrically precise by design; Shift+click selects a time range
+  (plan 52). Scope is always the selection, never the verb (the uniform-scope law, §9a).
   Typed digits SET every selected note to the exact value — what you type is what appears
-  (multi-digit window; Ctrl+digit unbound; Alt+digit reserved for the ghost quasimode).
+  (multi-digit window; Ctrl+digit and Alt+digit unbound).
   Alt+Shift+wheel SHIFTS the selection's frets by one per tick, shape-preserving (chords and
   runs keep their intervals), refusing — never clamping — at fret zero and the fret cap
   (settled 2026-07-17).
   Alt+wheel and Shift+Alt+Left/Right adjust displayed duration (sustain or span extent per the
   span model); Alt+arrows move the selection (Left/Right by grid step, Up/Down across strings;
-  refused, never clamped, at the neck edge or an occupied slot). Plain Left/Right step the
-  timeline cursor along the grid. Pointer drag-move (horizontal with snap, vertical across
-  strings) is the same plain move-drag verb points use and lands with the remaining plan 40
-  Phase 4 slice. **Sustain tail-drag is parked**
+  refused, never clamped, at the neck edge or an occupied slot). Plain arrows move the armed
+  caret (Ctrl+Left/Right jump measures, the GP jump). Pointer drag-move (horizontal with
+  snap, vertical across strings) is the same plain move-drag verb points use and lands with
+  the remaining plan 40 Phase 4 slice. **Sustain tail-drag is parked**
   (2026-07-16): the wheel/keyboard verbs cover resizing precisely, and the tail's end zone is a
   small target that competes with drag-move grabs — a watch item in docs/tracking/watch-items.md
   holds the trigger for revisiting.
@@ -252,7 +259,20 @@ surface:
    plain drag-move of whole objects stays a core verb on every surface.
 4. Plain-wheel zoom (shipped) is affirmed over Charter-style modifier-gated zoom.
 
-## Revamp checklist for existing surfaces
+## Amendment record — 2026-07-18 two-state marker
+
+Settled with the user after the multi-select deep analysis (full model in
+docs/plans/in-progress/chart-span-and-selection-model.md §9a):
+
+1. The paused cursor returns as the position marker's *passive* state; §9's caret is its
+   *armed* state. Exactly one of the line, the square, or the selected-note highlight shows
+   the position at any moment, and the visible glyph states the typing scope.
+2. Multi-select gestures (Ctrl+click, double-click, marquee) dissolve the caret into a cursor
+   in its place; plain clicks and arrows arm it. Esc steps armed → passive → selection
+   cleared. Typing is inert while passive with no selection — the stray-digit insert after
+   listening is gone.
+3. Multi-select itself is confirmed permanent (pure-GP arity-one selection declined); scope
+   is always the selection, never the verb.
 
 Implemented 2026-07-09, amended 2026-07-16 per the record above (see the per-surface section
 for current behavior):

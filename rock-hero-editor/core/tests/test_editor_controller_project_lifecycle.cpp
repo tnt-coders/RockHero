@@ -151,8 +151,10 @@ TEST_CASE("EditorController successful open stores audio", "[core][editor-contro
     CHECK(view.shown_errors.size() == 1);
 }
 
-// Opening a saved project restores its resume caret from app-local settings — the exact
-// stored musical address, with the transport parked at the same musical time.
+// Opening a saved project restores its resume marker from app-local settings: a stored armed
+// caret seeks the transport to its exact musical address — and, because this song has no
+// chart, demotes to a passive cursor there instead of arming onto a string that does not
+// exist (the marker model's restore rule).
 TEST_CASE("EditorController open restores settings cursor", "[core][editor-controller]")
 {
     const ScopedControllerFiles files{"open_restores_settings_cursor"};
@@ -160,12 +162,12 @@ TEST_CASE("EditorController open restores settings cursor", "[core][editor-contr
     EditorSettings settings{files.settingsFile()};
     // Measure 2 beat 2 at the default map's 120 BPM 4/4 is 2.5 seconds.
     REQUIRE(settings
-                .saveProjectCaret(
+                .saveProjectMarker(
                     files.projectFile(),
-                    EditorProjectCaret{
+                    EditorProjectMarker{EditorProjectCaret{
                         .position = common::core::GridPosition{.measure = 2, .beat = 2},
                         .string = 3,
-                    })
+                    }})
                 .has_value());
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -235,9 +237,9 @@ TEST_CASE("EditorController close clears loaded project", "[core][editor-control
     }
 }
 
-// Closing a saved chartless project stores the nearest grid line to the transport position as
-// the resume caret before transport stop resets it (chart-bearing projects store the caret's
-// own address).
+// Closing a saved project stores the resume marker in whichever state it holds — here the
+// passive cursor's raw transport time, captured before transport stop resets it (an armed
+// caret would store its exact grid address instead).
 TEST_CASE("EditorController close stores settings cursor", "[core][editor-controller]")
 {
     const ScopedControllerFiles files{"close_stores_settings_cursor"};
@@ -265,13 +267,12 @@ TEST_CASE("EditorController close stores settings cursor", "[core][editor-contro
 
     controller.onCloseRequested();
 
-    // 3.5s is measure 2 beat 4 at the default map's 120 BPM 4/4.
-    const auto stored_caret = settings.projectCaretFor(files.projectFile());
+    // A chartless project never arms, so close stores the passive marker: the raw transport
+    // time, no grid math (the marker model).
+    const auto stored_marker = settings.projectMarkerFor(files.projectFile());
     CHECK(
-        stored_caret == std::optional{EditorProjectCaret{
-                            .position = common::core::GridPosition{.measure = 2, .beat = 4},
-                            .string = 1,
-                        }});
+        stored_marker ==
+        std::optional{EditorProjectMarker{EditorProjectCursor{.seconds = 3.5, .string = 1}}});
 }
 
 // Exiting persists the editor project path before requesting host shutdown.
@@ -343,14 +344,12 @@ TEST_CASE("EditorController save writes current session song", "[core][editor-co
     CHECK(project_services.save_call_count == 1);
     CHECK(project_services.save_as_call_count == 0);
     CHECK(project_services.last_save_audio_path == std::optional{audio_asset.path});
-    // 1.25s snaps to the nearest quarter grid line: measure 1 beat 3 (1.0s at 120 BPM 4/4)...
-    // 1.25 sits exactly between beats 3 and 4; the nearest-line tie resolves to one of them,
-    // so probe the stored beat range instead of a single value.
-    const auto stored_caret = settings.projectCaretFor(files.projectFile());
-    REQUIRE(stored_caret.has_value());
-    CHECK(stored_caret->position.measure == 1);
-    CHECK((stored_caret->position.beat == 3 || stored_caret->position.beat == 4));
-    CHECK(stored_caret->string == 1);
+    // The passive marker stores the raw transport time exactly (the marker model) — no grid
+    // snap, so the old nearest-line tie at 1.25s is gone with the snapping itself.
+    const auto stored_marker = settings.projectMarkerFor(files.projectFile());
+    CHECK(
+        stored_marker ==
+        std::optional{EditorProjectMarker{EditorProjectCursor{.seconds = 1.25, .string = 1}}});
     CHECK(view.shown_errors.empty());
 }
 
