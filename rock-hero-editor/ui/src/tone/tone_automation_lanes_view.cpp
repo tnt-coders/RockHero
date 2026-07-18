@@ -355,6 +355,46 @@ float ToneAutomationLanesView::snappedValueForLane(
     return static_cast<float>(nearest) / static_cast<float>(steps);
 }
 
+// Mirrors the paint path exactly: linear segments between points on a continuous lane, held
+// steps on a discrete one, flat extension outside the authored span, and the live tracking line
+// when nothing is authored yet — so a point placed at this value lands visually and audibly ON
+// the drawn curve.
+float ToneAutomationLanesView::curveValueAt(
+    const core::ToneAutomationLaneViewState& lane, double seconds) const
+{
+    if (lane.points.empty())
+    {
+        return snappedValueForLane(trackingValueFor(lane), lane);
+    }
+    if (seconds <= lane.points.front().seconds)
+    {
+        return lane.points.front().norm_value;
+    }
+    if (seconds >= lane.points.back().seconds)
+    {
+        return lane.points.back().norm_value;
+    }
+    for (std::size_t index = 1; index < lane.points.size(); ++index)
+    {
+        const core::ToneAutomationPointViewState& next = lane.points[index];
+        if (seconds > next.seconds)
+        {
+            continue;
+        }
+        const core::ToneAutomationPointViewState& previous = lane.points[index - 1];
+        if (lane.is_discrete)
+        {
+            // The drawn discrete curve holds the previous state until the next point.
+            return previous.norm_value;
+        }
+        const double span = next.seconds - previous.seconds;
+        const float mix =
+            span > 0.0 ? static_cast<float>((seconds - previous.seconds) / span) : 1.0F;
+        return snappedValueForLane(std::lerp(previous.norm_value, next.norm_value, mix), lane);
+    }
+    return lane.points.back().norm_value;
+}
+
 std::optional<common::core::GridPosition> ToneAutomationLanesView::musicalPositionForX(
     float content_x, const juce::ModifierKeys& mods) const
 {
@@ -753,19 +793,20 @@ void ToneAutomationLanesView::mouseMove(const juce::MouseEvent& event)
         else if (const auto* const area = std::get_if<LaneAreaHit>(&*hit))
         {
             // LaneAreaHit only exists while Alt is held: preview exactly what a click would
-            // insert, snapped like the click itself (Ctrl composes for fine placement).
+            // insert, snapped like the click itself (Ctrl composes for fine placement). The
+            // point lands ON the curve at the snapped time (2026-07-18): placement is sonically
+            // silent, so the ghost rides the curve rather than the pointer's y.
             const core::ToneAutomationLaneViewState& lane = m_state.lanes[area->lane_index];
-            const std::vector<LaneExtent> extents = laneExtents();
             if (const std::optional<common::core::GridPosition> position =
                     musicalPositionForX(static_cast<float>(event.getPosition().x), event.mods);
                 position.has_value())
             {
-                const float value = snappedValueForLane(
-                    valueForY(event.getPosition().y, extents[area->lane_index]), lane);
+                const double seconds = secondsAtPosition(m_tempo_map, *position);
+                const float value = curveValueAt(lane, seconds);
                 ghost = GhostPoint{
                     .lane_index = area->lane_index,
                     .position = *position,
-                    .seconds = secondsAtPosition(m_tempo_map, *position),
+                    .seconds = seconds,
                     .norm_value = value,
                 };
                 setValueReadout(
@@ -868,7 +909,6 @@ void ToneAutomationLanesView::mouseDown(const juce::MouseEvent& event)
         return;
     }
 
-    const std::vector<LaneExtent> extents = laneExtents();
     if (const auto* const point_hit = std::get_if<PointHit>(&*hit))
     {
         const core::ToneAutomationPointViewState& point =
@@ -880,6 +920,7 @@ void ToneAutomationLanesView::mouseDown(const juce::MouseEvent& event)
             .preview_value = point.norm_value,
             .start_position = point.position,
             .start_value = point.norm_value,
+            .press_y = event.getPosition().y,
             .moved = false,
             .is_new_point = false,
         };
@@ -887,7 +928,9 @@ void ToneAutomationLanesView::mouseDown(const juce::MouseEvent& event)
     }
 
     // Alt-held empty editable area: create a preview point and enter the move drag immediately, so
-    // press-drag-release adds and places in one gesture; the commit happens on mouseUp.
+    // press-drag-release adds and places in one gesture; the commit happens on mouseUp. The point
+    // lands ON the curve at the snapped time (2026-07-18): a release without dragging plants a
+    // sonically silent handle, and the drag phase pulls the value by the pointer's delta.
     const auto& area = std::get<LaneAreaHit>(*hit);
     const std::optional<common::core::GridPosition> position =
         musicalPositionForX(static_cast<float>(event.getPosition().x), event.mods);
@@ -901,8 +944,7 @@ void ToneAutomationLanesView::mouseDown(const juce::MouseEvent& event)
     {
         ++insert_index;
     }
-    const float creation_value =
-        snappedValueForLane(valueForY(event.getPosition().y, extents[area.lane_index]), lane);
+    const float creation_value = curveValueAt(lane, secondsAtPosition(m_tempo_map, *position));
     m_drag = MovePointDrag{
         .lane_index = area.lane_index,
         .point_index = insert_index,
@@ -910,6 +952,7 @@ void ToneAutomationLanesView::mouseDown(const juce::MouseEvent& event)
         .preview_value = creation_value,
         .start_position = *position,
         .start_value = creation_value,
+        .press_y = event.getPosition().y,
         .moved = true,
         .is_new_point = true,
     };
@@ -1001,10 +1044,21 @@ void ToneAutomationLanesView::mouseDrag(const juce::MouseEvent& event)
             move.preview_position = *position;
         }
     }
-    move.preview_value =
-        lock_value
-            ? move.start_value
-            : snappedValueForLane(valueForY(event.getPosition().y, extents[move.lane_index]), lane);
+    if (lock_value)
+    {
+        move.preview_value = move.start_value;
+    }
+    else
+    {
+        // Delta-based: the value moves by the pointer's vertical travel from the press, so an
+        // on-curve insert landing (or an off-center point grab) never jumps to the raw pointer
+        // y — pulling starts exactly where the point started (2026-07-18 amendment).
+        const LaneExtent& extent = extents[move.lane_index];
+        const float delta =
+            valueForY(event.getPosition().y, extent) - valueForY(move.press_y, extent);
+        move.preview_value =
+            snappedValueForLane(std::clamp(move.start_value + delta, 0.0F, 1.0F), lane);
+    }
     move.moved = true;
 
     const double preview_seconds = secondsAtPosition(m_tempo_map, move.preview_position);
