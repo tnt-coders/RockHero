@@ -129,10 +129,10 @@ public:
     void setTimelineView(common::core::TimeRange timeline_range, int content_width, int view_x);
 
     /*!
-    \brief Samples the current transport cursor for the ruler's aligned playhead mark.
-    \param cursor_position Current transport position, or absent while the chart's marker is
-    armed — the caret owns the paused position then (the marker model, 2026-07-18); playback
-    and the passive paused cursor both show the mark.
+    \brief Positions the ruler's aligned play-from-here mark.
+    \param cursor_position Where playback would start (the marker model, 2026-07-18): the
+    moving playhead while playing, else the marker — the armed caret's slot or the passive
+    transport rest. Absent only without a loaded project.
     */
     void setCursorPosition(std::optional<common::core::TimePosition> cursor_position);
 

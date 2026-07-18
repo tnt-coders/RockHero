@@ -821,7 +821,7 @@ void TrackViewport::refreshTimelineGridForViewChange()
     refreshTimelineGrid();
 }
 
-// Keeps the ruler cursor aligned with the main cursor overlay.
+// Keeps the ruler cursor aligned with where playback would start.
 void TrackViewport::updateRulerCursor()
 {
     if (!m_project_loaded)
@@ -829,13 +829,16 @@ void TrackViewport::updateRulerCursor()
         return;
     }
 
-    // The ruler mark mirrors the overlay's paused-cursor rule (the marker model): visible
-    // during playback and while the marker is passive (the paused cursor at the transport
-    // position IS the position); hidden only while an armed caret owns the paused position.
-    const bool cursor_visible = m_transport.state().playing || !m_armed_caret_seconds.has_value();
-    m_timeline_ruler.setCursorPosition(
-        cursor_visible ? std::optional<common::core::TimePosition>{m_transport.position()}
-                       : std::nullopt);
+    // The ruler mark is the play-from-here indicator and is ALWAYS shown (user ruling
+    // 2026-07-18): the moving playhead while playing, else the marker — the armed caret's
+    // slot (Space seeks there before playing) or the passive transport rest. While armed the
+    // mark must sit at the caret, not the stale transport position, or it would lie about
+    // where Space starts.
+    const double mark_seconds =
+        m_transport.state().playing
+            ? m_transport.position().seconds
+            : m_armed_caret_seconds.value_or(m_transport.position().seconds);
+    m_timeline_ruler.setCursorPosition(common::core::TimePosition{mark_seconds});
 }
 
 } // namespace rock_hero::editor::ui
