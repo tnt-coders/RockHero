@@ -1575,6 +1575,21 @@ void EditorController::Impl::resetChartCaret()
     };
 }
 
+// Pause and stop hand the position back to the caret: it snaps to the nearest grid line at
+// the transport's position on the remembered string, so editing resumes where listening
+// stopped.
+void EditorController::Impl::snapChartCaretToTransport()
+{
+    if (!m_chart_caret.has_value())
+    {
+        return;
+    }
+    placeChartCaret(
+        nearestTempoGridPosition(
+            session().song().tempo_map, m_grid_note_value, m_transport.position()),
+        m_chart_caret->string);
+}
+
 // Moves the caret and re-derives the selection from what sits under it: a note becomes the
 // selection (the highlight IS the caret display there), an empty slot clears it (the white
 // circle shows where typing will insert).
@@ -2617,13 +2632,31 @@ void EditorController::Impl::performActionImpl(EditorAction::PlayPause /*action*
     if (m_transport.state().playing)
     {
         m_transport.pause();
+        // Pause hands the position back to the caret (the caret model): it snaps to the
+        // nearest grid line at the stop point on the remembered string, and the playhead
+        // hides with the next state push.
+        snapChartCaretToTransport();
+        updateView();
     }
     else
     {
-        // Starting playback makes the region under the cursor the active tone (clearing any formal
-        // selection); the tone row then keeps it following boundary crossings at render cadence.
+        // Play FROM THE CARET: while paused the caret is the position concept, so playback
+        // starts where the caret sits. Starting playback also makes the region under the
+        // cursor the active tone (clearing any formal selection); the tone row then keeps it
+        // following boundary crossings at render cadence.
+        if (m_chart_caret.has_value())
+        {
+            const common::core::TempoMap& tempo_map = session().song().tempo_map;
+            m_transport.seek(
+                session().timeline().clamp(
+                    common::core::TimePosition{tempo_map.secondsAtNote(
+                        m_chart_caret->position.measure,
+                        m_chart_caret->position.beat,
+                        m_chart_caret->position.offset)}));
+        }
         activateToneAtCursor();
         m_transport.play();
+        updateView();
     }
 }
 
@@ -2635,12 +2668,9 @@ void EditorController::Impl::performActionImpl(EditorAction::Stop /*action*/)
         return;
     }
     m_transport.stop();
+    snapChartCaretToTransport();
     activateToneAtCursor();
-
-    if (!transport_state.playing)
-    {
-        updateView();
-    }
+    updateView();
 }
 
 // Clamps the requested position into the session timeline so out-of-range view intents cannot
@@ -2649,6 +2679,13 @@ void EditorController::Impl::performActionImpl(EditorAction::SeekTimeline action
 {
     const common::core::TimePosition position = session().timeline().clamp(action.position);
     m_transport.seek(position);
+    // While paused the caret is the position concept (the caret model): a paused seek — the
+    // ruler click, a chartless waveform click — carries the caret to the nearest grid line at
+    // the target on its remembered string. Playing seeks move only the live playhead.
+    if (!m_transport.state().playing)
+    {
+        snapChartCaretToTransport();
+    }
     // The active tone follows the cursor: the region under the new position becomes the tone
     // context, and any formal selection is cleared so a stray Delete cannot remove a tone.
     activateToneAtCursor();

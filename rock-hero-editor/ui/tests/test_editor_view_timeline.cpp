@@ -905,9 +905,21 @@ TEST_CASE("EditorView Ctrl-click forwards free timeline position", "[ui][editor-
     CHECK(cursor_overlay.isVisible());
     REQUIRE(cursor_overlay.getWidth() > 0);
     const float click_x = std::floor(static_cast<float>(cursor_overlay.getWidth()) * 0.25f) + 0.5f;
-    const auto click_y = static_cast<float>(cursor_overlay.getHeight() - 20);
-    REQUIRE(click_y > static_cast<float>(arrangement_view.getBottom()));
-    REQUIRE(click_y < static_cast<float>(cursor_overlay.getHeight()));
+    // Seek clicks live in the highway band (the caret model): a click below it — over the tone
+    // strip or lanes — never seeks.
+    const auto below_band_y = static_cast<float>(cursor_overlay.getHeight() - 20);
+    REQUIRE(below_band_y > static_cast<float>(arrangement_view.getBottom()));
+    cursor_overlay.mouseDown(makeMouseDownEvent(
+        cursor_overlay,
+        click_x,
+        below_band_y,
+        juce::ModifierKeys{
+            juce::ModifierKeys::leftButtonModifier | juce::ModifierKeys::ctrlModifier
+        }));
+    CHECK(controller.timeline_seek_count == 0);
+
+    const float click_y = 20.0f;
+    REQUIRE(click_y < static_cast<float>(arrangement_view.getBottom()));
     cursor_overlay.mouseDown(makeMouseDownEvent(
         cursor_overlay,
         click_x,
@@ -955,9 +967,9 @@ TEST_CASE("EditorView timeline click snaps to nearest grid line", "[ui][editor-v
     {
         const int expected_grid_x = static_cast<int>(std::round(*grid_x));
         const auto click_x = static_cast<float>(expected_grid_x + 20);
-        const auto click_y = static_cast<float>(cursor_overlay.getHeight() - 20);
-        REQUIRE(click_y > static_cast<float>(arrangement_view.getBottom()));
-        REQUIRE(click_y < static_cast<float>(cursor_overlay.getHeight()));
+        // Seek clicks live in the highway band (the caret model).
+        const float click_y = 20.0f;
+        REQUIRE(click_y < static_cast<float>(arrangement_view.getBottom()));
         cursor_overlay.mouseDown(makeMouseDownEvent(cursor_overlay, click_x, click_y));
     }
 
@@ -1047,11 +1059,11 @@ TEST_CASE("EditorView subdivision grid and snapping share spacing", "[ui][editor
                 image.getPixelAt(line_x, lower_track_y).getBrightness() -
                 image.getPixelAt(background_x, lower_track_y).getBrightness()) > 0.01f);
 
-        // Overlay clicks near the subdivision snap to its exact time.
+        // Overlay clicks near the subdivision snap to its exact time (inside the highway
+        // band, where seek clicks live under the caret model).
         const auto click_x = static_cast<float>(line_x + 10);
-        const auto click_y = static_cast<float>(cursor_overlay.getHeight() - 20);
-        REQUIRE(click_y > static_cast<float>(arrangement_view.getBottom()));
-        REQUIRE(click_y < static_cast<float>(cursor_overlay.getHeight()));
+        const float click_y = 20.0f;
+        REQUIRE(click_y < static_cast<float>(arrangement_view.getBottom()));
         cursor_overlay.mouseDown(makeMouseDownEvent(cursor_overlay, click_x, click_y));
         CHECK(controller.timeline_seek_count == 1);
         REQUIRE(controller.last_seek_position.has_value());

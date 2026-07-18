@@ -160,22 +160,21 @@ public:
         int minimum_strings) override;
 
     /*!
-    \brief Reads the app-local resume cursor stored for an editor project path.
-    \param project_file Project path whose cursor should be restored.
-    \return Cursor position, or absence when none is stored or the stored value is unreadable.
+    \brief Reads the app-local resume caret stored for an editor project path.
+    \param project_file Project path whose caret should be restored.
+    \return Stored caret, or absence when none is stored or the stored value is unreadable.
     */
-    [[nodiscard]] std::optional<common::core::TimePosition> projectCursorPositionFor(
+    [[nodiscard]] std::optional<EditorProjectCaret> projectCaretFor(
         const std::filesystem::path& project_file) const override;
 
     /*!
-    \brief Stores or replaces the app-local resume cursor for an editor project path.
-    \param project_file Project path that owns the cursor.
-    \param cursor_position Cursor position to restore next time this path is opened.
+    \brief Stores or replaces the app-local resume caret for an editor project path.
+    \param project_file Project path that owns the caret.
+    \param caret Caret to restore next time this path is opened.
     \return Empty success, or a typed settings failure.
     */
-    [[nodiscard]] std::expected<void, EditorSettingsError> saveProjectCursorPosition(
-        const std::filesystem::path& project_file,
-        common::core::TimePosition cursor_position) override;
+    [[nodiscard]] std::expected<void, EditorSettingsError> saveProjectCaret(
+        const std::filesystem::path& project_file, const EditorProjectCaret& caret) override;
 
     /*!
     \brief Reads the app-local timeline grid note value stored for an editor project path.

@@ -151,15 +151,22 @@ TEST_CASE("EditorController successful open stores audio", "[core][editor-contro
     CHECK(view.shown_errors.size() == 1);
 }
 
-// Opening a saved project restores its resume cursor from app-local settings.
+// Opening a saved project restores its resume caret from app-local settings — the exact
+// stored musical address, with the transport parked at the same musical time.
 TEST_CASE("EditorController open restores settings cursor", "[core][editor-controller]")
 {
     const ScopedControllerFiles files{"open_restores_settings_cursor"};
     files.createProjectFile();
     EditorSettings settings{files.settingsFile()};
-    REQUIRE(
-        settings.saveProjectCursorPosition(files.projectFile(), common::core::TimePosition{2.75})
-            .has_value());
+    // Measure 2 beat 2 at the default map's 120 BPM 4/4 is 2.5 seconds.
+    REQUIRE(settings
+                .saveProjectCaret(
+                    files.projectFile(),
+                    EditorProjectCaret{
+                        .position = common::core::GridPosition{.measure = 2, .beat = 2},
+                        .string = 3,
+                    })
+                .has_value());
     FakeTransport transport;
     ConfigurableSongAudio audio;
     FakeProjectServices project_services;
@@ -174,12 +181,13 @@ TEST_CASE("EditorController open restores settings cursor", "[core][editor-contr
     FakeEditorView view;
     controller.attachView(view);
 
-    project_services.next_song =
-        makeSong(std::filesystem::path{"song.wav"}, loadedTimelineRange(6.0));
+    common::core::Song song = makeSong(std::filesystem::path{"song.wav"}, loadedTimelineRange(6.0));
+    song.tempo_map = common::core::TempoMap::defaultMap(loadedTimelineRange(6.0).duration());
+    project_services.next_song = std::move(song);
     controller.onOpenRequested(files.projectFile());
 
-    CHECK(transport.last_seek_position == std::optional{common::core::TimePosition{2.75}});
-    CHECK(transport.current_position == common::core::TimePosition{2.75});
+    CHECK(transport.last_seek_position == std::optional{common::core::TimePosition{2.5}});
+    CHECK(transport.current_position == common::core::TimePosition{2.5});
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
     CHECK(state->project_loaded == true);
@@ -227,7 +235,9 @@ TEST_CASE("EditorController close clears loaded project", "[core][editor-control
     }
 }
 
-// Closing a saved project stores the current cursor before transport stop resets it.
+// Closing a saved chartless project stores the nearest grid line to the transport position as
+// the resume caret before transport stop resets it (chart-bearing projects store the caret's
+// own address).
 TEST_CASE("EditorController close stores settings cursor", "[core][editor-controller]")
 {
     const ScopedControllerFiles files{"close_stores_settings_cursor"};
@@ -247,15 +257,21 @@ TEST_CASE("EditorController close stores settings cursor", "[core][editor-contro
     FakeEditorView view;
     controller.attachView(view);
 
-    project_services.next_song =
-        makeSong(std::filesystem::path{"song.wav"}, loadedTimelineRange(6.0));
+    common::core::Song song = makeSong(std::filesystem::path{"song.wav"}, loadedTimelineRange(6.0));
+    song.tempo_map = common::core::TempoMap::defaultMap(loadedTimelineRange(6.0).duration());
+    project_services.next_song = std::move(song);
     controller.onOpenRequested(files.projectFile());
     transport.current_position = common::core::TimePosition{3.5};
 
     controller.onCloseRequested();
 
-    const auto stored_cursor = settings.projectCursorPositionFor(files.projectFile());
-    CHECK(stored_cursor == std::optional{common::core::TimePosition{3.5}});
+    // 3.5s is measure 2 beat 4 at the default map's 120 BPM 4/4.
+    const auto stored_caret = settings.projectCaretFor(files.projectFile());
+    CHECK(
+        stored_caret == std::optional{EditorProjectCaret{
+                            .position = common::core::GridPosition{.measure = 2, .beat = 4},
+                            .string = 1,
+                        }});
 }
 
 // Exiting persists the editor project path before requesting host shutdown.
@@ -316,7 +332,9 @@ TEST_CASE("EditorController save writes current session song", "[core][editor-co
     const common::core::AudioAsset audio_asset{
         .path = std::filesystem::path{"song.wav"}, .normalization = std::nullopt, .start_offset = {}
     };
-    project_services.next_song = makeSong(audio_asset.path);
+    common::core::Song song = makeSong(audio_asset.path);
+    song.tempo_map = common::core::TempoMap::defaultMap(loadedTimelineRange(6.0).duration());
+    project_services.next_song = std::move(song);
     controller.onOpenRequested(files.projectFile());
     transport.current_position = common::core::TimePosition{1.25};
 
@@ -325,8 +343,14 @@ TEST_CASE("EditorController save writes current session song", "[core][editor-co
     CHECK(project_services.save_call_count == 1);
     CHECK(project_services.save_as_call_count == 0);
     CHECK(project_services.last_save_audio_path == std::optional{audio_asset.path});
-    const auto stored_cursor = settings.projectCursorPositionFor(files.projectFile());
-    CHECK(stored_cursor == std::optional{common::core::TimePosition{1.25}});
+    // 1.25s snaps to the nearest quarter grid line: measure 1 beat 3 (1.0s at 120 BPM 4/4)...
+    // 1.25 sits exactly between beats 3 and 4; the nearest-line tie resolves to one of them,
+    // so probe the stored beat range instead of a single value.
+    const auto stored_caret = settings.projectCaretFor(files.projectFile());
+    REQUIRE(stored_caret.has_value());
+    CHECK(stored_caret->position.measure == 1);
+    CHECK((stored_caret->position.beat == 3 || stored_caret->position.beat == 4));
+    CHECK(stored_caret->string == 1);
     CHECK(view.shown_errors.empty());
 }
 

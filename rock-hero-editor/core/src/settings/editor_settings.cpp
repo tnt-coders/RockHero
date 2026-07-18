@@ -372,9 +372,10 @@ std::expected<void, EditorSettingsError> EditorSettings::setTabMinimumDisplayedS
     return saveIfNeeded(m_properties, "Could not save tablature string display setting.");
 }
 
-// Reads the app-local resume cursor associated with one project path. A missing or unparseable
-// entry reads as absent; the flat key isolates it from every other project's value.
-std::optional<common::core::TimePosition> EditorSettings::projectCursorPositionFor(
+// Reads the app-local resume caret associated with one project path: the exact musical address
+// encoded as "measure:beat:offset_numerator/offset_denominator:string". A missing or
+// unparseable entry (including any pre-caret-model seconds value) reads as absent.
+std::optional<EditorProjectCaret> EditorSettings::projectCaretFor(
     const std::filesystem::path& project_file) const
 {
     const juce::String key = projectSettingKey(g_project_cursor_family, project_file);
@@ -383,30 +384,62 @@ std::optional<common::core::TimePosition> EditorSettings::projectCursorPositionF
         return std::nullopt;
     }
 
-    const std::optional<double> seconds = parseFiniteDouble(m_properties.getValue(key));
-    if (!seconds.has_value())
+    const juce::StringArray parts =
+        juce::StringArray::fromTokens(m_properties.getValue(key), ":", "");
+    if (parts.size() != 4)
+    {
+        return std::nullopt;
+    }
+    const juce::StringArray offset_parts = juce::StringArray::fromTokens(parts[2], "/", "");
+    if (offset_parts.size() != 2)
     {
         return std::nullopt;
     }
 
-    return common::core::TimePosition{*seconds};
+    const EditorProjectCaret caret{
+        .position =
+            common::core::GridPosition{
+                .measure = parts[0].getIntValue(),
+                .beat = parts[1].getIntValue(),
+                .offset =
+                    common::core::Fraction{
+                        offset_parts[0].getIntValue(), offset_parts[1].getIntValue()
+                    },
+            },
+        .string = parts[3].getIntValue(),
+    };
+    if (caret.position.measure < 1 || caret.position.beat < 1 ||
+        caret.position.offset.denominator <= 0 || caret.position.offset.numerator < 0 ||
+        caret.string < 1)
+    {
+        return std::nullopt;
+    }
+    return caret;
 }
 
-// Stores one project's app-local resume cursor under its own flat key.
-std::expected<void, EditorSettingsError> EditorSettings::saveProjectCursorPosition(
-    const std::filesystem::path& project_file, common::core::TimePosition cursor_position)
+// Stores one project's app-local resume caret under its own flat key, as the exact musical
+// address (never a time value: no tempo edit can happen without an open session, so the
+// address always lands the caret back on the same grid slot).
+std::expected<void, EditorSettingsError> EditorSettings::saveProjectCaret(
+    const std::filesystem::path& project_file, const EditorProjectCaret& caret)
 {
     const juce::String key = projectSettingKey(g_project_cursor_family, project_file);
-    if (key.isEmpty() || !std::isfinite(cursor_position.seconds))
+    if (key.isEmpty() || caret.position.measure < 1 || caret.position.beat < 1 ||
+        caret.position.offset.denominator <= 0 || caret.position.offset.numerator < 0 ||
+        caret.string < 1)
     {
         return std::unexpected{EditorSettingsError{
             EditorSettingsErrorCode::InvalidSettingValue,
-            "Cannot save a project cursor for an invalid project path or position."
+            "Cannot save a project caret for an invalid project path or address."
         }};
     }
 
-    m_properties.setValue(key, juce::String(cursor_position.seconds));
-    return saveNow(m_properties, "Could not save project cursor setting.");
+    m_properties.setValue(
+        key,
+        juce::String(caret.position.measure) + ":" + juce::String(caret.position.beat) + ":" +
+            juce::String(caret.position.offset.numerator) + "/" +
+            juce::String(caret.position.offset.denominator) + ":" + juce::String(caret.string));
+    return saveNow(m_properties, "Could not save project caret setting.");
 }
 
 // Reads the app-local timeline grid note value associated with one project path.

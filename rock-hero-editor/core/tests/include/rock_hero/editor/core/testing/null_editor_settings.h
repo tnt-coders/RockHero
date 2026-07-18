@@ -156,21 +156,21 @@ public:
     }
 
     /*!
-    \brief Reports that no app-local project cursor is stored.
+    \brief Reports that no app-local project caret is stored.
     \return Always empty optional success.
     */
-    [[nodiscard]] std::optional<common::core::TimePosition> projectCursorPositionFor(
+    [[nodiscard]] std::optional<EditorProjectCaret> projectCaretFor(
         const std::filesystem::path&) const override
     {
         return std::nullopt;
     }
 
     /*!
-    \brief Ignores app-local project cursor writes.
+    \brief Ignores app-local project caret writes.
     \return Always empty success.
     */
-    [[nodiscard]] std::expected<void, EditorSettingsError> saveProjectCursorPosition(
-        const std::filesystem::path&, common::core::TimePosition) override
+    [[nodiscard]] std::expected<void, EditorSettingsError> saveProjectCaret(
+        const std::filesystem::path&, const EditorProjectCaret&) override
     {
         return {};
     }

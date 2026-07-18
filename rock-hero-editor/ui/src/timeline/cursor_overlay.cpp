@@ -77,6 +77,16 @@ void CursorOverlay::setHitTestPassThrough(std::function<bool(juce::Point<int>)> 
     m_hit_test_pass_through = std::move(pass_through);
 }
 
+void CursorOverlay::setPausedCursorHidden(bool hidden) noexcept
+{
+    m_paused_cursor_hidden = hidden;
+}
+
+void CursorOverlay::setSeekBandHeight(int height) noexcept
+{
+    m_seek_band_height = height;
+}
+
 // Claims pointer events except where the pass-through predicate declines them.
 bool CursorOverlay::hitTest(int x, int y)
 {
@@ -88,10 +98,12 @@ bool CursorOverlay::hitTest(int x, int y)
     return true;
 }
 
-// Converts editor-wide timeline clicks into timeline seek intent.
+// Converts highway-band timeline clicks into timeline seek intent. Clicks below the band —
+// the tone strip and automation lanes — never seek or move the position (the caret model).
 void CursorOverlay::mouseDown(const juce::MouseEvent& event)
 {
-    if (getWidth() <= 0 || !event.mods.isLeftButtonDown())
+    if (getWidth() <= 0 || !event.mods.isLeftButtonDown() ||
+        (m_seek_band_height > 0 && event.position.y > static_cast<float>(m_seek_band_height)))
     {
         return;
     }
@@ -110,10 +122,16 @@ void CursorOverlay::mouseDown(const juce::MouseEvent& event)
 }
 
 // Samples the current position at render cadence and invalidates only changed cursor strips.
+// While a chart's caret owns the paused position, the playhead renders only during playback
+// (the caret model, 2026-07-17); chartless arrangements keep the paused playhead visible as
+// their only indicator.
 void CursorOverlay::advanceCursor()
 {
-    const auto next_cursor_x =
-        cursorXForTimelinePosition(m_transport.position(), m_visible_timeline, getWidth());
+    const bool cursor_visible = m_transport.state().playing || !m_paused_cursor_hidden;
+    const std::optional<float> next_cursor_x =
+        cursor_visible
+            ? cursorXForTimelinePosition(m_transport.position(), m_visible_timeline, getWidth())
+            : std::nullopt;
 
     if (next_cursor_x == m_cursor_x)
     {
