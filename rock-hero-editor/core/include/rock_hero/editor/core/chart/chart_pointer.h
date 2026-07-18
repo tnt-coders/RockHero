@@ -56,6 +56,14 @@ struct ChartPointerEvent
 
     /*! \brief Modifier keys held during the event. */
     ChartPointerModifiers modifiers{};
+
+    /*!
+    \brief Consecutive-click count of the gesture (1 = single click, 2 = double click).
+
+    Selection granularity follows the containment hierarchy (settled 2026-07-17): a single
+    click selects the individual note, a double click its whole onset group.
+    */
+    int clicks{1};
 };
 
 /*! \brief Direction of an arrow-key step in the tablature lane. */

@@ -1713,32 +1713,30 @@ void EditorController::Impl::insertChartNoteAt(const ChartPointerEvent& event)
     note.position = placement->first;
     note.string = placement->second;
     note.fret = std::clamp(m_chart_last_fret, 0, common::core::g_max_fret);
-    // Select the whole resulting onset group, not just the placed note: placing into an
-    // existing stack forms a chord, and chords are one cohesive unit (settled 2026-07-17).
-    // Group membership is computed from the pre-apply chart — cross-string notes at the onset
-    // survive the insert plan untouched — minus any same-string occupant the plan replaces.
-    std::vector<ChartNoteKey> group = chartOnsetGroupKeys(arrangement->chart->notes, note.position);
-    std::erase_if(group, [&note](const ChartNoteKey& key) { return key.string == note.string; });
-    group.push_back(ChartNoteKey{.position = note.position, .string = note.string});
-    // Notes placed during one Alt hold accumulate in the selection (settled 2026-07-17) so a
-    // follow-up wheel adjusts the whole just-entered run; the first placement of a session
-    // replaces the selection as before.
+    // Select the placed note (selection granularity is the individual note per the containment
+    // hierarchy). Notes placed during one Alt hold accumulate in the selection (settled
+    // 2026-07-17) so a follow-up wheel adjusts the whole just-entered run; the first placement
+    // of a session replaces the selection.
+    std::vector<ChartNoteKey> placed{
+        ChartNoteKey{.position = note.position, .string = note.string}
+    };
     if (m_chart_insert_session_active)
     {
         const std::vector<ChartNoteKey>& selected = m_chart_selection.notes();
-        group.insert(group.end(), selected.begin(), selected.end());
+        placed.insert(placed.end(), selected.begin(), selected.end());
     }
     m_chart_insert_session_active = true;
     static_cast<void>(applyChartEditPlan(
-        planInsertNote(*arrangement->chart, session().song().tempo_map, note), std::move(group)));
+        planInsertNote(*arrangement->chart, session().song().tempo_map, note), std::move(placed)));
 }
 
-// Arms the gesture and applies glyph-press selection per the interaction grammar: plain press
-// selects the whole onset group — chords are one cohesive unit (settled 2026-07-17) — keeping
-// an existing multi-selection intact so a future drag can move it; Ctrl toggles the individual
-// note. Shift is reassigned to plan 52's time-range selection and behaves as plain until that
-// lands. Alt is the insertion quasimode: the press arms it and the release commits the note at
-// the snapped release point.
+// Arms the gesture and applies glyph-press selection per the containment hierarchy (settled
+// 2026-07-17): a single press selects the individual note — keeping an existing
+// multi-selection intact so a future drag can move it — a double press selects the note's
+// whole onset group (its chord), and Ctrl toggles individual membership. Shift is reassigned
+// to plan 52's time-range selection and behaves as plain until that lands. Alt is the
+// insertion quasimode: the press arms it and the release commits the note at the snapped
+// release point.
 void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
 {
     const common::core::TabViewState* const tab = displayedTabProjection();
@@ -1778,10 +1776,14 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
     {
         m_chart_selection.toggle(*key);
     }
-    else if (!m_chart_selection.contains(*key))
+    else if (event.clicks >= 2)
     {
         m_chart_selection.replaceWith(
             chartOnsetGroupKeys(session().currentArrangement()->chart->notes, key->position));
+    }
+    else if (!m_chart_selection.contains(*key))
+    {
+        m_chart_selection.replaceWith(*key);
     }
     // The selection highlight is the whole feedback for a glyph press (user feedback
     // 2026-07-17: no extra cursor furniture on selection).
@@ -1850,15 +1852,14 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
     {
         const bool clicked = std::abs(event.x - gesture.anchor_x) <= g_chart_click_threshold_px &&
                              std::abs(event.y - gesture.anchor_y) <= g_chart_click_threshold_px;
-        // A completed plain click on a selected note collapses the selection to its onset
-        // group — the chord unit, not the single note (settled 2026-07-17).
-        if (clicked && !gesture.modifiers.ctrl)
+        // A completed single click on a selected note collapses the selection to that note;
+        // the second release of a double click leaves the group selection standing.
+        if (clicked && !gesture.modifiers.ctrl && event.clicks < 2)
         {
             if (const std::optional<ChartNoteKey> key = chartNoteKeyAt(*gesture.hit_note);
                 key.has_value())
             {
-                m_chart_selection.replaceWith(chartOnsetGroupKeys(
-                    session().currentArrangement()->chart->notes, key->position));
+                m_chart_selection.replaceWith(*key);
             }
         }
         updateView();

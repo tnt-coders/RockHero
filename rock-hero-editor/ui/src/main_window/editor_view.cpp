@@ -1009,13 +1009,23 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
             {
                 if (shift)
                 {
-                    // Shift+Alt+Left/Right: sustain resize on the chart selection.
+                    // Alt+Shift + axis picks the property: horizontal resizes extent in time,
+                    // vertical shifts frets — matching Alt+Shift+wheel, whose vertical gesture
+                    // shifts frets the same way (2026-07-17 consistency pass).
                     if (chart_shown && !m_state.chart_edit.selected_notes.empty() &&
                         (*arrow_direction == core::ChartStepDirection::Left ||
                          *arrow_direction == core::ChartStepDirection::Right))
                     {
                         m_controller.onChartSustainAdjustRequested(
                             *arrow_direction == core::ChartStepDirection::Right ? 1 : -1, fine);
+                        return true;
+                    }
+                    if (chart_shown && !m_state.chart_edit.selected_notes.empty() &&
+                        (*arrow_direction == core::ChartStepDirection::Up ||
+                         *arrow_direction == core::ChartStepDirection::Down))
+                    {
+                        m_controller.onChartFretShiftRequested(
+                            *arrow_direction == core::ChartStepDirection::Up ? 1 : -1);
                         return true;
                     }
                     return false;

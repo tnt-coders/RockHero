@@ -76,9 +76,12 @@ namespace
         6);
 }
 
-[[nodiscard]] ChartPointerEvent pointerEvent(float x, float y, ChartPointerModifiers modifiers = {})
+[[nodiscard]] ChartPointerEvent pointerEvent(
+    float x, float y, ChartPointerModifiers modifiers = {}, int clicks = 1)
 {
-    return ChartPointerEvent{.geometry = makeGeometry(), .x = x, .y = y, .modifiers = modifiers};
+    return ChartPointerEvent{
+        .geometry = makeGeometry(), .x = x, .y = y, .modifiers = modifiers, .clicks = clicks
+    };
 }
 
 // Presses and releases at the same point, the plain click gesture.
@@ -86,6 +89,15 @@ void click(EditorController& controller, float x, float y, ChartPointerModifiers
 {
     controller.onChartPointerDown(pointerEvent(x, y, modifiers));
     controller.onChartPointerUp(pointerEvent(x, y, modifiers));
+}
+
+// Two click gestures with the second pair reporting a consecutive-click count of two, matching
+// how JUCE delivers a double click.
+void doubleClick(EditorController& controller, float x, float y)
+{
+    click(controller, x, y);
+    controller.onChartPointerDown(pointerEvent(x, y, {}, 2));
+    controller.onChartPointerUp(pointerEvent(x, y, {}, 2));
 }
 
 } // namespace
@@ -109,14 +121,17 @@ TEST_CASE("EditorController selects a chart note on glyph click", "[core][chart]
     REQUIRE(loadChartArrangement(controller, project_services, audio));
     const int seek_baseline = transport.seek_call_count;
 
-    // A plain click selects the whole onset group: the two measure-2 notes form a chord and
-    // chords are one cohesive unit (settled 2026-07-17).
+    // The containment hierarchy: a single click selects the individual note, a double click
+    // its whole onset group (settled 2026-07-17).
     click(controller, 40.0f, 220.0f);
 
     REQUIRE(view.last_state.has_value());
     const ChartEditViewState& edit = view.last_state->chart_edit;
-    CHECK(edit.selected_notes == (std::vector<std::size_t>{0, 1}));
+    CHECK(edit.selected_notes == std::vector<std::size_t>{0});
     CHECK(transport.seek_call_count == seek_baseline);
+
+    doubleClick(controller, 40.0f, 220.0f);
+    CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1}));
 
     // A sustain-tail click (right of the measure-3 head, inside its one-second tail) selects
     // the sustained note the tail belongs to.
@@ -124,8 +139,8 @@ TEST_CASE("EditorController selects a chart note on glyph click", "[core][chart]
     CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{2});
 }
 
-// Ctrl toggles individual membership while plain clicks act on the chord unit, per the settled
-// selection granularity (2026-07-17).
+// Ctrl toggles individual membership; plain clicks select individual notes per the containment
+// hierarchy (2026-07-17).
 TEST_CASE("EditorController toggles and extends the chart selection", "[core][chart]")
 {
     FakeTransport transport;
@@ -143,26 +158,26 @@ TEST_CASE("EditorController toggles and extends the chart selection", "[core][ch
     controller.attachView(view);
     REQUIRE(loadChartArrangement(controller, project_services, audio));
 
-    // The plain click takes the whole chord; Ctrl removes one member from it.
+    // The plain click selects one note; Ctrl adds another individually.
     click(controller, 40.0f, 220.0f);
     click(controller, 40.0f, 180.0f, ChartPointerModifiers{.ctrl = true});
     REQUIRE(view.last_state.has_value());
-    CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{0});
-
-    // Toggling the same note again re-adds it individually.
-    click(controller, 40.0f, 180.0f, ChartPointerModifiers{.ctrl = true});
     CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1}));
 
+    // Toggling the same note again removes it.
+    click(controller, 40.0f, 180.0f, ChartPointerModifiers{.ctrl = true});
+    CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{0});
+
     // Shift behaves as plain until plan 52's time-range selection lands: it replaces the
-    // selection with the clicked note's onset group.
+    // selection with the clicked note.
     click(controller, 80.0f, 220.0f, ChartPointerModifiers{.shift = true});
     CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{2});
 
-    // A plain click on a selected note collapses the selection to that note's onset group.
+    // A plain click on one note of a multi-selection collapses the selection to it.
     click(controller, 40.0f, 220.0f, ChartPointerModifiers{.ctrl = true});
     CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 2}));
     click(controller, 40.0f, 220.0f);
-    CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1}));
+    CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{0});
 }
 
 // Typed digits set every selected note to the typed value; Alt+Shift+wheel's fret-shift intent
@@ -185,8 +200,9 @@ TEST_CASE("EditorController sets frets by typing and shifts them by wheel", "[co
     controller.attachView(view);
     REQUIRE(loadChartArrangement(controller, project_services, audio));
 
-    // The measure-2 chord is frets 3 and 5; typing 9 sets BOTH members to 9.
-    click(controller, 40.0f, 220.0f);
+    // The measure-2 chord is frets 3 and 5; double-clicking selects the whole chord and
+    // typing 9 sets BOTH members to 9.
+    doubleClick(controller, 40.0f, 220.0f);
     REQUIRE(view.last_state.has_value());
     CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1}));
     controller.onChartFretDigitTyped(9);
@@ -382,15 +398,15 @@ TEST_CASE("EditorController inserts a chart note via the Alt quasimode", "[core]
     chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes.size() == 4);
 
-    // Placing into an existing stack selects the whole resulting onset group: the string-3
-    // insert at measure 2 forms a three-note chord with the fixture's two notes. The session
-    // end models a fresh Alt press, so the earlier placement does not accumulate in.
+    // Placing into an existing stack selects just the placed note (containment hierarchy:
+    // selection granularity is the individual note). The session end models a fresh Alt
+    // press, so the earlier placement does not accumulate in.
     controller.onChartInsertSessionEnded();
     click(controller, 40.0f, 140.0f, alt);
     chart = &*controller.session().currentArrangement()->chart;
     REQUIRE(chart->notes.size() == 5);
     CHECK(chart->notes[2].string == 3);
-    CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1, 2}));
+    CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{2});
 }
 
 // Alt+digits compose the pending insert fret (published to the ghost, no undo involvement),
@@ -491,8 +507,8 @@ TEST_CASE("EditorController deletes the chart selection undoably", "[core][chart
     controller.attachView(view);
     REQUIRE(loadChartArrangement(controller, project_services, audio));
 
-    // One plain click selects the whole measure-2 chord (both strings).
-    click(controller, 40.0f, 220.0f);
+    // A double click selects the whole measure-2 chord (both strings).
+    doubleClick(controller, 40.0f, 220.0f);
     controller.onChartSelectionDeleteRequested();
 
     const auto* chart = &*controller.session().currentArrangement()->chart;
@@ -524,8 +540,8 @@ TEST_CASE("EditorController fret digits combine inside the entry window", "[core
     controller.attachView(view);
     REQUIRE(loadChartArrangement(controller, project_services, audio));
 
-    // Ctrl-click isolates the single string-1 note (a plain click would take the whole chord).
-    click(controller, 40.0f, 220.0f, ChartPointerModifiers{.ctrl = true});
+    // A plain click selects just the string-1 note (containment hierarchy).
+    click(controller, 40.0f, 220.0f);
     REQUIRE(view.last_state.has_value());
     const std::size_t entries_before = view.last_state->undo_history.labels.size();
 
@@ -574,8 +590,8 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
     controller.attachView(view);
     REQUIRE(loadChartArrangement(controller, project_services, audio));
 
-    // Ctrl-click isolates the single string-1 note (a plain click would take the whole chord).
-    click(controller, 40.0f, 220.0f, ChartPointerModifiers{.ctrl = true});
+    // A plain click selects just the string-1 note (containment hierarchy).
+    click(controller, 40.0f, 220.0f);
     controller.onChartSustainAdjustRequested(1, false);
     const auto* chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes[0].sustain == common::core::Fraction{1, 1});
@@ -616,8 +632,8 @@ TEST_CASE("EditorController nudges the selection and refuses collisions", "[core
     controller.attachView(view);
     REQUIRE(loadChartArrangement(controller, project_services, audio));
 
-    // Ctrl-click isolates the single string-1 note (a plain click would take the whole chord).
-    click(controller, 40.0f, 220.0f, ChartPointerModifiers{.ctrl = true});
+    // A plain click selects just the string-1 note (containment hierarchy).
+    click(controller, 40.0f, 220.0f);
 
     // Plain arrows never mutate: with a selection they still step the timeline cursor.
     controller.onChartCursorStepRequested(ChartStepDirection::Right, false);
