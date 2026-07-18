@@ -397,6 +397,27 @@ an input identity build their OWN LiveInputMonitor over their own fakes and inje
 }
 
 /*!
+\brief Returns a nullable pointer to the armed caret so tests can satisfy optional-access lint.
+\param edit Chart-edit view state that may or may not carry an armed caret.
+\return Pointer to the contained caret state, or nullptr.
+*/
+[[nodiscard]] inline const ChartCaretViewState* caretOrNull(const ChartEditViewState& edit) noexcept
+{
+    return edit.caret.has_value() ? &*edit.caret : nullptr;
+}
+
+/*!
+\brief Returns a nullable pointer to the in-flight marquee so tests can satisfy optional-access lint.
+\param edit Chart-edit view state that may or may not carry a marquee rectangle.
+\return Pointer to the contained marquee state, or nullptr.
+*/
+[[nodiscard]] inline const ChartMarqueeViewState* marqueeOrNull(
+    const ChartEditViewState& edit) noexcept
+{
+    return edit.marquee.has_value() ? &*edit.marquee : nullptr;
+}
+
+/*!
 \brief Extracts live-rig busy states so tests can assert the progress sequence directly.
 \param view Fake view containing pushed state history.
 \return Busy states whose operation is LoadingLiveRig.

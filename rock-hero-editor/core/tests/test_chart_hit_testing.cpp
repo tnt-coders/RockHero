@@ -132,7 +132,7 @@ TEST_CASE("Chart hit testing collects notes inside a marquee box", "[core][chart
 // keys whose notes vanished drop out instead of mismapping.
 TEST_CASE("Chart selection resolves keys to projection indices", "[core][chart]")
 {
-    std::vector<common::core::ChartNote> notes{
+    const std::vector<common::core::ChartNote> notes{
         common::core::ChartNote{
             .position = {.measure = 2, .beat = 1, .offset = {}},
             .string = 1,

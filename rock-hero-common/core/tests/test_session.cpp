@@ -301,7 +301,7 @@ TEST_CASE("Session currentChart advances the chart revision", "[core][session]")
     song_with_chart.arrangements.front().chart = Chart{};
     REQUIRE(session.loadSong(std::move(song_with_chart), 0));
 
-    Chart* const chart = session.currentChart();
+    const Chart* const chart = session.currentChart();
     REQUIRE(chart != nullptr);
     CHECK(session.chartRevision() == 1);
     CHECK(session.currentChart() == chart);
