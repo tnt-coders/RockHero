@@ -23,14 +23,31 @@ namespace
 
 #if JUCE_WINDOWS
 
+// Window procedure for the embedded render child: DefWindowProc everything except keyboard
+// focus, which bounces straight back to the JUCE peer. Clicking the 3D view activates the
+// preview window with OS keyboard focus landing on this child — a window that would silently
+// swallow every keystroke, killing the space/F3 transport shortcuts (regression found
+// 2026-07-18). The bounce hands focus to the peer, whose focus-gain restores the
+// PreviewSurface component, so keys keep flowing to PreviewWindow::keyPressed.
+LRESULT CALLBACK previewChildWindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_param)
+{
+    if (message == WM_SETFOCUS)
+    {
+        SetFocus(GetParent(hwnd));
+        return 0;
+    }
+    return DefWindowProcW(hwnd, message, w_param, l_param);
+}
+
 // Registers (once) a paint-inert window class for the embedded render child: no background
-// brush, default proc — the swapchain owns every pixel, so Windows must never erase it.
+// brush, focus-bouncing proc — the swapchain owns every pixel, so Windows must never erase
+// it, and the child must never hold keyboard focus.
 [[nodiscard]] const wchar_t* previewChildWindowClass()
 {
     static const wchar_t* g_class_name = [] {
         WNDCLASSEXW window_class{};
         window_class.cbSize = sizeof(WNDCLASSEXW);
-        window_class.lpfnWndProc = DefWindowProcW;
+        window_class.lpfnWndProc = previewChildWindowProc;
         window_class.hInstance = GetModuleHandleW(nullptr);
         window_class.lpszClassName = L"RockHeroPreviewSurface";
         RegisterClassExW(&window_class);
@@ -50,9 +67,10 @@ PreviewSurface::PreviewSurface(
 {
     setOpaque(true);
     // Hold the preview window's keyboard focus so transport shortcuts (space/F3) reach
-    // PreviewWindow::keyPressed and forward to the editor (44-Q4). The embedded render child is a
-    // DefWindowProc window that never calls SetFocus, so clicking the 3D view does not steal focus
-    // while the preview is active -- focus stays on this surface.
+    // PreviewWindow::keyPressed and forward to the editor (44-Q4). Clicking the 3D view lands
+    // OS focus on the embedded render child, whose window proc bounces it straight back to the
+    // peer (see previewChildWindowProc) — the peer's focus-gain then restores this surface, so
+    // focus can never strand where keystrokes would be swallowed.
     setWantsKeyboardFocus(true);
 }
 
