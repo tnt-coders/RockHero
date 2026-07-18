@@ -429,8 +429,8 @@ public:
     /*! \copydoc IEditorController::onChartPointerUp */
     void onChartPointerUp(const ChartPointerEvent& event) override;
 
-    /*! \copydoc IEditorController::onChartCursorStepRequested */
-    void onChartCursorStepRequested(ChartStepDirection direction, bool fine) override;
+    /*! \copydoc IEditorController::onChartCaretStepRequested */
+    void onChartCaretStepRequested(ChartStepDirection direction, bool measure) override;
 
     /*! \copydoc IEditorController::onChartSelectionMoveRequested */
     void onChartSelectionMoveRequested(ChartStepDirection direction, bool fine) override;
@@ -443,12 +443,6 @@ public:
 
     /*! \copydoc IEditorController::onChartFretShiftRequested */
     void onChartFretShiftRequested(int direction) override;
-
-    /*! \copydoc IEditorController::onChartInsertFretDigitTyped */
-    void onChartInsertFretDigitTyped(int digit) override;
-
-    /*! \copydoc IEditorController::onChartInsertSessionEnded */
-    void onChartInsertSessionEnded() override;
 
     /*! \copydoc IEditorController::onChartSustainAdjustRequested */
     void onChartSustainAdjustRequested(int direction, bool fine) override;

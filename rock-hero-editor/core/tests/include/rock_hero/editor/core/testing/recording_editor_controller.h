@@ -239,12 +239,12 @@ public:
         chart_pointer_up_count += 1;
     }
 
-    /*! \copydoc IEditorController::onChartCursorStepRequested */
-    void onChartCursorStepRequested(ChartStepDirection direction, bool fine) override
+    /*! \copydoc IEditorController::onChartCaretStepRequested */
+    void onChartCaretStepRequested(ChartStepDirection direction, bool measure) override
     {
-        last_chart_cursor_step_direction = direction;
-        last_chart_cursor_step_fine = fine;
-        chart_cursor_step_count += 1;
+        last_chart_caret_step_direction = direction;
+        last_chart_caret_step_measure = measure;
+        chart_caret_step_count += 1;
     }
 
     /*! \copydoc IEditorController::onChartSelectionMoveRequested */
@@ -273,19 +273,6 @@ public:
     {
         last_chart_fret_shift_direction = direction;
         chart_fret_shift_count += 1;
-    }
-
-    /*! \copydoc IEditorController::onChartInsertFretDigitTyped */
-    void onChartInsertFretDigitTyped(int digit) override
-    {
-        last_chart_insert_fret_digit = digit;
-        chart_insert_fret_digit_count += 1;
-    }
-
-    /*! \copydoc IEditorController::onChartInsertSessionEnded */
-    void onChartInsertSessionEnded() override
-    {
-        chart_insert_session_end_count += 1;
     }
 
     /*! \copydoc IEditorController::onChartSustainAdjustRequested */
@@ -717,14 +704,14 @@ public:
     /*! \brief Number of onChartPointerUp() intents received. */
     int chart_pointer_up_count{0};
 
-    /*! \brief Last cursor-step direction received. */
-    std::optional<ChartStepDirection> last_chart_cursor_step_direction{};
+    /*! \brief Last caret-step direction received. */
+    std::optional<ChartStepDirection> last_chart_caret_step_direction{};
 
-    /*! \brief Fine-grid flag of the last cursor step received. */
-    bool last_chart_cursor_step_fine{false};
+    /*! \brief Measure-jump flag of the last caret step received. */
+    bool last_chart_caret_step_measure{false};
 
-    /*! \brief Number of onChartCursorStepRequested() intents received. */
-    int chart_cursor_step_count{0};
+    /*! \brief Number of onChartCaretStepRequested() intents received. */
+    int chart_caret_step_count{0};
 
     /*! \brief Last selection-move direction received. */
     std::optional<ChartStepDirection> last_chart_selection_move_direction{};
@@ -746,15 +733,6 @@ public:
 
     /*! \brief Number of onChartFretShiftRequested() intents received. */
     int chart_fret_shift_count{0};
-
-    /*! \brief Last pending-insert fret digit received. */
-    int last_chart_insert_fret_digit{-1};
-
-    /*! \brief Number of onChartInsertFretDigitTyped() intents received. */
-    int chart_insert_fret_digit_count{0};
-
-    /*! \brief Number of onChartInsertSessionEnded() intents received. */
-    int chart_insert_session_end_count{0};
 
     /*! \brief Number of onChartFretDigitTyped() intents received. */
     int chart_fret_digit_count{0};

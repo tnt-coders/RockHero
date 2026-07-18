@@ -354,6 +354,33 @@ struct ChartMarqueeViewState
 };
 
 /*!
+\brief The editing caret's rendered position while it sits on an empty grid slot.
+
+One position concept per transport state (the caret model, 2026-07-17): while paused the caret
+is THE position — typing inserts here, play starts here. Published in seconds so the lane maps
+it through the same visible-timeline convention as the notation.
+*/
+struct ChartCaretViewState
+{
+    /*! \brief Caret position in seconds on the arrangement timeline. */
+    double seconds{};
+
+    /*! \brief One-based string, counted from the lowest-pitched string. */
+    int string{1};
+
+    /*!
+    \brief Compares two caret states by their stored values.
+    \param lhs Left-hand state.
+    \param rhs Right-hand state.
+    \return True when both states store equal values.
+    */
+    friend bool operator==(const ChartCaretViewState& lhs, const ChartCaretViewState& rhs)
+    {
+        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.string == rhs.string;
+    }
+};
+
+/*!
 \brief Chart-editing selection state rendered as overlays above the tablature notation.
 
 Selected notes are indices into the current tab projection's note order (which matches the
@@ -369,13 +396,13 @@ struct ChartEditViewState
     std::optional<ChartMarqueeViewState> marquee{};
 
     /*!
-    \brief Fret the next Alt+click insert will carry.
+    \brief The editing caret while it sits on an EMPTY grid slot (the caret model).
 
-    The Alt-held ghost preview renders the full note a click would place — string-colored head
-    plus this numeral — and Alt+digits compose the value before placement (no undo
-    involvement; the pending fret is transient until a placement commits it).
+    Rendered as a white circle at the slot a typed digit would fill. Absent while the caret
+    sits on a note — there the note's selection highlight is the caret display — and absent
+    without a chart.
     */
-    int insert_fret{0};
+    std::optional<ChartCaretViewState> caret{};
 
     /*!
     \brief Compares two chart-editing states by their stored values.

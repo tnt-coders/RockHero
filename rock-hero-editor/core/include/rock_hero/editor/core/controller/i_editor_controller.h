@@ -218,17 +218,18 @@ public:
     virtual void onChartPointerUp(const ChartPointerEvent& event) = 0;
 
     /*!
-    \brief Handles an arrow-key step of the timeline cursor from the tablature lane.
+    \brief Handles an arrow-key movement of the editing caret (the caret model, 2026-07-17).
 
-    Pure navigation, never a mutation (the interaction model's "plain keys never mutate" rule):
-    Left/Right seek the ONE timeline cursor to the adjacent rendered grid line (the fine
-    1/960-beat step when \p fine is set). There is no separate editing caret — the playhead is
-    the position concept — so vertical directions have no navigation meaning and are ignored.
+    Left/Right step the caret to the adjacent grid line on its string — or to the
+    previous/next measure start when \p measure is set (the Guitar Pro jump) — and Up/Down
+    move it across strings. Movement re-derives the selection from what sits under the caret:
+    a note becomes selected, an empty slot clears the selection (the white-circle caret shows
+    where typing will insert).
 
-    \param direction Step direction; only Left and Right act.
-    \param fine True when the precision modifier requests the fine grid.
+    \param direction Step direction.
+    \param measure True when Ctrl requests the measure jump (Left/Right only).
     */
-    virtual void onChartCursorStepRequested(ChartStepDirection direction, bool fine) = 0;
+    virtual void onChartCaretStepRequested(ChartStepDirection direction, bool measure) = 0;
 
     /*!
     \brief Handles a keyboard move of the selected chart notes (the Alt authoring modifier).
@@ -247,13 +248,14 @@ public:
     virtual void onChartSelectionDeleteRequested() = 0;
 
     /*!
-    \brief Handles a typed fret digit for the selected chart notes.
+    \brief Handles a typed fret digit: retype the selection, or insert at the empty caret.
 
-    Typing sets every selected note to the typed value — what you type is what appears
-    (settled 2026-07-17; shape-preserving movement is the separate fret-shift verb). Digits
-    within the multi-digit entry window combine (typing 1 then 2 retypes to fret 12, capped
-    at the fret maximum); a digit outside the window starts a fresh value. Each keystroke
-    applies immediately so the notation always shows the current value.
+    With a note selection, typing sets every selected note to the typed value — what you type
+    is what appears. With no selection and the caret on an empty grid slot, typing INSERTS a
+    note there with the typed fret (the caret model, 2026-07-17). Digits within the
+    multi-digit entry window combine (typing 1 then 2 yields fret 12 as ONE undo entry — a
+    widened insert stays an insert); a digit outside the window starts a fresh value. Each
+    keystroke applies immediately so the notation always shows the current value.
 
     \param digit Typed digit in [0, 9].
     */
@@ -269,26 +271,6 @@ public:
     \param direction +1 to shift up, -1 to shift down.
     */
     virtual void onChartFretShiftRequested(int direction) = 0;
-
-    /*!
-    \brief Handles an Alt-held digit composing the pending insert fret.
-
-    The value the ghost preview shows and the next Alt+click placement carries. Digits combine
-    in the same multi-digit entry window as selection fret typing, but nothing mutates and no
-    undo entry exists — the pending fret is transient until a placement commits it.
-
-    \param digit Typed digit in [0, 9].
-    */
-    virtual void onChartInsertFretDigitTyped(int digit) = 0;
-
-    /*!
-    \brief Handles the end of an Alt insert session (the Alt key released).
-
-    Notes placed during a single Alt hold accumulate in the selection so a follow-up wheel
-    adjusts the whole run; releasing Alt closes the session and the next placement starts a
-    fresh selection.
-    */
-    virtual void onChartInsertSessionEnded() = 0;
 
     /*!
     \brief Handles a request to grow or shrink the selected notes' sustains by one grid step.

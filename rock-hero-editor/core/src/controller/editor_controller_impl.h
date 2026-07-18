@@ -148,18 +148,20 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onChartPointerDown(const ChartPointerEvent& event);
     void onChartPointerDrag(const ChartPointerEvent& event);
     void onChartPointerUp(const ChartPointerEvent& event);
-    void onChartCursorStepRequested(ChartStepDirection direction, bool fine);
+    void onChartCaretStepRequested(ChartStepDirection direction, bool measure);
     void onChartSelectionMoveRequested(ChartStepDirection direction, bool fine);
     void onChartSelectionDeleteRequested();
     void onChartFretDigitTyped(int digit);
     void onChartFretShiftRequested(int direction);
-    void onChartInsertFretDigitTyped(int digit);
-    void onChartInsertSessionEnded();
     void onChartSustainAdjustRequested(int direction, bool fine);
     void onChartGestureCancelled();
     [[nodiscard]] const common::core::TabViewState* displayedTabProjection() const;
     [[nodiscard]] std::optional<ChartNoteKey> chartNoteKeyAt(std::size_t projection_index) const;
     void clearChartEditingState();
+    void resetChartCaret();
+    // Moves the caret and re-derives the selection from what sits under it (a note selects, an
+    // empty slot clears).
+    void placeChartCaret(common::core::GridPosition position, int string);
     [[nodiscard]] std::optional<std::pair<common::core::GridPosition, int>> chartPlacementAt(
         const ChartPointerEvent& event) const;
     [[nodiscard]] common::core::Fraction chartGridStepBeats(
@@ -167,7 +169,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     bool applyChartEditPlan(
         std::optional<ChartNotesEditPlan> plan,
         std::optional<std::vector<ChartNoteKey>> select_exactly = std::nullopt);
-    void insertChartNoteAt(const ChartPointerEvent& event);
+    void insertChartNoteAtCaret(int fret);
     [[nodiscard]] std::string toneRegionIdAt(common::core::TimePosition position) const;
     [[nodiscard]] std::string activeToneRegionId() const;
     [[nodiscard]] std::string activeToneDocumentRef() const;
@@ -611,9 +613,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     std::string m_selected_tone_region_id{};
 
     // Chart-editing selection for the tablature lane; keys are (position, string) so they
-    // survive unrelated edits. Cleared on project load/close and arrangement switches. There is
-    // no separate editing caret: the timeline cursor is the one position concept (user decision
-    // 2026-07-17).
+    // survive unrelated edits. Cleared on project load/close and arrangement switches. The
+    // selection stays co-located with the caret (the caret model): clicking or arrowing onto a
+    // note selects it, onto an empty slot clears it.
     ChartSelection m_chart_selection{};
 
     // In-flight tablature pointer gesture: armed on Down, disambiguated into click vs. marquee by
@@ -630,14 +632,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         bool marquee{false};
         // Set when Down hit a glyph; the gesture then owns selection instead of click-vs-marquee.
         std::optional<std::size_t> hit_note{};
-        // True for an Alt press: the insert quasimode, committing a note at the release point.
-        bool alt_insert{false};
     };
     std::optional<ChartPointerGesture> m_chart_gesture{};
-
-    // Fret carried by the next inserted note: the last fret typed or placed (interaction model's
-    // "last-used fret"). Zero (open string) before any fret has been used.
-    int m_chart_last_fret{0};
 
     // In-flight multi-digit fret entry: the value typed so far, the tick of its last keystroke,
     // the pre-entry note values (so the widened undo entry still restores the originals), the
@@ -651,24 +647,24 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         std::uint32_t last_keystroke_ms{};
         std::vector<common::core::ChartNote> base_notes{};
         std::vector<ChartNoteKey> keys{};
+        // Set when the entry began as a caret insert: widening rebuilds this plan with the
+        // combined fret so the entry stays ONE insert (undo removes the note), never
+        // degrading into a retype that would strand it.
+        std::optional<ChartNotesEditPlan> insert_plan{};
         bool pushed{false};
         std::size_t history_position{};
     };
     std::optional<ChartFretEntry> m_chart_fret_entry{};
 
-    // In-flight Alt+digit composition of the pending insert fret: the value typed so far and
-    // its last keystroke tick. Unlike ChartFretEntry this touches no chart data and no undo
-    // history — the pending fret lives in m_chart_last_fret until a placement commits it.
-    struct ChartInsertFretEntry
+    // The editing caret (the caret model, 2026-07-17): THE paused position — grid slot and
+    // string where typing inserts and play starts. Present whenever a chart is displayed;
+    // reset to the song start on chart load.
+    struct ChartCaret
     {
-        int value{};
-        std::uint32_t last_keystroke_ms{};
+        common::core::GridPosition position{};
+        int string{1};
     };
-    std::optional<ChartInsertFretEntry> m_chart_insert_fret_entry{};
-
-    // True while notes placed by the current Alt hold accumulate in the selection; cleared
-    // when the view reports the Alt release (or the editing state resets).
-    bool m_chart_insert_session_active{false};
+    std::optional<ChartCaret> m_chart_caret{};
 
     // Durable automation identity of one live tone-chain plugin instance.
     struct ToneAutomationIdentity
