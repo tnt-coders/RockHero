@@ -433,7 +433,7 @@ public:
     void onChartCaretStepRequested(ChartStepDirection direction, bool measure) override;
 
     /*! \copydoc IEditorController::onChartSelectionMoveRequested */
-    void onChartSelectionMoveRequested(ChartStepDirection direction, bool fine) override;
+    void onChartSelectionMoveRequested(ChartStepDirection direction) override;
 
     /*! \copydoc IEditorController::onChartSelectionDeleteRequested */
     void onChartSelectionDeleteRequested() override;
@@ -445,7 +445,7 @@ public:
     void onChartFretShiftRequested(int direction) override;
 
     /*! \copydoc IEditorController::onChartSustainAdjustRequested */
-    void onChartSustainAdjustRequested(int direction, bool fine) override;
+    void onChartSustainAdjustRequested(int direction) override;
 
     /*! \copydoc IEditorController::onChartEscapePressed */
     void onChartEscapePressed() override;

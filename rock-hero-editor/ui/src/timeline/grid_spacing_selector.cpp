@@ -13,11 +13,19 @@ namespace
 // Width reserved for the static caption so the combo box gets the remaining strip space.
 constexpr int g_caption_width{36};
 
-// Power-of-two note-value presets offered as quick selections beside free fraction entry.
-constexpr std::array<common::core::Fraction, 6> g_note_value_presets{
+// Note-value presets offered as quick selections beside free fraction entry: the power-of-two
+// ladder interleaved with the triplet subdivisions (1/6 = quarter triplets, 1/12 = eighth
+// triplets, 1/24 = sixteenth triplets), which grid-native chart authoring needs within reach
+// (settled 2026-07-18 — off-grid placement is gone, so tuplets come from tuplet grids). The
+// raw-fraction labels are a recorded interim: friendlier REAPER-style names ("1/8 triplet")
+// are a deferred decision in docs/plans/in-progress/editing-interaction-model.md.
+constexpr std::array<common::core::Fraction, 9> g_note_value_presets{
     common::core::Fraction{1, 4},
+    common::core::Fraction{1, 6},
     common::core::Fraction{1, 8},
+    common::core::Fraction{1, 12},
     common::core::Fraction{1, 16},
+    common::core::Fraction{1, 24},
     common::core::Fraction{1, 32},
     common::core::Fraction{1, 64},
     common::core::Fraction{1, 128},

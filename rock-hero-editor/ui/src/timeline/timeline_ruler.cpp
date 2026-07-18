@@ -38,6 +38,11 @@ constexpr int g_subdivision_tick_height{5};
 // Chip height shared by every ruler chip row and the chord/arpeggio name chips so they read as
 // one family.
 constexpr int g_chip_height{11};
+// The play-from-here flag: a filled triangle at the ruler body's top pointing down the cursor
+// line, sized to read at a glance — the 1px alignment line alone was too easy to miss (user
+// feedback 2026-07-18).
+constexpr float g_cursor_flag_half_width{5.0f};
+constexpr float g_cursor_flag_height{7.0f};
 // Tab-derived chord/arpeggio name chips fill the tick band below the measure-number row, flush
 // with the bottom edge so each chip reads as sitting directly on the tablature lane's top rail
 // beneath it.
@@ -177,7 +182,18 @@ void TimelineRuler::setCursorPosition(std::optional<common::core::TimePosition> 
         return;
     }
 
-    repaintCursorStrip(*this, m_cursor_x, next_cursor_x);
+    // The flag is wider than the 1px line the shared strip helper pads for, so the ruler
+    // invalidates its own flag-wide strips around the old and new positions.
+    const auto repaint_flag_strip = [this](std::optional<float> x) {
+        if (!x.has_value())
+        {
+            return;
+        }
+        const int pad = static_cast<int>(g_cursor_flag_half_width) + 1;
+        repaint(static_cast<int>(std::floor(*x)) - pad, 0, 2 * pad + 2, getHeight());
+    };
+    repaint_flag_strip(m_cursor_x);
+    repaint_flag_strip(next_cursor_x);
     m_cursor_x = next_cursor_x;
 }
 
@@ -776,11 +792,25 @@ void TimelineRuler::drawShapeChips(juce::Graphics& g)
     }
 }
 
-// Draws the same transport cursor through the ruler body for vertical alignment. The cursor
-// starts at the body's top edge instead of y 0 so it does not cut through the chip rows above.
+// Draws the play-from-here cursor through the ruler body for vertical alignment, topped by the
+// flag triangle. The cursor starts at the body's top edge instead of y 0 so it does not cut
+// through the chip rows above.
 void TimelineRuler::drawCursor(juce::Graphics& g)
 {
     drawTimelineCursor(g, *this, m_cursor_x, g_ruler_body_top);
+    if (!m_cursor_x.has_value() || getWidth() <= 0)
+    {
+        return;
+    }
+
+    const float x = std::clamp(*m_cursor_x, 0.0f, static_cast<float>(getWidth() - 1));
+    juce::Path flag;
+    flag.startNewSubPath(x - g_cursor_flag_half_width, static_cast<float>(g_ruler_body_top));
+    flag.lineTo(x + g_cursor_flag_half_width, static_cast<float>(g_ruler_body_top));
+    flag.lineTo(x, static_cast<float>(g_ruler_body_top) + g_cursor_flag_height);
+    flag.closeSubPath();
+    g.setColour(editorTheme().playback_cursor);
+    g.fillPath(flag);
 }
 
 } // namespace rock_hero::editor::ui

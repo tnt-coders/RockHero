@@ -1,4 +1,4 @@
-#include <catch2/catch_approx.hpp>
+﻿#include <catch2/catch_approx.hpp>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 
 namespace rock_hero::editor::core
@@ -692,7 +692,7 @@ TEST_CASE("EditorController fret digits combine inside the entry window", "[core
 
     // An interleaved edit kills the window: the next digit starts a fresh value.
     controller.onChartFretDigitTyped(2);
-    controller.onChartSustainAdjustRequested(1, false);
+    controller.onChartSustainAdjustRequested(1);
     controller.onChartFretDigitTyped(3);
     chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes[0].fret == 3);
@@ -720,7 +720,7 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
 
     // A plain click selects just the string-1 note (containment hierarchy).
     click(controller, 40.0f, 220.0f);
-    controller.onChartSustainAdjustRequested(1, false);
+    controller.onChartSustainAdjustRequested(1);
     const auto* chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes[0].sustain == common::core::Fraction{1, 1});
 
@@ -728,7 +728,7 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
     // later: growth clamps a quarter-beat margin before it, at 15/4 beats.
     for (int step = 0; step < 5; ++step)
     {
-        controller.onChartSustainAdjustRequested(1, false);
+        controller.onChartSustainAdjustRequested(1);
     }
     chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes[0].sustain == common::core::Fraction{15, 4});
@@ -738,7 +738,7 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
     click(controller, 40.0f, 180.0f);
     for (int step = 0; step < 6; ++step)
     {
-        controller.onChartSustainAdjustRequested(1, false);
+        controller.onChartSustainAdjustRequested(1);
     }
     chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes[1].sustain == common::core::Fraction{15, 4});
@@ -747,7 +747,7 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
     click(controller, 40.0f, 220.0f);
     for (int step = 0; step < 6; ++step)
     {
-        controller.onChartSustainAdjustRequested(-1, false);
+        controller.onChartSustainAdjustRequested(-1);
     }
     chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes[0].sustain == common::core::Fraction{});
@@ -784,13 +784,13 @@ TEST_CASE("EditorController nudges the selection and refuses collisions", "[core
     click(controller, 40.0f, 220.0f);
 
     // Alt+Up would land on the occupied measure-2 string-2 slot: refused, nothing changes.
-    controller.onChartSelectionMoveRequested(ChartStepDirection::Up, false);
+    controller.onChartSelectionMoveRequested(ChartStepDirection::Up);
     chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes[0].string == 1);
     CHECK(chart->notes[0].position == (common::core::GridPosition{.measure = 2, .beat = 1}));
 
     // Alt+Right moves one quarter-note step; the selection follows the moved note.
-    controller.onChartSelectionMoveRequested(ChartStepDirection::Right, false);
+    controller.onChartSelectionMoveRequested(ChartStepDirection::Right);
     chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes[1].position == (common::core::GridPosition{.measure = 2, .beat = 2}));
     CHECK(chart->notes[1].string == 1);

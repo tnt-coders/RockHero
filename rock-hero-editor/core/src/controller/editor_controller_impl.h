@@ -150,11 +150,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onChartPointerDrag(const ChartPointerEvent& event);
     void onChartPointerUp(const ChartPointerEvent& event);
     void onChartCaretStepRequested(ChartStepDirection direction, bool measure);
-    void onChartSelectionMoveRequested(ChartStepDirection direction, bool fine);
+    void onChartSelectionMoveRequested(ChartStepDirection direction);
     void onChartSelectionDeleteRequested();
     void onChartFretDigitTyped(int digit);
     void onChartFretShiftRequested(int direction);
-    void onChartSustainAdjustRequested(int direction, bool fine);
+    void onChartSustainAdjustRequested(int direction);
     void onChartEscapePressed();
     [[nodiscard]] const common::core::TabViewState* displayedTabProjection() const;
     [[nodiscard]] std::optional<ChartNoteKey> chartNoteKeyAt(std::size_t projection_index) const;
@@ -172,8 +172,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void dissolveChartCaretInPlace();
     [[nodiscard]] std::optional<std::pair<common::core::GridPosition, int>> chartPlacementAt(
         const ChartPointerEvent& event) const;
-    [[nodiscard]] common::core::Fraction chartGridStepBeats(
-        common::core::GridPosition at, bool fine) const;
+    [[nodiscard]] common::core::Fraction chartGridStepBeats(common::core::GridPosition at) const;
     bool applyChartEditPlan(
         std::optional<ChartNotesEditPlan> plan,
         std::optional<std::vector<ChartNoteKey>> select_exactly = std::nullopt);

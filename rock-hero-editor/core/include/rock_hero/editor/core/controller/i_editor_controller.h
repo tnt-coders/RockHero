@@ -236,15 +236,15 @@ public:
     /*!
     \brief Handles a keyboard move of the selected chart notes (the Alt authoring modifier).
 
-    Left/Right move the selection by one grid step (the fine 1/960-beat grid when \p fine is
-    set); Up/Down move it across string lanes. Refused, never clamped, when any note would leave
-    the neck or land on an occupied slot; the whole selection moves as one undo entry, with
-    40-Q2-B truncation of any overlaps it creates.
+    Left/Right move the selection by one whole grid step — chart verbs are grid-native
+    (settled 2026-07-18), and the move is relative so off-grid imported notes keep their
+    offsets; Up/Down move it across string lanes. Refused, never clamped, when any note would
+    leave the neck or land on an occupied slot; the whole selection moves as one undo entry,
+    with 40-Q2-B truncation of any overlaps it creates.
 
     \param direction Move direction.
-    \param fine True when the precision modifier requests the fine grid.
     */
-    virtual void onChartSelectionMoveRequested(ChartStepDirection direction, bool fine) = 0;
+    virtual void onChartSelectionMoveRequested(ChartStepDirection direction) = 0;
 
     /*! \brief Handles a request to delete the selected chart notes as one undo entry. */
     virtual void onChartSelectionDeleteRequested() = 0;
@@ -279,13 +279,13 @@ public:
     /*!
     \brief Handles a request to grow or shrink the selected notes' sustains by one grid step.
 
-    Sustains floor at zero and clamp against the next same-string onset (the 40-Q2-B truncation
-    rule); the whole selection adjusts as one undo entry.
+    Always a whole grid step — chart verbs are grid-native (settled 2026-07-18). Sustains
+    floor at zero and growth clamps to the minimum-note-distance margin before the next onset
+    on any string (span siblings exempt); the whole selection adjusts as one undo entry.
 
     \param direction +1 to grow, -1 to shrink.
-    \param fine True when the precision modifier requests the fine 1/960-beat step.
     */
-    virtual void onChartSustainAdjustRequested(int direction, bool fine) = 0;
+    virtual void onChartSustainAdjustRequested(int direction) = 0;
 
     /*!
     \brief Handles Escape on the chart, stepping the editing state down one rung.

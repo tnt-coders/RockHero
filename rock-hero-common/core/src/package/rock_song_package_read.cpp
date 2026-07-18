@@ -464,7 +464,7 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
             }};
         }
 
-        sections.push_back(SongSection{.position = *position, .name = std::move(*name)});
+        sections.push_back(SongSection{.position = *position, .name = *name});
     }
 
     return sections;

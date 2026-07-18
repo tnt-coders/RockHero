@@ -5,13 +5,14 @@
 
 #pragma once
 
+#include <cstdint>
 #include <optional>
 
 namespace rock_hero::game::core
 {
 
 /*! \brief Terminal outcome of one chart note after the provisional-hit machine commits it. */
-enum class NoteVerdictCode
+enum class NoteVerdictCode : std::uint8_t
 {
     /*! \brief Onset matched and pitch evidence confirmed the note. */
     Hit,
