@@ -124,7 +124,7 @@ lane owns its pointer events, converting them to lane-local chart pointer intent
 controller decides what a press means (select, seek, or marquee), so empty-lane clicks still
 seek. Without a chart the lane is pointer-transparent as before.
 */
-class TabView final : public juce::Component, private juce::Timer
+class TabView final : public juce::Component
 {
 public:
     /*! \brief One pointer-intent sink receiving every phase of a lane gesture. */
@@ -270,13 +270,6 @@ private:
     // ghost ring's real paint footprint.
     void repaintGhostStrip(std::optional<float> previous_x, std::optional<float> next_x);
 
-    // Toggles the focus underline's blink phase and repaints its cached rectangle.
-    void timerCallback() override;
-
-    // Starts or stops the blink timer to match the published focus state, resetting the phase
-    // to visible on every change so the underline always appears immediately.
-    void refreshFocusBlink();
-
     // Song tempo map used to snap the ghost exactly like the committed insert.
     const common::core::TempoMap& m_tempo_map;
 
@@ -290,15 +283,8 @@ private:
     // Seconds-resolved tab projection shared with the controller; null without a chart.
     std::shared_ptr<const common::core::TabViewState> m_tab{};
 
-    // Chart-editing overlay state (selection indices, focus, marquee) pushed by the editor.
+    // Chart-editing overlay state (selection indices, marquee) pushed by the editor.
     core::ChartEditViewState m_edit{};
-
-    // Blink phase of the focused member's type-here underline; starts visible on every focus
-    // change so the affordance never lags the click.
-    bool m_focus_underline_visible{true};
-
-    // Last-painted underline rectangle, invalidated by the blink timer; empty when not drawn.
-    juce::Rectangle<int> m_focus_underline_bounds{};
 
     // Sink receiving the lane's chart pointer intents; empty disables pointer forwarding.
     PointerEventCallback m_on_pointer_event{};

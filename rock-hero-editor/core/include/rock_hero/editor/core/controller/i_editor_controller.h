@@ -249,13 +249,18 @@ public:
     /*!
     \brief Handles a typed fret digit for the selected chart notes.
 
-    Digits within the multi-digit entry window combine (typing 1 then 2 retypes to fret 12,
-    clamped to the fret cap); a digit outside the window starts a fresh value. Each keystroke
-    applies immediately so the notation always shows the current value.
+    Plain typing transposes the selection so its lowest fret lands on the typed number —
+    shape-preserving, so chords reposition, runs transpose, and a single note retypes exactly.
+    Set-exact (Ctrl) assigns the value to every selected note instead. Digits within the
+    multi-digit entry window combine (typing 1 then 2 targets fret 12) while their mode
+    matches; a digit outside the window or in the other mode starts a fresh value. Each
+    keystroke applies immediately so the notation always shows the current value; a member
+    pushed past the fret cap refuses the keystroke, never clamps.
 
     \param digit Typed digit in [0, 9].
+    \param set_exact True to set every selected note to the exact value (Ctrl held).
     */
-    virtual void onChartFretDigitTyped(int digit) = 0;
+    virtual void onChartFretDigitTyped(int digit, bool set_exact) = 0;
 
     /*!
     \brief Handles a request to grow or shrink the selected notes' sustains by one grid step.

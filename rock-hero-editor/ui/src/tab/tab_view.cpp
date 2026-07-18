@@ -189,36 +189,7 @@ void TabView::setEditState(core::ChartEditViewState edit)
     }
 
     m_edit = std::move(edit);
-    refreshFocusBlink();
     repaint();
-}
-
-// The underline blinks like a text caret — the focused numeral is where typed digits land, so
-// the affordance borrows the "enterable" idiom (user choice 2026-07-17). The timer runs only
-// while an underline is showing; everything else in the lane stays repaint-on-push.
-void TabView::refreshFocusBlink()
-{
-    const bool wants_blink =
-        m_tab != nullptr && m_edit.focused_note.has_value() && m_edit.selected_notes.size() > 1;
-    m_focus_underline_visible = true;
-    if (wants_blink)
-    {
-        startTimer(530);
-    }
-    else
-    {
-        stopTimer();
-        m_focus_underline_bounds = {};
-    }
-}
-
-void TabView::timerCallback()
-{
-    m_focus_underline_visible = !m_focus_underline_visible;
-    if (!m_focus_underline_bounds.isEmpty())
-    {
-        repaint(m_focus_underline_bounds.expanded(2));
-    }
 }
 
 // With a chart displayed the lane claims its whole band — the controller still turns empty
@@ -339,7 +310,6 @@ void TabView::setState(
     if (tab_changed)
     {
         rebuildVisibilityIndex();
-        refreshFocusBlink();
     }
 
     repaint();
@@ -411,32 +381,6 @@ void TabView::paint(juce::Graphics& g)
                 extent,
                 extent,
                 stroke);
-        }
-    }
-
-    // The focused member's type-here underline: a caret-style blinking accent bar under the
-    // fret numeral, marking where typed digits land. Drawn only when the selection offers a
-    // choice (more than one member) and the numerals themselves are drawn — typing frets with
-    // invisible numbers is not a workflow worth an indicator.
-    m_focus_underline_bounds = {};
-    if (m_edit.focused_note.has_value() && m_edit.selected_notes.size() > 1 && metrics.draw_text &&
-        *m_edit.focused_note < m_tab->notes.size())
-    {
-        const common::ui::TabNoteLayout layout =
-            common::ui::tabNoteLayout(metrics, m_tab->notes[*m_edit.focused_note]);
-        const float bar_width = layout.head_size * 0.6f;
-        const float bar_thickness = std::max(1.5f, layout.head_size / 15.0f);
-        const juce::Rectangle<float> bar{
-            layout.onset_x - bar_width / 2.0f,
-            layout.center_y + layout.head_size * 0.28f,
-            bar_width,
-            bar_thickness
-        };
-        m_focus_underline_bounds = bar.getSmallestIntegerContainer();
-        if (m_focus_underline_visible)
-        {
-            g.setColour(accent);
-            g.fillRect(bar);
         }
     }
 

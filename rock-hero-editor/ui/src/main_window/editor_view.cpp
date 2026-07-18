@@ -1002,17 +1002,19 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
             return false;
         }
 
-        // Fret digits: the top number row and the numpad both type frets.
+        // Fret digits: the top number row and the numpad both type frets. Plain digits
+        // transpose the selection (its lowest fret lands on the typed number); Ctrl digits set
+        // every selected note to the exact value — Ctrl's precision meaning. Alt stays
+        // excluded: digits while Alt is held belong to the ghost insert quasimode.
         const int key_code = key.getKeyCode();
         const int fret_digit =
             key_code >= '0' && key_code <= '9' ? key_code - '0'
             : key_code >= juce::KeyPress::numberPad0 && key_code <= juce::KeyPress::numberPad9
                 ? key_code - juce::KeyPress::numberPad0
                 : -1;
-        if (chart_shown && !m_state.chart_edit.selected_notes.empty() && !fine && !alt &&
-            fret_digit >= 0)
+        if (chart_shown && !m_state.chart_edit.selected_notes.empty() && !alt && fret_digit >= 0)
         {
-            m_controller.onChartFretDigitTyped(fret_digit);
+            m_controller.onChartFretDigitTyped(fret_digit, fine);
             return true;
         }
         if (chart_shown && key.isKeyCode(juce::KeyPress::escapeKey) &&

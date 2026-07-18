@@ -85,14 +85,25 @@ at the destinations truncate per 40-Q2-B.
     std::string_view label);
 
 /*!
-\brief Plans setting the fret of the keyed notes.
-\param chart Chart being edited.
-\param keys Notes to retype.
-\param fret New fret; the caller owns range clamping.
-\return The plan, or empty when nothing changes.
+\brief Plans retyping a snapshot of selected notes toward a typed fret target.
+
+Two modes (settled 2026-07-17): transposing (the default) shifts every note by the same delta
+so the snapshot's lowest fret lands on the target — shape-preserving, so chords reposition,
+runs transpose, and a single note retypes exactly — while set-exact assigns the target to
+every note. Members can never go below zero under transposition because the lowest fret is
+the anchor; a member pushed past the fret cap refuses the whole plan, never clamps.
+
+The base is a snapshot rather than the live chart so the multi-digit entry window can replan
+the whole entry from the pre-entry originals while widening.
+
+\param base Snapshot of the notes being retyped.
+\param target Typed fret: the exact value (set-exact) or where the lowest fret lands.
+\param set_exact True to assign the target to every note instead of transposing.
+\return The plan (empty-removed when nothing changes), or nullopt when refused (fret cap) or
+the snapshot is empty.
 */
-[[nodiscard]] std::optional<ChartNotesEditPlan> planSetFret(
-    const common::core::Chart& chart, const std::vector<ChartNoteKey>& keys, int fret);
+[[nodiscard]] std::optional<ChartNotesEditPlan> planRetypeFrets(
+    const std::vector<common::core::ChartNote>& base, int target, bool set_exact);
 
 /*!
 \brief Plans adjusting the keyed notes' sustains by an exact beat delta.
