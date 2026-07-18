@@ -67,7 +67,7 @@ Ctrl = precision. Duplication is Ctrl+D on the selection when it arrives.
 | Input | Meaning — identical on every surface | Mutates? |
 |---|---|---|
 | Hover | Affordance only: cursor shape, edge highlight; with Alt held, a ghost preview of exactly what a click would insert, at the snapped position | No |
-| Click on object | Select the cohesive unit (a chord note selects its whole onset group — 2026-07-17); Ctrl+click toggles the individual object; double-click on a span member selects the span's full note set | No |
+| Click on object | Select the individual object; Ctrl+click toggles membership. Chart notes follow the containment hierarchy (2026-07-17): click = note, double-click = its chord, span-rail click = the span's full note set (rides the span slice) | No |
 | Click on empty | Seek + deselect | No |
 | Drag on object | Move (time, plus value/string when 2D); Shift axis-locks; commits once on release | Yes |
 | Edge-drag on extent | Resize (region boundary, sustain tail, span edge) | Yes |
@@ -76,13 +76,14 @@ Ctrl = precision. Duplication is Ctrl+D on the selection when it arrives.
 | Alt+drag from empty | Insert and place in one press-drag-release gesture | Yes |
 | Alt+wheel | Adjust the selection's *displayed duration* by one grid step: sustain for bare notes, span extent for a whole chord/arpeggio group, member tails for a proper subset (2026-07-17 — see chart-span-and-selection-model.md); Ctrl+Alt+wheel steps the fine grid; successive ticks coalesce into one undo entry | Yes |
 | Alt+Shift+wheel | Shift the selection's frets by one per tick, shape-preserving; refuses at fret zero and the fret cap (2026-07-17) | Yes |
-| Double-click on object | Open its primary property editor (rename/pick tone, type BPM, note properties) | Via editor |
+| Double-click on object | Open its primary property editor (rename/pick tone, type BPM); chart notes diverge — double-click selects the chord (containment hierarchy), a span's future double-click opens its name/fingering editor, and there is no note-properties dialog (2026-07-17: derived-over-authored leaves nothing needing a form; bends get direct manipulation later) | Via editor |
 | Delete / Backspace | Delete the selection | Yes |
-| Right-click | Context menu, always; every gesture above has a menu equivalent; never destructive on its own | Via menu |
+| Right-click | Context menu, always; every gesture above has a menu equivalent; never destructive on its own. (Chart lane: deliberately deferred 2026-07-17 — every v1 candidate was a worse path to a direct gesture; lands when techniques give it non-redundant content) | Via menu |
 | Esc | Cancel the in-flight gesture, restoring pre-gesture state | Reverts preview |
 | Arrow keys | Navigate: Left/Right step the ONE timeline cursor to the adjacent grid line (Ctrl fine); never a mutation (amended 2026-07-16/17 — there is no separate editing caret) | No |
 | Alt+arrows | Move the selection by one grid step (Ctrl+Alt by the fine step); the vertical axis is the surface's own (string for notes, value for automation points) | Yes |
 | Shift+Alt+Left/Right | Grow/shrink the selected object's extent by one grid step (Ctrl composes the fine step) | Yes |
+| Shift+Alt+Up/Down | Shift the selection's frets by one, shape-preserving — the Alt+Shift axis rule: horizontal = extent in time, vertical = fret, on arrows and wheel alike (2026-07-17) | Yes |
 | Shift+arrows | Reserved (unbound): future caret-anchored selection extension | No |
 
 A plain click **never mutates**. Every mutating gesture previews live (snap guide plus a
@@ -176,9 +177,10 @@ Verified against the vendored JUCE source — everything needed ships in
   docs/plans/in-progress/chart-span-and-selection-model.md): Alt+click on a string lane places
   a note carrying the last-used fret; typed digits set the fret of the selection; technique
   hotkeys (future) set properties of the selection — Guitar Pro-style keyboard entry composes
-  from the same selection verbs. Plain click selects the whole onset group (chords are one
-  cohesive unit); Ctrl+click toggles individual notes; marquee stays geometrically precise by
-  design (the deliberate part-of-a-chord tool); Shift+click selects a time range (plan 52).
+  from the same selection verbs. Selection follows the containment hierarchy (note ⊂ chord ⊂
+  span, 2026-07-17): click selects the note, double-click its chord, span-rail click the whole
+  span; Ctrl+click toggles individual notes; marquee stays geometrically precise by design;
+  Shift+click selects a time range (plan 52).
   Typed digits SET every selected note to the exact value — what you type is what appears
   (multi-digit window; Ctrl+digit unbound; Alt+digit reserved for the ghost quasimode).
   Alt+Shift+wheel SHIFTS the selection's frets by one per tick, shape-preserving (chords and
