@@ -282,7 +282,7 @@ owning an exact grid slot × string. Handoffs:
 | --- | --- |
 | Plain click on an empty slot or a note (paused) | Armed there; a note click also selects it |
 | Arrow key while passive (paused) | Armed at the cursor — nearest grid line, remembered string; the first press arms in place, later presses move |
-| Any multi-select gesture — Ctrl+click, double-click, marquee, and every future gesture whose result is a multi-note selection (span-rail click, §5's member double-click, plan 52's range once it selects notes) | Passive; the cursor takes the caret's place (a paused seek to the caret's musical time), signalling that verbs now act on the highlighted selection, not a caret. Dissolution is a *rule over outcomes*, not a closed gesture list (2026-07-18 fold-in audit) |
+| Any multi-select gesture — Ctrl+click, double-click, marquee, and every future gesture whose result is a multi-note selection (span-rail click, §5's member double-click, plan 52's range once it selects notes) | Passive; the cursor takes the caret's place (a paused seek to the caret's musical time), signalling that verbs now act on the highlighted selection, not a caret. Dissolution is a *rule over outcomes*, not a closed gesture list (2026-07-18 fold-in audit) — so a marquee dissolves when its box **resolves with notes** at release, and an empty box is a complete no-op: no selection outcome, so an armed caret (and the standing selection) survive untouched (user ruling 2026-07-18) |
 | Esc | Armed → passive in place, selection kept; passive with a selection → the selection clears; either rung also ends the multi-digit fret-entry window |
 | Play | Passive — playback dissolves the caret and clears the selection; the cursor is the moving playhead. Space starts playback from the marker in both states |
 | Pause / Stop / paused seek | Passive at the transport position; the cursor rests at the raw stop point — no grid snapping while passive, snapping happens at arming |
@@ -308,6 +308,13 @@ owning an exact grid slot × string. Handoffs:
   viewport to the restored content; it never arms, disarms, or seeks. This keeps the passive
   invariant from forcing a transport seek on every Ctrl+Z, and an armed caret simply
   re-renders against whatever undo put under it.
+- **Caret navigation keeps its measure in view** (settled and built 2026-07-18): whenever the
+  caret lands at a new time in a measure that is not fully on screen, the window glides —
+  the same eased shift playback follow uses — by the minimal amount that fits the whole
+  measure (left-aligned when it starts before the view, right-aligned when it ends past it).
+  A measure wider than the view keeps the caret itself in view with a small pad instead.
+  String-only caret moves glide nothing, and the rule fires on caret movement only — a user
+  scroll away from the caret is never yanked back.
 - **Paste arms the marker** (working answer for plan 40 Phase 9 / plan 52, to be ratified at
   G52-RANGE-EDIT): pasting while passive first arms at the nearest grid line — snapping
   happens at arming, exactly as for arrows — then rebases the clip there; the pasted notes

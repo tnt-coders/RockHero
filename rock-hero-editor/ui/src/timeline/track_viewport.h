@@ -197,6 +197,22 @@ public:
     void setArmedChartCaret(std::optional<double> seconds);
 
     /*!
+    \brief Glides the window until the caret's measure sits fully in view (the marker model).
+
+    Caret navigation keeps its measure comfortably visible: the minimal shift that fits the
+    whole measure — left-aligning a measure starting before the view, right-aligning one
+    ending past it — using the same eased window shift playback follow uses. A measure wider
+    than the view falls back to the minimal shift that brings the caret itself into view with
+    a small pad. A measure already fully visible moves nothing.
+
+    \param measure_start_seconds Start of the caret's measure on the arrangement timeline.
+    \param measure_end_seconds End of the caret's measure (the next measure's start).
+    \param caret_seconds Caret position inside the measure, the wide-measure fallback target.
+    */
+    void ensureMeasureVisible(
+        double measure_start_seconds, double measure_end_seconds, double caret_seconds);
+
+    /*!
     \brief Forwards the tab-derived chord/arpeggio name chips to the pinned timeline ruler.
 
     The chips are tablature data rendered on the ruler's pinned surface (its bottom tick band
@@ -311,6 +327,13 @@ private:
 
     // Shifted-window playback follow; see the implementation comment for the full behavior.
     void followCursorWithWindowShifts(float cursor_x);
+
+    // Starts (or retargets) the eased window glide toward a viewport left edge; shared by
+    // playback follow and the caret's keep-measure-visible rule.
+    void beginWindowGlide(double target_left);
+
+    // Advances the in-flight window glide at render cadence; no-op when none is active.
+    void advanceWindowGlide();
 
     // Moves the horizontal viewport position while preserving the current vertical scroll. Ruler
     // and grid updates happen through the viewport's visible-area callback when the position

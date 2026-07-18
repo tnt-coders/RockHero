@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <compare>
 #include <cstdint>
 #include <expected>
 #include <filesystem>
@@ -645,6 +646,20 @@ void EditorView::setState(const core::EditorViewState& state)
         m_state.chart_edit.caret.has_value()
             ? std::optional<double>{m_state.chart_edit.caret->seconds}
             : std::nullopt);
+    // Caret navigation keeps its measure comfortably in view: whenever the caret lands at a
+    // new time (arming or stepping — string-only moves keep the same seconds and glide
+    // nothing), the window glides until the caret's measure is fully visible, with the same
+    // eased shift playback follow uses.
+    if (m_state.chart_edit.caret.has_value() &&
+        (!previous_state.chart_edit.caret.has_value() ||
+         std::is_neq(
+             previous_state.chart_edit.caret->seconds <=> m_state.chart_edit.caret->seconds)))
+    {
+        m_track_viewport->ensureMeasureVisible(
+            m_state.chart_edit.caret->measure_start_seconds,
+            m_state.chart_edit.caret->measure_end_seconds,
+            m_state.chart_edit.caret->seconds);
+    }
     // The count chip appears from two selected notes up: typing acts on the whole selection,
     // so its size must stay visible even with the highlights scrolled off-screen.
     const std::size_t selected_count = m_state.chart_edit.selected_notes.size();
