@@ -7,7 +7,7 @@ assignments (including the automation lanes' shipped 2026-07-09 behavior) moved 
 amendment record is inline below. Note authoring now implements this model; anchor editing
 adopts it when built. **Amended again 2026-07-18** (unified selection, the marker's row axis,
 keyboard-first automation, on-line point placement, the Insert verb — amendment record at the
-bottom; being implemented now).
+bottom; implemented the same day).
 
 ## Goal
 
@@ -312,7 +312,8 @@ docs/plans/in-progress/chart-span-and-selection-model.md §9a):
 
 ## Amendment record — 2026-07-18 unified selection + keyboard-first automation
 
-Settled with the user the same day as the two-state marker, extending it (being implemented now):
+Settled with the user the same day as the two-state marker, extending it (implemented the same
+day):
 
 1. **One selection editor-wide**: chart notes / automation point / tone region become
    alternatives of one editor-core selection sum type; selecting anywhere replaces the

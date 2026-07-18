@@ -693,12 +693,27 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         int string{1};
     };
 
-    // The marker's armed state: the editing caret owning an exact grid slot and string —
-    // where typing inserts and play starts.
+    // A caret row on an automation lane, identified durably (instance + parameter, never a
+    // display index) so lane reordering cannot move the caret (the row axis, §9b).
+    struct AutomationLaneRow
+    {
+        std::string instance_id;
+        std::string param_id;
+
+        friend bool operator==(const AutomationLaneRow& lhs, const AutomationLaneRow& rhs) =
+            default;
+    };
+
+    // The marker's armed state: the editing caret owning an exact grid slot and a row — where
+    // typing inserts and play starts. The row axis spans the chart strings and then the visible
+    // automation lanes (§9b): while `lane` is engaged the caret rides that lane row, and
+    // `string` is the remembered string it returns to when traversal crosses back up into the
+    // tab lane.
     struct ChartCaret
     {
         common::core::GridPosition position{};
         int string{1};
+        std::optional<AutomationLaneRow> lane{};
     };
 
     // The two-state position marker (the marker model, 2026-07-18): always present, exactly
@@ -714,6 +729,30 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // Returns the marker's remembered string in either state.
     [[nodiscard]] int chartMarkerString() const noexcept;
+
+    // Arms the caret on an automation lane row and re-derives the selection from what sits
+    // under it: a point at the slot becomes the editor-wide selection, an empty slot clears it
+    // (armChartCaret's row-axis sibling, §9b).
+    void armLaneCaret(common::core::GridPosition position, AutomationLaneRow row);
+
+    // The visible automation lane rows in display order — the lower half of the caret's row
+    // axis. Derived from the same projection the lanes view renders, so traversal and display
+    // can never disagree about which rows exist.
+    [[nodiscard]] std::vector<AutomationLaneRow> visibleAutomationLaneRows() const;
+
+    // A lane click's seek-and-arm intent (the row-axis form of the chart lane's empty click):
+    // seeks to the nearest grid slot on the clicked lane and arms the caret there.
+    void onToneAutomationLaneCaretRequested(
+        std::string instance_id, std::string param_id, common::core::TimePosition time);
+
+    // The Insert key's neutral create: a fret-0 note at an armed empty string slot, an
+    // on-curve point at an armed empty lane slot; a no-op on occupied slots, with a selection,
+    // or while passive — Insert never mutates existing objects (2026-07-18).
+    void onNeutralInsertRequested();
+
+    // Inserts an on-curve point at an armed lane caret's slot (the Insert dispatch for lane
+    // rows); a no-op when a point already sits there.
+    void insertLanePointAtCaret(const ChartCaret& caret);
 
     // Durable automation identity of one live tone-chain plugin instance.
     struct ToneAutomationIdentity

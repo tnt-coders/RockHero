@@ -145,6 +145,28 @@ struct ToneAutomationSelectedPointRef
         const ToneAutomationSelectedPointRef& rhs) = default;
 };
 
+/*! \brief The armed marker caret riding an automation lane row (the row axis, §9b). */
+struct ToneAutomationLaneCaretRef
+{
+    /*! \brief Index of the caret's lane in \ref ToneAutomationViewState::lanes. */
+    std::size_t lane_index{0};
+
+    /*! \brief Caret slot in absolute song seconds, derived through the tempo map. */
+    double seconds{0.0};
+
+    /*! \brief Exact musical position of the caret slot. */
+    common::core::GridPosition position{};
+
+    /*!
+    \brief Compares two lane caret references by their stored values.
+    \param lhs Left-hand reference.
+    \param rhs Right-hand reference.
+    \return True when both references store equal values.
+    */
+    friend bool operator==(
+        const ToneAutomationLaneCaretRef& lhs, const ToneAutomationLaneCaretRef& rhs) = default;
+};
+
 /*! \brief View-facing state for the selected tone's automation lanes. */
 struct ToneAutomationViewState
 {
@@ -163,6 +185,16 @@ struct ToneAutomationViewState
     pointing at the wrong glyph — the same self-healing rule chart selection indices follow.
     */
     std::optional<ToneAutomationSelectedPointRef> selected_point;
+
+    /*!
+    \brief The armed caret when it rides one of these lanes, re-resolved per push.
+
+    The marker stores the lane durably (instance + parameter); this is its per-push resolution
+    against the published lanes, so a caret whose lane is not visible publishes as nothing.
+    While present, the caret square draws on the lane and the paused cursor line hides — the
+    armed marker's one-glyph rule, extended to lane rows (§9b).
+    */
+    std::optional<ToneAutomationLaneCaretRef> lane_caret;
 
     /*! \brief Parameters without a lane yet, offered by the empty lane's "+" picker. */
     std::vector<ToneAutomationParamChoice> available_parameters;

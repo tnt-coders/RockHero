@@ -499,6 +499,13 @@ public:
         std::string instance_id, std::string param_id,
         common::core::GridPosition position) override;
 
+    /*! \copydoc IEditorController::onNeutralInsertRequested */
+    void onNeutralInsertRequested() override;
+
+    /*! \copydoc IEditorController::onToneAutomationLaneCaretRequested */
+    void onToneAutomationLaneCaretRequested(
+        std::string instance_id, std::string param_id, common::core::TimePosition time) override;
+
     /*! \brief Shows the scanned plugin browser and starts an initial catalog scan when needed. */
     void onPluginBrowserRequested() override;
 

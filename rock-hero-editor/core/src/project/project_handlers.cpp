@@ -1490,9 +1490,12 @@ void EditorController::Impl::saveCurrentProjectMarkerBestEffort(std::string_view
         return;
     }
 
+    // A lane caret persists as a passive cursor: lane visibility depends on the active tone at
+    // restore time, and restore never invents a row (§9a/§9b demotion posture). The transport
+    // already rests at the caret's slot (lane arming seeks), so no position is lost.
     const ChartCaret* const caret = armedChartCaret();
     const EditorProjectMarker marker =
-        caret != nullptr
+        caret != nullptr && !caret->lane.has_value()
             ? EditorProjectMarker{EditorProjectCaret{
                   .position = caret->position, .string = caret->string
               }}

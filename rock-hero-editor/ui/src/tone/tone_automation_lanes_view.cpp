@@ -269,9 +269,7 @@ int ToneAutomationLanesView::totalHeight() const
 
 bool ToneAutomationLanesView::wantsPointerAt(juce::Point<int> local_point) const
 {
-    // The predicate has no event, so it reads the live modifier state; JUCE re-sends a synthetic
-    // mouse move on every modifier change, so pressing Alt re-runs this hit test immediately.
-    return hitAt(local_point, juce::ModifierKeys::currentModifiers).has_value();
+    return hitAt(local_point).has_value();
 }
 
 std::vector<ToneAutomationLanesView::LaneExtent> ToneAutomationLanesView::laneExtents() const
@@ -355,6 +353,58 @@ float ToneAutomationLanesView::snappedValueForLane(
     return static_cast<float>(nearest) / static_cast<float>(steps);
 }
 
+// Inverse of xForSeconds: content x back to timeline seconds, for click intents.
+double ToneAutomationLanesView::secondsForX(float content_x) const
+{
+    const double duration = m_visible_timeline.duration().seconds;
+    if (getWidth() <= 0 || duration <= 0.0)
+    {
+        return m_visible_timeline.start.seconds;
+    }
+    return m_visible_timeline.start.seconds +
+           (static_cast<double>(content_x) / static_cast<double>(getWidth())) * duration;
+}
+
+// The lane caret square: centered on the curve at the published caret slot — exactly where
+// Insert and typed values land — shared by paint and the paused-column mask.
+std::optional<juce::Rectangle<float>> ToneAutomationLanesView::laneCaretSquare() const
+{
+    if (!m_state.lane_caret.has_value() || m_state.lane_caret->lane_index >= m_state.lanes.size())
+    {
+        return std::nullopt;
+    }
+    const core::ToneAutomationLaneViewState& lane = m_state.lanes[m_state.lane_caret->lane_index];
+    const std::optional<float> x = xForSeconds(m_state.lane_caret->seconds);
+    if (!x.has_value())
+    {
+        return std::nullopt;
+    }
+    const std::vector<LaneExtent> extents = laneExtents();
+    const LaneExtent& extent = extents[m_state.lane_caret->lane_index];
+    const int band_top = extent.top + g_value_band_inset;
+    const int band_height =
+        std::max(1, extent.height - (2 * g_value_band_inset) - g_resize_band_height);
+    const float y =
+        static_cast<float>(band_top) +
+        (1.0f - curveValueAt(lane, m_state.lane_caret->seconds)) * static_cast<float>(band_height);
+    const float half_side = g_point_draw_radius + 2.0f;
+    return juce::Rectangle<float>{
+        *x - half_side, y - half_side, 2.0f * half_side, 2.0f * half_side
+    };
+}
+
+std::optional<juce::Range<float>> ToneAutomationLanesView::caretMaskYRange() const
+{
+    const std::optional<juce::Rectangle<float>> square = laneCaretSquare();
+    if (!square.has_value())
+    {
+        return std::nullopt;
+    }
+    // Half the stroke sits outside the rectangle bounds; include it so the paused column never
+    // touches the drawn stroke.
+    return juce::Range<float>{square->getY() - 1.0f, square->getBottom() + 1.0f};
+}
+
 // Mirrors the paint path exactly: linear segments between points on a continuous lane, held
 // steps on a discrete one, flat extension outside the authored span, and the live tracking line
 // when nothing is authored yet — so a point placed at this value lands visually and audibly ON
@@ -403,7 +453,7 @@ std::optional<common::core::GridPosition> ToneAutomationLanesView::musicalPositi
 }
 
 std::optional<ToneAutomationLanesView::Hit> ToneAutomationLanesView::hitAt(
-    juce::Point<int> local_point, const juce::ModifierKeys& mods) const
+    juce::Point<int> local_point) const
 {
     if (m_state.tone_document_ref.empty())
     {
@@ -461,12 +511,10 @@ std::optional<ToneAutomationLanesView::Hit> ToneAutomationLanesView::hitAt(
             return Hit{ResizeBandHit{.lane_index = lane_index}};
         }
 
-        // Empty lane area belongs to the seek overlay unless Alt (the insert quasimode) is held;
-        // with Alt down it becomes the insert target, only inside the region's editable window.
-        if (!mods.isAltDown())
-        {
-            return std::nullopt;
-        }
+        // Empty editable lane area is a hit with or without Alt (§9b): with Alt down it is the
+        // insert quasimode's target, and a plain click seeks and arms the caret on the lane —
+        // the row-axis form of the chart lane's empty click. Outside the editable window the
+        // area stays with the seek overlay.
         const std::optional<float> window_start = xForSeconds(m_editable_window.start.seconds);
         const std::optional<float> window_end = xForSeconds(m_editable_window.end.seconds);
         if (window_start.has_value() && window_end.has_value() &&
@@ -708,6 +756,19 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
             }
         }
 
+        // The armed marker caret riding this lane (§9b): a white rounded square centered on
+        // the curve at the caret slot — where Insert and typed values land. Its geometry comes
+        // from the shared helper so the paused-column cut-out can never diverge from the drawn
+        // square.
+        if (m_state.lane_caret.has_value() && m_state.lane_caret->lane_index == lane_index)
+        {
+            if (const std::optional<juce::Rectangle<float>> square = laneCaretSquare())
+            {
+                graphics.setColour(juce::Colours::white);
+                graphics.drawRoundedRectangle(*square, 2.0f, 1.5f);
+            }
+        }
+
         // Dim everything outside the selected region's window: the lane is authored per tone but
         // edited per region instance.
         graphics.setColour(g_dim_overlay);
@@ -773,7 +834,7 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
 
 void ToneAutomationLanesView::mouseMove(const juce::MouseEvent& event)
 {
-    const std::optional<Hit> hit = hitAt(event.getPosition(), event.mods);
+    const std::optional<Hit> hit = hitAt(event.getPosition());
 
     // Hovering a point shows its position and value next to the cursor; the Alt-held insert zone
     // shows the prospective point the same way; any other zone clears the readout and ghost.
@@ -790,12 +851,16 @@ void ToneAutomationLanesView::mouseMove(const juce::MouseEvent& event)
                     .text = readoutTextFor(point.position, lane, point.norm_value),
                 });
         }
-        else if (const auto* const area = std::get_if<LaneAreaHit>(&*hit))
+        else if (
+            const auto* const area = std::get_if<LaneAreaHit>(&*hit);
+            area != nullptr && event.mods.isAltDown()
+        )
         {
-            // LaneAreaHit only exists while Alt is held: preview exactly what a click would
-            // insert, snapped like the click itself (Ctrl composes for fine placement). The
-            // point lands ON the curve at the snapped time (2026-07-18): placement is sonically
-            // silent, so the ghost rides the curve rather than the pointer's y.
+            // The Alt insert quasimode previews exactly what a click would insert, snapped
+            // like the click itself (Ctrl composes for fine placement). The point lands ON the
+            // curve at the snapped time (2026-07-18): placement is sonically silent, so the
+            // ghost rides the curve rather than the pointer's y. Without Alt the lane area is
+            // the caret-arming click zone and shows no ghost.
             const core::ToneAutomationLaneViewState& lane = m_state.lanes[area->lane_index];
             if (const std::optional<common::core::GridPosition> position =
                     musicalPositionForX(static_cast<float>(event.getPosition().x), event.mods);
@@ -845,6 +910,12 @@ void ToneAutomationLanesView::mouseMove(const juce::MouseEvent& event)
     {
         setMouseCursor(juce::MouseCursor::UpDownResizeCursor);
     }
+    else if (std::holds_alternative<LaneAreaHit>(*hit) && !event.mods.isAltDown())
+    {
+        // Plain lane area is the caret-arming click zone: a normal cursor, exactly like the
+        // chart lane's own empty space.
+        setMouseCursor(juce::MouseCursor::NormalCursor);
+    }
     else
     {
         // The insert quasimode shows the arrow-with-plus copy cursor: "a click adds here".
@@ -854,7 +925,7 @@ void ToneAutomationLanesView::mouseMove(const juce::MouseEvent& event)
 
 void ToneAutomationLanesView::mouseDown(const juce::MouseEvent& event)
 {
-    const std::optional<Hit> hit = hitAt(event.getPosition(), event.mods);
+    const std::optional<Hit> hit = hitAt(event.getPosition());
 
     if (event.mods.isPopupMenu())
     {
@@ -927,11 +998,25 @@ void ToneAutomationLanesView::mouseDown(const juce::MouseEvent& event)
         return;
     }
 
+    const auto& area = std::get<LaneAreaHit>(*hit);
+
+    // A plain click on empty editable lane area seeks and arms the caret at the nearest grid
+    // slot on the lane — the row-axis form of the chart lane's empty click (§9b). The
+    // controller owns the snap and the marker state.
+    if (!event.mods.isAltDown())
+    {
+        const core::ToneAutomationLaneViewState& lane = m_state.lanes[area.lane_index];
+        m_listener.onToneAutomationLaneCaretRequested(
+            lane.instance_id,
+            lane.param_id,
+            common::core::TimePosition{secondsForX(static_cast<float>(event.getPosition().x))});
+        return;
+    }
+
     // Alt-held empty editable area: create a preview point and enter the move drag immediately, so
     // press-drag-release adds and places in one gesture; the commit happens on mouseUp. The point
     // lands ON the curve at the snapped time (2026-07-18): a release without dragging plants a
     // sonically silent handle, and the drag phase pulls the value by the pointer's delta.
-    const auto& area = std::get<LaneAreaHit>(*hit);
     const std::optional<common::core::GridPosition> position =
         musicalPositionForX(static_cast<float>(event.getPosition().x), event.mods);
     if (!position.has_value())
@@ -1180,7 +1265,61 @@ bool ToneAutomationLanesView::nudgeSelectedPoint(NudgeDirection direction, bool 
     const std::optional<SelectedPoint> selected = selectedPointFromState();
     if (!selected.has_value())
     {
-        return false;
+        // Create-then-nudge at an armed empty lane caret slot (§9b): the point lands ON the
+        // curve at the caret and the arrow's step is baked into the creation, so "grab the
+        // curve here and pull" is one keystroke and ONE undo entry. A caret over an existing
+        // point always publishes it as the selection (arming re-derives), so reaching here
+        // means the slot is empty.
+        if (!m_state.lane_caret.has_value() ||
+            m_state.lane_caret->lane_index >= m_state.lanes.size())
+        {
+            return false;
+        }
+        const core::ToneAutomationLaneViewState& lane =
+            m_state.lanes[m_state.lane_caret->lane_index];
+        if (!lane.resolved)
+        {
+            return false;
+        }
+        const common::core::GridPosition caret_position = m_state.lane_caret->position;
+        float value = curveValueAt(lane, m_state.lane_caret->seconds);
+        common::core::GridPosition position = caret_position;
+        if (direction == NudgeDirection::Up || direction == NudgeDirection::Down)
+        {
+            const float step = lane.is_discrete && lane.discrete_value_count >= 2
+                                   ? 1.0F / static_cast<float>(lane.discrete_value_count - 1)
+                                   : (fine ? 0.001F : 0.01F);
+            value = snappedValueForLane(
+                std::clamp(value + (direction == NudgeDirection::Up ? step : -step), 0.0F, 1.0F),
+                lane);
+        }
+        else
+        {
+            // A refused time step (map edge, neighbor collision, window edge) still creates at
+            // the caret itself: the grab succeeded, only the pull refused. The step clamps
+            // strictly between the caret slot's neighboring points, like every point nudge.
+            const bool later = direction == NudgeDirection::Later;
+            const common::core::GridPosition stepped =
+                steppedNudgePosition(caret_position, later, fine);
+            const double stepped_seconds = secondsAtPosition(m_tempo_map, stepped);
+            const bool direction_ok = later ? caret_position < stepped : stepped < caret_position;
+            const auto next_neighbor = std::ranges::find_if(
+                lane.points, [&](const core::ToneAutomationPointViewState& point) {
+                    return caret_position < point.position;
+                });
+            const bool inside_neighbors =
+                (next_neighbor == lane.points.end() || stepped < next_neighbor->position) &&
+                (next_neighbor == lane.points.begin() ||
+                 std::prev(next_neighbor)->position < stepped);
+            if (direction_ok && inside_neighbors &&
+                stepped_seconds >= m_editable_window.start.seconds &&
+                stepped_seconds < m_editable_window.end.seconds)
+            {
+                position = stepped;
+            }
+        }
+        requestPointInsert(lane, position, value);
+        return true;
     }
     const SelectedPoint target = *selected;
 
@@ -1224,28 +1363,8 @@ bool ToneAutomationLanesView::nudgeSelectedPoint(NudgeDirection direction, bool 
         // Time nudge: to the adjacent tempo-grid line, or by one 1/960-beat fine step. Both go
         // through the beat axis so the result stays an exact rational.
         const bool later = direction == NudgeDirection::Later;
-        const double global_beat = static_cast<double>(m_tempo_map.globalBeatIndex(
-                                       target.position.measure, target.position.beat)) +
-                                   target.position.offset.toDouble();
-        common::core::GridPosition new_position;
-        if (fine)
-        {
-            new_position = core::fineGridPositionForBeat(
-                m_tempo_map, global_beat + (later ? 1.0 : -1.0) / 960.0);
-        }
-        else
-        {
-            // One grid step is the grid note value scaled by the local meter's beat unit; landing
-            // via nearest-grid-line keeps odd grids exact and respects the measure-anchored walk.
-            const common::core::TimeSignatureChange signature =
-                m_tempo_map.timeSignatureAt(target.position.measure);
-            const double step_beats =
-                m_grid_note_value.toDouble() * static_cast<double>(signature.denominator);
-            const double target_seconds = m_tempo_map.secondsAtGlobalBeatPosition(
-                global_beat + (later ? step_beats : -step_beats));
-            new_position = core::nearestTempoGridPosition(
-                m_tempo_map, m_grid_note_value, common::core::TimePosition{target_seconds});
-        }
+        const common::core::GridPosition new_position =
+            steppedNudgePosition(target.position, later, fine);
 
         // Refuse nudges that collapse (map edge) or reverse direction (nearest-line bounce-back),
         // and clamp strictly between the neighbors and inside the editable window; a refused
@@ -1276,9 +1395,135 @@ bool ToneAutomationLanesView::nudgeSelectedPoint(NudgeDirection direction, bool 
     return false;
 }
 
+// One keyboard time-step through the beat axis so the result stays an exact rational: the
+// adjacent tempo-grid line, or one 1/960-beat fine step. Landing via nearest-grid-line keeps
+// odd grids exact and respects the measure-anchored walk.
+common::core::GridPosition ToneAutomationLanesView::steppedNudgePosition(
+    const common::core::GridPosition& from, bool later, bool fine) const
+{
+    const double global_beat =
+        static_cast<double>(m_tempo_map.globalBeatIndex(from.measure, from.beat)) +
+        from.offset.toDouble();
+    if (fine)
+    {
+        return core::fineGridPositionForBeat(
+            m_tempo_map, global_beat + (later ? 1.0 : -1.0) / 960.0);
+    }
+    // One grid step is the grid note value scaled by the local meter's beat unit.
+    const common::core::TimeSignatureChange signature = m_tempo_map.timeSignatureAt(from.measure);
+    const double step_beats =
+        m_grid_note_value.toDouble() * static_cast<double>(signature.denominator);
+    const double target_seconds =
+        m_tempo_map.secondsAtGlobalBeatPosition(global_beat + (later ? step_beats : -step_beats));
+    return core::nearestTempoGridPosition(
+        m_tempo_map, m_grid_note_value, common::core::TimePosition{target_seconds});
+}
+
+// Emits the points-edit intent that inserts a new point into a lane (echoing every existing
+// point bit-identically) and selects it — the shared creation primitive for the caret's typed
+// values and the Alt+arrow create-then-nudge.
+void ToneAutomationLanesView::requestPointInsert(
+    const core::ToneAutomationLaneViewState& lane, const common::core::GridPosition& position,
+    float value)
+{
+    std::vector<common::core::ToneAutomationPoint> points;
+    points.reserve(lane.points.size() + 1);
+    for (const core::ToneAutomationPointViewState& point : lane.points)
+    {
+        if (point.position == position)
+        {
+            // The slot is occupied after all (a state race); creating nothing is the answer.
+            return;
+        }
+        points.push_back(
+            common::core::ToneAutomationPoint{
+                .position = point.position,
+                .norm_value = point.norm_value,
+                .curve_shape = point.curve_shape,
+            });
+    }
+    const common::core::ToneAutomationPoint created{.position = position, .norm_value = value};
+    const auto insert_at = std::ranges::find_if(
+        points, [&created](const common::core::ToneAutomationPoint& candidate) {
+            return created.position < candidate.position;
+        });
+    points.insert(insert_at, created);
+    m_listener.onToneAutomationPointsEditRequested(
+        lane.instance_id, lane.param_id, std::move(points));
+    m_listener.onToneAutomationPointSelectRequested(lane.instance_id, lane.param_id, position);
+}
+
+// Opens the typed-value editor at the armed lane caret, seeded with the typed digit: the
+// keyboard mirror of double-click value entry (the typing rule on lane rows, §9b). Committing
+// creates an on-caret point with the typed value, or retypes the point already at the slot.
+bool ToneAutomationLanesView::beginCaretValueEntry(int digit)
+{
+    if (!m_state.lane_caret.has_value() || m_state.lane_caret->lane_index >= m_state.lanes.size() ||
+        !isShowing())
+    {
+        return false;
+    }
+    const core::ToneAutomationLaneViewState& lane = m_state.lanes[m_state.lane_caret->lane_index];
+    if (!lane.resolved)
+    {
+        return false;
+    }
+    const common::core::GridPosition caret_position = m_state.lane_caret->position;
+
+    auto content = std::make_unique<PointValueEditorContent>(
+        juce::String{digit},
+        [safe_this = juce::Component::SafePointer<ToneAutomationLanesView>{this},
+         tone_ref = m_state.tone_document_ref,
+         instance_id = lane.instance_id,
+         param_id = lane.param_id,
+         caret_position](const juce::String& text) {
+            if (safe_this == nullptr)
+            {
+                return;
+            }
+            const auto parsed = safe_this->m_tone_automation.parseParameterValue(
+                tone_ref, instance_id, param_id, text.toStdString());
+            if (!parsed.has_value())
+            {
+                return;
+            }
+            const auto lane_now = std::ranges::find_if(
+                safe_this->m_state.lanes, [&](const core::ToneAutomationLaneViewState& candidate) {
+                    return candidate.instance_id == instance_id && candidate.param_id == param_id;
+                });
+            if (lane_now == safe_this->m_state.lanes.end())
+            {
+                return;
+            }
+            const float value = snappedValueForLane(*parsed, *lane_now);
+            const bool occupied = std::ranges::any_of(
+                lane_now->points, [&](const core::ToneAutomationPointViewState& point) {
+                    return point.position == caret_position;
+                });
+            if (occupied)
+            {
+                safe_this->requestPointReplace(
+                    instance_id, param_id, caret_position, caret_position, value);
+            }
+            else
+            {
+                safe_this->requestPointInsert(*lane_now, caret_position, value);
+            }
+        });
+
+    // Anchor the callout to the caret square's on-screen location.
+    const std::optional<juce::Rectangle<float>> square = laneCaretSquare();
+    const juce::Rectangle<int> local_anchor =
+        square.has_value() ? square->getSmallestIntegerContainer()
+                           : juce::Rectangle<int>{getWidth() / 2, getHeight() / 2, 8, 8};
+    juce::CallOutBox::launchAsynchronously(
+        std::move(content), localAreaToGlobal(local_anchor), nullptr);
+    return true;
+}
+
 void ToneAutomationLanesView::mouseDoubleClick(const juce::MouseEvent& event)
 {
-    const std::optional<Hit> hit = hitAt(event.getPosition(), event.mods);
+    const std::optional<Hit> hit = hitAt(event.getPosition());
     if (!hit.has_value())
     {
         return;

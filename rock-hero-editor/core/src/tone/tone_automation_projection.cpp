@@ -1,6 +1,8 @@
 #include "tone/tone_automation_projection.h"
 
 #include <algorithm>
+#include <cmath>
+#include <cstddef>
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <utility>
 #include <vector>
@@ -12,6 +14,46 @@ double secondsAtGridPosition(
     const common::core::TempoMap& tempo_map, const common::core::GridPosition& position)
 {
     return tempo_map.secondsAtNote(position.measure, position.beat, position.offset);
+}
+
+float toneAutomationCurveValueAt(
+    const std::vector<common::core::ToneAutomationPoint>& points,
+    const common::core::TempoMap& tempo_map, const common::core::GridPosition& position,
+    bool is_discrete, float fallback_value)
+{
+    if (points.empty())
+    {
+        return fallback_value;
+    }
+    const double seconds = secondsAtGridPosition(tempo_map, position);
+    if (seconds <= secondsAtGridPosition(tempo_map, points.front().position))
+    {
+        return points.front().norm_value;
+    }
+    if (seconds >= secondsAtGridPosition(tempo_map, points.back().position))
+    {
+        return points.back().norm_value;
+    }
+    for (std::size_t index = 1; index < points.size(); ++index)
+    {
+        const double next_seconds = secondsAtGridPosition(tempo_map, points[index].position);
+        if (seconds > next_seconds)
+        {
+            continue;
+        }
+        const common::core::ToneAutomationPoint& previous = points[index - 1];
+        if (is_discrete)
+        {
+            // The drawn discrete curve holds the previous state until the next point.
+            return previous.norm_value;
+        }
+        const double previous_seconds = secondsAtGridPosition(tempo_map, previous.position);
+        const double span = next_seconds - previous_seconds;
+        const float mix =
+            span > 0.0 ? static_cast<float>((seconds - previous_seconds) / span) : 1.0F;
+        return std::lerp(previous.norm_value, points[index].norm_value, mix);
+    }
+    return points.back().norm_value;
 }
 
 ToneAutomationViewState makeToneAutomationViewState(

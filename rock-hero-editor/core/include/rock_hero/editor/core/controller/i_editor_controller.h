@@ -435,6 +435,30 @@ public:
         std::vector<common::core::ToneAutomationPoint> points) = 0;
 
     /*!
+    \brief Handles the Insert key: creates the surface's neutral object at an armed empty
+    caret slot.
+
+    A fret-0 note on a string row, an on-curve point on an automation lane row; a no-op on
+    occupied slots, with a selection, or while the marker is passive — Insert never mutates
+    existing objects (the neutral-create verb, 2026-07-18).
+    */
+    virtual void onNeutralInsertRequested() = 0;
+
+    /*!
+    \brief Handles a click on an automation lane's empty area: seek and arm the caret there.
+
+    The caret arms at the nearest grid slot on the clicked lane and the transport rests at that
+    slot (the row-axis form of the chart lane's empty click, §9b). While playing, the click
+    only seeks — armed implies paused.
+
+    \param instance_id Plugin instance owning the clicked lane's parameter.
+    \param param_id Parameter id within the plugin.
+    \param time Clicked timeline position.
+    */
+    virtual void onToneAutomationLaneCaretRequested(
+        std::string instance_id, std::string param_id, common::core::TimePosition time) = 0;
+
+    /*!
     \brief Handles a deliberate click on an automation point: it becomes the editor-wide
     selection.
 

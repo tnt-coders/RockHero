@@ -388,7 +388,7 @@ highway-band seek gate, and chartless behavior (now simply "the marker never arm
 
 Settled with the user hours after §9a; the full grammar record (verb table rows, per-surface
 behavior, amendment record) lives in `editing-interaction-model.md` — this section holds only
-what extends the marker model itself. Being implemented now.
+what extends the marker model itself. Implemented the same day.
 
 - **Rows, not strings.** The armed caret's vertical coordinate generalizes from a string index
   to a **row**: the chart strings first, then the visible automation lanes (a lane row is

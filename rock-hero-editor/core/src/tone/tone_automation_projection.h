@@ -58,6 +58,26 @@ struct OpenAutomationLane
     const common::core::TempoMap& tempo_map, const common::core::GridPosition& position);
 
 /*!
+\brief The automation curve's value at a musical position, matching the drawn curve.
+
+Linear segments between points on a continuous parameter, held steps on a discrete one, and
+flat extensions outside the authored span — the model-side sibling of the lanes view's own
+on-curve evaluation, so a point created at this value lands on the drawn line (placement is
+sonically silent, 2026-07-18).
+
+\param points Authored points in ascending musical order.
+\param tempo_map Song tempo map used to place positions on the time axis.
+\param position Musical position to evaluate at.
+\param is_discrete True when the parameter is stepped rather than continuous.
+\param fallback_value Value returned when no points are authored (the live tracking line).
+\return The curve's normalised value at the position.
+*/
+[[nodiscard]] float toneAutomationCurveValueAt(
+    const std::vector<common::core::ToneAutomationPoint>& points,
+    const common::core::TempoMap& tempo_map, const common::core::GridPosition& position,
+    bool is_discrete, float fallback_value);
+
+/*!
 \brief Builds the automation-lane view state for the selected tone.
 
 Lanes come from the arrangement's musical automation entries whose plugin binding belongs to the

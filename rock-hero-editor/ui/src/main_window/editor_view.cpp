@@ -640,10 +640,13 @@ void EditorView::setState(const core::EditorViewState& state)
         m_state.tab_minimum_displayed_strings));
     // An armed caret hides the paused playhead (the caret is the position display) and
     // becomes the wheel-zoom center; passive keeps the paused cursor line at the transport
-    // position and zooms around it.
+    // position and zooms around it. A lane-riding caret (§9b) is armed all the same, just
+    // published through the automation state instead of the chart overlay.
     m_track_viewport->setArmedChartCaret(
         m_state.chart_edit.caret.has_value()
             ? std::optional<double>{m_state.chart_edit.caret->seconds}
+        : m_state.tone_automation.lane_caret.has_value()
+            ? std::optional<double>{m_state.tone_automation.lane_caret->seconds}
             : std::nullopt);
     // Caret navigation keeps its measure comfortably in view: whenever the caret lands at a
     // new time (arming or stepping — string-only moves keep the same seconds and glide
@@ -1100,16 +1103,22 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
             return false;
         }
 
-        // Fret digits: the top number row and the numpad both type frets. With a selection the
-        // typed value retypes it; with none, it inserts at an armed caret and is inert while
-        // the marker is passive (the marker model — the controller owns the branch).
-        // Ctrl+digit and Alt+digit stay unbound.
+        // Digits type the row's payload (the typing rule, §9b). On an armed lane caret they
+        // open the typed-value editor seeded with the digit (create-or-retype at the slot); on
+        // the chart rows they type frets — with a selection the typed value retypes it, with
+        // none it inserts at an armed caret, and the passive marker keeps digits inert (the
+        // controller owns that branch). Ctrl+digit and Alt+digit stay unbound.
         const int key_code = key.getKeyCode();
         const int fret_digit =
             key_code >= '0' && key_code <= '9' ? key_code - '0'
             : key_code >= juce::KeyPress::numberPad0 && key_code <= juce::KeyPress::numberPad9
                 ? key_code - juce::KeyPress::numberPad0
                 : -1;
+        if (!ctrl && !alt && fret_digit >= 0 && m_state.tone_automation.lane_caret.has_value() &&
+            m_tone_automation_lanes_view.beginCaretValueEntry(fret_digit))
+        {
+            return true;
+        }
         if (chart_shown && !ctrl && !alt && fret_digit >= 0)
         {
             m_controller.onChartFretDigitTyped(fret_digit);
@@ -1141,6 +1150,15 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
             m_controller.onSelectionDeleteRequested();
             return true;
         }
+    }
+
+    // Insert is the neutral-create verb (2026-07-18): a fret-0 note at an armed empty string
+    // slot, an on-curve point at an armed empty lane slot; the controller no-ops everywhere
+    // else so Insert never mutates existing objects.
+    if (key == juce::KeyPress{juce::KeyPress::insertKey})
+    {
+        m_controller.onNeutralInsertRequested();
+        return true;
     }
 
     // Ctrl+T inserts a tone-change marker at the playhead, splitting the region there.
@@ -2368,6 +2386,13 @@ void EditorView::onToneAutomationPointSelectRequested(
 {
     m_controller.onToneAutomationPointSelected(
         std::move(instance_id), std::move(param_id), position);
+}
+
+void EditorView::onToneAutomationLaneCaretRequested(
+    std::string instance_id, std::string param_id, common::core::TimePosition time)
+{
+    m_controller.onToneAutomationLaneCaretRequested(
+        std::move(instance_id), std::move(param_id), time);
 }
 
 void EditorView::onToneAutomationPointsEditRequested(

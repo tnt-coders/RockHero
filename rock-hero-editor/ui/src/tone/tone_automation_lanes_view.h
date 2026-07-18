@@ -78,6 +78,16 @@ public:
             std::string instance_id, std::string param_id) = 0;
 
         /*!
+        \brief Called when a plain click on empty lane area asks to seek and arm the caret
+        there (the row-axis form of the chart lane's empty click, §9b).
+        \param instance_id Plugin instance owning the clicked lane's parameter.
+        \param param_id Parameter id within the plugin.
+        \param time Clicked timeline position (the controller snaps to the grid).
+        */
+        virtual void onToneAutomationLaneCaretRequested(
+            std::string instance_id, std::string param_id, common::core::TimePosition time) = 0;
+
+        /*!
         \brief Called when a gesture makes a point the editor-wide selection.
 
         Selection is controller-owned (one selection editor-wide, 2026-07-18): the view emits
@@ -188,11 +198,10 @@ public:
     \brief Reports whether a pointer at a local position lands on interactive lane content.
 
     The cursor overlay's hit-test pass-through uses this to decide between lane editing and
-    click-to-seek: point handles, lane name chips, resize bands, and the "+" chip always claim
-    the pointer; empty editable lane area claims it only while Alt (the insert quasimode) is held,
-    so a plain click there seeks. Disabled lanes, out-of-window areas, and empty strip space pass
-    through. Consults the live modifier state, which JUCE refreshes with a synthetic mouse move on
-    every modifier change.
+    click-to-seek: point handles, lane name chips, resize bands, the "+" chip, and empty
+    editable lane area all claim the pointer — a plain click on empty lane area seeks and arms
+    the caret on that lane (§9b), and with Alt held it is the insert quasimode's target.
+    Disabled lanes, out-of-window areas, and empty strip space pass through.
 
     \param local_point Position in this component's coordinates.
     \return True when the pointer should reach the lanes instead of the cursor overlay.
@@ -270,6 +279,25 @@ public:
     */
     [[nodiscard]] bool nudgeSelectedPoint(NudgeDirection direction, bool fine);
 
+    /*!
+    \brief Opens the typed-value editor at the armed lane caret, seeded with a typed digit.
+
+    The keyboard mirror of double-click value entry (the typing rule on lane rows, §9b):
+    committing the text creates an on-curve-positioned point at the caret slot with the typed
+    value, or retypes the point already there.
+
+    \param digit First typed digit in [0, 9], seeding the editor text.
+    \return True when an armed lane caret existed and the editor was requested.
+    */
+    [[nodiscard]] bool beginCaretValueEntry(int digit);
+
+    /*!
+    \brief Outer vertical span of the lane caret square, for the paused-column cut-out.
+    \return The square's y range in this component's coordinates, or empty while no lane caret
+    is published.
+    */
+    [[nodiscard]] std::optional<juce::Range<float>> caretMaskYRange() const;
+
 private:
     // One lane's vertical extent in component coordinates.
     struct LaneExtent
@@ -313,9 +341,9 @@ private:
     };
 
     // Hit zones resolved by hitAt(); the pass-through predicate and mouseDown share this result.
-    // LaneAreaHit exists only while Alt (the insert quasimode) is held; a plain pointer over empty
-    // lane area passes through to the seek overlay. LaneChipHit is the lane's pinned name chip —
-    // the lane handle that opens the lane menu on any click.
+    // LaneAreaHit is empty editable lane area: Alt makes it the insert quasimode's target, a
+    // plain click seeks and arms the caret on the lane (§9b). LaneChipHit is the lane's pinned
+    // name chip — the lane handle that opens the lane menu on any click.
     struct PointHit
     {
         std::size_t lane_index{};
@@ -373,10 +401,8 @@ private:
     // that arrived (and was deferred) during a gesture. Never called while m_drag is set.
     void applyState(const core::ToneAutomationViewState& state);
 
-    // Resolves the interactive zone at a local point, or nullopt for pass-through space. Empty
-    // editable lane area is a hit only while mods carry Alt (the insert quasimode).
-    [[nodiscard]] std::optional<Hit> hitAt(
-        juce::Point<int> local_point, const juce::ModifierKeys& mods) const;
+    // Resolves the interactive zone at a local point, or nullopt for pass-through space.
+    [[nodiscard]] std::optional<Hit> hitAt(juce::Point<int> local_point) const;
 
     // The lane name chip's bounds, shared by painting and hit-testing so they cannot diverge.
     [[nodiscard]] juce::Rectangle<int> laneChipBounds(
@@ -408,6 +434,24 @@ private:
     // (on the curve) so insertion is sonically silent until the point is deliberately pulled.
     [[nodiscard]] float curveValueAt(
         const core::ToneAutomationLaneViewState& lane, double seconds) const;
+
+    // Converts a content x back to timeline seconds (xForSeconds' inverse), for click intents.
+    [[nodiscard]] double secondsForX(float content_x) const;
+
+    // One keyboard time-step from a position: the adjacent tempo-grid line, or one 1/960-beat
+    // fine step. Shared by the selected-point nudge and the caret's create-then-nudge.
+    [[nodiscard]] common::core::GridPosition steppedNudgePosition(
+        const common::core::GridPosition& from, bool later, bool fine) const;
+
+    // Emits the points-edit intent that inserts a new point into a lane and selects it. Shared
+    // by the caret's typed-value creation and the Alt+arrow create-then-nudge.
+    void requestPointInsert(
+        const core::ToneAutomationLaneViewState& lane, const common::core::GridPosition& position,
+        float value);
+
+    // The lane caret square's rectangle in component coordinates, shared by paint and the
+    // paused-column mask so they cannot diverge; empty while no lane caret is published.
+    [[nodiscard]] std::optional<juce::Rectangle<float>> laneCaretSquare() const;
 
     // Snaps a raw normalised value to the nearest discrete step for a stepped parameter (so a
     // toggle moves only between its states); returns the value unchanged for a continuous lane.
