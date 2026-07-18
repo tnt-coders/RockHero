@@ -261,37 +261,6 @@ void TabView::mouseUp(const juce::MouseEvent& event)
     }
 }
 
-void TabView::setSustainWheelCallback(SustainWheelCallback on_sustain_wheel)
-{
-    m_on_sustain_wheel = std::move(on_sustain_wheel);
-}
-
-void TabView::setFretShiftWheelCallback(FretShiftWheelCallback on_fret_shift_wheel)
-{
-    m_on_fret_shift_wheel = std::move(on_fret_shift_wheel);
-}
-
-// Alt+wheel adjusts the selection's sustain (Ctrl+Alt+wheel steps the fine grid) and
-// Alt+Shift+wheel shifts its frets by one, shape-preserving, per the interaction model; wheel
-// events without Alt fall through to the hosting viewport's scrolling.
-void TabView::mouseWheelMove(const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel)
-{
-    const bool over_chart = m_tab != nullptr && m_tab->string_count > 0 && wheel.deltaY != 0.0f &&
-                            event.mods.isAltDown();
-    if (over_chart && event.mods.isShiftDown() && m_on_fret_shift_wheel != nullptr)
-    {
-        m_on_fret_shift_wheel(wheel.deltaY > 0.0f ? 1 : -1);
-        return;
-    }
-    if (over_chart && !event.mods.isShiftDown() && m_on_sustain_wheel != nullptr)
-    {
-        m_on_sustain_wheel(wheel.deltaY > 0.0f ? 1 : -1, event.mods.isCtrlDown());
-        return;
-    }
-
-    Component::mouseWheelMove(event, wheel);
-}
-
 // Stores the visible timeline range used to map note times to pixels.
 void TabView::setVisibleTimeline(common::core::TimeRange visible_timeline)
 {
