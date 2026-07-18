@@ -54,6 +54,14 @@ just reached a playable vertical slice. Right now you can:
 | Guitar plugins | VST3 |
 | 3D rendering | [SDL3](https://www.libsdl.org/) + [bgfx](https://github.com/bkaradzic/bgfx) |
 
+## Platform support
+
+**Windows is the only officially supported platform for now.** The Linux and macOS CI builds
+compile, pass tests, and package on every commit, and the codebase is written with a later port
+in mind — but the game and editor currently only *run* on Windows (rendering ships Direct3D 11
+shaders only, and a few platform seams are unfinished). The port is planned:
+[`docs/plans/roadmap/33-cross-platform-port.md`](docs/plans/roadmap/33-cross-platform-port.md).
+
 ## Getting started
 
 Everything you need to build, test, and contribute — required tools, a from-scratch quick start, and

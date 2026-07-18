@@ -59,7 +59,10 @@ graph TD
         P28[28 practice mode]
         P29[29 online leaderboards]
         P31[31 integrated game/editor workflow]
+        P33[33 cross-platform port]
     end
+
+    P20 --> P33
 
     P10 --> P43
     P10 --> P29
@@ -245,6 +248,7 @@ Phases 1–2 and plan 10 Phase 0 (G10-DECISIONS answers), both Stage 1 items alr
 30. docs/plans/roadmap/28-practice-mode.md (G28-STRETCH spike first; its one NOW requirement — speed factor + loop-seek in the interfaces — is already delegated to 21 Phase 1 / 47 Phase 1 (whichever executes first) and 12).
 31. docs/plans/roadmap/29-online-leaderboards.md (G29-STABILITY + hosting/identity/licensing sign-off).
 32. docs/plans/roadmap/31-integrated-game-editor-workflow.md (Deferred; revisit when the game is audible on the per-app audio foundation and an installer/distribution story exists — the concrete driver for the `IDeviceOwnershipArbiter` device handoff).
+33. docs/plans/roadmap/33-cross-platform-port.md (Ready but unscheduled — start at user direction; all prerequisites shipped. Phases 1–3 are small parallel-friendly seam work; Phase 7 real-GPU bring-up is the risk; Phase 8 editor-preview port is separable and may stay deferred).
 
 ---
 
@@ -400,6 +404,13 @@ plan's Gate record.**
 - **30-Q2** sequencing vs plan 40: **ANSWERED: (a)** — extract the paint core BEFORE plan 40 Phase 3 adds tab-lane interaction.
 - **30-Q3** display-mode setting home: **ANSWERED: (a), user-amended** — global game display setting on plan 26 Phase 4's surface, as a THREE-WAY mode: 3D highway / 2D tab / both simultaneously (composition decision in plan 30 §7); per-song persistence stays additive later.
 
+### docs/plans/roadmap/33-cross-platform-port.md
+
+- **33-Q1** Linux render backend: (A) Vulkan only (matches the shipped [0,1]-depth camera math; lavapipe gives a CI software path); (B) Vulkan + OpenGL fallback (needs `homogeneousDepth`-aware projection). **R: A.**
+- **33-Q2** Linux windowing scope at v1: (A) X11 native, Wayland via XWayland; (B) native Wayland + X11 both. **R: A.**
+- **33-Q3** editor 3D preview port timing: (A) defer Phase 8 — ship game + editor-minus-preview first; (B) include in the initial push. **R: A.**
+- **33-Q4** verification depth: (A) manual witnessed runs on real hardware + optional Xvfb/lavapipe Linux CI smoke; (B) self-hosted GPU runners. **R: A now.**
+
 ### docs/plans/roadmap/40-chart-editing.md
 
 - **40-Q1** arpeggio handling: (A) no dedicated editor — the shapes editor covers arpeggios (bracket rendering derives from note arrival); (B) dedicated authoring mode; (C) stored arpeggio flag (format change via 10). **R: A**.
@@ -540,6 +551,7 @@ One line per plan; update the right-hand cell as phases complete.
 | docs/plans/roadmap/30-game-2d-tab-view.md | **Executing** (Phases 1–5; Phase 6 behind 24 + 25 Phase 5) | Game 2D tab display via the shared JUCE notation paint core + tile strips; layout manifest; three-way display modes (3D/2D/both); editor preview display selector | Phases 1–2 complete 2026-07-16 (tab scene model promoted; shared paint core + layout manifest in common/ui, editor pixel-identical, pixel coverage moved to the common suite); plan 40 Phase 3 unblocked; Phase 3 (game strip renderer) needs the game shell |
 | docs/plans/roadmap/31-integrated-game-editor-workflow.md | Deferred (someday) | "Launch Editor" from the game + in-process ASIO device handoff (IDeviceOwnershipArbiter); per-app audio, no shared server | Not started — captured 2026-07-12; revisit when the game is audible on the per-app audio foundation + an installer/distribution story exists |
 | docs/plans/roadmap/32-game-native-audio-config.md | Ready | Game native audio config (device + calibration, multi-input-aware `GameAudioConfig`/`PlayerInputConfig`); **P2 = "game guitar audible" milestone** (native calibrate-first) | Not started — authored 2026-07-12 |
+| docs/plans/roadmap/33-cross-platform-port.md | Ready (unscheduled — start at user direction) | Linux (Vulkan) + macOS (Metal) support for both executables: shader profile table, backend enums, native handles, macOS bundling, CI hardening, real-GPU bring-up; editor 3D preview port separable (Phase 8) | Not started — authored 2026-07-18 from the three-audit investigation; inventory re-verify required before execution |
 | docs/plans/roadmap/40-chart-editing.md | **Executing** (elevated to co-track priority with the detection/scoring chain, user 2026-07-16) | Full chart authorability: selection, notes, techniques, curves, templates/shapes/FHPs/sections, bulk edit | Phases 1–3 complete + **Phase 4 substantially complete 2026-07-16 — charts are editable**: Alt+click insert, Delete, fret typing, sustain resize (Shift+Alt+arrows/Alt+wheel), Alt+arrows selection move — all single-undo-entry with 40-Q2-B truncation, persisted by write-on-save; keyboard grammar amended same day (plain keys never mutate; record in the interaction model doc); tail-drag parked as a watch item; remaining Phase 4 slice = pointer drag-move + Alt ghost preview; then Phase 5 (techniques) |
 | docs/plans/roadmap/41-tempo-map-authoring.md | Ready (Phase 6 behind G41-TS) | Anchor place/drag, tap tempo, onset-assisted snapping, TS editing within the warp-anchor model | Not started |
 | docs/plans/roadmap/42-chart-validation.md | Ready | Advisory lint engine + rule set v1 in common/core, corpus-calibrated severities, editor report | Not started |
