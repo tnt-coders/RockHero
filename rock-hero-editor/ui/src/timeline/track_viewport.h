@@ -55,7 +55,13 @@ private:
         // tempo map.
         void setGridLines(const std::vector<core::TempoGridLine>& grid_lines);
 
-        // Draws the timeline canvas, tempo grid, waveform row background, and empty-project text.
+        // Stores the paused play-from-here column drawn BEHIND the track content (the marker
+        // model: visible in every gap but never over a note), or absence during playback and
+        // without a chart; repaints only the affected strips.
+        void setPausedCursorX(std::optional<float> x);
+
+        // Draws the timeline canvas, tempo grid, paused cursor column, waveform row
+        // background, and empty-project text.
         void paint(juce::Graphics& g) override;
 
         // Converts normal wheel movement over timeline content into horizontal zoom.
@@ -74,6 +80,10 @@ private:
         std::vector<int> m_subdivision_grid_x{};
         std::vector<int> m_beat_grid_x{};
         std::vector<int> m_measure_grid_x{};
+
+        // Paused play-from-here column in content coordinates; absent during playback (the
+        // overlay's moving line takes over in front) and without a chart.
+        std::optional<float> m_paused_cursor_x{};
     };
 
     // Viewport subclass that lets the pinned ruler track user-driven scrollbar movement.

@@ -98,6 +98,28 @@ void TrackViewport::Content::setGridLines(const std::vector<core::TempoGridLine>
     repaint();
 }
 
+// Stores the paused cursor column and repaints only the strips it leaves and enters — the
+// same narrow-invalidation pattern the overlay and ruler cursors use.
+void TrackViewport::Content::setPausedCursorX(std::optional<float> x)
+{
+    if (x == m_paused_cursor_x)
+    {
+        return;
+    }
+
+    const auto repaint_strip = [this](std::optional<float> column) {
+        if (!column.has_value())
+        {
+            return;
+        }
+        constexpr int pad = 3;
+        repaint(static_cast<int>(std::floor(*column)) - pad, 0, 2 * pad + 3, getHeight());
+    };
+    repaint_strip(m_paused_cursor_x);
+    repaint_strip(x);
+    m_paused_cursor_x = x;
+}
+
 // Draws the timeline canvas, tempo grid, waveform row background, and empty-project text.
 void TrackViewport::Content::paint(juce::Graphics& g)
 {
@@ -127,6 +149,17 @@ void TrackViewport::Content::paint(juce::Graphics& g)
                 0, lanes_top, bounds.getWidth(), std::max(0, bounds.getHeight() - lanes_top)
             });
         drawTempoGridDots(g, m_subdivision_grid_x, m_beat_grid_x, m_measure_grid_x, bounds);
+        // The paused play-from-here column (the marker model, behind-content ruling
+        // 2026-07-18): drawn over the grid but BEHIND every track-row component, so while
+        // editing it shows in every gap without ever covering a note or its fret number.
+        // During playback the overlay's moving line takes over in front and this hides.
+        if (m_paused_cursor_x.has_value())
+        {
+            const int column = std::clamp(
+                static_cast<int>(std::round(*m_paused_cursor_x)), 0, bounds.getWidth() - 1);
+            g.setColour(editorTheme().paused_cursor);
+            g.fillRect(column, 0, 2, bounds.getHeight());
+        }
         return;
     }
 
@@ -839,6 +872,16 @@ void TrackViewport::updateRulerCursor()
             ? m_transport.position().seconds
             : m_armed_caret_seconds.value_or(m_transport.position().seconds);
     m_timeline_ruler.setCursorPosition(common::core::TimePosition{mark_seconds});
+
+    // The same marker position feeds the behind-content paused column: hidden during playback
+    // (the overlay's moving line takes over in front) and without a chart (the overlay keeps
+    // the chartless paused line as the only indicator).
+    const bool paused_column_visible = !m_transport.state().playing && m_tab_displayed_strings > 0;
+    m_content.setPausedCursorX(
+        paused_column_visible
+            ? cursorXForTimelinePosition(
+                  common::core::TimePosition{mark_seconds}, m_timeline_range, m_content.getWidth())
+            : std::optional<float>{});
 }
 
 } // namespace rock_hero::editor::ui
