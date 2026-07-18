@@ -255,9 +255,11 @@ void TabView::paint(juce::Graphics& g)
         g.drawRect(box, 1.0f);
     }
 
-    // The editing caret on an empty slot (the caret model): a white ring the size of a note
-    // head marking exactly where a typed digit will insert. On a note the selection highlight
-    // is the caret display, so the controller publishes nothing here.
+    // The editing caret on an empty slot (the caret model): a white square marking exactly
+    // where a typed digit will insert. Square rather than round so it reads as editor
+    // furniture distinct from every circular note shape (heads, accent glows) and stays
+    // visible over them. On a note the selection highlight is the caret display, so the
+    // controller publishes nothing here.
     if (m_edit.caret.has_value() && m_edit.caret->string >= 1 &&
         m_edit.caret->string <= m_tab->string_count && m_visible_timeline.duration().seconds > 0.0)
     {
@@ -266,8 +268,10 @@ void TabView::paint(juce::Graphics& g)
             m_visible_timeline.duration().seconds * static_cast<double>(getWidth()));
         const float size = metrics.note_height + 1.0f;
         const float center_y = metrics.laneY(m_edit.caret->string);
-        g.setColour(juce::Colours::white.withAlpha(0.6f));
-        g.drawEllipse(x - size / 2.0f, center_y - size / 2.0f, size, size, ring_stroke(size));
+        g.setColour(juce::Colours::white.withAlpha(0.7f));
+        g.drawRect(
+            juce::Rectangle<float>{x - size / 2.0f, center_y - size / 2.0f, size, size},
+            ring_stroke(size));
     }
 }
 

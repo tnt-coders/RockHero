@@ -243,6 +243,24 @@ first caret. The paused playhead is gone.
   caret-address resume persistence (exact measure:beat:offset + string, per the user's ruling
   that no time recalculation is ever involved; chartless projects persist the nearest grid
   line to the transport).
+- **Amendments (2026-07-17, late, both built):** (1) *playback dissolves the caret* — play
+  clears the note selection and the caret stops publishing while the transport plays; pause
+  snaps it back on the remembered string. One position concept per transport state, now with
+  no residue of the other. (2) *The empty-slot caret is a white SQUARE outline*, not a
+  circle: it reads as editor furniture distinct from every circular note shape and stays
+  visible over accent glows.
+
+### 9a. OPEN — the full-GP question: single-caret selection (no multi-select)
+
+The user is weighing adopting Guitar Pro's whole selection posture: **no multi-select at
+all** — every selection is the single note under the caret; fret edits hit only that note,
+while designated verbs act on the caret note's whole onset group; bulk operations go through
+the time-range selection instead (which GP does have, and which plan 52 builds). Would
+retire: marquee, Ctrl+click toggle, double-click chord selection, multi-note verbs, and most
+of `ChartSelection`. Tradeoffs under active discussion — no decision recorded yet.
+Companion principle raised at the same time: **no invalid states** — technique hotkeys
+(hammer-on etc., Phase 5) must validate before applying and refuse cleanly, unlike GP's "h"
+which can author an invalid hammer-on.
 
 ## Build order (once section 5 settles)
 

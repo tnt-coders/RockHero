@@ -2654,6 +2654,10 @@ void EditorController::Impl::performActionImpl(EditorAction::PlayPause /*action*
                         m_chart_caret->position.beat,
                         m_chart_caret->position.offset)}));
         }
+        // Playback dissolves the caret's presence entirely: the note selection clears and the
+        // caret stops publishing until pause snaps it back (the string memory survives in
+        // m_chart_caret so the snap lands on the remembered string).
+        m_chart_selection.clear();
         activateToneAtCursor();
         m_transport.play();
         updateView();
@@ -3011,9 +3015,10 @@ EditorViewState EditorController::Impl::deriveViewState() const
         {
             state.chart_edit.selected_notes =
                 selectedNoteIndices(arrangement->chart->notes, m_chart_selection);
-            // The caret publishes only while it sits on an EMPTY slot — on a note the
-            // selection highlight is the caret display.
-            if (m_chart_caret.has_value())
+            // The caret publishes only while paused (playback dissolves it; pause snaps it
+            // back) and only while it sits on an EMPTY slot — on a note the selection
+            // highlight is the caret display.
+            if (m_chart_caret.has_value() && !m_transport.state().playing)
             {
                 const ChartNoteKey caret_key{
                     .position = m_chart_caret->position, .string = m_chart_caret->string

@@ -279,9 +279,9 @@ TEST_CASE("TabView renders chart-editing overlays", "[ui][tab-view]")
     CHECK(image.getPixelAt(2, 110) != plain_image.getPixelAt(2, 110));
 }
 
-// The controller-published caret renders as a white ring on its empty slot (the caret model);
-// clearing the published caret clears the ring.
-TEST_CASE("TabView renders the empty-slot caret ring", "[ui][tab-view]")
+// The controller-published caret renders as a white square outline on its empty slot (the
+// caret model); clearing the published caret clears it.
+TEST_CASE("TabView renders the empty-slot caret square", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TabView view{};
@@ -303,12 +303,15 @@ TEST_CASE("TabView renders the empty-slot caret ring", "[ui][tab-view]")
             juce::Image::ARGB, 200, 120, true)};
         juce::Graphics graphics{image};
         view.paint(graphics);
-        // Probe inside the ring's stroke band above the slot center (ring radius ~7.2, stroke
-        // 1.5), off the string line so the lane paint cannot satisfy the check.
+        // Probe inside the square's top stroke band above the slot center (half-size ~7.2,
+        // stroke 1.5), off the string line so the lane paint cannot satisfy the check.
         CHECK(image.getPixelAt(125, 62).getARGB() != 0);
+        // A corner probe pins the SQUARE shape: the top edge extends to x = 118 at this y,
+        // where a circular ring of the same size would leave the pixel empty.
+        CHECK(image.getPixelAt(119, 63).getARGB() != 0);
     }
 
-    // No published caret, no ring.
+    // No published caret, no square.
     view.setEditState(core::ChartEditViewState{});
     {
         const juce::Image image{juce::SoftwareImageType{}.create(
