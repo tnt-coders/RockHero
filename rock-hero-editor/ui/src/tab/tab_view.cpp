@@ -224,11 +224,13 @@ core::ChartPointerEvent TabView::makePointerEvent(const juce::MouseEvent& event)
             m_tab->string_count),
         .x = event.position.x,
         .y = event.position.y,
-        .modifiers = core::ChartPointerModifiers{
-            .ctrl = event.mods.isCtrlDown(),
-            .shift = event.mods.isShiftDown(),
-            .alt = event.mods.isAltDown(),
-        },
+        .modifiers =
+            core::ChartPointerModifiers{
+                .ctrl = event.mods.isCtrlDown(),
+                .shift = event.mods.isShiftDown(),
+                .alt = event.mods.isAltDown(),
+            },
+        .clicks = event.getNumberOfClicks(),
     };
 }
 
