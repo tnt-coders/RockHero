@@ -369,6 +369,15 @@ struct ChartEditViewState
     std::optional<ChartMarqueeViewState> marquee{};
 
     /*!
+    \brief Fret the next Alt+click insert will carry.
+
+    The Alt-held ghost preview renders the full note a click would place — string-colored head
+    plus this numeral — and Alt+digits compose the value before placement (no undo
+    involvement; the pending fret is transient until a placement commits it).
+    */
+    int insert_fret{0};
+
+    /*!
     \brief Compares two chart-editing states by their stored values.
     \param lhs Left-hand state.
     \param rhs Right-hand state.

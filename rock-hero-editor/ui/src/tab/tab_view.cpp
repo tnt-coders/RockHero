@@ -127,10 +127,10 @@ void TabView::updateGhost(const juce::MouseEvent& event)
     repaintGhostStrip(previous_x, next_x);
 }
 
-// The shared repaintCursorStrip pads for a one-pixel cursor line; the ghost ring reaches half a
-// head-size on either side of its onset x, so its strip pads by the style ceiling on that reach
-// instead. Anything narrower clips the incoming ghost's draw and leaves stale fragments of the
-// outgoing one behind.
+// The shared repaintCursorStrip pads for a one-pixel cursor line; the ghost paints up to one
+// head-size on either side of its onset x (the fret-label rect is two head-sizes wide, centered
+// on it), so its strip pads by the style ceiling on that reach instead. Anything narrower clips
+// the incoming ghost's draw and leaves stale fragments of the outgoing one behind.
 void TabView::repaintGhostStrip(std::optional<float> previous_x, std::optional<float> next_x)
 {
     if ((!previous_x.has_value() && !next_x.has_value()) || getWidth() <= 0 || getHeight() <= 0)
@@ -152,8 +152,7 @@ void TabView::repaintGhostStrip(std::optional<float> previous_x, std::optional<f
         right_x = ghost_x;
     }
     constexpr float antialias_padding = 3.0f;
-    const float half_extent =
-        (common::ui::TabLaneStyle{}.max_note_height + 1.0f) / 2.0f + antialias_padding;
+    const float half_extent = common::ui::TabLaneStyle{}.max_note_height + 1.0f + antialias_padding;
     const int left = std::max(0, static_cast<int>(std::floor(left_x - half_extent)));
     const int right = std::min(getWidth(), static_cast<int>(std::ceil(right_x + half_extent)) + 1);
     repaint(left, 0, right - left, getHeight());
@@ -381,18 +380,33 @@ void TabView::paint(juce::Graphics& g)
         g.drawRect(box, 1.0f);
     }
 
-    // The Alt-held ghost: a faded white ring with the exact dimensions of the selection ring
-    // on the head a click would insert, at the snapped position on the hovered lane. A neutral
-    // outline, not a full colored note (user feedback 2026-07-17): the insert always lands at
-    // fret 0 and the real fret gets typed right after, so mirroring color and number would
-    // preview a note nobody keeps.
+    // The Alt-held ghost: the full note a click would insert — string-colored translucent head
+    // carrying the pending fret numeral (chart_edit.insert_fret, composable via Alt+digits) at
+    // the snapped position on the hovered lane. Supersedes the interim white ring: with the
+    // pending fret visible AND editable before placement, the ghost previews exactly what will
+    // land, which is what removed the earlier full ghost (its label showed a fret nobody
+    // meant to keep).
     if (m_ghost.has_value() && m_ghost->string >= 1 && m_ghost->string <= m_tab->string_count)
     {
         const float size = metrics.note_height + 1.0f;
         const float center_y = metrics.laneY(m_ghost->string);
-        g.setColour(juce::Colours::white.withAlpha(0.6f));
+        const juce::Colour base = metrics.baseColor(m_ghost->string);
+        g.setColour(base.withAlpha(0.35f));
+        g.fillEllipse(m_ghost->x - size / 2.0f, center_y - size / 2.0f, size, size);
+        g.setColour(base.withAlpha(0.6f));
         g.drawEllipse(
             m_ghost->x - size / 2.0f, center_y - size / 2.0f, size, size, ring_stroke(size));
+        if (metrics.draw_text)
+        {
+            g.setColour(juce::Colours::white.withAlpha(0.85f));
+            g.setFont(metrics.fret_font);
+            g.drawText(
+                juce::String{m_edit.insert_fret},
+                juce::Rectangle<float>{
+                    m_ghost->x - size, center_y - size, size * 2.0f, size * 2.0f
+                },
+                juce::Justification::centred);
+        }
     }
 }
 

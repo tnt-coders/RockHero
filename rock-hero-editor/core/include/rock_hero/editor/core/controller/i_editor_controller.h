@@ -271,6 +271,26 @@ public:
     virtual void onChartFretShiftRequested(int direction) = 0;
 
     /*!
+    \brief Handles an Alt-held digit composing the pending insert fret.
+
+    The value the ghost preview shows and the next Alt+click placement carries. Digits combine
+    in the same multi-digit entry window as selection fret typing, but nothing mutates and no
+    undo entry exists — the pending fret is transient until a placement commits it.
+
+    \param digit Typed digit in [0, 9].
+    */
+    virtual void onChartInsertFretDigitTyped(int digit) = 0;
+
+    /*!
+    \brief Handles the end of an Alt insert session (the Alt key released).
+
+    Notes placed during a single Alt hold accumulate in the selection so a follow-up wheel
+    adjusts the whole run; releasing Alt closes the session and the next placement starts a
+    fresh selection.
+    */
+    virtual void onChartInsertSessionEnded() = 0;
+
+    /*!
     \brief Handles a request to grow or shrink the selected notes' sustains by one grid step.
 
     Sustains floor at zero and clamp against the next same-string onset (the 40-Q2-B truncation

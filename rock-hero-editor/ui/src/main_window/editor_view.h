@@ -188,6 +188,12 @@ public:
         const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel) override;
 
     /*!
+    \brief Reports the Alt release that ends an insert session (run accumulation boundary).
+    \param modifiers Current modifier state delivered by JUCE.
+    */
+    void modifierKeysChanged(const juce::ModifierKeys& modifiers) override;
+
+    /*!
     \brief Returns the top-level editor menu names.
     \return Menu names shown by the menu bar.
     */
@@ -220,6 +226,9 @@ private:
     // returns false when no chart selection is active or the wheel is not a selection verb.
     bool dispatchSelectionWheel(
         const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel);
+
+    // Last observed Alt state, so modifierKeysChanged reports only the release transition.
+    bool m_alt_held{false};
 
     // Opens the asynchronous project package chooser and forwards accepted selections.
     void showOpenChooser();

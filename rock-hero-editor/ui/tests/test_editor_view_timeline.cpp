@@ -1151,6 +1151,33 @@ TEST_CASE("EditorView forwards space key to the controller", "[ui][editor-view]"
     CHECK(controller.play_pause_press_count == 1);
 }
 
+// Alt-held digits compose the pending insert fret and the Alt release reports the
+// insert-session boundary; both need a chart displayed and neither needs a selection.
+TEST_CASE("EditorView routes Alt digits and the Alt release", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    core::EditorViewState state = makeLoadedEditorState(20.0);
+    auto tab = std::make_shared<common::core::TabViewState>();
+    tab->string_count = 6;
+    state.tab = std::move(tab);
+    view.setState(state);
+
+    CHECK(view.keyPressed(juce::KeyPress{'5', juce::ModifierKeys::altModifier, 0}));
+    CHECK(controller.chart_insert_fret_digit_count == 1);
+    CHECK(controller.last_chart_insert_fret_digit == 5);
+    CHECK(controller.chart_fret_digit_count == 0);
+
+    view.modifierKeysChanged(juce::ModifierKeys{juce::ModifierKeys::altModifier});
+    CHECK(controller.chart_insert_session_end_count == 0);
+    view.modifierKeysChanged(juce::ModifierKeys{});
+    CHECK(controller.chart_insert_session_end_count == 1);
+}
+
 // Selection verbs follow the selection, not the pointer: with a chart selection active,
 // Alt+wheel (sustain) and Alt+Shift+wheel (fret shift) act on it over the timeline content
 // (where zoom would otherwise consume the wheel) and anywhere else in the editor window.
