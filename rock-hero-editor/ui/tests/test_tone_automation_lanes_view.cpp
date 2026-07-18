@@ -4,6 +4,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cmath>
+#include <compare>
 #include <expected>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <optional>
@@ -58,6 +59,15 @@ struct RecordingLanesListener final : public ToneAutomationLanesView::Listener
         select_count += 1;
     }
 
+    void onToneAutomationLaneCaretRequested(
+        std::string instance_id, std::string param_id, common::core::TimePosition time) override
+    {
+        last_lane_caret_instance_id = std::move(instance_id);
+        last_lane_caret_param_id = std::move(param_id);
+        last_lane_caret_time = time;
+        lane_caret_count += 1;
+    }
+
     std::string last_add_instance_id;
     std::string last_add_param_id;
     int add_count = 0;
@@ -72,6 +82,10 @@ struct RecordingLanesListener final : public ToneAutomationLanesView::Listener
     std::string last_select_param_id;
     common::core::GridPosition last_select_position{};
     int select_count = 0;
+    std::string last_lane_caret_instance_id;
+    std::string last_lane_caret_param_id;
+    common::core::TimePosition last_lane_caret_time{};
+    int lane_caret_count = 0;
 };
 
 [[nodiscard]] core::ToneAutomationViewState makeState()
@@ -260,9 +274,9 @@ TEST_CASE("Lanes view claims editable zones and rejects inert ones", "[ui][tone-
 {
     const LanesHarness harness;
 
-    // Empty editable lane area passes through to the seek overlay: a plain click never inserts
-    // (the insert quasimode needs Alt, which wantsPointerAt reads from the live modifier state).
-    CHECK_FALSE(harness.view.wantsPointerAt({100, 30}));
+    // Empty editable lane area claims the pointer (§9b): a plain click seeks and arms the
+    // caret on the lane, and with Alt held it is the insert quasimode's target.
+    CHECK(harness.view.wantsPointerAt({100, 30}));
     // Same lane but outside the editable window (x=500 = 5 s): seek stays with the overlay.
     CHECK_FALSE(harness.view.wantsPointerAt({500, 30}));
     // The lane name chip is the lane handle and always claims the pointer — on the unresolved
@@ -332,11 +346,16 @@ TEST_CASE("Lanes view requires Alt to insert on empty lane area", "[ui][tone-aut
 {
     LanesHarness harness;
 
-    // A plain press on empty editable area starts nothing: without Alt the zone is not even a
-    // hit, so the release commits no edit (in production the seek overlay owns that click).
+    // A plain press on empty editable area never edits: it emits the seek-and-arm caret
+    // intent instead (§9b), carrying the lane identity and the clicked time (x 100 = 1 s).
     harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 100.0f, 30.0f));
     harness.view.mouseUp(testing::makeMouseDownEvent(harness.view, 100.0f, 30.0f));
     CHECK(harness.listener.edit_count == 0);
+    REQUIRE(harness.listener.lane_caret_count == 1);
+    CHECK(harness.listener.last_lane_caret_instance_id == "instance-a");
+    CHECK(harness.listener.last_lane_caret_param_id == "gain");
+    // Exact by construction (100 px of 800 over 8 s); is_eq keeps -Wfloat-equal builds clean.
+    CHECK(std::is_eq(harness.listener.last_lane_caret_time.seconds <=> 1.0));
 
     // With Alt held the same press-release places a point.
     harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 100.0f, 30.0f, g_alt_click));
@@ -452,6 +471,37 @@ TEST_CASE("Lanes view nudges the selected point with commits", "[ui][tone-automa
     CHECK(
         harness.listener.last_select_position ==
         common::core::GridPosition{.measure = 2, .beat = 2, .offset = {}});
+}
+
+TEST_CASE(
+    "Lanes view creates on the curve when nudging at an empty lane caret",
+    "[ui][tone-automation-lanes]")
+{
+    LanesHarness harness;
+
+    // Publish an armed lane caret at 1.0 s (measure 1 beat 3), the empty slot halfway between
+    // the authored 0.25 and 0.75 points where the curve reads 0.5.
+    core::ToneAutomationViewState caret_state = makeState();
+    caret_state.lane_caret = core::ToneAutomationLaneCaretRef{
+        .lane_index = 0,
+        .seconds = 1.0,
+        .position = {.measure = 1, .beat = 3, .offset = {}},
+    };
+    harness.view.setState(caret_state);
+
+    // Alt+Up at the empty slot creates the point ON the curve with the step baked in — one
+    // points edit, one undo entry — and announces it as the selection.
+    REQUIRE(harness.view.nudgeSelectedPoint(ToneAutomationLanesView::NudgeDirection::Up, false));
+    REQUIRE(harness.listener.edit_count == 1);
+    REQUIRE(harness.listener.last_edit_points.size() == 3);
+    CHECK(std::abs(harness.listener.last_edit_points[1].norm_value - 0.51F) < 0.0001F);
+    REQUIRE(harness.listener.select_count == 1);
+    CHECK(
+        harness.listener.last_select_position ==
+        common::core::GridPosition{.measure = 1, .beat = 3, .offset = {}});
+
+    // The caret square publishes a mask span for the paused-column cut-out.
+    CHECK(harness.view.caretMaskYRange().has_value());
 }
 
 TEST_CASE(

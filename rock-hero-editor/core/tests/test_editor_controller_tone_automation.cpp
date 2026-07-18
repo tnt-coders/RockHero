@@ -461,6 +461,43 @@ TEST_CASE(
 }
 
 TEST_CASE(
+    "EditorController arms the lane caret on a lane click and Inserts on the curve",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor;
+    editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
+
+    // The lane click seeks to the nearest grid slot and arms the caret there: 1.1 s snaps to
+    // the 1.0 s quarter-note line (measure 1 beat 3 at 120 BPM 4/4).
+    editor.controller.onToneAutomationLaneCaretRequested(
+        g_instance, g_param, common::core::TimePosition{1.1});
+    REQUIRE(editor.automation().lane_caret.has_value());
+    CHECK(editor.automation().lane_caret->lane_index == 0);
+    CHECK(editor.automation().lane_caret->position == pointAt(1, 3));
+    CHECK(editor.transport.position().seconds == Catch::Approx(1.0));
+
+    // Insert is the neutral create: on an unauthored lane the point lands on the live tracking
+    // line (the parameter's current value, 0.4 in the fixture) and becomes the selection.
+    editor.controller.onNeutralInsertRequested();
+    REQUIRE(editor.model().size() == 1);
+    REQUIRE(editor.model().front().points.size() == 1);
+    CHECK(editor.model().front().points.front().position == pointAt(1, 3));
+    CHECK(std::is_eq(editor.model().front().points.front().norm_value <=> 0.4F));
+    REQUIRE(editor.automation().selected_point.has_value());
+
+    // A second Insert at the now-occupied slot is a no-op: Insert never mutates existing
+    // objects.
+    editor.controller.onNeutralInsertRequested();
+    CHECK(editor.model().front().points.size() == 1);
+
+    // Arming onto the occupied slot re-derives the selection from the point under the caret.
+    editor.controller.onToneAutomationLaneCaretRequested(
+        g_instance, g_param, common::core::TimePosition{1.0});
+    REQUIRE(editor.automation().selected_point.has_value());
+    CHECK(editor.automation().selected_point->point_index == 0);
+}
+
+TEST_CASE(
     "EditorController deletes the selected automation point through the one Delete dispatch",
     "[core][tone-automation]")
 {

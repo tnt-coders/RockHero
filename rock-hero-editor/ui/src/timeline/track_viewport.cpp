@@ -909,6 +909,16 @@ void TrackViewport::updateRulerCursor()
         {
             caret_mask_y = *lane_mask + static_cast<float>(m_tab_view.getY());
         }
+        // A caret riding an automation lane row (§9b) reports its square the same way; at
+        // most one of the two surfaces publishes a caret at a time (one marker).
+        else if (
+            const std::optional<juce::Range<float>> automation_mask =
+                m_tone_automation_lanes_view.caretMaskYRange()
+        )
+        {
+            caret_mask_y =
+                *automation_mask + static_cast<float>(m_tone_automation_lanes_view.getY());
+        }
     }
     m_content.setPausedCursorX(
         paused_column_visible

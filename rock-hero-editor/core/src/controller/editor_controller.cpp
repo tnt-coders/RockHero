@@ -998,6 +998,17 @@ void EditorController::onToneAutomationPointSelected(
     m_impl->onToneAutomationPointSelected(std::move(instance_id), std::move(param_id), position);
 }
 
+void EditorController::onNeutralInsertRequested()
+{
+    m_impl->onNeutralInsertRequested();
+}
+
+void EditorController::onToneAutomationLaneCaretRequested(
+    std::string instance_id, std::string param_id, common::core::TimePosition time)
+{
+    m_impl->onToneAutomationLaneCaretRequested(std::move(instance_id), std::move(param_id), time);
+}
+
 void EditorController::onPluginBrowserRequested()
 {
     m_impl->onPluginBrowserRequested();
@@ -1703,6 +1714,78 @@ void EditorController::Impl::armChartCaret(common::core::GridPosition position, 
     }
 }
 
+// Arms the caret on an automation lane row and re-derives the selection from what sits under
+// it — armChartCaret's row-axis sibling (§9b): a point at the slot becomes the editor-wide
+// selection, an empty slot clears it. The remembered string survives so crossing back up into
+// the tab lane returns where the caret left.
+void EditorController::Impl::armLaneCaret(
+    common::core::GridPosition position, AutomationLaneRow row)
+{
+    bool on_point = false;
+    if (const auto identity = m_tone_plugin_identities.find(row.instance_id);
+        identity != m_tone_plugin_identities.end())
+    {
+        if (const std::vector<common::core::ToneParameterAutomation>* const automation =
+                m_session.currentToneAutomation();
+            automation != nullptr)
+        {
+            const auto entry = std::ranges::find_if(
+                *automation, [&](const common::core::ToneParameterAutomation& candidate) {
+                    return candidate.plugin_id == identity->second.plugin_id &&
+                           candidate.param_id == row.param_id;
+                });
+            on_point = entry != automation->end() &&
+                       std::ranges::any_of(
+                           entry->points, [&](const common::core::ToneAutomationPoint& point) {
+                               return point.position == position;
+                           });
+        }
+    }
+
+    if (on_point)
+    {
+        m_selection = AutomationPointSelection{
+            .instance_id = row.instance_id,
+            .param_id = row.param_id,
+            .position = position,
+        };
+    }
+    else
+    {
+        m_selection = std::monostate{};
+    }
+    m_chart_marker =
+        ChartCaret{.position = position, .string = chartMarkerString(), .lane = std::move(row)};
+}
+
+// The visible automation lane rows in display order, derived from the same projection the
+// lanes view renders so traversal and display can never disagree about which rows exist.
+std::vector<EditorController::Impl::AutomationLaneRow> EditorController::Impl::
+    visibleAutomationLaneRows() const
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr)
+    {
+        return {};
+    }
+    const ToneAutomationViewState lanes_state = makeToneAutomationViewState(
+        *arrangement,
+        session().song().tempo_map,
+        activeToneDocumentRef(),
+        m_tone_plugin_bindings,
+        m_open_automation_lanes,
+        m_tone_automation,
+        nullptr);
+    std::vector<AutomationLaneRow> rows;
+    rows.reserve(lanes_state.lanes.size());
+    for (const ToneAutomationLaneViewState& lane : lanes_state.lanes)
+    {
+        rows.push_back(
+            AutomationLaneRow{.instance_id = lane.instance_id, .param_id = lane.param_id});
+    }
+    return rows;
+}
+
 // Resolves the event's snapped musical position and the string lane under the pointer. Chart
 // authoring is grid-native (settled 2026-07-18): every placement lands on the displayed
 // grid's own exact rational — there is no fine-grid bypass for notes; tuplet positions come
@@ -2039,9 +2122,52 @@ void EditorController::Impl::onChartCaretStepRequested(ChartStepDirection direct
     const ChartCaret caret = *armed;
     if (direction == ChartStepDirection::Up || direction == ChartStepDirection::Down)
     {
-        const int next_string = std::clamp(
-            caret.string + (direction == ChartStepDirection::Up ? 1 : -1), 1, tab->string_count);
-        armChartCaret(caret.position, next_string);
+        // The row axis (§9b): strings render top-to-bottom with string 1 at the visual bottom,
+        // and the visible automation lanes continue the stack below it, so Down from string 1
+        // crosses into the first lane and Up from the first lane returns to string 1. Edges
+        // clamp (re-arm in place) exactly like the string edges always have.
+        const bool up = direction == ChartStepDirection::Up;
+        const std::vector<AutomationLaneRow> lanes = visibleAutomationLaneRows();
+        if (caret.lane.has_value())
+        {
+            const auto row = std::ranges::find(lanes, *caret.lane);
+            if (row == lanes.end())
+            {
+                // The caret's lane left the visible set (tone switch, lane removal): the stale
+                // lane caret falls back onto the remembered string (§9b demotion posture).
+                armChartCaret(caret.position, std::clamp(caret.string, 1, tab->string_count));
+            }
+            else if (
+                const std::size_t row_index = static_cast<std::size_t>(row - lanes.begin()); up
+            )
+            {
+                if (row_index == 0)
+                {
+                    armChartCaret(caret.position, 1);
+                }
+                else
+                {
+                    armLaneCaret(caret.position, lanes[row_index - 1]);
+                }
+            }
+            else if (row_index + 1 < lanes.size())
+            {
+                armLaneCaret(caret.position, lanes[row_index + 1]);
+            }
+            else
+            {
+                armLaneCaret(caret.position, lanes[row_index]);
+            }
+        }
+        else if (!up && caret.string == 1 && !lanes.empty())
+        {
+            armLaneCaret(caret.position, lanes.front());
+        }
+        else
+        {
+            const int next_string = std::clamp(caret.string + (up ? 1 : -1), 1, tab->string_count);
+            armChartCaret(caret.position, next_string);
+        }
         updateView();
         return;
     }
@@ -2083,7 +2209,15 @@ void EditorController::Impl::onChartCaretStepRequested(ChartStepDirection direct
                 m_grid_note_value);
         }
     }
-    armChartCaret(stepped, caret.string);
+    // Time stepping is row-agnostic: a lane caret steps the same grid and keeps its row.
+    if (caret.lane.has_value())
+    {
+        armLaneCaret(stepped, *caret.lane);
+    }
+    else
+    {
+        armChartCaret(stepped, caret.string);
+    }
     updateView();
 }
 // Moves the selection under the Alt authoring modifier: Left/Right by one grid step (always a
@@ -2146,6 +2280,47 @@ void EditorController::Impl::onChartSelectionDeleteRequested()
 
     static_cast<void>(
         applyChartEditPlan(planDeleteNotes(*arrangement->chart, chartSelection().notes())));
+}
+
+// The Insert key's neutral create (2026-07-18): the surface's neutral object appears at an
+// armed EMPTY caret slot — a fret-0 note on a string row, an on-curve point on a lane row —
+// and nothing else ever happens: occupied slots, selections, and the passive state are
+// no-ops, so Insert never mutates existing objects.
+void EditorController::Impl::onNeutralInsertRequested()
+{
+    if (isBusy())
+    {
+        return;
+    }
+    const ChartCaret* const caret = armedChartCaret();
+    if (caret == nullptr)
+    {
+        return;
+    }
+    if (caret->lane.has_value())
+    {
+        insertLanePointAtCaret(*caret);
+        return;
+    }
+
+    // String row: only an armed empty slot inserts (a selection means the slot is occupied).
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value() || !chartSelection().empty())
+    {
+        return;
+    }
+    common::core::ChartNote note;
+    note.position = caret->position;
+    note.string = caret->string;
+    note.fret = 0;
+    std::optional<ChartNotesEditPlan> plan =
+        planInsertNote(*arrangement->chart, session().song().tempo_map, note);
+    if (!plan.has_value())
+    {
+        return;
+    }
+    const ChartNoteKey key{.position = note.position, .string = note.string};
+    static_cast<void>(applyChartEditPlan(std::move(plan), std::vector<ChartNoteKey>{key}));
 }
 
 // The Delete key's one dispatch: exactly one selection exists editor-wide, so Delete deletes
@@ -2298,8 +2473,10 @@ void EditorController::Impl::onChartFretDigitTyped(int digit)
     if (chartSelection().empty())
     {
         const ChartCaret* const caret = armedChartCaret();
-        if (caret == nullptr)
+        if (caret == nullptr || caret->lane.has_value())
         {
+            // No caret, or the caret rides an automation lane row — lane typing is the
+            // typed-value editor (routed in the view), never a fret insert.
             return;
         }
         common::core::ChartNote note;
@@ -3159,6 +3336,28 @@ EditorViewState EditorController::Impl::deriveViewState() const
             m_open_automation_lanes,
             m_tone_automation,
             selectedAutomationPoint());
+        // A lane-riding caret resolves against the published lanes exactly like the selected
+        // point: a caret whose lane is not visible publishes as nothing (§9b).
+        if (const ChartCaret* const caret = armedChartCaret();
+            caret != nullptr && caret->lane.has_value())
+        {
+            for (std::size_t lane_index = 0; lane_index < state.tone_automation.lanes.size();
+                 ++lane_index)
+            {
+                const ToneAutomationLaneViewState& lane = state.tone_automation.lanes[lane_index];
+                if (lane.instance_id == caret->lane->instance_id &&
+                    lane.param_id == caret->lane->param_id)
+                {
+                    state.tone_automation.lane_caret = ToneAutomationLaneCaretRef{
+                        .lane_index = lane_index,
+                        .seconds = state.tempo_map.secondsAtNote(
+                            caret->position.measure, caret->position.beat, caret->position.offset),
+                        .position = caret->position,
+                    };
+                    break;
+                }
+            }
+        }
 
         // The tab projection resolves thousands of positions to seconds, so it is memoized per
         // displayed arrangement and chart revision: the arrangement id keys which chart is shown,
@@ -3207,8 +3406,10 @@ EditorViewState EditorController::Impl::deriveViewState() const
             // (play and the transport listener demote), so no transport check re-derives it
             // here. The caret publishes whenever armed, empty slot or note alike: the square
             // stays visible through a single selection, and its presence is the armed signal
-            // that hides the paused playhead.
-            if (const ChartCaret* const caret = armedChartCaret())
+            // that hides the paused playhead. A lane-riding caret publishes through the
+            // tone-automation state instead (§9b), so the tab lane draws no square for it.
+            if (const ChartCaret* const caret = armedChartCaret();
+                caret != nullptr && !caret->lane.has_value())
             {
                 const common::core::TempoMap& tempo_map = session().song().tempo_map;
                 state.chart_edit.caret = ChartCaretViewState{

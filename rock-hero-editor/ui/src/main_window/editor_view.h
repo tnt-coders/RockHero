@@ -415,6 +415,10 @@ private:
         std::string instance_id, std::string param_id,
         common::core::GridPosition position) override;
 
+    /*! \copydoc ToneAutomationLanesView::Listener::onToneAutomationLaneCaretRequested */
+    void onToneAutomationLaneCaretRequested(
+        std::string instance_id, std::string param_id, common::core::TimePosition time) override;
+
     // PluginBrowserWindow::Listener implementation.
     void onPluginBrowserScanRequested() override;
 

@@ -12,6 +12,7 @@
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/tone/tone_track_edits.h>
 #include <rock_hero/common/core/tone/tone_track_rules.h>
+#include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <string>
 #include <utility>
 #include <vector>
@@ -1037,6 +1038,115 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetToneAutoma
                 identity->second.tone_document_ref, action.instance_id, action.param_id),
             std::move(before),
             action.points));
+    updateView();
+}
+
+// A lane click's seek-and-arm (the row-axis form of the chart lane's empty click, §9b): the
+// caret arms at the nearest grid slot on the clicked lane and the transport rests there, so
+// play-from-here IS the caret slot. While playing, the click only seeks (armed implies paused).
+void EditorController::Impl::onToneAutomationLaneCaretRequested(
+    std::string instance_id, std::string param_id, common::core::TimePosition time)
+{
+    if (isBusy())
+    {
+        return;
+    }
+    const common::core::GridPosition position = nearestTempoGridPosition(
+        session().song().tempo_map, m_grid_note_value, session().timeline().clamp(time));
+    m_transport.seek(
+        session().timeline().clamp(
+            common::core::TimePosition{secondsAtGridPosition(
+                session().song().tempo_map, position)}));
+    // The seek re-points the audible tone at the cursor; arming then owns the selection state,
+    // exactly like the chart lane's empty click (seek + caret + selection re-derivation).
+    activateToneAtCursor();
+    if (!m_transport.state().playing)
+    {
+        armLaneCaret(
+            position,
+            AutomationLaneRow{
+                .instance_id = std::move(instance_id), .param_id = std::move(param_id)
+            });
+    }
+    updateView();
+}
+
+// The Insert dispatch for lane rows: plants an on-curve point at the armed caret's slot — the
+// keyboard mirror of the on-curve Alt+click landing — and selects it. A slot that already
+// carries a point is a no-op (Insert never mutates existing objects), as is an unresolved
+// parameter (there is no live line to land on).
+void EditorController::Impl::insertLanePointAtCaret(const ChartCaret& caret)
+{
+    if (!caret.lane.has_value())
+    {
+        return;
+    }
+    const auto identity = m_tone_plugin_identities.find(caret.lane->instance_id);
+    const std::vector<common::core::ToneParameterAutomation>* const automation =
+        m_session.currentToneAutomation();
+    if (identity == m_tone_plugin_identities.end() || automation == nullptr)
+    {
+        return;
+    }
+
+    const auto entry = std::ranges::find_if(
+        *automation, [&](const common::core::ToneParameterAutomation& candidate) {
+            return candidate.plugin_id == identity->second.plugin_id &&
+                   candidate.param_id == caret.lane->param_id;
+        });
+    std::vector<common::core::ToneAutomationPoint> points;
+    if (entry != automation->end())
+    {
+        points = entry->points;
+    }
+    const bool occupied =
+        std::ranges::any_of(points, [&](const common::core::ToneAutomationPoint& point) {
+            return point.position == caret.position;
+        });
+    if (occupied)
+    {
+        return;
+    }
+
+    // The landing value comes from the drawn curve; an unauthored lane lands on the live
+    // tracking line, which needs the parameter's current value from the port. Discreteness
+    // rides along so the evaluation holds steps exactly as the lane draws them.
+    std::optional<float> fallback;
+    bool is_discrete = false;
+    if (auto listed = m_tone_automation.listAutomatableParameters(activeToneDocumentRef());
+        listed.has_value())
+    {
+        for (const common::audio::AutomatableParamInfo& parameter : *listed)
+        {
+            if (parameter.instance_id == caret.lane->instance_id &&
+                parameter.param_id == caret.lane->param_id)
+            {
+                fallback = parameter.current_norm_value;
+                is_discrete = parameter.is_discrete;
+                break;
+            }
+        }
+    }
+    if (points.empty() && !fallback.has_value())
+    {
+        return;
+    }
+    const float value = toneAutomationCurveValueAt(
+        points, session().song().tempo_map, caret.position, is_discrete, fallback.value_or(0.0F));
+
+    const auto insert_at =
+        std::ranges::find_if(points, [&](const common::core::ToneAutomationPoint& candidate) {
+            return caret.position < candidate.position;
+        });
+    points.insert(
+        insert_at,
+        common::core::ToneAutomationPoint{.position = caret.position, .norm_value = value});
+    onSetToneAutomationPoints(caret.lane->instance_id, caret.lane->param_id, std::move(points));
+    m_selection = AutomationPointSelection{
+        .instance_id = caret.lane->instance_id,
+        .param_id = caret.lane->param_id,
+        .position = caret.position,
+    };
     updateView();
 }
 

@@ -234,6 +234,49 @@ TEST_CASE("EditorController keeps one selection across surfaces", "[core][chart]
     CHECK(state->chart_edit.selected_notes.empty());
 }
 
+// Insert is the neutral-create verb (2026-07-18): a fret-0 note at an armed empty string slot;
+// occupied slots (whose arming selects the note) and the passive marker are no-ops.
+TEST_CASE("EditorController inserts a fret-0 note on the Insert verb", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    // Passive marker: Insert is inert.
+    const auto* chart = chartOrNull(controller);
+    REQUIRE(chart != nullptr);
+    const std::size_t notes_before = chart->notes.size();
+    controller.onNeutralInsertRequested();
+    CHECK(chartOrNull(controller)->notes.size() == notes_before);
+
+    // Click empty space (x 200 = 10.0s on the string-4 lane, the established empty slot) to
+    // arm the caret there, then Insert creates a fret-0 note and selects it.
+    click(controller, 200.0f, 100.0f);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    REQUIRE(state->chart_edit.caret.has_value());
+    CHECK(state->chart_edit.selected_notes.empty());
+    controller.onNeutralInsertRequested();
+    REQUIRE(chartOrNull(controller)->notes.size() == notes_before + 1);
+    CHECK(state->chart_edit.selected_notes.size() == 1);
+
+    // The caret now sits on the created note (arming re-derived the selection), so a second
+    // Insert is a no-op: Insert never mutates existing objects.
+    controller.onNeutralInsertRequested();
+    CHECK(chartOrNull(controller)->notes.size() == notes_before + 1);
+}
+
 // Typed digits set every selected note to the typed value; Alt+Shift+wheel's fret-shift intent
 // moves the whole selection by one, shape-preserving, refusing (never clamping) at fret zero
 // and at the fret cap (settled 2026-07-17).
