@@ -171,10 +171,10 @@ Verified against the vendored JUCE source — everything needed ships in
   from the same selection verbs. Plain click selects the whole onset group (chords are one
   cohesive unit); Ctrl+click toggles individual notes; marquee stays geometrically precise by
   design (the deliberate part-of-a-chord tool); Shift+click selects a time range (plan 52).
-  The selection carries a *focused member* (the note the last gesture touched, shown as a
-  blinking type-here underline on its numeral when the selection has several members): typed
-  digits retype the focused note only — fret is per-string data — while every group verb acts
-  on the whole selection.
+  Typed digits TRANSPOSE the selection so its lowest fret lands on the typed number
+  (shape-preserving: chords reposition, runs transpose, a single note retypes exactly);
+  Ctrl+digits SET every selected note to the exact value; a member pushed past the fret cap
+  refuses the keystroke, never clamps (settled 2026-07-17).
   Alt+wheel and Shift+Alt+Left/Right adjust displayed duration (sustain or span extent per the
   span model); Alt+arrows move the selection (Left/Right by grid step, Up/Down across strings;
   refused, never clamped, at the neck edge or an occupied slot). Plain Left/Right step the
