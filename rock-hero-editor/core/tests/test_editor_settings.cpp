@@ -24,10 +24,6 @@ namespace rock_hero::editor::core
 namespace
 {
 
-constexpr const char* g_project_cursor_positions_key{"projectCursorPositions"};
-constexpr const char* g_project_grid_note_values_key{"projectGridNoteValues"};
-constexpr const char* g_retired_grid_spacings_key{"projectGridSpacings"};
-
 // Owns one build-local settings file so each test starts with clean persisted state.
 class ScopedSettingsFile final
 {
@@ -201,15 +197,15 @@ TEST_CASE("EditorSettings clears interrupted restore project", "[core][settings]
     CHECK_FALSE(reloaded_settings.interruptedRestoreProject().has_value());
 }
 
-// Project caret history persists app-local resume state without storing it in project packages;
+// The armed resume marker persists app-local state without storing it in project packages;
 // the exact musical address (including a fine-grid offset) round-trips unchanged.
-TEST_CASE("EditorSettings persists project cursor position", "[core][settings]")
+TEST_CASE("EditorSettings persists an armed project marker", "[core][settings]")
 {
-    const ScopedSettingsFile settings_file{"persists_project_cursor.settings"};
+    const ScopedSettingsFile settings_file{"persists_project_marker.settings"};
     const std::filesystem::path project_file =
-        std::filesystem::path{TEST_SETTINGS_DIR} / "Cursor Project.rhp";
+        std::filesystem::path{TEST_SETTINGS_DIR} / "Marker Project.rhp";
     const std::filesystem::path other_project_file =
-        std::filesystem::path{TEST_SETTINGS_DIR} / "Other Cursor Project.rhp";
+        std::filesystem::path{TEST_SETTINGS_DIR} / "Other Marker Project.rhp";
 
     const EditorProjectCaret caret{
         .position =
@@ -220,35 +216,59 @@ TEST_CASE("EditorSettings persists project cursor position", "[core][settings]")
     };
     {
         EditorSettings settings{settings_file.path()};
-        REQUIRE(settings.saveProjectCaret(project_file, caret).has_value());
+        REQUIRE(settings.saveProjectMarker(project_file, EditorProjectMarker{caret}).has_value());
     }
 
     const EditorSettings reloaded_settings{settings_file.path()};
 
-    CHECK(reloaded_settings.projectCaretFor(project_file) == std::optional{caret});
-    CHECK_FALSE(reloaded_settings.projectCaretFor(other_project_file).has_value());
+    CHECK(
+        reloaded_settings.projectMarkerFor(project_file) ==
+        std::optional{EditorProjectMarker{caret}});
+    CHECK_FALSE(reloaded_settings.projectMarkerFor(other_project_file).has_value());
 }
 
-// Saving the same project caret again replaces only that project's resume address.
-TEST_CASE("EditorSettings overwrites project cursor position", "[core][settings]")
+// The passive resume marker stores the raw paused time; the exact seconds value round-trips
+// losslessly (shortest-round-trip formatting), so a reopened project resumes precisely.
+TEST_CASE("EditorSettings persists a passive project marker", "[core][settings]")
 {
-    const ScopedSettingsFile settings_file{"overwrites_project_cursor.settings"};
+    const ScopedSettingsFile settings_file{"persists_passive_marker.settings"};
     const std::filesystem::path project_file =
-        std::filesystem::path{TEST_SETTINGS_DIR} / "overwritten_cursor.rhp";
+        std::filesystem::path{TEST_SETTINGS_DIR} / "Passive Marker Project.rhp";
+
+    const EditorProjectCursor cursor{.seconds = 83.41700000000001, .string = 3};
+    {
+        EditorSettings settings{settings_file.path()};
+        REQUIRE(settings.saveProjectMarker(project_file, EditorProjectMarker{cursor}).has_value());
+    }
+
+    const EditorSettings reloaded_settings{settings_file.path()};
+
+    CHECK(
+        reloaded_settings.projectMarkerFor(project_file) ==
+        std::optional{EditorProjectMarker{cursor}});
+}
+
+// Saving the marker again replaces only that project's record — including a state change from
+// armed to passive, so the stored kind always matches how the project was left.
+TEST_CASE("EditorSettings overwrites the project marker across states", "[core][settings]")
+{
+    const ScopedSettingsFile settings_file{"overwrites_project_marker.settings"};
+    const std::filesystem::path project_file =
+        std::filesystem::path{TEST_SETTINGS_DIR} / "overwritten_marker.rhp";
     EditorSettings settings{settings_file.path()};
 
-    REQUIRE(
-        settings
-            .saveProjectCaret(
-                project_file,
-                EditorProjectCaret{.position = common::core::GridPosition{.measure = 1, .beat = 1}})
-            .has_value());
-    const EditorProjectCaret replacement{
-        .position = common::core::GridPosition{.measure = 4, .beat = 2}, .string = 2
-    };
-    REQUIRE(settings.saveProjectCaret(project_file, replacement).has_value());
+    REQUIRE(settings
+                .saveProjectMarker(
+                    project_file,
+                    EditorProjectMarker{EditorProjectCaret{
+                        .position = common::core::GridPosition{.measure = 1, .beat = 1}
+                    }})
+                .has_value());
+    const EditorProjectCursor replacement{.seconds = 12.5, .string = 2};
+    REQUIRE(settings.saveProjectMarker(project_file, EditorProjectMarker{replacement}).has_value());
 
-    CHECK(settings.projectCaretFor(project_file) == std::optional{replacement});
+    CHECK(
+        settings.projectMarkerFor(project_file) == std::optional{EditorProjectMarker{replacement}});
 }
 
 // The grid note value persists per project path and reloads with exact numerator and denominator.
@@ -374,57 +394,32 @@ TEST_CASE("EditorSettings overwrites the project grid note value", "[core][setti
         std::optional{common::core::Fraction{1, 4}});
 }
 
-// Old list-format records written before per-project settings flattened to flat keys are orphaned,
-// not migrated: the flat getters never read them, so affected projects simply reset once.
-TEST_CASE("EditorSettings ignores legacy list-format project records", "[core][settings]")
-{
-    const ScopedSettingsFile settings_file{"legacy_list_project_records.settings"};
-    const std::filesystem::path project_file =
-        std::filesystem::path{TEST_SETTINGS_DIR} / "legacy_list.rhp";
-    writeRawSetting(
-        settings_file.path(),
-        g_project_cursor_positions_key,
-        juce::String{"<PROJECT_CURSOR_POSITIONS formatVersion=\"1\"/>"});
-    writeRawSetting(
-        settings_file.path(),
-        g_project_grid_note_values_key,
-        juce::String{"<PROJECT_GRID_NOTE_VALUES formatVersion=\"1\"/>"});
-    writeRawSetting(
-        settings_file.path(),
-        g_retired_grid_spacings_key,
-        juce::String{"<PROJECT_GRID_SPACINGS formatVersion=\"1\"/>"});
-
-    const EditorSettings settings{settings_file.path()};
-    CHECK_FALSE(settings.projectCaretFor(project_file).has_value());
-    CHECK_FALSE(settings.projectGridNoteValueFor(project_file).has_value());
-}
-
-// A corrupt flat value reads as absent rather than a bogus number; the flat key isolates it so no
-// other project's independently-keyed value is disturbed.
+// A corrupt flat value reads as absent rather than a bogus marker; the flat key isolates it so
+// no other project's independently-keyed value is disturbed.
 TEST_CASE("EditorSettings reads a corrupt project value as absent", "[core][settings]")
 {
     const ScopedSettingsFile settings_file{"corrupt_project_value.settings"};
     const std::filesystem::path project_file =
-        std::filesystem::path{TEST_SETTINGS_DIR} / "corrupt_cursor.rhp";
+        std::filesystem::path{TEST_SETTINGS_DIR} / "corrupt_marker.rhp";
 
     {
         EditorSettings settings{settings_file.path()};
         REQUIRE(settings
-                    .saveProjectCaret(
+                    .saveProjectMarker(
                         project_file,
-                        EditorProjectCaret{
+                        EditorProjectMarker{EditorProjectCaret{
                             .position = common::core::GridPosition{.measure = 2, .beat = 1}
-                        })
+                        }})
                     .has_value());
     }
 
     const juce::String key =
-        projectSettingKeyWithPrefix(settings_file.path(), juce::String{"projectCursor:"});
+        projectSettingKeyWithPrefix(settings_file.path(), juce::String{"projectMarker:"});
     REQUIRE(key.isNotEmpty());
     writeRawSetting(settings_file.path(), key.toRawUTF8(), juce::String{"not-a-number"});
 
     const EditorSettings reloaded_settings{settings_file.path()};
-    CHECK_FALSE(reloaded_settings.projectCaretFor(project_file).has_value());
+    CHECK_FALSE(reloaded_settings.projectMarkerFor(project_file).has_value());
 }
 
 // Chooser, restore, and test spellings of the same project file normalize to one stored record.

@@ -283,10 +283,10 @@ public:
         chart_sustain_adjust_count += 1;
     }
 
-    /*! \copydoc IEditorController::onChartGestureCancelled */
-    void onChartGestureCancelled() override
+    /*! \copydoc IEditorController::onChartEscapePressed */
+    void onChartEscapePressed() override
     {
-        chart_gesture_cancel_count += 1;
+        chart_escape_count += 1;
     }
 
     /*! \copydoc IEditorController::onToneRegionSelected */
@@ -746,8 +746,8 @@ public:
     /*! \brief Number of onChartSustainAdjustRequested() intents received. */
     int chart_sustain_adjust_count{0};
 
-    /*! \brief Number of onChartGestureCancelled() intents received. */
-    int chart_gesture_cancel_count{0};
+    /*! \brief Number of onChartEscapePressed() intents received. */
+    int chart_escape_count{0};
 
     /*! \brief Last tone region id reported through onToneRegionSelected(). */
     std::string last_selected_tone_region_id{};

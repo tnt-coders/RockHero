@@ -130,8 +130,9 @@ public:
 
     /*!
     \brief Samples the current transport cursor for the ruler's aligned playhead mark.
-    \param cursor_position Current transport position, or absent while paused — the playhead
-    renders only during playback (the caret model, 2026-07-17).
+    \param cursor_position Current transport position, or absent while the chart's marker is
+    armed — the caret owns the paused position then (the marker model, 2026-07-18); playback
+    and the passive paused cursor both show the mark.
     */
     void setCursorPosition(std::optional<common::core::TimePosition> cursor_position);
 

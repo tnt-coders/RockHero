@@ -193,6 +193,11 @@ typing inserts, where play starts; while **playing**, the playhead is THE positi
 indicator). They are never visible together, which resolves the objection that killed the
 first caret. The paused playhead is gone.
 
+> **Amended 2026-07-18 by §9a (the two-state marker):** the caret survives as the *armed*
+> state of a position marker whose *passive* state is the returned paused cursor. Where §9a's
+> rules differ from the bullets below, §9a wins; §9a's closing list names each superseded
+> clause.
+
 - **Caret existence:** always present once a chart is displayed (song start, string 1, on
   load). Esc clears the note selection; the caret persists. On an empty grid slot it renders
   as a white circle (the old white-ring ghost look); on a note, the note's selection
@@ -250,26 +255,98 @@ first caret. The paused playhead is gone.
   circle: it reads as editor furniture distinct from every circular note shape and stays
   visible over accent glows.
 
-### 9a. OPEN — the full-GP question: single-caret selection (no multi-select)
+### 9a. SETTLED — multi-select stays; the two-state marker (2026-07-18)
 
-The user is weighing adopting Guitar Pro's whole selection posture: **no multi-select at
-all** — every selection is the single note under the caret; fret edits hit only that note,
-while designated verbs act on the caret note's whole onset group; bulk operations go through
-the time-range selection instead (which GP does have, and which plan 52 builds). Would
-retire: marquee, Ctrl+click toggle, double-click chord selection, multi-note verbs, and most
-of `ChartSelection`. Tradeoffs under active discussion — no decision recorded yet.
-Companion principle raised at the same time: **no invalid states** — technique hotkeys
-(hammer-on etc., Phase 5) must validate before applying and refuse cleanly, unlike GP's "h"
-which can author an invalid hammer-on.
+The full-GP question is answered: **Guitar Pro's arity-one selection is declined; its caret
+survives as one state of a two-state position marker.** The deep analysis (research over GP
+8's manuals, MuseScore 4, TuxGuitar, DAW piano rolls, and multi-caret text editors, plus an
+adversarial workflow battery, 2026-07-18) found that GP's *feel* lives in the caret —
+keyboard-first navigation, immediate typing, no modes, all shipped by §9 — while GP's
+*bulk-editing annoyance* lives precisely in the selection limits pure-GP would import:
+arity-one typing, contiguous full-stack ranges, no sparse sets (GP itself is caret plus
+beat-range selection plus dialog string-mask wizards; TuxGuitar's caret-only decade produced
+its top-voted feature request asking for exactly our multi-select). The user's motivating
+workflow — marquee the middle notes of every chord in a repeated progression and retype them
+in one gesture — is unrepresentable under pure GP. A multi-caret variant (typing applies at
+every caret, text-editor style) was examined and rejected: it breaks §9's one-position
+invariant, and every consistent caret-spawn rule collapses it back into the selection model.
+
+**The two-state marker.** One position marker exists at all times. It is either **passive —
+the cursor**, the plain paused-playhead line resting at the transport position (only the
+string that arming lands on is remembered), or **armed — the caret**, §9's editing caret
+owning an exact grid slot × string. Handoffs:
+
+| Event | Marker afterwards |
+| --- | --- |
+| Plain click on an empty slot or a note (paused) | Armed there; a note click also selects it |
+| Arrow key while passive (paused) | Armed at the cursor — nearest grid line, remembered string; the first press arms in place, later presses move |
+| Ctrl+click, double-click, or marquee | Passive; the cursor takes the caret's place (a paused seek to the caret's musical time), signalling that verbs now act on the highlighted selection, not a caret |
+| Esc | Armed → passive in place, selection kept; passive with a selection → the selection clears; either rung also ends the multi-digit fret-entry window |
+| Play | Passive — playback dissolves the caret and clears the selection; the cursor is the moving playhead. Space starts playback from the marker in both states |
+| Pause / Stop / paused seek | Passive at the transport position; the cursor rests at the raw stop point — no grid snapping while passive, snapping happens at arming |
+
+**Invariants** (structural — enforced at the mutation points, never re-checked downstream):
+
+- Armed ⟹ paused. The transport listener demotes the marker on any playback start, so even
+  an externally started transport cannot leave an armed caret behind.
+- Armed ⟹ the selection is exactly what sits under the caret (empty on an empty slot, that
+  one note on a note). Every multi-note selection implies passive.
+- Passive ⟹ the marker's time IS the transport position. Dissolution seeks make this hold,
+  so the paused cursor line renders from the transport with no separate position plumbing,
+  and Space-resume after any handoff is continuous.
+- The caret square renders iff armed on an empty slot (armed on a note keeps §9's rule: the
+  note's selection highlight is the caret display); the paused playhead line renders iff
+  passive. **Square visible ⟺ typing inserts.**
+
+**The typing rule** (one rule, no modes): digits retype the selection when one exists — every
+selected note takes the exact typed value, multi-digit widening unchanged — else they insert
+at the armed caret; while passive with no selection they are **inert**, so a stray digit
+after listening can no longer author a note. Arrows while playing are equally inert, and lane
+clicks while playing are plain seeks (the lane behaves like the waveform until pause).
+
+**The uniform-scope law** (standing principle, binds every future verb): *no verb ever
+declares its own scope — scope is the selection.* Chord scope comes from the containment
+hierarchy (§7), sparse sets from marquee/Ctrl, contiguous bulk from plan 52's time range.
+Corollary: on a selection spanning several spans, §5's wheel-targeting rule applies per span
+independently (full sounded set → span extent; proper subset → member tails).
+
+**Mixed-validity policy for technique toggles** (Phase 5; the no-invalid-states principle):
+validate per note before applying. Independent per-note toggles (hammer-on, palm mute, …)
+apply where valid with explicit feedback ("applied to 7 of 8 — the first note has no
+preceding note"); shape-coupled transforms (fret shift) refuse the whole set, as shipped.
+Never silent partial application, never blind toggling of mixed states, and no invalid chart
+state — GP's invalid "h" hammer-on is the named counterexample — is ever authorable.
+
+**Selection-count chip:** with two or more notes selected, a readout ("5 notes") joins the
+transport readout row. The caret's absence says "bulk mode"; the chip says how big, so an
+off-screen selection cannot be forgotten under the typing rule.
+
+**Resume persistence** (supersedes §9's caret-only storage): one tagged marker per project in
+app-local settings — armed as the exact musical address (`caret:measure:beat:num/den:string`,
+no time math, per the standing ruling) or passive as the raw transport time
+(`cursor:seconds:string`, seconds being the passive marker's native coordinate). Restore
+re-creates the stored state exactly. A stored caret whose string no longer exists on the
+loaded chart — or that belongs to a now-chartless project — demotes to a passive cursor at
+the same musical time: restore never clamps onto a wrong string and never invents a position.
+
+**Supersedes in §9:** "caret always present once a chart is displayed" (the *marker* is
+always present; the caret is its armed state); "pause snaps the caret to the nearest grid
+line" (pause rests the passive cursor at the raw stop point); "ruler clicks position the
+caret" and paused seeks carrying the caret (transport motion demotes to passive); "Esc clears
+the note selection; the caret persists" (the Esc ladder above); the paused playhead's
+unconditional absence (it returns while passive). Everything else stands: typing-inserts and
+the widened-insert undo rule, arrow stepping with the measure jump, play-from-the-marker, the
+highway-band seek gate, and chartless behavior (now simply "the marker never arms").
 
 ## Build order (once section 5 settles)
 
-1. Selection granularity — chord-unit click + Ctrl precision (editor-core).
+1. Selection granularity — chord-unit click + Ctrl precision (editor-core). *Built.*
 2. Classification v2 + universal chord boxes — both projections; importer-normalization
    companion task in the converter tool.
 3. Auto-span lifecycle + the duration verb — span creation in planners, split/merge,
    wheel-tick coalescing (same replaceTop pattern as fret typing), tail-visibility rules.
-4. Ghost rework — controller-owned composable ghost.
+4. ~~Ghost rework — controller-owned composable ghost.~~ *Superseded by §9: typing at the
+   caret replaced the ghost mechanism entirely.*
 5. Shift+click time range — recorded in plan 52; built when 52's operation semantics get
    their sign-offs.
 

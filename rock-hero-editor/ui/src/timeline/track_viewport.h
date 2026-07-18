@@ -184,6 +184,18 @@ public:
     void setTabDisplayedStrings(int displayed_strings);
 
     /*!
+    \brief Stores whether the chart's position marker is armed (the marker model, 2026-07-18).
+
+    Armed hides the paused playhead in the cursor overlay and the ruler's aligned mark — the
+    caret (the empty-slot square or the selected note's highlight) is the position display.
+    Passive shows the paused cursor line at the transport position. Chartless arrangements
+    never arm, so their paused playhead stays visible unchanged.
+
+    \param armed True while the editing caret owns the paused position.
+    */
+    void setChartMarkerArmed(bool armed);
+
+    /*!
     \brief Forwards the tab-derived chord/arpeggio name chips to the pinned timeline ruler.
 
     The chips are tablature data rendered on the ruler's pinned surface (its bottom tick band
@@ -395,6 +407,10 @@ private:
     // Displayed tablature lane count; rows past the six-string reference density grow the
     // waveform row proportionally so lane spacing never compresses.
     int m_tab_displayed_strings{0};
+
+    // True while the chart's position marker is armed; hides the paused playhead in the
+    // overlay and the ruler mark (the caret is the position display while armed).
+    bool m_chart_marker_armed{false};
 
     // Coarse playing flag from core::EditorViewState, used to avoid vblank state polling.
     bool m_playback_active{false};

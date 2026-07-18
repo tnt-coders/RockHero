@@ -916,9 +916,9 @@ void EditorController::onChartSustainAdjustRequested(int direction, bool fine)
     m_impl->onChartSustainAdjustRequested(direction, fine);
 }
 
-void EditorController::onChartGestureCancelled()
+void EditorController::onChartEscapePressed()
 {
-    m_impl->onChartGestureCancelled();
+    m_impl->onChartEscapePressed();
 }
 
 void EditorController::onToneRegionSelected(std::string region_id)
@@ -1556,46 +1556,66 @@ void EditorController::Impl::clearChartEditingState()
     m_chart_selection.clear();
     m_chart_gesture.reset();
     m_chart_fret_entry.reset();
-    resetChartCaret();
+    resetChartMarker();
 }
 
-// The caret always exists once a chart is displayed (the caret model): reset means the song
-// start on the lowest string, not absence.
-void EditorController::Impl::resetChartCaret()
+// Returns the armed caret, or null while the marker is passive.
+const EditorController::Impl::ChartCaret* EditorController::Impl::armedChartCaret() const noexcept
 {
-    const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (arrangement == nullptr || !arrangement->chart.has_value())
+    return std::get_if<ChartCaret>(&m_chart_marker);
+}
+
+// Returns the marker's remembered string in either state.
+int EditorController::Impl::chartMarkerString() const noexcept
+{
+    return std::visit([](const auto& state) { return state.string; }, m_chart_marker);
+}
+
+// A fresh chart-editing context starts passive: the paused cursor at the transport position is
+// the position, and nothing is armed until the first click or arrow (the marker model).
+void EditorController::Impl::resetChartMarker()
+{
+    m_chart_marker = ChartCursor{};
+}
+
+// Demotes an armed caret to the passive cursor, leaving the transport where it is. Used by
+// the transport-motion handoffs (play, external playback, paused seeks): the transport
+// already states the position, so only the string memory survives.
+void EditorController::Impl::disarmChartMarker()
+{
+    if (const ChartCaret* const caret = armedChartCaret())
     {
-        m_chart_caret.reset();
+        m_chart_marker = ChartCursor{.string = caret->string};
+    }
+}
+
+// Demotes an armed caret to the passive cursor "in its place": a paused seek carries the
+// transport to the caret's musical time, so the cursor line appears exactly where the caret
+// was. Used by the editing-gesture handoffs (Ctrl+click, double-click, marquee, Esc); the
+// seek deliberately skips tone activation — dissolving a caret is a display handoff, not a
+// listening move.
+void EditorController::Impl::dissolveChartCaretInPlace()
+{
+    const ChartCaret* const caret = armedChartCaret();
+    if (caret == nullptr)
+    {
         return;
     }
-    m_chart_caret = ChartCaret{
-        .position = common::core::GridPosition{.measure = 1, .beat = 1, .offset = {}},
-        .string = 1,
-    };
+
+    const common::core::TempoMap& tempo_map = session().song().tempo_map;
+    m_transport.seek(
+        session().timeline().clamp(
+            common::core::TimePosition{tempo_map.secondsAtNote(
+                caret->position.measure, caret->position.beat, caret->position.offset)}));
+    m_chart_marker = ChartCursor{.string = caret->string};
 }
 
-// Pause and stop hand the position back to the caret: it snaps to the nearest grid line at
-// the transport's position on the remembered string, so editing resumes where listening
-// stopped.
-void EditorController::Impl::snapChartCaretToTransport()
+// Arms the caret at a slot and re-derives the selection from what sits under it: a note
+// becomes the selection (the highlight IS the caret display there), an empty slot clears it
+// (the white square shows where typing will insert).
+void EditorController::Impl::armChartCaret(common::core::GridPosition position, int string)
 {
-    if (!m_chart_caret.has_value())
-    {
-        return;
-    }
-    placeChartCaret(
-        nearestTempoGridPosition(
-            session().song().tempo_map, m_grid_note_value, m_transport.position()),
-        m_chart_caret->string);
-}
-
-// Moves the caret and re-derives the selection from what sits under it: a note becomes the
-// selection (the highlight IS the caret display there), an empty slot clears it (the white
-// circle shows where typing will insert).
-void EditorController::Impl::placeChartCaret(common::core::GridPosition position, int string)
-{
-    m_chart_caret = ChartCaret{.position = position, .string = string};
+    m_chart_marker = ChartCaret{.position = position, .string = string};
     const ChartNoteKey key{.position = position, .string = string};
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     const bool on_note = arrangement != nullptr && arrangement->chart.has_value() &&
@@ -1736,16 +1756,39 @@ bool EditorController::Impl::applyChartEditPlan(
 }
 
 // Arms the gesture and applies glyph-press selection per the containment hierarchy (settled
-// 2026-07-17): a single press selects the individual note — keeping an existing
+// 2026-07-17): a plain single press selects the individual note — keeping an existing
 // multi-selection intact so a future drag can move it — a double press selects the note's
 // whole onset group (its chord), and Ctrl toggles individual membership. Shift is reassigned
-// to plan 52's time-range selection and behaves as plain until that lands. The caret
-// co-locates with every note press (the caret model).
+// to plan 52's time-range selection and behaves as plain until that lands. Marker handoffs
+// (the marker model, 2026-07-18): a plain press on an unselected note arms the caret there;
+// every multi-select gesture — Ctrl, double-click — dissolves the caret into a cursor in its
+// place, so the visible glyph always states whether typing inserts or acts on the selection.
 void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
 {
     const common::core::TabViewState* const tab = displayedTabProjection();
     if (tab == nullptr || tab->string_count <= 0 || isBusy())
     {
+        return;
+    }
+
+    // While playing there is no caret to place and no selection to build (playback dissolves
+    // both), so the lane is a plain seek surface exactly like the waveform around it; routing
+    // through SeekTimeline gives the click the same gating, snapping, and tone-follow as the
+    // overlay's own click-to-seek.
+    if (m_transport.state().playing)
+    {
+        const std::optional<common::core::TimePosition> clicked = timelineCursorPlacementTime(
+            session().song().tempo_map,
+            m_grid_note_value,
+            event.geometry.visible_timeline,
+            static_cast<int>(event.geometry.bounds_width),
+            event.x,
+            event.modifiers.ctrl ? TimelineCursorPlacementMode::Free
+                                 : TimelineCursorPlacementMode::SnapToGrid);
+        if (clicked.has_value())
+        {
+            runAction(EditorAction::SeekTimeline{*clicked});
+        }
         return;
     }
 
@@ -1773,17 +1816,21 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
     if (event.modifiers.ctrl)
     {
         m_chart_selection.toggle(*key);
+        dissolveChartCaretInPlace();
     }
     else if (event.clicks >= 2)
     {
         m_chart_selection.replaceWith(
             chartOnsetGroupKeys(session().currentArrangement()->chart->notes, key->position));
+        dissolveChartCaretInPlace();
     }
     else if (!m_chart_selection.contains(*key))
     {
-        m_chart_selection.replaceWith(*key);
+        // Arming re-derives the singleton selection from the note under the caret. A press on
+        // an already-selected note keeps the standing selection (and marker) untouched until
+        // the release collapses it — the gap a future drag-move gesture lives in.
+        armChartCaret(key->position, key->string);
     }
-    m_chart_caret = ChartCaret{.position = key->position, .string = key->string};
     updateView();
 }
 
@@ -1813,13 +1860,20 @@ void EditorController::Impl::onChartPointerDrag(const ChartPointerEvent& event)
         return;
     }
 
+    // The moment the drag becomes a marquee it is a multi-select gesture, so the caret
+    // dissolves right away (the marker model): the appearing cursor line tells the user the
+    // coming verbs act on the boxed notes, not on a caret.
+    if (!gesture.marquee)
+    {
+        dissolveChartCaretInPlace();
+    }
     gesture.marquee = true;
     updateView();
 }
 
 // Resolves the gesture: a marquee release selects the boxed notes (Shift extends), an
-// empty-lane click seeks the snapped click position, clears the selection, and places the
-// a plain click-release on an already-selected note collapses the selection to it.
+// empty-lane click arms the caret at the snapped slot, and a plain click-release on an
+// already-selected note collapses the selection to it and arms the caret there.
 void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
 {
     if (!m_chart_gesture.has_value())
@@ -1841,14 +1895,15 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
     {
         const bool clicked = std::abs(event.x - gesture.anchor_x) <= g_chart_click_threshold_px &&
                              std::abs(event.y - gesture.anchor_y) <= g_chart_click_threshold_px;
-        // A completed single click on a selected note collapses the selection to that note;
-        // the second release of a double click leaves the group selection standing.
+        // A completed plain click on a selected note collapses the selection to that note and
+        // arms the caret there (the press deferred both while a drag was still possible); the
+        // second release of a double click leaves the group selection standing.
         if (clicked && !gesture.modifiers.ctrl && event.clicks < 2)
         {
             if (const std::optional<ChartNoteKey> key = chartNoteKeyAt(*gesture.hit_note);
                 key.has_value())
             {
-                m_chart_selection.replaceWith(*key);
+                armChartCaret(key->position, key->string);
             }
         }
         updateView();
@@ -1877,33 +1932,47 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
         return;
     }
 
-    // Empty click: place the caret at the snapped slot on the clicked string (the caret
-    // model) — with play-from-caret this IS the seek; the selection clears via the caret's
-    // selection re-derivation.
+    // Empty click: arm the caret at the snapped slot on the clicked string (the marker
+    // model) — with play-from-the-marker this IS the seek; the selection clears via the
+    // caret's selection re-derivation.
     if (const auto placement = chartPlacementAt(event); placement.has_value())
     {
-        placeChartCaret(placement->first, placement->second);
+        armChartCaret(placement->first, placement->second);
     }
     updateView();
 }
 
-// Arrow-key caret movement (the caret model): Left/Right step one grid line on the caret's
-// string — or jump measures under the modifier (the Guitar Pro jump) — and Up/Down move
-// across strings; every move re-derives the selection from what sits under the caret.
+// Arrow keys on the marker (the marker model): while passive, the first press arms the caret
+// at the paused cursor — nearest grid line, remembered string — without stepping; while
+// armed, Left/Right step one grid line on the caret's string — or jump measures under the
+// modifier (the Guitar Pro jump) — and Up/Down move across strings. Every move re-derives
+// the selection from what sits under the caret. Inert while playing: arming requires a
+// paused transport (armed ⟹ paused is structural).
 void EditorController::Impl::onChartCaretStepRequested(ChartStepDirection direction, bool measure)
 {
     const common::core::TabViewState* const tab = displayedTabProjection();
-    if (tab == nullptr || tab->string_count <= 0 || isBusy() || !m_chart_caret.has_value())
+    if (tab == nullptr || tab->string_count <= 0 || isBusy() || m_transport.state().playing)
     {
         return;
     }
 
-    const ChartCaret caret = *m_chart_caret;
+    const ChartCaret* const armed = armedChartCaret();
+    if (armed == nullptr)
+    {
+        armChartCaret(
+            nearestTempoGridPosition(
+                session().song().tempo_map, m_grid_note_value, m_transport.position()),
+            std::clamp(chartMarkerString(), 1, tab->string_count));
+        updateView();
+        return;
+    }
+
+    const ChartCaret caret = *armed;
     if (direction == ChartStepDirection::Up || direction == ChartStepDirection::Down)
     {
         const int next_string = std::clamp(
             caret.string + (direction == ChartStepDirection::Up ? 1 : -1), 1, tab->string_count);
-        placeChartCaret(caret.position, next_string);
+        armChartCaret(caret.position, next_string);
         updateView();
         return;
     }
@@ -1945,7 +2014,7 @@ void EditorController::Impl::onChartCaretStepRequested(ChartStepDirection direct
                 m_grid_note_value);
         }
     }
-    placeChartCaret(stepped, caret.string);
+    armChartCaret(stepped, caret.string);
     updateView();
 }
 // Moves the selection under the Alt authoring modifier: Left/Right by one grid step (Ctrl
@@ -2131,16 +2200,19 @@ void EditorController::Impl::onChartFretDigitTyped(int digit)
         }
     }
 
-    // Fresh insert: with no selection, the typed digit becomes a note at the empty caret.
+    // Fresh insert: with no selection, the typed digit becomes a note at the armed empty
+    // caret. While the marker is passive, digits are inert by design (the marker model) — a
+    // stray keystroke after listening authors nothing.
     if (m_chart_selection.empty())
     {
-        if (!m_chart_caret.has_value())
+        const ChartCaret* const caret = armedChartCaret();
+        if (caret == nullptr)
         {
             return;
         }
         common::core::ChartNote note;
-        note.position = m_chart_caret->position;
-        note.string = m_chart_caret->string;
+        note.position = caret->position;
+        note.string = caret->string;
         note.fret = digit;
         std::optional<ChartNotesEditPlan> plan =
             planInsertNote(*arrangement->chart, session().song().tempo_map, note);
@@ -2260,16 +2332,33 @@ void EditorController::Impl::onChartSustainAdjustRequested(int direction, bool f
         *arrangement->chart, session().song().tempo_map, m_chart_selection.notes(), delta)));
 }
 
-// Escape abandons the in-flight pointer gesture (marquee or armed press) without mutating.
-void EditorController::Impl::onChartGestureCancelled()
+// The Esc ladder (the marker model): an in-flight pointer gesture is abandoned without
+// mutating; else an armed caret dissolves to the passive cursor in its place, keeping the
+// selection; else a standing note selection clears. The marker rungs also end the multi-digit
+// fret-entry window — after a cancel, the next digit must not widen a dead entry.
+void EditorController::Impl::onChartEscapePressed()
 {
-    if (!m_chart_gesture.has_value())
+    if (m_chart_gesture.has_value())
     {
+        m_chart_gesture.reset();
+        updateView();
         return;
     }
 
-    m_chart_gesture.reset();
-    updateView();
+    if (armedChartCaret() != nullptr)
+    {
+        dissolveChartCaretInPlace();
+        m_chart_fret_entry.reset();
+        updateView();
+        return;
+    }
+
+    if (!m_chart_selection.empty())
+    {
+        m_chart_selection.clear();
+        m_chart_fret_entry.reset();
+        updateView();
+    }
 }
 
 // Shows the plugin browser with whatever plugins the host already knows. Full catalog discovery is
@@ -2631,32 +2720,30 @@ void EditorController::Impl::performActionImpl(EditorAction::PlayPause /*action*
 
     if (m_transport.state().playing)
     {
+        // Pause rests the marker passive at the raw stop point (the marker model): the paused
+        // cursor line simply stays where the playhead stopped — no snapping, which happens
+        // only at arming. The marker was already demoted at play, so there is nothing to do
+        // beyond pausing and republishing.
         m_transport.pause();
-        // Pause hands the position back to the caret (the caret model): it snaps to the
-        // nearest grid line at the stop point on the remembered string, and the playhead
-        // hides with the next state push.
-        snapChartCaretToTransport();
         updateView();
     }
     else
     {
-        // Play FROM THE CARET: while paused the caret is the position concept, so playback
-        // starts where the caret sits. Starting playback also makes the region under the
-        // cursor the active tone (clearing any formal selection); the tone row then keeps it
-        // following boundary crossings at render cadence.
-        if (m_chart_caret.has_value())
+        // Play FROM THE MARKER: an armed caret seeks playback to its slot; a passive cursor
+        // already IS the transport position, so playback resumes in place. Playback then
+        // dissolves the caret and clears the note selection — one position concept per
+        // transport state, with only the string memory surviving for the next arming.
+        // Starting playback also makes the region under the cursor the active tone; the tone
+        // row keeps it following boundary crossings at render cadence.
+        if (const ChartCaret* const caret = armedChartCaret())
         {
             const common::core::TempoMap& tempo_map = session().song().tempo_map;
             m_transport.seek(
                 session().timeline().clamp(
                     common::core::TimePosition{tempo_map.secondsAtNote(
-                        m_chart_caret->position.measure,
-                        m_chart_caret->position.beat,
-                        m_chart_caret->position.offset)}));
+                        caret->position.measure, caret->position.beat, caret->position.offset)}));
         }
-        // Playback dissolves the caret's presence entirely: the note selection clears and the
-        // caret stops publishing until pause snaps it back (the string memory survives in
-        // m_chart_caret so the snap lands on the remembered string).
+        disarmChartMarker();
         m_chart_selection.clear();
         activateToneAtCursor();
         m_transport.play();
@@ -2671,8 +2758,10 @@ void EditorController::Impl::performActionImpl(EditorAction::Stop /*action*/)
     {
         return;
     }
+    // Stop rests the marker passive wherever the transport resets to; a stopped-while-paused
+    // armed caret dissolves because Stop is a transport action, not an editing one.
     m_transport.stop();
-    snapChartCaretToTransport();
+    disarmChartMarker();
     activateToneAtCursor();
     updateView();
 }
@@ -2683,13 +2772,11 @@ void EditorController::Impl::performActionImpl(EditorAction::SeekTimeline action
 {
     const common::core::TimePosition position = session().timeline().clamp(action.position);
     m_transport.seek(position);
-    // While paused the caret is the position concept (the caret model): a paused seek — the
-    // ruler click, a chartless waveform click — carries the caret to the nearest grid line at
-    // the target on its remembered string. Playing seeks move only the live playhead.
-    if (!m_transport.state().playing)
-    {
-        snapChartCaretToTransport();
-    }
+    // A seek is transport motion, so the marker demotes to its passive state (the marker
+    // model): the paused cursor line rests exactly at the seek target — the ruler click, a
+    // waveform click — and arming waits for the next editing gesture. Playing seeks move only
+    // the live playhead (the marker is already passive).
+    disarmChartMarker();
     // The active tone follows the cursor: the region under the new position becomes the tone
     // context, and any formal selection is cleared so a stray Delete cannot remove a tone.
     activateToneAtCursor();
@@ -2756,11 +2843,19 @@ ActionConditions EditorController::Impl::currentActionConditions(
 
 // Coarse-only transport callback. During an in-flight session load, defer the push so the final
 // derivation runs against the updated session and transport state instead of stale data.
-void EditorController::Impl::onTransportStateChanged(common::audio::TransportState /*state*/)
+void EditorController::Impl::onTransportStateChanged(common::audio::TransportState state)
 {
     if (m_session_load_in_progress)
     {
         return;
+    }
+    // Playback dissolves the caret and the note selection no matter what started it (the
+    // marker model's armed ⟹ paused invariant, enforced here for transports the PlayPause
+    // action did not drive — external starts, test doubles flipping state directly).
+    if (state.playing)
+    {
+        disarmChartMarker();
+        m_chart_selection.clear();
     }
     updateView();
 }
@@ -3015,26 +3110,25 @@ EditorViewState EditorController::Impl::deriveViewState() const
         {
             state.chart_edit.selected_notes =
                 selectedNoteIndices(arrangement->chart->notes, m_chart_selection);
-            // The caret publishes only while paused (playback dissolves it; pause snaps it
-            // back) and only while it sits on an EMPTY slot — on a note the selection
-            // highlight is the caret display.
-            if (m_chart_caret.has_value() && !m_transport.state().playing)
+            // The marker publishes plainly from its state — armed ⟹ paused is structural
+            // (play and the transport listener demote), so no transport check re-derives it
+            // here. The square renders only on an EMPTY slot; on a note the selection
+            // highlight is the caret display, and marker_armed alone hides the paused
+            // playhead.
+            if (const ChartCaret* const caret = armedChartCaret())
             {
-                const ChartNoteKey caret_key{
-                    .position = m_chart_caret->position, .string = m_chart_caret->string
-                };
+                state.chart_edit.marker_armed = true;
+                const ChartNoteKey caret_key{.position = caret->position, .string = caret->string};
                 const bool on_note = std::ranges::any_of(
-                    chartOnsetGroupKeys(arrangement->chart->notes, m_chart_caret->position),
+                    chartOnsetGroupKeys(arrangement->chart->notes, caret->position),
                     [&caret_key](const ChartNoteKey& candidate) { return candidate == caret_key; });
                 if (!on_note)
                 {
                     const common::core::TempoMap& tempo_map = session().song().tempo_map;
                     state.chart_edit.caret = ChartCaretViewState{
                         .seconds = tempo_map.secondsAtNote(
-                            m_chart_caret->position.measure,
-                            m_chart_caret->position.beat,
-                            m_chart_caret->position.offset),
-                        .string = m_chart_caret->string,
+                            caret->position.measure, caret->position.beat, caret->position.offset),
+                        .string = caret->string,
                     };
                 }
             }

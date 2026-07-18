@@ -84,20 +84,22 @@ public:
     void setSnapGuide(std::optional<TimelineSnapGuide> guide);
 
     /*!
-    \brief Hides the paused cursor while a chart's caret owns the paused position.
+    \brief Hides the paused cursor while the chart's position marker is armed.
 
-    With a chart displayed the caret is THE paused position concept (the caret model,
-    2026-07-17), so the overlay draws the playhead only during playback; chartless
-    arrangements keep the paused playhead as their only indicator.
+    Armed means the editing caret owns the paused position (the marker model, 2026-07-18), so
+    the caret — not this overlay — is the position display. While the marker is passive the
+    paused cursor line IS the position (it rests at the transport position, which dissolution
+    seeks keep authoritative), and during playback the moving playhead always renders.
+    Chartless arrangements never arm, keeping their paused playhead unchanged.
 
-    \param hidden True when a chart (and therefore a caret) is displayed.
+    \param hidden True while the editing caret owns the paused position.
     */
     void setPausedCursorHidden(bool hidden) noexcept;
 
     /*!
     \brief Restricts seek clicks to the highway band (the waveform/tab rows).
 
-    Clicks below the band — the tone strip and automation lanes — are not seeks (the caret
+    Clicks below the band — the tone strip and automation lanes — are not seeks (the marker
     model: those surfaces own their clicks and never move the position).
 
     \param height Highway band height in overlay-local pixels; zero or less disables the gate.
@@ -166,7 +168,8 @@ private:
     // Lets track-row pointer targets beneath the overlay receive clicks.
     std::function<bool(juce::Point<int>)> m_hit_test_pass_through;
 
-    // True while a chart's caret owns the paused position, hiding the paused playhead.
+    // True while the chart's marker is armed (the caret owns the paused position), hiding the
+    // paused playhead.
     bool m_paused_cursor_hidden{false};
 
     // Highway band height gating seek clicks; zero or less accepts clicks anywhere.

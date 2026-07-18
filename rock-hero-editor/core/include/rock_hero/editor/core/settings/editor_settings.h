@@ -160,21 +160,21 @@ public:
         int minimum_strings) override;
 
     /*!
-    \brief Reads the app-local resume caret stored for an editor project path.
-    \param project_file Project path whose caret should be restored.
-    \return Stored caret, or absence when none is stored or the stored value is unreadable.
+    \brief Reads the app-local resume marker stored for an editor project path.
+    \param project_file Project path whose marker should be restored.
+    \return Stored marker, or absence when none is stored or the stored value is unreadable.
     */
-    [[nodiscard]] std::optional<EditorProjectCaret> projectCaretFor(
+    [[nodiscard]] std::optional<EditorProjectMarker> projectMarkerFor(
         const std::filesystem::path& project_file) const override;
 
     /*!
-    \brief Stores or replaces the app-local resume caret for an editor project path.
-    \param project_file Project path that owns the caret.
-    \param caret Caret to restore next time this path is opened.
+    \brief Stores or replaces the app-local resume marker for an editor project path.
+    \param project_file Project path that owns the marker.
+    \param marker Marker to restore next time this path is opened.
     \return Empty success, or a typed settings failure.
     */
-    [[nodiscard]] std::expected<void, EditorSettingsError> saveProjectCaret(
-        const std::filesystem::path& project_file, const EditorProjectCaret& caret) override;
+    [[nodiscard]] std::expected<void, EditorSettingsError> saveProjectMarker(
+        const std::filesystem::path& project_file, const EditorProjectMarker& marker) override;
 
     /*!
     \brief Reads the app-local timeline grid note value stored for an editor project path.

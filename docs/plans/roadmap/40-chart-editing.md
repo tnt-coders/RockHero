@@ -138,6 +138,17 @@ composition. Execution order: (1) chord-unit click + Ctrl precision; (2) classif
 chord boxes in both projections (+ importer-normalization companion task in the converter
 tool); (3) auto-span lifecycle + duration verb; (4) ghost rework; the pointer drag-move + Esc
 drag-cancel slice slots after (1).
+**The caret model landed 2026-07-17 (settlement §9) and was re-implemented as the two-state
+marker 2026-07-18 (settlement §9a, after the multi-select deep analysis):** one position
+marker, passive (the paused cursor at the transport position) or armed (the editing caret,
+`ChartMarker = variant<ChartCursor, ChartCaret>`); typing inserts at an armed empty-slot
+caret, retypes the selection, and is inert while passive; multi-select gestures dissolve the
+caret into a cursor in its place; Esc steps armed → passive → selection cleared; a
+selection-count chip joins the transport readout; resume persistence stores one state-tagged
+marker per project (`EditorProjectMarker`). This supersedes the settlement's build-order item
+(4) — typing at the caret replaced the ghost rework entirely — and the pause-snap,
+caret-always-present, and Alt-ghost records above. Multi-select is confirmed permanent;
+`docs/plans/in-progress/chart-span-and-selection-model.md` §9/§9a is the authoritative record.
 **Remaining Phase 4 sub-scope (deferred to the next execution slice, before Phase 5):** pointer
 drag-move of selected notes (horizontal with snap, vertical across strings — the same plain
 move-drag verb automation points use) and Esc canceling an in-flight pointer drag preview.

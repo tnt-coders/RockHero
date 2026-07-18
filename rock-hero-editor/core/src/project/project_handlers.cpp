@@ -4,8 +4,10 @@
 #include <cassert>
 #include <cmath>
 #include <initializer_list>
+#include <optional>
 #include <rock_hero/common/core/tone/tone_track_normalize.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
+#include <variant>
 
 namespace rock_hero::editor::core
 {
@@ -295,7 +297,7 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
     }
 
     const bool next_has_unsaved_changes = state->project.audioNormalizationUpdatedOnLoad();
-    const EditorProjectCaret next_caret = caretForOpenedProject(state->file);
+    const std::optional<EditorProjectMarker> next_marker = markerForOpenedProject(state->file);
     m_grid_note_value = gridNoteValueForOpenedProject(state->file);
     m_timeline_zoom_pixels_per_second = timelineZoomForOpenedProject(state->file);
     std::filesystem::path next_project_file{state->file};
@@ -312,21 +314,20 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
     resetUndoHistory("undo.reset.open_project");
     markUndoHistoryClean("undo.mark_clean.open_project");
 
-    // Restore the caret to its exact stored grid slot (clamping the string to the displayed
-    // chart) and park the transport at the same musical time so play-from-caret and the
-    // restored view agree; chartless projects keep the transport position as their resume.
-    const common::core::TimePosition next_cursor_position = session().timeline().clamp(
-        common::core::TimePosition{session().song().tempo_map.secondsAtNote(
-            next_caret.position.measure, next_caret.position.beat, next_caret.position.offset)});
-    m_transport.seek(next_cursor_position);
-    if (const common::core::Arrangement* const arrangement = session().currentArrangement();
-        arrangement != nullptr && arrangement->chart.has_value() &&
-        !arrangement->chart->tuning.strings.empty())
+    // Restore the marker exactly as stored (the marker model): a passive cursor seeks the
+    // transport to its raw saved time; an armed caret seeks to its slot's musical time and
+    // re-arms on the same exact grid address. A stored caret whose string no longer exists on
+    // the loaded chart — or that belongs to a now-chartless project — demotes to a passive
+    // cursor at the same musical time: restore never clamps onto a wrong string and never
+    // invents a position. An unknown project starts passive at time zero (loadSessionSong's
+    // clearChartEditingState already reset the marker itself).
+    if (next_marker.has_value())
     {
-        placeChartCaret(
-            next_caret.position,
-            std::clamp(
-                next_caret.string, 1, static_cast<int>(arrangement->chart->tuning.strings.size())));
+        std::visit([this](const auto& stored) { restoreProjectMarker(stored); }, *next_marker);
+    }
+    else
+    {
+        m_transport.seek(common::core::TimePosition{0.0});
     }
     // Make the tone under the restored cursor active (without a formal selection) so a reopened
     // project shows its tone from the start; the baseline reaches back to time 0, so a lead-in chart
@@ -866,7 +867,7 @@ bool EditorController::Impl::closeProject(bool reenter_tone_designer)
         return true;
     }
 
-    saveCurrentProjectCaretBestEffort("store project caret before close");
+    saveCurrentProjectMarkerBestEffort("store project marker before close");
     m_transport.stop();
     clearLiveRig();
     clearActiveArrangementBestEffort("close project");
@@ -1270,7 +1271,7 @@ void EditorController::Impl::applyProjectWriteSuccess(const EditorAction::SavePr
 {
     m_has_untracked_unsaved_changes = false;
     markUndoHistoryClean("undo.mark_clean.save_project");
-    saveCurrentProjectCaretBestEffort("store project caret after save");
+    saveCurrentProjectMarkerBestEffort("store project marker after save");
 }
 
 void EditorController::Impl::applyProjectWriteSuccess(const EditorAction::SaveProjectAs& action)
@@ -1280,7 +1281,7 @@ void EditorController::Impl::applyProjectWriteSuccess(const EditorAction::SavePr
     m_displaced_project_file.clear();
     m_has_untracked_unsaved_changes = false;
     markUndoHistoryClean("undo.mark_clean.save_project_as");
-    saveCurrentProjectCaretBestEffort("store project caret after save-as");
+    saveCurrentProjectMarkerBestEffort("store project marker after save-as");
     // Save As is the first moment an imported project has a path (and an existing project adopts
     // a new one), so the active grid note value is persisted here or a selection made before the
     // first save is lost on reopen.
@@ -1408,21 +1409,45 @@ void EditorController::Impl::restoreLastOpenProject()
     runAction(EditorAction::RestoreProject{*project_file});
 }
 
-// Chooses the caret restored for a project open from app-local resume state: the exact stored
-// musical address (no time math — no tempo edit can happen without an open session), falling
-// back to the song start for unknown projects.
-EditorProjectCaret EditorController::Impl::caretForOpenedProject(
+// Reads the stored resume marker for a project open from app-local resume state; absent for
+// unknown projects (which start passive at time zero).
+std::optional<EditorProjectMarker> EditorController::Impl::markerForOpenedProject(
     const std::filesystem::path& project_file) const
 {
-    if (const auto saved_caret = m_settings.projectCaretFor(project_file); saved_caret.has_value())
-    {
-        return *saved_caret;
-    }
+    return m_settings.projectMarkerFor(project_file);
+}
 
-    return EditorProjectCaret{
-        .position = common::core::GridPosition{.measure = 1, .beat = 1, .offset = {}},
-        .string = 1,
-    };
+// Restores a stored passive marker: the transport seeks to the raw saved time (the cursor's
+// native coordinate — no grid math) and the remembered string waits for the next arming.
+void EditorController::Impl::restoreProjectMarker(const EditorProjectCursor& cursor)
+{
+    m_transport.seek(session().timeline().clamp(common::core::TimePosition{cursor.seconds}));
+    m_chart_marker = ChartCursor{.string = cursor.string};
+}
+
+// Restores a stored armed marker: the transport seeks to the slot's musical time and the
+// caret re-arms on the exact stored grid address. When the stored string no longer exists on
+// the loaded chart (or the project is chartless) the marker demotes to a passive cursor at
+// that same time instead — never a clamp onto a wrong string; the stored string stays as the
+// arming memory, which itself clamps against the displayed chart.
+void EditorController::Impl::restoreProjectMarker(const EditorProjectCaret& caret)
+{
+    m_transport.seek(
+        session().timeline().clamp(
+            common::core::TimePosition{session().song().tempo_map.secondsAtNote(
+                caret.position.measure, caret.position.beat, caret.position.offset)}));
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    const bool string_exists =
+        arrangement != nullptr && arrangement->chart.has_value() &&
+        caret.string <= static_cast<int>(arrangement->chart->tuning.strings.size());
+    if (string_exists)
+    {
+        armChartCaret(caret.position, caret.string);
+    }
+    else
+    {
+        m_chart_marker = ChartCursor{.string = caret.string};
+    }
 }
 
 // Chooses the grid note value restored for a project open from app-local editor settings, falling
@@ -1454,37 +1479,32 @@ double EditorController::Impl::timelineZoomForOpenedProject(
     return 0.0;
 }
 
-// Saves the current caret as app-local resume state for saved projects. Chartless projects
-// persist the nearest grid line to the transport position instead, so they still resume where
-// they were.
-void EditorController::Impl::saveCurrentProjectCaretBestEffort(std::string_view context)
+// Saves the marker in whichever state it holds as app-local resume state for saved projects:
+// an armed caret as its exact grid address, a passive cursor as the raw transport time (so
+// chartless projects — always passive — resume where they were with no grid math).
+void EditorController::Impl::saveCurrentProjectMarkerBestEffort(std::string_view context)
 {
     if (m_project_file.empty())
     {
         return;
     }
 
-    EditorProjectCaret caret{};
-    if (m_chart_caret.has_value())
-    {
-        caret = EditorProjectCaret{
-            .position = m_chart_caret->position, .string = m_chart_caret->string
-        };
-    }
-    else
-    {
-        caret = EditorProjectCaret{
-            .position = nearestTempoGridPosition(
-                session().song().tempo_map, m_grid_note_value, m_transport.position()),
-            .string = 1,
-        };
-    }
-    saveProjectCaretBestEffort(m_project_file, caret, context);
+    const ChartCaret* const caret = armedChartCaret();
+    const EditorProjectMarker marker =
+        caret != nullptr
+            ? EditorProjectMarker{EditorProjectCaret{
+                  .position = caret->position, .string = caret->string
+              }}
+            : EditorProjectMarker{EditorProjectCursor{
+                  .seconds = m_transport.position().seconds, .string = chartMarkerString()
+              }};
+    saveProjectMarkerBestEffort(m_project_file, marker, context);
 }
 
-// Records a caret outside the .rhp package so caret movement never makes project content dirty.
-void EditorController::Impl::saveProjectCaretBestEffort(
-    const std::filesystem::path& project_file, const EditorProjectCaret& caret,
+// Records a marker outside the .rhp package so marker movement never makes project content
+// dirty.
+void EditorController::Impl::saveProjectMarkerBestEffort(
+    const std::filesystem::path& project_file, const EditorProjectMarker& marker,
     std::string_view context)
 {
     if (project_file.empty())
@@ -1492,7 +1512,7 @@ void EditorController::Impl::saveProjectCaretBestEffort(
         return;
     }
 
-    recordSettingsResultBestEffort(m_settings.saveProjectCaret(project_file, caret), context);
+    recordSettingsResultBestEffort(m_settings.saveProjectMarker(project_file, marker), context);
 }
 
 // Prepares project audio, activates the selected arrangement, and commits the song to Session.

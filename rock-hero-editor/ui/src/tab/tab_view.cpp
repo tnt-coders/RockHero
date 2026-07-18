@@ -66,8 +66,9 @@ void TabView::setEditState(core::ChartEditViewState edit)
     repaint();
 }
 
-// With a chart displayed the lane claims its whole band — the controller still turns empty
-// clicks into seeks, so seeking through the lane keeps working. Without a chart the lane is
+// With a chart displayed the lane claims its whole band — while paused a click arms the caret
+// (which IS the play-from-here position), and while playing the controller turns lane clicks
+// into plain seeks, so seeking through the lane keeps working. Without a chart the lane is
 // pointer-transparent.
 bool TabView::wantsPointerAt(juce::Point<int> local_point) const
 {
@@ -194,8 +195,8 @@ void TabView::paint(juce::Graphics& g)
     // they are editor-shell furniture, not part of what the game's tab strips render.
     const juce::Colour accent = editorTheme().accent;
 
-    // One stroke width for both edge-straddling rings (selection highlight and Alt ghost), so
-    // the ghost previews exactly the ring dimensions a selected head wears.
+    // One stroke width for every edge-straddling overlay outline (selection rings and the
+    // caret square), so the editing furniture reads as one family at any head size.
     const auto ring_stroke = [](float head_size) noexcept {
         return std::max(1.0f, head_size / 15.0f) * 1.5f;
     };
@@ -255,11 +256,12 @@ void TabView::paint(juce::Graphics& g)
         g.drawRect(box, 1.0f);
     }
 
-    // The editing caret on an empty slot (the caret model): a white square marking exactly
+    // The armed caret on an empty slot (the marker model): a white square marking exactly
     // where a typed digit will insert. Square rather than round so it reads as editor
     // furniture distinct from every circular note shape (heads, accent glows) and stays
-    // visible over them. On a note the selection highlight is the caret display, so the
-    // controller publishes nothing here.
+    // visible over them. On a note the selection highlight is the caret display, and while
+    // the marker is passive the paused playhead is the position, so the controller publishes
+    // nothing here in either case.
     if (m_edit.caret.has_value() && m_edit.caret->string >= 1 &&
         m_edit.caret->string <= m_tab->string_count && m_visible_timeline.duration().seconds > 0.0)
     {

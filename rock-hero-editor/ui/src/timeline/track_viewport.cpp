@@ -285,6 +285,21 @@ void TrackViewport::setTabDisplayedStrings(int displayed_strings)
     layoutScaledCanvas();
 }
 
+// Stores the marker's armed flag and refreshes both paused-position indicators (the marker
+// model): the overlay's paused cursor and the ruler's aligned mark hide while armed — the
+// caret is the position display — and return while passive.
+void TrackViewport::setChartMarkerArmed(bool armed)
+{
+    if (m_chart_marker_armed == armed)
+    {
+        return;
+    }
+
+    m_chart_marker_armed = armed;
+    m_cursor_overlay.setPausedCursorHidden(m_chart_marker_armed);
+    updateRulerCursor();
+}
+
 // Forwards the tab-derived chord/arpeggio name chips to the pinned ruler, which renders them
 // in its bottom tick band directly above the tablature lane.
 void TrackViewport::setShapeLabels(std::vector<RulerShapeLabel> labels)
@@ -449,11 +464,11 @@ void TrackViewport::layoutScaledCanvas()
         m_tone_automation_lanes_view.totalHeight());
     m_cursor_overlay.setBounds(m_content.getLocalBounds());
     m_cursor_overlay.toFront(false);
-    // The caret model's click and visibility rules: seek clicks stay inside the highway band
-    // (tone/lane clicks never move the position), and a displayed chart hands the paused
-    // position to the caret, hiding the paused playhead.
+    // The marker model's click and visibility rules: seek clicks stay inside the highway band
+    // (tone/lane clicks never move the position), and an armed caret hides the paused
+    // playhead — a passive marker keeps it as the position display.
     m_cursor_overlay.setSeekBandHeight(primaryTrackHeight());
-    m_cursor_overlay.setPausedCursorHidden(m_tab_displayed_strings > 0);
+    m_cursor_overlay.setPausedCursorHidden(m_chart_marker_armed);
     updateRulerView();
     refreshTimelineGrid();
 }
@@ -472,7 +487,7 @@ void TrackViewport::relayoutForContentHeightChange()
     m_cursor_overlay.setBounds(m_content.getLocalBounds());
     m_cursor_overlay.toFront(false);
     m_cursor_overlay.setSeekBandHeight(primaryTrackHeight());
-    m_cursor_overlay.setPausedCursorHidden(m_tab_displayed_strings > 0);
+    m_cursor_overlay.setPausedCursorHidden(m_chart_marker_armed);
     updateRulerView();
     refreshTimelineGridForViewChange();
 }
@@ -709,10 +724,10 @@ void TrackViewport::updateRulerCursor()
         return;
     }
 
-    // The playhead renders only during playback (the caret model): while paused the caret is
-    // the position concept and the ruler shows no cursor. Chartless arrangements have no
-    // caret, so their paused playhead stays visible as the only position indicator.
-    const bool cursor_visible = m_transport.state().playing || m_tab_displayed_strings <= 0;
+    // The ruler mark mirrors the overlay's paused-cursor rule (the marker model): visible
+    // during playback and while the marker is passive (the paused cursor at the transport
+    // position IS the position); hidden only while an armed caret owns the paused position.
+    const bool cursor_visible = m_transport.state().playing || !m_chart_marker_armed;
     m_timeline_ruler.setCursorPosition(
         cursor_visible ? std::optional<common::core::TimePosition>{m_transport.position()}
                        : std::nullopt);

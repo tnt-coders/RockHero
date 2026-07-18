@@ -279,8 +279,8 @@ TEST_CASE("TabView renders chart-editing overlays", "[ui][tab-view]")
     CHECK(image.getPixelAt(2, 110) != plain_image.getPixelAt(2, 110));
 }
 
-// The controller-published caret renders as a white square outline on its empty slot (the
-// caret model); clearing the published caret clears it.
+// The controller-published armed caret renders as a white square outline on its empty slot
+// (the marker model); clearing the published caret clears it.
 TEST_CASE("TabView renders the empty-slot caret square", "[ui][tab-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -293,9 +293,11 @@ TEST_CASE("TabView renders the empty-slot caret square", "[ui][tab-view]")
         });
     view.setState(makeTabState(), 0);
 
-    // Caret at 12.5s (x = 125) on string 3 (center y = 70).
+    // Caret at 12.5s (x = 125) on string 3 (center y = 70); a published caret implies an
+    // armed marker.
     view.setEditState(
         core::ChartEditViewState{
+            .marker_armed = true,
             .caret = core::ChartCaretViewState{.seconds = 12.5, .string = 3},
         });
     {

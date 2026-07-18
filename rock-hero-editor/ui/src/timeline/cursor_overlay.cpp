@@ -99,7 +99,8 @@ bool CursorOverlay::hitTest(int x, int y)
 }
 
 // Converts highway-band timeline clicks into timeline seek intent. Clicks below the band —
-// the tone strip and automation lanes — never seek or move the position (the caret model).
+// the tone strip and automation lanes — never seek or move the position (the marker model:
+// those surfaces own their clicks).
 void CursorOverlay::mouseDown(const juce::MouseEvent& event)
 {
     if (getWidth() <= 0 || !event.mods.isLeftButtonDown() ||
@@ -122,9 +123,9 @@ void CursorOverlay::mouseDown(const juce::MouseEvent& event)
 }
 
 // Samples the current position at render cadence and invalidates only changed cursor strips.
-// While a chart's caret owns the paused position, the playhead renders only during playback
-// (the caret model, 2026-07-17); chartless arrangements keep the paused playhead visible as
-// their only indicator.
+// While the chart's marker is armed the caret owns the paused position and the playhead
+// renders only during playback (the marker model, 2026-07-18); while passive the paused
+// cursor line rests at the transport position as the position display.
 void CursorOverlay::advanceCursor()
 {
     const bool cursor_visible = m_transport.state().playing || !m_paused_cursor_hidden;

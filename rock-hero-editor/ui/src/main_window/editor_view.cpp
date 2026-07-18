@@ -59,6 +59,8 @@ constexpr int g_content_inset{8};
 constexpr int g_control_gap{8};
 // Sized for a long readout like "128.4.99 / 59:59:999" at the readout font height.
 constexpr int g_position_display_width{240};
+// Sized for "999 notes" at the readout font height.
+constexpr int g_selection_count_display_width{110};
 constexpr float g_transport_readout_font_height{20.0f};
 constexpr int g_transport_height{32};
 constexpr int g_transport_bar_height{g_content_inset + g_transport_height};
@@ -370,6 +372,15 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     m_position_display.setJustificationType(juce::Justification::centredLeft);
     m_position_display.setInterceptsMouseClicks(false, false);
     refreshTimeDisplay();
+    // The selection-count chip (the marker model): typing acts on the whole note selection,
+    // so its size stays visible beside the transport readout even when the highlighted notes
+    // are scrolled off-screen. Hidden below two selected notes.
+    m_selection_count_display.setComponentID("chart_selection_count_display");
+    m_selection_count_display.setFont(
+        juce::Font{juce::FontOptions{g_transport_readout_font_height, juce::Font::bold}});
+    m_selection_count_display.setJustificationType(juce::Justification::centredLeft);
+    m_selection_count_display.setInterceptsMouseClicks(false, false);
+    m_selection_count_display.setVisible(false);
     m_master_output_meter.setComponentID("master_output_meter");
     m_audio_device_button.setComponentID("audio_device_button");
     m_audio_device_button.setText("Audio Device");
@@ -450,6 +461,7 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     addAndMakeVisible(m_menu_bar);
     addAndMakeVisible(m_transport_controls);
     addAndMakeVisible(m_position_display);
+    addChildComponent(m_selection_count_display);
     addAndMakeVisible(m_grid_spacing_selector);
     m_arrangement_caption.setComponentID("arrangement_caption");
     m_arrangement_caption.setText("Arrangement", juce::dontSendNotification);
@@ -626,6 +638,18 @@ void EditorView::setState(const core::EditorViewState& state)
     m_track_viewport->setTabDisplayedStrings(tabDisplayedStringCount(
         m_state.tab != nullptr ? m_state.tab->string_count : 0,
         m_state.tab_minimum_displayed_strings));
+    // An armed marker hides the paused playhead (the caret is the position display); passive
+    // keeps the paused cursor line at the transport position.
+    m_track_viewport->setChartMarkerArmed(m_state.chart_edit.marker_armed);
+    // The count chip appears from two selected notes up: typing acts on the whole selection,
+    // so its size must stay visible even with the highlights scrolled off-screen.
+    const std::size_t selected_count = m_state.chart_edit.selected_notes.size();
+    m_selection_count_display.setVisible(selected_count >= 2);
+    if (selected_count >= 2)
+    {
+        m_selection_count_display.setText(
+            juce::String{static_cast<int>(selected_count)} + " notes", juce::dontSendNotification);
+    }
 
     // The ruler's bottom band shows the tab projection's named chord/arpeggio spans directly
     // above the lane's rails; unnamed shapes get no chip by design.
@@ -837,6 +861,10 @@ void EditorView::resized()
         std::min(g_transport_controls_width, playback_area.getWidth())));
     m_position_display.setBounds(
         playback_area.removeFromLeft(std::min(g_position_display_width, playback_area.getWidth()))
+            .withTrimmedLeft(g_content_inset));
+    m_selection_count_display.setBounds(
+        playback_area
+            .removeFromLeft(std::min(g_selection_count_display_width, playback_area.getWidth()))
             .withTrimmedLeft(g_content_inset));
 
     auto bottom_area = trackViewportBounds();
@@ -1053,8 +1081,9 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
         }
 
         // Fret digits: the top number row and the numpad both type frets. With a selection the
-        // typed value retypes it; with none, it INSERTS a note at the caret (the caret model —
-        // the controller owns the branch). Ctrl+digit and Alt+digit stay unbound.
+        // typed value retypes it; with none, it inserts at an armed caret and is inert while
+        // the marker is passive (the marker model — the controller owns the branch).
+        // Ctrl+digit and Alt+digit stay unbound.
         const int key_code = key.getKeyCode();
         const int fret_digit =
             key_code >= '0' && key_code <= '9' ? key_code - '0'
@@ -1066,10 +1095,13 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
             m_controller.onChartFretDigitTyped(fret_digit);
             return true;
         }
+        // Esc on an in-flight marquee aborts it right here (gesture cancels outrank the tone
+        // views' own cancels); the marker and selection rungs of the Esc ladder run after
+        // those, in the shared Escape block below.
         if (chart_shown && key.isKeyCode(juce::KeyPress::escapeKey) &&
             m_state.chart_edit.marquee.has_value())
         {
-            m_controller.onChartGestureCancelled();
+            m_controller.onChartEscapePressed();
             return true;
         }
     }
@@ -1107,15 +1139,27 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
         return true;
     }
 
-    // Esc cancels the pointer gesture in flight (a point drag, edge drag, or insert placement);
-    // it falls through when nothing is active so modal owners keep their own Esc behavior.
+    // Esc cancels the pointer gesture in flight (a point drag, edge drag, or insert placement)
+    // first, then steps the chart's marker ladder — armed caret dissolves, then the note
+    // selection clears (the marker model). It falls through when nothing is active so modal
+    // owners keep their own Esc behavior.
     if (key.isKeyCode(juce::KeyPress::escapeKey))
     {
         if (m_tone_automation_lanes_view.cancelActiveGesture())
         {
             return true;
         }
-        return m_tone_track_view.cancelActiveGesture();
+        if (m_tone_track_view.cancelActiveGesture())
+        {
+            return true;
+        }
+        if (m_state.tab != nullptr &&
+            (m_state.chart_edit.marker_armed || !m_state.chart_edit.selected_notes.empty()))
+        {
+            m_controller.onChartEscapePressed();
+            return true;
+        }
+        return false;
     }
 
     // F8 toggles the undo-history inspector.
