@@ -1572,7 +1572,15 @@ const EditorController::Impl::ChartCaret* EditorController::Impl::armedChartCare
 // Returns the marker's remembered string in either state.
 int EditorController::Impl::chartMarkerString() const noexcept
 {
-    return std::visit([](const auto& state) { return state.string; }, m_chart_marker);
+    // Both marker states carry the remembered string. Read it through get_if rather than
+    // std::visit so the accessor is genuinely noexcept: std::visit is potentially-throwing
+    // (bad_variant_access), which the -Werror exception-escape check rejects in a noexcept
+    // function. The marker is always one of the two alternatives, so the cursor branch is total.
+    if (const ChartCaret* const caret = armedChartCaret())
+    {
+        return caret->string;
+    }
+    return std::get_if<ChartCursor>(&m_chart_marker)->string;
 }
 
 // Demotes an armed caret to the passive cursor, leaving the transport where it is. Used by
@@ -1811,8 +1819,12 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
     }
     else if (event.clicks >= 2)
     {
-        m_chart_selection.replaceWith(
-            chartOnsetGroupKeys(session().currentArrangement()->chart->notes, key->position));
+        const common::core::Arrangement* const arrangement = session().currentArrangement();
+        if (arrangement != nullptr && arrangement->chart.has_value())
+        {
+            m_chart_selection.replaceWith(
+                chartOnsetGroupKeys(arrangement->chart->notes, key->position));
+        }
         dissolveChartCaretInPlace();
     }
     else if (!m_chart_selection.contains(*key))
@@ -3132,9 +3144,9 @@ EditorViewState EditorController::Impl::deriveViewState() const
                 const double seconds_per_pixel =
                     gesture.geometry.visible_timeline.duration().seconds /
                     static_cast<double>(gesture.geometry.bounds_width);
-                const double start_offset =
+                const auto start_offset =
                     static_cast<double>(std::min(gesture.anchor_x, gesture.current_x));
-                const double end_offset =
+                const auto end_offset =
                     static_cast<double>(std::max(gesture.anchor_x, gesture.current_x));
                 const float top = std::min(gesture.anchor_y, gesture.current_y);
                 const float bottom = std::max(gesture.anchor_y, gesture.current_y);

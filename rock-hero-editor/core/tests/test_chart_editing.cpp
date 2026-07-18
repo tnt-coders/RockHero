@@ -125,18 +125,19 @@ TEST_CASE("EditorController selects a chart note on glyph click", "[core][chart]
     // its whole onset group (settled 2026-07-17).
     click(controller, 40.0f, 220.0f);
 
-    REQUIRE(view.last_state.has_value());
-    const ChartEditViewState& edit = view.last_state->chart_edit;
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const ChartEditViewState& edit = state->chart_edit;
     CHECK(edit.selected_notes == std::vector<std::size_t>{0});
     CHECK(transport.seek_call_count == seek_baseline);
 
     doubleClick(controller, 40.0f, 220.0f);
-    CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1}));
+    CHECK(state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1}));
 
     // A sustain-tail click (right of the measure-3 head, inside its one-second tail) selects
     // the sustained note the tail belongs to.
     click(controller, 97.0f, 220.0f);
-    CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{2});
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{2});
 }
 
 // Ctrl toggles individual membership; plain clicks select individual notes per the containment
@@ -163,25 +164,26 @@ TEST_CASE("EditorController toggles and extends the chart selection", "[core][ch
     // the paused seek carries the transport to the former caret's 2.0s slot).
     click(controller, 40.0f, 220.0f);
     click(controller, 40.0f, 180.0f, ChartPointerModifiers{.ctrl = true});
-    REQUIRE(view.last_state.has_value());
-    CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1}));
-    CHECK_FALSE(view.last_state->chart_edit.caret.has_value());
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK(state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1}));
+    CHECK_FALSE(state->chart_edit.caret.has_value());
     CHECK(transport.last_seek_position == std::optional{common::core::TimePosition{2.0}});
 
     // Toggling the same note again removes it.
     click(controller, 40.0f, 180.0f, ChartPointerModifiers{.ctrl = true});
-    CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{0});
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{0});
 
     // Shift behaves as plain until plan 52's time-range selection lands: it replaces the
     // selection with the clicked note.
     click(controller, 80.0f, 220.0f, ChartPointerModifiers{.shift = true});
-    CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{2});
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{2});
 
     // A plain click on one note of a multi-selection collapses the selection to it.
     click(controller, 40.0f, 220.0f, ChartPointerModifiers{.ctrl = true});
-    CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 2}));
+    CHECK(state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 2}));
     click(controller, 40.0f, 220.0f);
-    CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{0});
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{0});
 }
 
 // Typed digits set every selected note to the typed value; Alt+Shift+wheel's fret-shift intent
@@ -207,13 +209,14 @@ TEST_CASE("EditorController sets frets by typing and shifts them by wheel", "[co
     // The measure-2 chord is frets 3 and 5; double-clicking selects the whole chord and
     // typing 9 sets BOTH members to 9.
     doubleClick(controller, 40.0f, 220.0f);
-    REQUIRE(view.last_state.has_value());
-    CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1}));
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK(state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1}));
     controller.onChartFretDigitTyped(9);
     const auto* chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes[0].fret == 9);
     CHECK(chart->notes[1].fret == 9);
-    CHECK(view.last_state->undo_label == std::optional<std::string>{"Set Fret 9"});
+    CHECK(state->undo_label == std::optional<std::string>{"Set Fret 9"});
 
     // One undo restores both members in one step.
     controller.onUndoRequested();
@@ -272,12 +275,14 @@ TEST_CASE("EditorController places the caret on empty click", "[core][chart]")
     // x = 200 is 10.0s (a grid beat at 120 BPM); y = 100 is the string-4 lane.
     click(controller, 200.0f, 100.0f);
 
-    REQUIRE(view.last_state.has_value());
-    const ChartEditViewState& edit = view.last_state->chart_edit;
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const ChartEditViewState& edit = state->chart_edit;
     CHECK(edit.selected_notes.empty());
-    REQUIRE(edit.caret.has_value());
-    CHECK(edit.caret->seconds == Catch::Approx(10.0));
-    CHECK(edit.caret->string == 4);
+    const ChartCaretViewState* caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->seconds == Catch::Approx(10.0));
+    CHECK(caret->string == 4);
     CHECK(transport.seek_call_count == seek_baseline);
 }
 
@@ -304,14 +309,16 @@ TEST_CASE("EditorController marquee selects boxed chart notes", "[core][chart]")
     controller.onChartPointerDown(pointerEvent(20.0f, 160.0f));
     controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
 
-    REQUIRE(view.last_state.has_value());
-    REQUIRE(view.last_state->chart_edit.marquee.has_value());
-    CHECK(view.last_state->chart_edit.marquee->start_seconds == Catch::Approx(1.0));
-    CHECK(view.last_state->chart_edit.marquee->end_seconds == Catch::Approx(3.0));
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const ChartMarqueeViewState* marquee = marqueeOrNull(state->chart_edit);
+    REQUIRE(marquee != nullptr);
+    CHECK(marquee->start_seconds == Catch::Approx(1.0));
+    CHECK(marquee->end_seconds == Catch::Approx(3.0));
 
     controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
-    CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1}));
-    CHECK_FALSE(view.last_state->chart_edit.marquee.has_value());
+    CHECK(state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1}));
+    CHECK_FALSE(state->chart_edit.marquee.has_value());
     CHECK(transport.seek_call_count == seek_baseline);
 
     // Shift-marquee over the measure-3 note extends the selection.
@@ -320,25 +327,26 @@ TEST_CASE("EditorController marquee selects boxed chart notes", "[core][chart]")
     controller.onChartPointerDrag(
         pointerEvent(95.0f, 239.0f, ChartPointerModifiers{.shift = true}));
     controller.onChartPointerUp(pointerEvent(95.0f, 239.0f, ChartPointerModifiers{.shift = true}));
-    CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1, 2}));
+    CHECK(state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1, 2}));
 
     // Dissolution is a rule over outcomes: a marquee whose box catches NOTHING is a complete
     // no-op — an armed caret survives with no dissolution seek — while a box that catches
     // notes dissolves the caret to a cursor in its place.
     click(controller, 240.0f, 100.0f);
-    REQUIRE(view.last_state->chart_edit.caret.has_value());
+    REQUIRE(state->chart_edit.caret.has_value());
     const int armed_seek_baseline = transport.seek_call_count;
     controller.onChartPointerDown(pointerEvent(300.0f, 60.0f));
     controller.onChartPointerDrag(pointerEvent(340.0f, 140.0f));
     controller.onChartPointerUp(pointerEvent(340.0f, 140.0f));
-    REQUIRE(view.last_state->chart_edit.caret.has_value());
-    CHECK(view.last_state->chart_edit.caret->seconds == Catch::Approx(12.0));
+    const ChartCaretViewState* caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->seconds == Catch::Approx(12.0));
     CHECK(transport.seek_call_count == armed_seek_baseline);
     controller.onChartPointerDown(pointerEvent(20.0f, 160.0f));
     controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
     controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
-    CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1}));
-    CHECK_FALSE(view.last_state->chart_edit.caret.has_value());
+    CHECK(state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1}));
+    CHECK_FALSE(state->chart_edit.caret.has_value());
     CHECK(transport.last_seek_position == std::optional{common::core::TimePosition{12.0}});
 }
 
@@ -366,43 +374,58 @@ TEST_CASE("EditorController steps the caret along the grid and strings", "[core]
     // itself never seeks the transport.
     const int seek_baseline = transport.seek_call_count;
     click(controller, 120.0f, 220.0f);
-    REQUIRE(view.last_state.has_value());
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
     CHECK(transport.seek_call_count == seek_baseline);
-    REQUIRE(view.last_state->chart_edit.caret.has_value());
-    CHECK(view.last_state->chart_edit.caret->seconds == Catch::Approx(6.0));
-    CHECK(view.last_state->chart_edit.caret->string == 1);
+    const ChartCaretViewState* caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->seconds == Catch::Approx(6.0));
+    CHECK(caret->string == 1);
     // The caret publishes its measure bounds for the keep-in-view glide: measure 4 spans
     // 6.0s..8.0s at the default 120 BPM 4/4.
-    CHECK(view.last_state->chart_edit.caret->measure_start_seconds == Catch::Approx(6.0));
-    CHECK(view.last_state->chart_edit.caret->measure_end_seconds == Catch::Approx(8.0));
+    CHECK(caret->measure_start_seconds == Catch::Approx(6.0));
+    CHECK(caret->measure_end_seconds == Catch::Approx(8.0));
 
     // Right by one quarter-note grid step: 6.0s -> 6.5s at 120 BPM; Left steps back.
     controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
-    CHECK(view.last_state->chart_edit.caret->seconds == Catch::Approx(6.5));
+    caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->seconds == Catch::Approx(6.5));
     controller.onChartCaretStepRequested(ChartStepDirection::Left, false);
-    CHECK(view.last_state->chart_edit.caret->seconds == Catch::Approx(6.0));
+    caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->seconds == Catch::Approx(6.0));
 
     // Up/Down move across strings, clamped at the neck.
     controller.onChartCaretStepRequested(ChartStepDirection::Up, false);
-    CHECK(view.last_state->chart_edit.caret->string == 2);
+    caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->string == 2);
     controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
     controller.onChartCaretStepRequested(ChartStepDirection::Down, false);
-    CHECK(view.last_state->chart_edit.caret->string == 1);
+    caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->string == 1);
 
     // The measure jump: Right to measure 5 (8.0s); Left back to measure 4, then measure 3.
     controller.onChartCaretStepRequested(ChartStepDirection::Right, true);
-    CHECK(view.last_state->chart_edit.caret->seconds == Catch::Approx(8.0));
+    caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->seconds == Catch::Approx(8.0));
     controller.onChartCaretStepRequested(ChartStepDirection::Left, true);
-    CHECK(view.last_state->chart_edit.caret->seconds == Catch::Approx(6.0));
+    caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->seconds == Catch::Approx(6.0));
 
     // Stepping onto a note selects it and keeps the caret published there — the square rides
     // the selection highlight so the caret stays visible through a single selection: measure 3
     // beat 1 (4.0s) holds the sustained string-1 note.
     controller.onChartCaretStepRequested(ChartStepDirection::Left, true);
-    CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{2});
-    REQUIRE(view.last_state->chart_edit.caret.has_value());
-    CHECK(view.last_state->chart_edit.caret->seconds == Catch::Approx(4.0));
-    CHECK(view.last_state->chart_edit.caret->string == 1);
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{2});
+    caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->seconds == Catch::Approx(4.0));
+    CHECK(caret->string == 1);
 }
 
 // Playback dissolves the marker's armed state (the marker model): play clears the note
@@ -429,18 +452,19 @@ TEST_CASE("EditorController dissolves the caret while playing", "[core][chart]")
     // Select the measure-2 string-1 note; the caret arms on it (and publishes there — the
     // square rides the selection highlight).
     click(controller, 40.0f, 220.0f);
-    REQUIRE(view.last_state.has_value());
-    CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{0});
-    CHECK(view.last_state->chart_edit.caret.has_value());
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{0});
+    CHECK(state->chart_edit.caret.has_value());
 
     // Play: the selection clears and the marker demotes immediately; the playing pushes
     // publish no caret.
     controller.onPlayPausePressed();
-    CHECK(view.last_state->chart_edit.selected_notes.empty());
-    CHECK_FALSE(view.last_state->chart_edit.caret.has_value());
+    CHECK(state->chart_edit.selected_notes.empty());
+    CHECK_FALSE(state->chart_edit.caret.has_value());
     transport.setStateAndNotify(common::audio::TransportState{.playing = true});
-    CHECK(view.last_state->chart_edit.selected_notes.empty());
-    CHECK_FALSE(view.last_state->chart_edit.caret.has_value());
+    CHECK(state->chart_edit.selected_notes.empty());
+    CHECK_FALSE(state->chart_edit.caret.has_value());
 
     // Pause at 10.2s: the marker rests passive at the raw stop point — no caret arms and no
     // grid snap happens (the paused cursor line at 10.2s is the position).
@@ -448,18 +472,20 @@ TEST_CASE("EditorController dissolves the caret while playing", "[core][chart]")
     controller.onPlayPausePressed();
     CHECK(transport.pause_call_count == 1);
     transport.setStateAndNotify(common::audio::TransportState{.playing = false});
-    CHECK_FALSE(view.last_state->chart_edit.caret.has_value());
+    CHECK_FALSE(state->chart_edit.caret.has_value());
 
     // Typing while passive is inert: a stray digit after listening authors nothing.
     controller.onChartFretDigitTyped(5);
-    CHECK(controller.session().currentArrangement()->chart->notes.size() == 3);
+    const auto* chart = &*controller.session().currentArrangement()->chart;
+    CHECK(chart->notes.size() == 3);
 
     // The first arrow arms the caret at the paused cursor: nearest grid line (10.0s at the
     // default 120 BPM quarter grid) on the remembered string, without stepping.
     controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
-    REQUIRE(view.last_state->chart_edit.caret.has_value());
-    CHECK(view.last_state->chart_edit.caret->seconds == Catch::Approx(10.0));
-    CHECK(view.last_state->chart_edit.caret->string == 1);
+    const ChartCaretViewState* caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->seconds == Catch::Approx(10.0));
+    CHECK(caret->string == 1);
 }
 
 // Esc steps the marker ladder down one rung at a time: an armed caret dissolves to the passive
@@ -484,21 +510,22 @@ TEST_CASE("EditorController steps the Esc ladder down", "[core][chart]")
 
     // Arm on the measure-2 string-1 note (2.0s); its singleton selection derives.
     click(controller, 40.0f, 220.0f);
-    REQUIRE(view.last_state.has_value());
-    CHECK(view.last_state->chart_edit.caret.has_value());
-    CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{0});
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK(state->chart_edit.caret.has_value());
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{0});
 
     // First Esc: disarm in place — the cursor takes the caret's spot via a paused seek — and
     // the selection stays.
     controller.onChartEscapePressed();
-    CHECK_FALSE(view.last_state->chart_edit.caret.has_value());
+    CHECK_FALSE(state->chart_edit.caret.has_value());
     CHECK(transport.last_seek_position == std::optional{common::core::TimePosition{2.0}});
-    CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{0});
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{0});
 
     // Second Esc: the selection clears; the marker stays passive.
     controller.onChartEscapePressed();
-    CHECK(view.last_state->chart_edit.selected_notes.empty());
-    CHECK_FALSE(view.last_state->chart_edit.caret.has_value());
+    CHECK(state->chart_edit.selected_notes.empty());
+    CHECK_FALSE(state->chart_edit.caret.has_value());
 }
 
 // While playing, lane clicks are plain seeks (the marker model): there is no caret to place
@@ -526,9 +553,10 @@ TEST_CASE("EditorController seeks on lane clicks while playing", "[core][chart]"
     click(controller, 60.0f, 220.0f);
 
     CHECK(transport.last_seek_position == std::optional{common::core::TimePosition{3.0}});
-    REQUIRE(view.last_state.has_value());
-    CHECK(view.last_state->chart_edit.selected_notes.empty());
-    CHECK_FALSE(view.last_state->chart_edit.caret.has_value());
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK(state->chart_edit.selected_notes.empty());
+    CHECK_FALSE(state->chart_edit.caret.has_value());
 }
 
 // Typing a digit on the empty caret INSERTS a note there with the typed fret (the caret
@@ -554,8 +582,9 @@ TEST_CASE("EditorController inserts a note by typing at the caret", "[core][char
     // Place the caret at measure 4 beat 1 (x = 120 is 6.0s) on string 1 and type 1 then 2:
     // ONE inserted note at fret 12, selected, as ONE undo entry.
     click(controller, 120.0f, 220.0f);
-    REQUIRE(view.last_state.has_value());
-    const std::size_t entries_before = view.last_state->undo_history.labels.size();
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const std::size_t entries_before = state->undo_history.labels.size();
     controller.onChartFretDigitTyped(1);
     controller.onChartFretDigitTyped(2);
 
@@ -564,14 +593,14 @@ TEST_CASE("EditorController inserts a note by typing at the caret", "[core][char
     CHECK(chart->notes[3].position == common::core::GridPosition{.measure = 4, .beat = 1});
     CHECK(chart->notes[3].string == 1);
     CHECK(chart->notes[3].fret == 12);
-    CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{3});
-    CHECK(view.last_state->undo_history.labels.size() == entries_before + 1);
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{3});
+    CHECK(state->undo_history.labels.size() == entries_before + 1);
 
     // ONE undo removes the whole typed insert (never stranding a fret-1 note).
     controller.onUndoRequested();
     chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes.size() == 3);
-    CHECK(view.last_state->chart_edit.selected_notes.empty());
+    CHECK(state->chart_edit.selected_notes.empty());
 
     controller.onRedoRequested();
     chart = &*controller.session().currentArrangement()->chart;
@@ -639,9 +668,10 @@ TEST_CASE("EditorController deletes the chart selection undoably", "[core][chart
 
     const auto* chart = &*controller.session().currentArrangement()->chart;
     REQUIRE(chart->notes.size() == 1);
-    REQUIRE(view.last_state.has_value());
-    CHECK(view.last_state->chart_edit.selected_notes.empty());
-    CHECK(view.last_state->undo_label == std::optional<std::string>{"Delete 2 Notes"});
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK(state->chart_edit.selected_notes.empty());
+    CHECK(state->undo_label == std::optional<std::string>{"Delete 2 Notes"});
 
     controller.onUndoRequested();
     chart = &*controller.session().currentArrangement()->chart;
@@ -668,8 +698,9 @@ TEST_CASE("EditorController fret digits combine inside the entry window", "[core
 
     // A plain click selects just the string-1 note (containment hierarchy).
     click(controller, 40.0f, 220.0f);
-    REQUIRE(view.last_state.has_value());
-    const std::size_t entries_before = view.last_state->undo_history.labels.size();
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const std::size_t entries_before = state->undo_history.labels.size();
 
     controller.onChartFretDigitTyped(1);
     const auto* chart = &*controller.session().currentArrangement()->chart;
@@ -679,11 +710,11 @@ TEST_CASE("EditorController fret digits combine inside the entry window", "[core
     controller.onChartFretDigitTyped(2);
     chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes[0].fret == 12);
-    CHECK(view.last_state->undo_history.labels.size() == entries_before + 1);
-    CHECK(view.last_state->undo_label == std::optional<std::string>{"Set Fret 12"});
+    CHECK(state->undo_history.labels.size() == entries_before + 1);
+    CHECK(state->undo_label == std::optional<std::string>{"Set Fret 12"});
 
     // The selection stays on the retyped note under its unchanged key.
-    CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{0});
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{0});
 
     // One undo restores the original fret 3 in one step.
     controller.onUndoRequested();
@@ -779,8 +810,9 @@ TEST_CASE("EditorController nudges the selection and refuses collisions", "[core
     controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
     const auto* chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes[0].position == (common::core::GridPosition{.measure = 2, .beat = 1}));
-    REQUIRE(view.last_state.has_value());
-    CHECK(view.last_state->chart_edit.selected_notes.empty());
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK(state->chart_edit.selected_notes.empty());
     click(controller, 40.0f, 220.0f);
 
     // Alt+Up would land on the occupied measure-2 string-2 slot: refused, nothing changes.
@@ -794,9 +826,8 @@ TEST_CASE("EditorController nudges the selection and refuses collisions", "[core
     chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes[1].position == (common::core::GridPosition{.measure = 2, .beat = 2}));
     CHECK(chart->notes[1].string == 1);
-    REQUIRE(view.last_state.has_value());
-    CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{1});
-    CHECK(view.last_state->undo_label == std::optional<std::string>{"Move Note"});
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{1});
+    CHECK(state->undo_label == std::optional<std::string>{"Move Note"});
 
     controller.onUndoRequested();
     chart = &*controller.session().currentArrangement()->chart;
@@ -822,11 +853,12 @@ TEST_CASE("EditorController clears chart selection on project load", "[core][cha
     controller.attachView(view);
     REQUIRE(loadChartArrangement(controller, project_services, audio));
     click(controller, 40.0f, 220.0f);
-    REQUIRE(view.last_state.has_value());
-    REQUIRE_FALSE(view.last_state->chart_edit.selected_notes.empty());
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    REQUIRE_FALSE(state->chart_edit.selected_notes.empty());
 
     REQUIRE(loadChartArrangement(controller, project_services, audio));
-    CHECK(view.last_state->chart_edit.selected_notes.empty());
+    CHECK(state->chart_edit.selected_notes.empty());
 }
 
 } // namespace rock_hero::editor::core
