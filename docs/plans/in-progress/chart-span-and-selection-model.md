@@ -185,6 +185,58 @@ fiat.
   rendering (unsounded template members) displays it. This resolves the previously tabled
   "display a fuller shape than the notes play" case without a dedicated template editor.
 
+## 9. The caret model — SETTLED (2026-07-17, evening; the Guitar Pro editing posture)
+
+Signed after hands-on Guitar Pro comparison. One position concept per transport state: while
+**paused**, the caret (grid position × string) is THE position — where editing happens, where
+typing inserts, where play starts; while **playing**, the playhead is THE position (the moving
+indicator). They are never visible together, which resolves the objection that killed the
+first caret. The paused playhead is gone.
+
+- **Caret existence:** always present once a chart is displayed (song start, string 1, on
+  load). Esc clears the note selection; the caret persists. On an empty grid slot it renders
+  as a white circle (the old white-ring ghost look); on a note, the note's selection
+  highlight IS the caret display.
+- **Placement:** clicking the highway band (the waveform/tab lane) places the caret at the
+  snapped position (Ctrl bypasses to the fine grid) on the clicked string lane, deselecting
+  notes; clicking a note selects it AND co-locates the caret (selection and caret are always
+  co-located). Clicks in the tone strip or automation lanes do NOT move the caret or seek —
+  the highway is the caret's only pointer surface (plus the ruler, which keeps positioning
+  the timeline). Ruler clicks position the caret at the snapped time on the remembered
+  string.
+- **Typing inserts:** digits on an empty caret insert a note there with the typed fret; the
+  multi-digit window continues onto the just-inserted note (2 then 3 → one insert of fret 23,
+  ONE undo entry — the widened entry stays an insert, never degrading to a retype that would
+  strand the note under undo). Digits with a note selection retype it (unchanged). The
+  "plain keys never mutate" rule is formally retired as the grammar's foundation — the caret
+  model supplies the deliberateness (typing visibly lands at the caret); the drag-threshold
+  and Alt-gate rationales stand on their own for the verbs that keep them.
+- **Arrows are caret movement:** plain Left/Right step the caret along the grid on its
+  string; plain Up/Down move it across strings; **Ctrl+Left/Right jump to the
+  previous/next measure** (Guitar Pro's jump, replacing the fine step — fine positioning
+  remains available via Ctrl+click). Arrow movement re-derives the selection from what sits
+  under the caret: a note → selected; empty → selection empty, white circle. Alt+arrows
+  still MOVE the selection; Alt+Shift keeps the axis rule (horizontal extent, vertical fret).
+- **Shift+arrows = caret-anchored time selection** (fills the reserved slot; settles plan
+  52's keyboard creation gesture): holding Shift and arrowing extends a time selection
+  outward from the caret's starting grid line, text-editor style. Releasing Shift keeps the
+  selection and remembers the caret; a plain arrow afterwards clears the selection and
+  continues moving; pressing Shift again resumes extending. Builds when plan 52's range
+  object lands.
+- **Transport:** Space plays FROM THE CARET. On pause, the playhead hides and the caret
+  snaps to the nearest grid line to the stop position, on the remembered string. The
+  playhead renders only while playing.
+- **Deleted by this model:** the entire Alt insert quasimode — the colored composable ghost,
+  Alt+digit fret composition (`onChartInsertFretDigitTyped`), the insert-session
+  accumulation (`onChartInsertSessionEnded`), `ChartEditViewState::insert_fret`, the
+  CopyingCursor, the ghost repaint strips, and sticky last-fret (inserts carry exactly the
+  typed digits, nothing else). Alt returns to being purely the mutation gate for
+  move/duration/fret-shift. (The full-note ghost shipped hours before this settlement;
+  superseded knowingly — the caret workflow is less machinery and faster entry.)
+- **Unaffected:** the containment click hierarchy on notes, Ctrl toggle, marquee, Shift+click
+  time range (now caret-anchored, matching GP), all Alt / Alt+Shift verbs, delete, undo,
+  zoom, the selection-verbs-follow-the-selection rule.
+
 ## Build order (once section 5 settles)
 
 1. Selection granularity — chord-unit click + Ctrl precision (editor-core).
