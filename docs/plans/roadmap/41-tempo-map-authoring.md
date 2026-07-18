@@ -394,7 +394,11 @@ the corresponding policy and re-derive the tests; the UI step survives all outco
     `tempo_map_rules.h`).
   - Pure re-addressing transform `rock-hero-editor/core/src/timeline/signature_edits.{h,cpp}`:
     map every position token (anchors; per-arrangement chart notes, shapes, fhps, sections; tone
-    regions) to its global-beat position (+ fraction) under the old signature list, then
+    regions; **plus the position tokens added since this list was written — the armed chart
+    caret's grid address, in-session and in its persisted `caret:` marker token, and plan 47's
+    loop-selection GridPosition pair** (2026-07-18 fold-in audit: without these the caret and
+    loop land on different musical content after a signature edit while everything else is
+    time-preserved)) to its global-beat position (+ fraction) under the old signature list, then
     re-address under the new one. Anchors sit on integer global beats, so re-bucketing always
     yields valid on-beat tokens; anchor seconds are untouched, so **the transform is
     time-preserving**: every item resolves to identical absolute seconds before and after. The

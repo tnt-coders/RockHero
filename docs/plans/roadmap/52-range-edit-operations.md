@@ -297,15 +297,33 @@ recommendations below take effect without an explicit answer.
      cheap, but designing the chart payload knowing tones are coming avoids a second schema).
      (B) is the fallback if charting practice needs tone copy sooner than expected.
 
+9. **52-Q9..Q12 — Range × two-state marker interplay** (added 2026-07-18 by the marker-model
+   fold-in audit; the settlement `docs/plans/in-progress/chart-span-and-selection-model.md`
+   §9a is the marker's authoritative record and these must be answered against it):
+   - **52-Q9 — Anchor while passive.** Shift+arrows extend "from the caret" — while passive
+     there is no caret. R: the first Shift+arrow arms exactly like a plain arrow (nearest grid
+     line, remembered string), then extends; Shift+click's anchor is the marker's position.
+   - **52-Q10 — Does range creation dissolve the caret?** §9's original text kept the caret
+     through a Shift+arrow range; §9a's dissolution rule says any multi-note selection demotes.
+     Decide whether the range is formally a note selection (→ dissolves) or a distinct object
+     coexisting with an armed caret (→ §9a needs an explicit exception naming it).
+   - **52-Q11 — Typing with a range active.** Retype-the-range (bulk), insert-at-caret, or
+     inert — one answer, consistent with the square-states-typing-scope glyph law.
+   - **52-Q12 — Uniform-scope precedence across selection objects.** Q6 orders note-selection
+     vs range for Ctrl+C/X/Delete only; the uniform-scope law needs the precedence stated for
+     EVERY verb (and should note the existing cross-surface Delete order: automation point →
+     chart selection → tone region as the third scope source).
+
 ## 9. Phased implementation (sketch — BLOCKED until G52-RANGE-EDIT closes)
 
 Phase boundaries will be finalized after sign-off; the expected shape:
 
 ### Phase 0 — Discussion and sign-off (the gate)
 
-Walk 52-Q1..Q8 with the user (52-Q7 jointly with 47-Q2). Record every answer in this file and
-in docs/plans/roadmap/00-roadmap.md. Re-verify the §5 inventory against current code first —
-plans 40/47 will have moved by then.
+Walk 52-Q1..Q12 with the user (52-Q7 jointly with 47-Q2, whose seek-keyed sub-policies also
+need restating in marker vocabulary — arming clicks are no longer seeks). Record every answer
+in this file and in docs/plans/roadmap/00-roadmap.md. Re-verify the §5 inventory against
+current code first — plans 40/47 will have moved by then.
 
 ### Phase 1 — Pure range transforms + payload codec (headless)
 

@@ -478,10 +478,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
 
 - **Scope**: attack (pick/hammer/pull/tap/pop/slap), mute (none/palm/full), harmonic
   (none/natural/pinch) with optional `touch` numeric entry, vibrato (whole-note bool until
-  Phase 7's gated sub-scope), tremolo, accent. Shortcuts cycle or toggle on the selection; a
-  context menu and a small note-properties strip expose the same intents (single source of truth
-  in the controller). Applying a property to an N-note selection is one compound undo entry —
-  the first multi-edit lands here.
+  Phase 7's gated sub-scope), tremolo, accent. Shortcuts follow the settlement's §9a
+  mixed-validity policy (2026-07-18 rewrite — the earlier "cycle or toggle on the selection"
+  wording predates it): validate per note, apply where valid with explicit counted feedback,
+  never blind-cycle a mixed selection, and never author an invalid state. A context menu
+  exposes the same intents (single source of truth in the controller) — the note-properties
+  strip was dropped with §7's 2026-07-17 settlement; techniques are selection toggles and
+  chord metadata lives in the span dialog. Applying a property to an N-note selection is one
+  compound undo entry — the first multi-edit lands here.
 - **Files**: editor-core `src/chart/` edits/handlers; `tab_view.cpp` (context menu), possibly a
   small properties component under `rock-hero-editor/ui/src/tab/`.
 - **Public-header impact**: intents + view-state only.
@@ -492,14 +496,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
 
 ### Phase 6 — L-link merge and split commands
 
-- **Scope**: decision 3 verbatim. L on a selected note merges into its same-string predecessor:
-  same fret → extend sustain, rebase and absorb the note's payloads (offsets shift by the
-  predecessor-onset delta using Phase 1 arithmetic; a zero-sustain technique-carrying note is a
-  pure payload boundary); different fret → append a pitched slide waypoint at the onset offset.
-  Refuse when the target's attack is hammer/pull/tap (never link targets) with a status message.
-  Split places the caret's grid position as the seam: the tail becomes a new note with a
-  synthesized plain-pick attack, payloads re-partitioned and rebased. Both are single undo
-  entries and exact inverses in the common cases. Rendering already draws linked-appearance heads
+- **Scope**: decision 3, restated for the marker model and the uniform-scope law (2026-07-18):
+  L acts on the SELECTION — each selected note merges into its own same-string predecessor,
+  apply-where-valid with counted feedback per §9a (same fret → extend sustain, rebase and
+  absorb the note's payloads — offsets shift by the predecessor-onset delta using Phase 1
+  arithmetic; a zero-sustain technique-carrying note is a pure payload boundary; different
+  fret → append a pitched slide waypoint at the onset offset; a hammer/pull/tap target
+  refuses that note), one compound undo entry. Split requires an ARMED caret (refused while
+  passive or with a multi-note selection) and places the caret's grid position as the seam:
+  the tail becomes a new note with a synthesized plain-pick attack, payloads re-partitioned
+  and rebased. Both are single undo entries and exact inverses in the common cases. Rendering already draws linked-appearance heads
   at slide waypoints; extend the same treatment to any future payload-boundary kind.
 - **Files**: editor-core `src/chart/` (merge/split primitives + edits), handlers, keybind table.
 - **Public-header impact**: intents only.
@@ -553,8 +559,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1
 ### Phase 9 — Copy/paste, duplicate, transpose, and bulk edit
 
 - **Scope**: clipboard holds a position-relative JSON fragment in the document grammar (notes,
-  shapes, FHPs rebased to the selection's first onset); paste rebases at the caret with Q2-B
-  collision handling; duplicate = copy+paste at selection end. Transpose: string up/down and
+  shapes, FHPs rebased to the selection's first onset); paste rebases at the marker — arming
+  it first when passive (nearest grid line, per §9a's paste rule, 2026-07-18: paste never
+  authors off-grid content from a raw passive rest) — with Q2-B collision handling; duplicate
+  = copy+paste at selection end. Transpose: string up/down and
   fret +/- on the selection, refused (not clamped) when any note would leave the tuning/fret
   range — validation-preserving edits only. Bulk property edit generalizes Phase 5's multi-apply.
   Cross-arrangement paste within a project is allowed when string counts are compatible;

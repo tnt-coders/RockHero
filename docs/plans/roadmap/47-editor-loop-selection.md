@@ -287,6 +287,16 @@ Mirror all of these into docs/plans/roadmap/00-roadmap.md (Decisions needed).
    looped play); arrangement switch keeps the selection (the tempo map is song-level) and
    re-engages after activation; tempo-map edits (future, plan 41) keep musical positions and
    re-convert. If (A) is chosen instead, Ctrl+L lands scattered now and migrates under plan 46.
+   **Marker-model restatement owed at sign-off (2026-07-18 fold-in audit):** these sub-policies
+   are keyed on "seek", but under the two-state marker
+   (docs/plans/in-progress/chart-span-and-selection-model.md §9a) a paused lane click ARMS a
+   caret without seeking, and Space plays FROM THE MARKER in both states — so "Play with the
+   cursor outside the selection snaps to loop start" collides with play-from-an-armed-caret
+   outside the loop. Decide the precedence explicitly (recommendation: while the Loop button is
+   engaged, Space from a marker outside the range disengages the loop or plays from the marker —
+   never a silent snap), restate each sub-policy in marker vocabulary (arm vs. transport
+   motion), and assign "Escape clears the loop selection" its rung in the ONE global Esc ladder
+   (gesture → disarm → note selection → time/loop range).
 3. **Q3 — Persistence home. SETTLED: app-local per-project-path records in `IEditorSettings`**,
    exactly like the resume cursor / grid / zoom / selected-arrangement. Those families are now
    stored as **flat settings keys** (`"<family>:" + normalizedPath`, one string value each —

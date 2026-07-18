@@ -180,13 +180,20 @@ Verified against code on 2026-07-06, refactor @ 13e82fb0.
 - **Charter's shortcut list is input, not a template** — the user disagrees with many of its
   choices; the Appendix is a from-scratch proposal and an explicit review gate (Q1).
 - **The pointer-modifier vocabulary is fixed** by `docs/plans/in-progress/editing-interaction-model.md`
-  (settled 2026-07-09): Ctrl = precision (snap bypass), Alt = create/author quasimode,
-  Shift = extend/constrain. Keybind defaults must not repurpose these modifiers' *pointer*
-  meanings; keyboard chords using them (Ctrl+Z, Alt+F4) are unaffected. The model additionally
-  reserves keyboard verbs that register here when their surfaces land: Delete = delete
-  selection, Esc = cancel in-flight gesture, arrows = nudge selection (Ctrl+arrows fine step),
-  Shift+Left/Right = grow/shrink extent, Ctrl+D = duplicate, and `B` is held in reserve for a
-  possible latched pencil mode.
+  (settled 2026-07-09; keyboard grammar re-settled 2026-07-16/18 — re-read that doc plus
+  `docs/plans/in-progress/chart-span-and-selection-model.md` §9/§9a at G46-KEYMAP; the list
+  below was refreshed 2026-07-18 by the marker fold-in audit after two amendments had staled
+  it): Ctrl = precision (snap bypass), Alt = the authoring/mutation modifier, Shift =
+  extend/constrain. Keybind defaults must not repurpose these modifiers' *pointer* meanings;
+  keyboard chords using them (Ctrl+Z, Alt+F4) are unaffected. The model additionally reserves
+  keyboard verbs that register here when their surfaces land: Delete = delete selection, Esc =
+  the marker Esc ladder (gesture → disarm → selection), plain arrows = move/arm the caret
+  (Ctrl+Left/Right = measure jump), Alt+arrows = nudge the selection (Ctrl fine),
+  Shift+Alt+Left/Right = extent resize, Shift+arrows = the plan-52 range gesture, digits 0–9 =
+  fret typing, Space = play from the marker, Ctrl+D = duplicate, and `B` is held in reserve
+  for a possible latched pencil mode. The grammar keys (digits, Esc, arrows, Space) register
+  as commands whose `perform` branches (Phase 1 policy) but ship as
+  non-rebindable-by-default rows, so a stray rebind cannot silently break the typing rule.
 
 ## Open questions for the user
 

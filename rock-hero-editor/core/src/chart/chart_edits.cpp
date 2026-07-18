@@ -288,6 +288,48 @@ std::optional<ChartNotesEditPlan> planAdjustSustain(
         {
             next_sustain = common::core::Fraction{};
         }
+        // The minimum-note-distance rule (settled 2026-07-18; override design deliberately
+        // open): growing a tail clamps it to end at least the margin — 1/16 of a whole note —
+        // BEFORE the next onset on ANY string, so extension can never crowd another note.
+        // Same-onset chord members sit at equal positions and never block each other, and
+        // notes under a shared shape span are implied-held across each other's onsets (§5),
+        // so span siblings never block either — the first later onset outside every shared
+        // span binds. The clamp binds this verb only: pre-existing closer spacing (imports,
+        // the insert truncation's exact adjacency) is left untouched, and a tail already at
+        // or past the limit refuses to grow rather than shrinking to it.
+        if (beat_delta.numerator > 0)
+        {
+            const auto shares_span = [&chart, &tempo_map, &note](
+                                         const common::core::GridPosition& other) {
+                return std::ranges::any_of(
+                    chart.shapes, [&](const common::core::ChartShape& shape) {
+                        const auto covers = [&](const common::core::GridPosition& position) {
+                            return !(position < shape.position) &&
+                                   common::core::beatDistance(tempo_map, shape.position, position) <
+                                       shape.sustain;
+                        };
+                        return covers(note.position) && covers(other);
+                    });
+            };
+            auto blocker = std::ranges::upper_bound(
+                chart.notes, note.position, {}, &common::core::ChartNote::position);
+            while (blocker != chart.notes.end() && shares_span(blocker->position))
+            {
+                ++blocker;
+            }
+            if (blocker != chart.notes.end())
+            {
+                const common::core::TimeSignatureChange signature =
+                    tempo_map.timeSignatureAt(note.position.measure);
+                const common::core::Fraction limit =
+                    common::core::beatDistance(tempo_map, note.position, blocker->position) -
+                    common::core::Fraction{signature.denominator, 16};
+                if (limit < next_sustain)
+                {
+                    next_sustain = note.sustain < limit ? limit : note.sustain;
+                }
+            }
+        }
         if (next_sustain == note.sustain)
         {
             continue;

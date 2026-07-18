@@ -133,6 +133,18 @@ tails expecting a resize and failing (or asking for it). **Remedy**: implement t
 the standard edge-resize verb with a generous grab zone (hit-test via the shared layout
 manifest's tail rectangle), live preview, Esc cancel, single undo entry.
 
+### Marker dissolution seeks the paused transport — trigger: anything follows the paused transport
+
+The two-state marker (settlement §9a, 2026-07-18) implements "the cursor takes the caret's
+place" on Ctrl+click / double-click / marquee as a paused transport seek, keeping the passive
+invariant (marker time ≡ transport position) with zero position plumbing. Harmless today — the
+paused transport drives only the cursor line. **Trigger**: any surface starts following the
+paused transport position (plan 44's 3D preview frame, a revival of plan 51's parked
+cursor-locked posture display): a marquee would visibly jump that surface. **Remedy**: either
+accept the jump as the position honestly moving, or split the dissolution rest from the
+transport (give ChartCursor its own stored time) — a contained refactor of the marker's
+passive state recorded here so it is a decision, not a surprise (2026-07-18 fold-in audit).
+
 ## Editor 3D preview
 
 ### JUCE peer-recreation paths are unreachable today — trigger: any path recreates the peer

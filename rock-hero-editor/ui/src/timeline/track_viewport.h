@@ -184,16 +184,17 @@ public:
     void setTabDisplayedStrings(int displayed_strings);
 
     /*!
-    \brief Stores whether the chart's position marker is armed (the marker model, 2026-07-18).
+    \brief Stores the armed caret's timeline position, or absence while the marker is passive.
 
-    Armed hides the paused playhead in the cursor overlay and the ruler's aligned mark — the
-    caret (the empty-slot square or the selected note's highlight) is the position display.
-    Passive shows the paused cursor line at the transport position. Chartless arrangements
-    never arm, so their paused playhead stays visible unchanged.
+    Armed (present) hides the paused playhead in the cursor overlay and the ruler's aligned
+    mark — the caret square is the position display — and re-centers wheel zoom on the caret
+    instead of the transport cursor. Passive (absent) shows the paused cursor line at the
+    transport position and zooms around it. Chartless arrangements never arm, so their paused
+    playhead stays visible unchanged (the marker model, 2026-07-18).
 
-    \param armed True while the editing caret owns the paused position.
+    \param seconds Armed caret position on the arrangement timeline, or empty while passive.
     */
-    void setChartMarkerArmed(bool armed);
+    void setArmedChartCaret(std::optional<double> seconds);
 
     /*!
     \brief Forwards the tab-derived chord/arpeggio name chips to the pinned timeline ruler.
@@ -408,9 +409,10 @@ private:
     // waveform row proportionally so lane spacing never compresses.
     int m_tab_displayed_strings{0};
 
-    // True while the chart's position marker is armed; hides the paused playhead in the
-    // overlay and the ruler mark (the caret is the position display while armed).
-    bool m_chart_marker_armed{false};
+    // Armed caret's timeline position, absent while the marker is passive. Presence hides the
+    // paused playhead in the overlay and the ruler mark (the caret is the position display)
+    // and re-centers wheel zoom on the caret.
+    std::optional<double> m_armed_caret_seconds{};
 
     // Coarse playing flag from core::EditorViewState, used to avoid vblank state polling.
     bool m_playback_active{false};

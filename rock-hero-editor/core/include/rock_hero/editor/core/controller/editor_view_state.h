@@ -396,21 +396,13 @@ struct ChartEditViewState
     std::optional<ChartMarqueeViewState> marquee{};
 
     /*!
-    \brief True while the position marker is armed (the caret owns the paused position).
+    \brief The armed caret, present exactly while the position marker is armed.
 
-    Drives the paused-playhead visibility: armed hides the paused cursor line (the caret — the
-    square below, or the selected note's highlight — is the position display), passive shows
-    it. Implied true whenever \ref caret is present; also true with the caret on a note, where
-    no square publishes.
-    */
-    bool marker_armed{false};
-
-    /*!
-    \brief The armed caret while it sits on an EMPTY grid slot (the marker model).
-
-    Rendered as a white square at the slot a typed digit would fill. Absent while the caret
-    sits on a note — there the note's selection highlight is the caret display — absent while
-    the marker is passive, and absent without a chart.
+    Rendered as a white rounded square at the caret's slot — on an empty slot it marks where a
+    typed digit inserts; on a note it rides the note's selection highlight so the caret stays
+    visible through a single selection. Its presence is also the armed signal that hides the
+    paused playhead (the caret is the position display; the passive cursor line returns when
+    this is absent). Absent while the marker is passive and absent without a chart.
     */
     std::optional<ChartCaretViewState> caret{};
 

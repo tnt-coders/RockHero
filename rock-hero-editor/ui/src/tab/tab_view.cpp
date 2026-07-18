@@ -256,12 +256,13 @@ void TabView::paint(juce::Graphics& g)
         g.drawRect(box, 1.0f);
     }
 
-    // The armed caret on an empty slot (the marker model): a white square marking exactly
-    // where a typed digit will insert. Square rather than round so it reads as editor
-    // furniture distinct from every circular note shape (heads, accent glows) and stays
-    // visible over them. On a note the selection highlight is the caret display, and while
-    // the marker is passive the paused playhead is the position, so the controller publishes
-    // nothing here in either case.
+    // The armed caret (the marker model): a white, slightly rounded square at the caret's
+    // slot. Square rather than round so it reads as editor furniture distinct from every
+    // circular note shape (heads, accent glows) and stays visible over them; drawn whenever
+    // the marker is armed — on an empty slot it marks where a typed digit inserts, on a note
+    // it rides the selection highlight so the caret stays visible through a single selection.
+    // While the marker is passive the paused playhead is the position and the controller
+    // publishes nothing here.
     if (m_edit.caret.has_value() && m_edit.caret->string >= 1 &&
         m_edit.caret->string <= m_tab->string_count && m_visible_timeline.duration().seconds > 0.0)
     {
@@ -271,8 +272,9 @@ void TabView::paint(juce::Graphics& g)
         const float size = metrics.note_height + 1.0f;
         const float center_y = metrics.laneY(m_edit.caret->string);
         g.setColour(juce::Colours::white.withAlpha(0.7f));
-        g.drawRect(
+        g.drawRoundedRectangle(
             juce::Rectangle<float>{x - size / 2.0f, center_y - size / 2.0f, size, size},
+            size / 8.0f,
             ring_stroke(size));
     }
 }

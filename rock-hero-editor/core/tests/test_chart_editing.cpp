@@ -165,7 +165,7 @@ TEST_CASE("EditorController toggles and extends the chart selection", "[core][ch
     click(controller, 40.0f, 180.0f, ChartPointerModifiers{.ctrl = true});
     REQUIRE(view.last_state.has_value());
     CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1}));
-    CHECK(view.last_state->chart_edit.marker_armed == false);
+    CHECK_FALSE(view.last_state->chart_edit.caret.has_value());
     CHECK(transport.last_seek_position == std::optional{common::core::TimePosition{2.0}});
 
     // Toggling the same note again removes it.
@@ -372,13 +372,14 @@ TEST_CASE("EditorController steps the caret along the grid and strings", "[core]
     controller.onChartCaretStepRequested(ChartStepDirection::Left, true);
     CHECK(view.last_state->chart_edit.caret->seconds == Catch::Approx(6.0));
 
-    // Stepping onto a note selects it and hides the empty-slot caret square (the marker stays
-    // armed — the selection highlight is the caret display): measure 3 beat 1 holds the
-    // sustained string-1 note.
+    // Stepping onto a note selects it and keeps the caret published there — the square rides
+    // the selection highlight so the caret stays visible through a single selection: measure 3
+    // beat 1 (4.0s) holds the sustained string-1 note.
     controller.onChartCaretStepRequested(ChartStepDirection::Left, true);
     CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{2});
-    CHECK_FALSE(view.last_state->chart_edit.caret.has_value());
-    CHECK(view.last_state->chart_edit.marker_armed == true);
+    REQUIRE(view.last_state->chart_edit.caret.has_value());
+    CHECK(view.last_state->chart_edit.caret->seconds == Catch::Approx(4.0));
+    CHECK(view.last_state->chart_edit.caret->string == 1);
 }
 
 // Playback dissolves the marker's armed state (the marker model): play clears the note
@@ -402,17 +403,18 @@ TEST_CASE("EditorController dissolves the caret while playing", "[core][chart]")
     controller.attachView(view);
     REQUIRE(loadChartArrangement(controller, project_services, audio));
 
-    // Select the measure-2 string-1 note; the caret arms on it.
+    // Select the measure-2 string-1 note; the caret arms on it (and publishes there — the
+    // square rides the selection highlight).
     click(controller, 40.0f, 220.0f);
     REQUIRE(view.last_state.has_value());
     CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{0});
-    CHECK(view.last_state->chart_edit.marker_armed == true);
+    CHECK(view.last_state->chart_edit.caret.has_value());
 
     // Play: the selection clears and the marker demotes immediately; the playing pushes
-    // publish neither a caret nor an armed marker.
+    // publish no caret.
     controller.onPlayPausePressed();
     CHECK(view.last_state->chart_edit.selected_notes.empty());
-    CHECK(view.last_state->chart_edit.marker_armed == false);
+    CHECK_FALSE(view.last_state->chart_edit.caret.has_value());
     transport.setStateAndNotify(common::audio::TransportState{.playing = true});
     CHECK(view.last_state->chart_edit.selected_notes.empty());
     CHECK_FALSE(view.last_state->chart_edit.caret.has_value());
@@ -423,7 +425,6 @@ TEST_CASE("EditorController dissolves the caret while playing", "[core][chart]")
     controller.onPlayPausePressed();
     CHECK(transport.pause_call_count == 1);
     transport.setStateAndNotify(common::audio::TransportState{.playing = false});
-    CHECK(view.last_state->chart_edit.marker_armed == false);
     CHECK_FALSE(view.last_state->chart_edit.caret.has_value());
 
     // Typing while passive is inert: a stray digit after listening authors nothing.
@@ -433,7 +434,6 @@ TEST_CASE("EditorController dissolves the caret while playing", "[core][chart]")
     // The first arrow arms the caret at the paused cursor: nearest grid line (10.0s at the
     // default 120 BPM quarter grid) on the remembered string, without stepping.
     controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
-    CHECK(view.last_state->chart_edit.marker_armed == true);
     REQUIRE(view.last_state->chart_edit.caret.has_value());
     CHECK(view.last_state->chart_edit.caret->seconds == Catch::Approx(10.0));
     CHECK(view.last_state->chart_edit.caret->string == 1);
@@ -462,20 +462,20 @@ TEST_CASE("EditorController steps the Esc ladder down", "[core][chart]")
     // Arm on the measure-2 string-1 note (2.0s); its singleton selection derives.
     click(controller, 40.0f, 220.0f);
     REQUIRE(view.last_state.has_value());
-    CHECK(view.last_state->chart_edit.marker_armed == true);
+    CHECK(view.last_state->chart_edit.caret.has_value());
     CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{0});
 
     // First Esc: disarm in place — the cursor takes the caret's spot via a paused seek — and
     // the selection stays.
     controller.onChartEscapePressed();
-    CHECK(view.last_state->chart_edit.marker_armed == false);
+    CHECK_FALSE(view.last_state->chart_edit.caret.has_value());
     CHECK(transport.last_seek_position == std::optional{common::core::TimePosition{2.0}});
     CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{0});
 
     // Second Esc: the selection clears; the marker stays passive.
     controller.onChartEscapePressed();
     CHECK(view.last_state->chart_edit.selected_notes.empty());
-    CHECK(view.last_state->chart_edit.marker_armed == false);
+    CHECK_FALSE(view.last_state->chart_edit.caret.has_value());
 }
 
 // While playing, lane clicks are plain seeks (the marker model): there is no caret to place
@@ -505,7 +505,6 @@ TEST_CASE("EditorController seeks on lane clicks while playing", "[core][chart]"
     CHECK(transport.last_seek_position == std::optional{common::core::TimePosition{3.0}});
     REQUIRE(view.last_state.has_value());
     CHECK(view.last_state->chart_edit.selected_notes.empty());
-    CHECK(view.last_state->chart_edit.marker_armed == false);
     CHECK_FALSE(view.last_state->chart_edit.caret.has_value());
 }
 
@@ -676,7 +675,9 @@ TEST_CASE("EditorController fret digits combine inside the entry window", "[core
     CHECK(chart->notes[0].fret == 3);
 }
 
-// Shift+arrow sustain growth clamps against the next same-string onset (40-Q2-B).
+// Sustain growth clamps to the minimum-note-distance margin — 1/16 whole note (a quarter beat
+// in 4/4) — before the next onset on ANY string (settled 2026-07-18); shrinking floors at
+// zero.
 TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][chart]")
 {
     FakeTransport transport;
@@ -700,16 +701,27 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
     const auto* chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes[0].sustain == common::core::Fraction{1, 1});
 
-    // Five more quarter-note steps would reach 6 beats, but the measure-3 note on the same
-    // string sits 4 beats later: growth clamps there.
+    // Five more quarter-note steps would reach 6 beats, but the measure-3 note sits 4 beats
+    // later: growth clamps a quarter-beat margin before it, at 15/4 beats.
     for (int step = 0; step < 5; ++step)
     {
         controller.onChartSustainAdjustRequested(1, false);
     }
     chart = &*controller.session().currentArrangement()->chart;
-    CHECK(chart->notes[0].sustain == common::core::Fraction{4, 1});
+    CHECK(chart->notes[0].sustain == common::core::Fraction{15, 4});
+
+    // The margin binds across strings too: the string-2 chord member has no same-string
+    // successor at all, but the measure-3 string-1 note still stops its tail at 15/4 beats.
+    click(controller, 40.0f, 180.0f);
+    for (int step = 0; step < 6; ++step)
+    {
+        controller.onChartSustainAdjustRequested(1, false);
+    }
+    chart = &*controller.session().currentArrangement()->chart;
+    CHECK(chart->notes[1].sustain == common::core::Fraction{15, 4});
 
     // Shrinking floors at zero.
+    click(controller, 40.0f, 220.0f);
     for (int step = 0; step < 6; ++step)
     {
         controller.onChartSustainAdjustRequested(-1, false);
