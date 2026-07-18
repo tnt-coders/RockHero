@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/session/session.h>
 
@@ -226,25 +227,42 @@ std::optional<ChartNotesEditPlan> planMoveNotes(
     return finalizePlan(chart, tempo_map, std::move(candidate), label);
 }
 
-std::optional<ChartNotesEditPlan> planSetFret(
-    const common::core::Chart& chart, const std::vector<ChartNoteKey>& keys, int fret)
+std::optional<ChartNotesEditPlan> planRetypeFrets(
+    const std::vector<common::core::ChartNote>& base, int target, bool set_exact)
 {
-    ChartNotesEditPlan plan;
-    for (const common::core::ChartNote& note : chart.notes)
+    // The transposition anchor: the shared delta comes from the snapshot's lowest fret.
+    std::optional<int> lowest;
+    for (const common::core::ChartNote& note : base)
     {
-        if (std::ranges::binary_search(keys, keyOf(note)) && note.fret != fret)
+        if (!lowest.has_value() || note.fret < *lowest)
         {
-            plan.removed.push_back(note);
-            common::core::ChartNote retyped = note;
-            retyped.fret = fret;
-            plan.inserted.push_back(std::move(retyped));
+            lowest = note.fret;
         }
     }
-    if (plan.removed.empty())
+    if (!lowest.has_value())
     {
         return std::nullopt;
     }
-    plan.label = "Set Fret " + std::to_string(fret);
+
+    const int delta = set_exact ? 0 : target - *lowest;
+    ChartNotesEditPlan plan;
+    plan.label = (set_exact ? "Set Fret " : "Transpose to Fret ") + std::to_string(target);
+    for (const common::core::ChartNote& note : base)
+    {
+        const int fret = set_exact ? target : note.fret + delta;
+        if (fret < 0 || fret > common::core::g_max_fret)
+        {
+            return std::nullopt;
+        }
+        if (fret == note.fret)
+        {
+            continue;
+        }
+        plan.removed.push_back(note);
+        common::core::ChartNote retyped = note;
+        retyped.fret = fret;
+        plan.inserted.push_back(std::move(retyped));
+    }
     return plan;
 }
 

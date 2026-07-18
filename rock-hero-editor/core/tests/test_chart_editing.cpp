@@ -165,9 +165,10 @@ TEST_CASE("EditorController toggles and extends the chart selection", "[core][ch
     CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1}));
 }
 
-// Fret is per-string data: typed digits target the focused member (the note the last gesture
-// touched), never the whole chord, while group verbs keep acting on the whole selection.
-TEST_CASE("EditorController targets fret typing at the focused member", "[core][chart]")
+// Plain fret typing transposes the selection so its lowest fret lands on the typed number
+// (shape-preserving); Ctrl typing sets every selected note to the exact value; a member pushed
+// past the fret cap refuses the keystroke, never clamps (settled 2026-07-17).
+TEST_CASE("EditorController transposes or sets the selection's frets", "[core][chart]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -184,29 +185,37 @@ TEST_CASE("EditorController targets fret typing at the focused member", "[core][
     controller.attachView(view);
     REQUIRE(loadChartArrangement(controller, project_services, audio));
 
-    // Clicking the string-2 head selects the whole chord but focuses the clicked member.
-    click(controller, 40.0f, 180.0f);
+    // The measure-2 chord is frets 3 and 5; typing 9 moves the shape so its lowest fret is 9.
+    click(controller, 40.0f, 220.0f);
     REQUIRE(view.last_state.has_value());
     CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1}));
-    CHECK(view.last_state->chart_edit.focused_note == std::optional<std::size_t>{1});
-
-    // Digits retype only the focused member; the sibling keeps its fret and the selection
-    // (and focus) survive the edit under unchanged keys.
-    controller.onChartFretDigitTyped(9);
+    controller.onChartFretDigitTyped(9, false);
     const auto* chart = &*controller.session().currentArrangement()->chart;
-    CHECK(chart->notes[1].fret == 9);
-    CHECK(chart->notes[0].fret == 3);
-    CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1}));
-    CHECK(view.last_state->chart_edit.focused_note == std::optional<std::size_t>{1});
+    CHECK(chart->notes[0].fret == 9);
+    CHECK(chart->notes[1].fret == 11);
+    CHECK(view.last_state->undo_label == std::optional<std::string>{"Transpose to Fret 9"});
 
-    // Evicting the focused member hands the focus to a remaining note so digits keep a target.
-    click(controller, 40.0f, 180.0f, ChartPointerModifiers{.ctrl = true});
-    CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{0});
-    CHECK(view.last_state->chart_edit.focused_note == std::optional<std::size_t>{0});
-    controller.onChartFretDigitTyped(5);
+    // Ctrl typing flattens: every selected note takes the exact value. The mode switch alone
+    // ends the transpose entry's window, so this lands as its own fresh entry.
+    controller.onChartFretDigitTyped(7, true);
     chart = &*controller.session().currentArrangement()->chart;
-    CHECK(chart->notes[0].fret == 5);
-    CHECK(chart->notes[1].fret == 9);
+    CHECK(chart->notes[0].fret == 7);
+    CHECK(chart->notes[1].fret == 7);
+    CHECK(view.last_state->undo_label == std::optional<std::string>{"Set Fret 7"});
+
+    // One undo restores both members of the flatten in one step.
+    controller.onUndoRequested();
+    chart = &*controller.session().currentArrangement()->chart;
+    CHECK(chart->notes[0].fret == 9);
+    CHECK(chart->notes[1].fret == 11);
+
+    // A widen past the cap refuses the keystroke: 2 applies (shape to 2/4), but combining to
+    // 29 would push the upper member to 31 > 30, so the 9 changes nothing.
+    controller.onChartFretDigitTyped(2, false);
+    controller.onChartFretDigitTyped(9, false);
+    chart = &*controller.session().currentArrangement()->chart;
+    CHECK(chart->notes[0].fret == 2);
+    CHECK(chart->notes[1].fret == 4);
 }
 
 // An empty-lane click seeks the snapped position and clears the selection.
@@ -370,8 +379,6 @@ TEST_CASE("EditorController inserts a chart note via the Alt quasimode", "[core]
     REQUIRE(chart->notes.size() == 5);
     CHECK(chart->notes[2].string == 3);
     CHECK(view.last_state->chart_edit.selected_notes == (std::vector<std::size_t>{0, 1, 2}));
-    // The placed note takes the focus: the fret about to be typed belongs to it.
-    CHECK(view.last_state->chart_edit.focused_note == std::optional<std::size_t>{2});
 }
 
 // Inserting inside an earlier sustain truncates it in the same undo entry (40-Q2-B).
@@ -463,16 +470,16 @@ TEST_CASE("EditorController fret digits combine inside the entry window", "[core
     REQUIRE(view.last_state.has_value());
     const std::size_t entries_before = view.last_state->undo_history.labels.size();
 
-    controller.onChartFretDigitTyped(1);
+    controller.onChartFretDigitTyped(1, false);
     const auto* chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes[0].fret == 1);
 
     // The second digit inside the window widens the SAME undo entry: one action, fret 12.
-    controller.onChartFretDigitTyped(2);
+    controller.onChartFretDigitTyped(2, false);
     chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes[0].fret == 12);
     CHECK(view.last_state->undo_history.labels.size() == entries_before + 1);
-    CHECK(view.last_state->undo_label == std::optional<std::string>{"Set Fret 12"});
+    CHECK(view.last_state->undo_label == std::optional<std::string>{"Transpose to Fret 12"});
 
     // The selection stays on the retyped note under its unchanged key.
     CHECK(view.last_state->chart_edit.selected_notes == std::vector<std::size_t>{0});
@@ -483,9 +490,9 @@ TEST_CASE("EditorController fret digits combine inside the entry window", "[core
     CHECK(chart->notes[0].fret == 3);
 
     // An interleaved edit kills the window: the next digit starts a fresh value.
-    controller.onChartFretDigitTyped(2);
+    controller.onChartFretDigitTyped(2, false);
     controller.onChartSustainAdjustRequested(1, false);
-    controller.onChartFretDigitTyped(3);
+    controller.onChartFretDigitTyped(3, false);
     chart = &*controller.session().currentArrangement()->chart;
     CHECK(chart->notes[0].fret == 3);
 }

@@ -283,22 +283,6 @@ TEST_CASE("TabView renders chart-editing overlays", "[ui][tab-view]")
     juce::Graphics plain_graphics{plain_image};
     view.paint(plain_graphics);
     CHECK(image.getPixelAt(2, 110) != plain_image.getPixelAt(2, 110));
-
-    // The focused member of a multi-note selection carries the type-here underline beneath its
-    // fret numeral (blink phase starts visible): a bar pixel under the head center changes
-    // against the same selection rendered without a focus.
-    view.setEditState(
-        core::ChartEditViewState{.selected_notes = {0, 1}, .focused_note = std::size_t{0}});
-    const juce::Image focused_image{juce::SoftwareImageType{}.create(
-        juce::Image::ARGB, 200, 120, true)};
-    juce::Graphics focused_graphics{focused_image};
-    view.paint(focused_graphics);
-    view.setEditState(core::ChartEditViewState{.selected_notes = {0, 1}});
-    const juce::Image unfocused_image{juce::SoftwareImageType{}.create(
-        juce::Image::ARGB, 200, 120, true)};
-    juce::Graphics unfocused_graphics{unfocused_image};
-    view.paint(unfocused_graphics);
-    CHECK(focused_image.getPixelAt(7, 114) != unfocused_image.getPixelAt(7, 114));
 }
 
 // Holding Alt over the lane shows the copy cursor and a snapped ghost of the note a click

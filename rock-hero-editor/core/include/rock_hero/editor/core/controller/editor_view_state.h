@@ -365,14 +365,6 @@ struct ChartEditViewState
     /*! \brief Ascending indices of selected notes in the tab projection's note order. */
     std::vector<std::size_t> selected_notes{};
 
-    /*!
-    \brief Index of the focused member — the note typed fret digits target.
-
-    Rendered as a blinking type-here underline on the fret numeral, and only when the selection
-    has more than one member (with a single note the focus is not a choice worth marking).
-    */
-    std::optional<std::size_t> focused_note{};
-
     /*! \brief In-flight marquee rectangle, while an empty-lane drag is selecting. */
     std::optional<ChartMarqueeViewState> marquee{};
 

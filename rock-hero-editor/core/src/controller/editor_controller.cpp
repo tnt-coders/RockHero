@@ -901,9 +901,9 @@ void EditorController::onChartSelectionDeleteRequested()
     m_impl->onChartSelectionDeleteRequested();
 }
 
-void EditorController::onChartFretDigitTyped(int digit)
+void EditorController::onChartFretDigitTyped(int digit, bool set_exact)
 {
-    m_impl->onChartFretDigitTyped(digit);
+    m_impl->onChartFretDigitTyped(digit, set_exact);
 }
 
 void EditorController::onChartSustainAdjustRequested(int direction, bool fine)
@@ -1696,18 +1696,9 @@ void EditorController::Impl::insertChartNoteAt(const ChartPointerEvent& event)
     // survive the insert plan untouched — minus any same-string occupant the plan replaces.
     std::vector<ChartNoteKey> group = chartOnsetGroupKeys(arrangement->chart->notes, note.position);
     std::erase_if(group, [&note](const ChartNoteKey& key) { return key.string == note.string; });
-    const ChartNoteKey placed{.position = note.position, .string = note.string};
-    group.push_back(placed);
-    if (!applyChartEditPlan(
-            planInsertNote(*arrangement->chart, session().song().tempo_map, note),
-            std::move(group)))
-    {
-        return;
-    }
-    // The placed note takes the focus — the fret about to be typed belongs to it, not to a
-    // stack sibling that happened to survive as the previous focus.
-    m_chart_selection.focus(placed);
-    updateView();
+    group.push_back(ChartNoteKey{.position = note.position, .string = note.string});
+    static_cast<void>(applyChartEditPlan(
+        planInsertNote(*arrangement->chart, session().song().tempo_map, note), std::move(group)));
 }
 
 // Arms the gesture and applies glyph-press selection per the interaction grammar: plain press
@@ -1755,16 +1746,10 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
     {
         m_chart_selection.toggle(*key);
     }
-    else
+    else if (!m_chart_selection.contains(*key))
     {
-        if (!m_chart_selection.contains(*key))
-        {
-            m_chart_selection.replaceWith(
-                chartOnsetGroupKeys(session().currentArrangement()->chart->notes, key->position));
-        }
-        // The pressed member becomes the focus — the note typed digits target — whether the
-        // press replaced the selection or landed on an already-selected note.
-        m_chart_selection.focus(*key);
+        m_chart_selection.replaceWith(
+            chartOnsetGroupKeys(session().currentArrangement()->chart->notes, key->position));
     }
     // The selection highlight is the whole feedback for a glyph press (user feedback
     // 2026-07-17: no extra cursor furniture on selection).
@@ -1842,7 +1827,6 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
             {
                 m_chart_selection.replaceWith(chartOnsetGroupKeys(
                     session().currentArrangement()->chart->notes, key->position));
-                m_chart_selection.focus(*key);
             }
         }
         updateView();
@@ -2002,16 +1986,18 @@ void EditorController::Impl::onChartSelectionDeleteRequested()
         applyChartEditPlan(planDeleteNotes(*arrangement->chart, m_chart_selection.notes())));
 }
 
-// Retypes the FOCUSED note's fret from typed digits (fret is per-string data, so digits target
-// the member the last gesture touched, never the whole chord — settled 2026-07-17): keystrokes
-// inside the entry window combine into multi-digit frets, clamped to the fret cap; each
-// keystroke applies immediately so the notation always shows the value being typed.
-void EditorController::Impl::onChartFretDigitTyped(int digit)
+// Fret typing has two modes (settled 2026-07-17): plain digits TRANSPOSE the selection so its
+// lowest fret lands on the typed number — shape-preserving, so chords reposition, runs
+// transpose, and a single note retypes exactly — and Ctrl digits SET every selected note to
+// the exact value. Keystrokes inside the entry window combine into multi-digit values (a digit
+// whose mode differs from the in-flight entry starts fresh); each keystroke applies
+// immediately so the notation always shows the value being typed; a member pushed past the
+// fret cap refuses the keystroke, never clamps.
+void EditorController::Impl::onChartFretDigitTyped(int digit, bool set_exact)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
-    const std::optional<ChartNoteKey> focus = m_chart_selection.focused();
     if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
-        !focus.has_value() || digit < 0 || digit > 9)
+        m_chart_selection.empty() || digit < 0 || digit > 9)
     {
         return;
     }
@@ -2033,17 +2019,41 @@ void EditorController::Impl::onChartFretDigitTyped(int digit)
         const int combined = entry.value * 10 + digit;
         const bool widenable = now_ms - entry.last_keystroke_ms <= entry_window_ms &&
                                combined <= common::core::g_max_fret &&
-                               entry.keys == std::vector<ChartNoteKey>{*focus} &&
+                               entry.set_exact == set_exact &&
+                               entry.keys == m_chart_selection.notes() &&
                                m_undo_history.snapshot().position == entry.history_position;
         if (widenable)
         {
+            // The widened whole-entry plan runs from the pre-entry originals; a refusal (the
+            // combined value would push a member past the cap) consumes the keystroke and
+            // leaves the chart and the window state untouched.
+            const std::optional<ChartNotesEditPlan> widened =
+                planRetypeFrets(entry.base_notes, combined, set_exact);
+            if (!widened.has_value())
+            {
+                return;
+            }
+
             common::core::Chart* const chart = m_session.currentChart();
             if (chart == nullptr)
             {
                 return;
             }
-            if (const auto incremental = planSetFret(*chart, entry.keys, combined);
-                incremental.has_value())
+            // Step the live chart from its current values to the combined target. The current
+            // values are the base shape already moved by the first digit, so a plan that was
+            // valid from base is valid from here too.
+            std::vector<common::core::ChartNote> current_notes;
+            for (const common::core::ChartNote& note : chart->notes)
+            {
+                if (std::ranges::binary_search(
+                        entry.keys, ChartNoteKey{.position = note.position, .string = note.string}))
+                {
+                    current_notes.push_back(note);
+                }
+            }
+            if (const std::optional<ChartNotesEditPlan> incremental =
+                    planRetypeFrets(current_notes, combined, set_exact);
+                incremental.has_value() && !incremental->removed.empty())
             {
                 if (!applyChartNotesChange(*chart, incremental->removed, incremental->inserted)
                          .has_value())
@@ -2054,25 +2064,13 @@ void EditorController::Impl::onChartFretDigitTyped(int digit)
                 }
             }
 
-            ChartNotesEditPlan widened;
-            widened.label = "Set Fret " + std::to_string(combined);
-            for (const common::core::ChartNote& base : entry.base_notes)
-            {
-                common::core::ChartNote retyped = base;
-                retyped.fret = combined;
-                if (!(retyped == base))
-                {
-                    widened.removed.push_back(base);
-                    widened.inserted.push_back(std::move(retyped));
-                }
-            }
             bool now_pushed = entry.pushed;
-            if (!widened.removed.empty())
+            if (!widened->removed.empty())
             {
                 bool replaced = false;
                 if (entry.pushed)
                 {
-                    replaced = m_undo_history.replaceTop(std::make_unique<ChartNotesEdit>(widened))
+                    replaced = m_undo_history.replaceTop(std::make_unique<ChartNotesEdit>(*widened))
                                    .status == EditorUndoTransitionStatus::Applied;
                 }
                 if (!replaced)
@@ -2081,7 +2079,7 @@ void EditorController::Impl::onChartFretDigitTyped(int digit)
                     // refused the swap (for example a save marked the top entry clean mid-
                     // window): the combined change lands as its own entry instead — two
                     // undo steps in a rare edge beats a stack that lies about the file.
-                    pushUndoEntry(std::make_unique<ChartNotesEdit>(std::move(widened)));
+                    pushUndoEntry(std::make_unique<ChartNotesEdit>(*widened));
                 }
                 now_pushed = true;
             }
@@ -2090,6 +2088,7 @@ void EditorController::Impl::onChartFretDigitTyped(int digit)
                 .last_keystroke_ms = now_ms,
                 .base_notes = entry.base_notes,
                 .keys = entry.keys,
+                .set_exact = set_exact,
                 .pushed = now_pushed,
                 .history_position = m_undo_history.snapshot().position,
             };
@@ -2099,19 +2098,28 @@ void EditorController::Impl::onChartFretDigitTyped(int digit)
         }
     }
 
-    // Fresh entry: capture the focused note's pre-entry value first so a later widen still
-    // restores it, apply the digit as its own undo entry, and open the window only while a
+    // Fresh entry: capture the selection's pre-entry values first so a later widen still
+    // restores them, apply the digit as its own undo entry, and open the window only while a
     // second digit could still fit under the fret cap.
     std::vector<common::core::ChartNote> base_notes;
     for (const common::core::ChartNote& note : arrangement->chart->notes)
     {
-        if (ChartNoteKey{.position = note.position, .string = note.string} == *focus)
+        if (m_chart_selection.contains(
+                ChartNoteKey{.position = note.position, .string = note.string}))
         {
             base_notes.push_back(note);
         }
     }
-    const std::vector<ChartNoteKey> keys{*focus};
-    const bool pushed = applyChartEditPlan(planSetFret(*arrangement->chart, keys, digit));
+    const std::vector<ChartNoteKey> keys = m_chart_selection.notes();
+    std::optional<ChartNotesEditPlan> plan = planRetypeFrets(base_notes, digit, set_exact);
+    if (!plan.has_value())
+    {
+        // Refused outright (a member past the cap even at this single digit): no edit and no
+        // window — a wider combined value could only push members further.
+        m_chart_fret_entry.reset();
+        return;
+    }
+    const bool pushed = !plan->removed.empty() && applyChartEditPlan(std::move(plan));
     m_chart_last_fret = digit;
     if (digit * 10 <= common::core::g_max_fret)
     {
@@ -2120,6 +2128,7 @@ void EditorController::Impl::onChartFretDigitTyped(int digit)
             .last_keystroke_ms = now_ms,
             .base_notes = std::move(base_notes),
             .keys = keys,
+            .set_exact = set_exact,
             .pushed = pushed,
             .history_position = m_undo_history.snapshot().position,
         };
@@ -2878,21 +2887,6 @@ EditorViewState EditorController::Impl::deriveViewState() const
         {
             state.chart_edit.selected_notes =
                 selectedNoteIndices(arrangement->chart->notes, m_chart_selection);
-            if (const std::optional<ChartNoteKey> focus = m_chart_selection.focused();
-                focus.has_value())
-            {
-                const std::vector<common::core::ChartNote>& notes = arrangement->chart->notes;
-                const auto found = std::ranges::lower_bound(
-                    notes, *focus, {}, [](const common::core::ChartNote& note) {
-                        return ChartNoteKey{.position = note.position, .string = note.string};
-                    });
-                if (found != notes.end() &&
-                    ChartNoteKey{.position = found->position, .string = found->string} == *focus)
-                {
-                    state.chart_edit.focused_note =
-                        static_cast<std::size_t>(std::distance(notes.begin(), found));
-                }
-            }
             if (m_chart_gesture.has_value() && m_chart_gesture->marquee &&
                 m_chart_gesture->geometry.bounds_width > 0.0f &&
                 m_chart_gesture->geometry.bounds_height > 0.0f)
