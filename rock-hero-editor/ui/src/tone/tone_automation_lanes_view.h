@@ -7,7 +7,9 @@ the trailing empty lane whose pinned "+" chip opens the parameter picker. Gestur
 editor-wide interaction model (docs/plans/in-progress/editing-interaction-model.md): a plain click never
 mutates (points select; empty lane space passes through to the seek overlay), Alt is the insert
 quasimode (click or press-drag-release places a point, with a ghost preview and copy cursor while
-Alt is held), Ctrl bypasses grid snap to the fine grid, Shift axis-locks point drags, and Esc
+Alt is held; the point lands ON the curve at the snapped time and the drag phase pulls its value
+by the pointer's delta, so placement is sonically silent until deliberately pulled — 2026-07-18),
+Ctrl bypasses grid snap to the fine grid, Shift axis-locks point drags, and Esc
 cancels the gesture in flight. Gestures preview locally and commit one full-point-list intent on
 release; a state push mid-gesture is deferred until the gesture ends so it cannot reset the edit
 in progress. The lanes never resize themselves: heights flow up through a callback and the track
@@ -278,6 +280,9 @@ private:
 
     // Gesture kinds classified once in mouseDown and dispatched on in mouseDrag/mouseUp. The
     // start position/value anchor Shift's axis lock: whichever axis Shift freezes echoes these.
+    // Value dragging is delta-based from the press (press_y): the preview value is start_value
+    // plus the pointer's vertical travel, so neither an on-curve insert landing nor an
+    // off-center point grab ever jumps to the raw pointer y (2026-07-18 amendment).
     struct MovePointDrag
     {
         std::size_t lane_index{};
@@ -286,6 +291,7 @@ private:
         float preview_value{};
         common::core::GridPosition start_position{};
         float start_value{};
+        int press_y{};
         bool moved{false};
         bool is_new_point{false};
     };
@@ -395,6 +401,13 @@ private:
 
     // Converts a lane-local y to a normalised value, clamped to the value band.
     [[nodiscard]] float valueForY(int y, const LaneExtent& extent) const;
+
+    // The curve's value at a time, matching exactly what paint draws: linear segments on a
+    // continuous lane, held steps on a discrete one, flat extensions outside the authored span,
+    // and the live tracking value when the lane has no points yet. Point placement lands here
+    // (on the curve) so insertion is sonically silent until the point is deliberately pulled.
+    [[nodiscard]] float curveValueAt(
+        const core::ToneAutomationLaneViewState& lane, double seconds) const;
 
     // Snaps a raw normalised value to the nearest discrete step for a stepped parameter (so a
     // toggle moves only between its states); returns the value unchanged for a continuous lane.

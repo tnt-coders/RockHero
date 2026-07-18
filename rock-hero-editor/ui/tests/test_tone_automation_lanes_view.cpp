@@ -345,6 +345,37 @@ TEST_CASE("Lanes view requires Alt to insert on empty lane area", "[ui][tone-aut
     CHECK(harness.listener.last_edit_points.size() == 3);
 }
 
+TEST_CASE(
+    "Lanes view lands a new point on the curve and pulls its value by delta",
+    "[ui][tone-automation-lanes]")
+{
+    LanesHarness harness;
+
+    // Alt-press at x 100 (1.0 s, halfway between the authored 0.25 and 0.75 points) with the
+    // pointer well below the curve (y 40 maps to 0.125): the new point lands ON the drawn curve
+    // (the 0.5 interpolation), not at the pointer's y, so placement is sonically silent
+    // (2026-07-18 amendment).
+    harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 100.0f, 40.0f, g_alt_click));
+    harness.view.mouseUp(testing::makeMouseDownEvent(harness.view, 100.0f, 40.0f, g_alt_click));
+    REQUIRE(harness.listener.edit_count == 1);
+    REQUIRE(harness.listener.last_edit_points.size() == 3);
+    CHECK_THAT(
+        harness.listener.last_edit_points[1].norm_value, Catch::Matchers::WithinULP(0.5F, 0));
+
+    // The drag phase pulls by the pointer's DELTA from the press: rising 10 px (a quarter of the
+    // 40 px value band) lifts the on-curve landing from 0.5 to 0.75 — the value never jumps to
+    // the raw pointer y (which at y 30 would read 0.375).
+    harness.view.setState(makeState());
+    harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 100.0f, 40.0f, g_alt_click));
+    harness.view.mouseDrag(
+        testing::makeMouseDragEvent(harness.view, 100.0f, 30.0f, 100.0f, 40.0f, g_alt_click));
+    harness.view.mouseUp(testing::makeMouseDownEvent(harness.view, 100.0f, 30.0f, g_alt_click));
+    REQUIRE(harness.listener.edit_count == 2);
+    REQUIRE(harness.listener.last_edit_points.size() == 3);
+    CHECK_THAT(
+        harness.listener.last_edit_points[1].norm_value, Catch::Matchers::WithinULP(0.75F, 0));
+}
+
 TEST_CASE("Lanes view cancels an in-flight drag on request", "[ui][tone-automation-lanes]")
 {
     LanesHarness harness;
