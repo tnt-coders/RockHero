@@ -945,7 +945,7 @@ bool EditorView::dispatchSelectionWheel(
     const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel)
 {
     const bool chart_shown = m_state.tab != nullptr && m_state.tab->string_count > 0;
-    if (!event.mods.isAltDown() || wheel.deltaY == 0.0f || !chart_shown ||
+    if (!event.mods.isAltDown() || std::is_eq(wheel.deltaY <=> 0.0f) || !chart_shown ||
         m_state.chart_edit.selected_notes.empty())
     {
         return false;
