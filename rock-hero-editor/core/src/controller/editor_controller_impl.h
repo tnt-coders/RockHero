@@ -159,7 +159,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] const common::core::TabViewState* displayedTabProjection() const;
     [[nodiscard]] std::optional<ChartNoteKey> chartNoteKeyAt(std::size_t projection_index) const;
     void clearChartEditingState();
-    void resetChartMarker();
     // Arms the caret at a slot and re-derives the selection from what sits under it (a note
     // selects, an empty slot clears).
     void armChartCaret(common::core::GridPosition position, int string);

@@ -133,6 +133,18 @@ tails expecting a resize and failing (or asking for it). **Remedy**: implement t
 the standard edge-resize verb with a generous grab zone (hit-test via the shared layout
 manifest's tail rectangle), live preview, Esc cancel, single undo entry.
 
+### Min-distance span exemption vs. 40-Q2-B same-string truncation — trigger: span slice 3 builds
+
+Found by the 2026-07-18 grid-native simplification audit: `planAdjustSustain`'s §10 margin
+clamp exempts ANY-string span siblings from blocking a growing tail (span members are
+implied-held, §5), but `finalizePlan`'s 40-Q2-B normalization then truncates SAME-string
+overlaps unconditionally — clawing back for same-string chug siblings exactly what the
+exemption granted (cross-string siblings work as intended). Today this only matters for
+imported `chart.shapes`. **Trigger**: §5's slice 3 builds member-tail adjustment for real.
+**Remedy**: teach one of the two rules about spans — most likely `normalizeSustainOverlaps`
+learns the same span-sibling exemption, since §5 says member tails may legally ring past
+sibling onsets inside a shared span.
+
 ### Marker dissolution seeks the paused transport — trigger: anything follows the paused transport
 
 The two-state marker (settlement §9a, 2026-07-18) implements "the cursor takes the caret's

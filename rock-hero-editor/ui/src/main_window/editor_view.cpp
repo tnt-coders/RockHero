@@ -2389,8 +2389,9 @@ void EditorView::createToneMarkerAtPlayhead()
     // fine position), so keep it precisely rather than re-rounding to the nearest whole beat; the
     // fine-grid quantization preserves any position placed on a practical subdivision.
     const double playhead = m_transport.position().seconds;
-    createToneMarkerAt(fineGridPositionForBeat(
-        m_state.tempo_map, m_state.tempo_map.beatPositionAtSeconds(playhead)));
+    createToneMarkerAt(
+        core::fineGridPositionForBeat(
+            m_state.tempo_map, m_state.tempo_map.beatPositionAtSeconds(playhead)));
 }
 
 // Shows the tone-picker menu for inserting a tone-change marker at an exact musical position — the

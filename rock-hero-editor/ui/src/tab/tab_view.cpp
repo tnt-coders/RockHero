@@ -73,8 +73,7 @@ void TabView::setEditState(core::ChartEditViewState edit)
 bool TabView::wantsPointerAt(juce::Point<int> local_point) const
 {
     return m_on_pointer_event != nullptr && m_tab != nullptr && m_tab->string_count > 0 &&
-           getLocalBounds().contains(local_point) && m_visible_timeline.duration().seconds > 0.0 &&
-           !getLocalBounds().isEmpty();
+           getLocalBounds().contains(local_point) && m_visible_timeline.duration().seconds > 0.0;
 }
 
 bool TabView::hitTest(int x, int y)
@@ -104,7 +103,6 @@ core::ChartPointerEvent TabView::makePointerEvent(const juce::MouseEvent& event)
             core::ChartPointerModifiers{
                 .ctrl = event.mods.isCtrlDown(),
                 .shift = event.mods.isShiftDown(),
-                .alt = event.mods.isAltDown(),
             },
         .clicks = event.getNumberOfClicks(),
     };
@@ -261,8 +259,8 @@ void TabView::paint(juce::Graphics& g)
     // circular note shape (heads, accent glows) and stays visible over them; drawn whenever
     // the marker is armed — on an empty slot it marks where a typed digit inserts, on a note
     // it rides the selection highlight so the caret stays visible through a single selection.
-    // While the marker is passive the paused playhead is the position and the controller
-    // publishes nothing here.
+    // While the marker is passive the controller publishes nothing here and the ruler's
+    // play-from-here mark is the position display.
     if (m_edit.caret.has_value() && m_edit.caret->string >= 1 &&
         m_edit.caret->string <= m_tab->string_count && m_visible_timeline.duration().seconds > 0.0)
     {

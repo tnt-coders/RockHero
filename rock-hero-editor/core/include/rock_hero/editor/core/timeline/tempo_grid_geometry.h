@@ -177,17 +177,21 @@ placement keeps the sub-pixel click point's time.
 
 1/960 of a beat keeps every stored position an exact rational at far finer than audible
 resolution: 960 is the standard MIDI PPQ resolution and divides every practical straight,
-triplet, and quintuplet subdivision.
+triplet, and quintuplet subdivision. The fine tier belongs to the free-time surfaces only —
+tone boundaries, automation points, and ruler seeks; chart-note authoring is grid-native
+(settlement §11) and never touches it.
 */
 inline constexpr int g_fine_grid_denominator = 960;
 
 /*!
 \brief Quantizes a fractional global-beat position to the exact rational 1/960-beat fine grid.
 
-The seam shared by Ctrl-free click placement, playhead-anchored insertion, and fine cursor
-stepping: it turns a seconds- or beat-derived double into a storable position that stays an
-exact rational (never a raw double) at sub-millisecond resolution. A caller that already holds
-an exact musical position should keep it verbatim rather than round-tripping through this.
+The seam shared by the free-time surfaces' Ctrl placement gestures (tone boundaries,
+automation points) and playhead-anchored tone-marker insertion: it turns a seconds- or
+beat-derived double into a storable position that stays an exact rational (never a raw
+double) at sub-millisecond resolution. A caller that already holds an exact musical position
+should keep it verbatim rather than round-tripping through this. Chart-note authoring is
+grid-native (settlement §11) and has no caller here.
 
 \param tempo_map Song tempo map supplying the beat-to-measure mapping.
 \param global_beat Global beat position (whole beats plus fractional beat) to quantize.

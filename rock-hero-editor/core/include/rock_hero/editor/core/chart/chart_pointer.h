@@ -32,14 +32,15 @@ enum class ChartPointerPhase : std::uint8_t
 /*! \brief Modifier keys held during a chart pointer event, per the editing interaction model. */
 struct ChartPointerModifiers
 {
-    /*! \brief Precision: bypass grid snap onto the fine grid. */
+    /*!
+    \brief Toggle individual selection membership on a note press; on a playing-lane seek,
+    the ruler-family fine bypass. Chart placement itself is grid-native (settlement §11) and
+    has no precision tier.
+    */
     bool ctrl{false};
 
-    /*! \brief Extend: add to the selection instead of replacing it. */
+    /*! \brief Extend: a marquee release adds its box to the selection instead of replacing. */
     bool shift{false};
-
-    /*! \brief Create quasimode; reserved for note insertion and ignored by selection. */
-    bool alt{false};
 };
 
 /*! \brief One pointer event inside the tablature lane, in lane-local pixel coordinates. */

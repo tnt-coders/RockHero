@@ -88,20 +88,4 @@ fine grid, keeping the stored position an exact rational far finer than audible 
     common::core::TimeRange visible_timeline, int width, float content_x,
     const juce::ModifierKeys& mods);
 
-/*!
-\brief Quantizes a fractional global-beat position to the exact rational 1/960-beat fine grid.
-
-The seam shared by Ctrl-free click placement and playhead-anchored insertion: it turns a
-seconds- or beat-derived double into a storable position that stays an exact rational (never a raw
-double) at sub-millisecond resolution, covering every practical straight, triplet, and quintuplet
-subdivision. A caller that already holds an exact musical position should keep it verbatim rather
-than round-tripping through this.
-
-\param tempo_map Song tempo map supplying the beat-to-measure mapping.
-\param global_beat Global beat position (whole beats plus fractional beat) to quantize.
-\return Exact musical position on the fine grid.
-*/
-[[nodiscard]] common::core::GridPosition fineGridPositionForBeat(
-    const common::core::TempoMap& tempo_map, double global_beat);
-
 } // namespace rock_hero::editor::ui

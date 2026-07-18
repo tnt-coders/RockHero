@@ -218,47 +218,33 @@ public:
         last_selected_arrangement_id = std::move(arrangement_id);
     }
 
+    // The chart pointer/navigation intents record nothing: no view-routing test asserts on
+    // them (TabView's forwarding is tested through its own callback seam), so the overrides
+    // are deliberate no-ops until a test needs a recorded value.
+
     /*! \copydoc IEditorController::onChartPointerDown */
-    void onChartPointerDown(const ChartPointerEvent& event) override
-    {
-        last_chart_pointer_event = event;
-        chart_pointer_down_count += 1;
-    }
+    void onChartPointerDown(const ChartPointerEvent& /*event*/) override
+    {}
 
     /*! \copydoc IEditorController::onChartPointerDrag */
-    void onChartPointerDrag(const ChartPointerEvent& event) override
-    {
-        last_chart_pointer_event = event;
-        chart_pointer_drag_count += 1;
-    }
+    void onChartPointerDrag(const ChartPointerEvent& /*event*/) override
+    {}
 
     /*! \copydoc IEditorController::onChartPointerUp */
-    void onChartPointerUp(const ChartPointerEvent& event) override
-    {
-        last_chart_pointer_event = event;
-        chart_pointer_up_count += 1;
-    }
+    void onChartPointerUp(const ChartPointerEvent& /*event*/) override
+    {}
 
     /*! \copydoc IEditorController::onChartCaretStepRequested */
-    void onChartCaretStepRequested(ChartStepDirection direction, bool measure) override
-    {
-        last_chart_caret_step_direction = direction;
-        last_chart_caret_step_measure = measure;
-        chart_caret_step_count += 1;
-    }
+    void onChartCaretStepRequested(ChartStepDirection /*direction*/, bool /*measure*/) override
+    {}
 
     /*! \copydoc IEditorController::onChartSelectionMoveRequested */
-    void onChartSelectionMoveRequested(ChartStepDirection direction) override
-    {
-        last_chart_selection_move_direction = direction;
-        chart_selection_move_count += 1;
-    }
+    void onChartSelectionMoveRequested(ChartStepDirection /*direction*/) override
+    {}
 
     /*! \copydoc IEditorController::onChartSelectionDeleteRequested */
     void onChartSelectionDeleteRequested() override
-    {
-        chart_selection_delete_count += 1;
-    }
+    {}
 
     /*! \copydoc IEditorController::onChartFretDigitTyped */
     void onChartFretDigitTyped(int digit) override
@@ -283,9 +269,7 @@ public:
 
     /*! \copydoc IEditorController::onChartEscapePressed */
     void onChartEscapePressed() override
-    {
-        chart_escape_count += 1;
-    }
+    {}
 
     /*! \copydoc IEditorController::onToneRegionSelected */
     void onToneRegionSelected(std::string region_id) override
@@ -690,36 +674,6 @@ public:
     /*! \brief Last arrangement id reported through onArrangementSelected(). */
     std::string last_selected_arrangement_id{};
 
-    /*! \brief Last chart pointer event received on any phase. */
-    std::optional<ChartPointerEvent> last_chart_pointer_event{};
-
-    /*! \brief Number of onChartPointerDown() intents received. */
-    int chart_pointer_down_count{0};
-
-    /*! \brief Number of onChartPointerDrag() intents received. */
-    int chart_pointer_drag_count{0};
-
-    /*! \brief Number of onChartPointerUp() intents received. */
-    int chart_pointer_up_count{0};
-
-    /*! \brief Last caret-step direction received. */
-    std::optional<ChartStepDirection> last_chart_caret_step_direction{};
-
-    /*! \brief Measure-jump flag of the last caret step received. */
-    bool last_chart_caret_step_measure{false};
-
-    /*! \brief Number of onChartCaretStepRequested() intents received. */
-    int chart_caret_step_count{0};
-
-    /*! \brief Last selection-move direction received. */
-    std::optional<ChartStepDirection> last_chart_selection_move_direction{};
-
-    /*! \brief Number of onChartSelectionMoveRequested() intents received. */
-    int chart_selection_move_count{0};
-
-    /*! \brief Number of onChartSelectionDeleteRequested() intents received. */
-    int chart_selection_delete_count{0};
-
     /*! \brief Last fret digit received. */
     int last_chart_fret_digit{-1};
 
@@ -737,9 +691,6 @@ public:
 
     /*! \brief Number of onChartSustainAdjustRequested() intents received. */
     int chart_sustain_adjust_count{0};
-
-    /*! \brief Number of onChartEscapePressed() intents received. */
-    int chart_escape_count{0};
 
     /*! \brief Last tone region id reported through onToneRegionSelected(). */
     std::string last_selected_tone_region_id{};

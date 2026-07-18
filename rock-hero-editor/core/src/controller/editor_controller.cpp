@@ -53,6 +53,7 @@
 #include <rock_hero/editor/core/settings/i_editor_settings.h>
 #include <rock_hero/editor/core/tasks/i_editor_task_runner.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
+#include <rock_hero/editor/core/timeline/timeline_geometry.h>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -1556,7 +1557,10 @@ void EditorController::Impl::clearChartEditingState()
     m_chart_selection.clear();
     m_chart_gesture.reset();
     m_chart_fret_entry.reset();
-    resetChartMarker();
+    // A fresh chart-editing context starts passive: the paused cursor at the transport
+    // position is the position, and nothing is armed until the first click or arrow (the
+    // marker model).
+    m_chart_marker = ChartCursor{};
 }
 
 // Returns the armed caret, or null while the marker is passive.
@@ -1569,13 +1573,6 @@ const EditorController::Impl::ChartCaret* EditorController::Impl::armedChartCare
 int EditorController::Impl::chartMarkerString() const noexcept
 {
     return std::visit([](const auto& state) { return state.string; }, m_chart_marker);
-}
-
-// A fresh chart-editing context starts passive: the paused cursor at the transport position is
-// the position, and nothing is armed until the first click or arrow (the marker model).
-void EditorController::Impl::resetChartMarker()
-{
-    m_chart_marker = ChartCursor{};
 }
 
 // Demotes an armed caret to the passive cursor, leaving the transport where it is. Used by
@@ -1612,16 +1609,19 @@ void EditorController::Impl::dissolveChartCaretInPlace()
 
 // Arms the caret at a slot and re-derives the selection from what sits under it: a note
 // becomes the selection (the highlight IS the caret display there), an empty slot clears it
-// (the white square shows where typing will insert).
+// (the white square shows where typing will insert). Chart notes are sorted by
+// (position, string), so slot occupancy is one binary search.
 void EditorController::Impl::armChartCaret(common::core::GridPosition position, int string)
 {
     m_chart_marker = ChartCaret{.position = position, .string = string};
     const ChartNoteKey key{.position = position, .string = string};
     const common::core::Arrangement* const arrangement = session().currentArrangement();
-    const bool on_note = arrangement != nullptr && arrangement->chart.has_value() &&
-                         std::ranges::any_of(
-                             chartOnsetGroupKeys(arrangement->chart->notes, position),
-                             [&key](const ChartNoteKey& candidate) { return candidate == key; });
+    const bool on_note =
+        arrangement != nullptr && arrangement->chart.has_value() &&
+        std::ranges::binary_search(
+            arrangement->chart->notes, key, {}, [](const common::core::ChartNote& note) {
+                return ChartNoteKey{.position = note.position, .string = note.string};
+            });
     if (on_note)
     {
         m_chart_selection.replaceWith(key);
@@ -1646,13 +1646,8 @@ std::optional<std::pair<common::core::GridPosition, int>> EditorController::Impl
     }
 
     const common::core::TempoMap& tempo_map = session().song().tempo_map;
-    const std::optional<common::core::TimePosition> clicked = timelineCursorPlacementTime(
-        tempo_map,
-        m_grid_note_value,
-        event.geometry.visible_timeline,
-        static_cast<int>(event.geometry.bounds_width),
-        event.x,
-        TimelineCursorPlacementMode::Free);
+    const std::optional<common::core::TimePosition> clicked = timelinePositionForX(
+        event.x, event.geometry.visible_timeline, static_cast<int>(event.geometry.bounds_width));
     if (!clicked.has_value())
     {
         return std::nullopt;
