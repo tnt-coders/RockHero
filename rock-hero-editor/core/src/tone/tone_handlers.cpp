@@ -405,7 +405,7 @@ void EditorController::Impl::onToneAutomationLaneRemoveRequested(
     updateView();
 }
 
-void EditorController::Impl::onSetToneAutomationPoints(
+void EditorController::Impl::onToneAutomationPointsEditRequested(
     std::string instance_id, std::string param_id,
     std::vector<common::core::ToneAutomationPoint> points)
 {
@@ -1518,14 +1518,15 @@ void EditorController::Impl::onToneAutomationPointerUp(const ToneAutomationPoint
         // The commit runs synchronously and pushes fresh state; with the gesture already cleared
         // that push applies immediately rather than deferring. The follow-up selection arms the
         // caret on the landed point (paused) exactly as the shipped view's release did.
-        onSetToneAutomationPoints(
+        onToneAutomationPointsEditRequested(
             drag.instance_id, drag.param_id, toneAutomationDragCommitPoints(drag));
-        onToneAutomationPointSelected(drag.instance_id, drag.param_id, drag.preview_position);
+        onToneAutomationPointSelectRequested(
+            drag.instance_id, drag.param_id, drag.preview_position);
         return;
     }
 
     // A plain click on a point (no move) selects it — the row-axis point select (§9b).
-    onToneAutomationPointSelected(
+    onToneAutomationPointSelectRequested(
         drag.instance_id, drag.param_id, drag.points[drag.point_index].position);
 }
 
@@ -1681,7 +1682,7 @@ void EditorController::Impl::plantLanePoint(
         });
     plan.points.insert(
         insert_at, common::core::ToneAutomationPoint{.position = position, .norm_value = value});
-    onSetToneAutomationPoints(row.instance_id, row.param_id, std::move(plan.points));
+    onToneAutomationPointsEditRequested(row.instance_id, row.param_id, std::move(plan.points));
     setSelection(
         AutomationPointSelection{
             .instance_id = row.instance_id,
@@ -1784,7 +1785,7 @@ common::core::TimeRange EditorController::Impl::activeToneRegionWindow() const
 // arms at the clicked slot (2026-07-18 fix — it used to stay behind), so keyboard verbs
 // continue from the object just touched; arming re-derives the selection from the slot, which
 // is the clicked point. Armed implies paused, so while playing the click only selects.
-void EditorController::Impl::onToneAutomationPointSelected(
+void EditorController::Impl::onToneAutomationPointSelectRequested(
     std::string instance_id, std::string param_id, common::core::GridPosition position)
 {
     if (isBusy())
@@ -1839,7 +1840,8 @@ void EditorController::Impl::deleteSelectedAutomationPoint(
         // The selection went stale (the point is already gone); deleting nothing is the answer.
         return;
     }
-    onSetToneAutomationPoints(selection.instance_id, selection.param_id, std::move(remaining));
+    onToneAutomationPointsEditRequested(
+        selection.instance_id, selection.param_id, std::move(remaining));
 }
 
 // Moves the selected automation point (the move-intent dispatch for the automation
@@ -1891,7 +1893,8 @@ void EditorController::Impl::moveSelectedAutomationPoint(
         {
             std::vector<common::core::ToneAutomationPoint> points = *lane_points;
             points[point_index].norm_value = new_value;
-            onSetToneAutomationPoints(selection.instance_id, selection.param_id, std::move(points));
+            onToneAutomationPointsEditRequested(
+                selection.instance_id, selection.param_id, std::move(points));
             updateView();
         }
         return;
@@ -1923,7 +1926,8 @@ void EditorController::Impl::moveSelectedAutomationPoint(
     // The step cannot cross a neighbor (clamped strictly between them), so order survives
     // without a re-sort.
     points[point_index].position = new_position;
-    onSetToneAutomationPoints(selection.instance_id, selection.param_id, std::move(points));
+    onToneAutomationPointsEditRequested(
+        selection.instance_id, selection.param_id, std::move(points));
     // A lane caret sitting on the moved point rides along (the caret stays on its object
     // through a nudge). Checked against the OLD position before the selection re-points, and
     // moved directly — the row and remembered string are unchanged, so no re-arm is needed.

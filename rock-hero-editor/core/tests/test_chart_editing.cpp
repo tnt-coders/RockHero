@@ -215,7 +215,7 @@ TEST_CASE("EditorController keeps one selection across surfaces", "[core][chart]
     // Selecting an automation point (another surface) replaces the chart selection, and the
     // marker follows the click onto the lane row (2026-07-18 — clicks arm on both surfaces):
     // the chart-row caret unpublishes while the caret rides the lane.
-    controller.onToneAutomationPointSelected(
+    controller.onToneAutomationPointSelectRequested(
         "instance-x", "gain", common::core::GridPosition{.measure = 1, .beat = 1, .offset = {}});
     CHECK(state->chart_edit.selected_notes.empty());
     CHECK_FALSE(state->chart_edit.caret.has_value());

@@ -153,7 +153,7 @@ Built on branch `work-in-progress` (off `refactor`), each slice green + tested:
 - **Editing + undo — DONE.** **Design simplification adopted:** a single
   `SetToneAutomationPoints` action + `ToneAutomationPointsEdit` point-list memento subsumes
   add/remove/edit lane (picking a param seeds a point → lane appears; clearing to empty → lane
-  gone), so no separate add/remove-lane actions or open-set state are needed. `onSetToneAutomationPoints`
+  gone), so no separate add/remove-lane actions or open-set state are needed. `onToneAutomationPointsEditRequested` (named `onSetToneAutomationPoints` until the 2026-07-19 intent-vocabulary rename)
   intent wired through `IEditorController`; controller tests cover write→project and undo/redo.
 - **P0 chunk-memento decoupling — DONE.** `capturePluginState` strips `AUTOMATIONCURVE`; the
   in-place restore preserves live curves — the two undo domains are provably disjoint.
@@ -208,7 +208,7 @@ The UI notes below are retained for reference.
 one lane per automated parameter, drawing `ToneAutomationViewState` curves. The **"+" picker lives in
 the first empty automation lane** directly under the tone region (NOT in the signal-chain panel —
 user correction 2026-07-07): clicking it opens the parameter menu (`listAutomatableParameters`) and
-choosing a parameter seeds the lane (`onSetToneAutomationPoints` with a seed point), after which the
+choosing a parameter seeds the lane (`onToneAutomationPointsEditRequested` (named `onSetToneAutomationPoints` until the 2026-07-19 intent-vocabulary rename) with a seed point), after which the
 "+" moves down to the next empty lane. Then: interactive add/move/delete points with grid-snap (Ctrl
 bypass), vertically resizable lanes, and disabled/discrete rendering. The interactive lane is complex
 graphics/UI — consult the `juce-tracktion-expert` before building it, per the standing rule. It

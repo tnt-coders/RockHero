@@ -454,7 +454,7 @@ public:
     \param param_id Parameter id within the plugin.
     \param points Replacement points in ascending musical order, values normalised to `[0, 1]`.
     */
-    virtual void onSetToneAutomationPoints(
+    virtual void onToneAutomationPointsEditRequested(
         std::string instance_id, std::string param_id,
         std::vector<common::core::ToneAutomationPoint> points) = 0;
 
@@ -554,7 +554,7 @@ public:
     \param param_id Parameter id within the plugin.
     \param position Exact musical position of the selected point.
     */
-    virtual void onToneAutomationPointSelected(
+    virtual void onToneAutomationPointSelectRequested(
         std::string instance_id, std::string param_id, common::core::GridPosition position) = 0;
 
     /*! \brief Handles a request to show the scanned plugin browser. */

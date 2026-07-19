@@ -989,18 +989,19 @@ void EditorController::onToneAutomationLaneRemoveRequested(
     m_impl->onToneAutomationLaneRemoveRequested(instance_id, param_id);
 }
 
-void EditorController::onSetToneAutomationPoints(
+void EditorController::onToneAutomationPointsEditRequested(
     std::string instance_id, std::string param_id,
     std::vector<common::core::ToneAutomationPoint> points)
 {
-    m_impl->onSetToneAutomationPoints(
+    m_impl->onToneAutomationPointsEditRequested(
         std::move(instance_id), std::move(param_id), std::move(points));
 }
 
-void EditorController::onToneAutomationPointSelected(
+void EditorController::onToneAutomationPointSelectRequested(
     std::string instance_id, std::string param_id, common::core::GridPosition position)
 {
-    m_impl->onToneAutomationPointSelected(std::move(instance_id), std::move(param_id), position);
+    m_impl->onToneAutomationPointSelectRequested(
+        std::move(instance_id), std::move(param_id), position);
 }
 
 void EditorController::onNeutralInsertRequested()

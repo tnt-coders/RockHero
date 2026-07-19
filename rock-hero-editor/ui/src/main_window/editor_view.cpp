@@ -2375,7 +2375,7 @@ void EditorView::onToneAutomationLaneRemoveRequested(std::string instance_id, st
 void EditorView::onToneAutomationPointSelectRequested(
     std::string instance_id, std::string param_id, common::core::GridPosition position)
 {
-    m_controller.onToneAutomationPointSelected(
+    m_controller.onToneAutomationPointSelectRequested(
         std::move(instance_id), std::move(param_id), position);
 }
 
@@ -2408,7 +2408,7 @@ void EditorView::onToneAutomationPointsEditRequested(
     std::string instance_id, std::string param_id,
     std::vector<common::core::ToneAutomationPoint> points)
 {
-    m_controller.onSetToneAutomationPoints(
+    m_controller.onToneAutomationPointsEditRequested(
         std::move(instance_id), std::move(param_id), std::move(points));
 }
 
