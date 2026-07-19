@@ -492,13 +492,13 @@ public:
     void onToneAutomationLaneRemoveRequested(
         std::string instance_id, std::string param_id) override;
 
-    /*! \copydoc IEditorController::onSetToneAutomationPoints */
-    void onSetToneAutomationPoints(
+    /*! \copydoc IEditorController::onToneAutomationPointsEditRequested */
+    void onToneAutomationPointsEditRequested(
         std::string instance_id, std::string param_id,
         std::vector<common::core::ToneAutomationPoint> points) override;
 
-    /*! \copydoc IEditorController::onToneAutomationPointSelected */
-    void onToneAutomationPointSelected(
+    /*! \copydoc IEditorController::onToneAutomationPointSelectRequested */
+    void onToneAutomationPointSelectRequested(
         std::string instance_id, std::string param_id,
         common::core::GridPosition position) override;
 

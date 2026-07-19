@@ -257,13 +257,13 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onToneAutomationLaneAddRequested(const std::string& instance_id, std::string param_id);
     void onToneAutomationLaneRemoveRequested(
         const std::string& instance_id, const std::string& param_id);
-    void onSetToneAutomationPoints(
+    void onToneAutomationPointsEditRequested(
         std::string instance_id, std::string param_id,
         std::vector<common::core::ToneAutomationPoint> points);
-    void onToneAutomationPointSelected(
+    void onToneAutomationPointSelectRequested(
         std::string instance_id, std::string param_id, common::core::GridPosition position);
     // Deletes the selected automation point by replaying its lane's points without it through
-    // onSetToneAutomationPoints (the Delete-key dispatch for the automation alternative).
+    // onToneAutomationPointsEditRequested (the Delete-key dispatch for the automation alternative).
     void deleteSelectedAutomationPoint(const AutomationPointSelection& selection);
     // Moves the selected automation point (the move-intent dispatch for the automation
     // alternative): Up/Down steps the value (one real state on a discrete lane, else 0.01 or

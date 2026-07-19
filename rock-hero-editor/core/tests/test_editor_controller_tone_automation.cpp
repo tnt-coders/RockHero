@@ -149,7 +149,7 @@ struct AutomationEditor
     void seedPoints(std::vector<common::core::ToneAutomationPoint> points)
     {
         controller.onToneAutomationLaneAddRequested(g_instance, g_param);
-        controller.onSetToneAutomationPoints(g_instance, g_param, std::move(points));
+        controller.onToneAutomationPointsEditRequested(g_instance, g_param, std::move(points));
     }
 };
 
@@ -254,7 +254,7 @@ TEST_CASE(
 
     // The recovered association also lets a subsequently authored point survive projection, rather
     // than the lane vanishing the moment it stops being an unauthored tracking lane.
-    editor.controller.onSetToneAutomationPoints(
+    editor.controller.onToneAutomationPointsEditRequested(
         g_instance,
         g_param,
         {common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.3F}});
@@ -275,7 +275,7 @@ TEST_CASE(
         },
     };
 
-    editor.controller.onSetToneAutomationPoints(g_instance, g_param, points);
+    editor.controller.onToneAutomationPointsEditRequested(g_instance, g_param, points);
 
     REQUIRE(editor.model().size() == 1);
     CHECK(editor.model().front().points == points);
@@ -302,7 +302,7 @@ TEST_CASE("EditorController undoes and redoes a tone automation edit", "[core][t
         common::core::ToneAutomationPoint{.position = pointAt(1, 2), .norm_value = 0.6F},
     };
 
-    editor.controller.onSetToneAutomationPoints(g_instance, g_param, points);
+    editor.controller.onToneAutomationPointsEditRequested(g_instance, g_param, points);
     REQUIRE(editor.automation().lanes.size() == 1);
 
     editor.controller.onUndoRequested();
@@ -389,7 +389,7 @@ TEST_CASE(
         common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.3F},
         common::core::ToneAutomationPoint{.position = pointAt(2, 1), .norm_value = 0.7F},
     };
-    controller.onSetToneAutomationPoints(g_instance, g_param, points);
+    controller.onToneAutomationPointsEditRequested(g_instance, g_param, points);
     REQUIRE(model.size() == 1);
     REQUIRE(model.front().points == points);
 
@@ -500,7 +500,7 @@ TEST_CASE(
     "EditorController owns the automation point selection editor-wide", "[core][tone-automation]")
 {
     AutomationEditor editor;
-    editor.controller.onSetToneAutomationPoints(
+    editor.controller.onToneAutomationPointsEditRequested(
         g_instance,
         g_param,
         {
@@ -519,7 +519,7 @@ TEST_CASE(
 
     // Selecting a point makes it THE selection: the published point reference resolves and the
     // region's selected flag drops (one selection editor-wide — two cannot coexist).
-    editor.controller.onToneAutomationPointSelected(g_instance, g_param, pointAt(2, 1));
+    editor.controller.onToneAutomationPointSelectRequested(g_instance, g_param, pointAt(2, 1));
     REQUIRE(editor.automation().selected_point.has_value());
     CHECK(editor.automation().selected_point->lane_index == 0);
     CHECK(editor.automation().selected_point->point_index == 1);
@@ -579,14 +579,14 @@ TEST_CASE(
     "[core][tone-automation]")
 {
     AutomationEditor editor;
-    editor.controller.onSetToneAutomationPoints(
+    editor.controller.onToneAutomationPointsEditRequested(
         g_instance,
         g_param,
         {
             common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.2F},
             common::core::ToneAutomationPoint{.position = pointAt(2, 1), .norm_value = 0.8F},
         });
-    editor.controller.onToneAutomationPointSelected(g_instance, g_param, pointAt(2, 1));
+    editor.controller.onToneAutomationPointSelectRequested(g_instance, g_param, pointAt(2, 1));
 
     // The unified Delete intent dispatches on the selection's kind and removes exactly the
     // selected point as one undoable points edit.
@@ -615,14 +615,14 @@ TEST_CASE(
     "[core][tone-automation]")
 {
     AutomationEditor editor;
-    editor.controller.onSetToneAutomationPoints(
+    editor.controller.onToneAutomationPointsEditRequested(
         g_instance,
         g_param,
         {
             common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.2F},
             common::core::ToneAutomationPoint{.position = pointAt(2, 1), .norm_value = 0.8F},
         });
-    editor.controller.onToneAutomationPointSelected(g_instance, g_param, pointAt(2, 1));
+    editor.controller.onToneAutomationPointSelectRequested(g_instance, g_param, pointAt(2, 1));
 
     // Alt+Up steps the value by 0.01 as one committed edit; the selection stays on the point.
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Up, false);
@@ -666,7 +666,7 @@ TEST_CASE(
     CHECK(editor.model().front().points.back().position == pointAt(2, 4));
 
     // At the map edge the step collapses: refused, nothing changes.
-    editor.controller.onToneAutomationPointSelected(g_instance, g_param, pointAt(1, 1));
+    editor.controller.onToneAutomationPointSelectRequested(g_instance, g_param, pointAt(1, 1));
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Left, false);
     CHECK(editor.model().front().points.front().position == pointAt(1, 1));
 }
@@ -676,7 +676,7 @@ TEST_CASE(
     "[core][tone-automation]")
 {
     AutomationEditor editor;
-    editor.controller.onSetToneAutomationPoints(
+    editor.controller.onToneAutomationPointsEditRequested(
         g_instance,
         g_param,
         {
@@ -739,14 +739,14 @@ TEST_CASE(
     "[core][tone-automation]")
 {
     AutomationEditor editor;
-    editor.controller.onSetToneAutomationPoints(
+    editor.controller.onToneAutomationPointsEditRequested(
         g_instance,
         g_param,
         {
             common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.2F},
             common::core::ToneAutomationPoint{.position = pointAt(2, 1), .norm_value = 0.8F},
         });
-    editor.controller.onToneAutomationPointSelected(g_instance, g_param, pointAt(2, 1));
+    editor.controller.onToneAutomationPointSelectRequested(g_instance, g_param, pointAt(2, 1));
     REQUIRE(editor.automation().lane_caret.has_value());
     REQUIRE(editor.automation().selected_point.has_value());
 
@@ -771,7 +771,7 @@ TEST_CASE("EditorController steps the lane caret onto off-grid points", "[core][
     song.arrangements.front().chart = std::move(chart);
     AutomationEditor editor{std::move(song)};
 
-    editor.controller.onSetToneAutomationPoints(
+    editor.controller.onToneAutomationPointsEditRequested(
         g_instance,
         g_param,
         {
@@ -780,7 +780,7 @@ TEST_CASE("EditorController steps the lane caret onto off-grid points", "[core][
         });
 
     // Selecting the (2,2) point arms the caret on it; the fine step slides both off the grid.
-    editor.controller.onToneAutomationPointSelected(g_instance, g_param, pointAt(2, 2));
+    editor.controller.onToneAutomationPointSelectRequested(g_instance, g_param, pointAt(2, 2));
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Left, true);
     const common::core::GridPosition fine_slot{
         .measure = 2, .beat = 1, .offset = common::core::Fraction{959, 960}

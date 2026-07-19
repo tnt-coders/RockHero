@@ -351,8 +351,8 @@ public:
         lane_remove_call_count += 1;
     }
 
-    /*! \copydoc IEditorController::onSetToneAutomationPoints */
-    void onSetToneAutomationPoints(
+    /*! \copydoc IEditorController::onToneAutomationPointsEditRequested */
+    void onToneAutomationPointsEditRequested(
         std::string instance_id, std::string param_id,
         std::vector<common::core::ToneAutomationPoint> points) override
     {
@@ -362,8 +362,8 @@ public:
         set_tone_automation_points_call_count += 1;
     }
 
-    /*! \copydoc IEditorController::onToneAutomationPointSelected */
-    void onToneAutomationPointSelected(
+    /*! \copydoc IEditorController::onToneAutomationPointSelectRequested */
+    void onToneAutomationPointSelectRequested(
         std::string instance_id, std::string param_id, common::core::GridPosition position) override
     {
         last_point_select_instance_id = std::move(instance_id);
@@ -825,28 +825,28 @@ public:
     /*! \brief Number of onToneAutomationLaneRemoveRequested() calls received. */
     int lane_remove_call_count{0};
 
-    /*! \brief Last plugin instance id reported through onSetToneAutomationPoints(). */
+    /*! \brief Last plugin instance id reported through onToneAutomationPointsEditRequested(). */
     std::string last_automation_instance_id{};
 
-    /*! \brief Last parameter id reported through onSetToneAutomationPoints(). */
+    /*! \brief Last parameter id reported through onToneAutomationPointsEditRequested(). */
     std::string last_automation_param_id{};
 
-    /*! \brief Last musical points reported through onSetToneAutomationPoints(). */
+    /*! \brief Last musical points reported through onToneAutomationPointsEditRequested(). */
     std::vector<common::core::ToneAutomationPoint> last_automation_points{};
 
-    /*! \brief Number of onSetToneAutomationPoints() calls received. */
+    /*! \brief Number of onToneAutomationPointsEditRequested() calls received. */
     int set_tone_automation_points_call_count{0};
 
-    /*! \brief Last plugin instance id reported through onToneAutomationPointSelected(). */
+    /*! \brief Last plugin instance id reported through onToneAutomationPointSelectRequested(). */
     std::string last_point_select_instance_id{};
 
-    /*! \brief Last parameter id reported through onToneAutomationPointSelected(). */
+    /*! \brief Last parameter id reported through onToneAutomationPointSelectRequested(). */
     std::string last_point_select_param_id{};
 
-    /*! \brief Last musical position reported through onToneAutomationPointSelected(). */
+    /*! \brief Last musical position reported through onToneAutomationPointSelectRequested(). */
     common::core::GridPosition last_point_select_position{};
 
-    /*! \brief Number of onToneAutomationPointSelected() calls received. */
+    /*! \brief Number of onToneAutomationPointSelectRequested() calls received. */
     int point_select_call_count{0};
 
     /*! \brief Number of onSelectionDeleteRequested() calls received. */
