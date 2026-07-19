@@ -630,6 +630,33 @@ TEST_CASE(
     CHECK(editor.model().front().points.size() == 2);
 }
 
+TEST_CASE(
+    "EditorController steps the Esc ladder on lane carets and point selections",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor;
+    editor.controller.onSetToneAutomationPoints(
+        g_instance,
+        g_param,
+        {
+            common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.2F},
+            common::core::ToneAutomationPoint{.position = pointAt(2, 1), .norm_value = 0.8F},
+        });
+    editor.controller.onToneAutomationPointSelected(g_instance, g_param, pointAt(2, 1));
+    REQUIRE(editor.automation().lane_caret.has_value());
+    REQUIRE(editor.automation().selected_point.has_value());
+
+    // The first Esc dissolves the lane caret in place (the marker rung is row-agnostic),
+    // keeping the selection.
+    editor.controller.onChartEscapePressed();
+    CHECK_FALSE(editor.automation().lane_caret.has_value());
+    CHECK(editor.automation().selected_point.has_value());
+
+    // The second Esc clears THE selection — the last rung is kind-agnostic, like Delete.
+    editor.controller.onChartEscapePressed();
+    CHECK_FALSE(editor.automation().selected_point.has_value());
+}
+
 TEST_CASE("EditorController steps the lane caret onto off-grid points", "[core][tone-automation]")
 {
     // Lane caret stepping runs on the marker's shared row axis, which needs a (noteless) chart
