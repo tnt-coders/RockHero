@@ -20,7 +20,6 @@ viewport lays the component out, so the cursor overlay and content height stay a
 
 #include "timeline/cursor_overlay.h"
 
-#include <compare>
 #include <cstdint>
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -100,6 +99,28 @@ public:
         */
         virtual void onToneAutomationPointSelectRequested(
             std::string instance_id, std::string param_id, common::core::GridPosition position) = 0;
+
+        /*!
+        \brief Called on a button-less hover over an editable lane area (the Alt insert ghost).
+
+        The controller resolves whether Alt is held over an insertable slot while paused and
+        publishes the ghost through \ref core::ToneAutomationViewState::insert_ghost, snapping
+        exactly as an Alt+click would. The view forwards every lane-area hover (Alt or not) and
+        renders whatever ghost the next state push publishes back — the ghost is controller-owned,
+        exactly like the selection and the lane caret.
+
+        \param instance_id Plugin instance owning the hovered lane's parameter.
+        \param param_id Parameter id within the plugin.
+        \param time Hovered timeline position (the controller snaps to the grid, Ctrl to fine).
+        \param alt True when Alt is held — the neutral-create gate.
+        \param ctrl True when Ctrl is held — snap bypasses to the fine grid.
+        */
+        virtual void onToneAutomationLaneHovered(
+            std::string instance_id, std::string param_id, common::core::TimePosition time,
+            bool alt, bool ctrl) = 0;
+
+        /*! \brief Called when the pointer leaves the lanes, clearing any Alt insert ghost. */
+        virtual void onToneAutomationLaneHoverEnded() = 0;
 
     protected:
         /*! \brief Creates the listener interface. */
@@ -211,7 +232,7 @@ public:
     /*! \brief Paints every lane, its curve and points, the insert ghost, and the "+" lane. */
     void paint(juce::Graphics& graphics) override;
 
-    /*! \brief Updates the hover cursor, readout, and Alt-held insert ghost under the pointer. */
+    /*! \brief Updates the hover cursor and readout, and forwards the hover (the insert ghost). */
     void mouseMove(const juce::MouseEvent& event) override;
 
     /*! \brief Classifies and starts a gesture: Alt-insert, move point, resize lane, or menu. */
@@ -226,7 +247,7 @@ public:
     /*! \brief Opens the typed exact-value editor for a double-clicked point. */
     void mouseDoubleClick(const juce::MouseEvent& event) override;
 
-    /*! \brief Clears the hover readout and insert ghost when the pointer leaves mid-hover. */
+    /*! \brief Clears the hover readout and ends the hover (clearing the ghost) mid-hover. */
     void mouseExit(const juce::MouseEvent& event) override;
 
     /*!
@@ -344,25 +365,6 @@ private:
         common::core::GridPosition position;
     };
 
-    // The point a click would insert while Alt is held: painted as a hollow preview so the
-    // placement is visible before any mutation happens.
-    struct GhostPoint
-    {
-        std::size_t lane_index{};
-        common::core::GridPosition position{};
-        double seconds{};
-        float norm_value{};
-
-        // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
-        // floating members; exact equality is intended.
-        friend bool operator==(const GhostPoint& lhs, const GhostPoint& rhs)
-        {
-            return lhs.lane_index == rhs.lane_index && lhs.position == rhs.position &&
-                   std::is_eq(lhs.seconds <=> rhs.seconds) &&
-                   std::is_eq(lhs.norm_value <=> rhs.norm_value);
-        }
-    };
-
     // Applies a pushed state immediately: replaces the model and clears any transient gesture
     // overlay. Called directly when no gesture is active, and drained from mouseUp for a snapshot
     // that arrived (and was deferred) during a gesture. Never called while m_drag is set.
@@ -451,9 +453,6 @@ private:
     // entered text through the automation port in the parameter's native units.
     void showPointValueEditor(const PointHit& hit);
 
-    // Sets or clears the Alt-held insert ghost, repainting only the affected lane.
-    void setInsertGhost(std::optional<GhostPoint> ghost);
-
     // Reports whether a specific lane point is the published editor-wide selection.
     [[nodiscard]] bool isPointSelected(
         const core::ToneAutomationLaneViewState& lane,
@@ -524,9 +523,6 @@ private:
 
     // Transient value readout shown next to the cursor while a point is hovered or dragged.
     std::optional<ValueReadout> m_value_readout{};
-
-    // The Alt-held insert preview, or empty when no insert is possible under the pointer.
-    std::optional<GhostPoint> m_insert_ghost{};
 
     // Automation port polled read-only by unauthored tracking lanes; owned by the composition.
     const common::audio::IToneAutomation& m_tone_automation;

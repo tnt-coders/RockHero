@@ -419,6 +419,14 @@ private:
     void onToneAutomationLaneCaretRequested(
         std::string instance_id, std::string param_id, common::core::TimePosition time) override;
 
+    /*! \copydoc ToneAutomationLanesView::Listener::onToneAutomationLaneHovered */
+    void onToneAutomationLaneHovered(
+        std::string instance_id, std::string param_id, common::core::TimePosition time, bool alt,
+        bool ctrl) override;
+
+    /*! \copydoc ToneAutomationLanesView::Listener::onToneAutomationLaneHoverEnded */
+    void onToneAutomationLaneHoverEnded() override;
+
     // PluginBrowserWindow::Listener implementation.
     void onPluginBrowserScanRequested() override;
 

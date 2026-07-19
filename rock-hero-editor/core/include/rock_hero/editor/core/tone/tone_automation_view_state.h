@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <compare>
 #include <cstddef>
 #include <optional>
 #include <rock_hero/common/core/chart/chart.h>
@@ -179,6 +180,30 @@ struct ToneAutomationLaneCaretRef
         const ToneAutomationLaneCaretRef& lhs, const ToneAutomationLaneCaretRef& rhs) = default;
 };
 
+/*! \brief The Alt-held insert ghost's rendered position over an empty lane slot (§9b). */
+struct ToneAutomationInsertGhostRef
+{
+    /*! \brief Index of the ghost's lane in \ref ToneAutomationViewState::lanes. */
+    std::size_t lane_index{0};
+
+    /*! \brief Ghost slot in absolute song seconds, derived through the tempo map like the caret. */
+    double seconds{0.0};
+
+    /*!
+    \brief Compares two insert-ghost references by their stored values.
+    \param lhs Left-hand reference.
+    \param rhs Right-hand reference.
+    \return True when both references store equal values.
+    */
+    friend bool operator==(
+        const ToneAutomationInsertGhostRef& lhs, const ToneAutomationInsertGhostRef& rhs)
+    {
+        // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
+        // seconds member; exact equality is intended (the ghost snaps to an exact grid slot).
+        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.lane_index == rhs.lane_index;
+    }
+};
+
 /*! \brief View-facing state for the selected tone's automation lanes. */
 struct ToneAutomationViewState
 {
@@ -207,6 +232,18 @@ struct ToneAutomationViewState
     armed marker's one-glyph rule, extended to lane rows (§9b).
     */
     std::optional<ToneAutomationLaneCaretRef> lane_caret;
+
+    /*!
+    \brief The Alt-held insert ghost, present while Alt hovers an insertable empty lane slot.
+
+    Rendered as a hollow ring on the curve where an Alt+click would plant an on-curve point —
+    the neutral-create verb's mouse form (§9b), the lane sibling of the tab lane's fret-0 note
+    ring. The controller resolves snap and occupancy exactly as the click would, and publishes
+    the ghost only when the ring would be honest: absent over occupied slots (an insert there
+    would no-op), without Alt, or while playing, so the affordance never advertises an action it
+    would not perform (§7).
+    */
+    std::optional<ToneAutomationInsertGhostRef> insert_ghost;
 
     /*! \brief Parameters without a lane yet, offered by the empty lane's "+" picker. */
     std::vector<ToneAutomationParamChoice> available_parameters;

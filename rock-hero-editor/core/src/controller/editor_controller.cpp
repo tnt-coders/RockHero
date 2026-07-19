@@ -1019,6 +1019,19 @@ void EditorController::onToneAutomationLaneCaretRequested(
     m_impl->onToneAutomationLaneCaretRequested(std::move(instance_id), std::move(param_id), time);
 }
 
+void EditorController::onToneAutomationLaneHovered(
+    std::string instance_id, std::string param_id, common::core::TimePosition time, bool alt,
+    bool ctrl)
+{
+    m_impl->onToneAutomationLaneHovered(
+        std::move(instance_id), std::move(param_id), time, alt, ctrl);
+}
+
+void EditorController::onToneAutomationLaneHoverEnded()
+{
+    m_impl->onToneAutomationLaneHoverEnded();
+}
+
 void EditorController::onPluginBrowserRequested()
 {
     m_impl->onPluginBrowserRequested();
@@ -3605,6 +3618,34 @@ EditorViewState EditorController::Impl::deriveViewState() const
                     };
                     break;
                 }
+            }
+        }
+
+        // The Alt-hover insert ghost resolves against the published lanes exactly like the lane
+        // caret: located by (instance, parameter), with seconds derived through the tempo map
+        // identically to the caret's so the ring rides the same visible-timeline convention. No
+        // occupancy gate: the ring previews the mouse Alt+click, which — unlike the keyboard
+        // Insert verb — plants even onto an occupied slot today, so an honest preview of that
+        // gesture must show there too. When mouse placement gains the occupied-slot refusal (with
+        // the drag machinery, Phase 3), the gate returns here alongside it.
+        if (m_tone_insert_ghost.has_value())
+        {
+            for (std::size_t lane_index = 0; lane_index < state.tone_automation.lanes.size();
+                 ++lane_index)
+            {
+                const ToneAutomationLaneViewState& lane = state.tone_automation.lanes[lane_index];
+                if (lane.instance_id != m_tone_insert_ghost->instance_id ||
+                    lane.param_id != m_tone_insert_ghost->param_id)
+                {
+                    continue;
+                }
+                const common::core::GridPosition& position = m_tone_insert_ghost->position;
+                state.tone_automation.insert_ghost = ToneAutomationInsertGhostRef{
+                    .lane_index = lane_index,
+                    .seconds = state.tempo_map.secondsAtNote(
+                        position.measure, position.beat, position.offset),
+                };
+                break;
             }
         }
 

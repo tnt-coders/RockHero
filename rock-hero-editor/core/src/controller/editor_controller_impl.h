@@ -741,6 +741,19 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
             default;
     };
 
+    // The Alt-hover insert ghost's durable identity: the lane it rides (instance + parameter, like
+    // AutomationLaneRow) and the exact snapped slot an Alt+click would plant a point at. Never a
+    // musical operation acts on it — it is recomputed wholesale each hover and resolved to a
+    // rendered ToneAutomationInsertGhostRef (lane index + seconds) each view push.
+    struct ToneInsertGhost
+    {
+        std::string instance_id;
+        std::string param_id;
+        common::core::GridPosition position{};
+
+        friend bool operator==(const ToneInsertGhost& lhs, const ToneInsertGhost& rhs) = default;
+    };
+
     // The marker's armed state: the editing caret owning an exact grid slot and a row — where
     // typing inserts and play starts. The row axis spans the chart strings and then the visible
     // automation lanes (§9b): while `lane` is engaged the caret rides that lane row, and
@@ -794,6 +807,17 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // seeks to the nearest grid slot on the clicked lane and arms the caret there.
     void onToneAutomationLaneCaretRequested(
         std::string instance_id, std::string param_id, common::core::TimePosition time);
+
+    // A button-less lane hover: resolves the Alt insert ghost and publishes it when Alt is held
+    // over an insertable lane slot while paused, else clears it. The snap matches the view's
+    // placement (grid, or the Ctrl fine tier), and a hover that stays within one grid slot leaves
+    // the ghost unchanged and pushes no view rebuild.
+    void onToneAutomationLaneHovered(
+        std::string instance_id, std::string param_id, common::core::TimePosition time, bool alt,
+        bool ctrl);
+
+    // The pointer left the lane row: no hover, so no ghost.
+    void onToneAutomationLaneHoverEnded();
 
     // The Insert key's neutral create: a fret-0 note at an armed empty string slot, an
     // on-curve point at an armed empty lane slot; a no-op on occupied slots, with a selection,
@@ -863,6 +887,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // they track the parameter's live value. Not persisted and not undoable (a lane with no
     // points is a view arrangement, not an edit). Cleared with the session.
     std::vector<OpenAutomationLane> m_open_automation_lanes{};
+
+    // The Alt-hover insert ghost's durable identity, present only while Alt hovers an insertable
+    // lane slot; recomputed wholesale each hover and resolved into the tone-automation view state.
+    // The lane-row sibling of m_chart_insert_ghost.
+    std::optional<ToneInsertGhost> m_tone_insert_ghost{};
 
     // Memoized tab and 3D-highway projections for the displayed arrangement; see
     // deriveViewState for the cache rule (keyed by arrangement id plus the session's chart

@@ -398,6 +398,16 @@ public:
         lane_caret_call_count += 1;
     }
 
+    /*! \copydoc IEditorController::onToneAutomationLaneHovered */
+    void onToneAutomationLaneHovered(
+        std::string /*instance_id*/, std::string /*param_id*/, common::core::TimePosition /*time*/,
+        bool /*alt*/, bool /*ctrl*/) override
+    {}
+
+    /*! \copydoc IEditorController::onToneAutomationLaneHoverEnded */
+    void onToneAutomationLaneHoverEnded() override
+    {}
+
     /*!
     \brief Records the view-reported timeline zoom.
     \param pixels_per_second Reported horizontal timeline scale.
