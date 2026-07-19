@@ -469,15 +469,20 @@ public:
     virtual void onNeutralInsertRequested() = 0;
 
     /*!
-    \brief Handles a click on an automation lane's empty area: seek and arm the caret there.
+    \brief Arms the lane caret at a timeline position: seeks and arms the caret on the named
+    lane's nearest grid slot.
 
-    The caret arms at the nearest grid slot on the clicked lane and the transport rests at that
-    slot (the row-axis form of the chart lane's empty click, §9b). While playing, the click
-    only seeks — armed implies paused.
+    The time-addressed entry to the lane-caret arm. The pixel-input click path arms through
+    \ref onToneAutomationPointerDown; both converge on the one seek-and-arm tail, so a lane caret
+    always rests on one slot however it was addressed. This time-input form is exercised directly
+    by the editor-core suite (arm at 2.5 s, not at a pixel), keeping the caret-semantics tests off
+    the pixel-geometry path the pointer boundary cases already cover. The caret arms at the nearest
+    grid slot on the lane and the transport rests at that slot (the row-axis form of the chart
+    lane's empty click, §9b). While playing it only seeks — armed implies paused.
 
-    \param instance_id Plugin instance owning the clicked lane's parameter.
+    \param instance_id Plugin instance owning the lane's parameter.
     \param param_id Parameter id within the plugin.
-    \param time Clicked timeline position.
+    \param time Timeline position to arm at (the controller snaps to the grid).
     */
     virtual void onToneAutomationLaneCaretRequested(
         std::string instance_id, std::string param_id, common::core::TimePosition time) = 0;

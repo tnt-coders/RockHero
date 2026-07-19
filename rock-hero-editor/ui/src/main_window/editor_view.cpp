@@ -2408,13 +2408,6 @@ void EditorView::onToneAutomationPointSelectRequested(
         std::move(instance_id), std::move(param_id), position);
 }
 
-void EditorView::onToneAutomationLaneCaretRequested(
-    std::string instance_id, std::string param_id, common::core::TimePosition time)
-{
-    m_controller.onToneAutomationLaneCaretRequested(
-        std::move(instance_id), std::move(param_id), time);
-}
-
 void EditorView::onToneAutomationPointerMove(const core::ToneAutomationPointerEvent& event)
 {
     m_controller.onToneAutomationPointerMove(event);

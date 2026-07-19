@@ -7,7 +7,10 @@ assignments (including the automation lanes' shipped 2026-07-09 behavior) moved 
 amendment record is inline below. Note authoring now implements this model; anchor editing
 adopts it when built. **Amended again 2026-07-18** (unified selection, the marker's row axis,
 keyboard-first automation, on-line point placement, the Insert verb — amendment record at the
-bottom; implemented the same day).
+bottom; implemented the same day). **Automation-lane pointer pipeline made controller-centric
+2026-07-19** (a structural/testability migration mirroring the tab lane's `ChartPointerEvent`, plus
+two grammar-aligning fixes — occupied-slot refusal for mouse placement, Ctrl fine precision on the
+caret arm; amendment record at the bottom).
 
 ## Goal
 
@@ -414,3 +417,26 @@ for current behavior):
    Ctrl+T); ghost boundary line + `CopyingCursor` under Alt; Esc cancel; region menu gains
    "Insert Tone Change Here" and "Delete".
 3. Both: gesture commit stays single-undo-entry; snap guides and readout chips unchanged.
+
+## Amendment record — 2026-07-19: the automation-lane pointer pipeline
+
+A structural/testability migration, not a new design decision — the plan was user-approved to ship
+in full. It completes the controller-centric direction the off-grid unification began (which had
+already moved the automation *nudge* out of the lanes view): the automation lane's whole
+pointer/edit pipeline now mirrors the tab lane's. Commits `748f7d5a`, `37b4ba1b`, `67cb83c3`.
+
+1. **Controller-centric pointer seam.** The lanes view forwards raw pointer events through a
+   `ToneAutomationPointerEvent` — the sibling of the tab lane's `ChartPointerEvent` — and paints
+   the `insert_ghost` and `drag_preview` the controller publishes back. Every hit-test, snap,
+   placement, and drag-gesture decision moved into `IEditorController`, testable without JUCE; the
+   view keeps only presentation (painting, lane-resize, menus, readouts, the typed-value callout,
+   the tracking vblank). The lane and the chart now read as one pipeline.
+2. **Mouse placement refuses occupied slots** (behavior fix, aligning with the grammar). Alt+click
+   / Alt+drag on a lane now routes through the same plan the keyboard Insert uses, so a mouse
+   insert can no longer plant a duplicate over an existing point — matching the verb table's
+   "Insert refuses occupied slots" and the tab lane's `planInsertNote`. The insert ghost hides over
+   an occupied slot to match, so it never previews a no-op (no lying affordance).
+3. **The empty-area caret arm honors Ctrl fine precision** (behavior fix, aligning with the
+   grammar). The shipped view hard-coded the visible grid; the caret arm now bypasses to the
+   1/960-beat fine tier under Ctrl, matching the chart caret and the lane's own placement and ghost
+   — so the uniform Ctrl=precision rule holds on this surface too.
