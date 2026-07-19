@@ -21,6 +21,7 @@
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <rock_hero/editor/core/signal_chain/plugin_block_assignment.h>
 #include <rock_hero/editor/core/signal_chain/plugin_display_type.h>
+#include <rock_hero/editor/core/tone/tone_automation_pointer.h>
 #include <string>
 #include <vector>
 
@@ -486,22 +487,18 @@ public:
 
     While paused with Alt held over an insertable empty lane slot the controller publishes the
     insert ghost — the hollow ring on the curve where an Alt+click would plant a point — snapping
-    and occupancy resolved exactly as the click itself would, so the ring only ever shows where an
-    insert would land (§7, no lying affordance). Without Alt, over an occupied slot, or while
-    playing, any standing ghost clears. The hover never mutates the model or moves the marker.
+    resolved exactly as the click itself would: the controller inverts the event's raw pixel x
+    through the same placement seam (timelinePositionForX then the tempo grid, Ctrl to the fine
+    tier), so the ring lands on the identical slot a click would, with no sub-pixel drift. Without
+    Alt, or while playing, any standing ghost clears. The hover never mutates the model or moves the
+    marker. The lanes view resolves which lane the pointer is over and names it on the event.
 
-    \param instance_id Plugin instance owning the hovered lane's parameter.
-    \param param_id Parameter id within the plugin.
-    \param time Hovered timeline position (the controller snaps to the grid, Ctrl to the fine tier).
-    \param alt True when Alt is held — the neutral-create gate; without it no ghost is published.
-    \param ctrl True when Ctrl is held — snap bypasses the visible grid to the fine tier.
+    \param event Lane-local pointer state (hovered lane identity, geometry, pixel x/y, modifiers).
     */
-    virtual void onToneAutomationLaneHovered(
-        std::string instance_id, std::string param_id, common::core::TimePosition time, bool alt,
-        bool ctrl) = 0;
+    virtual void onToneAutomationPointerMove(const ToneAutomationPointerEvent& event) = 0;
 
-    /*! \brief Handles the pointer leaving an automation lane, clearing any Alt insert ghost. */
-    virtual void onToneAutomationLaneHoverEnded() = 0;
+    /*! \brief Handles the pointer leaving the automation lanes, clearing any Alt insert ghost. */
+    virtual void onToneAutomationPointerExit() = 0;
 
     /*!
     \brief Handles a deliberate click on an automation point: it becomes the editor-wide

@@ -2411,17 +2411,14 @@ void EditorView::onToneAutomationLaneCaretRequested(
         std::move(instance_id), std::move(param_id), time);
 }
 
-void EditorView::onToneAutomationLaneHovered(
-    std::string instance_id, std::string param_id, common::core::TimePosition time, bool alt,
-    bool ctrl)
+void EditorView::onToneAutomationPointerMove(const core::ToneAutomationPointerEvent& event)
 {
-    m_controller.onToneAutomationLaneHovered(
-        std::move(instance_id), std::move(param_id), time, alt, ctrl);
+    m_controller.onToneAutomationPointerMove(event);
 }
 
-void EditorView::onToneAutomationLaneHoverEnded()
+void EditorView::onToneAutomationPointerExit()
 {
-    m_controller.onToneAutomationLaneHoverEnded();
+    m_controller.onToneAutomationPointerExit();
 }
 
 void EditorView::onToneAutomationPointsEditRequested(

@@ -900,19 +900,31 @@ void ToneAutomationLanesView::mouseMove(const juce::MouseEvent& event)
 
     // Forward the hover before applying the readout: a lane-area hover can push fresh state (the
     // controller resolves the insert ghost), and that push resets the readout in applyState — so
-    // the readout is applied last, surviving the rebuild.
+    // the readout is applied last, surviving the rebuild. The event carries the raw pixel x plus
+    // the lane geometry rather than a view-computed time, so the controller inverts the pixel
+    // through the placement seam itself and the ghost lands on the exact slot an Alt+click would.
     if (hovered_lane.has_value())
     {
-        m_listener.onToneAutomationLaneHovered(
-            std::move(hovered_lane->first),
-            std::move(hovered_lane->second),
-            common::core::TimePosition{secondsForX(static_cast<float>(event.getPosition().x))},
-            event.mods.isAltDown(),
-            event.mods.isCtrlDown());
+        m_listener.onToneAutomationPointerMove(
+            core::ToneAutomationPointerEvent{
+                .instance_id = std::move(hovered_lane->first),
+                .param_id = std::move(hovered_lane->second),
+                .geometry =
+                    core::ToneAutomationLaneGeometry{
+                        .visible_timeline = m_visible_timeline,
+                        .content_width = getWidth(),
+                    },
+                .x = static_cast<float>(event.getPosition().x),
+                .y = static_cast<float>(event.getPosition().y),
+                .modifiers = core::ToneAutomationPointerModifiers{
+                    .ctrl = event.mods.isCtrlDown(),
+                    .alt = event.mods.isAltDown(),
+                },
+            });
     }
     else
     {
-        m_listener.onToneAutomationLaneHoverEnded();
+        m_listener.onToneAutomationPointerExit();
     }
     setValueReadout(readout);
 
@@ -1063,7 +1075,7 @@ void ToneAutomationLanesView::mouseDown(const juce::MouseEvent& event)
     };
     // The drag preview replaces the hover ghost from here on; end the hover so the controller
     // clears its ghost. Its state push is deferred while the gesture holds and adopted on release.
-    m_listener.onToneAutomationLaneHoverEnded();
+    m_listener.onToneAutomationPointerExit();
     repaint();
 }
 
@@ -1412,7 +1424,7 @@ void ToneAutomationLanesView::mouseExit(const juce::MouseEvent& /*event*/)
     if (!m_drag.has_value())
     {
         setValueReadout(std::nullopt);
-        m_listener.onToneAutomationLaneHoverEnded();
+        m_listener.onToneAutomationPointerExit();
     }
 }
 

@@ -398,14 +398,12 @@ public:
         lane_caret_call_count += 1;
     }
 
-    /*! \copydoc IEditorController::onToneAutomationLaneHovered */
-    void onToneAutomationLaneHovered(
-        std::string /*instance_id*/, std::string /*param_id*/, common::core::TimePosition /*time*/,
-        bool /*alt*/, bool /*ctrl*/) override
+    /*! \copydoc IEditorController::onToneAutomationPointerMove */
+    void onToneAutomationPointerMove(const ToneAutomationPointerEvent& /*event*/) override
     {}
 
-    /*! \copydoc IEditorController::onToneAutomationLaneHoverEnded */
-    void onToneAutomationLaneHoverEnded() override
+    /*! \copydoc IEditorController::onToneAutomationPointerExit */
+    void onToneAutomationPointerExit() override
     {}
 
     /*!

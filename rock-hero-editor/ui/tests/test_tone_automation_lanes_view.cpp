@@ -68,21 +68,15 @@ struct RecordingLanesListener final : public ToneAutomationLanesView::Listener
         lane_caret_count += 1;
     }
 
-    void onToneAutomationLaneHovered(
-        std::string instance_id, std::string param_id, common::core::TimePosition time, bool alt,
-        bool ctrl) override
+    void onToneAutomationPointerMove(const core::ToneAutomationPointerEvent& event) override
     {
-        last_hover_instance_id = std::move(instance_id);
-        last_hover_param_id = std::move(param_id);
-        last_hover_time = time;
-        last_hover_alt = alt;
-        last_hover_ctrl = ctrl;
-        hover_count += 1;
+        last_pointer_event = event;
+        pointer_move_count += 1;
     }
 
-    void onToneAutomationLaneHoverEnded() override
+    void onToneAutomationPointerExit() override
     {
-        hover_ended_count += 1;
+        pointer_exit_count += 1;
     }
 
     std::string last_add_instance_id;
@@ -103,13 +97,9 @@ struct RecordingLanesListener final : public ToneAutomationLanesView::Listener
     std::string last_lane_caret_param_id;
     common::core::TimePosition last_lane_caret_time{};
     int lane_caret_count = 0;
-    std::string last_hover_instance_id;
-    std::string last_hover_param_id;
-    common::core::TimePosition last_hover_time{};
-    bool last_hover_alt = false;
-    bool last_hover_ctrl = false;
-    int hover_count = 0;
-    int hover_ended_count = 0;
+    std::optional<core::ToneAutomationPointerEvent> last_pointer_event;
+    int pointer_move_count = 0;
+    int pointer_exit_count = 0;
 };
 
 [[nodiscard]] core::ToneAutomationViewState makeState()
@@ -386,6 +376,46 @@ TEST_CASE("Lanes view requires Alt to insert on empty lane area", "[ui][tone-aut
     harness.view.mouseUp(testing::makeMouseDownEvent(harness.view, 100.0f, 30.0f, g_alt_click));
     REQUIRE(harness.listener.edit_count == 1);
     CHECK(harness.listener.last_edit_points.size() == 3);
+}
+
+TEST_CASE(
+    "Lanes view forwards lane-area hovers as pointer Move and Exit intents",
+    "[ui][tone-automation-lanes]")
+{
+    LanesHarness harness;
+
+    // A hover over empty editable lane area forwards a pointer Move carrying the hovered lane's
+    // identity, the raw lane-local pixel x, and the geometry the controller needs to snap. The
+    // Phase 2 seam forwards raw pixels + geometry rather than Phase 1's view-computed time, so the
+    // ghost and an Alt+click resolve through one snap path.
+    const juce::ModifierKeys alt_hover{juce::ModifierKeys::altModifier};
+    harness.view.mouseMove(testing::makeMouseDownEvent(harness.view, 100.0f, 30.0f, alt_hover));
+    REQUIRE(harness.listener.pointer_move_count == 1);
+    CHECK(harness.listener.pointer_exit_count == 0);
+    REQUIRE(harness.listener.last_pointer_event.has_value());
+    if (harness.listener.last_pointer_event.has_value())
+    {
+        const core::ToneAutomationPointerEvent& event = *harness.listener.last_pointer_event;
+        CHECK(event.instance_id == "instance-a");
+        CHECK(event.param_id == "gain");
+        // The raw pixel, not a snapped time: exact by construction, is_eq keeps -Wfloat-equal clean.
+        CHECK(std::is_eq(event.x <=> 100.0f));
+        CHECK(event.geometry.content_width == 800);
+        CHECK(std::is_eq(event.geometry.visible_timeline.start.seconds <=> 0.0));
+        CHECK(std::is_eq(event.geometry.visible_timeline.end.seconds <=> 8.0));
+        CHECK(event.modifiers.alt);
+        CHECK_FALSE(event.modifiers.ctrl);
+    }
+
+    // Moving onto an authored point (x 200, y 15) is not empty lane area, so the hover ends: the
+    // view forwards Exit, no further Move.
+    harness.view.mouseMove(testing::makeMouseDownEvent(harness.view, 200.0f, 15.0f));
+    CHECK(harness.listener.pointer_move_count == 1);
+    CHECK(harness.listener.pointer_exit_count == 1);
+
+    // The pointer leaving the component clears the hover too.
+    harness.view.mouseExit(testing::makeMouseDownEvent(harness.view, 200.0f, 15.0f));
+    CHECK(harness.listener.pointer_exit_count == 2);
 }
 
 TEST_CASE(

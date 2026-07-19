@@ -512,13 +512,11 @@ public:
     void onToneAutomationLaneCaretRequested(
         std::string instance_id, std::string param_id, common::core::TimePosition time) override;
 
-    /*! \copydoc IEditorController::onToneAutomationLaneHovered */
-    void onToneAutomationLaneHovered(
-        std::string instance_id, std::string param_id, common::core::TimePosition time, bool alt,
-        bool ctrl) override;
+    /*! \copydoc IEditorController::onToneAutomationPointerMove */
+    void onToneAutomationPointerMove(const ToneAutomationPointerEvent& event) override;
 
-    /*! \copydoc IEditorController::onToneAutomationLaneHoverEnded */
-    void onToneAutomationLaneHoverEnded() override;
+    /*! \copydoc IEditorController::onToneAutomationPointerExit */
+    void onToneAutomationPointerExit() override;
 
     /*! \brief Shows the scanned plugin browser and starts an initial catalog scan when needed. */
     void onPluginBrowserRequested() override;

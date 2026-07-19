@@ -16,6 +16,7 @@
 #include <rock_hero/common/core/tone/tone_track_edits.h>
 #include <rock_hero/common/core/tone/tone_track_rules.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
+#include <rock_hero/editor/core/timeline/timeline_geometry.h>
 #include <string>
 #include <utility>
 #include <vector>
@@ -1099,27 +1100,36 @@ void EditorController::Impl::onToneAutomationLaneCaretRequested(
 
 // A button-less lane hover: resolve the Alt insert ghost and publish it only where an Alt+click
 // would actually land — Alt held, not busy, and paused (armed-create is a paused-only gesture).
-// The snap matches the view's placement exactly (nearestTempoGridPosition on the grid, the Ctrl
-// fine tier via fineGridPositionForBeat), so the ring lands on the same slot the click would. The
-// occupancy gate is applied later, against the published lanes, so the ghost never previews an
-// insert that would no-op. Dirty-checked against the current ghost: a hover that stays within one
-// grid slot leaves it unchanged and pushes no view rebuild, keeping per-pixel hover cheap.
-void EditorController::Impl::onToneAutomationLaneHovered(
-    std::string instance_id, std::string param_id, common::core::TimePosition time, bool alt,
-    bool ctrl)
+// The event carries the raw lane-local pixel x plus the geometry it was mapped against, and the
+// snap runs through the exact seam an Alt+click placement uses: timelinePositionForX inverts the
+// pixel to a click time (÷ (width-1), clamped — not the ÷-width secondsForX Phase 1 forwarded),
+// then nearestTempoGridPosition on the grid, or fineGridPositionForBeat under Ctrl. That is
+// musicalGridPositionForX bit-for-bit, so the ring lands on the identical slot the click would,
+// with no sub-pixel drift. No occupancy gate: the lane's mouse Alt+click plants even onto an
+// occupied slot today, so an honest preview of that gesture shows there too (the gate returns in
+// Phase 3 with the placement refusal). Dirty-checked against the current ghost: a hover that stays
+// within one grid slot leaves it unchanged and pushes no view rebuild.
+void EditorController::Impl::onToneAutomationPointerMove(const ToneAutomationPointerEvent& event)
 {
     std::optional<ToneInsertGhost> ghost;
-    if (alt && !isBusy() && !m_transport.state().playing)
+    if (event.modifiers.alt && !isBusy() && !m_transport.state().playing)
     {
         const common::core::TempoMap& tempo_map = session().song().tempo_map;
-        const common::core::GridPosition position =
-            ctrl ? fineGridPositionForBeat(tempo_map, tempo_map.beatPositionAtSeconds(time.seconds))
-                 : nearestTempoGridPosition(tempo_map, m_grid_note_value, time);
-        ghost = ToneInsertGhost{
-            .instance_id = std::move(instance_id),
-            .param_id = std::move(param_id),
-            .position = position,
-        };
+        if (const std::optional<common::core::TimePosition> clicked = timelinePositionForX(
+                event.x, event.geometry.visible_timeline, event.geometry.content_width);
+            clicked.has_value())
+        {
+            const common::core::GridPosition position =
+                event.modifiers.ctrl
+                    ? fineGridPositionForBeat(
+                          tempo_map, tempo_map.beatPositionAtSeconds(clicked->seconds))
+                    : nearestTempoGridPosition(tempo_map, m_grid_note_value, *clicked);
+            ghost = ToneInsertGhost{
+                .instance_id = event.instance_id,
+                .param_id = event.param_id,
+                .position = position,
+            };
+        }
     }
     if (ghost == m_tone_insert_ghost)
     {
@@ -1130,7 +1140,7 @@ void EditorController::Impl::onToneAutomationLaneHovered(
 }
 
 // The pointer left the lane row: no hover, so no ghost. Refresh only when one was actually showing.
-void EditorController::Impl::onToneAutomationLaneHoverEnded()
+void EditorController::Impl::onToneAutomationPointerExit()
 {
     if (!m_tone_insert_ghost.has_value())
     {
