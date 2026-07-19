@@ -887,9 +887,10 @@ TEST_CASE("EditorController deletes the chart selection undoably", "[core][chart
     controller.attachView(view);
     REQUIRE(loadChartArrangement(controller, project_services, audio));
 
-    // A double click selects the whole measure-2 chord (both strings).
+    // A double click selects the whole measure-2 chord (both strings); the unified Delete
+    // dispatch removes it (the chart branch of the one selection-delete intent).
     doubleClick(controller, 40.0f, 220.0f);
-    controller.onChartSelectionDeleteRequested();
+    controller.onSelectionDeleteRequested();
 
     const auto* chart = chartOrNull(controller);
     REQUIRE(chart->notes.size() == 1);

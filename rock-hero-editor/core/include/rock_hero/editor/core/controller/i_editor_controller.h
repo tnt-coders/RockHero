@@ -275,9 +275,6 @@ public:
     */
     virtual void onSelectionMoveRequested(ChartStepDirection direction, bool fine) = 0;
 
-    /*! \brief Handles a request to delete the selected chart notes as one undo entry. */
-    virtual void onChartSelectionDeleteRequested() = 0;
-
     /*!
     \brief Handles the Delete key: deletes the one editor-wide selection, whatever its kind.
 

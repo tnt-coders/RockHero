@@ -12,6 +12,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/tone/tone_track_edits.h>
@@ -220,12 +221,12 @@ void EditorController::Impl::applyToneSelection(std::string region_id)
         // or automation selection made since (one selection editor-wide, per-kind lifecycles).
         if (std::holds_alternative<ToneRegionSelection>(m_selection))
         {
-            m_selection = std::monostate{};
+            setSelection(std::monostate{});
         }
     }
     else
     {
-        m_selection = ToneRegionSelection{.region_id = std::move(region_id)};
+        setSelection(ToneRegionSelection{.region_id = std::move(region_id)});
     }
     syncAudibleTone();
 }
@@ -949,23 +950,36 @@ void EditorController::Impl::resetSoleToneRegion(const std::string& region_id)
     }
 }
 
+// The one port lookup of a parameter's metadata by (instance, param): every consumer of
+// AutomatableParamInfo — undo labels, landing-value shape, value stepping — resolves through
+// this so the identity resolution can never drift between them.
+std::optional<common::audio::AutomatableParamInfo> EditorController::Impl::paramInfoFor(
+    const std::string& tone_document_ref, const std::string& instance_id,
+    const std::string& param_id) const
+{
+    auto parameters = m_tone_automation.listAutomatableParameters(tone_document_ref);
+    if (!parameters.has_value())
+    {
+        return std::nullopt;
+    }
+    for (common::audio::AutomatableParamInfo& parameter : *parameters)
+    {
+        if (parameter.instance_id == instance_id && parameter.param_id == param_id)
+        {
+            return std::move(parameter);
+        }
+    }
+    return std::nullopt;
+}
+
 // Looks up a tone-chain parameter's user-facing name for the undo label, falling back to its id.
 std::string EditorController::Impl::automationParameterName(
     const std::string& tone_document_ref, const std::string& instance_id,
     const std::string& param_id) const
 {
-    const auto parameters = m_tone_automation.listAutomatableParameters(tone_document_ref);
-    if (parameters.has_value())
-    {
-        for (const common::audio::AutomatableParamInfo& parameter : *parameters)
-        {
-            if (parameter.instance_id == instance_id && parameter.param_id == param_id)
-            {
-                return parameter.name;
-            }
-        }
-    }
-    return param_id;
+    std::optional<common::audio::AutomatableParamInfo> parameter =
+        paramInfoFor(tone_document_ref, instance_id, param_id);
+    return parameter.has_value() ? std::move(parameter->name) : param_id;
 }
 
 // Supplies the audible chain's durable plugin ids for capture, in chain order, minting ids for
@@ -1156,16 +1170,17 @@ void EditorController::Impl::seekAndArmLaneCaret(
     {
         return;
     }
-    m_transport.seek(
-        session().timeline().clamp(
-            common::core::TimePosition{secondsAtGridPosition(
-                session().song().tempo_map, position)}));
-    activateToneAtCursor();
+    // The seek routes through the one SeekTimeline action, so a lane-caret seek gets the same
+    // gating, clamping, marker demotion, and tone-follow every other seek gets (arming below
+    // immediately supersedes the demotion while paused).
+    runAction(
+        EditorAction::SeekTimeline{common::core::TimePosition{secondsAtGridPosition(
+            session().song().tempo_map, position)}});
     if (!m_transport.state().playing)
     {
         armLaneCaret(position, std::move(row));
+        updateView();
     }
-    updateView();
 }
 
 // A button-less lane hover: resolve the Alt insert ghost and publish it only where an Alt+click
@@ -1625,20 +1640,13 @@ std::optional<EditorController::Impl::LanePointPlan> EditorController::Impl::pla
     // tracking line, which needs the parameter's current value from the port. The value shape
     // rides along so the evaluation holds steps exactly as the lane draws them.
     std::optional<float> fallback;
-    if (auto listed = m_tone_automation.listAutomatableParameters(activeToneDocumentRef());
-        listed.has_value())
+    if (const std::optional<common::audio::AutomatableParamInfo> parameter =
+            paramInfoFor(activeToneDocumentRef(), caret.lane->instance_id, caret.lane->param_id);
+        parameter.has_value())
     {
-        for (const common::audio::AutomatableParamInfo& parameter : *listed)
-        {
-            if (parameter.instance_id == caret.lane->instance_id &&
-                parameter.param_id == caret.lane->param_id)
-            {
-                fallback = parameter.current_norm_value;
-                plan.is_discrete = parameter.is_discrete;
-                plan.discrete_value_count = parameter.discrete_value_count;
-                break;
-            }
-        }
+        fallback = parameter->current_norm_value;
+        plan.is_discrete = parameter->is_discrete;
+        plan.discrete_value_count = parameter->discrete_value_count;
     }
     if (plan.points.empty() && !fallback.has_value())
     {
@@ -1674,11 +1682,12 @@ void EditorController::Impl::plantLanePoint(
     plan.points.insert(
         insert_at, common::core::ToneAutomationPoint{.position = position, .norm_value = value});
     onSetToneAutomationPoints(row.instance_id, row.param_id, std::move(plan.points));
-    m_selection = AutomationPointSelection{
-        .instance_id = row.instance_id,
-        .param_id = row.param_id,
-        .position = position,
-    };
+    setSelection(
+        AutomationPointSelection{
+            .instance_id = row.instance_id,
+            .param_id = row.param_id,
+            .position = position,
+        });
     updateView();
 }
 
@@ -1731,28 +1740,19 @@ void EditorController::Impl::createAndNudgeLanePointAtCaret(
     plantLanePoint(*caret.lane, std::move(*plan), position, value);
 }
 
-// One lane keyboard time-step through the beat axis so the result stays an exact rational: the
-// adjacent tempo-grid line, or one 1/960-beat fine step. Landing via nearest-grid-line keeps
-// odd grids exact and respects the measure-anchored walk.
+// One lane keyboard time-step, exact rational end to end: the adjacent tempo-grid line through
+// the shared adjacentTempoGridPosition primitive (the same walk the caret steps with), or one
+// relative 1/960-beat fine step — precisely reversible, like the chart note's fine move.
 common::core::GridPosition EditorController::Impl::steppedLaneNudgePosition(
     const common::core::GridPosition& from, bool later, bool fine) const
 {
     const common::core::TempoMap& tempo_map = session().song().tempo_map;
-    const double global_beat =
-        static_cast<double>(tempo_map.globalBeatIndex(from.measure, from.beat)) +
-        from.offset.toDouble();
     if (fine)
     {
-        return fineGridPositionForBeat(tempo_map, global_beat + (later ? 1.0 : -1.0) / 960.0);
+        return common::core::advanceGridPosition(
+            tempo_map, from, common::core::Fraction{later ? 1 : -1, g_fine_grid_denominator});
     }
-    // One grid step is the grid note value scaled by the local meter's beat unit.
-    const common::core::TimeSignatureChange signature = tempo_map.timeSignatureAt(from.measure);
-    const double step_beats =
-        m_grid_note_value.toDouble() * static_cast<double>(signature.denominator);
-    const double target_seconds =
-        tempo_map.secondsAtGlobalBeatPosition(global_beat + (later ? step_beats : -step_beats));
-    return nearestTempoGridPosition(
-        tempo_map, m_grid_note_value, common::core::TimePosition{target_seconds});
+    return adjacentTempoGridPosition(tempo_map, m_grid_note_value, from, later);
 }
 
 // The active tone region's time window — the span automation edits clamp inside. Resolved
@@ -1793,11 +1793,12 @@ void EditorController::Impl::onToneAutomationPointSelected(
     }
     if (m_transport.state().playing)
     {
-        m_selection = AutomationPointSelection{
-            .instance_id = std::move(instance_id),
-            .param_id = std::move(param_id),
-            .position = position,
-        };
+        setSelection(
+            AutomationPointSelection{
+                .instance_id = std::move(instance_id),
+                .param_id = std::move(param_id),
+                .position = position,
+            });
     }
     else
     {
@@ -1873,19 +1874,12 @@ void EditorController::Impl::moveSelectedAutomationPoint(
         // landing value at creation.
         bool is_discrete = false;
         int discrete_value_count = 0;
-        if (auto listed = m_tone_automation.listAutomatableParameters(activeToneDocumentRef());
-            listed.has_value())
+        if (const std::optional<common::audio::AutomatableParamInfo> parameter =
+                paramInfoFor(activeToneDocumentRef(), selection.instance_id, selection.param_id);
+            parameter.has_value())
         {
-            for (const common::audio::AutomatableParamInfo& parameter : *listed)
-            {
-                if (parameter.instance_id == selection.instance_id &&
-                    parameter.param_id == selection.param_id)
-                {
-                    is_discrete = parameter.is_discrete;
-                    discrete_value_count = parameter.discrete_value_count;
-                    break;
-                }
-            }
+            is_discrete = parameter->is_discrete;
+            discrete_value_count = parameter->discrete_value_count;
         }
         const float step = laneValueStep(is_discrete, discrete_value_count, fine);
         const float raw = point->norm_value + (direction == ChartStepDirection::Up ? step : -step);
@@ -1941,11 +1935,12 @@ void EditorController::Impl::moveSelectedAutomationPoint(
         m_chart_marker =
             ChartCaret{.position = new_position, .string = caret->string, .lane = caret->lane};
     }
-    m_selection = AutomationPointSelection{
-        .instance_id = selection.instance_id,
-        .param_id = selection.param_id,
-        .position = new_position,
-    };
+    setSelection(
+        AutomationPointSelection{
+            .instance_id = selection.instance_id,
+            .param_id = selection.param_id,
+            .position = new_position,
+        });
     updateView();
 }
 

@@ -58,7 +58,8 @@ sustain ringing across the onset truncates (40-Q2-B), all in the one plan.
 /*!
 \brief Plans deleting the notes matching the given keys.
 \param chart Chart being edited.
-\param keys Notes to delete; keys with no matching note are skipped.
+\param keys Notes to delete, sorted ascending (the ChartSelection order — lookups binary-search
+this precondition); keys with no matching note are skipped.
 \return The plan, or empty when no key matched.
 */
 [[nodiscard]] std::optional<ChartNotesEditPlan> planDeleteNotes(
@@ -73,7 +74,8 @@ at the destinations truncate per 40-Q2-B.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis.
-\param keys Notes to move.
+\param keys Notes to move, sorted ascending (the ChartSelection order — lookups binary-search
+this precondition).
 \param beat_delta Signed exact beat delta.
 \param string_delta Signed string-lane delta.
 \param label User-visible undo label.
@@ -113,7 +115,8 @@ points beyond a shortened sustain are clipped with it.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis.
-\param keys Notes whose sustains change.
+\param keys Notes whose sustains change, sorted ascending (the ChartSelection order — lookups
+binary-search this precondition).
 \param beat_delta Signed exact beat delta.
 \return The plan, or empty when nothing changes.
 */

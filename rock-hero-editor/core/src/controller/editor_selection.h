@@ -7,7 +7,6 @@
 
 #include "chart/chart_selection.h"
 
-#include <compare>
 #include <rock_hero/common/core/chart/chart.h>
 #include <string>
 #include <variant>

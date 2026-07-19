@@ -10,12 +10,6 @@
 namespace rock_hero::editor::core
 {
 
-double secondsAtGridPosition(
-    const common::core::TempoMap& tempo_map, const common::core::GridPosition& position)
-{
-    return tempo_map.secondsAtNote(position.measure, position.beat, position.offset);
-}
-
 float toneAutomationCurveValueAt(
     const std::vector<common::core::ToneAutomationPoint>& points,
     const common::core::TempoMap& tempo_map, const common::core::GridPosition& position,
@@ -54,6 +48,66 @@ float toneAutomationCurveValueAt(
         return std::lerp(previous.norm_value, points[index].norm_value, mix);
     }
     return points.back().norm_value;
+}
+
+std::vector<ToneAutomationLaneSource> toneAutomationLaneSources(
+    const common::core::Arrangement& arrangement, const std::string& selected_tone_document_ref,
+    const std::unordered_map<std::string, common::audio::ToneAutomationBinding>& bindings,
+    const std::vector<OpenAutomationLane>& open_lanes)
+{
+    std::vector<ToneAutomationLaneSource> sources;
+    if (selected_tone_document_ref.empty())
+    {
+        return sources;
+    }
+
+    for (const common::core::ToneParameterAutomation& entry : arrangement.tone_automation)
+    {
+        const auto binding = bindings.find(entry.plugin_id);
+        if (binding == bindings.end() ||
+            binding->second.tone_document_ref != selected_tone_document_ref)
+        {
+            // Entries for other tones render under their own tone; entries with no runtime
+            // binding at all stay persisted but have no lane to live in yet.
+            continue;
+        }
+        sources.push_back(
+            ToneAutomationLaneSource{
+                .instance_id = binding->second.instance_id,
+                .param_id = entry.param_id,
+                .entry = &entry,
+            });
+    }
+
+    // Open lanes without authored points follow: they track the parameter's live value until the
+    // first point is authored, at which point the model lane above subsumes them. Open lanes are
+    // keyed by durable plugin id and resolve to the live instance through the bindings, so they
+    // survive rig reloads (which recreate every plugin instance).
+    for (const OpenAutomationLane& open_lane : open_lanes)
+    {
+        if (open_lane.tone_document_ref != selected_tone_document_ref)
+        {
+            continue;
+        }
+        const auto binding = bindings.find(open_lane.plugin_id);
+        const std::string instance_id =
+            binding != bindings.end() ? binding->second.instance_id : std::string{};
+        const bool already_laned = std::ranges::any_of(
+            sources, [&instance_id, &open_lane](const ToneAutomationLaneSource& source) {
+                return source.instance_id == instance_id && source.param_id == open_lane.param_id;
+            });
+        if (already_laned)
+        {
+            continue;
+        }
+        sources.push_back(
+            ToneAutomationLaneSource{
+                .instance_id = instance_id,
+                .param_id = open_lane.param_id,
+                .entry = nullptr,
+            });
+    }
+    return sources;
 }
 
 ToneAutomationViewState makeToneAutomationViewState(
@@ -97,24 +151,20 @@ ToneAutomationViewState makeToneAutomationViewState(
         return nullptr;
     };
 
-    for (const common::core::ToneParameterAutomation& entry : arrangement.tone_automation)
+    // Lanes build from the one lane-source enumeration (model entries then unsubsumed open
+    // lanes), with one metadata fill for both kinds; only a model source carries points.
+    const std::vector<ToneAutomationLaneSource> sources =
+        toneAutomationLaneSources(arrangement, selected_tone_document_ref, bindings, open_lanes);
+    state.lanes.reserve(sources.size());
+    for (const ToneAutomationLaneSource& source : sources)
     {
-        const auto binding = bindings.find(entry.plugin_id);
-        if (binding == bindings.end() ||
-            binding->second.tone_document_ref != selected_tone_document_ref)
-        {
-            // Entries for other tones render under their own tone; entries with no runtime
-            // binding at all stay persisted but have no lane to live in yet.
-            continue;
-        }
-
         ToneAutomationLaneViewState lane;
-        lane.instance_id = binding->second.instance_id;
-        lane.param_id = entry.param_id;
-        lane.name = entry.param_id;
+        lane.instance_id = source.instance_id;
+        lane.param_id = source.param_id;
+        lane.name = source.param_id;
         lane.resolved = false;
         if (const common::audio::AutomatableParamInfo* const parameter =
-                parameter_for(lane.instance_id, entry.param_id);
+                parameter_for(source.instance_id, source.param_id);
             parameter != nullptr)
         {
             lane.name = parameter->name;
@@ -125,59 +175,19 @@ ToneAutomationViewState makeToneAutomationViewState(
             lane.default_norm_value = parameter->default_norm_value;
             lane.resolved = true;
         }
-
-        lane.points.reserve(entry.points.size());
-        for (const common::core::ToneAutomationPoint& point : entry.points)
+        if (source.entry != nullptr)
         {
-            lane.points.push_back(
-                ToneAutomationPointViewState{
-                    .position = point.position,
-                    .seconds = secondsAtGridPosition(tempo_map, point.position),
-                    .norm_value = point.norm_value,
-                    .curve_shape = point.curve_shape,
-                });
-        }
-        state.lanes.push_back(std::move(lane));
-    }
-
-    // Open lanes without authored points follow: they track the parameter's live value until the
-    // first point is authored, at which point the model lane above subsumes them. Open lanes are
-    // keyed by durable plugin id and resolve to the live instance through the bindings, so they
-    // survive rig reloads (which recreate every plugin instance).
-    for (const OpenAutomationLane& open_lane : open_lanes)
-    {
-        if (open_lane.tone_document_ref != selected_tone_document_ref)
-        {
-            continue;
-        }
-        const auto binding = bindings.find(open_lane.plugin_id);
-        const std::string instance_id =
-            binding != bindings.end() ? binding->second.instance_id : std::string{};
-        const bool already_laned = std::ranges::any_of(
-            state.lanes, [&instance_id, &open_lane](const ToneAutomationLaneViewState& lane) {
-                return lane.instance_id == instance_id && lane.param_id == open_lane.param_id;
-            });
-        if (already_laned)
-        {
-            continue;
-        }
-
-        ToneAutomationLaneViewState lane;
-        lane.instance_id = instance_id;
-        lane.param_id = open_lane.param_id;
-        lane.name = open_lane.param_id;
-        lane.resolved = false;
-        if (const common::audio::AutomatableParamInfo* const parameter =
-                parameter_for(instance_id, open_lane.param_id);
-            parameter != nullptr)
-        {
-            lane.name = parameter->name;
-            lane.plugin_name = parameter->plugin_name;
-            lane.is_discrete = parameter->is_discrete;
-            lane.discrete_value_count = parameter->discrete_value_count;
-            lane.live_norm_value = parameter->current_norm_value;
-            lane.default_norm_value = parameter->default_norm_value;
-            lane.resolved = true;
+            lane.points.reserve(source.entry->points.size());
+            for (const common::core::ToneAutomationPoint& point : source.entry->points)
+            {
+                lane.points.push_back(
+                    ToneAutomationPointViewState{
+                        .position = point.position,
+                        .seconds = secondsAtGridPosition(tempo_map, point.position),
+                        .norm_value = point.norm_value,
+                        .curve_shape = point.curve_shape,
+                    });
+            }
         }
         state.lanes.push_back(std::move(lane));
     }
