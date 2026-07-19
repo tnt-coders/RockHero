@@ -210,14 +210,15 @@ TEST_CASE("EditorController keeps one selection across surfaces", "[core][chart]
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
     CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{0});
-    const bool caret_before = state->chart_edit.caret.has_value();
+    CHECK(state->chart_edit.caret.has_value());
 
-    // Selecting an automation point (another surface) replaces the chart selection while the
-    // marker keeps its state — selection and position are separate concepts (§9a/§9b).
+    // Selecting an automation point (another surface) replaces the chart selection, and the
+    // marker follows the click onto the lane row (2026-07-18 — clicks arm on both surfaces):
+    // the chart-row caret unpublishes while the caret rides the lane.
     controller.onToneAutomationPointSelected(
         "instance-x", "gain", common::core::GridPosition{.measure = 1, .beat = 1, .offset = {}});
     CHECK(state->chart_edit.selected_notes.empty());
-    CHECK(state->chart_edit.caret.has_value() == caret_before);
+    CHECK_FALSE(state->chart_edit.caret.has_value());
 
     // Delete on the (stale — no such plugin) automation selection removes nothing.
     const auto* chart = chartOrNull(controller);
@@ -970,6 +971,52 @@ TEST_CASE("EditorController fine-moves the selection by 1/960 beat", "[core][cha
     controller.onSelectionMoveRequested(ChartStepDirection::Left, true);
     chart = chartOrNull(controller);
     CHECK(chart->notes[1].position == (common::core::GridPosition{.measure = 2, .beat = 2}));
+}
+
+// Off-grid notes are first-class caret stops (the union stop set, settled 2026-07-18): plain
+// arrows step to the nearer of the adjacent grid line and the row's next note, so a
+// fine-placed note stays reachable from the keyboard — and landing on it arms onto it.
+TEST_CASE("EditorController steps the caret onto off-grid notes", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    // Slide the (2,1) string-1 note one fine step off the grid; the caret (armed on the note
+    // by the click) rides the fine move with it.
+    click(controller, 40.0f, 220.0f);
+    controller.onSelectionMoveRequested(ChartStepDirection::Right, true);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{1});
+
+    // Plain Left leaves the note onto the adjacent (2,1) grid line — never jumping past it —
+    // and the empty slot clears the selection.
+    controller.onChartCaretStepRequested(ChartStepDirection::Left, false);
+    CHECK(state->chart_edit.selected_notes.empty());
+
+    // Plain Right lands back ON the off-grid note (nearer than the (2,2) grid line): the
+    // caret arms onto it, selecting it.
+    controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{1});
+
+    // The next step continues to the (2,2) grid line (an empty slot clears the selection);
+    // stepping back stops on the note again before the line.
+    controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    CHECK(state->chart_edit.selected_notes.empty());
+    controller.onChartCaretStepRequested(ChartStepDirection::Left, false);
+    CHECK(state->chart_edit.selected_notes == std::vector<std::size_t>{1});
 }
 
 // Loading a different song clears the selection so keys never leak across charts.

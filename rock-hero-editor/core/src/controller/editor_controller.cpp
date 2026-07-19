@@ -1722,24 +1722,13 @@ void EditorController::Impl::armLaneCaret(
     common::core::GridPosition position, AutomationLaneRow row)
 {
     bool on_point = false;
-    if (const auto identity = m_tone_plugin_identities.find(row.instance_id);
-        identity != m_tone_plugin_identities.end())
+    if (const std::vector<common::core::ToneAutomationPoint>* const points =
+            lanePointsFor(row.instance_id, row.param_id))
     {
-        if (const std::vector<common::core::ToneParameterAutomation>* const automation =
-                m_session.currentToneAutomation();
-            automation != nullptr)
-        {
-            const auto entry = std::ranges::find_if(
-                *automation, [&](const common::core::ToneParameterAutomation& candidate) {
-                    return candidate.plugin_id == identity->second.plugin_id &&
-                           candidate.param_id == row.param_id;
-                });
-            on_point = entry != automation->end() &&
-                       std::ranges::any_of(
-                           entry->points, [&](const common::core::ToneAutomationPoint& point) {
-                               return point.position == position;
-                           });
-        }
+        on_point =
+            std::ranges::any_of(*points, [&](const common::core::ToneAutomationPoint& point) {
+                return point.position == position;
+            });
     }
 
     if (on_point)
@@ -1756,6 +1745,49 @@ void EditorController::Impl::armLaneCaret(
     }
     m_chart_marker =
         ChartCaret{.position = position, .string = chartMarkerString(), .lane = std::move(row)};
+}
+
+// The caret row's next authored object strictly beyond the caret in the step direction: notes
+// on the caret's string, points on its lane. Linear scans are fine at keypress cadence.
+std::optional<common::core::GridPosition> EditorController::Impl::nextRowObjectStop(
+    const ChartCaret& caret, bool later)
+{
+    std::optional<common::core::GridPosition> best;
+    const auto consider = [&](const common::core::GridPosition& position) {
+        if (later ? !(caret.position < position) : !(position < caret.position))
+        {
+            return;
+        }
+        if (!best.has_value() || (later ? position < *best : *best < position))
+        {
+            best = position;
+        }
+    };
+    if (caret.lane.has_value())
+    {
+        if (const std::vector<common::core::ToneAutomationPoint>* const points =
+                lanePointsFor(caret.lane->instance_id, caret.lane->param_id))
+        {
+            for (const common::core::ToneAutomationPoint& point : *points)
+            {
+                consider(point.position);
+            }
+        }
+        return best;
+    }
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value())
+    {
+        return best;
+    }
+    for (const common::core::ChartNote& note : arrangement->chart->notes)
+    {
+        if (note.string == caret.string)
+        {
+            consider(note.position);
+        }
+    }
+    return best;
 }
 
 // The visible automation lane rows in display order, derived from the same projection the
@@ -2188,25 +2220,53 @@ void EditorController::Impl::onChartCaretStepRequested(ChartStepDirection direct
     }
     else
     {
-        // Snap the caret onto the rendered grid (a grid note-value switch can leave it off
-        // the new grid), then step one grid line; the re-snap-and-push guard keeps it
-        // progressing across measure-anchored grid restarts.
-        const common::core::GridPosition current =
+        // The caret steps the union stop set (settled 2026-07-18): the adjacent grid line OR
+        // the row's next authored object — a note on this string, a point on this lane —
+        // whichever is nearer. Off-grid objects are first-class stops, so a fine-placed note
+        // stays reachable from plain arrows; landing on one arms onto it (selecting it)
+        // exactly like landing on an occupied grid slot.
+        const common::core::GridPosition snapped =
             common::core::snapGridPosition(tempo_map, caret.position, m_grid_note_value);
-        const common::core::Fraction unsigned_step = chartGridStepBeats(current);
-        const common::core::Fraction step{
-            sign * unsigned_step.numerator, unsigned_step.denominator
-        };
-        stepped = common::core::snapGridPosition(
-            tempo_map,
-            common::core::advanceGridPosition(tempo_map, current, step),
-            m_grid_note_value);
-        if (stepped == current)
+        const bool snapped_is_ahead =
+            sign > 0 ? caret.position < snapped : snapped < caret.position;
+        if (snapped_is_ahead)
         {
+            // An off-grid caret whose nearest line lies in the step direction stops there
+            // first (nearest-line snap must never jump PAST the adjacent line).
+            stepped = snapped;
+        }
+        else
+        {
+            // From the lattice (or off-grid with the nearest line behind): step one grid
+            // line; the re-snap-and-push guard keeps it progressing across measure-anchored
+            // grid restarts.
+            const common::core::Fraction unsigned_step = chartGridStepBeats(snapped);
+            const common::core::Fraction step{
+                sign * unsigned_step.numerator, unsigned_step.denominator
+            };
             stepped = common::core::snapGridPosition(
                 tempo_map,
-                common::core::advanceGridPosition(tempo_map, stepped, step),
+                common::core::advanceGridPosition(tempo_map, snapped, step),
                 m_grid_note_value);
+            if (stepped == snapped)
+            {
+                stepped = common::core::snapGridPosition(
+                    tempo_map,
+                    common::core::advanceGridPosition(tempo_map, stepped, step),
+                    m_grid_note_value);
+            }
+        }
+        if (const std::optional<common::core::GridPosition> object_stop =
+                nextRowObjectStop(caret, sign > 0);
+            object_stop.has_value())
+        {
+            const bool grid_advanced =
+                sign > 0 ? caret.position < stepped : stepped < caret.position;
+            const bool object_nearer = sign > 0 ? *object_stop < stepped : stepped < *object_stop;
+            if (!grid_advanced || object_nearer)
+            {
+                stepped = *object_stop;
+            }
         }
     }
     // Time stepping is row-agnostic: a lane caret steps the same grid and keeps its row.
@@ -3397,6 +3457,10 @@ EditorViewState EditorController::Impl::deriveViewState() const
                         .seconds = state.tempo_map.secondsAtNote(
                             caret->position.measure, caret->position.beat, caret->position.offset),
                         .position = caret->position,
+                        .measure_start_seconds =
+                            state.tempo_map.secondsAtNote(caret->position.measure, 1, {}),
+                        .measure_end_seconds =
+                            state.tempo_map.secondsAtNote(caret->position.measure + 1, 1, {}),
                     };
                     break;
                 }

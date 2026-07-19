@@ -662,6 +662,20 @@ void EditorView::setState(const core::EditorViewState& state)
             m_state.chart_edit.caret->measure_end_seconds,
             m_state.chart_edit.caret->seconds);
     }
+    // A lane-riding caret glides the very same way (one caret, one reveal rule): its published
+    // ref carries the same measure bounds, and the two blocks can never both fire because the
+    // caret publishes through exactly one of the two states.
+    if (m_state.tone_automation.lane_caret.has_value() &&
+        (!previous_state.tone_automation.lane_caret.has_value() ||
+         std::is_neq(
+             previous_state.tone_automation.lane_caret->seconds <=>
+             m_state.tone_automation.lane_caret->seconds)))
+    {
+        m_track_viewport->ensureMeasureVisible(
+            m_state.tone_automation.lane_caret->measure_start_seconds,
+            m_state.tone_automation.lane_caret->measure_end_seconds,
+            m_state.tone_automation.lane_caret->seconds);
+    }
     // The count chip appears from two selected notes up: typing acts on the whole selection,
     // so its size must stay visible even with the highlights scrolled off-screen.
     const std::size_t selected_count = m_state.chart_edit.selected_notes.size();

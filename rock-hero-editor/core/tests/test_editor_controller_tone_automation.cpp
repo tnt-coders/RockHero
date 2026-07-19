@@ -455,6 +455,12 @@ TEST_CASE(
     CHECK(editor.automation().selected_point->point_index == 1);
     CHECK_FALSE(editor.view.last_state->tone_track.regions.front().selected);
 
+    // The caret arms at the clicked point's slot (2026-07-18 fix), so keyboard verbs continue
+    // from the object just touched.
+    REQUIRE(editor.automation().lane_caret.has_value());
+    CHECK(editor.automation().lane_caret->lane_index == 0);
+    CHECK(editor.automation().lane_caret->position == pointAt(2, 1));
+
     // A seek is cursor motion: the cursor-coupled selection clears, exactly like the shipped
     // tone-region rule.
     editor.controller.onTimelineSeekRequested(common::core::TimePosition{1.0});
@@ -622,6 +628,48 @@ TEST_CASE(
     // One undo removes the whole create-then-nudge (the step was baked into the creation).
     editor.controller.onUndoRequested();
     CHECK(editor.model().front().points.size() == 2);
+}
+
+TEST_CASE("EditorController steps the lane caret onto off-grid points", "[core][tone-automation]")
+{
+    // Lane caret stepping runs on the marker's shared row axis, which needs a (noteless) chart
+    // so the tab projection exists.
+    common::core::Song song = makeAutomationSong();
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    song.arrangements.front().chart = std::move(chart);
+    AutomationEditor editor{std::move(song)};
+
+    editor.controller.onSetToneAutomationPoints(
+        g_instance,
+        g_param,
+        {
+            common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.2F},
+            common::core::ToneAutomationPoint{.position = pointAt(2, 2), .norm_value = 0.8F},
+        });
+
+    // Selecting the (2,2) point arms the caret on it; the fine step slides both off the grid.
+    editor.controller.onToneAutomationPointSelected(g_instance, g_param, pointAt(2, 2));
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Left, true);
+    const common::core::GridPosition fine_slot{
+        .measure = 2, .beat = 1, .offset = common::core::Fraction{959, 960}
+    };
+    REQUIRE(editor.automation().lane_caret.has_value());
+    CHECK(editor.automation().lane_caret->position == fine_slot);
+
+    // Plain Left steps to the (2,1) grid line — an empty slot, so the selection clears.
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Left, false);
+    REQUIRE(editor.automation().lane_caret.has_value());
+    CHECK(editor.automation().lane_caret->position == pointAt(2, 1));
+    CHECK_FALSE(editor.automation().selected_point.has_value());
+
+    // Plain Right stops ON the off-grid point before the (2,2) line, selecting it (the union
+    // stop set on lane rows).
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    REQUIRE(editor.automation().lane_caret.has_value());
+    CHECK(editor.automation().lane_caret->position == fine_slot);
+    REQUIRE(editor.automation().selected_point.has_value());
+    CHECK(editor.automation().selected_point->point_index == 1);
 }
 
 } // namespace rock_hero::editor::core
