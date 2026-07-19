@@ -116,6 +116,47 @@ struct LoadedToneEditor
 } // namespace
 
 TEST_CASE(
+    "EditorController resolves cursor-follow regions with sub-beat boundaries",
+    "[core][editor-controller]")
+{
+    // The boundary sits at measure 2 beat 1 + half a beat (2.25 s at 120 BPM 4/4): cursor-follow
+    // must honor the offset exactly as the drawn tone row does — it used to drop it and flip to
+    // the next region a quarter second early.
+    common::core::Song song = makeToneSongBase();
+    const common::core::GridPosition off_beat_boundary{
+        .measure = 2, .beat = 1, .offset = common::core::Fraction{1, 2}
+    };
+    song.arrangements.front().tone_track.regions = {
+        common::core::ToneRegion{
+            .id = g_region_a,
+            .start = gridAt(1, 1),
+            .end = off_beat_boundary,
+            .tone_document_ref = g_tone_document_ref,
+        },
+        common::core::ToneRegion{
+            .id = g_region_b,
+            .start = off_beat_boundary,
+            .end = gridAt(3, 1),
+            .tone_document_ref = g_second_tone_ref,
+        },
+    };
+    LoadedToneEditor editor{std::move(song)};
+
+    // Just before the off-beat boundary the first region is still the active one.
+    editor.controller.onTimelineSeekRequested(common::core::TimePosition{2.1});
+    const EditorViewState* state = stateOrNull(editor.view.last_state);
+    REQUIRE(state != nullptr);
+    REQUIRE(state->tone_track.regions.size() == 2);
+    CHECK(state->tone_track.regions[0].active);
+    CHECK_FALSE(state->tone_track.regions[1].active);
+
+    // Just past it the second region takes over.
+    editor.controller.onTimelineSeekRequested(common::core::TimePosition{2.3});
+    CHECK_FALSE(state->tone_track.regions[0].active);
+    CHECK(state->tone_track.regions[1].active);
+}
+
+TEST_CASE(
     "EditorController renames a catalog tone and its regions relabel", "[core][editor-controller]")
 {
     LoadedToneEditor editor{makeTwoRegionSong()};

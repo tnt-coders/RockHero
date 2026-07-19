@@ -7,11 +7,30 @@
 
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/editor/core/tone/tone_track_view_state.h>
 #include <string>
 
 namespace rock_hero::editor::core
 {
+
+/*!
+\brief One authored tone region's span in absolute seconds — the single span rule.
+
+The baseline (first) region owns the pre-measure-1 lead-in, so it extends back to the timeline
+origin; every other region resolves its sub-beat musical endpoints exactly (offsets included).
+Every consumer of a region span — the tone-track projection, cursor-follow region resolution,
+and the automation editable window — converts through this one helper so their notions of "the
+region's span" can never diverge.
+
+\param tempo_map Tempo map used to resolve musical endpoints to seconds.
+\param region Authored region whose span is resolved.
+\param is_baseline_region True for the track's first region (owns the lead-in from 0 s).
+\return The region's span in absolute seconds.
+*/
+[[nodiscard]] common::core::TimeRange toneRegionSpanSeconds(
+    const common::core::TempoMap& tempo_map, const common::core::ToneRegion& region,
+    bool is_baseline_region);
 
 /*!
 \brief Projects an arrangement's tone schedule into view state for the tone track row.
