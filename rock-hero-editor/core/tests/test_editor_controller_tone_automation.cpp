@@ -143,7 +143,73 @@ struct AutomationEditor
     {
         return controller.session().currentArrangement()->tone_automation;
     }
+
+    // Authors the given points on the test lane through the commit intent, seeding a drag's
+    // starting model (also opens the lane so it is published).
+    void seedPoints(std::vector<common::core::ToneAutomationPoint> points)
+    {
+        controller.onToneAutomationLaneAddRequested(g_instance, g_param);
+        controller.onSetToneAutomationPoints(g_instance, g_param, std::move(points));
+    }
 };
+
+// The full content width and visible timeline the pointer-gesture tests map pixels against, plus
+// the pressed lane's value band. At 400 px over [0, 4] s a point at t seconds sits at x = 100·t
+// (the ÷width forward map the hit-test uses); the placement snap inverts through ÷ (width - 1). The
+// band {top 5, height 40} matches a default 56 px lane, so value v draws at y = 5 + (1 - v)·40.
+constexpr int g_pointer_content_width = 400;
+constexpr float g_pointer_band_top = 5.0F;
+constexpr float g_pointer_band_height = 40.0F;
+
+[[nodiscard]] common::core::TimeRange pointerVisibleTimeline()
+{
+    return common::core::TimeRange{
+        .start = common::core::TimePosition{0.0}, .end = common::core::TimePosition{4.0}
+    };
+}
+
+// The pixel y a value draws at in the test band, so a press or drag targets a value exactly.
+[[nodiscard]] float pointerYForValue(float value)
+{
+    return g_pointer_band_top + ((1.0F - value) * g_pointer_band_height);
+}
+
+// A Down/Drag/Up pointer event over the single test lane (index 0). Drag/Up ride the frozen
+// gesture, so they ignore the lane geometry, but one builder keeps every phase uniform.
+[[nodiscard]] ToneAutomationPointerEvent pointerEvent(
+    float x, float y, ToneAutomationPointerModifiers modifiers = {}, bool is_discrete = false,
+    int discrete_value_count = 0, int clicks = 1)
+{
+    ToneAutomationPointerEvent event;
+    event.instance_id = g_instance;
+    event.param_id = g_param;
+    event.geometry.visible_timeline = pointerVisibleTimeline();
+    event.geometry.content_width = g_pointer_content_width;
+    event.lane_extents = {ToneAutomationLaneExtent{
+        .value_band_top = g_pointer_band_top, .value_band_height = g_pointer_band_height
+    }};
+    event.lane_index = 0;
+    event.lane_is_discrete = is_discrete;
+    event.lane_discrete_value_count = discrete_value_count;
+    event.x = x;
+    event.y = y;
+    event.clicks = clicks;
+    event.modifiers = modifiers;
+    return event;
+}
+
+// A Drag-phase event: same as pointerEvent but flagged as having crossed the framework's click→drag
+// threshold, so an existing-point grab actually advances (JUCE's mouseWasDraggedSinceMouseDown,
+// which the shipped view forwarded).
+[[nodiscard]] ToneAutomationPointerEvent dragEvent(
+    float x, float y, ToneAutomationPointerModifiers modifiers = {}, bool is_discrete = false,
+    int discrete_value_count = 0)
+{
+    ToneAutomationPointerEvent event =
+        pointerEvent(x, y, modifiers, is_discrete, discrete_value_count);
+    event.dragged_since_down = true;
+    return event;
+}
 
 } // namespace
 
@@ -730,6 +796,7 @@ TEST_CASE(
                 ToneAutomationLaneGeometry{
                     .visible_timeline = visible, .content_width = content_width
                 },
+            .lane_extents = {},
             .x = boundary_x,
             .y = 0.0F,
             .modifiers = ToneAutomationPointerModifiers{.ctrl = false, .alt = true},
@@ -793,6 +860,7 @@ TEST_CASE(
             .param_id = g_param,
             .geometry =
                 ToneAutomationLaneGeometry{.visible_timeline = visible, .content_width = 400},
+            .lane_extents = {},
             .x = x,
             .y = 0.0F,
             .modifiers = ToneAutomationPointerModifiers{.ctrl = false, .alt = alt},
@@ -813,6 +881,354 @@ TEST_CASE(
     REQUIRE(editor.automation().insert_ghost.has_value());
     editor.controller.onToneAutomationPointerExit();
     CHECK_FALSE(editor.automation().insert_ghost.has_value());
+}
+
+TEST_CASE(
+    "EditorController lands a mouse-inserted point on the curve and pulls it by delta",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor;
+    editor.seedPoints(
+        {common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.25F},
+         common::core::ToneAutomationPoint{.position = pointAt(2, 1), .norm_value = 0.75F}});
+    REQUIRE(editor.automation().lanes.size() == 1);
+
+    const ToneAutomationPointerModifiers alt{.ctrl = false, .alt = true, .shift = false};
+
+    // Alt-press at x 100 (1.0 s, measure 1 beat 3 — halfway between the authored points) well below
+    // the curve (y for 0.125): the new point lands ON the drawn curve (the 0.5 interpolation), not
+    // at the pointer's y, so a release without a pull is sonically silent.
+    editor.controller.onToneAutomationPointerDown(
+        pointerEvent(100.0F, pointerYForValue(0.125F), alt));
+    // The preview shows on the press (an insert moves from the press), on the curve.
+    REQUIRE(editor.automation().drag_preview.has_value());
+    if (editor.automation().drag_preview.has_value())
+    {
+        CHECK(editor.automation().drag_preview->is_new_point);
+        CHECK(editor.automation().drag_preview->position == gridAt(1, 3));
+        CHECK_THAT(editor.automation().drag_preview->value, Catch::Matchers::WithinULP(0.5F, 0));
+    }
+    editor.controller.onToneAutomationPointerUp(
+        pointerEvent(100.0F, pointerYForValue(0.125F), alt));
+    REQUIRE(editor.model().size() == 1);
+    REQUIRE(editor.model().front().points.size() == 3);
+    CHECK(editor.model().front().points[1].position == gridAt(1, 3));
+    CHECK_THAT(editor.model().front().points[1].norm_value, Catch::Matchers::WithinULP(0.5F, 0));
+    // The committed preview is gone and the landed point is the selection.
+    CHECK_FALSE(editor.automation().drag_preview.has_value());
+
+    // Re-seed, then pull the on-curve landing up by delta: rising 10 px (a quarter of the 40 px
+    // band) from press y 40 to y 30 lifts the 0.5 landing to 0.75 — never jumping to the raw pointer
+    // y (which at y 30 reads 0.375).
+    AutomationEditor pulled;
+    pulled.seedPoints(
+        {common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.25F},
+         common::core::ToneAutomationPoint{.position = pointAt(2, 1), .norm_value = 0.75F}});
+    pulled.controller.onToneAutomationPointerDown(pointerEvent(100.0F, 40.0F, alt));
+    pulled.controller.onToneAutomationPointerDrag(dragEvent(100.0F, 30.0F, alt));
+    pulled.controller.onToneAutomationPointerUp(pointerEvent(100.0F, 30.0F, alt));
+    REQUIRE(pulled.model().front().points.size() == 3);
+    CHECK(pulled.model().front().points[1].position == gridAt(1, 3));
+    CHECK_THAT(pulled.model().front().points[1].norm_value, Catch::Matchers::WithinULP(0.75F, 0));
+}
+
+TEST_CASE(
+    "EditorController Shift-locks a mouse point drag to its dominant axis",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor;
+    editor.seedPoints(
+        {common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.25F},
+         common::core::ToneAutomationPoint{.position = pointAt(2, 1), .norm_value = 0.75F}});
+
+    // Grab the second point (x 200, value 0.75 -> y 15) and Shift-drag it far right and down. The
+    // horizontal axis dominates (60 px vs 25 px), so Shift locks the value at 0.75 while the
+    // position snaps: 260 px = 2.6 s snaps to the 2.5 s quarter-note line, measure 2 beat 2.
+    const ToneAutomationPointerModifiers shift{.ctrl = false, .alt = false, .shift = true};
+    editor.controller.onToneAutomationPointerDown(pointerEvent(200.0F, pointerYForValue(0.75F)));
+    editor.controller.onToneAutomationPointerDrag(dragEvent(260.0F, 40.0F, shift));
+    editor.controller.onToneAutomationPointerUp(pointerEvent(260.0F, 40.0F, shift));
+
+    REQUIRE(editor.model().front().points.size() == 2);
+    CHECK(editor.model().front().points.back().position == gridAt(2, 2));
+    CHECK_THAT(
+        editor.model().front().points.back().norm_value, Catch::Matchers::WithinULP(0.75F, 0));
+
+    // A dominantly-vertical Shift drag instead locks the position: grab the same point and drag it
+    // down (5 px right, 20 px down) so the value moves while the position holds at measure 2 beat 1.
+    AutomationEditor vertical;
+    vertical.seedPoints(
+        {common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.25F},
+         common::core::ToneAutomationPoint{.position = pointAt(2, 1), .norm_value = 0.75F}});
+    vertical.controller.onToneAutomationPointerDown(pointerEvent(200.0F, pointerYForValue(0.75F)));
+    vertical.controller.onToneAutomationPointerDrag(
+        dragEvent(205.0F, pointerYForValue(0.5F), shift));
+    vertical.controller.onToneAutomationPointerUp(
+        pointerEvent(205.0F, pointerYForValue(0.5F), shift));
+    REQUIRE(vertical.model().front().points.size() == 2);
+    CHECK(vertical.model().front().points.back().position == gridAt(2, 1));
+    CHECK_THAT(
+        vertical.model().front().points.back().norm_value, Catch::Matchers::WithinULP(0.5F, 0));
+}
+
+TEST_CASE(
+    "EditorController neighbor-clamps a mouse point drag short of its neighbor",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor;
+    editor.seedPoints(
+        {common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.25F},
+         common::core::ToneAutomationPoint{.position = pointAt(2, 1), .norm_value = 0.75F}});
+
+    // Grab the second point and drag it left to measure 1 beat 2 (valid), then keep dragging left
+    // onto the first point's own slot (measure 1 beat 1). The neighbor clamp refuses the crossing,
+    // so the preview stays at the last legal slot and the commit keeps the points strictly ascending.
+    editor.controller.onToneAutomationPointerDown(pointerEvent(200.0F, pointerYForValue(0.75F)));
+    editor.controller.onToneAutomationPointerDrag(dragEvent(50.0F, pointerYForValue(0.75F)));
+    REQUIRE(editor.automation().drag_preview.has_value());
+    if (editor.automation().drag_preview.has_value())
+    {
+        CHECK(editor.automation().drag_preview->position == gridAt(1, 2));
+    }
+    editor.controller.onToneAutomationPointerDrag(dragEvent(5.0F, pointerYForValue(0.75F)));
+    // Still measure 1 beat 2 — the drag could not cross onto the neighbor at measure 1 beat 1.
+    REQUIRE(editor.automation().drag_preview.has_value());
+    if (editor.automation().drag_preview.has_value())
+    {
+        CHECK(editor.automation().drag_preview->position == gridAt(1, 2));
+    }
+    editor.controller.onToneAutomationPointerUp(pointerEvent(5.0F, pointerYForValue(0.75F)));
+    REQUIRE(editor.model().front().points.size() == 2);
+    CHECK(editor.model().front().points.front().position == gridAt(1, 1));
+    CHECK(editor.model().front().points.back().position == gridAt(1, 2));
+}
+
+TEST_CASE(
+    "EditorController clamps a mouse point drag inside the editable window",
+    "[core][tone-automation]")
+{
+    // A region ending at measure 2 beat 1 (2.0 s) windows edits to [0, 2] s even though the visible
+    // timeline runs to 4 s, so a drag toward the far right cannot leave the window.
+    common::core::Song song = makeAutomationSong();
+    song.arrangements.front().tone_track.regions.front().end = gridAt(2, 1);
+    AutomationEditor editor{std::move(song)};
+    editor.seedPoints(
+        {common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.5F}});
+
+    // Grab the sole point at measure 1 beat 1 and drag it to x 390 (3.9 s, well past the window).
+    // Without the clamp the snap would land at measure 3 beat 1 (4.0 s); the window clamp keeps it
+    // at the last in-window grid line, measure 2 beat 1.
+    editor.controller.onToneAutomationPointerDown(pointerEvent(0.0F, pointerYForValue(0.5F)));
+    editor.controller.onToneAutomationPointerDrag(dragEvent(390.0F, pointerYForValue(0.5F)));
+    editor.controller.onToneAutomationPointerUp(pointerEvent(390.0F, pointerYForValue(0.5F)));
+    REQUIRE(editor.model().front().points.size() == 1);
+    CHECK(editor.model().front().points.front().position == gridAt(2, 1));
+}
+
+TEST_CASE(
+    "EditorController snaps a discrete mouse point drag to the nearest state",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor;
+    editor.seedPoints(
+        {common::core::ToneAutomationPoint{.position = pointAt(2, 1), .norm_value = 0.0F}});
+
+    // A two-state toggle: only 0 and 1 are valid. Grab the point at value 0 (y 45) and drag up past
+    // the midpoint (y 15 -> raw 0.75) — it snaps to the "on" state.
+    editor.controller.onToneAutomationPointerDown(
+        pointerEvent(200.0F, pointerYForValue(0.0F), {}, /*is_discrete=*/true, 2));
+    editor.controller.onToneAutomationPointerDrag(
+        dragEvent(200.0F, pointerYForValue(0.75F), {}, true, 2));
+    editor.controller.onToneAutomationPointerUp(
+        pointerEvent(200.0F, pointerYForValue(0.75F), {}, true, 2));
+    REQUIRE(editor.model().front().points.size() == 1);
+    CHECK_THAT(
+        editor.model().front().points.front().norm_value, Catch::Matchers::WithinULP(1.0F, 0));
+
+    // A smaller drag that stays below the midpoint (raw 0.3) snaps back to "off".
+    AutomationEditor low;
+    low.seedPoints(
+        {common::core::ToneAutomationPoint{.position = pointAt(2, 1), .norm_value = 0.0F}});
+    low.controller.onToneAutomationPointerDown(
+        pointerEvent(200.0F, pointerYForValue(0.0F), {}, true, 2));
+    low.controller.onToneAutomationPointerDrag(
+        dragEvent(200.0F, pointerYForValue(0.3F), {}, true, 2));
+    low.controller.onToneAutomationPointerUp(
+        pointerEvent(200.0F, pointerYForValue(0.3F), {}, true, 2));
+    REQUIRE(low.model().front().points.size() == 1);
+    CHECK_THAT(low.model().front().points.front().norm_value, Catch::Matchers::WithinULP(0.0F, 0));
+}
+
+TEST_CASE(
+    "EditorController selects a clicked point without moving or committing",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor;
+    editor.seedPoints(
+        {common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.25F},
+         common::core::ToneAutomationPoint{.position = pointAt(2, 1), .norm_value = 0.75F}});
+    const auto writes_before = editor.tone_automation.write_call_count;
+
+    // A press on the second point that never crosses the drag threshold is a click: it selects the
+    // point (arming the caret on it, paused) and commits nothing — no preview, no model change.
+    editor.controller.onToneAutomationPointerDown(pointerEvent(200.0F, pointerYForValue(0.75F)));
+    CHECK_FALSE(editor.automation().drag_preview.has_value());
+    editor.controller.onToneAutomationPointerUp(pointerEvent(200.0F, pointerYForValue(0.75F)));
+
+    CHECK(editor.tone_automation.write_call_count == writes_before);
+    REQUIRE(editor.model().front().points.size() == 2);
+    // The click armed the caret on the pressed point (measure 2 beat 1), which re-derives it as the
+    // selection.
+    REQUIRE(editor.automation().lane_caret.has_value());
+    if (editor.automation().lane_caret.has_value())
+    {
+        CHECK(editor.automation().lane_caret->position == gridAt(2, 1));
+    }
+    REQUIRE(editor.automation().selected_point.has_value());
+    if (editor.automation().selected_point.has_value())
+    {
+        CHECK(editor.automation().selected_point->point_index == 1);
+    }
+}
+
+TEST_CASE(
+    "EditorController refuses a mouse insert onto an occupied slot", "[core][tone-automation]")
+{
+    AutomationEditor editor;
+    editor.seedPoints(
+        {common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.25F},
+         common::core::ToneAutomationPoint{.position = pointAt(2, 1), .norm_value = 0.75F}});
+    const auto writes_before = editor.tone_automation.write_call_count;
+
+    // Alt-press on empty lane area whose x snaps onto the occupied measure 2 beat 1 slot (x 200,
+    // but y 40 is far from the point handle at y 15, so it is an area press, not a grab). Placement
+    // shares the keyboard Insert's occupied-slot refusal, so no gesture arms and no duplicate lands.
+    const ToneAutomationPointerModifiers alt{.ctrl = false, .alt = true, .shift = false};
+    editor.controller.onToneAutomationPointerDown(pointerEvent(200.0F, 40.0F, alt));
+    CHECK_FALSE(editor.automation().drag_preview.has_value());
+    editor.controller.onToneAutomationPointerUp(pointerEvent(200.0F, 40.0F, alt));
+
+    CHECK(editor.tone_automation.write_call_count == writes_before);
+    REQUIRE(editor.model().front().points.size() == 2);
+}
+
+TEST_CASE(
+    "EditorController hides the insert ghost over an occupied slot", "[core][tone-automation]")
+{
+    AutomationEditor editor;
+    editor.seedPoints(
+        {common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.25F},
+         common::core::ToneAutomationPoint{.position = pointAt(2, 1), .norm_value = 0.75F}});
+
+    const ToneAutomationPointerModifiers alt{.ctrl = false, .alt = true, .shift = false};
+
+    // Over the occupied measure 2 beat 1 slot (x 200) the ring is hidden: an insert there would
+    // no-op, so the affordance must not advertise it (§7, and the placement refusal makes it honest).
+    editor.controller.onToneAutomationPointerMove(pointerEvent(200.0F, 40.0F, alt));
+    CHECK_FALSE(editor.automation().insert_ghost.has_value());
+
+    // Over the empty measure 1 beat 3 slot (x 100) the ring shows — the insert there would land.
+    editor.controller.onToneAutomationPointerMove(pointerEvent(100.0F, 40.0F, alt));
+    CHECK(editor.automation().insert_ghost.has_value());
+}
+
+TEST_CASE(
+    "EditorController keeps a mouse point drag across a mid-drag state rebuild",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor;
+    editor.seedPoints(
+        {common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.25F},
+         common::core::ToneAutomationPoint{.position = pointAt(2, 1), .norm_value = 0.75F}});
+
+    // Grab the second point and drag it toward the 0.5 line.
+    editor.controller.onToneAutomationPointerDown(pointerEvent(200.0F, pointerYForValue(0.75F)));
+    editor.controller.onToneAutomationPointerDrag(dragEvent(200.0F, pointerYForValue(0.5F)));
+    REQUIRE(editor.automation().drag_preview.has_value());
+
+    // A fresh state rebuild lands mid-drag (the engine pushes state in bursts). Because the
+    // controller owns the drag, the rebuild republishes the preview instead of resetting it: the
+    // gesture survives and the release still commits its edit.
+    editor.controller.onTimelineZoomChanged(120.0);
+    REQUIRE(editor.automation().drag_preview.has_value());
+    if (editor.automation().drag_preview.has_value())
+    {
+        CHECK_THAT(editor.automation().drag_preview->value, Catch::Matchers::WithinULP(0.5F, 0));
+    }
+
+    editor.controller.onToneAutomationPointerUp(pointerEvent(200.0F, pointerYForValue(0.5F)));
+    REQUIRE(editor.model().front().points.size() == 2);
+    CHECK_THAT(
+        editor.model().front().points.back().norm_value, Catch::Matchers::WithinULP(0.5F, 0));
+}
+
+TEST_CASE(
+    "EditorController commits a mouse point drag as one undoable edit", "[core][tone-automation]")
+{
+    AutomationEditor editor;
+    editor.seedPoints(
+        {common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.25F},
+         common::core::ToneAutomationPoint{.position = pointAt(2, 1), .norm_value = 0.75F}});
+
+    // Drag the second point down to the 0.5 line and release: one commit.
+    editor.controller.onToneAutomationPointerDown(pointerEvent(200.0F, pointerYForValue(0.75F)));
+    editor.controller.onToneAutomationPointerDrag(dragEvent(200.0F, pointerYForValue(0.5F)));
+    editor.controller.onToneAutomationPointerUp(pointerEvent(200.0F, pointerYForValue(0.5F)));
+    REQUIRE(editor.model().front().points.size() == 2);
+    CHECK_THAT(
+        editor.model().front().points.back().norm_value, Catch::Matchers::WithinULP(0.5F, 0));
+
+    // A single undo restores the pre-drag value in one step (the drag is one undo entry).
+    editor.controller.onUndoRequested();
+    REQUIRE(editor.model().front().points.size() == 2);
+    CHECK_THAT(
+        editor.model().front().points.back().norm_value, Catch::Matchers::WithinULP(0.75F, 0));
+}
+
+TEST_CASE(
+    "EditorController cancels a mouse point drag on Escape without committing",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor;
+    editor.seedPoints(
+        {common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.25F},
+         common::core::ToneAutomationPoint{.position = pointAt(2, 1), .norm_value = 0.75F}});
+    const auto writes_before = editor.tone_automation.write_call_count;
+
+    // Drag the second point somewhere else, then Escape: the preview drops and the release after it
+    // commits nothing, so the point keeps its authored value.
+    editor.controller.onToneAutomationPointerDown(pointerEvent(200.0F, pointerYForValue(0.75F)));
+    editor.controller.onToneAutomationPointerDrag(dragEvent(200.0F, pointerYForValue(0.5F)));
+    REQUIRE(editor.automation().drag_preview.has_value());
+    editor.controller.onChartEscapePressed();
+    CHECK_FALSE(editor.automation().drag_preview.has_value());
+    editor.controller.onToneAutomationPointerUp(pointerEvent(200.0F, pointerYForValue(0.5F)));
+
+    CHECK(editor.tone_automation.write_call_count == writes_before);
+    REQUIRE(editor.model().front().points.size() == 2);
+    CHECK_THAT(
+        editor.model().front().points.back().norm_value, Catch::Matchers::WithinULP(0.75F, 0));
+}
+
+TEST_CASE(
+    "EditorController arms the lane caret on a plain empty-area press", "[core][tone-automation]")
+{
+    AutomationEditor editor;
+    editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
+    REQUIRE(editor.automation().lanes.size() == 1);
+
+    // A plain (no-Alt) press on empty lane area seeks and arms the lane caret at the snapped slot —
+    // no drag, no ghost. x 200 -> 2.0 s -> measure 2 beat 1.
+    editor.controller.onToneAutomationPointerDown(pointerEvent(200.0F, 30.0F));
+    CHECK_FALSE(editor.automation().drag_preview.has_value());
+    editor.controller.onToneAutomationPointerUp(pointerEvent(200.0F, 30.0F));
+
+    REQUIRE(editor.automation().lane_caret.has_value());
+    if (editor.automation().lane_caret.has_value())
+    {
+        CHECK(editor.automation().lane_caret->lane_index == 0);
+        CHECK(editor.automation().lane_caret->position == gridAt(2, 1));
+    }
 }
 
 } // namespace rock_hero::editor::core

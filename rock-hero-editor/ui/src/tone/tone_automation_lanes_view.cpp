@@ -225,11 +225,12 @@ void ToneAutomationLanesView::setGridNoteValue(common::core::Fraction note_value
 
 void ToneAutomationLanesView::setState(const core::ToneAutomationViewState& state)
 {
-    // A pointer gesture edits against the model it started with, and the engine pushes fresh state
-    // frequently (plugin-state-change notifications fire in bursts, even mid-drag). Applying a push
-    // now would reset the gesture and, for a just-pressed point, discard it before mouseUp can
-    // commit. JUCE keeps delivering drag/up events to the captured component, so stash the latest
-    // state and adopt it when the gesture ends instead of clobbering the edit in progress.
+    // A lane-resize drag reads m_state for its lane keys, so a state push mid-resize (the engine
+    // pushes fresh state frequently — plugin-state notifications fire in bursts) is stashed and
+    // adopted when the resize ends, keeping its index stable. The controller-owned point
+    // move/insert drag needs no such deferral: its preview is baked into every state build (through
+    // ToneAutomationViewState::drag_preview), so applying a push mid-drag repaints the lane WITH the
+    // current preview instead of resetting the edit.
     if (m_drag.has_value())
     {
         m_pending_state = state;
@@ -245,8 +246,23 @@ void ToneAutomationLanesView::applyState(const core::ToneAutomationViewState& st
     // keep the count while the per-lane stored heights differ.
     const int previous_total_height = totalHeight();
     m_state = state;
-    m_value_readout.reset();
-    publishSnapGuide(std::nullopt);
+    // A standing drag preview owns the transient overlays: mouseDrag keeps the readout fresh at the
+    // cursor and the guide rides the preview, so a mid-drag rebuild must not wipe them. Only a
+    // preview-less push (the common case, and the drag's own committing push) clears them.
+    if (m_state.drag_preview.has_value())
+    {
+        if (const std::optional<float> guide_x =
+                xForSeconds(secondsAtPosition(m_tempo_map, m_state.drag_preview->position));
+            guide_x.has_value())
+        {
+            publishSnapGuide(TimelineSnapGuide{.x = *guide_x, .label = juce::String{}});
+        }
+    }
+    else
+    {
+        m_value_readout.reset();
+        publishSnapGuide(std::nullopt);
+    }
     if (totalHeight() != previous_total_height && m_heights_changed_callback)
     {
         m_heights_changed_callback();
@@ -346,15 +362,6 @@ std::optional<float> ToneAutomationLanesView::xForSeconds(double seconds) const
         (seconds - m_visible_timeline.start.seconds) / duration * static_cast<double>(getWidth()));
 }
 
-float ToneAutomationLanesView::valueForY(int y, const LaneExtent& extent) const
-{
-    const int band_top = extent.top + g_value_band_inset;
-    const int band_height =
-        std::max(1, extent.height - (2 * g_value_band_inset) - g_resize_band_height);
-    const float relative = static_cast<float>(y - band_top) / static_cast<float>(band_height);
-    return std::clamp(1.0f - relative, 0.0f, 1.0f);
-}
-
 float ToneAutomationLanesView::snappedValueForLane(
     float raw_value, const core::ToneAutomationLaneViewState& lane)
 {
@@ -368,18 +375,6 @@ float ToneAutomationLanesView::snappedValueForLane(
     const int nearest =
         std::clamp(static_cast<int>(std::lround(raw_value * static_cast<float>(steps))), 0, steps);
     return static_cast<float>(nearest) / static_cast<float>(steps);
-}
-
-// Inverse of xForSeconds: content x back to timeline seconds, for click intents.
-double ToneAutomationLanesView::secondsForX(float content_x) const
-{
-    const double duration = m_visible_timeline.duration().seconds;
-    if (getWidth() <= 0 || duration <= 0.0)
-    {
-        return m_visible_timeline.start.seconds;
-    }
-    return m_visible_timeline.start.seconds +
-           (static_cast<double>(content_x) / static_cast<double>(getWidth())) * duration;
 }
 
 // The lane caret square: centered on the curve at the published caret slot — exactly where
@@ -599,8 +594,9 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
                    (1.0f - norm_value) * static_cast<float>(band_height);
         };
 
-        // The drawn list substitutes (or inserts) the active drag's preview point so the gesture
-        // paints live without touching the authoritative state.
+        // The drawn list substitutes (or inserts) the controller's published drag preview so the
+        // gesture paints live without touching the authoritative state: a moved point hides its
+        // stored self and draws the preview in its place, an insert adds a preview point.
         struct DrawnPoint
         {
             double seconds{};
@@ -609,19 +605,15 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
         };
         std::vector<DrawnPoint> drawn;
         drawn.reserve(lane.points.size() + 1);
-        const MovePointDrag* active_move = nullptr;
-        if (m_drag.has_value())
+        const core::ToneAutomationDragPreviewRef* active_preview = nullptr;
+        if (m_state.drag_preview.has_value() && m_state.drag_preview->lane_index == lane_index)
         {
-            if (const auto* const move = std::get_if<MovePointDrag>(&*m_drag);
-                move != nullptr && move->lane_index == lane_index)
-            {
-                active_move = move;
-            }
+            active_preview = &*m_state.drag_preview;
         }
         for (std::size_t point_index = 0; point_index < lane.points.size(); ++point_index)
         {
-            if (active_move != nullptr && !active_move->is_new_point &&
-                active_move->point_index == point_index)
+            if (active_preview != nullptr && !active_preview->is_new_point &&
+                active_preview->source_point_index == point_index)
             {
                 continue;
             }
@@ -632,11 +624,11 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
                     .selected = isPointSelected(lane, lane.points[point_index].position),
                 });
         }
-        if (active_move != nullptr)
+        if (active_preview != nullptr)
         {
             const DrawnPoint preview{
-                .seconds = secondsAtPosition(m_tempo_map, active_move->preview_position),
-                .norm_value = active_move->preview_value,
+                .seconds = secondsAtPosition(m_tempo_map, active_preview->position),
+                .norm_value = active_preview->value,
                 .selected = false,
             };
             const auto insert_at =
@@ -757,11 +749,11 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
 
         // The Alt-held insert ghost: a hollow ring on the curve where an Alt+click would place a
         // point, published by the controller through m_state.insert_ghost (its slot snapped
-        // controller-side). Its on-curve y is derived here, mirroring the point/caret paint.
-        // Suppressed while a gesture runs: the drag preview owns the lane then, and a state push
-        // deferred during the gesture could otherwise leave a stale ring.
-        if (!m_drag.has_value() && m_state.insert_ghost.has_value() &&
-            m_state.insert_ghost->lane_index == lane_index)
+        // controller-side, and hidden over an occupied slot). Its on-curve y is derived here,
+        // mirroring the point/caret paint. Suppressed while any gesture runs: a lane-resize drag
+        // (m_drag) or a controller-owned point drag (drag_preview) owns the lane then.
+        if (!m_drag.has_value() && !m_state.drag_preview.has_value() &&
+            m_state.insert_ghost.has_value() && m_state.insert_ghost->lane_index == lane_index)
         {
             if (const std::optional<float> ghost_x = xForSeconds(m_state.insert_ghost->seconds);
                 ghost_x.has_value())
@@ -863,7 +855,7 @@ void ToneAutomationLanesView::mouseMove(const juce::MouseEvent& event)
     // point shows its position and value; the Alt-held insert zone shows the prospective on-curve
     // point the same way; any other zone shows none.
     std::optional<ValueReadout> readout;
-    std::optional<std::pair<std::string, std::string>> hovered_lane;
+    std::optional<std::size_t> hovered_lane_index;
     if (hit.has_value())
     {
         if (const auto* const point_hit = std::get_if<PointHit>(&*hit))
@@ -878,7 +870,7 @@ void ToneAutomationLanesView::mouseMove(const juce::MouseEvent& event)
         else if (const auto* const area = std::get_if<LaneAreaHit>(&*hit))
         {
             const core::ToneAutomationLaneViewState& lane = m_state.lanes[area->lane_index];
-            hovered_lane = std::pair{lane.instance_id, lane.param_id};
+            hovered_lane_index = area->lane_index;
             // Under Alt the prospective on-curve insert previews its position and value next to the
             // cursor, snapped exactly as the controller's ghost is (Ctrl composes for fine
             // placement). Without Alt the lane area is the caret-arming click zone and shows none.
@@ -900,27 +892,12 @@ void ToneAutomationLanesView::mouseMove(const juce::MouseEvent& event)
 
     // Forward the hover before applying the readout: a lane-area hover can push fresh state (the
     // controller resolves the insert ghost), and that push resets the readout in applyState — so
-    // the readout is applied last, surviving the rebuild. The event carries the raw pixel x plus
-    // the lane geometry rather than a view-computed time, so the controller inverts the pixel
-    // through the placement seam itself and the ghost lands on the exact slot an Alt+click would.
-    if (hovered_lane.has_value())
+    // the readout is applied last, surviving the rebuild. The event carries the raw pixels plus the
+    // geometry rather than a view-computed time, so the controller inverts the pixel through the
+    // placement seam itself and the ghost lands on the exact slot an Alt+click would.
+    if (hovered_lane_index.has_value())
     {
-        m_listener.onToneAutomationPointerMove(
-            core::ToneAutomationPointerEvent{
-                .instance_id = std::move(hovered_lane->first),
-                .param_id = std::move(hovered_lane->second),
-                .geometry =
-                    core::ToneAutomationLaneGeometry{
-                        .visible_timeline = m_visible_timeline,
-                        .content_width = getWidth(),
-                    },
-                .x = static_cast<float>(event.getPosition().x),
-                .y = static_cast<float>(event.getPosition().y),
-                .modifiers = core::ToneAutomationPointerModifiers{
-                    .ctrl = event.mods.isCtrlDown(),
-                    .alt = event.mods.isAltDown(),
-                },
-            });
+        m_listener.onToneAutomationPointerMove(makePointerEvent(event, hovered_lane_index));
     }
     else
     {
@@ -1012,85 +989,29 @@ void ToneAutomationLanesView::mouseDown(const juce::MouseEvent& event)
         return;
     }
 
-    if (const auto* const point_hit = std::get_if<PointHit>(&*hit))
-    {
-        const core::ToneAutomationPointViewState& point =
-            m_state.lanes[point_hit->lane_index].points[point_hit->point_index];
-        m_drag = MovePointDrag{
-            .lane_index = point_hit->lane_index,
-            .point_index = point_hit->point_index,
-            .preview_position = point.position,
-            .preview_value = point.norm_value,
-            .start_position = point.position,
-            .start_value = point.norm_value,
-            .press_y = event.getPosition().y,
-            .moved = false,
-            .is_new_point = false,
-        };
-        return;
-    }
-
-    const auto& area = std::get<LaneAreaHit>(*hit);
-
-    // A plain click on empty editable lane area seeks and arms the caret at the nearest grid
-    // slot on the lane — the row-axis form of the chart lane's empty click (§9b). The
-    // controller owns the snap and the marker state.
-    if (!event.mods.isAltDown())
-    {
-        const core::ToneAutomationLaneViewState& lane = m_state.lanes[area.lane_index];
-        m_listener.onToneAutomationLaneCaretRequested(
-            lane.instance_id,
-            lane.param_id,
-            common::core::TimePosition{secondsForX(static_cast<float>(event.getPosition().x))});
-        return;
-    }
-
-    // Alt-held empty editable area: create a preview point and enter the move drag immediately, so
-    // press-drag-release adds and places in one gesture; the commit happens on mouseUp. The point
-    // lands ON the curve at the snapped time (2026-07-18): a release without dragging plants a
-    // sonically silent handle, and the drag phase pulls the value by the pointer's delta.
-    const std::optional<common::core::GridPosition> position =
-        musicalPositionForX(static_cast<float>(event.getPosition().x), event.mods);
-    if (!position.has_value())
-    {
-        return;
-    }
-    const core::ToneAutomationLaneViewState& lane = m_state.lanes[area.lane_index];
-    std::size_t insert_index = 0;
-    while (insert_index < lane.points.size() && lane.points[insert_index].position < *position)
-    {
-        ++insert_index;
-    }
-    const float creation_value = curveValueAt(lane, secondsAtPosition(m_tempo_map, *position));
-    m_drag = MovePointDrag{
-        .lane_index = area.lane_index,
-        .point_index = insert_index,
-        .preview_position = *position,
-        .preview_value = creation_value,
-        .start_position = *position,
-        .start_value = creation_value,
-        .press_y = event.getPosition().y,
-        .moved = true,
-        .is_new_point = true,
-    };
-    // The drag preview replaces the hover ghost from here on; end the hover so the controller
-    // clears its ghost. Its state push is deferred while the gesture holds and adopted on release.
-    m_listener.onToneAutomationPointerExit();
-    repaint();
+    // A press on a point handle or empty editable lane area forwards to the controller, which owns
+    // the gesture: it re-resolves point-vs-area from the same geometry and arms a point move, an
+    // Alt-insert placement (refused on an occupied slot), or the lane caret, and publishes any
+    // preview back. The resize band, name chip, "+" picker, and right-clicks are handled above, so
+    // only these two editing zones reach here. The hover readout already carries the on-curve value
+    // an Alt-insert lands at, so the press leaves it in place; a drag advance refreshes it.
+    const std::size_t lane_index = std::holds_alternative<PointHit>(*hit)
+                                       ? std::get<PointHit>(*hit).lane_index
+                                       : std::get<LaneAreaHit>(*hit).lane_index;
+    m_listener.onToneAutomationPointerDown(makePointerEvent(event, lane_index));
 }
 
 void ToneAutomationLanesView::mouseDrag(const juce::MouseEvent& event)
 {
-    if (!m_drag.has_value())
+    // A lane-resize drag is view-owned; advance it here. Everything else is a controller-owned
+    // point move/insert (or nothing): forward the live pointer and let the controller run the
+    // delta-value / neighbor-clamp / axis-lock state machine, then seed the cursor readout from
+    // whatever preview it publishes back.
+    if (m_drag.has_value())
     {
-        return;
-    }
-
-    if (auto* const resize = std::get_if<ResizeLaneDrag>(&*m_drag))
-    {
-        const core::ToneAutomationLaneViewState& lane = m_state.lanes[resize->lane_index];
+        const core::ToneAutomationLaneViewState& lane = m_state.lanes[m_drag->lane_index];
         const int new_height = std::clamp(
-            resize->start_height + (event.getPosition().y - resize->start_y),
+            m_drag->start_height + (event.getPosition().y - m_drag->start_y),
             g_minimum_lane_height,
             g_maximum_lane_height);
         m_lane_heights[{lane.instance_id, lane.param_id}] = new_height;
@@ -1102,187 +1023,49 @@ void ToneAutomationLanesView::mouseDrag(const juce::MouseEvent& event)
         return;
     }
 
-    auto& move = std::get<MovePointDrag>(*m_drag);
-    const core::ToneAutomationLaneViewState& lane = m_state.lanes[move.lane_index];
-    const std::vector<LaneExtent> extents = laneExtents();
-
-    // A grabbed existing point stays a click until the pointer travels past JUCE's drag
-    // threshold, so the micro-jiggle inside a click can never commit an accidental move.
-    if (!move.moved && !move.is_new_point && !event.mouseWasDraggedSinceMouseDown())
-    {
-        return;
-    }
-
-    // Shift constrains the drag to its dominant axis, anchored at the gesture start: a horizontal
-    // move keeps the starting value and a vertical move keeps the starting position.
-    const bool horizontal_dominant =
-        std::abs(event.getDistanceFromDragStartX()) >= std::abs(event.getDistanceFromDragStartY());
-    const bool lock_value = event.mods.isShiftDown() && horizontal_dominant;
-    const bool lock_position = event.mods.isShiftDown() && !horizontal_dominant;
-
-    // Clamp X inside the editable window before converting, then clamp musically between the
-    // temporal neighbors so the committed list stays strictly ascending by construction.
-    const std::optional<float> window_start = xForSeconds(m_editable_window.start.seconds);
-    const std::optional<float> window_end = xForSeconds(m_editable_window.end.seconds);
-    float clamped_x = static_cast<float>(event.getPosition().x);
-    if (window_start.has_value() && window_end.has_value())
-    {
-        clamped_x = std::clamp(clamped_x, *window_start, std::max(*window_start, *window_end - 1));
-    }
-
-    if (lock_position)
-    {
-        move.preview_position = move.start_position;
-    }
-    else if (
-        const std::optional<common::core::GridPosition> position =
-            musicalPositionForX(clamped_x, event.mods);
-        position.has_value()
-    )
-    {
-        bool blocked = false;
-        // Neighbor indices skip the dragged point itself for existing points; for a new point the
-        // insertion index already partitions the neighbors.
-        if (move.point_index > 0)
-        {
-            const std::size_t previous_index = move.point_index - 1;
-            if (previous_index < lane.points.size() &&
-                !(lane.points[previous_index].position < *position))
-            {
-                blocked = true;
-            }
-        }
-        const std::size_t next_index = move.is_new_point ? move.point_index : move.point_index + 1;
-        if (next_index < lane.points.size() && !(*position < lane.points[next_index].position))
-        {
-            blocked = true;
-        }
-        if (!blocked)
-        {
-            move.preview_position = *position;
-        }
-    }
-    if (lock_value)
-    {
-        move.preview_value = move.start_value;
-    }
-    else
-    {
-        // Delta-based: the value moves by the pointer's vertical travel from the press, so an
-        // on-curve insert landing (or an off-center point grab) never jumps to the raw pointer
-        // y — pulling starts exactly where the point started (2026-07-18 amendment).
-        const LaneExtent& extent = extents[move.lane_index];
-        const float delta =
-            valueForY(event.getPosition().y, extent) - valueForY(move.press_y, extent);
-        move.preview_value =
-            snappedValueForLane(std::clamp(move.start_value + delta, 0.0F, 1.0F), lane);
-    }
-    move.moved = true;
-
-    const double preview_seconds = secondsAtPosition(m_tempo_map, move.preview_position);
-    if (const std::optional<float> guide_x = xForSeconds(preview_seconds); guide_x.has_value())
-    {
-        // Keep the full-height alignment line, but carry no label of its own: the position now
-        // rides in the cursor readout below, since the line's top-of-canvas label read as awkward.
-        publishSnapGuide(TimelineSnapGuide{.x = *guide_x, .label = juce::String{}});
-    }
-    setValueReadout(
-        ValueReadout{
-            .anchor = event.getPosition(),
-            .text = readoutTextFor(move.preview_position, lane, move.preview_value),
-        });
-    repaint(0, extents[move.lane_index].top, getWidth(), extents[move.lane_index].height);
+    m_listener.onToneAutomationPointerDrag(makePointerEvent(event, std::nullopt));
+    applyDragPreviewReadout(event.getPosition());
 }
 
-void ToneAutomationLanesView::mouseUp(const juce::MouseEvent& /*event*/)
+void ToneAutomationLanesView::mouseUp(const juce::MouseEvent& event)
 {
-    if (!m_drag.has_value())
+    // A lane-resize drag ends view-side: drop it and adopt any state deferred during it. Everything
+    // else is a controller-owned point drag — forward the release so the controller commits its
+    // edit (or selects a click) and clears its own preview.
+    if (m_drag.has_value())
     {
+        m_drag.reset();
+        if (m_pending_state.has_value())
+        {
+            const core::ToneAutomationViewState pending = std::move(*m_pending_state);
+            m_pending_state.reset();
+            applyState(pending);
+        }
         return;
     }
-    const DragState finished = *m_drag;
-    m_drag.reset();
-    publishSnapGuide(std::nullopt);
-    setValueReadout(std::nullopt);
 
-    bool committed = false;
-    // A move-point gesture selects the point it landed on: a committed create/move selects the new
-    // point, and a plain click (no movement) selects the point clicked. Identity is captured before
-    // the commit swaps m_state so the lane reference below stays valid.
-    std::optional<SelectedPoint> new_selection;
-    if (const auto* const move = std::get_if<MovePointDrag>(&finished))
-    {
-        const core::ToneAutomationLaneViewState& lane = m_state.lanes[move->lane_index];
-        if (move->moved || move->is_new_point)
-        {
-            new_selection = SelectedPoint{
-                .instance_id = lane.instance_id,
-                .param_id = lane.param_id,
-                .position = move->preview_position,
-            };
-            // The commit runs synchronously back through the controller and pushes fresh state; with
-            // m_drag already cleared that push applies immediately rather than deferring.
-            m_listener.onToneAutomationPointsEditRequested(
-                lane.instance_id, lane.param_id, pointsForCommit(*move));
-            committed = true;
-        }
-        else
-        {
-            new_selection = SelectedPoint{
-                .instance_id = lane.instance_id,
-                .param_id = lane.param_id,
-                .position = lane.points[move->point_index].position,
-            };
-        }
-    }
-    repaint();
-
-    // Adopt state deferred during the gesture now that indices are safe to replace. A commit already
-    // published its own fresher state above, so any snapshot that predates it is stale and dropped;
-    // a gesture that committed nothing (a plain click or a lane resize) instead adopts the snapshot.
-    if (committed)
-    {
-        m_pending_state.reset();
-    }
-    else if (m_pending_state.has_value())
-    {
-        const core::ToneAutomationViewState pending = std::move(*m_pending_state);
-        m_pending_state.reset();
-        applyState(pending);
-    }
-
-    // Announce the selection last: the controller stores the durable identity and publishes it
-    // resolved in the next state push, which arrives synchronously through the same call. A
-    // stale identity (a rare pending snapshot dropped the point) publishes as no selection.
-    if (new_selection.has_value())
-    {
-        m_listener.onToneAutomationPointSelectRequested(
-            new_selection->instance_id, new_selection->param_id, new_selection->position);
-    }
+    m_listener.onToneAutomationPointerUp(makePointerEvent(event, std::nullopt));
 }
 
 bool ToneAutomationLanesView::cancelActiveGesture()
 {
+    // Only the view-owned lane resize cancels here — restoring its starting height. The
+    // controller-owned point move/insert drag cancels through the controller's Esc handler, routed
+    // (through the published drag preview) by the editor's shared Escape ladder.
     if (!m_drag.has_value())
     {
         return false;
     }
 
-    // A cancelled lane resize restores its starting height; point gestures simply never commit.
-    if (const auto* const resize = std::get_if<ResizeLaneDrag>(&*m_drag))
+    const core::ToneAutomationLaneViewState& lane = m_state.lanes[m_drag->lane_index];
+    m_lane_heights[{lane.instance_id, lane.param_id}] = m_drag->start_height;
+    if (m_heights_changed_callback)
     {
-        const core::ToneAutomationLaneViewState& lane = m_state.lanes[resize->lane_index];
-        m_lane_heights[{lane.instance_id, lane.param_id}] = resize->start_height;
-        if (m_heights_changed_callback)
-        {
-            m_heights_changed_callback();
-        }
+        m_heights_changed_callback();
     }
     m_drag.reset();
-    publishSnapGuide(std::nullopt);
-    setValueReadout(std::nullopt);
 
-    // Adopt a state deferred during the gesture, exactly as an uncommitted release would.
+    // Adopt a state deferred during the resize, exactly as its uncommitted release would.
     if (m_pending_state.has_value())
     {
         const core::ToneAutomationViewState pending = std::move(*m_pending_state);
@@ -1408,58 +1191,87 @@ void ToneAutomationLanesView::mouseDoubleClick(const juce::MouseEvent& event)
     {
         return;
     }
-
-    // The double-click's second press armed a move drag; drop it so the value editor opens over a
-    // quiescent gesture state (the following mouseUp then early-returns without committing).
-    m_drag.reset();
-    publishSnapGuide(std::nullopt);
+    // The controller ignores a double-click's second press (its click count is two), so no drag is
+    // in flight to drop: the editor simply opens over the point the first click already selected.
     showPointValueEditor(*point_hit);
 }
 
 void ToneAutomationLanesView::mouseExit(const juce::MouseEvent& /*event*/)
 {
-    // A drag keeps its readout even when the pointer leaves the component (JUCE keeps delivering
-    // drag events); a plain hover that leaves the lanes clears the readout and ends the hover so
-    // the controller clears the insert ghost.
-    if (!m_drag.has_value())
+    // A resize or a controller-owned point drag keeps its overlays even when the pointer leaves the
+    // component (JUCE keeps delivering drag events to the captured component); a plain hover that
+    // leaves the lanes clears the readout and ends the hover so the controller clears the ghost.
+    if (!m_drag.has_value() && !m_state.drag_preview.has_value())
     {
         setValueReadout(std::nullopt);
         m_listener.onToneAutomationPointerExit();
     }
 }
 
-std::vector<common::core::ToneAutomationPoint> ToneAutomationLanesView::pointsForCommit(
-    const MovePointDrag& drag) const
+std::vector<core::ToneAutomationLaneExtent> ToneAutomationLanesView::laneValueBandExtents() const
 {
-    const core::ToneAutomationLaneViewState& lane = m_state.lanes[drag.lane_index];
-    std::vector<common::core::ToneAutomationPoint> points;
-    points.reserve(lane.points.size() + 1);
-    // Untouched points echo their stored musical positions bit-identically; only the dragged
-    // point carries a new position/value.
-    for (std::size_t index = 0; index < lane.points.size(); ++index)
+    // The band is the drawable region a point rides — inset from the lane's outer bounds by the
+    // value-band inset above and the resize band below — so a point at value 0 or 1 never sits in
+    // the resize grab. Computing it here keeps those pixel constants view-side.
+    const std::vector<LaneExtent> extents = laneExtents();
+    std::vector<core::ToneAutomationLaneExtent> bands;
+    bands.reserve(m_state.lanes.size());
+    for (std::size_t lane_index = 0; lane_index < m_state.lanes.size(); ++lane_index)
     {
-        if (!drag.is_new_point && index == drag.point_index)
-        {
-            continue;
-        }
-        points.push_back(
-            common::core::ToneAutomationPoint{
-                .position = lane.points[index].position,
-                .norm_value = lane.points[index].norm_value,
-                .curve_shape = lane.points[index].curve_shape,
+        const LaneExtent& extent = extents[lane_index];
+        bands.push_back(
+            core::ToneAutomationLaneExtent{
+                .value_band_top = static_cast<float>(extent.top + g_value_band_inset),
+                .value_band_height = static_cast<float>(
+                    std::max(1, extent.height - (2 * g_value_band_inset) - g_resize_band_height)),
             });
     }
-    const common::core::ToneAutomationPoint edited{
-        .position = drag.preview_position,
-        .norm_value = drag.preview_value,
-        .curve_shape = drag.is_new_point ? 0.0F : lane.points[drag.point_index].curve_shape,
-    };
-    const auto insert_at =
-        std::ranges::find_if(points, [&edited](const common::core::ToneAutomationPoint& candidate) {
-            return edited.position < candidate.position;
+    return bands;
+}
+
+core::ToneAutomationPointerEvent ToneAutomationLanesView::makePointerEvent(
+    const juce::MouseEvent& event, std::optional<std::size_t> lane_index) const
+{
+    core::ToneAutomationPointerEvent pointer_event;
+    pointer_event.geometry.visible_timeline = m_visible_timeline;
+    pointer_event.geometry.content_width = getWidth();
+    pointer_event.x = static_cast<float>(event.getPosition().x);
+    pointer_event.y = static_cast<float>(event.getPosition().y);
+    pointer_event.clicks = event.getNumberOfClicks();
+    pointer_event.dragged_since_down = event.mouseWasDraggedSinceMouseDown();
+    pointer_event.modifiers.ctrl = event.mods.isCtrlDown();
+    pointer_event.modifiers.alt = event.mods.isAltDown();
+    pointer_event.modifiers.shift = event.mods.isShiftDown();
+    // A resolved lane (Down/Move) names its identity, index, value shape, and the band-extent
+    // vector the controller maps y to a value with. A Drag/Up rides the gesture the controller
+    // froze on Down, so it leaves the lane geometry default and never rebuilds the extents mid-drag.
+    if (lane_index.has_value() && *lane_index < m_state.lanes.size())
+    {
+        const core::ToneAutomationLaneViewState& lane = m_state.lanes[*lane_index];
+        pointer_event.instance_id = lane.instance_id;
+        pointer_event.param_id = lane.param_id;
+        pointer_event.lane_index = *lane_index;
+        pointer_event.lane_is_discrete = lane.is_discrete;
+        pointer_event.lane_discrete_value_count = lane.discrete_value_count;
+        pointer_event.lane_extents = laneValueBandExtents();
+    }
+    return pointer_event;
+}
+
+void ToneAutomationLanesView::applyDragPreviewReadout(juce::Point<int> anchor)
+{
+    if (!m_state.drag_preview.has_value() ||
+        m_state.drag_preview->lane_index >= m_state.lanes.size())
+    {
+        return;
+    }
+    const core::ToneAutomationDragPreviewRef& preview = *m_state.drag_preview;
+    const core::ToneAutomationLaneViewState& lane = m_state.lanes[preview.lane_index];
+    setValueReadout(
+        ValueReadout{
+            .anchor = anchor,
+            .text = readoutTextFor(preview.position, lane, preview.value),
         });
-    points.insert(insert_at, edited);
-    return points;
 }
 
 void ToneAutomationLanesView::showParameterPicker()

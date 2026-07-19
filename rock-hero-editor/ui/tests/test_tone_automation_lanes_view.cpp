@@ -79,6 +79,24 @@ struct RecordingLanesListener final : public ToneAutomationLanesView::Listener
         pointer_exit_count += 1;
     }
 
+    void onToneAutomationPointerDown(const core::ToneAutomationPointerEvent& event) override
+    {
+        last_pointer_event = event;
+        pointer_down_count += 1;
+    }
+
+    void onToneAutomationPointerDrag(const core::ToneAutomationPointerEvent& event) override
+    {
+        last_pointer_event = event;
+        pointer_drag_count += 1;
+    }
+
+    void onToneAutomationPointerUp(const core::ToneAutomationPointerEvent& event) override
+    {
+        last_pointer_event = event;
+        pointer_up_count += 1;
+    }
+
     std::string last_add_instance_id;
     std::string last_add_param_id;
     int add_count = 0;
@@ -100,6 +118,9 @@ struct RecordingLanesListener final : public ToneAutomationLanesView::Listener
     std::optional<core::ToneAutomationPointerEvent> last_pointer_event;
     int pointer_move_count = 0;
     int pointer_exit_count = 0;
+    int pointer_down_count = 0;
+    int pointer_drag_count = 0;
+    int pointer_up_count = 0;
 };
 
 [[nodiscard]] core::ToneAutomationViewState makeState()
@@ -327,13 +348,25 @@ TEST_CASE(
     CHECK_FALSE(harness.view.valueReadoutTextForTest().has_value());
 }
 
-TEST_CASE("Lanes view tracks the dragged value in the readout", "[ui][tone-automation-lanes]")
+TEST_CASE(
+    "Lanes view shows the controller's drag preview in the readout", "[ui][tone-automation-lanes]")
 {
     LanesHarness harness;
-    // Grab the second point (x 200, y 15) and drag it to y 25, which maps to the 0.5 value line.
-    harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 200.0f, 15.0f));
-    harness.view.mouseDrag(testing::makeMouseDragEvent(harness.view, 200.0f, 25.0f, 200.0f, 15.0f));
 
+    // The controller owns the drag now and publishes its preview; the view paints the readout from
+    // it. A preview on lane 0 at measure 2 beat 1, value 0.5, formats through the stub as [0.50].
+    core::ToneAutomationViewState state = makeState();
+    state.drag_preview = core::ToneAutomationDragPreviewRef{
+        .lane_index = 0,
+        .position = {.measure = 2, .beat = 1, .offset = {}},
+        .value = 0.5F,
+        .is_new_point = false,
+        .source_point_index = 1,
+    };
+    harness.view.setState(state);
+
+    // A drag advance seeds the readout at the cursor from the published preview.
+    harness.view.mouseDrag(testing::makeMouseDragEvent(harness.view, 200.0f, 25.0f, 200.0f, 15.0f));
     const std::optional<juce::String> readout = harness.view.valueReadoutTextForTest();
     REQUIRE(readout.has_value());
     if (readout.has_value())
@@ -341,8 +374,8 @@ TEST_CASE("Lanes view tracks the dragged value in the readout", "[ui][tone-autom
         CHECK(readout->contains("[0.50]"));
     }
 
-    // Releasing ends the gesture and clears the readout.
-    harness.view.mouseUp(testing::makeMouseDownEvent(harness.view, 200.0f, 25.0f));
+    // A preview-less push (the drag ended) clears the readout.
+    harness.view.setState(makeState());
     CHECK_FALSE(harness.view.valueReadoutTextForTest().has_value());
 }
 
@@ -356,26 +389,51 @@ TEST_CASE("Lanes view double-click never edits a point directly", "[ui][tone-aut
     CHECK(harness.listener.edit_count == 0);
 }
 
-TEST_CASE("Lanes view requires Alt to insert on empty lane area", "[ui][tone-automation-lanes]")
+TEST_CASE(
+    "Lanes view forwards editing presses to the controller pointer seam",
+    "[ui][tone-automation-lanes]")
 {
     LanesHarness harness;
 
-    // A plain press on empty editable area never edits: it emits the seek-and-arm caret
-    // intent instead (§9b), carrying the lane identity and the clicked time (x 100 = 1 s).
+    // A press on empty editable lane area forwards a pointer Down carrying the lane identity, its
+    // published index, the raw pixel, the value-band extents, the click count, and the modifiers —
+    // the controller re-resolves point-vs-area and arms the caret or the insert (a controller test).
+    // The view emits no edit or caret intent itself; those became the controller's.
     harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 100.0f, 30.0f));
-    harness.view.mouseUp(testing::makeMouseDownEvent(harness.view, 100.0f, 30.0f));
+    REQUIRE(harness.listener.pointer_down_count == 1);
     CHECK(harness.listener.edit_count == 0);
-    REQUIRE(harness.listener.lane_caret_count == 1);
-    CHECK(harness.listener.last_lane_caret_instance_id == "instance-a");
-    CHECK(harness.listener.last_lane_caret_param_id == "gain");
-    // Exact by construction (100 px of 800 over 8 s); is_eq keeps -Wfloat-equal builds clean.
-    CHECK(std::is_eq(harness.listener.last_lane_caret_time.seconds <=> 1.0));
+    CHECK(harness.listener.lane_caret_count == 0);
+    REQUIRE(harness.listener.last_pointer_event.has_value());
+    if (harness.listener.last_pointer_event.has_value())
+    {
+        const core::ToneAutomationPointerEvent& event = *harness.listener.last_pointer_event;
+        CHECK(event.instance_id == "instance-a");
+        CHECK(event.param_id == "gain");
+        CHECK(event.lane_index == 0);
+        CHECK(std::is_eq(event.x <=> 100.0f));
+        CHECK(event.clicks == 1);
+        CHECK_FALSE(event.modifiers.alt);
+        // Both real lanes contribute a value-band extent so the controller can map y to a value.
+        CHECK(event.lane_extents.size() == 2);
+    }
 
-    // With Alt held the same press-release places a point.
+    // A press on the authored point (x 200, y 15) forwards a Down for the same lane; an Alt press
+    // carries the Alt modifier so the controller runs its insert branch instead.
+    harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 200.0f, 15.0f));
+    CHECK(harness.listener.pointer_down_count == 2);
     harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 100.0f, 30.0f, g_alt_click));
-    harness.view.mouseUp(testing::makeMouseDownEvent(harness.view, 100.0f, 30.0f, g_alt_click));
-    REQUIRE(harness.listener.edit_count == 1);
-    CHECK(harness.listener.last_edit_points.size() == 3);
+    REQUIRE(harness.listener.pointer_down_count == 3);
+    REQUIRE(harness.listener.last_pointer_event.has_value());
+    if (harness.listener.last_pointer_event.has_value())
+    {
+        CHECK(harness.listener.last_pointer_event->modifiers.alt);
+    }
+
+    // A drag advance and a release forward the matching pointer phases.
+    harness.view.mouseDrag(testing::makeMouseDragEvent(harness.view, 120.0f, 30.0f, 100.0f, 30.0f));
+    CHECK(harness.listener.pointer_drag_count == 1);
+    harness.view.mouseUp(testing::makeMouseDownEvent(harness.view, 120.0f, 30.0f));
+    CHECK(harness.listener.pointer_up_count == 1);
 }
 
 TEST_CASE(
@@ -438,190 +496,27 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "Lanes view lands a new point on the curve and pulls its value by delta",
+    "Lanes view cancels a lane resize but leaves point drags to the controller",
     "[ui][tone-automation-lanes]")
 {
     LanesHarness harness;
 
-    // Alt-press at x 100 (1.0 s, halfway between the authored 0.25 and 0.75 points) with the
-    // pointer well below the curve (y 40 maps to 0.125): the new point lands ON the drawn curve
-    // (the 0.5 interpolation), not at the pointer's y, so placement is sonically silent
-    // (2026-07-18 amendment).
-    harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 100.0f, 40.0f, g_alt_click));
-    harness.view.mouseUp(testing::makeMouseDownEvent(harness.view, 100.0f, 40.0f, g_alt_click));
-    REQUIRE(harness.listener.edit_count == 1);
-    REQUIRE(harness.listener.last_edit_points.size() == 3);
-    CHECK_THAT(
-        harness.listener.last_edit_points[1].norm_value, Catch::Matchers::WithinULP(0.5F, 0));
+    // The lane-height resize is the one gesture the view still owns (the point move/insert drag and
+    // its whole state machine moved to the controller and are exercised there). Grab the first
+    // lane's resize band (the bottom 6 px of the 56 px lane) and drag it taller.
+    harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 100.0f, 53.0f));
+    // A resize is view-owned, so it forwards no pointer event to the controller.
+    CHECK(harness.listener.pointer_down_count == 0);
+    harness.view.mouseDrag(testing::makeMouseDragEvent(harness.view, 100.0f, 83.0f, 100.0f, 53.0f));
+    CHECK(harness.view.totalHeight() > (2 * 56) + 26);
 
-    // The drag phase pulls by the pointer's DELTA from the press: rising 10 px (a quarter of the
-    // 40 px value band) lifts the on-curve landing from 0.5 to 0.75 — the value never jumps to
-    // the raw pointer y (which at y 30 would read 0.375).
-    harness.view.setState(makeState());
-    harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 100.0f, 40.0f, g_alt_click));
-    harness.view.mouseDrag(
-        testing::makeMouseDragEvent(harness.view, 100.0f, 30.0f, 100.0f, 40.0f, g_alt_click));
-    harness.view.mouseUp(testing::makeMouseDownEvent(harness.view, 100.0f, 30.0f, g_alt_click));
-    REQUIRE(harness.listener.edit_count == 2);
-    REQUIRE(harness.listener.last_edit_points.size() == 3);
-    CHECK_THAT(
-        harness.listener.last_edit_points[1].norm_value, Catch::Matchers::WithinULP(0.75F, 0));
-}
-
-TEST_CASE("Lanes view cancels an in-flight drag on request", "[ui][tone-automation-lanes]")
-{
-    LanesHarness harness;
-
-    // Drag the second point somewhere else, then cancel (the editor routes Esc here): the
-    // release afterwards must not commit anything.
-    harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 200.0f, 15.0f));
-    harness.view.mouseDrag(testing::makeMouseDragEvent(harness.view, 200.0f, 30.0f, 200.0f, 15.0f));
+    // Esc (routed here by the editor) cancels the resize and restores the starting height.
     CHECK(harness.view.cancelActiveGesture());
-    harness.view.mouseUp(testing::makeMouseDownEvent(harness.view, 200.0f, 30.0f));
-    CHECK(harness.listener.edit_count == 0);
+    CHECK(harness.view.totalHeight() == (2 * 56) + 26);
 
-    // With no gesture active the cancel reports unhandled so Esc can serve other owners.
+    // With no view-owned gesture active the cancel reports unhandled, so the editor's Esc ladder
+    // falls through to the controller (which cancels its own point drag through the drag preview).
     CHECK_FALSE(harness.view.cancelActiveGesture());
-}
-
-TEST_CASE("Lanes view Shift-locks a point drag to its dominant axis", "[ui][tone-automation-lanes]")
-{
-    LanesHarness harness;
-
-    // Drag the second point (x 200, y 15, value 0.75) far right and slightly down while holding
-    // Shift: the horizontal axis dominates, so the value must hold at 0.75 while the position
-    // snaps along the grid.
-    const juce::ModifierKeys shift_drag{
-        juce::ModifierKeys::leftButtonModifier | juce::ModifierKeys::shiftModifier
-    };
-    harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 200.0f, 15.0f));
-    harness.view.mouseDrag(
-        testing::makeMouseDragEvent(harness.view, 260.0f, 40.0f, 200.0f, 15.0f, shift_drag));
-    harness.view.mouseUp(testing::makeMouseDownEvent(harness.view, 260.0f, 40.0f, shift_drag));
-
-    REQUIRE(harness.listener.edit_count == 1);
-    REQUIRE(harness.listener.last_edit_points.size() == 2);
-    CHECK_THAT(
-        harness.listener.last_edit_points.back().norm_value, Catch::Matchers::WithinULP(0.75F, 0));
-    // 260 px = 2.6 s snaps to the 2.5 s quarter-note line: measure 2, beat 2 at 120 BPM 4/4.
-    CHECK(
-        harness.listener.last_edit_points.back().position ==
-        common::core::GridPosition{.measure = 2, .beat = 2, .offset = {}});
-}
-
-TEST_CASE(
-    "Lanes view snaps discrete point drags to the nearest step", "[ui][tone-automation-lanes]")
-{
-    LanesHarness harness;
-    ToneAutomationLanesView view{harness.listener, harness.tempo_map, harness.tone_automation};
-    view.setSize(800, 200);
-    view.setVisibleTimeline(
-        common::core::TimeRange{
-            .start = common::core::TimePosition{0.0}, .end = common::core::TimePosition{8.0}
-        });
-    view.setEditableWindow(
-        common::core::TimeRange{
-            .start = common::core::TimePosition{0.0}, .end = common::core::TimePosition{4.0}
-        });
-
-    core::ToneAutomationViewState state;
-    state.tone_document_ref = "tones/x/tone.json";
-    core::ToneAutomationLaneViewState lane;
-    lane.instance_id = "instance-a";
-    lane.param_id = "wah";
-    lane.name = "Wah Mode";
-    lane.resolved = true;
-    lane.is_discrete = true;
-    lane.discrete_value_count = 2; // a two-state toggle: only 0 and 1 are valid.
-    lane.points = {
-        core::ToneAutomationPointViewState{
-            .position = {.measure = 2, .beat = 1, .offset = {}},
-            .seconds = 2.0,
-            .norm_value = 0.0F,
-            .curve_shape = 0.0F,
-        },
-    };
-    state.lanes = {std::move(lane)};
-    view.setState(state);
-
-    // The point at value 0 renders at y 45 (x 200 for seconds 2.0). Dragging up past the midpoint
-    // snaps to the "on" state; a small drag that stays below the midpoint snaps back to "off".
-    view.mouseDown(testing::makeMouseDownEvent(view, 200.0f, 45.0f));
-    view.mouseDrag(testing::makeMouseDragEvent(view, 200.0f, 15.0f, 200.0f, 45.0f));
-    view.mouseUp(testing::makeMouseDownEvent(view, 200.0f, 15.0f));
-    REQUIRE(harness.listener.edit_count == 1);
-    REQUIRE(harness.listener.last_edit_points.size() == 1);
-    CHECK_THAT(
-        harness.listener.last_edit_points.front().norm_value, Catch::Matchers::WithinULP(1.0F, 0));
-
-    view.mouseDown(testing::makeMouseDownEvent(view, 200.0f, 45.0f));
-    view.mouseDrag(testing::makeMouseDragEvent(view, 200.0f, 33.0f, 200.0f, 45.0f));
-    view.mouseUp(testing::makeMouseDownEvent(view, 200.0f, 33.0f));
-    REQUIRE(harness.listener.edit_count == 2);
-    REQUIRE(harness.listener.last_edit_points.size() == 1);
-    CHECK_THAT(
-        harness.listener.last_edit_points.front().norm_value, Catch::Matchers::WithinULP(0.0F, 0));
-}
-
-TEST_CASE(
-    "Lanes view keeps an in-flight point drag across a state push", "[ui][tone-automation-lanes]")
-{
-    LanesHarness harness;
-    // Grab the second authored point (x 200, y 15) and begin dragging it toward the 0.5 line.
-    harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 200.0f, 15.0f));
-
-    // The engine pushes fresh state mid-drag (its notifications fire in bursts). This must not
-    // cancel the gesture: the drag keeps editing the model it started with, so the release still
-    // commits. Dropping the gesture here is exactly what made a dragged point snap back.
-    harness.view.setState(makeState());
-
-    harness.view.mouseDrag(testing::makeMouseDragEvent(harness.view, 200.0f, 25.0f, 200.0f, 15.0f));
-    harness.view.mouseUp(testing::makeMouseDownEvent(harness.view, 200.0f, 25.0f));
-
-    REQUIRE(harness.listener.edit_count == 1);
-    REQUIRE(harness.listener.last_edit_points.size() == 2);
-    // The dragged point committed at its new value rather than reverting to the authored 0.75.
-    CHECK_THAT(
-        harness.listener.last_edit_points.back().norm_value, Catch::Matchers::WithinULP(0.5F, 0));
-}
-
-TEST_CASE(
-    "Lanes view commits a new point clicked through a state push", "[ui][tone-automation-lanes]")
-{
-    LanesHarness harness;
-    // Alt-press in the empty editable area of the resolved lane (x 100 = 1 s, inside the 0..4 s
-    // window) to create a new-point preview.
-    harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 100.0f, 30.0f, g_alt_click));
-
-    // A state push arrives before the release, as it does when a click spans one of the engine's
-    // notification bursts. Without deferral the preview point would be dropped and never commit --
-    // the "point appears then disappears" symptom.
-    harness.view.setState(makeState());
-
-    harness.view.mouseUp(testing::makeMouseDownEvent(harness.view, 100.0f, 30.0f));
-
-    REQUIRE(harness.listener.edit_count == 1);
-    // The new point joins the lane's two authored points.
-    CHECK(harness.listener.last_edit_points.size() == 3);
-}
-
-TEST_CASE(
-    "Lanes view announces a clicked point as the selection intent", "[ui][tone-automation-lanes]")
-{
-    LanesHarness harness;
-
-    // A plain click (no drag) on the second authored point (x 200, y 15) emits the selection
-    // intent without any edit -- selection is distinct from a move, and the selection itself is
-    // controller-owned (deletion is the controller's Delete dispatch, not a view API).
-    harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 200.0f, 15.0f));
-    harness.view.mouseUp(testing::makeMouseDownEvent(harness.view, 200.0f, 15.0f));
-    CHECK(harness.listener.edit_count == 0);
-    REQUIRE(harness.listener.select_count == 1);
-    CHECK(harness.listener.last_select_instance_id == "instance-a");
-    CHECK(harness.listener.last_select_param_id == "gain");
-    CHECK(
-        harness.listener.last_select_position ==
-        common::core::GridPosition{.measure = 2, .beat = 1, .offset = {}});
 }
 
 TEST_CASE("Lanes view paints headlessly", "[ui][tone-automation-lanes]")

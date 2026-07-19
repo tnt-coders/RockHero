@@ -501,6 +501,42 @@ public:
     virtual void onToneAutomationPointerExit() = 0;
 
     /*!
+    \brief Handles a primary-button press inside an automation lane.
+
+    The controller re-resolves the point-vs-empty-area hit from the event geometry and the lane's
+    points, then arms the matching gesture: a press on a point begins a move drag (selecting it on a
+    release that never moved); Alt on empty lane area begins an on-curve insert placement, refused
+    when the snapped slot is already occupied; plain empty lane area arms the lane caret there. A
+    double-click's second press is left to the view's value editor.
+
+    \param event Lane-local pointer state (pressed lane identity, geometry, extents, pixel x/y,
+    click count, modifiers).
+    */
+    virtual void onToneAutomationPointerDown(const ToneAutomationPointerEvent& event) = 0;
+
+    /*!
+    \brief Advances the in-flight move/insert drag's preview.
+
+    Snaps the position (Ctrl to the fine tier), clamps it between the moved point's neighbors and
+    inside the editable window, pulls the value by the pointer's vertical delta from the press
+    (Shift locks the dominant axis), and republishes the preview. A no-op without an active drag.
+
+    \param event Lane-local pointer state; only the live pixel x/y and modifiers are read.
+    */
+    virtual void onToneAutomationPointerDrag(const ToneAutomationPointerEvent& event) = 0;
+
+    /*!
+    \brief Ends the in-flight move/insert drag.
+
+    A drag that moved commits its replacement point list as one undoable edit and selects the
+    landed point; a press that never moved selects the pressed point instead. Clears the gesture and
+    its preview. A no-op without an active drag.
+
+    \param event Lane-local pointer state; only the live pixel x/y and modifiers are read.
+    */
+    virtual void onToneAutomationPointerUp(const ToneAutomationPointerEvent& event) = 0;
+
+    /*!
     \brief Handles a deliberate click on an automation point: it becomes the editor-wide
     selection.
 

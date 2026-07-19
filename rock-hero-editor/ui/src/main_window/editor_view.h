@@ -425,6 +425,15 @@ private:
     /*! \copydoc ToneAutomationLanesView::Listener::onToneAutomationPointerExit */
     void onToneAutomationPointerExit() override;
 
+    /*! \copydoc ToneAutomationLanesView::Listener::onToneAutomationPointerDown */
+    void onToneAutomationPointerDown(const core::ToneAutomationPointerEvent& event) override;
+
+    /*! \copydoc ToneAutomationLanesView::Listener::onToneAutomationPointerDrag */
+    void onToneAutomationPointerDrag(const core::ToneAutomationPointerEvent& event) override;
+
+    /*! \copydoc ToneAutomationLanesView::Listener::onToneAutomationPointerUp */
+    void onToneAutomationPointerUp(const core::ToneAutomationPointerEvent& event) override;
+
     // PluginBrowserWindow::Listener implementation.
     void onPluginBrowserScanRequested() override;
 

@@ -119,6 +119,31 @@ public:
         /*! \brief Called when the pointer leaves the lanes, clearing any Alt insert ghost. */
         virtual void onToneAutomationPointerExit() = 0;
 
+        /*!
+        \brief Called on a primary-button press over a point or empty editable lane area.
+
+        The controller owns the resulting gesture: it re-resolves the point-vs-empty-area hit and
+        arms a point move, an Alt-insert placement, or the lane caret. The view forwards only these
+        two editing zones — resize bands, name chips, the "+" picker, and right-clicks it handles
+        itself — and paints whatever preview the controller publishes back.
+
+        \param event Lane-local pointer state (pressed lane identity, geometry, value-band extents,
+        pixel x/y, click count, modifiers).
+        */
+        virtual void onToneAutomationPointerDown(const core::ToneAutomationPointerEvent& event) = 0;
+
+        /*!
+        \brief Called as the pressed pointer moves, advancing the controller's drag preview.
+        \param event Lane-local pointer state; the controller reads the live pixel x/y and modifiers.
+        */
+        virtual void onToneAutomationPointerDrag(const core::ToneAutomationPointerEvent& event) = 0;
+
+        /*!
+        \brief Called when the pressed pointer releases, ending the controller's drag.
+        \param event Lane-local pointer state; the controller reads the live pixel x/y and modifiers.
+        */
+        virtual void onToneAutomationPointerUp(const core::ToneAutomationPointerEvent& event) = 0;
+
     protected:
         /*! \brief Creates the listener interface. */
         Listener() = default;
@@ -291,30 +316,16 @@ private:
         int height{0};
     };
 
-    // Gesture kinds classified once in mouseDown and dispatched on in mouseDrag/mouseUp. The
-    // start position/value anchor Shift's axis lock: whichever axis Shift freezes echoes these.
-    // Value dragging is delta-based from the press (press_y): the preview value is start_value
-    // plus the pointer's vertical travel, so neither an on-curve insert landing nor an
-    // off-center point grab ever jumps to the raw pointer y (2026-07-18 amendment).
-    struct MovePointDrag
-    {
-        std::size_t lane_index{};
-        std::size_t point_index{};
-        common::core::GridPosition preview_position{};
-        float preview_value{};
-        common::core::GridPosition start_position{};
-        float start_value{};
-        int press_y{};
-        bool moved{false};
-        bool is_new_point{false};
-    };
+    // The lane-height resize drag, the one gesture the view still owns: a pure presentation
+    // concern (lane heights flow up through the height callback, never the model). The point
+    // move/insert drag moved to the controller (it owns hit resolution, snap, and the delta-value
+    // state machine); the view forwards its pointer events and paints the published preview.
     struct ResizeLaneDrag
     {
         std::size_t lane_index{};
         int start_height{};
         int start_y{};
     };
-    using DragState = std::variant<MovePointDrag, ResizeLaneDrag>;
 
     // Transient "position · value" chip drawn next to the cursor while a point is hovered or
     // dragged, so the value the gesture is producing is legible without a separate panel.
@@ -391,18 +402,12 @@ private:
     // Converts a musical position to a content x for drawing, when the geometry is valid.
     [[nodiscard]] std::optional<float> xForSeconds(double seconds) const;
 
-    // Converts a lane-local y to a normalised value, clamped to the value band.
-    [[nodiscard]] float valueForY(int y, const LaneExtent& extent) const;
-
     // The curve's value at a time, matching exactly what paint draws: linear segments on a
     // continuous lane, held steps on a discrete one, flat extensions outside the authored span,
     // and the live tracking value when the lane has no points yet. Point placement lands here
     // (on the curve) so insertion is sonically silent until the point is deliberately pulled.
     [[nodiscard]] float curveValueAt(
         const core::ToneAutomationLaneViewState& lane, double seconds) const;
-
-    // Converts a content x back to timeline seconds (xForSeconds' inverse), for click intents.
-    [[nodiscard]] double secondsForX(float content_x) const;
 
     // Emits the points-edit intent that inserts a new point into a lane and selects it. Shared
     // by the caret's typed-value creation and the Alt+arrow create-then-nudge.
@@ -419,9 +424,18 @@ private:
     [[nodiscard]] static float snappedValueForLane(
         float raw_value, const core::ToneAutomationLaneViewState& lane);
 
-    // Builds the committed point list for the active move-point drag.
-    [[nodiscard]] std::vector<common::core::ToneAutomationPoint> pointsForCommit(
-        const MovePointDrag& drag) const;
+    // Builds the framework-free pointer event the controller owns the gesture policy for: the raw
+    // lane-local pixels plus the geometry, value-band extents, click count, and modifiers the
+    // controller re-derives snap, value, and hit resolution from. `lane_index` names the pressed
+    // or hovered lane when one is resolved (Down/Move); a Drag/Up rides the frozen gesture and
+    // leaves the lane identity default.
+    [[nodiscard]] core::ToneAutomationPointerEvent makePointerEvent(
+        const juce::MouseEvent& event, std::optional<std::size_t> lane_index) const;
+
+    // The value-band pixel span (top + height) of every displayed lane, in published-lane display
+    // order, carried on the pointer event so the controller maps y to a value without the view's
+    // band-layout constants. The trailing "+" lane is excluded.
+    [[nodiscard]] std::vector<core::ToneAutomationLaneExtent> laneValueBandExtents() const;
 
     // Opens the "+" parameter picker as an async popup menu, grouped per chain plugin.
     void showParameterPicker();
@@ -483,6 +497,11 @@ private:
     // Sets or clears the value readout, repainting only the vacated and freshly covered chip areas.
     void setValueReadout(std::optional<ValueReadout> readout);
 
+    // Seeds the cursor readout from the controller's published drag preview (position + value),
+    // anchored at the pointer: the presentation half of the move/insert drag, whose numbers the
+    // controller owns. A no-op when no preview is standing.
+    void applyDragPreviewReadout(juce::Point<int> anchor);
+
     // Paints the value-readout chip when one is active.
     void paintValueReadout(juce::Graphics& graphics) const;
 
@@ -510,12 +529,12 @@ private:
     // Per-lane heights keyed by (instance id, param id) so they survive reordering state pushes.
     std::map<std::pair<std::string, std::string>, int> m_lane_heights{};
 
-    // Active gesture, if any. While it is set, incoming state pushes are deferred (not applied) so
-    // the gesture keeps editing against the model it started with, free of stale-index hazards.
-    std::optional<DragState> m_drag{};
+    // Active lane-resize drag, if any. While it is set, incoming state pushes are deferred (not
+    // applied) so the resize keeps against the heights it started with; the controller-owned point
+    // move/insert drag needs no such deferral because its preview is part of every state build.
+    std::optional<ResizeLaneDrag> m_drag{};
 
-    // Latest state pushed while a gesture was in flight, applied when the gesture ends. A committing
-    // gesture instead discards it, because the commit publishes its own fresher authoritative state.
+    // Latest state pushed while a resize was in flight, applied when the resize ends.
     std::optional<core::ToneAutomationViewState> m_pending_state{};
 
     // Transient value readout shown next to the cursor while a point is hovered or dragged.

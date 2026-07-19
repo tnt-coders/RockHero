@@ -1029,6 +1029,21 @@ void EditorController::onToneAutomationPointerExit()
     m_impl->onToneAutomationPointerExit();
 }
 
+void EditorController::onToneAutomationPointerDown(const ToneAutomationPointerEvent& event)
+{
+    m_impl->onToneAutomationPointerDown(event);
+}
+
+void EditorController::onToneAutomationPointerDrag(const ToneAutomationPointerEvent& event)
+{
+    m_impl->onToneAutomationPointerDrag(event);
+}
+
+void EditorController::onToneAutomationPointerUp(const ToneAutomationPointerEvent& event)
+{
+    m_impl->onToneAutomationPointerUp(event);
+}
+
 void EditorController::onPluginBrowserRequested()
 {
     m_impl->onPluginBrowserRequested();
@@ -2857,6 +2872,16 @@ void EditorController::Impl::onChartSustainAdjustRequested(int direction)
 // widen a dead entry.
 void EditorController::Impl::onChartEscapePressed()
 {
+    // Gesture cancels outrank the marker/selection ladder: an in-flight pointer drag simply never
+    // commits. A move/insert lane drag drops without touching the model; the next rebuild paints
+    // the lane back without the preview.
+    if (m_tone_automation_drag.has_value())
+    {
+        m_tone_automation_drag.reset();
+        updateView();
+        return;
+    }
+
     if (m_chart_gesture.has_value())
     {
         m_chart_gesture.reset();
@@ -3620,12 +3645,12 @@ EditorViewState EditorController::Impl::deriveViewState() const
 
         // The Alt-hover insert ghost resolves against the published lanes exactly like the lane
         // caret: located by (instance, parameter), with seconds derived through the tempo map
-        // identically to the caret's so the ring rides the same visible-timeline convention. No
-        // occupancy gate: the ring previews the mouse Alt+click, which — unlike the keyboard
-        // Insert verb — plants even onto an occupied slot today, so an honest preview of that
-        // gesture must show there too. When mouse placement gains the occupied-slot refusal (with
-        // the drag machinery, Phase 3), the gate returns here alongside it.
-        if (m_tone_insert_ghost.has_value())
+        // identically to the caret's so the ring rides the same visible-timeline convention. The
+        // occupancy gate keeps the ring honest (§7): now that mouse placement refuses an occupied
+        // slot (onToneAutomationPointerDown's Alt branch shares the keyboard Insert's refusal), the
+        // ring is hidden over a slot that already carries a point so it never previews an insert
+        // that would no-op. A standing drag owns the lane, so its preview masks the ghost too.
+        if (m_tone_insert_ghost.has_value() && !m_tone_automation_drag.has_value())
         {
             for (std::size_t lane_index = 0; lane_index < state.tone_automation.lanes.size();
                  ++lane_index)
@@ -3637,10 +3662,44 @@ EditorViewState EditorController::Impl::deriveViewState() const
                     continue;
                 }
                 const common::core::GridPosition& position = m_tone_insert_ghost->position;
+                const bool occupied = std::ranges::any_of(
+                    lane.points, [&position](const ToneAutomationPointViewState& point) {
+                        return point.position == position;
+                    });
+                if (occupied)
+                {
+                    break;
+                }
                 state.tone_automation.insert_ghost = ToneAutomationInsertGhostRef{
                     .lane_index = lane_index,
                     .seconds = state.tempo_map.secondsAtNote(
                         position.measure, position.beat, position.offset),
+                };
+                break;
+            }
+        }
+
+        // The in-flight move/insert drag preview resolves against the published lanes exactly like
+        // the ghost — located by (instance, parameter) — and is published only once the drag has
+        // produced a preview (moved, or an insert from the press), so a plain point click that only
+        // selects publishes none. The view paints it in place of the moved point.
+        if (m_tone_automation_drag.has_value() && m_tone_automation_drag->moved)
+        {
+            const ToneAutomationDrag& drag = *m_tone_automation_drag;
+            for (std::size_t lane_index = 0; lane_index < state.tone_automation.lanes.size();
+                 ++lane_index)
+            {
+                const ToneAutomationLaneViewState& lane = state.tone_automation.lanes[lane_index];
+                if (lane.instance_id != drag.instance_id || lane.param_id != drag.param_id)
+                {
+                    continue;
+                }
+                state.tone_automation.drag_preview = ToneAutomationDragPreviewRef{
+                    .lane_index = lane_index,
+                    .position = drag.preview_position,
+                    .value = drag.preview_value,
+                    .is_new_point = drag.is_new_point,
+                    .source_point_index = drag.point_index,
                 };
                 break;
             }
