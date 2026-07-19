@@ -72,10 +72,12 @@ namespace
 // pixels the view's hitAt filtered on.
 constexpr float g_tone_lane_point_hit_radius = 8.0F;
 
-// The lanes view's ÷width horizontal pixel map (xForSeconds/secondsForX), replicated so the ported
-// move/insert drag hit-tests, window-clamps, and arms the caret bit-for-bit as the view did. The
-// position SNAP itself runs through the ÷(width - 1) placement seam (timelinePositionForX); the two
-// geometries deliberately differ in the shipped view, and Phase 4 unifies them.
+// The lanes view's ÷width forward pixel map (xForSeconds), replicated so the ported move/insert drag
+// hit-tests and window-clamps against the same pixels the view did. This is a forward map for
+// resolving which point a press falls on and where the editable window's edges sit — NOT a snap
+// path: every position SNAP on the lane (caret arm, insert ghost, Alt placement, drag) runs through
+// the one ÷(width - 1) placement seam, laneSnapPositionForX, so the lane has a single horizontal
+// snap authority as the chart does.
 [[nodiscard]] std::optional<float> laneXForSeconds(
     double seconds, common::core::TimeRange visible_timeline, int content_width)
 {
@@ -86,18 +88,6 @@ constexpr float g_tone_lane_point_hit_radius = 8.0F;
     }
     return static_cast<float>(
         (seconds - visible_timeline.start.seconds) / duration * static_cast<double>(content_width));
-}
-
-[[nodiscard]] double laneSecondsForX(
-    float content_x, common::core::TimeRange visible_timeline, int content_width)
-{
-    const double duration = visible_timeline.duration().seconds;
-    if (content_width <= 0 || duration <= 0.0)
-    {
-        return visible_timeline.start.seconds;
-    }
-    return visible_timeline.start.seconds +
-           (static_cast<double>(content_x) / static_cast<double>(content_width)) * duration;
 }
 
 // Maps a lane-local pixel y onto a normalised value inside one lane's value band, clamped to the
@@ -1138,32 +1128,42 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetToneAutoma
     updateView();
 }
 
-// A lane click's seek-and-arm (the row-axis form of the chart lane's empty click, §9b): the
-// caret arms at the nearest grid slot on the clicked lane and the transport rests there, so
-// play-from-here IS the caret slot. While playing, the click only seeks (armed implies paused).
+// A time-addressed lane caret arm (the row-axis form of the chart lane's empty click, §9b): the
+// caret arms at the grid slot nearest the given time. This is the time-input entry point (exercised
+// by tests); the pixel-input click path arms through the one placement snap in
+// onToneAutomationPointerDown. Both converge on seekAndArmLaneCaret, so a lane caret always rests on
+// one slot however it was addressed.
 void EditorController::Impl::onToneAutomationLaneCaretRequested(
     std::string instance_id, std::string param_id, common::core::TimePosition time)
+{
+    const common::core::GridPosition position = nearestTempoGridPosition(
+        session().song().tempo_map, m_grid_note_value, session().timeline().clamp(time));
+    seekAndArmLaneCaret(
+        position,
+        AutomationLaneRow{.instance_id = std::move(instance_id), .param_id = std::move(param_id)});
+}
+
+// Seeks the transport to a resolved lane slot and arms the caret there — the seek-and-arm tail the
+// lane click (onToneAutomationPointerDown's plain-empty branch, snapping the pixel through
+// laneSnapPositionForX) and the time-addressed caret request share, so the transport rests on the
+// caret slot and play-from-here IS that slot. The seek re-points the audible tone at the cursor;
+// arming then owns the selection state, exactly like the chart lane's empty click (seek + caret +
+// selection re-derivation). While playing the click only seeks (armed implies paused).
+void EditorController::Impl::seekAndArmLaneCaret(
+    common::core::GridPosition position, AutomationLaneRow row)
 {
     if (isBusy())
     {
         return;
     }
-    const common::core::GridPosition position = nearestTempoGridPosition(
-        session().song().tempo_map, m_grid_note_value, session().timeline().clamp(time));
     m_transport.seek(
         session().timeline().clamp(
             common::core::TimePosition{secondsAtGridPosition(
                 session().song().tempo_map, position)}));
-    // The seek re-points the audible tone at the cursor; arming then owns the selection state,
-    // exactly like the chart lane's empty click (seek + caret + selection re-derivation).
     activateToneAtCursor();
     if (!m_transport.state().playing)
     {
-        armLaneCaret(
-            position,
-            AutomationLaneRow{
-                .instance_id = std::move(instance_id), .param_id = std::move(param_id)
-            });
+        armLaneCaret(position, std::move(row));
     }
     updateView();
 }
@@ -1303,23 +1303,13 @@ void EditorController::Impl::onToneAutomationPointerDown(const ToneAutomationPoi
         return;
     }
 
-    // Empty editable lane area. Without Alt it arms the lane caret — the row-axis empty click
-    // (§9b) — through the ÷width secondsForX the shipped view arms with (Phase 4 unifies the snap).
-    if (!event.modifiers.alt)
-    {
-        onToneAutomationLaneCaretRequested(
-            event.instance_id,
-            event.param_id,
-            common::core::TimePosition{laneSecondsForX(
-                event.x, event.geometry.visible_timeline, event.geometry.content_width)});
-        return;
-    }
-
-    // Alt on empty area begins an on-curve insert placement. planLanePointAtCaret resolves the
-    // lane's points, the on-curve landing value, and the value shape, and refuses an occupied slot
-    // — the same neutral-create plan the keyboard Insert runs, so mouse placement now shares its
-    // occupied-slot refusal and can never plant a duplicate. The point lands ON the curve (silent
-    // until pulled) and the drag phase pulls the value by the pointer's delta.
+    // Empty editable lane area. Both the plain caret arm and the Alt on-curve insert snap the pixel
+    // through the one placement seam — laneSnapPositionForX (timelinePositionForX ÷ (width - 1) then
+    // the tempo grid, Ctrl to the fine tier) — mirroring the chart's single chartPlacementAt consumed
+    // by both its caret arm and its Alt insert. So the caret lands on the identical slot an Alt+click
+    // or the insert ghost would at the same pixel, erasing the ÷width slot-boundary drift the shipped
+    // view armed the caret with. A degenerate geometry that maps no slot only refreshes the dismissed
+    // ghost.
     const std::optional<common::core::GridPosition> position = laneSnapPositionForX(
         tempo_map,
         m_grid_note_value,
@@ -1332,6 +1322,22 @@ void EditorController::Impl::onToneAutomationPointerDown(const ToneAutomationPoi
         refresh_dismissed_ghost();
         return;
     }
+
+    // Without Alt, arm the lane caret at the slot — the row-axis empty click (§9b): seek there and
+    // arm (paused), re-deriving the selection from what sits under the caret.
+    if (!event.modifiers.alt)
+    {
+        seekAndArmLaneCaret(
+            *position,
+            AutomationLaneRow{.instance_id = event.instance_id, .param_id = event.param_id});
+        return;
+    }
+
+    // Alt on empty area begins an on-curve insert placement. planLanePointAtCaret resolves the
+    // lane's points, the on-curve landing value, and the value shape, and refuses an occupied slot
+    // — the same neutral-create plan the keyboard Insert runs, so mouse placement shares its
+    // occupied-slot refusal and can never plant a duplicate. The point lands ON the curve (silent
+    // until pulled) and the drag phase pulls the value by the pointer's delta.
     std::optional<LanePointPlan> plan = planLanePointAtCaret(
         ChartCaret{
             .position = *position,

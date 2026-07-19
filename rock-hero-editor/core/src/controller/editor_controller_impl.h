@@ -803,10 +803,16 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] const std::vector<common::core::ToneAutomationPoint>* lanePointsFor(
         const std::string& instance_id, const std::string& param_id);
 
-    // A lane click's seek-and-arm intent (the row-axis form of the chart lane's empty click):
-    // seeks to the nearest grid slot on the clicked lane and arms the caret there.
+    // A time-addressed lane caret arm (the row-axis form of the chart lane's empty click): arms the
+    // caret at the grid slot nearest the given time. The time-input entry point (exercised by tests);
+    // the pixel-input click path arms through onToneAutomationPointerDown's one placement snap.
     void onToneAutomationLaneCaretRequested(
         std::string instance_id, std::string param_id, common::core::TimePosition time);
+
+    // Seeks the transport to a resolved lane slot and arms the caret there (paused) — the seek-and-arm
+    // tail the lane click and the time-addressed caret request share, so every lane caret arm rests on
+    // one slot with the transport following it.
+    void seekAndArmLaneCaret(common::core::GridPosition position, AutomationLaneRow row);
 
     // A button-less lane hover: resolves the Alt insert ghost and publishes it when Alt is held
     // over an insertable lane slot while paused, else clears it. Inverts the event's raw pixel x

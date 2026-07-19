@@ -844,6 +844,151 @@ TEST_CASE(
 }
 
 TEST_CASE(
+    "EditorController arms the lane caret through the placement seam, not the raw pixel time",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor;
+    editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
+    REQUIRE(editor.automation().lanes.size() == 1);
+
+    // The same boundary geometry the ghost-snap test uses, so the caret's snap is proven against the
+    // identical disagreement: over [0, 4] s at 401 px, the pixel x 225.3 inverts to 2.253 s through
+    // the placement seam (÷ (width - 1)) but to 2.247 s through the shipped view's ÷width secondsForX.
+    // The 1/4 grid boundary sits at 2.25 s, so the two paths arm the caret on DIFFERENT slots.
+    const common::core::TimeRange visible{
+        .start = common::core::TimePosition{0.0}, .end = common::core::TimePosition{4.0}
+    };
+    constexpr int content_width = 401;
+    constexpr float boundary_x = 225.3F;
+
+    // A plain (no Alt) primary press on the empty tracking lane arms the caret — the row-axis empty
+    // click. The lane extent lets the press resolve to the lane; y is irrelevant on an unauthored
+    // lane (no point to grab), so it sits mid-band.
+    ToneAutomationPointerEvent down;
+    down.instance_id = g_instance;
+    down.param_id = g_param;
+    down.geometry.visible_timeline = visible;
+    down.geometry.content_width = content_width;
+    down.lane_extents = {ToneAutomationLaneExtent{
+        .value_band_top = g_pointer_band_top, .value_band_height = g_pointer_band_height
+    }};
+    down.lane_index = 0;
+    down.x = boundary_x;
+    down.y = pointerYForValue(0.5F);
+    down.clicks = 1;
+    down.modifiers = ToneAutomationPointerModifiers{.ctrl = false, .alt = false};
+    editor.controller.onToneAutomationPointerDown(down);
+
+    const common::core::TempoMap& tempo_map = editor.controller.session().song().tempo_map;
+
+    // The slot an Alt+click / the insert ghost lands on at this pixel — the placement seam then the
+    // tempo grid — 2.5 s, measure 2 beat 2.
+    const std::optional<common::core::TimePosition> placement_time =
+        timelinePositionForX(boundary_x, visible, content_width);
+    REQUIRE(placement_time.has_value());
+    if (!placement_time.has_value())
+    {
+        throw std::logic_error("placement seam mapped no time");
+    }
+    const common::core::GridPosition placement_slot =
+        nearestTempoGridPosition(tempo_map, common::core::Fraction{1, 4}, *placement_time);
+    CHECK(placement_slot == gridAt(2, 2));
+
+    // The shipped ÷width secondsForX would have armed the caret one slot EARLIER (2.0 s, measure 2
+    // beat 1): the two paths genuinely disagree at this pixel.
+    const double phase1_seconds = visible.start.seconds + (static_cast<double>(boundary_x) /
+                                                           static_cast<double>(content_width)) *
+                                                              visible.duration().seconds;
+    const common::core::GridPosition phase1_slot = nearestTempoGridPosition(
+        tempo_map, common::core::Fraction{1, 4}, common::core::TimePosition{phase1_seconds});
+    CHECK(phase1_slot == gridAt(2, 1));
+    CHECK(phase1_slot != placement_slot);
+
+    // The armed caret lands on the placement slot, not the shipped ÷width slot: the caret now sits
+    // exactly where an Alt+click / ghost would at this pixel, and the transport follows it there.
+    REQUIRE(editor.automation().lane_caret.has_value());
+    if (editor.automation().lane_caret.has_value())
+    {
+        CHECK(editor.automation().lane_caret->lane_index == 0);
+        CHECK(editor.automation().lane_caret->position == placement_slot);
+        CHECK(editor.automation().lane_caret->position != phase1_slot);
+    }
+    CHECK(editor.transport.position().seconds == Catch::Approx(2.5));
+    CHECK(editor.transport.position().seconds != Catch::Approx(2.0));
+}
+
+TEST_CASE(
+    "EditorController arms the lane caret on the Ctrl fine tier, matching lane placement",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor;
+    editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
+    REQUIRE(editor.automation().lanes.size() == 1);
+
+    // Routing the caret arm through the one placement snap (laneSnapPositionForX) means it now honors
+    // the Ctrl fine tier exactly as lane placement and the insert ghost do — Ctrl = precision,
+    // uniformly. This pixel inverts to an off-grid 2.13 s, so the coarse and fine snaps disagree.
+    const common::core::TimeRange visible{
+        .start = common::core::TimePosition{0.0}, .end = common::core::TimePosition{4.0}
+    };
+    constexpr int content_width = 401;
+    constexpr float off_grid_x = 213.0F;
+
+    const common::core::TempoMap& tempo_map = editor.controller.session().song().tempo_map;
+    const std::optional<common::core::TimePosition> placement_time =
+        timelinePositionForX(off_grid_x, visible, content_width);
+    REQUIRE(placement_time.has_value());
+    if (!placement_time.has_value())
+    {
+        throw std::logic_error("placement seam mapped no time");
+    }
+
+    // The nearest 1/4 line is measure 2 beat 1 (2.0 s); the fine tier keeps the off-grid 1/960-beat
+    // slot. Both are derived through the same helpers the controller's snap uses, so the expectation
+    // tracks the placement seam rather than a hand-computed fraction.
+    const common::core::GridPosition coarse_slot =
+        nearestTempoGridPosition(tempo_map, common::core::Fraction{1, 4}, *placement_time);
+    const common::core::GridPosition fine_slot = fineGridPositionForBeat(
+        tempo_map, tempo_map.beatPositionAtSeconds(placement_time->seconds));
+    CHECK(coarse_slot == gridAt(2, 1));
+    CHECK(fine_slot != coarse_slot);
+
+    const auto down = [&](bool ctrl) {
+        ToneAutomationPointerEvent event;
+        event.instance_id = g_instance;
+        event.param_id = g_param;
+        event.geometry.visible_timeline = visible;
+        event.geometry.content_width = content_width;
+        event.lane_extents = {ToneAutomationLaneExtent{
+            .value_band_top = g_pointer_band_top, .value_band_height = g_pointer_band_height
+        }};
+        event.lane_index = 0;
+        event.x = off_grid_x;
+        event.y = pointerYForValue(0.5F);
+        event.clicks = 1;
+        event.modifiers = ToneAutomationPointerModifiers{.ctrl = ctrl, .alt = false};
+        return event;
+    };
+
+    // Ctrl held: the caret arms on the fine tier's off-grid slot.
+    editor.controller.onToneAutomationPointerDown(down(true));
+    REQUIRE(editor.automation().lane_caret.has_value());
+    if (editor.automation().lane_caret.has_value())
+    {
+        CHECK(editor.automation().lane_caret->position == fine_slot);
+        CHECK(editor.automation().lane_caret->position != coarse_slot);
+    }
+
+    // Without Ctrl the same pixel arms on the coarse grid line: Ctrl is what selects the tier.
+    editor.controller.onToneAutomationPointerDown(down(false));
+    REQUIRE(editor.automation().lane_caret.has_value());
+    if (editor.automation().lane_caret.has_value())
+    {
+        CHECK(editor.automation().lane_caret->position == coarse_slot);
+    }
+}
+
+TEST_CASE(
     "EditorController clears the insert ghost on a non-Alt move and on pointer exit",
     "[core][tone-automation]")
 {
