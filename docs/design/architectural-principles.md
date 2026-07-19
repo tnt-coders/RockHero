@@ -507,6 +507,44 @@ The core should not care whether input came from:
 
 If it does care, the boundary is in the wrong place.
 
+# Minimize Platform-Specific Code
+
+Platform-specific code is a last resort, not a convenience. **Limit it to the absolutely
+essential: only what provably cannot be expressed in an operating-system-agnostic way.** This is a
+standing project rule, binding on every module and every contribution, and it does not depend on
+which platforms ship today. Rock Hero currently ships Windows-only, but the codebase is written to
+stay portable by default so platform-specific code never accumulates as hidden debt — a cross-OS
+port then stays a short, contained effort instead of a rewrite. `docs/plans/roadmap/33-cross-platform-port.md`
+is the worked application of this rule and carries the running platform-guard census.
+
+"Platform-specific code" means any OS-conditional compilation (`#if` / `#ifdef` on `_WIN32`,
+`JUCE_WINDOWS`, `__APPLE__`, `__linux__`, and the like), any direct native OS API call, and any
+behavior that deliberately differs by operating system.
+
+The stack already carries abstraction layers whose entire purpose is to keep product code generic:
+JUCE (files, paths, dialogs, settings, message loop), SDL3 (windowing, input), bgfx (rendering
+across Direct3D, Vulkan, and Metal), and the C++ standard library (`std::filesystem`,
+`std::chrono`, `std::thread`). **Exhaust these layers before writing any platform guard.** A guard
+is admissible only where the abstraction demonstrably ends — a native window handle, a
+backend-specific shader binary, an OS-only hook API, or a genuine filesystem-semantics difference
+such as case-insensitive paths. Where a generic formulation preserves behavior, it wins over
+parallel per-OS branches: a structural check that is self-guarding on every platform beats an
+`#if`, and an encoding bridge that is correct everywhere beats per-OS string handling.
+
+When a platform guard genuinely survives that test, it obeys three rules:
+
+- **Every guard carries a why-comment.** State why no OS-agnostic expression exists, so a future
+  reader can re-litigate the necessity rather than cargo-cult the branch forward.
+- **One seam per concern.** A platform choice lives in exactly one function or one data table, and
+  its consumers stay fully generic. A second `#if` for the same concern is a design defect — route
+  the consumers through the one seam instead of branching again.
+- **Delete before adding.** A guard that turns out to be unnecessary is removed on sight; the
+  platform-guard count should trend down, not up.
+
+Push any unavoidable platform seam to the boundary — an adapter, a single selection function, one
+per-OS data row — exactly as time, threading, and IO are pushed to the boundary elsewhere in this
+document. Headless domain and presentation-model code should contain no platform guards at all.
+
 # Sum Types vs Interfaces
 
 The codebase deliberately uses both `std::variant` sum types and small virtual interfaces for
@@ -743,6 +781,10 @@ When adding a new class, function, or subsystem, ask:
 6. Does it touch Tracktion or runtime framework behavior that belongs in an adapter?
 7. Is it mixing policy with side effects?
 8. Is it mixing threading concerns with domain rules?
+9. Does it hard-code platform-specific behavior that an abstraction layer (JUCE, SDL3, bgfx, or the
+   C++ standard library) could express generically? If a platform guard is truly unavoidable, is it
+   confined to one seam and documented with why no OS-agnostic form exists (see **Minimize
+   Platform-Specific Code**)?
 
 If the answer points away from purity or replaceability, treat that as a design warning and justify
 it explicitly.

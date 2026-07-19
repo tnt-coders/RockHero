@@ -54,6 +54,23 @@ audio is not padded out; a source that is already FLAC is copied verbatim.
 
 ---
 
+# Platform Support
+
+**Windows is the only officially supported platform today** (as of 2026-07-18). The stack is
+nonetheless chosen and written to be operating-system-agnostic: SDL3 and bgfx render across
+Windows, Linux, and macOS; JUCE and the C++ standard library abstract files, paths, windowing, and
+timing; and only genuinely Windows-only pieces (such as ASIO input) compile conditionally. The
+Linux and macOS CI legs build and test on every push.
+
+Platform-specific code is held to a strict minimum by standing rule — it is limited to the
+absolutely essential, only what provably cannot be expressed in an OS-agnostic way. That rule and
+its mechanics live in **Minimize Platform-Specific Code** in \ref design_architectural_principles.
+The rule is not contingent on shipping other platforms: keeping the codebase portable by default is
+exactly what makes the planned cross-platform port
+(`docs/plans/roadmap/33-cross-platform-port.md`) a short, contained effort rather than a rewrite.
+
+---
+
 # Repository Layout
 
 \code{.txt}

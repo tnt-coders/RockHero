@@ -161,6 +161,24 @@ Module-local test `.cpp` files should also wrap their tests in the namespace of 
 test. This keeps tests close to the code they verify and avoids treating same-module tests like
 external consumers.
 
+# Platform-Specific Code
+
+Platform-specific code is a last resort. Reach for the stack's abstraction layers first — JUCE
+(files, paths, dialogs, settings), SDL3 (windowing, input), bgfx (rendering), and the C++ standard
+library (`std::filesystem`, `std::chrono`) exist so product code stays operating-system-agnostic. A
+raw OS conditional (`#if` / `#ifdef` on `_WIN32`, `JUCE_WINDOWS`, `__APPLE__`, `__linux__`) or a
+direct native API call is admissible only where those layers demonstrably end.
+
+When a platform guard is genuinely unavoidable:
+
+- Give it a comment stating why no OS-agnostic expression exists.
+- Confine the platform choice to a single seam — one function or one data table. Do not repeat the
+  same `#if` across call sites; route them through the one seam so they stay generic.
+
+This is the mechanical C++ form of a binding architectural rule. See **Minimize Platform-Specific
+Code** in \ref design_architectural_principles for the full rationale, the boundary framing, and
+the "delete before adding" discipline.
+
 # Switch Case Blocks
 
 Use braces around every non-empty `switch` case body. This keeps local declarations scoped to the
