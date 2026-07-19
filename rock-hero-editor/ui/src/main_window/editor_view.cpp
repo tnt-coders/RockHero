@@ -406,6 +406,16 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
                     m_controller.onChartPointerUp(event);
                     break;
                 }
+                case core::ChartPointerPhase::Move:
+                {
+                    m_controller.onChartPointerMove(event);
+                    break;
+                }
+                case core::ChartPointerPhase::Exit:
+                {
+                    m_controller.onChartPointerExit();
+                    break;
+                }
             }
         });
     m_tone_track_view.setComponentID("tone_track_view");

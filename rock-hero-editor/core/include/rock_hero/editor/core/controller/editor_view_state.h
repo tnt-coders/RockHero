@@ -396,6 +396,37 @@ struct ChartCaretViewState
 };
 
 /*!
+\brief The Alt-held insert ghost's rendered position over an empty grid slot.
+
+While Alt is held over an insertable empty slot the lane draws a hollow white ring where an
+Alt+click would plant a fret-0 note — the neutral-create verb's mouse form (§9b), the chart
+sibling of the automation lane's on-curve insert ghost. Published only when the ring would be
+honest: absent over occupied slots (where the press keeps its select meaning and an insert
+would no-op), so the affordance never advertises an action it would not perform (§7). Stored in
+seconds like the caret so the lane maps it through the same visible-timeline convention.
+*/
+struct ChartInsertGhostViewState
+{
+    /*! \brief Ghost position in seconds on the arrangement timeline. */
+    double seconds{};
+
+    /*! \brief One-based string lane the ghost note would land on. */
+    int string{};
+
+    /*!
+    \brief Compares two insert-ghost states by their stored values.
+    \param lhs Left-hand state.
+    \param rhs Right-hand state.
+    \return True when both states store equal values.
+    */
+    friend bool operator==(
+        const ChartInsertGhostViewState& lhs, const ChartInsertGhostViewState& rhs)
+    {
+        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.string == rhs.string;
+    }
+};
+
+/*!
 \brief Chart-editing selection state rendered as overlays above the tablature notation.
 
 Selected notes are indices into the current tab projection's note order (which matches the
@@ -420,6 +451,15 @@ struct ChartEditViewState
     both fall back to the transport position. Absent without a chart.
     */
     std::optional<ChartCaretViewState> caret{};
+
+    /*!
+    \brief The Alt-held insert ghost, present while Alt hovers an insertable empty slot.
+
+    Rendered as a hollow white ring where an Alt+click would plant a fret-0 note — distinct from
+    the caret's square so the two furniture kinds never read as one. Absent whenever an Alt+click
+    would not insert (no Alt, over a note, or while playing), so the ring never lies.
+    */
+    std::optional<ChartInsertGhostViewState> insert_ghost{};
 
     /*!
     \brief Compares two chart-editing states by their stored values.

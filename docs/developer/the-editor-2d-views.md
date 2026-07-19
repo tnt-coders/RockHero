@@ -163,11 +163,13 @@ index, so it survives rebuild pushes. Unauthored lanes track the live parameter 
 
 A scope note on editing: the interaction *grammar* (Ctrl precision, Alt create-quasimode, Shift
 extend, snap always on, Esc cancel, one undo entry per gesture —
-`docs/plans/in-progress/editing-interaction-model.md`) is settled and binding, but it is
-implemented only on the tone track and automation lanes today. The product's core editing
-surfaces — note authoring, chart editing, tempo-anchor editing — are **not built yet**
-(`docs/plans/roadmap/40-chart-editing.md` and siblings); this guide documents none of them, and
-new editing surfaces adopt the grammar when they arrive.
+`docs/plans/in-progress/editing-interaction-model.md`) is settled and binding. It is implemented
+on the tone track, the automation lanes, and — increasingly — the tab lane's chart editing (the
+caret/marker model, note selection, typing-inserts, and Alt+click note create;
+`docs/plans/roadmap/40-chart-editing.md` and
+`docs/plans/in-progress/chart-span-and-selection-model.md`). Tempo-anchor editing is **not built
+yet**. This guide gives the chart surfaces no detailed tour of their own; new editing surfaces
+adopt the grammar as they arrive.
 
 # Adding a new timeline row — silent steps
 

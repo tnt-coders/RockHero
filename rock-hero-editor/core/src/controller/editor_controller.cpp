@@ -887,6 +887,16 @@ void EditorController::onChartPointerUp(const ChartPointerEvent& event)
     m_impl->onChartPointerUp(event);
 }
 
+void EditorController::onChartPointerMove(const ChartPointerEvent& event)
+{
+    m_impl->onChartPointerMove(event);
+}
+
+void EditorController::onChartPointerExit()
+{
+    m_impl->onChartPointerExit();
+}
+
 void EditorController::onChartCaretStepRequested(ChartStepDirection direction, bool measure)
 {
     m_impl->onChartCaretStepRequested(direction, measure);
@@ -1690,18 +1700,29 @@ void EditorController::Impl::dissolveChartCaretInPlace()
 // becomes the selection (the highlight IS the caret display there), an empty slot clears it
 // (the white square shows where typing will insert). Chart notes are sorted by
 // (position, string), so slot occupancy is one binary search.
+// True when a note already sits on the slot: the chart notes are sorted by (position, string),
+// so occupancy is one binary search. Shared by caret arming (selection re-derivation), the
+// Alt+click insert (refusal), and the insert ghost's honesty gate.
+bool EditorController::Impl::chartSlotOccupied(
+    common::core::GridPosition position, int string) const
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value())
+    {
+        return false;
+    }
+    const ChartNoteKey key{.position = position, .string = string};
+    return std::ranges::binary_search(
+        arrangement->chart->notes, key, {}, [](const common::core::ChartNote& note) {
+            return ChartNoteKey{.position = note.position, .string = note.string};
+        });
+}
+
 void EditorController::Impl::armChartCaret(common::core::GridPosition position, int string)
 {
     m_chart_marker = ChartCaret{.position = position, .string = string};
     const ChartNoteKey key{.position = position, .string = string};
-    const common::core::Arrangement* const arrangement = session().currentArrangement();
-    const bool on_note =
-        arrangement != nullptr && arrangement->chart.has_value() &&
-        std::ranges::binary_search(
-            arrangement->chart->notes, key, {}, [](const common::core::ChartNote& note) {
-                return ChartNoteKey{.position = note.position, .string = note.string};
-            });
-    if (on_note)
+    if (chartSlotOccupied(position, string))
     {
         chartSelectionMutable().replaceWith(key);
     }
@@ -1712,6 +1733,69 @@ void EditorController::Impl::armChartCaret(common::core::GridPosition position, 
         // typing scope).
         chartSelectionMutable().clear();
     }
+}
+
+// Plants a note at an empty slot, makes it the selection, and arms the caret on it — the mouse
+// form of the Insert verb (§9b) behind Alt+click neutral-create. planInsertNote refuses an
+// occupied slot, so an Alt+click onto a note is a silent no-op. The insert is one undo entry; a
+// following retype (the note lands selected) is its own — "place, then correct the value".
+void EditorController::Impl::insertChartNoteAt(
+    common::core::GridPosition position, int string, int fret)
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value())
+    {
+        return;
+    }
+    common::core::ChartNote note;
+    note.position = position;
+    note.string = string;
+    note.fret = fret;
+    std::optional<ChartNotesEditPlan> plan =
+        planInsertNote(*arrangement->chart, session().song().tempo_map, note);
+    if (!plan.has_value())
+    {
+        return;
+    }
+    if (!applyChartEditPlan(
+            std::move(plan),
+            std::vector<ChartNoteKey>{ChartNoteKey{.position = position, .string = string}}))
+    {
+        return;
+    }
+    // Arm the caret on the freshly placed note so the state reads exactly like a plain click
+    // that landed on a note (armed ⟹ the selection is what sits under the caret, §9a) and the
+    // next typed digit retypes it.
+    armChartCaret(position, string);
+}
+
+// Resolves the Alt-hover insert ghost: published only while paused with Alt held over an
+// insertable empty slot, so the ring never advertises an insert that would no-op (§7). Snapping
+// and occupancy match the click exactly (chartPlacementAt + chartSlotOccupied). Dirty-checked
+// against the current ghost — a hover that stays within one grid slot leaves it unchanged and
+// pushes no view rebuild, so per-pixel hover stays cheap.
+void EditorController::Impl::publishChartInsertGhost(const ChartPointerEvent& event)
+{
+    std::optional<ChartInsertGhostViewState> ghost;
+    if (event.modifiers.alt && !isBusy() && !m_transport.state().playing)
+    {
+        if (const auto placement = chartPlacementAt(event);
+            placement.has_value() && !chartSlotOccupied(placement->first, placement->second))
+        {
+            const common::core::TempoMap& tempo_map = session().song().tempo_map;
+            ghost = ChartInsertGhostViewState{
+                .seconds = tempo_map.secondsAtNote(
+                    placement->first.measure, placement->first.beat, placement->first.offset),
+                .string = placement->second,
+            };
+        }
+    }
+    if (ghost == m_chart_insert_ghost)
+    {
+        return;
+    }
+    m_chart_insert_ghost = ghost;
+    updateView();
 }
 
 // Arms the caret on an automation lane row and re-derives the selection from what sits under
@@ -1969,6 +2053,11 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
         return;
     }
 
+    // A press ends any Alt-hover preview: a live gesture owns the lane now, and an Alt-drag
+    // re-shows the ring as it follows. Refresh only when a ghost was actually showing.
+    const bool had_insert_ghost = m_chart_insert_ghost.has_value();
+    m_chart_insert_ghost.reset();
+
     ChartPointerGesture gesture;
     gesture.geometry = event.geometry;
     gesture.modifiers = event.modifiers;
@@ -1981,6 +2070,10 @@ void EditorController::Impl::onChartPointerDown(const ChartPointerEvent& event)
 
     if (!gesture.hit_note.has_value())
     {
+        if (had_insert_ghost)
+        {
+            updateView();
+        }
         return;
     }
 
@@ -2033,6 +2126,15 @@ void EditorController::Impl::onChartPointerDrag(const ChartPointerEvent& event)
         return;
     }
 
+    if (gesture.modifiers.alt)
+    {
+        // Alt on an empty slot is the neutral-create gesture, never a marquee: the ring follows
+        // the pointer and the release plants the note, so press-drag-release places in one
+        // gesture just as the automation lane's Alt-drag does.
+        publishChartInsertGhost(event);
+        return;
+    }
+
     const bool beyond_threshold =
         std::abs(event.x - gesture.anchor_x) > g_chart_click_threshold_px ||
         std::abs(event.y - gesture.anchor_y) > g_chart_click_threshold_px;
@@ -2060,6 +2162,9 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
 
     const ChartPointerGesture gesture = *m_chart_gesture;
     m_chart_gesture.reset();
+    // A release ends the hover preview; every path below refreshes the view, so a ghost left
+    // following an Alt-drag clears here.
+    m_chart_insert_ghost.reset();
 
     const common::core::TabViewState* const tab = displayedTabProjection();
     if (tab == nullptr || tab->string_count <= 0)
@@ -2116,13 +2221,40 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
         return;
     }
 
-    // Empty click: arm the caret at the snapped slot on the clicked string (the marker
-    // model) — with play-from-the-marker this IS the seek; the selection clears via the
-    // caret's selection re-derivation.
+    // Empty release: Alt plants a fret-0 note here and selects it for an immediate retype (the
+    // neutral-create verb's mouse form, §9b — the chart sibling of the lane's on-curve Alt+click);
+    // a plain release arms the caret at the snapped slot — with play-from-the-marker this IS the
+    // seek, the selection clearing via the caret's re-derivation.
     if (const auto placement = chartPlacementAt(event); placement.has_value())
     {
-        armChartCaret(placement->first, placement->second);
+        if (gesture.modifiers.alt)
+        {
+            insertChartNoteAt(placement->first, placement->second, 0);
+        }
+        else
+        {
+            armChartCaret(placement->first, placement->second);
+        }
     }
+    updateView();
+}
+
+// A button-less hover: publish the Alt insert ghost when Alt is held over an insertable empty
+// slot, else clear it. The controller resolves snap + occupancy so the ring can only appear
+// where an Alt+click would actually plant a note (§7, no lying affordance).
+void EditorController::Impl::onChartPointerMove(const ChartPointerEvent& event)
+{
+    publishChartInsertGhost(event);
+}
+
+// The pointer left the lane: no hover, so no ghost.
+void EditorController::Impl::onChartPointerExit()
+{
+    if (!m_chart_insert_ghost.has_value())
+    {
+        return;
+    }
+    m_chart_insert_ghost.reset();
     updateView();
 }
 
@@ -3568,6 +3700,9 @@ EditorViewState EditorController::Impl::deriveViewState() const
                         1.0f),
                 };
             }
+            // The Alt-hover insert ghost publishes verbatim: it is already resolved to seconds +
+            // string, and is set only while Alt hovers an insertable empty slot (else absent).
+            state.chart_edit.insert_ghost = m_chart_insert_ghost;
         }
     }
     else

@@ -116,6 +116,7 @@ core::ChartPointerEvent TabView::makePointerEvent(const juce::MouseEvent& event)
             core::ChartPointerModifiers{
                 .ctrl = event.mods.isCtrlDown(),
                 .shift = event.mods.isShiftDown(),
+                .alt = event.mods.isAltDown(),
             },
         .clicks = event.getNumberOfClicks(),
     };
@@ -144,6 +145,27 @@ void TabView::mouseUp(const juce::MouseEvent& event)
     if (m_on_pointer_event != nullptr && m_tab != nullptr && m_tab->string_count > 0)
     {
         m_on_pointer_event(core::ChartPointerPhase::Up, makePointerEvent(event));
+    }
+}
+
+// A button-less hover drives the Alt insert ghost: the controller resolves whether Alt is held
+// over an insertable empty slot and publishes the ring. Like the automation lane's ghost the
+// preview follows the pointer, so it materializes on the first Alt+move rather than the instant
+// Alt is pressed.
+void TabView::mouseMove(const juce::MouseEvent& event)
+{
+    if (wantsPointerAt(event.getPosition()))
+    {
+        m_on_pointer_event(core::ChartPointerPhase::Move, makePointerEvent(event));
+    }
+}
+
+// Leaving the lane clears any hover ghost; the event carries no position the controller needs.
+void TabView::mouseExit(const juce::MouseEvent& event)
+{
+    if (m_on_pointer_event != nullptr && m_tab != nullptr && m_tab->string_count > 0)
+    {
+        m_on_pointer_event(core::ChartPointerPhase::Exit, makePointerEvent(event));
     }
 }
 
@@ -275,6 +297,21 @@ void TabView::paint(juce::Graphics& g)
         const float size = square->getWidth();
         g.setColour(juce::Colours::white.withAlpha(0.7f));
         g.drawRoundedRectangle(*square, size / 8.0f, overlayRingStroke(size));
+    }
+
+    // The Alt-hover insert ghost: a hollow white ring the size of a note head, at the slot where
+    // an Alt+click would plant a fret-0 note. Round rather than the caret's square so it reads as
+    // a note-to-be, not the editing caret; present only while Alt hovers an insertable empty slot
+    // (the controller resolves the honesty gate), so it never advertises an insert that no-ops.
+    if (m_edit.insert_ghost.has_value() && m_edit.insert_ghost->string >= 1 &&
+        m_edit.insert_ghost->string <= m_tab->string_count)
+    {
+        const float size = metrics.note_height;
+        const float center_x = metrics.x(m_edit.insert_ghost->seconds);
+        const float center_y = metrics.laneY(m_edit.insert_ghost->string);
+        g.setColour(juce::Colours::white.withAlpha(0.7f));
+        g.drawEllipse(
+            center_x - size / 2.0f, center_y - size / 2.0f, size, size, overlayRingStroke(size));
     }
 }
 

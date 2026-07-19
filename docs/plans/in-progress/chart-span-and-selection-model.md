@@ -240,6 +240,13 @@ first caret. The paused playhead is gone.
   typed digits, nothing else). Alt returns to being purely the mutation gate for
   move/duration/fret-shift. (The full-note ghost shipped hours before this settlement;
   superseded knowingly — the caret workflow is less machinery and faster entry.)
+  > **Amended 2026-07-18** (Alt+click chart-note create): the *heavy* quasimode above stays
+  > deleted, but Alt+click on an empty slot returned as the lightweight mouse form of §9b's
+  > Insert verb — it plants a **fret-0 note** (corrected by the caret's normal typing rule; no
+  > Alt+digit composition, no accumulation, no sticky fret) and shows a hollow white ring ghost
+  > while Alt is held. So "Alt returns to being purely the mutation gate" holds on objects but
+  > not on empty slots, where Alt is now the neutral-create gate — uniform with the tone
+  > surfaces. Full record in `editing-interaction-model.md`.
 - **Unaffected:** the containment click hierarchy on notes, Ctrl toggle, marquee, Shift+click
   time range (now caret-anchored, matching GP), all Alt / Alt+Shift verbs, delete, undo,
   zoom, the selection-verbs-follow-the-selection rule.
@@ -410,7 +417,10 @@ what extends the marker model itself. Implemented the same day.
   the created point landing **on the curve** (sonically silent until pulled) — the keyboard
   mirror of the on-curve Alt+click placement. **Insert is the neutral-create verb everywhere**
   (user addition): fret-0 note / on-curve point at an armed empty slot; no-op on occupied slots
-  and while passive, so Insert never mutates existing objects.
+  and while passive, so Insert never mutates existing objects. Its **mouse form is Alt+click** on
+  an empty slot (2026-07-18): the same fret-0 note / on-curve point, previewed by the Alt-held
+  insert ghost (the tab lane's returned white ring, the lane's on-curve ring), so the
+  neutral-create gesture is uniform across every surface's pointer *and* keyboard.
 - **One selection editor-wide.** Chart selection, automation point, and tone region become
   alternatives of one editor-core sum type — two live selections are unrepresentable, the
   Delete precedence ladder retires (Delete deletes *the* selection), and the §9a

@@ -27,6 +27,12 @@ enum class ChartPointerPhase : std::uint8_t
 
     /*! \brief Button released, ending the gesture. */
     Up,
+
+    /*! \brief Pointer moved with no button held (a hover), driving the Alt insert ghost. */
+    Move,
+
+    /*! \brief Pointer left the lane, clearing any hover affordance. */
+    Exit,
 };
 
 /*! \brief Modifier keys held during a chart pointer event, per the editing interaction model. */
@@ -41,6 +47,14 @@ struct ChartPointerModifiers
 
     /*! \brief Extend: a marquee release adds its box to the selection instead of replacing. */
     bool shift{false};
+
+    /*!
+    \brief Authoring: on an empty slot, Alt is the neutral-create gesture — a hover shows the
+    insert ring and a press plants a fret-0 note there (§9b's Insert verb in its mouse form,
+    the chart sibling of the automation lane's on-curve Alt+click). Ignored over a note, where
+    the slot is occupied and the press keeps its select/(future) move meaning.
+    */
+    bool alt{false};
 };
 
 /*! \brief One pointer event inside the tablature lane, in lane-local pixel coordinates. */

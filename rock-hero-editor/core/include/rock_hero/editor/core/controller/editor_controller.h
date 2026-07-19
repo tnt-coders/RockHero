@@ -429,6 +429,12 @@ public:
     /*! \copydoc IEditorController::onChartPointerUp */
     void onChartPointerUp(const ChartPointerEvent& event) override;
 
+    /*! \copydoc IEditorController::onChartPointerMove */
+    void onChartPointerMove(const ChartPointerEvent& event) override;
+
+    /*! \copydoc IEditorController::onChartPointerExit */
+    void onChartPointerExit() override;
+
     /*! \copydoc IEditorController::onChartCaretStepRequested */
     void onChartCaretStepRequested(ChartStepDirection direction, bool measure) override;
 
