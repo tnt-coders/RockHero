@@ -4,6 +4,7 @@
 #include <cmath>
 #include <compare>
 #include <filesystem>
+#include <optional>
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
 #include <rock_hero/common/audio/live_rig/i_live_rig.h>
 #include <rock_hero/common/core/song/arrangement.h>
@@ -11,6 +12,9 @@
 #include <rock_hero/common/core/tone/tone_automation.h>
 #include <rock_hero/common/core/tone/tone_track.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
+#include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
+#include <rock_hero/editor/core/timeline/timeline_geometry.h>
+#include <rock_hero/editor/core/tone/tone_automation_pointer.h>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -697,6 +701,118 @@ TEST_CASE("EditorController steps the lane caret onto off-grid points", "[core][
     CHECK(editor.automation().lane_caret->position == fine_slot);
     REQUIRE(editor.automation().selected_point.has_value());
     CHECK(editor.automation().selected_point->point_index == 1);
+}
+
+TEST_CASE(
+    "EditorController snaps the insert ghost through the placement seam, not the raw pixel time",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor;
+    editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
+    REQUIRE(editor.automation().lanes.size() == 1);
+
+    // Geometry chosen so the two x->seconds conversions straddle a snap boundary. Over [0, 4] s
+    // with a 401 px content width, the pixel x 225.3 maps to 2.253 s through the placement seam
+    // (timelinePositionForX divides by width - 1 and clamps) but to 2.247 s through Phase 1's
+    // secondsForX (which divides by width). The quarter-note grid boundary sits at 2.25 s, so the
+    // two paths snap to DIFFERENT slots — this is exactly the <=1px discrepancy Phase 2 erases.
+    const common::core::TimeRange visible{
+        .start = common::core::TimePosition{0.0}, .end = common::core::TimePosition{4.0}
+    };
+    constexpr int content_width = 401;
+    constexpr float boundary_x = 225.3F;
+
+    editor.controller.onToneAutomationPointerMove(
+        ToneAutomationPointerEvent{
+            .instance_id = g_instance,
+            .param_id = g_param,
+            .geometry =
+                ToneAutomationLaneGeometry{
+                    .visible_timeline = visible, .content_width = content_width
+                },
+            .x = boundary_x,
+            .y = 0.0F,
+            .modifiers = ToneAutomationPointerModifiers{.ctrl = false, .alt = true},
+        });
+
+    const common::core::TempoMap& tempo_map = editor.controller.session().song().tempo_map;
+
+    // The slot an Alt+click at this pixel would place: the raw pixel inverted through the exact
+    // placement seam (timelinePositionForX then the tempo grid) — 2.5 s, measure 2 beat 2.
+    const std::optional<common::core::TimePosition> placement_time =
+        timelinePositionForX(boundary_x, visible, content_width);
+    REQUIRE(placement_time.has_value());
+    if (!placement_time.has_value())
+    {
+        throw std::logic_error("placement seam mapped no time");
+    }
+    const common::core::GridPosition placement_slot =
+        nearestTempoGridPosition(tempo_map, common::core::Fraction{1, 4}, *placement_time);
+    CHECK(placement_slot == gridAt(2, 2));
+
+    // Phase 1's divide-by-width secondsForX would have snapped this same pixel to the EARLIER slot
+    // (2.0 s, measure 2 beat 1): the two paths genuinely disagree here.
+    const double phase1_seconds = visible.start.seconds + (static_cast<double>(boundary_x) /
+                                                           static_cast<double>(content_width)) *
+                                                              visible.duration().seconds;
+    const common::core::GridPosition phase1_slot = nearestTempoGridPosition(
+        tempo_map, common::core::Fraction{1, 4}, common::core::TimePosition{phase1_seconds});
+    CHECK(phase1_slot == gridAt(2, 1));
+    CHECK(phase1_slot != placement_slot);
+
+    // The published ghost lands on the placement slot, not Phase 1's: the gap is closed. Its
+    // seconds match the placement path's secondsAtNote exactly (2.5 s), never the 2.0 s Phase 1
+    // would have produced.
+    REQUIRE(editor.automation().insert_ghost.has_value());
+    if (editor.automation().insert_ghost.has_value())
+    {
+        CHECK(editor.automation().insert_ghost->lane_index == 0);
+        CHECK(
+            editor.automation().insert_ghost->seconds ==
+            Catch::Approx(tempo_map.secondsAtNote(
+                placement_slot.measure, placement_slot.beat, placement_slot.offset)));
+        CHECK(editor.automation().insert_ghost->seconds == Catch::Approx(2.5));
+        CHECK(editor.automation().insert_ghost->seconds != Catch::Approx(2.0));
+    }
+}
+
+TEST_CASE(
+    "EditorController clears the insert ghost on a non-Alt move and on pointer exit",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor;
+    editor.controller.onToneAutomationLaneAddRequested(g_instance, g_param);
+    REQUIRE(editor.automation().lanes.size() == 1);
+
+    const common::core::TimeRange visible{
+        .start = common::core::TimePosition{0.0}, .end = common::core::TimePosition{4.0}
+    };
+    const auto move_at = [&](float x, bool alt) {
+        return ToneAutomationPointerEvent{
+            .instance_id = g_instance,
+            .param_id = g_param,
+            .geometry =
+                ToneAutomationLaneGeometry{.visible_timeline = visible, .content_width = 400},
+            .x = x,
+            .y = 0.0F,
+            .modifiers = ToneAutomationPointerModifiers{.ctrl = false, .alt = alt},
+        };
+    };
+
+    // An Alt hover over an insertable slot publishes the ghost (x 200 of 400 -> 2.0 s, measure 2).
+    editor.controller.onToneAutomationPointerMove(move_at(200.0F, true));
+    CHECK(editor.automation().insert_ghost.has_value());
+
+    // A move without Alt clears it: the ghost previews the Alt-create gesture only, so a plain
+    // caret-arming hover must show none.
+    editor.controller.onToneAutomationPointerMove(move_at(200.0F, false));
+    CHECK_FALSE(editor.automation().insert_ghost.has_value());
+
+    // Re-arm, then the pointer leaving the lanes clears it too.
+    editor.controller.onToneAutomationPointerMove(move_at(200.0F, true));
+    REQUIRE(editor.automation().insert_ghost.has_value());
+    editor.controller.onToneAutomationPointerExit();
+    CHECK_FALSE(editor.automation().insert_ghost.has_value());
 }
 
 } // namespace rock_hero::editor::core

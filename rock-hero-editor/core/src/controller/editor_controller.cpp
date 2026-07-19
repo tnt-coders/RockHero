@@ -1019,17 +1019,14 @@ void EditorController::onToneAutomationLaneCaretRequested(
     m_impl->onToneAutomationLaneCaretRequested(std::move(instance_id), std::move(param_id), time);
 }
 
-void EditorController::onToneAutomationLaneHovered(
-    std::string instance_id, std::string param_id, common::core::TimePosition time, bool alt,
-    bool ctrl)
+void EditorController::onToneAutomationPointerMove(const ToneAutomationPointerEvent& event)
 {
-    m_impl->onToneAutomationLaneHovered(
-        std::move(instance_id), std::move(param_id), time, alt, ctrl);
+    m_impl->onToneAutomationPointerMove(event);
 }
 
-void EditorController::onToneAutomationLaneHoverEnded()
+void EditorController::onToneAutomationPointerExit()
 {
-    m_impl->onToneAutomationLaneHoverEnded();
+    m_impl->onToneAutomationPointerExit();
 }
 
 void EditorController::onPluginBrowserRequested()

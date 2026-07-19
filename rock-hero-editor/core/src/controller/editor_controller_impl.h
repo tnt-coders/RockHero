@@ -809,15 +809,14 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         std::string instance_id, std::string param_id, common::core::TimePosition time);
 
     // A button-less lane hover: resolves the Alt insert ghost and publishes it when Alt is held
-    // over an insertable lane slot while paused, else clears it. The snap matches the view's
-    // placement (grid, or the Ctrl fine tier), and a hover that stays within one grid slot leaves
-    // the ghost unchanged and pushes no view rebuild.
-    void onToneAutomationLaneHovered(
-        std::string instance_id, std::string param_id, common::core::TimePosition time, bool alt,
-        bool ctrl);
+    // over an insertable lane slot while paused, else clears it. Inverts the event's raw pixel x
+    // through the placement seam (timelinePositionForX then the tempo grid, or the Ctrl fine tier)
+    // so the ghost lands on the exact slot an Alt+click would, and a hover that stays within one
+    // grid slot leaves the ghost unchanged and pushes no view rebuild.
+    void onToneAutomationPointerMove(const ToneAutomationPointerEvent& event);
 
     // The pointer left the lane row: no hover, so no ghost.
-    void onToneAutomationLaneHoverEnded();
+    void onToneAutomationPointerExit();
 
     // The Insert key's neutral create: a fret-0 note at an armed empty string slot, an
     // on-curve point at an armed empty lane slot; a no-op on occupied slots, with a selection,
