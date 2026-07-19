@@ -6,7 +6,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <compare>
 #include <cstddef>
 #include <iterator>
 #include <rock_hero/common/core/chart/chart_tokens.h>
@@ -80,13 +79,32 @@ constexpr float g_unresolved_alpha = 0.35f;
 class PointValueEditorContent final : public juce::Component
 {
 public:
-    // Creates the editor prefilled with the point's current display text, selected for overtyping.
+    // Where the caret starts, so each entry path overtypes correctly.
+    enum class InitialCaret
+    {
+        // Prefilled with a complete value: highlight it so the first keystroke replaces it.
+        SelectAll,
+        // Seeded with the first typed digit: park the caret after it so more digits append.
+        AtEnd,
+    };
+
+    // Creates the editor prefilled with the seed text, with the caret placed for the entry path.
     PointValueEditorContent(
-        const juce::String& initial_text, std::function<void(const juce::String&)> on_commit)
+        const juce::String& initial_text, InitialCaret initial_caret,
+        std::function<void(const juce::String&)> on_commit)
         : m_on_commit(std::move(on_commit))
     {
         m_editor.setText(initial_text, juce::dontSendNotification);
-        m_editor.selectAll();
+        if (initial_caret == InitialCaret::SelectAll)
+        {
+            m_editor.selectAll();
+        }
+        else
+        {
+            // setText already parks the caret at the end, but say so explicitly rather than lean
+            // on that behavior: the seed digit must survive the next keystroke, not be replaced.
+            m_editor.moveCaretToEnd();
+        }
         m_editor.onReturnKey = [this] {
             if (m_on_commit)
             {
@@ -1260,165 +1278,6 @@ bool ToneAutomationLanesView::cancelActiveGesture()
     return true;
 }
 
-bool ToneAutomationLanesView::nudgeSelectedPoint(NudgeDirection direction, bool fine)
-{
-    const std::optional<SelectedPoint> selected = selectedPointFromState();
-    if (!selected.has_value())
-    {
-        // Create-then-nudge at an armed empty lane caret slot (§9b): the point lands ON the
-        // curve at the caret and the arrow's step is baked into the creation, so "grab the
-        // curve here and pull" is one keystroke and ONE undo entry. A caret over an existing
-        // point always publishes it as the selection (arming re-derives), so reaching here
-        // means the slot is empty.
-        if (!m_state.lane_caret.has_value() ||
-            m_state.lane_caret->lane_index >= m_state.lanes.size())
-        {
-            return false;
-        }
-        const core::ToneAutomationLaneViewState& lane =
-            m_state.lanes[m_state.lane_caret->lane_index];
-        if (!lane.resolved)
-        {
-            return false;
-        }
-        const common::core::GridPosition caret_position = m_state.lane_caret->position;
-        float value = curveValueAt(lane, m_state.lane_caret->seconds);
-        common::core::GridPosition position = caret_position;
-        if (direction == NudgeDirection::Up || direction == NudgeDirection::Down)
-        {
-            const float step = lane.is_discrete && lane.discrete_value_count >= 2
-                                   ? 1.0F / static_cast<float>(lane.discrete_value_count - 1)
-                                   : (fine ? 0.001F : 0.01F);
-            value = snappedValueForLane(
-                std::clamp(value + (direction == NudgeDirection::Up ? step : -step), 0.0F, 1.0F),
-                lane);
-        }
-        else
-        {
-            // A refused time step (map edge, neighbor collision, window edge) still creates at
-            // the caret itself: the grab succeeded, only the pull refused. The step clamps
-            // strictly between the caret slot's neighboring points, like every point nudge.
-            const bool later = direction == NudgeDirection::Later;
-            const common::core::GridPosition stepped =
-                steppedNudgePosition(caret_position, later, fine);
-            const double stepped_seconds = secondsAtPosition(m_tempo_map, stepped);
-            const bool direction_ok = later ? caret_position < stepped : stepped < caret_position;
-            const auto next_neighbor = std::ranges::find_if(
-                lane.points, [&](const core::ToneAutomationPointViewState& point) {
-                    return caret_position < point.position;
-                });
-            const bool inside_neighbors =
-                (next_neighbor == lane.points.end() || stepped < next_neighbor->position) &&
-                (next_neighbor == lane.points.begin() ||
-                 std::prev(next_neighbor)->position < stepped);
-            if (direction_ok && inside_neighbors &&
-                stepped_seconds >= m_editable_window.start.seconds &&
-                stepped_seconds < m_editable_window.end.seconds)
-            {
-                position = stepped;
-            }
-        }
-        requestPointInsert(lane, position, value);
-        return true;
-    }
-    const SelectedPoint target = *selected;
-
-    for (const core::ToneAutomationLaneViewState& lane : m_state.lanes)
-    {
-        if (lane.instance_id != target.instance_id || lane.param_id != target.param_id)
-        {
-            continue;
-        }
-        const auto point =
-            std::ranges::find_if(lane.points, [&](const core::ToneAutomationPointViewState& p) {
-                return p.position == target.position;
-            });
-        if (point == lane.points.end())
-        {
-            return false;
-        }
-
-        if (direction == NudgeDirection::Up || direction == NudgeDirection::Down)
-        {
-            // A discrete lane steps one real state; a continuous one steps 0.01 (0.001 fine).
-            const float step = lane.is_discrete && lane.discrete_value_count >= 2
-                                   ? 1.0F / static_cast<float>(lane.discrete_value_count - 1)
-                                   : (fine ? 0.001F : 0.01F);
-            const float raw = point->norm_value + (direction == NudgeDirection::Up ? step : -step);
-            const float new_value = snappedValueForLane(std::clamp(raw, 0.0F, 1.0F), lane);
-            // Exact inequality via is_neq keeps -Wfloat-equal builds clean; snapped-value
-            // no-change detection is deliberately exact.
-            if (std::is_neq(new_value <=> point->norm_value))
-            {
-                requestPointReplace(
-                    target.instance_id,
-                    target.param_id,
-                    target.position,
-                    target.position,
-                    new_value);
-            }
-            return true;
-        }
-
-        // Time nudge: to the adjacent tempo-grid line, or by one 1/960-beat fine step. Both go
-        // through the beat axis so the result stays an exact rational.
-        const bool later = direction == NudgeDirection::Later;
-        const common::core::GridPosition new_position =
-            steppedNudgePosition(target.position, later, fine);
-
-        // Refuse nudges that collapse (map edge) or reverse direction (nearest-line bounce-back),
-        // and clamp strictly between the neighbors and inside the editable window; a refused
-        // nudge still reports handled so the arrow key never leaks to another target.
-        if (new_position == target.position || (later && new_position < target.position) ||
-            (!later && target.position < new_position))
-        {
-            return true;
-        }
-        if (point != lane.points.begin() && !(std::prev(point)->position < new_position))
-        {
-            return true;
-        }
-        if (std::next(point) != lane.points.end() && !(new_position < std::next(point)->position))
-        {
-            return true;
-        }
-        const double new_seconds = secondsAtPosition(m_tempo_map, new_position);
-        if (new_seconds < m_editable_window.start.seconds ||
-            new_seconds >= m_editable_window.end.seconds)
-        {
-            return true;
-        }
-        requestPointReplace(
-            target.instance_id, target.param_id, target.position, new_position, point->norm_value);
-        return true;
-    }
-    return false;
-}
-
-// One keyboard time-step through the beat axis so the result stays an exact rational: the
-// adjacent tempo-grid line, or one 1/960-beat fine step. Landing via nearest-grid-line keeps
-// odd grids exact and respects the measure-anchored walk.
-common::core::GridPosition ToneAutomationLanesView::steppedNudgePosition(
-    const common::core::GridPosition& from, bool later, bool fine) const
-{
-    const double global_beat =
-        static_cast<double>(m_tempo_map.globalBeatIndex(from.measure, from.beat)) +
-        from.offset.toDouble();
-    if (fine)
-    {
-        return core::fineGridPositionForBeat(
-            m_tempo_map, global_beat + (later ? 1.0 : -1.0) / 960.0);
-    }
-    // One grid step is the grid note value scaled by the local meter's beat unit.
-    const common::core::TimeSignatureChange signature = m_tempo_map.timeSignatureAt(from.measure);
-    const double step_beats =
-        m_grid_note_value.toDouble() * static_cast<double>(signature.denominator);
-    const double target_seconds =
-        m_tempo_map.secondsAtGlobalBeatPosition(global_beat + (later ? step_beats : -step_beats));
-    return core::nearestTempoGridPosition(
-        m_tempo_map, m_grid_note_value, common::core::TimePosition{target_seconds});
-}
-
 // Emits the points-edit intent that inserts a new point into a lane (echoing every existing
 // point bit-identically) and selects it — the shared creation primitive for the caret's typed
 // values and the Alt+arrow create-then-nudge.
@@ -1472,6 +1331,7 @@ bool ToneAutomationLanesView::beginCaretValueEntry(int digit)
 
     auto content = std::make_unique<PointValueEditorContent>(
         juce::String{digit},
+        PointValueEditorContent::InitialCaret::AtEnd,
         [safe_this = juce::Component::SafePointer<ToneAutomationLanesView>{this},
          tone_ref = m_state.tone_document_ref,
          instance_id = lane.instance_id,
@@ -1777,6 +1637,7 @@ void ToneAutomationLanesView::showPointValueEditor(const PointHit& hit)
 
     auto content = std::make_unique<PointValueEditorContent>(
         initial_text,
+        PointValueEditorContent::InitialCaret::SelectAll,
         [safe_this = juce::Component::SafePointer<ToneAutomationLanesView>{this},
          tone_ref = m_state.tone_document_ref,
          instance_id = lane.instance_id,

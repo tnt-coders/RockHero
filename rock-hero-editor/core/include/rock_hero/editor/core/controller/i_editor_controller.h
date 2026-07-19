@@ -239,17 +239,24 @@ public:
     virtual void onChartCaretStepRequested(ChartStepDirection direction, bool measure) = 0;
 
     /*!
-    \brief Handles a keyboard move of the selected chart notes (the Alt authoring modifier).
+    \brief Handles a keyboard move of the one editor-wide selection (the Alt authoring
+    modifier).
 
-    Left/Right move the selection by one whole grid step — chart verbs are grid-native
-    (settled 2026-07-18), and the move is relative so off-grid imported notes keep their
-    offsets; Up/Down move it across string lanes. Refused, never clamped, when any note would
-    leave the neck or land on an occupied slot; the whole selection moves as one undo entry,
-    with 40-Q2-B truncation of any overlaps it creates.
+    Dispatches on the selection's kind. Chart notes: Left/Right move the selection by one grid
+    step (one 1/960-beat step when \p fine — the uniform precision tier, settled 2026-07-18;
+    the move is relative either way, so off-grid notes keep their offsets), Up/Down move it
+    across string lanes; refused, never clamped, when any note would leave the neck or land on
+    an occupied slot, with the whole selection moving as one undo entry and 40-Q2-B truncation
+    of any overlaps it creates. An automation point: Left/Right step its time to the adjacent
+    grid line (1/960 beat fine), Up/Down step its value (one real state on a discrete lane,
+    else 0.01, 0.001 fine), clamped strictly between its neighbors and inside the active
+    region's window. With no selection but an armed caret on an empty lane slot, the arrow
+    creates an on-curve point with the step baked in — one keystroke, one undo entry.
 
     \param direction Move direction.
+    \param fine True when Ctrl requests the 1/960-beat / 0.001-value fine tier.
     */
-    virtual void onChartSelectionMoveRequested(ChartStepDirection direction) = 0;
+    virtual void onSelectionMoveRequested(ChartStepDirection direction, bool fine) = 0;
 
     /*! \brief Handles a request to delete the selected chart notes as one undo entry. */
     virtual void onChartSelectionDeleteRequested() = 0;

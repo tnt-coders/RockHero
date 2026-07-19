@@ -892,9 +892,9 @@ void EditorController::onChartCaretStepRequested(ChartStepDirection direction, b
     m_impl->onChartCaretStepRequested(direction, measure);
 }
 
-void EditorController::onChartSelectionMoveRequested(ChartStepDirection direction)
+void EditorController::onSelectionMoveRequested(ChartStepDirection direction, bool fine)
 {
-    m_impl->onChartSelectionMoveRequested(direction);
+    m_impl->onSelectionMoveRequested(direction, fine);
 }
 
 void EditorController::onChartSelectionDeleteRequested()
@@ -1821,9 +1821,9 @@ std::optional<std::pair<common::core::GridPosition, int>> EditorController::Impl
 }
 
 // One grid step in beats at a position: the note value is a fraction of a whole note and a beat
-// is one signature-denominator unit, so step_beats = note_value x denominator. Chart verbs are
-// grid-native (settled 2026-07-18) — there is no fine-step tier; finer motion comes from a
-// finer grid note value.
+// is one signature-denominator unit, so step_beats = note_value x denominator. The grid step is
+// the default move; the Ctrl fine tier (1/960 beat, settled 2026-07-18) is the uniform
+// precision escape hatch on both surfaces.
 common::core::Fraction EditorController::Impl::chartGridStepBeats(
     common::core::GridPosition at) const
 {
@@ -2220,16 +2220,43 @@ void EditorController::Impl::onChartCaretStepRequested(ChartStepDirection direct
     }
     updateView();
 }
-// Moves the selection under the Alt authoring modifier: Left/Right by one grid step (always a
-// whole step — chart verbs are grid-native, settled 2026-07-18; off-grid imports keep their
-// offsets because the move is relative), Up/Down across strings. A refused move (edge of the
-// neck, occupied slot, grid origin collision) is a silent no-op — the selection stays put,
-// matching refuse-not-clamp everywhere else.
-void EditorController::Impl::onChartSelectionMoveRequested(ChartStepDirection direction)
+// The one selection-move intent (Alt+arrows): one editor-wide selection exists, so the move
+// dispatches on its kind exactly like the Delete dispatch. With no selection at all, an armed
+// caret on an empty lane slot turns the arrow into create-then-nudge (grab the curve and pull
+// in one keystroke); every other combination is a silent no-op.
+void EditorController::Impl::onSelectionMoveRequested(ChartStepDirection direction, bool fine)
+{
+    if (isBusy())
+    {
+        return;
+    }
+    if (const AutomationPointSelection* const point = selectedAutomationPoint())
+    {
+        moveSelectedAutomationPoint(*point, direction, fine);
+        return;
+    }
+    if (!chartSelection().empty())
+    {
+        moveChartSelection(direction, fine);
+        return;
+    }
+    if (const ChartCaret* const caret = armedChartCaret();
+        caret != nullptr && caret->lane.has_value())
+    {
+        createAndNudgeLanePointAtCaret(*caret, direction, fine);
+    }
+}
+
+// Moves the selected chart notes: Left/Right by one grid step — or one 1/960-beat fine step,
+// the uniform precision tier (settled 2026-07-18); the move is relative either way, so an
+// off-grid note keeps its offset under grid steps — and Up/Down across strings (fine has no
+// meaning on the discrete string axis). A refused move (edge of the neck, occupied slot, grid
+// origin collision) is a silent no-op — the selection stays put, matching refuse-not-clamp
+// everywhere else.
+void EditorController::Impl::moveChartSelection(ChartStepDirection direction, bool fine)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
-    if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
-        chartSelection().empty())
+    if (arrangement == nullptr || !arrangement->chart.has_value() || chartSelection().empty())
     {
         return;
     }
@@ -2242,7 +2269,8 @@ void EditorController::Impl::onChartSelectionMoveRequested(ChartStepDirection di
         case ChartStepDirection::Right:
         {
             const common::core::GridPosition reference = chartSelection().notes().front().position;
-            const common::core::Fraction step = chartGridStepBeats(reference);
+            const common::core::Fraction step =
+                fine ? common::core::Fraction{1, 960} : chartGridStepBeats(reference);
             beat_delta = direction == ChartStepDirection::Right
                              ? step
                              : common::core::Fraction{-step.numerator, step.denominator};
@@ -2259,13 +2287,29 @@ void EditorController::Impl::onChartSelectionMoveRequested(ChartStepDirection di
             break;
         }
     }
-    static_cast<void>(applyChartEditPlan(planMoveNotes(
-        *arrangement->chart,
-        session().song().tempo_map,
-        chartSelection().notes(),
-        beat_delta,
-        string_delta,
-        chartSelection().notes().size() == 1 ? "Move Note" : "Move Notes")));
+    // A caret sitting exactly on the single moved note rides along (an object stop stays under
+    // the caret through its own nudge); the marker moves directly — no re-arm — so the derived
+    // selection cannot widen to a chord unit mid-nudge.
+    const ChartCaret* const caret = armedChartCaret();
+    const bool caret_rides = caret != nullptr && !caret->lane.has_value() &&
+                             chartSelection().notes().size() == 1 &&
+                             caret->position == chartSelection().notes().front().position &&
+                             caret->string == chartSelection().notes().front().string;
+    if (applyChartEditPlan(planMoveNotes(
+            *arrangement->chart,
+            session().song().tempo_map,
+            chartSelection().notes(),
+            beat_delta,
+            string_delta,
+            chartSelection().notes().size() == 1 ? "Move Note" : "Move Notes")) &&
+        caret_rides && !chartSelection().empty())
+    {
+        m_chart_marker = ChartCaret{
+            .position = chartSelection().notes().front().position,
+            .string = chartSelection().notes().front().string,
+        };
+        updateView();
+    }
 }
 
 // Deletes the selected notes as one compound undo entry; the selection empties with them.

@@ -365,6 +365,25 @@ TEST_CASE("Lanes view requires Alt to insert on empty lane area", "[ui][tone-aut
 }
 
 TEST_CASE(
+    "Lanes view masks the paused column at a published lane caret", "[ui][tone-automation-lanes]")
+{
+    LanesHarness harness;
+
+    // No caret published: no mask span.
+    CHECK_FALSE(harness.view.caretMaskYRange().has_value());
+
+    // A published caret square (drawn on the curve) reports its mask span for the cut-out.
+    core::ToneAutomationViewState caret_state = makeState();
+    caret_state.lane_caret = core::ToneAutomationLaneCaretRef{
+        .lane_index = 0,
+        .seconds = 1.0,
+        .position = {.measure = 1, .beat = 3, .offset = {}},
+    };
+    harness.view.setState(caret_state);
+    CHECK(harness.view.caretMaskYRange().has_value());
+}
+
+TEST_CASE(
     "Lanes view lands a new point on the curve and pulls its value by delta",
     "[ui][tone-automation-lanes]")
 {
@@ -434,74 +453,6 @@ TEST_CASE("Lanes view Shift-locks a point drag to its dominant axis", "[ui][tone
     CHECK(
         harness.listener.last_edit_points.back().position ==
         common::core::GridPosition{.measure = 2, .beat = 2, .offset = {}});
-}
-
-TEST_CASE("Lanes view nudges the selected point with commits", "[ui][tone-automation-lanes]")
-{
-    LanesHarness harness;
-
-    // Nothing selected: nudges report unhandled so arrow keys can fall through.
-    CHECK_FALSE(
-        harness.view.nudgeSelectedPoint(ToneAutomationLanesView::NudgeDirection::Up, false));
-
-    // Selection is controller-owned: the view acts on whatever the published state selects.
-    // Publish the second point (value 0.75) as the editor-wide selection.
-    core::ToneAutomationViewState selected_state = makeState();
-    selected_state.selected_point =
-        core::ToneAutomationSelectedPointRef{.lane_index = 0, .point_index = 1};
-    harness.view.setState(selected_state);
-
-    // A value nudge steps 0.01 upward as one committed edit.
-    REQUIRE(harness.view.nudgeSelectedPoint(ToneAutomationLanesView::NudgeDirection::Up, false));
-    REQUIRE(harness.listener.edit_count == 1);
-    REQUIRE(harness.listener.last_edit_points.size() == 2);
-    CHECK(std::abs(harness.listener.last_edit_points.back().norm_value - 0.76F) < 0.0001F);
-
-    // A time nudge moves to the adjacent grid line (quarter-note grid: measure 2 beat 2). The
-    // commit's synchronous state push is not simulated here, so re-push the selected state to
-    // keep the model and the selection in step before nudging again.
-    harness.view.setState(selected_state);
-    REQUIRE(harness.view.nudgeSelectedPoint(ToneAutomationLanesView::NudgeDirection::Later, false));
-    REQUIRE(harness.listener.edit_count == 2);
-    CHECK(
-        harness.listener.last_edit_points.back().position ==
-        common::core::GridPosition{.measure = 2, .beat = 2, .offset = {}});
-    // The committed nudge re-announces the selection at the point's new identity.
-    CHECK(harness.listener.select_count >= 1);
-    CHECK(
-        harness.listener.last_select_position ==
-        common::core::GridPosition{.measure = 2, .beat = 2, .offset = {}});
-}
-
-TEST_CASE(
-    "Lanes view creates on the curve when nudging at an empty lane caret",
-    "[ui][tone-automation-lanes]")
-{
-    LanesHarness harness;
-
-    // Publish an armed lane caret at 1.0 s (measure 1 beat 3), the empty slot halfway between
-    // the authored 0.25 and 0.75 points where the curve reads 0.5.
-    core::ToneAutomationViewState caret_state = makeState();
-    caret_state.lane_caret = core::ToneAutomationLaneCaretRef{
-        .lane_index = 0,
-        .seconds = 1.0,
-        .position = {.measure = 1, .beat = 3, .offset = {}},
-    };
-    harness.view.setState(caret_state);
-
-    // Alt+Up at the empty slot creates the point ON the curve with the step baked in — one
-    // points edit, one undo entry — and announces it as the selection.
-    REQUIRE(harness.view.nudgeSelectedPoint(ToneAutomationLanesView::NudgeDirection::Up, false));
-    REQUIRE(harness.listener.edit_count == 1);
-    REQUIRE(harness.listener.last_edit_points.size() == 3);
-    CHECK(std::abs(harness.listener.last_edit_points[1].norm_value - 0.51F) < 0.0001F);
-    REQUIRE(harness.listener.select_count == 1);
-    CHECK(
-        harness.listener.last_select_position ==
-        common::core::GridPosition{.measure = 1, .beat = 3, .offset = {}});
-
-    // The caret square publishes a mask span for the paused-column cut-out.
-    CHECK(harness.view.caretMaskYRange().has_value());
 }
 
 TEST_CASE(

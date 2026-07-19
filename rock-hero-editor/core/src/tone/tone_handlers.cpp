@@ -3,11 +3,14 @@
 #include "tone/tone_region_edits.h"
 
 #include <algorithm>
+#include <cmath>
+#include <compare>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/core/tone/tone_track_edits.h>
@@ -38,6 +41,29 @@ namespace
             return candidate.id == region_id;
         });
     return region == tone_track->regions.end() ? nullptr : &*region;
+}
+
+// Snaps a raw normalised value onto a discrete parameter's real states (k/(count-1)); a
+// continuous parameter passes through — the model-side sibling of the lanes view's own snap,
+// so keyboard-authored values land exactly where pointer-authored ones do.
+[[nodiscard]] float snappedLaneValue(float raw_value, bool is_discrete, int discrete_value_count)
+{
+    if (!is_discrete || discrete_value_count < 2)
+    {
+        return raw_value;
+    }
+    const int steps = discrete_value_count - 1;
+    const int nearest =
+        std::clamp(static_cast<int>(std::lround(raw_value * static_cast<float>(steps))), 0, steps);
+    return static_cast<float>(nearest) / static_cast<float>(steps);
+}
+
+// One value keystroke's step: one real state on a discrete parameter, else 0.01 (0.001 fine).
+[[nodiscard]] float laneValueStep(bool is_discrete, int discrete_value_count, bool fine)
+{
+    return is_discrete && discrete_value_count >= 2
+               ? 1.0F / static_cast<float>(discrete_value_count - 1)
+               : (fine ? 0.001F : 0.01F);
 }
 
 } // namespace
@@ -1081,12 +1107,28 @@ void EditorController::Impl::insertLanePointAtCaret(const ChartCaret& caret)
     {
         return;
     }
+    if (std::optional<LanePointPlan> plan = planLanePointAtCaret(caret); plan.has_value())
+    {
+        const float landing_value = plan->value;
+        plantLanePoint(*caret.lane, std::move(*plan), caret.position, landing_value);
+    }
+}
+
+// Resolves everything a point creation at an armed lane caret needs: the lane's authored
+// points, the on-curve landing value at the caret slot, and the parameter's value shape.
+std::optional<EditorController::Impl::LanePointPlan> EditorController::Impl::planLanePointAtCaret(
+    const ChartCaret& caret)
+{
+    if (!caret.lane.has_value())
+    {
+        return std::nullopt;
+    }
     const auto identity = m_tone_plugin_identities.find(caret.lane->instance_id);
     const std::vector<common::core::ToneParameterAutomation>* const automation =
         m_session.currentToneAutomation();
     if (identity == m_tone_plugin_identities.end() || automation == nullptr)
     {
-        return;
+        return std::nullopt;
     }
 
     const auto entry = std::ranges::find_if(
@@ -1094,25 +1136,24 @@ void EditorController::Impl::insertLanePointAtCaret(const ChartCaret& caret)
             return candidate.plugin_id == identity->second.plugin_id &&
                    candidate.param_id == caret.lane->param_id;
         });
-    std::vector<common::core::ToneAutomationPoint> points;
+    LanePointPlan plan;
     if (entry != automation->end())
     {
-        points = entry->points;
+        plan.points = entry->points;
     }
     const bool occupied =
-        std::ranges::any_of(points, [&](const common::core::ToneAutomationPoint& point) {
+        std::ranges::any_of(plan.points, [&](const common::core::ToneAutomationPoint& point) {
             return point.position == caret.position;
         });
     if (occupied)
     {
-        return;
+        return std::nullopt;
     }
 
     // The landing value comes from the drawn curve; an unauthored lane lands on the live
-    // tracking line, which needs the parameter's current value from the port. Discreteness
+    // tracking line, which needs the parameter's current value from the port. The value shape
     // rides along so the evaluation holds steps exactly as the lane draws them.
     std::optional<float> fallback;
-    bool is_discrete = false;
     if (auto listed = m_tone_automation.listAutomatableParameters(activeToneDocumentRef());
         listed.has_value())
     {
@@ -1122,32 +1163,158 @@ void EditorController::Impl::insertLanePointAtCaret(const ChartCaret& caret)
                 parameter.param_id == caret.lane->param_id)
             {
                 fallback = parameter.current_norm_value;
-                is_discrete = parameter.is_discrete;
+                plan.is_discrete = parameter.is_discrete;
+                plan.discrete_value_count = parameter.discrete_value_count;
                 break;
             }
         }
     }
-    if (points.empty() && !fallback.has_value())
+    if (plan.points.empty() && !fallback.has_value())
+    {
+        return std::nullopt;
+    }
+    plan.value = toneAutomationCurveValueAt(
+        plan.points,
+        session().song().tempo_map,
+        caret.position,
+        plan.is_discrete,
+        fallback.value_or(0.0F));
+    return plan;
+}
+
+// Plants a planned point (sorted insert, points-edit intent, select) — the shared creation
+// tail of the Insert verb and the Alt+arrow create-then-nudge.
+void EditorController::Impl::plantLanePoint(
+    const AutomationLaneRow& row, LanePointPlan plan, common::core::GridPosition position,
+    float value)
+{
+    // The final slot may differ from the planned caret slot (a baked-in time step); creating
+    // nothing is the answer if a point sits there after all (a state race).
+    if (std::ranges::any_of(plan.points, [&](const common::core::ToneAutomationPoint& point) {
+            return point.position == position;
+        }))
     {
         return;
     }
-    const float value = toneAutomationCurveValueAt(
-        points, session().song().tempo_map, caret.position, is_discrete, fallback.value_or(0.0F));
-
     const auto insert_at =
-        std::ranges::find_if(points, [&](const common::core::ToneAutomationPoint& candidate) {
-            return caret.position < candidate.position;
+        std::ranges::find_if(plan.points, [&](const common::core::ToneAutomationPoint& candidate) {
+            return position < candidate.position;
         });
-    points.insert(
-        insert_at,
-        common::core::ToneAutomationPoint{.position = caret.position, .norm_value = value});
-    onSetToneAutomationPoints(caret.lane->instance_id, caret.lane->param_id, std::move(points));
+    plan.points.insert(
+        insert_at, common::core::ToneAutomationPoint{.position = position, .norm_value = value});
+    onSetToneAutomationPoints(row.instance_id, row.param_id, std::move(plan.points));
     m_selection = AutomationPointSelection{
-        .instance_id = caret.lane->instance_id,
-        .param_id = caret.lane->param_id,
-        .position = caret.position,
+        .instance_id = row.instance_id,
+        .param_id = row.param_id,
+        .position = position,
     };
     updateView();
+}
+
+// The move-intent fallback on an armed empty lane slot (§9b): the point lands ON the curve at
+// the caret and the arrow's step is baked into the creation, so "grab the curve here and pull"
+// is one keystroke and ONE undo entry. A caret over an existing point always publishes it as
+// the selection (arming re-derives), so reaching here means the slot is empty.
+void EditorController::Impl::createAndNudgeLanePointAtCaret(
+    const ChartCaret& caret, ChartStepDirection direction, bool fine)
+{
+    std::optional<LanePointPlan> plan = planLanePointAtCaret(caret);
+    if (!plan.has_value())
+    {
+        return;
+    }
+    float value = plan->value;
+    common::core::GridPosition position = caret.position;
+    if (direction == ChartStepDirection::Up || direction == ChartStepDirection::Down)
+    {
+        const float step = laneValueStep(plan->is_discrete, plan->discrete_value_count, fine);
+        value = snappedLaneValue(
+            std::clamp(value + (direction == ChartStepDirection::Up ? step : -step), 0.0F, 1.0F),
+            plan->is_discrete,
+            plan->discrete_value_count);
+    }
+    else
+    {
+        // A refused time step (map edge, neighbor collision, window edge) still creates at the
+        // caret itself: the grab succeeded, only the pull refused. The step clamps strictly
+        // between the caret slot's neighboring points, like every point nudge.
+        const bool later = direction == ChartStepDirection::Right;
+        const common::core::GridPosition stepped =
+            steppedLaneNudgePosition(caret.position, later, fine);
+        const double stepped_seconds = secondsAtGridPosition(session().song().tempo_map, stepped);
+        const bool direction_ok = later ? caret.position < stepped : stepped < caret.position;
+        const auto next_neighbor =
+            std::ranges::find_if(plan->points, [&](const common::core::ToneAutomationPoint& point) {
+                return caret.position < point.position;
+            });
+        const bool inside_neighbors =
+            (next_neighbor == plan->points.end() || stepped < next_neighbor->position) &&
+            (next_neighbor == plan->points.begin() || std::prev(next_neighbor)->position < stepped);
+        const common::core::TimeRange window = activeToneRegionWindow();
+        if (direction_ok && inside_neighbors && stepped_seconds >= window.start.seconds &&
+            stepped_seconds < window.end.seconds)
+        {
+            position = stepped;
+        }
+    }
+    plantLanePoint(*caret.lane, std::move(*plan), position, value);
+}
+
+// One lane keyboard time-step through the beat axis so the result stays an exact rational: the
+// adjacent tempo-grid line, or one 1/960-beat fine step. Landing via nearest-grid-line keeps
+// odd grids exact and respects the measure-anchored walk.
+common::core::GridPosition EditorController::Impl::steppedLaneNudgePosition(
+    const common::core::GridPosition& from, bool later, bool fine) const
+{
+    const common::core::TempoMap& tempo_map = session().song().tempo_map;
+    const double global_beat =
+        static_cast<double>(tempo_map.globalBeatIndex(from.measure, from.beat)) +
+        from.offset.toDouble();
+    if (fine)
+    {
+        return fineGridPositionForBeat(tempo_map, global_beat + (later ? 1.0 : -1.0) / 960.0);
+    }
+    // One grid step is the grid note value scaled by the local meter's beat unit.
+    const common::core::TimeSignatureChange signature = tempo_map.timeSignatureAt(from.measure);
+    const double step_beats =
+        m_grid_note_value.toDouble() * static_cast<double>(signature.denominator);
+    const double target_seconds =
+        tempo_map.secondsAtGlobalBeatPosition(global_beat + (later ? step_beats : -step_beats));
+    return nearestTempoGridPosition(
+        tempo_map, m_grid_note_value, common::core::TimePosition{target_seconds});
+}
+
+// The active tone region's time window, matching the tone-track projection's span rule (the
+// baseline region owns the pre-measure-1 lead-in) so keyboard clamps agree with the pointer's
+// editable window.
+common::core::TimeRange EditorController::Impl::activeToneRegionWindow() const
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr)
+    {
+        return {};
+    }
+    const std::string active_region_id = activeToneRegionId();
+    const common::core::TempoMap& tempo_map = session().song().tempo_map;
+    const std::vector<common::core::ToneRegion>& regions = arrangement->tone_track.regions;
+    for (std::size_t index = 0; index < regions.size(); ++index)
+    {
+        const common::core::ToneRegion& region = regions[index];
+        if (region.id != active_region_id)
+        {
+            continue;
+        }
+        const double start =
+            index == 0 ? 0.0
+                       : tempo_map.secondsAtNote(
+                             region.start.measure, region.start.beat, region.start.offset);
+        return common::core::TimeRange{
+            .start = common::core::TimePosition{start},
+            .end = common::core::TimePosition{tempo_map.secondsAtNote(
+                region.end.measure, region.end.beat, region.end.offset)},
+        };
+    }
+    return {};
 }
 
 // A deliberate point click: the point becomes THE editor-wide selection, replacing whatever any
@@ -1208,6 +1375,124 @@ void EditorController::Impl::deleteSelectedAutomationPoint(
         return;
     }
     onSetToneAutomationPoints(selection.instance_id, selection.param_id, std::move(remaining));
+}
+
+// Moves the selected automation point (the move-intent dispatch for the automation
+// alternative), replaying its lane's points with the change through the one points-edit
+// intent. Up/Down steps the value — one real state on a discrete parameter, else 0.01 (0.001
+// fine); Left/Right steps the time axis to the adjacent grid line (1/960 beat fine), refusing
+// steps that collapse (map edge) or reverse direction (nearest-line bounce-back) and clamping
+// strictly between the neighbors and inside the active region's window. Every refusal — stale
+// selection included — is a silent no-op.
+void EditorController::Impl::moveSelectedAutomationPoint(
+    const AutomationPointSelection& selection, ChartStepDirection direction, bool fine)
+{
+    const auto identity = m_tone_plugin_identities.find(selection.instance_id);
+    const std::vector<common::core::ToneParameterAutomation>* const automation =
+        m_session.currentToneAutomation();
+    if (identity == m_tone_plugin_identities.end() || automation == nullptr)
+    {
+        return;
+    }
+    const auto entry = std::ranges::find_if(
+        *automation, [&](const common::core::ToneParameterAutomation& candidate) {
+            return candidate.plugin_id == identity->second.plugin_id &&
+                   candidate.param_id == selection.param_id;
+        });
+    if (entry == automation->end())
+    {
+        return;
+    }
+    const auto point = std::ranges::find_if(
+        entry->points, [&](const common::core::ToneAutomationPoint& candidate) {
+            return candidate.position == selection.position;
+        });
+    if (point == entry->points.end())
+    {
+        return;
+    }
+    const std::size_t point_index = static_cast<std::size_t>(point - entry->points.begin());
+
+    if (direction == ChartStepDirection::Up || direction == ChartStepDirection::Down)
+    {
+        // The parameter's value shape comes from the port at move time, exactly like the
+        // landing value at creation.
+        bool is_discrete = false;
+        int discrete_value_count = 0;
+        if (auto listed = m_tone_automation.listAutomatableParameters(activeToneDocumentRef());
+            listed.has_value())
+        {
+            for (const common::audio::AutomatableParamInfo& parameter : *listed)
+            {
+                if (parameter.instance_id == selection.instance_id &&
+                    parameter.param_id == selection.param_id)
+                {
+                    is_discrete = parameter.is_discrete;
+                    discrete_value_count = parameter.discrete_value_count;
+                    break;
+                }
+            }
+        }
+        const float step = laneValueStep(is_discrete, discrete_value_count, fine);
+        const float raw = point->norm_value + (direction == ChartStepDirection::Up ? step : -step);
+        const float new_value =
+            snappedLaneValue(std::clamp(raw, 0.0F, 1.0F), is_discrete, discrete_value_count);
+        // Exact inequality via is_neq keeps -Wfloat-equal builds clean; snapped-value
+        // no-change detection is deliberately exact.
+        if (std::is_neq(new_value <=> point->norm_value))
+        {
+            std::vector<common::core::ToneAutomationPoint> points = entry->points;
+            points[point_index].norm_value = new_value;
+            onSetToneAutomationPoints(selection.instance_id, selection.param_id, std::move(points));
+            updateView();
+        }
+        return;
+    }
+
+    const bool later = direction == ChartStepDirection::Right;
+    const common::core::GridPosition new_position =
+        steppedLaneNudgePosition(selection.position, later, fine);
+    if (new_position == selection.position || (later && new_position < selection.position) ||
+        (!later && selection.position < new_position))
+    {
+        return;
+    }
+    if (point != entry->points.begin() && !(std::prev(point)->position < new_position))
+    {
+        return;
+    }
+    if (std::next(point) != entry->points.end() && !(new_position < std::next(point)->position))
+    {
+        return;
+    }
+    const common::core::TimeRange window = activeToneRegionWindow();
+    const double new_seconds = secondsAtGridPosition(session().song().tempo_map, new_position);
+    if (new_seconds < window.start.seconds || new_seconds >= window.end.seconds)
+    {
+        return;
+    }
+    std::vector<common::core::ToneAutomationPoint> points = entry->points;
+    // The step cannot cross a neighbor (clamped strictly between them), so order survives
+    // without a re-sort.
+    points[point_index].position = new_position;
+    onSetToneAutomationPoints(selection.instance_id, selection.param_id, std::move(points));
+    // A lane caret sitting on the moved point rides along (the caret stays on its object
+    // through a nudge). Checked against the OLD position before the selection re-points, and
+    // moved directly — the row and remembered string are unchanged, so no re-arm is needed.
+    if (const ChartCaret* const caret = armedChartCaret();
+        caret != nullptr && caret->lane.has_value() &&
+        caret->lane->instance_id == selection.instance_id &&
+        caret->lane->param_id == selection.param_id && caret->position == selection.position)
+    {
+        m_chart_marker =
+            ChartCaret{.position = new_position, .string = caret->string, .lane = caret->lane};
+    }
+    m_selection = AutomationPointSelection{
+        .instance_id = selection.instance_id,
+        .param_id = selection.param_id,
+        .position = new_position,
+    };
+    updateView();
 }
 
 } // namespace rock_hero::editor::core

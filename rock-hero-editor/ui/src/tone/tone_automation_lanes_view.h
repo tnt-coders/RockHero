@@ -246,39 +246,6 @@ public:
     */
     [[nodiscard]] bool cancelActiveGesture();
 
-    /*! \brief Direction of a keyboard nudge applied to the selected point. */
-    enum class NudgeDirection : std::uint8_t
-    {
-        /*! \brief Move the point earlier in time. */
-        Earlier,
-
-        /*! \brief Move the point later in time. */
-        Later,
-
-        /*! \brief Increase the point's value. */
-        Up,
-
-        /*! \brief Decrease the point's value. */
-        Down,
-    };
-
-    /*!
-    \brief Nudges the selected point by one step, committing one points-edit intent.
-
-    Reached through the Alt authoring modifier (Alt+arrows; amended interaction grammar
-    2026-07-16 — plain keys never mutate). The selected point is the editor-wide selection as
-    published in the view state. Time nudges move to the adjacent tempo-grid line (or by one
-    1/960-beat fine step when \p fine is set), clamped strictly between the point's neighbors
-    and inside the editable window. Value nudges step by 0.01 (0.001 fine); a discrete lane
-    steps one state. The editor routes arrow keys here so they can fall through when no point
-    is selected.
-
-    \param direction Nudge direction.
-    \param fine True when Ctrl requests the fine step.
-    \return True when a selected point existed and the nudge was handled (even if clamped).
-    */
-    [[nodiscard]] bool nudgeSelectedPoint(NudgeDirection direction, bool fine);
-
     /*!
     \brief Opens the typed-value editor at the armed lane caret, seeded with a typed digit.
 
@@ -437,11 +404,6 @@ private:
 
     // Converts a content x back to timeline seconds (xForSeconds' inverse), for click intents.
     [[nodiscard]] double secondsForX(float content_x) const;
-
-    // One keyboard time-step from a position: the adjacent tempo-grid line, or one 1/960-beat
-    // fine step. Shared by the selected-point nudge and the caret's create-then-nudge.
-    [[nodiscard]] common::core::GridPosition steppedNudgePosition(
-        const common::core::GridPosition& from, bool later, bool fine) const;
 
     // Emits the points-edit intent that inserts a new point into a lane and selects it. Shared
     // by the caret's typed-value creation and the Alt+arrow create-then-nudge.
