@@ -177,21 +177,21 @@ placement keeps the sub-pixel click point's time.
 
 1/960 of a beat keeps every stored position an exact rational at far finer than audible
 resolution: 960 is the standard MIDI PPQ resolution and divides every practical straight,
-triplet, and quintuplet subdivision. The fine tier belongs to the free-time surfaces only —
-tone boundaries, automation points, and ruler seeks; chart-note authoring is grid-native
-(settlement §11) and never touches it.
+triplet, and quintuplet subdivision. Ctrl composes it onto placements and moves on every
+surface — automation points, tone boundaries, ruler seeks, and chart-note verbs alike (the
+off-grid unification: snap default follows the data, the precision capability is uniform).
 */
 inline constexpr int g_fine_grid_denominator = 960;
 
 /*!
 \brief Quantizes a fractional global-beat position to the exact rational 1/960-beat fine grid.
 
-The seam shared by the free-time surfaces' Ctrl placement gestures (tone boundaries,
-automation points) and playhead-anchored tone-marker insertion: it turns a seconds- or
-beat-derived double into a storable position that stays an exact rational (never a raw
-double) at sub-millisecond resolution. A caller that already holds an exact musical position
-should keep it verbatim rather than round-tripping through this. Chart-note authoring is
-grid-native (settlement §11) and has no caller here.
+The seam shared by the Ctrl placement gestures (tone boundaries, automation points, the lane
+caret arm) and playhead-anchored tone-marker insertion: it turns a seconds- or beat-derived
+double into a storable position that stays an exact rational (never a raw double) at
+sub-millisecond resolution. A caller that already holds an exact musical position should keep
+it verbatim rather than round-tripping through this — keyboard fine MOVES advance exact
+rationals relatively and have no caller here.
 
 \param tempo_map Song tempo map supplying the beat-to-measure mapping.
 \param global_beat Global beat position (whole beats plus fractional beat) to quantize.
@@ -199,5 +199,50 @@ grid-native (settlement §11) and has no caller here.
 */
 [[nodiscard]] common::core::GridPosition fineGridPositionForBeat(
     const common::core::TempoMap& tempo_map, double global_beat);
+
+/*!
+\brief One grid step in beats at a measure: the note value scaled by the local meter's unit.
+
+The note value is a fraction of a whole note and a beat is one signature-denominator unit, so
+step_beats = note_value x denominator (a 1/8 grid in 6/8 steps one beat; in 4/4, half a beat).
+
+\param tempo_map Song tempo map supplying the local time signature.
+\param grid_note_value Grid step as a fraction of a whole note.
+\param measure One-based measure whose meter scales the step.
+\return The grid step as an exact beat fraction.
+*/
+[[nodiscard]] common::core::Fraction gridStepBeats(
+    const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value, int measure);
+
+/*!
+\brief The adjacent tempo-grid line strictly beyond a position, walked in exact rationals.
+
+The one keyboard time-step primitive shared by the marker's caret stepping and the automation
+point nudge, so the two surfaces can never land on different slots for the same verb. From an
+off-grid position whose nearest line lies in the step direction, the result is that line (a
+step never jumps past the adjacent line); from the lattice, the position advances one grid
+step and re-snaps, with a second push when a measure-anchored grid restart would otherwise
+swallow the step. The walk is exact-rational end to end — no seconds round-trip — so stepping
+is precisely reversible on any grid, odd values included. At the map edge the result can
+collapse onto \p from; callers treat that as a refusal.
+
+\param tempo_map Song tempo map supplying signatures, the beat grid, and absolute beat times.
+\param grid_note_value Grid step as a fraction of a whole note.
+\param from Position to step from (any exact position, on- or off-grid).
+\param later True to step later in time, false earlier.
+\return Exact musical position of the adjacent grid line in the step direction.
+*/
+[[nodiscard]] common::core::GridPosition adjacentTempoGridPosition(
+    const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value,
+    const common::core::GridPosition& from, bool later);
+
+/*!
+\brief Converts an exact musical grid position to absolute song seconds.
+\param tempo_map Song tempo map defining the grid.
+\param position Musical position to convert.
+\return The position's absolute time in seconds.
+*/
+[[nodiscard]] double secondsAtGridPosition(
+    const common::core::TempoMap& tempo_map, const common::core::GridPosition& position);
 
 } // namespace rock_hero::editor::core

@@ -159,9 +159,20 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // 0.001 value tier on lanes) — the uniform precision escape hatch, both surfaces.
     void onSelectionMoveRequested(ChartStepDirection direction, bool fine);
     void moveChartSelection(ChartStepDirection direction, bool fine);
-    void onChartSelectionDeleteRequested();
+    // The chart branch of the unified Delete dispatch (Impl-private since the per-surface
+    // public intent retired with the precedence ladder).
+    void deleteChartSelection();
     void onSelectionDeleteRequested();
     void onChartFretDigitTyped(int digit);
+    // The typing rule's three flows, split from the digit dispatcher: widening the in-flight
+    // multi-digit entry (false = not widenable, the digit falls through to a fresh flow),
+    // inserting at the armed empty caret, and retyping the selection.
+    bool widenChartFretEntry(int digit, std::uint32_t now_ms);
+    void insertChartFretAtCaret(int digit, std::uint32_t now_ms);
+    void retypeChartSelectionFret(int digit, std::uint32_t now_ms);
+    // The full note values behind a sorted key set, in chart order.
+    [[nodiscard]] std::vector<common::core::ChartNote> chartNotesForKeys(
+        const std::vector<ChartNoteKey>& keys) const;
     void onChartFretShiftRequested(int direction);
     void onChartSustainAdjustRequested(int direction, bool fine);
     void onChartEscapePressed();
@@ -198,6 +209,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] ChartSelection& chartSelectionMutable();
     [[nodiscard]] std::string selectedToneRegionId() const;
     [[nodiscard]] const AutomationPointSelection* selectedAutomationPoint() const;
+    // The one non-chart selection assignment seam: every replacement that does not go through
+    // chartSelectionMutable() (whose typing flow maintains its own entry keys) lands here, so
+    // the fret-entry invalidation invariant lives in exactly one place.
+    void setSelection(EditorSelection selection);
     void clearSelection();
     // Clears only the selection kinds that follow the cursor (tone region, automation point);
     // a chart selection deliberately survives seeks (the marker model's lifecycle split).
@@ -216,6 +231,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const std::vector<common::audio::LoadedToneChainIdentities>& tone_chains);
     void rebuildToneAutomationCurves();
     [[nodiscard]] std::vector<std::string> captureStableIds();
+    // The one port lookup of a parameter's metadata by (instance, param); every consumer
+    // (undo labels, landing-value shape, value stepping) resolves through it.
+    [[nodiscard]] std::optional<common::audio::AutomatableParamInfo> paramInfoFor(
+        const std::string& tone_document_ref, const std::string& instance_id,
+        const std::string& param_id) const;
     [[nodiscard]] std::string automationParameterName(
         const std::string& tone_document_ref, const std::string& instance_id,
         const std::string& param_id) const;
@@ -784,6 +804,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // under it: a point at the slot becomes the editor-wide selection, an empty slot clears it
     // (armChartCaret's row-axis sibling, §9b).
     void armLaneCaret(common::core::GridPosition position, AutomationLaneRow row);
+
+    // The vertical half of caret stepping: row traversal across strings and visible lanes,
+    // with edge clamps and the stale-lane demotion posture (§9b).
+    void stepCaretRow(const ChartCaret& caret, bool up, int string_count);
 
     // The visible automation lane rows in display order — the lower half of the caret's row
     // axis. Derived from the same projection the lanes view renders, so traversal and display

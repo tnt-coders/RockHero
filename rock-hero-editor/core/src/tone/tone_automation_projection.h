@@ -11,6 +11,7 @@
 #include <rock_hero/common/core/chart/chart.h>
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <rock_hero/editor/core/tone/tone_automation_view_state.h>
 #include <string>
 #include <unordered_map>
@@ -49,13 +50,42 @@ struct OpenAutomationLane
 };
 
 /*!
-\brief Converts an exact musical grid position to absolute song seconds.
-\param tempo_map Song tempo map defining the grid.
-\param position Musical position to convert.
-\return The position's absolute time in seconds.
+\brief One shown automation lane's identity and model source, in display order.
+
+The row identity is (instance, parameter) — never a display index — and \c entry points at the
+arrangement's automation entry for model lanes, or is null for open (unauthored, live-tracking)
+lanes. Pointers borrow from the arrangement passed to \ref toneAutomationLaneSources.
 */
-[[nodiscard]] double secondsAtGridPosition(
-    const common::core::TempoMap& tempo_map, const common::core::GridPosition& position);
+struct ToneAutomationLaneSource
+{
+    /*! \brief Owning plugin instance id. */
+    std::string instance_id;
+
+    /*! \brief Parameter id within the plugin. */
+    std::string param_id;
+
+    /*! \brief The arrangement's automation entry backing the lane; null for an open lane. */
+    const common::core::ToneParameterAutomation* entry{nullptr};
+};
+
+/*!
+\brief The shown lanes for a tone, in display order — the one lane-ordering rule.
+
+This is the ordering \ref makeToneAutomationViewState builds lanes from, exposed separately so
+the marker's row traversal derives its rows from the same enumeration WITHOUT paying the full
+projection (port parameter listing, per-point seconds) on every keystroke: model lanes whose
+plugin binding belongs to the tone first, then open lanes not subsumed by a model lane.
+
+\param arrangement Arrangement owning the automation entries.
+\param selected_tone_document_ref Tone whose lanes are shown; empty yields no lanes.
+\param bindings Runtime plugin bindings keyed by durable plugin id.
+\param open_lanes Session-scoped open lanes; entries for other tones are ignored.
+\return The shown lanes' identities and model sources, in display order.
+*/
+[[nodiscard]] std::vector<ToneAutomationLaneSource> toneAutomationLaneSources(
+    const common::core::Arrangement& arrangement, const std::string& selected_tone_document_ref,
+    const std::unordered_map<std::string, common::audio::ToneAutomationBinding>& bindings,
+    const std::vector<OpenAutomationLane>& open_lanes);
 
 /*!
 \brief The automation curve's value at a musical position, matching the drawn curve.

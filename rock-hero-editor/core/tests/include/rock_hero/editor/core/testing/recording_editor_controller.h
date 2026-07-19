@@ -250,10 +250,6 @@ public:
     void onSelectionMoveRequested(ChartStepDirection /*direction*/, bool /*fine*/) override
     {}
 
-    /*! \copydoc IEditorController::onChartSelectionDeleteRequested */
-    void onChartSelectionDeleteRequested() override
-    {}
-
     /*! \copydoc IEditorController::onChartFretDigitTyped */
     void onChartFretDigitTyped(int digit) override
     {

@@ -654,8 +654,12 @@ TEST_CASE(
     REQUIRE(editor.automation().lane_caret.has_value());
     CHECK(editor.automation().lane_caret->position == fine_slot);
 
-    // A grid step from the off-grid slot re-snaps onto the lattice walk; the step that would
-    // land on the region's end boundary (4.0 s) is refused by the window clamp.
+    // A grid step from the off-grid slot lands on the ADJACENT grid line — never jumping past
+    // it (the shared adjacent-line primitive, matching the caret's own stepping rule); the
+    // step that would land on the region's end boundary (4.0 s) is refused by the window
+    // clamp.
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Right, false);
+    CHECK(editor.model().front().points.back().position == pointAt(2, 3));
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Right, false);
     CHECK(editor.model().front().points.back().position == pointAt(2, 4));
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Right, false);

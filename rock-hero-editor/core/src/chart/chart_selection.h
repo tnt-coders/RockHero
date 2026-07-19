@@ -137,8 +137,9 @@ hierarchy.
 
 Selection granularity follows the containment hierarchy (§7 revision, 2026-07-17,
 docs/plans/in-progress/chart-span-and-selection-model.md): a single click selects the
-individual note, a DOUBLE click selects the whole onset group this collects; the caret's
-selection re-derivation also probes group membership through it.
+individual note, a DOUBLE click selects the whole onset group this collects — the double-click
+path is the sole consumer (the caret's re-derivation deliberately selects the single note
+under it, never the group).
 
 \param notes Chart note stream sorted by (position, string).
 \param position Onset whose group is collected.

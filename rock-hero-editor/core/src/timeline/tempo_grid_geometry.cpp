@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <limits>
 #include <optional>
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 
 namespace rock_hero::editor::core
 {
@@ -433,6 +434,52 @@ std::optional<common::core::TimePosition> timelineCursorPlacementTime(
     }
 
     return nearestTempoGridTime(tempo_map, grid_note_value, *click_time);
+}
+
+common::core::Fraction gridStepBeats(
+    const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value, int measure)
+{
+    const common::core::Fraction note_value = normalizedGridNoteValue(grid_note_value);
+    const common::core::TimeSignatureChange signature = tempo_map.timeSignatureAt(measure);
+    return common::core::Fraction{
+        note_value.numerator * signature.denominator, note_value.denominator
+    };
+}
+
+common::core::GridPosition adjacentTempoGridPosition(
+    const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value,
+    const common::core::GridPosition& from, bool later)
+{
+    const common::core::Fraction note_value = normalizedGridNoteValue(grid_note_value);
+    const common::core::GridPosition snapped =
+        common::core::snapGridPosition(tempo_map, from, note_value);
+    // An off-grid start whose nearest line lies in the step direction stops there first: a
+    // step must never jump past the adjacent line.
+    if (later ? from < snapped : snapped < from)
+    {
+        return snapped;
+    }
+    // From the lattice (or off-grid with the nearest line behind): one grid step, re-snapped;
+    // the second push keeps the walk progressing across measure-anchored grid restarts, where
+    // the re-snap can otherwise bounce back onto the starting line.
+    const common::core::Fraction unsigned_step = gridStepBeats(tempo_map, note_value, from.measure);
+    const common::core::Fraction step{
+        (later ? 1 : -1) * unsigned_step.numerator, unsigned_step.denominator
+    };
+    common::core::GridPosition stepped = common::core::snapGridPosition(
+        tempo_map, common::core::advanceGridPosition(tempo_map, snapped, step), note_value);
+    if (stepped == snapped)
+    {
+        stepped = common::core::snapGridPosition(
+            tempo_map, common::core::advanceGridPosition(tempo_map, stepped, step), note_value);
+    }
+    return stepped;
+}
+
+double secondsAtGridPosition(
+    const common::core::TempoMap& tempo_map, const common::core::GridPosition& position)
+{
+    return tempo_map.secondsAtNote(position.measure, position.beat, position.offset);
 }
 
 common::core::GridPosition fineGridPositionForBeat(
