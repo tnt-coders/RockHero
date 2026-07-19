@@ -482,6 +482,28 @@ public:
         std::string instance_id, std::string param_id, common::core::TimePosition time) = 0;
 
     /*!
+    \brief Handles a button-less hover over an automation lane (the Alt insert ghost, §9b).
+
+    While paused with Alt held over an insertable empty lane slot the controller publishes the
+    insert ghost — the hollow ring on the curve where an Alt+click would plant a point — snapping
+    and occupancy resolved exactly as the click itself would, so the ring only ever shows where an
+    insert would land (§7, no lying affordance). Without Alt, over an occupied slot, or while
+    playing, any standing ghost clears. The hover never mutates the model or moves the marker.
+
+    \param instance_id Plugin instance owning the hovered lane's parameter.
+    \param param_id Parameter id within the plugin.
+    \param time Hovered timeline position (the controller snaps to the grid, Ctrl to the fine tier).
+    \param alt True when Alt is held — the neutral-create gate; without it no ghost is published.
+    \param ctrl True when Ctrl is held — snap bypasses the visible grid to the fine tier.
+    */
+    virtual void onToneAutomationLaneHovered(
+        std::string instance_id, std::string param_id, common::core::TimePosition time, bool alt,
+        bool ctrl) = 0;
+
+    /*! \brief Handles the pointer leaving an automation lane, clearing any Alt insert ghost. */
+    virtual void onToneAutomationLaneHoverEnded() = 0;
+
+    /*!
     \brief Handles a deliberate click on an automation point: it becomes the editor-wide
     selection.
 

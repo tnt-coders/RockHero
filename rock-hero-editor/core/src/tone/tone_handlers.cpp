@@ -1097,6 +1097,49 @@ void EditorController::Impl::onToneAutomationLaneCaretRequested(
     updateView();
 }
 
+// A button-less lane hover: resolve the Alt insert ghost and publish it only where an Alt+click
+// would actually land — Alt held, not busy, and paused (armed-create is a paused-only gesture).
+// The snap matches the view's placement exactly (nearestTempoGridPosition on the grid, the Ctrl
+// fine tier via fineGridPositionForBeat), so the ring lands on the same slot the click would. The
+// occupancy gate is applied later, against the published lanes, so the ghost never previews an
+// insert that would no-op. Dirty-checked against the current ghost: a hover that stays within one
+// grid slot leaves it unchanged and pushes no view rebuild, keeping per-pixel hover cheap.
+void EditorController::Impl::onToneAutomationLaneHovered(
+    std::string instance_id, std::string param_id, common::core::TimePosition time, bool alt,
+    bool ctrl)
+{
+    std::optional<ToneInsertGhost> ghost;
+    if (alt && !isBusy() && !m_transport.state().playing)
+    {
+        const common::core::TempoMap& tempo_map = session().song().tempo_map;
+        const common::core::GridPosition position =
+            ctrl ? fineGridPositionForBeat(tempo_map, tempo_map.beatPositionAtSeconds(time.seconds))
+                 : nearestTempoGridPosition(tempo_map, m_grid_note_value, time);
+        ghost = ToneInsertGhost{
+            .instance_id = std::move(instance_id),
+            .param_id = std::move(param_id),
+            .position = position,
+        };
+    }
+    if (ghost == m_tone_insert_ghost)
+    {
+        return;
+    }
+    m_tone_insert_ghost = std::move(ghost);
+    updateView();
+}
+
+// The pointer left the lane row: no hover, so no ghost. Refresh only when one was actually showing.
+void EditorController::Impl::onToneAutomationLaneHoverEnded()
+{
+    if (!m_tone_insert_ghost.has_value())
+    {
+        return;
+    }
+    m_tone_insert_ghost.reset();
+    updateView();
+}
+
 // The Insert dispatch for lane rows: plants an on-curve point at the armed caret's slot — the
 // keyboard mirror of the on-curve Alt+click landing — and selects it. A slot that already
 // carries a point is a no-op (Insert never mutates existing objects), as is an unresolved

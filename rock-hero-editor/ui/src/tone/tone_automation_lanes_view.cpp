@@ -246,7 +246,6 @@ void ToneAutomationLanesView::applyState(const core::ToneAutomationViewState& st
     const int previous_total_height = totalHeight();
     m_state = state;
     m_value_readout.reset();
-    m_insert_ghost.reset();
     publishSnapGuide(std::nullopt);
     if (totalHeight() != previous_total_height && m_heights_changed_callback)
     {
@@ -756,14 +755,18 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
         graphics.setColour(g_curve_colour.withMultipliedAlpha(lane_alpha));
         graphics.strokePath(curve, juce::PathStrokeType{1.6f});
 
-        // The Alt-held insert ghost: a hollow ring where a click would place a point, so the
-        // insertion is visible before anything mutates.
-        if (m_insert_ghost.has_value() && m_insert_ghost->lane_index == lane_index)
+        // The Alt-held insert ghost: a hollow ring on the curve where an Alt+click would place a
+        // point, published by the controller through m_state.insert_ghost (its slot snapped
+        // controller-side). Its on-curve y is derived here, mirroring the point/caret paint.
+        // Suppressed while a gesture runs: the drag preview owns the lane then, and a state push
+        // deferred during the gesture could otherwise leave a stale ring.
+        if (!m_drag.has_value() && m_state.insert_ghost.has_value() &&
+            m_state.insert_ghost->lane_index == lane_index)
         {
-            if (const std::optional<float> ghost_x = xForSeconds(m_insert_ghost->seconds);
+            if (const std::optional<float> ghost_x = xForSeconds(m_state.insert_ghost->seconds);
                 ghost_x.has_value())
             {
-                const float ghost_y = value_to_y(m_insert_ghost->norm_value);
+                const float ghost_y = value_to_y(curveValueAt(lane, m_state.insert_ghost->seconds));
                 graphics.setColour(g_curve_colour.withAlpha(0.7f));
                 graphics.drawEllipse(
                     *ghost_x - g_point_draw_radius,
@@ -854,65 +857,64 @@ void ToneAutomationLanesView::mouseMove(const juce::MouseEvent& event)
 {
     const std::optional<Hit> hit = hitAt(event.getPosition());
 
-    // Hovering a point shows its position and value next to the cursor; the Alt-held insert zone
-    // shows the prospective point the same way; any other zone clears the readout and ghost.
-    std::optional<GhostPoint> ghost;
+    // Resolve the hover readout and the hover intent. The insert ghost is controller-owned now
+    // (published through m_state.insert_ghost); the view forwards every lane-area hover and lets
+    // the controller resolve snap + occupancy, exactly like the tab lane's chart ghost. Hovering a
+    // point shows its position and value; the Alt-held insert zone shows the prospective on-curve
+    // point the same way; any other zone shows none.
+    std::optional<ValueReadout> readout;
+    std::optional<std::pair<std::string, std::string>> hovered_lane;
     if (hit.has_value())
     {
         if (const auto* const point_hit = std::get_if<PointHit>(&*hit))
         {
             const core::ToneAutomationLaneViewState& lane = m_state.lanes[point_hit->lane_index];
             const core::ToneAutomationPointViewState& point = lane.points[point_hit->point_index];
-            setValueReadout(
-                ValueReadout{
-                    .anchor = event.getPosition(),
-                    .text = readoutTextFor(point.position, lane, point.norm_value),
-                });
+            readout = ValueReadout{
+                .anchor = event.getPosition(),
+                .text = readoutTextFor(point.position, lane, point.norm_value),
+            };
         }
-        else if (
-            const auto* const area = std::get_if<LaneAreaHit>(&*hit);
-            area != nullptr && event.mods.isAltDown()
-        )
+        else if (const auto* const area = std::get_if<LaneAreaHit>(&*hit))
         {
-            // The Alt insert quasimode previews exactly what a click would insert, snapped
-            // like the click itself (Ctrl composes for fine placement). The point lands ON the
-            // curve at the snapped time (2026-07-18): placement is sonically silent, so the
-            // ghost rides the curve rather than the pointer's y. Without Alt the lane area is
-            // the caret-arming click zone and shows no ghost.
             const core::ToneAutomationLaneViewState& lane = m_state.lanes[area->lane_index];
-            if (const std::optional<common::core::GridPosition> position =
-                    musicalPositionForX(static_cast<float>(event.getPosition().x), event.mods);
-                position.has_value())
+            hovered_lane = std::pair{lane.instance_id, lane.param_id};
+            // Under Alt the prospective on-curve insert previews its position and value next to the
+            // cursor, snapped exactly as the controller's ghost is (Ctrl composes for fine
+            // placement). Without Alt the lane area is the caret-arming click zone and shows none.
+            if (event.mods.isAltDown())
             {
-                const double seconds = secondsAtPosition(m_tempo_map, *position);
-                const float value = curveValueAt(lane, seconds);
-                ghost = GhostPoint{
-                    .lane_index = area->lane_index,
-                    .position = *position,
-                    .seconds = seconds,
-                    .norm_value = value,
-                };
-                setValueReadout(
-                    ValueReadout{
+                if (const std::optional<common::core::GridPosition> position =
+                        musicalPositionForX(static_cast<float>(event.getPosition().x), event.mods);
+                    position.has_value())
+                {
+                    const double seconds = secondsAtPosition(m_tempo_map, *position);
+                    readout = ValueReadout{
                         .anchor = event.getPosition(),
-                        .text = readoutTextFor(*position, lane, value),
-                    });
-            }
-            else
-            {
-                setValueReadout(std::nullopt);
+                        .text = readoutTextFor(*position, lane, curveValueAt(lane, seconds)),
+                    };
+                }
             }
         }
-        else
-        {
-            setValueReadout(std::nullopt);
-        }
+    }
+
+    // Forward the hover before applying the readout: a lane-area hover can push fresh state (the
+    // controller resolves the insert ghost), and that push resets the readout in applyState — so
+    // the readout is applied last, surviving the rebuild.
+    if (hovered_lane.has_value())
+    {
+        m_listener.onToneAutomationLaneHovered(
+            std::move(hovered_lane->first),
+            std::move(hovered_lane->second),
+            common::core::TimePosition{secondsForX(static_cast<float>(event.getPosition().x))},
+            event.mods.isAltDown(),
+            event.mods.isCtrlDown());
     }
     else
     {
-        setValueReadout(std::nullopt);
+        m_listener.onToneAutomationLaneHoverEnded();
     }
-    setInsertGhost(ghost);
+    setValueReadout(readout);
 
     if (!hit.has_value())
     {
@@ -1059,8 +1061,9 @@ void ToneAutomationLanesView::mouseDown(const juce::MouseEvent& event)
         .moved = true,
         .is_new_point = true,
     };
-    // The drag preview replaces the hover ghost from here on.
-    setInsertGhost(std::nullopt);
+    // The drag preview replaces the hover ghost from here on; end the hover so the controller
+    // clears its ghost. Its state push is deferred while the gesture holds and adopted on release.
+    m_listener.onToneAutomationLaneHoverEnded();
     repaint();
 }
 
@@ -1404,11 +1407,12 @@ void ToneAutomationLanesView::mouseDoubleClick(const juce::MouseEvent& event)
 void ToneAutomationLanesView::mouseExit(const juce::MouseEvent& /*event*/)
 {
     // A drag keeps its readout even when the pointer leaves the component (JUCE keeps delivering
-    // drag events); a plain hover that leaves the lanes clears the readout and the insert ghost.
+    // drag events); a plain hover that leaves the lanes clears the readout and ends the hover so
+    // the controller clears the insert ghost.
     if (!m_drag.has_value())
     {
         setValueReadout(std::nullopt);
-        setInsertGhost(std::nullopt);
+        m_listener.onToneAutomationLaneHoverEnded();
     }
 }
 
@@ -1859,26 +1863,6 @@ juce::Rectangle<int> ToneAutomationLanesView::readoutBounds(const ValueReadout& 
     }
     y = std::clamp(y, 0, std::max(0, getHeight() - g_readout_height));
     return juce::Rectangle<int>{x, y, width, g_readout_height};
-}
-
-// Sets or clears the Alt-held insert ghost, repainting only the lane rows it vacates and covers.
-void ToneAutomationLanesView::setInsertGhost(std::optional<GhostPoint> ghost)
-{
-    if (m_insert_ghost == ghost)
-    {
-        return;
-    }
-    const std::vector<LaneExtent> extents = laneExtents();
-    const auto repaint_ghost_lane = [this, &extents](const std::optional<GhostPoint>& target) {
-        if (target.has_value() && target->lane_index < m_state.lanes.size())
-        {
-            const LaneExtent& extent = extents[target->lane_index];
-            repaint(0, extent.top, getWidth(), extent.height);
-        }
-    };
-    repaint_ghost_lane(m_insert_ghost);
-    m_insert_ghost = ghost;
-    repaint_ghost_lane(m_insert_ghost);
 }
 
 void ToneAutomationLanesView::setValueReadout(std::optional<ValueReadout> readout)

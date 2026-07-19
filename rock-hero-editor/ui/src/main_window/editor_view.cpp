@@ -2411,6 +2411,19 @@ void EditorView::onToneAutomationLaneCaretRequested(
         std::move(instance_id), std::move(param_id), time);
 }
 
+void EditorView::onToneAutomationLaneHovered(
+    std::string instance_id, std::string param_id, common::core::TimePosition time, bool alt,
+    bool ctrl)
+{
+    m_controller.onToneAutomationLaneHovered(
+        std::move(instance_id), std::move(param_id), time, alt, ctrl);
+}
+
+void EditorView::onToneAutomationLaneHoverEnded()
+{
+    m_controller.onToneAutomationLaneHoverEnded();
+}
+
 void EditorView::onToneAutomationPointsEditRequested(
     std::string instance_id, std::string param_id,
     std::vector<common::core::ToneAutomationPoint> points)

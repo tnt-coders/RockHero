@@ -68,6 +68,23 @@ struct RecordingLanesListener final : public ToneAutomationLanesView::Listener
         lane_caret_count += 1;
     }
 
+    void onToneAutomationLaneHovered(
+        std::string instance_id, std::string param_id, common::core::TimePosition time, bool alt,
+        bool ctrl) override
+    {
+        last_hover_instance_id = std::move(instance_id);
+        last_hover_param_id = std::move(param_id);
+        last_hover_time = time;
+        last_hover_alt = alt;
+        last_hover_ctrl = ctrl;
+        hover_count += 1;
+    }
+
+    void onToneAutomationLaneHoverEnded() override
+    {
+        hover_ended_count += 1;
+    }
+
     std::string last_add_instance_id;
     std::string last_add_param_id;
     int add_count = 0;
@@ -86,6 +103,13 @@ struct RecordingLanesListener final : public ToneAutomationLanesView::Listener
     std::string last_lane_caret_param_id;
     common::core::TimePosition last_lane_caret_time{};
     int lane_caret_count = 0;
+    std::string last_hover_instance_id;
+    std::string last_hover_param_id;
+    common::core::TimePosition last_hover_time{};
+    bool last_hover_alt = false;
+    bool last_hover_ctrl = false;
+    int hover_count = 0;
+    int hover_ended_count = 0;
 };
 
 [[nodiscard]] core::ToneAutomationViewState makeState()
