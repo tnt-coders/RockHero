@@ -2447,9 +2447,13 @@ void EditorController::Impl::onSelectionMoveRequested(ChartStepDirection directi
     {
         return;
     }
+    // The handlers below run full action dispatches that may reassign the selection variant or
+    // the marker; the dispatched value is copied here so no handler ever holds a reference into
+    // the object it (or a reentrant view callback) might replace.
     if (const AutomationPointSelection* const point = selectedAutomationPoint())
     {
-        moveSelectedAutomationPoint(*point, direction, fine);
+        const AutomationPointSelection selected = *point;
+        moveSelectedAutomationPoint(selected, direction, fine);
         return;
     }
     if (!chartSelection().empty())
@@ -2460,7 +2464,8 @@ void EditorController::Impl::onSelectionMoveRequested(ChartStepDirection directi
     if (const ChartCaret* const caret = armedChartCaret();
         caret != nullptr && caret->lane.has_value())
     {
-        createAndNudgeLanePointAtCaret(*caret, direction, fine);
+        const ChartCaret armed = *caret;
+        createAndNudgeLanePointAtCaret(armed, direction, fine);
     }
 }
 
@@ -2560,7 +2565,10 @@ void EditorController::Impl::onNeutralInsertRequested()
     }
     if (caret->lane.has_value())
     {
-        insertLanePointAtCaret(*caret);
+        // Copied so the planting (a full action dispatch that re-points the selection and may
+        // touch the marker) never reads back through the marker variant it aliases.
+        const ChartCaret armed = *caret;
+        insertLanePointAtCaret(armed);
         return;
     }
 
@@ -2590,9 +2598,16 @@ void EditorController::Impl::onNeutralInsertRequested()
 // unrepresentable, there is nothing to disambiguate.
 void EditorController::Impl::onSelectionDeleteRequested()
 {
+    if (isBusy())
+    {
+        return;
+    }
+    // Copied for the same aliasing reason as the move dispatch: the delete replays a points
+    // edit through a full action dispatch, which must never read back through the variant.
     if (const AutomationPointSelection* const point = selectedAutomationPoint())
     {
-        deleteSelectedAutomationPoint(*point);
+        const AutomationPointSelection selected = *point;
+        deleteSelectedAutomationPoint(selected);
         return;
     }
     if (!chartSelection().empty())

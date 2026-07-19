@@ -1,6 +1,7 @@
 #include "controller/editor_controller_impl.h"
 #include "tone/tone_automation_edits.h"
 #include "tone/tone_region_edits.h"
+#include "tone/tone_track_projection.h"
 
 #include <algorithm>
 #include <cmath>
@@ -130,7 +131,9 @@ constexpr float g_tone_lane_point_hit_radius = 8.0F;
 } // namespace
 
 // Names the authored region whose span contains a timeline position, for cursor-follow
-// selection. Regions are beat-bounded, so the span converts through the tempo map.
+// selection. Spans resolve through the one region-span rule (toneRegionSpanSeconds — sub-beat
+// exact, baseline lead-in), so cursor-follow can never disagree with the drawn tone row or the
+// automation editable window about where a region begins.
 std::string EditorController::Impl::toneRegionIdAt(common::core::TimePosition position) const
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
@@ -144,16 +147,13 @@ std::string EditorController::Impl::toneRegionIdAt(common::core::TimePosition po
     for (std::size_t index = 0; index < regions.size(); ++index)
     {
         const common::core::ToneRegion& region = regions[index];
-        // The tone schedule is gapless and spans the whole chart: the baseline (first) region owns
-        // everything before the first tone change (the pre-measure-1 lead-in), and the last region
-        // owns everything after its start (through the end of chart time). So every cursor position
-        // resolves to exactly one region, matching how the tone track projects those spans.
-        const double start =
-            index == 0 ? 0.0 : tempo_map.secondsAtBeat(region.start.measure, region.start.beat);
+        // The tone schedule is gapless and spans the whole chart, and the last region owns
+        // everything after its start (through the end of chart time), so every cursor position
+        // resolves to exactly one region.
+        const common::core::TimeRange span = toneRegionSpanSeconds(tempo_map, region, index == 0);
         const bool is_last = index + 1 == regions.size();
-        const double end = is_last ? std::numeric_limits<double>::infinity()
-                                   : tempo_map.secondsAtBeat(region.end.measure, region.end.beat);
-        if (position.seconds >= start && position.seconds < end)
+        const double end = is_last ? std::numeric_limits<double>::infinity() : span.end.seconds;
+        if (position.seconds >= span.start.seconds && position.seconds < end)
         {
             return region.id;
         }
@@ -1610,6 +1610,17 @@ std::optional<EditorController::Impl::LanePointPlan> EditorController::Impl::pla
         return std::nullopt;
     }
 
+    // Creation clamps inside the active region's window exactly as moves and drags do. Mouse
+    // placement is already window-gated view-side, but the keyboard can arm a caret past the
+    // window edge — without this refusal it could plant a point the move verb would thereafter
+    // refuse to touch (creatable but immovable).
+    const common::core::TimeRange window = activeToneRegionWindow();
+    const double slot_seconds = secondsAtGridPosition(session().song().tempo_map, caret.position);
+    if (slot_seconds < window.start.seconds || slot_seconds >= window.end.seconds)
+    {
+        return std::nullopt;
+    }
+
     // The landing value comes from the drawn curve; an unauthored lane lands on the live
     // tracking line, which needs the parameter's current value from the port. The value shape
     // rides along so the evaluation holds steps exactly as the lane draws them.
@@ -1744,9 +1755,9 @@ common::core::GridPosition EditorController::Impl::steppedLaneNudgePosition(
         tempo_map, m_grid_note_value, common::core::TimePosition{target_seconds});
 }
 
-// The active tone region's time window, matching the tone-track projection's span rule (the
-// baseline region owns the pre-measure-1 lead-in) so keyboard clamps agree with the pointer's
-// editable window.
+// The active tone region's time window — the span automation edits clamp inside. Resolved
+// through the one region-span rule (toneRegionSpanSeconds), so keyboard clamps, the pointer's
+// editable window, and the drawn tone row always agree.
 common::core::TimeRange EditorController::Impl::activeToneRegionWindow() const
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
@@ -1759,20 +1770,10 @@ common::core::TimeRange EditorController::Impl::activeToneRegionWindow() const
     const std::vector<common::core::ToneRegion>& regions = arrangement->tone_track.regions;
     for (std::size_t index = 0; index < regions.size(); ++index)
     {
-        const common::core::ToneRegion& region = regions[index];
-        if (region.id != active_region_id)
+        if (regions[index].id == active_region_id)
         {
-            continue;
+            return toneRegionSpanSeconds(tempo_map, regions[index], index == 0);
         }
-        const double start =
-            index == 0 ? 0.0
-                       : tempo_map.secondsAtNote(
-                             region.start.measure, region.start.beat, region.start.offset);
-        return common::core::TimeRange{
-            .start = common::core::TimePosition{start},
-            .end = common::core::TimePosition{tempo_map.secondsAtNote(
-                region.end.measure, region.end.beat, region.end.offset)},
-        };
     }
     return {};
 }

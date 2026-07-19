@@ -701,6 +701,36 @@ TEST_CASE(
 }
 
 TEST_CASE(
+    "EditorController refuses lane point creation outside the active region window",
+    "[core][tone-automation]")
+{
+    // Stepping runs on the marker's shared row axis, which needs a (noteless) chart.
+    common::core::Song song = makeAutomationSong();
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    song.arrangements.front().chart = std::move(chart);
+    AutomationEditor editor{std::move(song)};
+
+    // Arm at 3.5 s (measure 2 beat 4) and step onto the region's end boundary (4.0 s): the
+    // caret may rest there — stepping is navigation — but creation refuses outside the window,
+    // exactly as moves and drags do, so no immovable point can ever be planted.
+    editor.controller.onToneAutomationLaneCaretRequested(
+        g_instance, g_param, common::core::TimePosition{3.5});
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    editor.controller.onNeutralInsertRequested();
+    CHECK(editor.model().empty());
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Up, false);
+    CHECK(editor.model().empty());
+
+    // One step back inside the window, the same verbs create as always.
+    editor.controller.onChartCaretStepRequested(ChartStepDirection::Left, false);
+    editor.controller.onNeutralInsertRequested();
+    REQUIRE(editor.model().size() == 1);
+    REQUIRE(editor.model().front().points.size() == 1);
+    CHECK(editor.model().front().points.front().position == pointAt(2, 4));
+}
+
+TEST_CASE(
     "EditorController steps the Esc ladder on lane carets and point selections",
     "[core][tone-automation]")
 {
