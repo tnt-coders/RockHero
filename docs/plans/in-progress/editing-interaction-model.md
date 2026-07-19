@@ -40,7 +40,7 @@ Each modifier has exactly one meaning, everywhere:
 
 | Modifier | Meaning |
 |---|---|
-| **Ctrl** | Precision: bypass grid snap (placement quantizes to the 1/960-beat fine grid) — on tone boundaries, automation points, and ruler seeks only; **chart-note verbs have no fine tier** (grid-native authoring, 2026-07-18, span/selection model §11): on the tab lane Ctrl means the selection toggle and the measure jump |
+| **Ctrl** | Precision: bypass grid snap (placement and moves quantize to the 1/960-beat fine grid) — **uniform on every surface** including chart notes (the off-grid unification, 2026-07-18 evening, superseding the same morning's grid-native-authoring exception: snap *default* follows the data's judge, the capability is universal). On the tab lane Ctrl additionally means the selection toggle (on clicks) and the measure jump (on plain arrows) |
 | **Alt** | Author: the gate that makes pointing-device and arrow input mutate — a held "pencil" quasimode for the pointer (click inserts, wheel adjusts extent) and the mutation gate for arrows (Alt+arrows moves the selection, creating first at an empty armed lane slot). Typing has its own deliberate gate — the armed marker (or an existing selection) — not Alt: one deep rule, *plain input never mutates; every mutation passes a gate*, applied per input family (2026-07-18 framing). Which insert verb a surface gets follows from its payload: a note's discrete fret is keyboard-natural (digits at the caret), a point's continuous value is pointer-natural (Alt+click) — two consistent rules meeting different data, not an inconsistency |
 | **Shift** | Range/constrain: Shift+click selects a time range (Guitar Pro-style, replace semantics, anchored at the last non-Shift selection action — reassigned 2026-07-17, plan 52); axis-lock a 2D drag; composes with Alt for extent resize (Shift+Alt+Left/Right); plain Shift+arrows is reserved for future caret-anchored selection extension |
 
@@ -54,9 +54,10 @@ arrows arm it; multi-select gestures dissolve it in place; play dissolves and cl
 selection; pause/stop/seeks rest it passive at raw time; Esc steps gesture → disarm →
 selection clear. Typing inserts at an armed empty-slot caret (multi-digit window; the widened
 entry stays one insert), retypes the selection, and is inert while passive. Plain arrows move
-the caret (whole grid steps, Ctrl+Left/Right measure jump) and re-derive the selection from
-what sits under it; chart authoring is grid-native (§11: no fine tier, tuplets via tuplet
-grids). Deliberateness comes from the caret itself — typing visibly lands where the caret
+the caret (grid-default steps over the union stop set, Ctrl+Left/Right measure jump) and
+re-derive the selection from what sits under it; chart authoring snaps to the grid by default
+with the uniform Ctrl 1/960 fine tier (off-grid unification, 2026-07-18 evening; tuplets still
+via tuplet grids, §11). Deliberateness comes from the caret itself — typing visibly lands where the caret
 is — rather than from an Alt gate on all keyboard mutation; pointer drags keep their own
 friction rationale (threshold, preview, Esc, single-undo commit). Alt remains the mutation
 gate for move/duration/fret-shift verbs; the Alt insert quasimode and its ghost are retired.
@@ -68,11 +69,16 @@ Up/Down traverse the whole stack and cross the tab/lanes boundary in both direct
 Left/Right grid-step and Ctrl+Left/Right measure-jump identically on every row. Clicking an
 automation lane seeks (as before) *and* arms the caret at the nearest grid line on that lane —
 this supersedes the 2026-07-17 "tone/automation surfaces never move the caret" ruling, which
-predates the caret having anywhere to be on those surfaces. The caret itself is **grid-native on
-every row** (it never rests between grid lines); fine positioning is an authoring verb, not
-navigation — Ctrl composes with Alt (Ctrl+Alt+arrows) to fine-step the *point*, mirroring how
-off-grid imported notes are selectable but never caret slots. A lane that disappears from view
-dissolves an armed caret on it back to passive.
+predates the caret having anywhere to be on those surfaces. Clicking an *object* arms the caret
+onto it on both surfaces (chart notes always did; automation points joined 2026-07-18 evening),
+so keyboard verbs always continue from what was just touched. The caret's stops are the **union
+stop set** (2026-07-18 evening): the grid lattice *plus* the row's authored objects — a
+fine-placed note or point is a first-class stop, so plain arrows land exactly on it (arming
+onto it, selecting it) and continue past it to the next grid line, and nothing authored is ever
+unreachable from the keyboard. Between stops the caret still never rests: fine *positioning*
+remains an authoring verb — Ctrl composes with Alt (Ctrl+Alt+arrows) to fine-step the object,
+and the caret rides the object it sits on through its own nudge. A lane that disappears from
+view dissolves an armed caret on it back to passive.
 
 **One selection, editor-wide** (2026-07-18): exactly one selection exists across all surfaces —
 making a selection anywhere replaces the selection everywhere (chart notes, automation point,
@@ -80,8 +86,10 @@ tone region are alternatives of one editor-core sum type, so two live selections
 unrepresentable). The old Delete precedence ladder (automation point → chart selection → tone
 region) existed only to disambiguate coexisting selections and is retired: Delete deletes *the*
 selection. The other surface's highlights vanishing when you select elsewhere is itself the
-feedback that verbs now aim there — no view disabling, no modes. Cross-surface selection changes
-never touch the marker's armed/passive state (selection and position are separate concepts, §9a).
+feedback that verbs now aim there — no view disabling, no modes. A deliberate *click* on an
+object arms the caret onto it (both surfaces, 2026-07-18 evening — this narrows the earlier
+"cross-surface selection changes never touch the marker" phrasing: the marker follows deliberate
+pointing, while selection *replacement* as a side effect of another gesture still moves nothing).
 
 Quasimodes (active only while held) are the deliberate accident-prevention choice: unlike a
 latched pencil *tool*, a held key cannot be forgotten, so "why did my click just create
@@ -97,7 +105,7 @@ Ctrl = precision. Duplication is Ctrl+D on the selection when it arrives.
 | Input | Meaning — identical on every surface | Mutates? |
 |---|---|---|
 | Hover | Affordance only: cursor shape, edge highlight (the chart's Alt ghost retired 2026-07-17 with the caret model; the tone strip keeps its Alt ghost boundary preview) | No |
-| Click on object | Select the individual object; Ctrl+click toggles membership. Chart notes follow the containment hierarchy (2026-07-17): click = note, double-click = its chord, span-rail click = the span's full note set (rides the span slice) | No |
+| Click on object | Select the individual object *and* arm the caret onto it — both surfaces (automation points joined chart notes 2026-07-18 evening); Ctrl+click toggles membership. Chart notes follow the containment hierarchy (2026-07-17): click = note, double-click = its chord, span-rail click = the span's full note set (rides the span slice) | No |
 | Click on empty | Place the caret at the nearest grid slot on the clicked row and deselect — with play-from-caret this IS the seek. Applies on the tab lane, the ruler, *and* automation lanes (2026-07-18 row-axis amendment, superseding "tone/automation never move the caret"); the tone strip keeps its own click meanings | No |
 | Drag on object | Move (time, plus value/string when 2D); Shift axis-locks; commits once on release | Yes |
 | Edge-drag on extent | Resize (region boundary, sustain tail, span edge) | Yes |
@@ -111,7 +119,7 @@ Ctrl = precision. Duplication is Ctrl+D on the selection when it arrives.
 | Insert | Neutral create at an armed empty caret slot: a fret-0 note on the tab lane, an on-curve point on an automation lane; no-op on an occupied slot or while passive — Insert never mutates existing objects (2026-07-18) | Yes |
 | Right-click | Context menu, always; every gesture above has a menu equivalent; never destructive on its own. (Chart lane: deliberately deferred 2026-07-17 — every v1 candidate was a worse path to a direct gesture; lands when techniques give it non-redundant content) | Via menu |
 | Esc | Cancel the in-flight gesture, restoring pre-gesture state | Reverts preview |
-| Arrow keys | Move the caret: Left/Right by one grid step, Up/Down across rows — strings first, then the visible automation lanes, crossing the boundary in both directions (2026-07-18 row axis) — Ctrl+Left/Right by one measure (GP jump); selection re-derives from what sits under the caret (2026-07-17 caret model) | No |
+| Arrow keys | Move the caret: Left/Right to the next stop on the row — the nearer of the adjacent grid line and the row's next authored object (the union stop set, 2026-07-18 evening; off-grid notes/points are first-class stops) — Up/Down across rows — strings first, then the visible automation lanes, crossing the boundary in both directions (2026-07-18 row axis) — Ctrl+Left/Right by one measure (GP jump, skipping intermediate stops of both kinds); selection re-derives from what sits under the caret (2026-07-17 caret model) | No |
 | Shift+arrows | Caret-anchored time selection, text-editor style: extends from the caret's starting grid line while held; release keeps the range; a plain arrow clears it; Shift again resumes (settles plan 52's keyboard creation gesture; builds with the range object) | No |
 | Digits on empty caret | Exact payload entry, per row kind: on a string row, insert a note with the typed fret (multi-digit window widens the same insert); on an automation lane row, open the typed-value editor seeded with the digit and create-or-retype the point at the caret in the parameter's native units (the double-click editor, reached from the keyboard; 2026-07-18) | Yes |
 | Alt+arrows | Move the selection by one grid step (Ctrl+Alt by the fine step); the vertical axis is the surface's own (string for notes, value for automation points). At an armed *empty* lane slot, create first — the point lands on the curve, then the arrow's nudge applies — so "grab the curve here and pull" is one keystroke, mirroring digits-at-empty-caret as the typing gate (2026-07-18) | Yes |
@@ -198,8 +206,10 @@ Verified against the vendored JUCE source — everything needed ships in
   the active region's window); the drag phase is delta-based (value follows the pointer's
   vertical delta from the on-curve landing, time stays grid-snapped, Ctrl fine, Shift
   dominant-axis lock). Plain click on empty lane area seeks, deselects, *and arms the caret* at
-  the nearest grid line on that lane; point selection clears on any transport move, the same
-  rule tone-region selection follows. Drag moves a point (with a click-jiggle threshold).
+  the nearest grid line on that lane; clicking a *point* selects it and arms the caret on it
+  (2026-07-18 evening fix — the caret used to stay behind); point selection clears on any
+  transport move, the same rule tone-region selection follows. Drag moves a point (with a
+  click-jiggle threshold), the caret riding the moved point.
   Keyboard at an armed lane caret: **Alt+arrows** nudge the selected/under-caret point
   (Left/Right by grid step, Up/Down by value step; Ctrl+Alt fine), creating on the curve first
   when the slot is empty; **digits** open the typed-value editor seeded with the digit
@@ -231,11 +241,16 @@ Verified against the vendored JUCE source — everything needed ships in
   runs keep their intervals), refusing — never clamping — at fret zero and the fret cap
   (settled 2026-07-17).
   Alt+wheel and Shift+Alt+Left/Right adjust displayed duration (sustain or span extent per the
-  span model); Alt+arrows move the selection (Left/Right by grid step, Up/Down across strings;
-  refused, never clamped, at the neck edge or an occupied slot). Plain arrows move the armed
-  caret (Ctrl+Left/Right jump measures, the GP jump). Pointer drag-move (horizontal with
-  snap, vertical across strings) is the same plain move-drag verb points use and lands with
-  the remaining plan 40 Phase 4 slice. **Sustain tail-drag is parked**
+  span model); Alt+arrows move the selection (Left/Right by grid step, or one 1/960-beat fine
+  step under Ctrl+Alt — the uniform fine tier, off-grid unification 2026-07-18 evening — with
+  Up/Down across strings; refused, never clamped, at the neck edge or an occupied slot; a caret
+  sitting on the single moved note rides along). Plain arrows move the armed caret over the
+  union stop set — grid lines plus this string's notes, so off-grid notes are reachable stops —
+  with Ctrl+Left/Right jumping measures (the GP jump). Pointer drag-move (the same plain
+  move-drag verb points use) is **un-parked and scheduled long-term**
+  (docs/plans/todo/tab-pointer-drag-editing.md): the morning's "drag where time is continuous"
+  parking rationale dissolved when note time became continuous-capable the same evening.
+  **Sustain tail-drag stays parked**
   (2026-07-16): the wheel/keyboard verbs cover resizing precisely, and the tail's end zone is a
   small target that competes with drag-move grabs — a watch item in docs/tracking/watch-items.md
   holds the trigger for revisiting.
@@ -330,6 +345,33 @@ day):
    silent until deliberately pulled.
 4. **Insert = neutral create** on every surface (user addition, for symmetry): fret-0 note on a
    string row, on-curve point on a lane row; no-op on occupied slots and while passive.
+
+## Amendment record — 2026-07-18 evening: the off-grid unification
+
+Settled with the user the same evening, closing the last structural asymmetry between the two
+surfaces (implemented immediately; commits `0f8e14f2` and `f6b4397e`):
+
+1. **Snap *default* follows the data's judge; the capability is uniform.** The morning's
+   "chart verbs are grid-native / grid binding follows the data's judge" rule is demoted from a
+   capability wall to a default: notes still snap hard to the grid because rhythm is their
+   judge, but the Ctrl 1/960-beat fine tier now applies to note moves exactly as to automation
+   points. Motivations: one verb table with zero per-surface exceptions, and true sub-1ms note
+   fidelity (imported RS-derived performances place notes at arbitrary times; a grid-closed
+   editor would quantize them lossily on every touch). Zero data-model change — `GridPosition`
+   always represented fine offsets; only the verbs were gated.
+2. **One move intent.** Alt+arrows route through a single `onSelectionMoveRequested(direction,
+   fine)` controller intent dispatching on the selection kind (mirroring the Delete dispatch);
+   the automation nudge policy moved out of the lanes view into editor-core with it.
+3. **The union stop set.** Plain Left/Right step the caret to the nearer of the adjacent grid
+   line and the row's next authored object; off-grid notes and points are first-class stops
+   (landing arms onto them), so nothing authored is keyboard-unreachable. The caret still never
+   rests between stops, and it rides the object it sits on through that object's own nudge.
+4. **Clicks arm everywhere.** Clicking an automation point arms the lane caret on it, matching
+   chart note clicks; lane carets also gained the chart caret's measure-reveal viewport glide.
+5. **Pointer drag-move of notes is un-parked** as a deliberate long-term item
+   (docs/plans/todo/tab-pointer-drag-editing.md): the parking rationale — "drag where time is
+   continuous, keys where time is discrete" — dissolved when note time became
+   continuous-capable, rather than being outweighed.
 
 Implemented 2026-07-09, amended 2026-07-16 per the record above (see the per-surface section
 for current behavior):

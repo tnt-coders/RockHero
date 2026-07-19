@@ -397,10 +397,13 @@ what extends the marker model itself. Implemented the same day.
   behave identically on every row. Clicking an automation lane seeks and arms the caret at the
   nearest grid line on that lane. A lane leaving the visible set dissolves an armed caret on it
   to passive (the §9a demotion posture: never clamp onto a wrong row, never invent a position).
-- **The caret stays grid-native on every row** (§11 extends unchanged). Fine positioning is
-  authoring, not navigation: Ctrl+Alt+arrows fine-step the *point*; the caret never rests
-  between grid lines — the same posture as off-grid imported notes, which are selectable but
-  never caret slots.
+- **The caret steps the union stop set** (amended the same evening — the off-grid
+  unification, full record in `editing-interaction-model.md`): plain Left/Right stop at the
+  nearer of the adjacent grid line and the row's next authored object (a note on the string, a
+  point on the lane), so off-grid objects are first-class, keyboard-reachable stops — landing
+  arms onto them. Between stops the caret still never rests; fine *positioning* is authoring,
+  not navigation (Ctrl+Alt+arrows fine-step the object, the caret riding it). This replaces
+  the original "off-grid notes are selectable but never caret slots" posture.
 - **The typing rule generalizes by payload** (one rule, no modes): digits at an armed empty
   slot author the row's payload — a typed fret on a string row, the typed-value editor (seeded
   with the digit) on a lane row. Alt+arrows at an armed empty lane slot create-then-nudge, with
@@ -411,8 +414,10 @@ what extends the marker model itself. Implemented the same day.
 - **One selection editor-wide.** Chart selection, automation point, and tone region become
   alternatives of one editor-core sum type — two live selections are unrepresentable, the
   Delete precedence ladder retires (Delete deletes *the* selection), and the §9a
-  selection-count chip generalizes to the variant's kind. Cross-surface selection changes never
-  touch the marker's armed/passive state: selection and position remain separate concepts.
+  selection-count chip generalizes to the variant's kind. Deliberate clicks arm the caret onto
+  the clicked object on both surfaces (amended the same evening — automation point clicks
+  joined chart note clicks); selection replacement that arrives as a side effect of another
+  gesture still moves the marker nowhere.
 - **Supersedes**: the 2026-07-17 "tone/automation surfaces never move the caret" ruling (it
   predates the caret having rows there) and §9a's implicit string-only row space.
 
@@ -441,29 +446,33 @@ not before. Rules:
   are a separate design discussion. Until it happens the blanket restriction stands as the
   safe default.
 
-## 11. Grid-native chart authoring — SETTLED (2026-07-18)
+## 11. Grid-default chart authoring — SETTLED (2026-07-18, amended the same evening)
 
-**Notes cannot be placed between the grid.** Every chart-note authoring verb operates on the
-displayed grid's own exact rationals: placement snaps to it, moves step it whole, sustains
-grow and shrink by it. The fine 1/960 tier is gone from chart verbs entirely — finer or
-tuplet positions come from choosing a finer or tuplet grid note value (the free-text grid box
-accepts any fraction with terms in [1, 128]; 1/6, 1/12, and 1/24 joined the presets so
-triplets are one click away). This is the drastic-simplification ruling: the caret was
-already grid-native, GP has no off-grid placement at all, and an off-grid note in a rhythm
-game chart is a timing bug far more often than an intent.
+**The grid is the default lattice, not a capability wall.** Every chart-note authoring verb
+snaps to the displayed grid's own exact rationals by default: placement snaps to it, moves
+step it whole, sustains grow and shrink by it; finer or tuplet *lattices* come from choosing a
+finer or tuplet grid note value (the free-text grid box accepts any fraction with terms in
+[1, 128]; 1/6, 1/12, and 1/24 joined the presets so triplets are one click away). The
+morning's stronger form — "the fine 1/960 tier is gone from chart verbs entirely" — was
+**amended the same evening by the off-grid unification** (user decision; full record in
+`editing-interaction-model.md`): the Ctrl 1/960-beat fine tier applies to note moves exactly
+as it does to automation points, so both surfaces share one verb table and imported
+performance timing (sub-1ms, arbitrary offsets) can be authored and corrected without
+quantizing. The default stays hard-snapped because rhythm is the chart's judge — snap
+*default* follows the data's judge; the *capability* is uniform.
 
-- **Relative moves (user ruling):** grid-step moves of off-grid imported notes keep their
-  offsets — authoring restrictions never silently rewrite existing content (the same posture
-  as §10's margin). The format keeps arbitrary rationals; imports lose nothing.
-- **Ctrl's precision meaning survives where free time is real**: tone-region boundaries,
-  automation points, and ruler seeks keep the 1/960 fine grid. On the chart lane Ctrl means
-  only the selection toggle (Ctrl+click) and the measure jump (Ctrl+Left/Right).
+- **Relative moves (user ruling):** grid-step moves of off-grid notes keep their offsets —
+  authoring restrictions never silently rewrite existing content (the same posture as §10's
+  margin). The format keeps arbitrary rationals; imports lose nothing.
+- **Ctrl's one meaning is precision, everywhere** (restored by the amendment): the 1/960 fine
+  grid on note moves (Ctrl+Alt+arrows), tone-region boundaries, automation points, and ruler
+  seeks. On chart clicks Ctrl additionally means the selection toggle, and on plain arrows the
+  measure jump.
 - **Preset naming (deferred):** the grid dropdown shows raw fractions ("1/12"); provide
   friendlier REAPER-style names ("1/8 triplet") in a future pass — recorded in the
   interaction-model doc's deferred decisions.
-- **Supersedes:** §9's "Ctrl bypasses to the fine grid" placement clause and its "fine
-  positioning remains available via Ctrl+click" arrows clause; the caret-step re-snap now
-  exists only for grid note-value switches.
+- **Supersedes:** §9's original placement clauses; the caret-step re-snap now exists for grid
+  note-value switches and for stepping off an off-grid stop (union stop set, §9b).
 
 ## Build order (once section 5 settles)
 
@@ -478,6 +487,7 @@ game chart is a timing bug far more often than an intent.
    their sign-offs.
 
 ~~The Phase 4 remainder (pointer drag-move of selected notes + Esc drag-cancel) slots after
-slice 1.~~ *Parked 2026-07-18 (user decision): keyboard moves + Phase 9 copy/paste cover it on
-the grid-native lane; watch item in docs/tracking/watch-items.md ("Chart editing"). Slice 2 is
+slice 1.~~ *Parked 2026-07-18 morning (user decision), then **un-parked the same evening as a
+deliberate long-term item** when the off-grid unification dissolved the parking rationale —
+scheduled in docs/plans/todo/tab-pointer-drag-editing.md, not in this build order. Slice 2 is
 the next execution step.*
