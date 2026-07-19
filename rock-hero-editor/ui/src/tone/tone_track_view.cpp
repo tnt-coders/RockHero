@@ -155,16 +155,12 @@ void ToneTrackView::paint(juce::Graphics& g)
             }
         }
 
-        const std::optional<float> start_x = core::timelineXForPosition(
-            span.start,
-            m_visible_timeline,
-            bounds.getWidth(),
-            core::TimelinePositionClamping::ClampToVisibleRange);
-        const std::optional<float> end_x = core::timelineXForPosition(
-            span.end,
-            m_visible_timeline,
-            bounds.getWidth(),
-            core::TimelinePositionClamping::ClampToVisibleRange);
+        // Round both edges to the grid's pixel column (gridAlignedX) so a boundary sits exactly on
+        // the grid line it was snapped to — and on the same pixel the insert ghost previewed —
+        // rather than the fraction beside it. gridAlignedX uses getWidth(), which is bounds' width
+        // here (bounds is getLocalBounds()).
+        const std::optional<float> start_x = gridAlignedX(span.start);
+        const std::optional<float> end_x = gridAlignedX(span.end);
         if (!start_x.has_value() || !end_x.has_value() || *end_x <= *start_x)
         {
             continue;
@@ -609,17 +605,32 @@ std::optional<common::core::GridPosition> ToneTrackView::insertPositionForX(
     return snapped;
 }
 
-// Maps a musical position to this row's x coordinate through the shared timeline geometry.
-std::optional<float> ToneTrackView::xForGridPosition(
-    const common::core::GridPosition& position) const
+// Rounds timelineXForPosition to the whole pixel the tempo grid draws its lines on
+// (visibleTempoGridLines rounds the same mapping to an int column). The row spans the full-width
+// canvas at x 0, so a row-local rounded x coincides with the grid column drawn behind it; anything
+// meant to sit on a grid line — region boundaries, the insert ghost — goes through here so it lands
+// on the grid's pixel instead of the fraction beside it that the raw float mapping produces.
+std::optional<float> ToneTrackView::gridAlignedX(common::core::TimePosition position) const
 {
-    const double seconds =
-        m_tempo_map.secondsAtNote(position.measure, position.beat, position.offset);
-    return core::timelineXForPosition(
-        common::core::TimePosition{seconds},
+    const std::optional<float> x = core::timelineXForPosition(
+        position,
         m_visible_timeline,
         getWidth(),
         core::TimelinePositionClamping::ClampToVisibleRange);
+    if (!x.has_value())
+    {
+        return std::nullopt;
+    }
+    return std::round(*x);
+}
+
+// Maps a musical position to this row's grid-aligned x coordinate, when the geometry allows it.
+std::optional<float> ToneTrackView::xForGridPosition(
+    const common::core::GridPosition& position) const
+{
+    return gridAlignedX(
+        common::core::TimePosition{m_tempo_map.secondsAtNote(
+            position.measure, position.beat, position.offset)});
 }
 
 // Sets or clears the ghost boundary line, repainting only the narrow strips it moves between.

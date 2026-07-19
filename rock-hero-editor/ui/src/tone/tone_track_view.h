@@ -298,6 +298,12 @@ private:
     // Sets or clears the Alt-held ghost boundary line, repainting the strips it moves between.
     void setInsertGhostX(std::optional<float> ghost_x);
 
+    // Maps a timeline position to this row's x, rounded to the whole pixel the tempo grid draws
+    // its lines on (visibleTempoGridLines rounds timelineXForPosition to an int column). Region
+    // boundaries and the insert ghost go through this so they sit exactly on the grid line rather
+    // than the fraction of a pixel beside it that the raw float mapping produces.
+    [[nodiscard]] std::optional<float> gridAlignedX(common::core::TimePosition position) const;
+
     // Maps a musical position to this row's x coordinate, when the geometry allows it.
     [[nodiscard]] std::optional<float> xForGridPosition(
         const common::core::GridPosition& position) const;
