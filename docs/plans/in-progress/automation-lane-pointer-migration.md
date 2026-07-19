@@ -1,8 +1,8 @@
 # Automation Lane Pointer Pipeline Migration (Phases 2–5)
 
-Status: **Todo** — Phase 1 shipped and banked 2026-07-19; Phases 2–5 deferred by user decision.
-Re-verify against the current code and interaction model before executing. Baseline stamp:
-Phase 1 landed at commit `bbfe915c` (chart Alt+click sibling work at `024b086d`).
+Status: **In progress** — Phase 1 shipped 2026-07-19; Phases 2–5 in execution 2026-07-19 (plan
+finalized with user fixes, ship-in-full go-ahead). Baseline stamp: Phase 1 landed at commit
+`bbfe915c` (chart Alt+click sibling work at `024b086d`).
 
 ## Goal
 
@@ -19,7 +19,10 @@ The snap **math** already lives in editor-core (`tempo_grid_geometry.h`:
 `musicalGridPositionForX`, itself a composition of those). So there is **no functional drift**
 between the chart and lane today — both bottom out in the same core snap. This migration is a
 **structural / testability** improvement (controller-owned, JUCE-free lane pipeline), not a bug
-fix. It has **no user-visible change**. Weigh that before spending the effort.
+fix. It is behavior-preserving **except for three small deliberate fixes** called out below: the
+≤1px ghost/placement snap discrepancy (Phase 2), the occupied-slot refusal for mouse placement,
+and the restored insert-ghost occupancy gate (both Phase 3). Weigh that before spending the
+effort.
 
 ## Phase 1 — DONE (`bbfe915c`)
 
@@ -69,6 +72,20 @@ Phase 1 publishes the ghost's **position** only; the view still computes the on-
 view polls per vblank). A fully chart-parity ghost would publish the value too. Do this only if
 the controller gains clean access to the tracking value — otherwise the position-only split is the
 right seam.
+
+## Execution notes (for the implementing agent)
+
+- Move this file to `docs/plans/in-progress/` when execution starts.
+- **Each phase that moves policy into editor-core must land Catch2 tests for that policy in the
+  same commit** — that testability is the plan's payoff, not an optional extra. Use the chart's
+  coverage as the template: `test_chart_editing.cpp` for controller policy,
+  `recording_editor_controller.h` for view-seam intent checks, `test_tab_view.cpp` /
+  `test_tone_automation_lanes_view.cpp` for the view side. Phase 3's drag state machine
+  (neighbor clamp, delta-based value, Shift axis lock, window clamp, occupancy refusal) is the
+  highest-value test target.
+- Build and test per phase through `.agents/rockhero-build.ps1`; commit each phase separately
+  with the three deliberate behavior fixes named in the message of the phase that ships them.
+- Do not run clang-tidy; leave that to the user.
 
 ## Coherence constraints
 
