@@ -150,11 +150,13 @@ marker per project (`EditorProjectMarker`). This supersedes the settlement's bui
 (4) — typing at the caret replaced the ghost rework entirely — and the pause-snap,
 caret-always-present, and Alt-ghost records above. Multi-select is confirmed permanent;
 `docs/plans/in-progress/chart-span-and-selection-model.md` §9/§9a is the authoritative record.
-**Phase 4 remainder PARKED 2026-07-18 (user decision):** pointer drag-move of selected notes and
-its Esc drag-cancel are deliberately not implemented — Alt+arrows covers moves precisely on the
-grid-native lane, long moves are Phase 9's copy/paste, and the drag's real bill (live §10/collision
-preview, edge auto-scroll) buys no capability the keyboard lacks. Parked behind a watch item
-beside tail-drag (docs/tracking/watch-items.md "Chart editing"); Phase 4 is complete.
+**Phase 4 remainder — parked 2026-07-18 morning, un-parked the same evening as a long-term
+item (user decision):** pointer drag-move of selected notes and its Esc drag-cancel are not
+implemented here — the evening's off-grid unification (notes gained the uniform Ctrl 1/960 fine
+tier; interaction-model amendment record) dissolved the "keys where time is discrete" parking
+rationale, so the verb is scheduled deliberately long-term in
+docs/plans/todo/tab-pointer-drag-editing.md rather than watched or queued in this plan. Phase 4
+is complete.
 
 Open questions Q1–Q4 below have recommended defaults and are mirrored into
 `docs/plans/roadmap/00-roadmap.md` (Decisions needed). Phases 1–3 depend on none of them; later phases

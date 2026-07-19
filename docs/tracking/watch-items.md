@@ -133,24 +133,6 @@ tails expecting a resize and failing (or asking for it). **Remedy**: implement t
 the standard edge-resize verb with a generous grab zone (hit-test via the shared layout
 manifest's tail rectangle), live preview, Esc cancel, single undo entry.
 
-### Pointer drag-move of notes is deliberately not implemented — trigger: charters reach for the drag
-
-Decided with the user 2026-07-18 (parked alongside tail-drag below, same reasoning family): moving
-notes is covered precisely by Alt+arrows (grid step horizontally, string step vertically,
-refused-not-clamped), and long-distance moves are Phase 9 copy/paste territory. On a grid-native
-lane a drag would only be a mouse-operated discrete stepper, while a correct implementation still
-owes a live preview honoring §10 margin clamps and collision refusals plus edge auto-scroll once
-the drag leaves the viewport — real machinery for a verb with a keyboard equivalent. The
-consistency argument (automation points plain-drag-move) was weighed and rejected: automation
-lanes are free-time surfaces where drag is the primary verb with no keyboard equivalent; the
-chart lane is grid-native where the keyboard verb is primary. "Drag where time is continuous,
-keys where time is discrete" is the coherent rule. This retires plan 40's "Phase 4 remainder"
-(drag-move + Esc drag-cancel) from the execution queue. **Trigger**: real charting hours show
-note repositioning happening often enough that Alt+arrows feels laborious, or users instinctively
-drag notes expecting a move (or ask for it). **Remedy**: implement plain drag-move of the
-selection (horizontal with grid snap, vertical across strings) with live §10/collision preview,
-edge auto-scroll, Esc cancel, single undo entry — per the parked plan 40 Phase 4 remainder spec.
-
 ### Min-distance span exemption vs. 40-Q2-B same-string truncation — trigger: span slice 3 builds
 
 Found by the 2026-07-18 grid-native simplification audit: `planAdjustSustain`'s §10 margin
