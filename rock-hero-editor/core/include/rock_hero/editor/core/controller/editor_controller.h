@@ -518,6 +518,15 @@ public:
     /*! \copydoc IEditorController::onToneAutomationPointerExit */
     void onToneAutomationPointerExit() override;
 
+    /*! \copydoc IEditorController::onToneAutomationPointerDown */
+    void onToneAutomationPointerDown(const ToneAutomationPointerEvent& event) override;
+
+    /*! \copydoc IEditorController::onToneAutomationPointerDrag */
+    void onToneAutomationPointerDrag(const ToneAutomationPointerEvent& event) override;
+
+    /*! \copydoc IEditorController::onToneAutomationPointerUp */
+    void onToneAutomationPointerUp(const ToneAutomationPointerEvent& event) override;
+
     /*! \brief Shows the scanned plugin browser and starts an initial catalog scan when needed. */
     void onPluginBrowserRequested() override;
 

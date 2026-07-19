@@ -818,6 +818,21 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // The pointer left the lane row: no hover, so no ghost.
     void onToneAutomationPointerExit();
 
+    // A primary-button press inside a lane: re-resolves the point-vs-empty-area hit from the event
+    // geometry and the lane's points, then arms the matching gesture. A press on a point begins a
+    // move drag; Alt on empty area begins an on-curve insert (refused on an occupied slot); plain
+    // empty area arms the lane caret. A double-click's second press is left to the view's editor.
+    void onToneAutomationPointerDown(const ToneAutomationPointerEvent& event);
+
+    // Advances the in-flight move/insert drag preview: snaps and neighbor/window-clamps the
+    // position, pulls the value by the pointer's delta from the press (Shift locks the dominant
+    // axis), and republishes the preview. A no-op without an active drag.
+    void onToneAutomationPointerDrag(const ToneAutomationPointerEvent& event);
+
+    // Ends the drag: a moved gesture commits its replacement list (one undo entry) and selects the
+    // landed point; a press that never moved selects the pressed point. A no-op without a drag.
+    void onToneAutomationPointerUp(const ToneAutomationPointerEvent& event);
+
     // The Insert key's neutral create: a fret-0 note at an armed empty string slot, an
     // on-curve point at an armed empty lane slot; a no-op on occupied slots, with a selection,
     // or while passive — Insert never mutates existing objects (2026-07-18).
@@ -891,6 +906,51 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // lane slot; recomputed wholesale each hover and resolved into the tone-automation view state.
     // The lane-row sibling of m_chart_insert_ghost.
     std::optional<ToneInsertGhost> m_tone_insert_ghost{};
+
+    // In-flight automation-lane point move/insert drag, the lane-row sibling of m_chart_gesture.
+    // Armed on Down (a point grab or an Alt-insert placement), advanced on Drag (delta value,
+    // neighbor clamp, Shift axis lock, editable-window clamp), committed on Up. Everything the
+    // advance reads is frozen at Down — the lane's points, the horizontal geometry, the value-band
+    // extent, the press point — so the gesture edits against the model it started with and a
+    // mid-drag engine rebuild republishes this preview instead of resetting the edit. The value
+    // preview is delta-based from press_y so an on-curve insert landing (or an off-center grab)
+    // never jumps to the raw pointer y.
+    struct ToneAutomationDrag
+    {
+        std::string instance_id;
+        std::string param_id;
+        // The lane's points frozen at Down (the move edits against these, stable indices).
+        std::vector<common::core::ToneAutomationPoint> points;
+        // Index of the grabbed point (move) or the insertion slot (insert) within `points`.
+        std::size_t point_index{};
+        // Horizontal geometry and the value-band extent frozen at Down, so one gesture snaps and
+        // pulls consistently even if a state push relayouts mid-drag.
+        common::core::TimeRange visible_timeline{};
+        int content_width{0};
+        ToneAutomationLaneExtent value_band{};
+        common::core::GridPosition preview_position{};
+        float preview_value{};
+        common::core::GridPosition start_position{};
+        float start_value{};
+        // Press point in lane-local pixels: the delta-value origin (press_y) and the Shift
+        // dominant-axis anchor (both axes). The click-vs-move threshold rides the event's
+        // dragged_since_down flag, not these.
+        float press_x{};
+        float press_y{};
+        // Value shape captured at Down so discrete lanes snap their pull to real states.
+        bool is_discrete{false};
+        int discrete_value_count{0};
+        // Latches once the pointer travels past the click threshold (or true from Down for an
+        // insert); until then a point grab is still a click and publishes no preview.
+        bool moved{false};
+        bool is_new_point{false};
+    };
+    std::optional<ToneAutomationDrag> m_tone_automation_drag{};
+
+    // Builds the replacement point list an active move/insert drag commits: every frozen point
+    // echoed bit-identically except the moved one, with the preview point inserted in sorted order.
+    [[nodiscard]] std::vector<common::core::ToneAutomationPoint> toneAutomationDragCommitPoints(
+        const ToneAutomationDrag& drag) const;
 
     // Memoized tab and 3D-highway projections for the displayed arrangement; see
     // deriveViewState for the cache rule (keyed by arrangement id plus the session's chart

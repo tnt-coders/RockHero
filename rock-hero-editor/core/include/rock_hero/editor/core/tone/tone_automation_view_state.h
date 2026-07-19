@@ -180,6 +180,55 @@ struct ToneAutomationLaneCaretRef
         const ToneAutomationLaneCaretRef& lhs, const ToneAutomationLaneCaretRef& rhs) = default;
 };
 
+/*!
+\brief The in-flight point move/insert drag's preview, published while the gesture holds.
+
+The controller owns the move/insert drag state machine (neighbor clamp, delta value, Shift axis
+lock, editable-window clamp) and republishes this preview on every advance; the view paints it
+exactly as it paints a stored point, so the gesture previews without mutating the model. Present
+only once the drag has actually produced a preview — an Alt-insert from the press, an existing-point
+grab once it crosses the click threshold — so a plain point click (which selects, never moves)
+publishes none. The lane sibling of the tablature lane's \ref ChartMarqueeViewState.
+*/
+struct ToneAutomationDragPreviewRef
+{
+    /*! \brief Index of the drag's lane in \ref ToneAutomationViewState::lanes. */
+    std::size_t lane_index{0};
+
+    /*! \brief Exact musical position of the preview point (the drawn x derives from it). */
+    common::core::GridPosition position{};
+
+    /*! \brief Preview point value normalised to `[0, 1]` (the drawn y). */
+    float value{0.0F};
+
+    /*! \brief True when the drag is inserting a new point; false when moving an existing one. */
+    bool is_new_point{false};
+
+    /*!
+    \brief Index of the moved point in its lane, hidden while the preview stands in for it.
+
+    Valid only when \ref is_new_point is false: the view skips the stored point at this index and
+    draws the preview in its place, so a moved point never double-draws. An insert hides nothing.
+    */
+    std::size_t source_point_index{0};
+
+    /*!
+    \brief Compares two drag-preview references by their stored values.
+    \param lhs Left-hand reference.
+    \param rhs Right-hand reference.
+    \return True when both references store equal values.
+    */
+    friend bool operator==(
+        const ToneAutomationDragPreviewRef& lhs, const ToneAutomationDragPreviewRef& rhs)
+    {
+        // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
+        // value member; exact equality is intended (a dirty-checked republish of the same preview).
+        return lhs.lane_index == rhs.lane_index && lhs.position == rhs.position &&
+               std::is_eq(lhs.value <=> rhs.value) && lhs.is_new_point == rhs.is_new_point &&
+               lhs.source_point_index == rhs.source_point_index;
+    }
+};
+
 /*! \brief The Alt-held insert ghost's rendered position over an empty lane slot (§9b). */
 struct ToneAutomationInsertGhostRef
 {
@@ -244,6 +293,15 @@ struct ToneAutomationViewState
     would not perform (§7).
     */
     std::optional<ToneAutomationInsertGhostRef> insert_ghost;
+
+    /*!
+    \brief The in-flight point move/insert drag preview, present only while a drag is producing one.
+
+    The controller owns the gesture and republishes this on every advance; the view paints it in
+    place of the moved point (or as a new point). While present it also masks the insert ghost and
+    routes Esc to the controller's gesture cancel, exactly as the tab lane's marquee does.
+    */
+    std::optional<ToneAutomationDragPreviewRef> drag_preview;
 
     /*! \brief Parameters without a lane yet, offered by the empty lane's "+" picker. */
     std::vector<ToneAutomationParamChoice> available_parameters;

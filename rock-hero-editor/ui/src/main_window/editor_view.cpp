@@ -1182,7 +1182,10 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
     // Esc cancels the pointer gesture in flight (a point drag, edge drag, or insert placement)
     // first, then steps the marker ladder — an armed caret on ANY row dissolves (lane carets
     // included, 2026-07-18), then THE selection clears, whatever its kind. It falls through
-    // when nothing is active so modal owners keep their own Esc behavior.
+    // when nothing is active so modal owners keep their own Esc behavior. The lane's move/insert
+    // drag is controller-owned now, so its cancel routes through the controller's Esc handler
+    // (which drops the gesture as its first rung) when the drag preview is standing; the view's own
+    // cancelActiveGesture handles only the lane-resize (and tone-region) edge drags it still owns.
     if (key.isKeyCode(juce::KeyPress::escapeKey))
     {
         if (m_tone_automation_lanes_view.cancelActiveGesture())
@@ -1196,7 +1199,8 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
         const bool region_selected_for_esc = std::ranges::any_of(
             m_state.tone_track.regions,
             [](const core::ToneRegionViewState& region) { return region.selected; });
-        if (m_state.chart_edit.caret.has_value() ||
+        if (m_state.tone_automation.drag_preview.has_value() ||
+            m_state.chart_edit.caret.has_value() ||
             m_state.tone_automation.lane_caret.has_value() ||
             !m_state.chart_edit.selected_notes.empty() ||
             m_state.tone_automation.selected_point.has_value() || region_selected_for_esc)
@@ -2419,6 +2423,21 @@ void EditorView::onToneAutomationPointerMove(const core::ToneAutomationPointerEv
 void EditorView::onToneAutomationPointerExit()
 {
     m_controller.onToneAutomationPointerExit();
+}
+
+void EditorView::onToneAutomationPointerDown(const core::ToneAutomationPointerEvent& event)
+{
+    m_controller.onToneAutomationPointerDown(event);
+}
+
+void EditorView::onToneAutomationPointerDrag(const core::ToneAutomationPointerEvent& event)
+{
+    m_controller.onToneAutomationPointerDrag(event);
+}
+
+void EditorView::onToneAutomationPointerUp(const core::ToneAutomationPointerEvent& event)
+{
+    m_controller.onToneAutomationPointerUp(event);
 }
 
 void EditorView::onToneAutomationPointsEditRequested(

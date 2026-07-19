@@ -399,12 +399,38 @@ public:
     }
 
     /*! \copydoc IEditorController::onToneAutomationPointerMove */
-    void onToneAutomationPointerMove(const ToneAutomationPointerEvent& /*event*/) override
-    {}
+    void onToneAutomationPointerMove(const ToneAutomationPointerEvent& event) override
+    {
+        last_pointer_event = event;
+        pointer_move_call_count += 1;
+    }
 
     /*! \copydoc IEditorController::onToneAutomationPointerExit */
     void onToneAutomationPointerExit() override
-    {}
+    {
+        pointer_exit_call_count += 1;
+    }
+
+    /*! \copydoc IEditorController::onToneAutomationPointerDown */
+    void onToneAutomationPointerDown(const ToneAutomationPointerEvent& event) override
+    {
+        last_pointer_event = event;
+        pointer_down_call_count += 1;
+    }
+
+    /*! \copydoc IEditorController::onToneAutomationPointerDrag */
+    void onToneAutomationPointerDrag(const ToneAutomationPointerEvent& event) override
+    {
+        last_pointer_event = event;
+        pointer_drag_call_count += 1;
+    }
+
+    /*! \copydoc IEditorController::onToneAutomationPointerUp */
+    void onToneAutomationPointerUp(const ToneAutomationPointerEvent& event) override
+    {
+        last_pointer_event = event;
+        pointer_up_call_count += 1;
+    }
 
     /*!
     \brief Records the view-reported timeline zoom.
@@ -844,6 +870,24 @@ public:
 
     /*! \brief Number of onToneAutomationLaneCaretRequested() calls received. */
     int lane_caret_call_count{0};
+
+    /*! \brief Last automation-lane pointer event reported through any pointer phase. */
+    std::optional<ToneAutomationPointerEvent> last_pointer_event{};
+
+    /*! \brief Number of onToneAutomationPointerMove() calls received. */
+    int pointer_move_call_count{0};
+
+    /*! \brief Number of onToneAutomationPointerExit() calls received. */
+    int pointer_exit_call_count{0};
+
+    /*! \brief Number of onToneAutomationPointerDown() calls received. */
+    int pointer_down_call_count{0};
+
+    /*! \brief Number of onToneAutomationPointerDrag() calls received. */
+    int pointer_drag_call_count{0};
+
+    /*! \brief Number of onToneAutomationPointerUp() calls received. */
+    int pointer_up_call_count{0};
 
     /*! \brief Last timeline zoom reported through onTimelineZoomChanged(). */
     std::optional<double> last_timeline_zoom_pixels_per_second{};
