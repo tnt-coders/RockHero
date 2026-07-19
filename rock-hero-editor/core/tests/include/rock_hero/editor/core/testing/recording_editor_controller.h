@@ -269,7 +269,7 @@ public:
     }
 
     /*! \copydoc IEditorController::onChartSustainAdjustRequested */
-    void onChartSustainAdjustRequested(int direction) override
+    void onChartSustainAdjustRequested(int direction, bool /*fine*/) override
     {
         last_chart_sustain_direction = direction;
         chart_sustain_adjust_count += 1;

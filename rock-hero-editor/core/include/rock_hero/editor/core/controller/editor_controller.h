@@ -454,7 +454,7 @@ public:
     void onChartFretShiftRequested(int direction) override;
 
     /*! \copydoc IEditorController::onChartSustainAdjustRequested */
-    void onChartSustainAdjustRequested(int direction) override;
+    void onChartSustainAdjustRequested(int direction, bool fine) override;
 
     /*! \copydoc IEditorController::onChartEscapePressed */
     void onChartEscapePressed() override;
