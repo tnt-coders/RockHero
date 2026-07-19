@@ -154,12 +154,18 @@ behavior described here as current, not final.*
 ## Automation lanes — `ToneAutomationLanesView`
 
 One lane per automated parameter plus a trailing "+" lane, from the `makeToneAutomationViewState`
-projection. The gesture pattern to copy here: drags preview locally and commit **one full
-point-list intent on release**; a state push arriving mid-gesture is deferred and applied when
-the gesture ends, so the engine's frequent lane rebuilds cannot yank the point out from under the
-user. Selection is identified by value (instance id, parameter id, exact grid position), not by
-index, so it survives rebuild pushes. Unauthored lanes track the live parameter value by sampling
-`IToneAutomation` per vblank.
+projection. The pointer/edit pipeline is **controller-centric** (2026-07-19), mirroring the tab
+lane: the view forwards raw pointer events through a `ToneAutomationPointerEvent` (the sibling of
+the tab lane's `ChartPointerEvent`) and paints the `insert_ghost` / `drag_preview` the controller
+publishes back; the controller owns every hit-test, snap, placement, and drag-gesture decision, so
+that policy is testable without JUCE. The view keeps only presentation — lane-resize, menus,
+readouts, the typed-value callout, the tracking vblank. Each edit still commits as **one full
+point-list intent on release**. The point gesture no longer needs a defer-mid-push guard: the
+controller freezes it at press, so a mid-drag lane rebuild republishes the preview instead of
+yanking the point from under the user (the view still defers state pushes during the presentational
+lane-resize drag). Selection is identified by value (instance id, parameter id, exact grid
+position), not by index, so it survives rebuild pushes. Unauthored lanes track the live parameter
+value by sampling `IToneAutomation` per vblank.
 
 A scope note on editing: the interaction *grammar* (Ctrl precision, Alt create-quasimode, Shift
 extend, snap always on, Esc cancel, one undo entry per gesture —

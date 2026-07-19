@@ -78,16 +78,6 @@ public:
             std::string instance_id, std::string param_id) = 0;
 
         /*!
-        \brief Called when a plain click on empty lane area asks to seek and arm the caret
-        there (the row-axis form of the chart lane's empty click, §9b).
-        \param instance_id Plugin instance owning the clicked lane's parameter.
-        \param param_id Parameter id within the plugin.
-        \param time Clicked timeline position (the controller snaps to the grid).
-        */
-        virtual void onToneAutomationLaneCaretRequested(
-            std::string instance_id, std::string param_id, common::core::TimePosition time) = 0;
-
-        /*!
         \brief Called when a gesture makes a point the editor-wide selection.
 
         Selection is controller-owned (one selection editor-wide, 2026-07-18): the view emits
@@ -409,8 +399,9 @@ private:
     [[nodiscard]] float curveValueAt(
         const core::ToneAutomationLaneViewState& lane, double seconds) const;
 
-    // Emits the points-edit intent that inserts a new point into a lane and selects it. Shared
-    // by the caret's typed-value creation and the Alt+arrow create-then-nudge.
+    // Emits the points-edit intent that inserts a new point into a lane and selects it. Drives the
+    // typed-value editor's create-at-the-caret branch; the keyboard create-then-nudge is the
+    // controller's now (it moved with the pointer pipeline).
     void requestPointInsert(
         const core::ToneAutomationLaneViewState& lane, const common::core::GridPosition& position,
         float value);
@@ -453,8 +444,9 @@ private:
         const common::core::GridPosition& position);
 
     // Emits the points-edit intent that replaces one point's position and value (echoing every
-    // other point bit-identically) and selects the edited point. Shared by keyboard nudges, the
-    // typed value editor, and the menu's reset-to-default. A no-op when the point no longer exists.
+    // other point bit-identically) and selects the edited point. Shared by the typed value editor
+    // and the menu's reset-to-default (keyboard nudges are the controller's now). A no-op when the
+    // point no longer exists.
     void requestPointReplace(
         const std::string& instance_id, const std::string& param_id,
         const common::core::GridPosition& position, const common::core::GridPosition& new_position,

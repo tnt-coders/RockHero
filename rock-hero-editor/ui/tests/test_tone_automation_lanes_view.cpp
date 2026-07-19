@@ -59,15 +59,6 @@ struct RecordingLanesListener final : public ToneAutomationLanesView::Listener
         select_count += 1;
     }
 
-    void onToneAutomationLaneCaretRequested(
-        std::string instance_id, std::string param_id, common::core::TimePosition time) override
-    {
-        last_lane_caret_instance_id = std::move(instance_id);
-        last_lane_caret_param_id = std::move(param_id);
-        last_lane_caret_time = time;
-        lane_caret_count += 1;
-    }
-
     void onToneAutomationPointerMove(const core::ToneAutomationPointerEvent& event) override
     {
         last_pointer_event = event;
@@ -111,10 +102,6 @@ struct RecordingLanesListener final : public ToneAutomationLanesView::Listener
     std::string last_select_param_id;
     common::core::GridPosition last_select_position{};
     int select_count = 0;
-    std::string last_lane_caret_instance_id;
-    std::string last_lane_caret_param_id;
-    common::core::TimePosition last_lane_caret_time{};
-    int lane_caret_count = 0;
     std::optional<core::ToneAutomationPointerEvent> last_pointer_event;
     int pointer_move_count = 0;
     int pointer_exit_count = 0;
@@ -398,11 +385,11 @@ TEST_CASE(
     // A press on empty editable lane area forwards a pointer Down carrying the lane identity, its
     // published index, the raw pixel, the value-band extents, the click count, and the modifiers —
     // the controller re-resolves point-vs-area and arms the caret or the insert (a controller test).
-    // The view emits no edit or caret intent itself; those became the controller's.
+    // The view emits no edit intent itself; caret arming and placement became the controller's (the
+    // caret-request Listener callback is gone entirely — the press forwards only a pointer Down).
     harness.view.mouseDown(testing::makeMouseDownEvent(harness.view, 100.0f, 30.0f));
     REQUIRE(harness.listener.pointer_down_count == 1);
     CHECK(harness.listener.edit_count == 0);
-    CHECK(harness.listener.lane_caret_count == 0);
     REQUIRE(harness.listener.last_pointer_event.has_value());
     if (harness.listener.last_pointer_event.has_value())
     {

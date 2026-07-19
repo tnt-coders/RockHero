@@ -1,8 +1,11 @@
 # Automation Lane Pointer Pipeline Migration (Phases 2–5)
 
-Status: **In progress** — Phase 1 shipped 2026-07-19; Phases 2–5 in execution 2026-07-19 (plan
-finalized with user fixes, ship-in-full go-ahead). Baseline stamp: Phase 1 landed at commit
-`bbfe915c` (chart Alt+click sibling work at `024b086d`).
+Status: **Done** — all phases shipped 2026-07-19. Phase 1 `bbfe915c`, Phase 2 `748f7d5a`,
+Phase 3 `37b4ba1b`, Phase 4 `67cb83c3`, Phase 5 this change (chart Alt+click sibling work at
+`024b086d`). The automation lane's pointer/edit pipeline is now controller-centric, mirroring the
+tab lane's `ChartPointerEvent`; the end state is recorded in `editing-interaction-model.md`
+(2026-07-19 amendment record) and `docs/developer/the-editor-2d-views.md`. This plan is complete
+and can be archived.
 
 ## Goal
 
