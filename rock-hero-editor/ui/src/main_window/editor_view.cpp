@@ -954,9 +954,8 @@ void EditorView::toggleUndoHistoryPanel()
 }
 
 // Selection verbs follow the selection, not the pointer (user decision 2026-07-17): with a
-// chart selection active, Alt+wheel (sustain, whole grid steps — chart verbs are grid-native)
-// and Alt+Shift+wheel (fret shift) act on it wherever the pointer sits inside the editor
-// window.
+// chart selection active, Alt+wheel (sustain, whole grid steps) and Alt+Shift+wheel (fret
+// shift) act on it wherever the pointer sits inside the editor window.
 bool EditorView::dispatchSelectionWheel(
     const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel)
 {
@@ -1022,14 +1021,13 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
         return true;
     }
 
-    // Arrow-key dispatch under the amended interaction grammar (2026-07-16, grid-native chart
-    // verbs 2026-07-18): plain arrows navigate the marker's caret, Shift+arrows is reserved
-    // for the plan-52 range gesture, and every keyboard mutation requires the Alt authoring
-    // modifier — Alt+arrows moves the selection (a selected automation point first, the more
-    // specific target, then the chart selection), Shift+Alt+Left/Right resizes sustains. Ctrl
-    // means the measure jump on plain arrows and the fine grid only on automation points;
-    // chart verbs have no fine tier. Interim scattered keybinds (recorded for plan 46's
-    // registry).
+    // Arrow-key dispatch under the amended interaction grammar (2026-07-16; off-grid
+    // unification 2026-07-18): plain arrows navigate the marker's caret, Shift+arrows is
+    // reserved for the plan-52 range gesture, and every keyboard mutation requires the Alt
+    // authoring modifier — Alt+arrows moves THE selection through the one controller-side
+    // move intent, Shift+Alt+Left/Right resizes sustains. Ctrl means the measure jump on
+    // plain arrows and the uniform 1/960 fine tier on Alt-moves (both surfaces). Interim
+    // scattered keybinds (recorded for plan 46's registry).
     {
         const bool ctrl = key.getModifiers().isCtrlDown();
         const bool shift = key.getModifiers().isShiftDown();
@@ -1172,9 +1170,9 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
     }
 
     // Esc cancels the pointer gesture in flight (a point drag, edge drag, or insert placement)
-    // first, then steps the chart's marker ladder — armed caret dissolves, then the note
-    // selection clears (the marker model). It falls through when nothing is active so modal
-    // owners keep their own Esc behavior.
+    // first, then steps the marker ladder — an armed caret on ANY row dissolves (lane carets
+    // included, 2026-07-18), then THE selection clears, whatever its kind. It falls through
+    // when nothing is active so modal owners keep their own Esc behavior.
     if (key.isKeyCode(juce::KeyPress::escapeKey))
     {
         if (m_tone_automation_lanes_view.cancelActiveGesture())
@@ -1185,8 +1183,13 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
         {
             return true;
         }
-        if (m_state.tab != nullptr &&
-            (m_state.chart_edit.caret.has_value() || !m_state.chart_edit.selected_notes.empty()))
+        const bool region_selected_for_esc = std::ranges::any_of(
+            m_state.tone_track.regions,
+            [](const core::ToneRegionViewState& region) { return region.selected; });
+        if (m_state.chart_edit.caret.has_value() ||
+            m_state.tone_automation.lane_caret.has_value() ||
+            !m_state.chart_edit.selected_notes.empty() ||
+            m_state.tone_automation.selected_point.has_value() || region_selected_for_esc)
         {
             m_controller.onChartEscapePressed();
             return true;

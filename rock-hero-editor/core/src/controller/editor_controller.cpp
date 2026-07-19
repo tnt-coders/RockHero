@@ -2707,9 +2707,12 @@ void EditorController::Impl::onChartSustainAdjustRequested(int direction)
 }
 
 // The Esc ladder (the marker model): an in-flight pointer gesture is abandoned without
-// mutating; else an armed caret dissolves to the passive cursor in its place, keeping the
-// selection; else a standing note selection clears. The marker rungs also end the multi-digit
-// fret-entry window — after a cancel, the next digit must not widen a dead entry.
+// mutating; else an armed caret — on any row, lane carets included — dissolves to the passive
+// cursor in its place, keeping the selection; else THE selection clears, whatever its kind
+// (one selection editor-wide, so Esc's last rung is kind-agnostic like Delete's dispatch; a
+// region deselect routes through applyToneSelection so the audible tone re-syncs). The marker
+// rungs also end the multi-digit fret-entry window — after a cancel, the next digit must not
+// widen a dead entry.
 void EditorController::Impl::onChartEscapePressed()
 {
     if (m_chart_gesture.has_value())
@@ -2727,7 +2730,13 @@ void EditorController::Impl::onChartEscapePressed()
         return;
     }
 
-    if (!chartSelection().empty())
+    if (!selectedToneRegionId().empty())
+    {
+        applyToneSelection({});
+        updateView();
+        return;
+    }
+    if (!std::holds_alternative<std::monostate>(m_selection))
     {
         clearSelection();
         updateView();
