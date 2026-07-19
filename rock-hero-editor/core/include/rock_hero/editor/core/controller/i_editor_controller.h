@@ -315,15 +315,18 @@ public:
     virtual void onChartFretShiftRequested(int direction) = 0;
 
     /*!
-    \brief Handles a request to grow or shrink the selected notes' sustains by one grid step.
+    \brief Handles a request to grow or shrink the selected notes' sustains by one step.
 
-    Always a whole grid step — chart verbs are grid-native (settled 2026-07-18). Sustains
-    floor at zero and growth clamps to the minimum-note-distance margin before the next onset
-    on any string (span siblings exempt); the whole selection adjusts as one undo entry.
+    One grid step by default, or one 1/960-beat step when \p fine — the uniform Ctrl precision
+    tier on the extent verbs (the off-grid unification; Ctrl+Alt+wheel and
+    Ctrl+Shift+Alt+Left/Right compose it). Sustains floor at zero and growth clamps to the
+    minimum-note-distance margin before the next onset on any string (span siblings exempt);
+    the whole selection adjusts as one undo entry.
 
     \param direction +1 to grow, -1 to shrink.
+    \param fine True when Ctrl requests the 1/960-beat fine step.
     */
-    virtual void onChartSustainAdjustRequested(int direction) = 0;
+    virtual void onChartSustainAdjustRequested(int direction, bool fine) = 0;
 
     /*!
     \brief Handles Escape on the chart, stepping the editing state down one rung.

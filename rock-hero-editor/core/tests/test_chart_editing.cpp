@@ -948,7 +948,7 @@ TEST_CASE("EditorController fret digits combine inside the entry window", "[core
 
     // An interleaved edit kills the window: the next digit starts a fresh value.
     controller.onChartFretDigitTyped(2);
-    controller.onChartSustainAdjustRequested(1);
+    controller.onChartSustainAdjustRequested(1, false);
     controller.onChartFretDigitTyped(3);
     chart = chartOrNull(controller);
     CHECK(chart->notes[0].fret == 3);
@@ -976,7 +976,7 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
 
     // A plain click selects just the string-1 note (containment hierarchy).
     click(controller, 40.0f, 220.0f);
-    controller.onChartSustainAdjustRequested(1);
+    controller.onChartSustainAdjustRequested(1, false);
     const auto* chart = chartOrNull(controller);
     CHECK(chart->notes[0].sustain == common::core::Fraction{1, 1});
 
@@ -984,7 +984,7 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
     // later: growth clamps a quarter-beat margin before it, at 15/4 beats.
     for (int step = 0; step < 5; ++step)
     {
-        controller.onChartSustainAdjustRequested(1);
+        controller.onChartSustainAdjustRequested(1, false);
     }
     chart = chartOrNull(controller);
     CHECK(chart->notes[0].sustain == common::core::Fraction{15, 4});
@@ -994,7 +994,7 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
     click(controller, 40.0f, 180.0f);
     for (int step = 0; step < 6; ++step)
     {
-        controller.onChartSustainAdjustRequested(1);
+        controller.onChartSustainAdjustRequested(1, false);
     }
     chart = chartOrNull(controller);
     CHECK(chart->notes[1].sustain == common::core::Fraction{15, 4});
@@ -1003,8 +1003,17 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
     click(controller, 40.0f, 220.0f);
     for (int step = 0; step < 6; ++step)
     {
-        controller.onChartSustainAdjustRequested(-1);
+        controller.onChartSustainAdjustRequested(-1, false);
     }
+    chart = chartOrNull(controller);
+    CHECK(chart->notes[0].sustain == common::core::Fraction{});
+
+    // The Ctrl fine tier composes on the extent verb too (the off-grid unification): one fine
+    // grow adds exactly 1/960 beat, and the fine shrink returns exactly to zero.
+    controller.onChartSustainAdjustRequested(1, true);
+    chart = chartOrNull(controller);
+    CHECK(chart->notes[0].sustain == common::core::Fraction{1, 960});
+    controller.onChartSustainAdjustRequested(-1, true);
     chart = chartOrNull(controller);
     CHECK(chart->notes[0].sustain == common::core::Fraction{});
 }

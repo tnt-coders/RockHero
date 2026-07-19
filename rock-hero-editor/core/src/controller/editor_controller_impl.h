@@ -163,7 +163,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onSelectionDeleteRequested();
     void onChartFretDigitTyped(int digit);
     void onChartFretShiftRequested(int direction);
-    void onChartSustainAdjustRequested(int direction);
+    void onChartSustainAdjustRequested(int direction, bool fine);
     void onChartEscapePressed();
     [[nodiscard]] const common::core::TabViewState* displayedTabProjection() const;
     [[nodiscard]] std::optional<ChartNoteKey> chartNoteKeyAt(std::size_t projection_index) const;

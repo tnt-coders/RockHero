@@ -927,9 +927,9 @@ void EditorController::onChartFretShiftRequested(int direction)
     m_impl->onChartFretShiftRequested(direction);
 }
 
-void EditorController::onChartSustainAdjustRequested(int direction)
+void EditorController::onChartSustainAdjustRequested(int direction, bool fine)
 {
-    m_impl->onChartSustainAdjustRequested(direction);
+    m_impl->onChartSustainAdjustRequested(direction, fine);
 }
 
 void EditorController::onChartEscapePressed()
@@ -2858,10 +2858,10 @@ void EditorController::Impl::onChartFretShiftRequested(int direction)
         planRetypeFrets(selected, *lowest + (direction > 0 ? 1 : -1), /*set_exact=*/false)));
 }
 
-// Grows or shrinks the selection's sustains by one grid step (always a whole step — chart
-// verbs are grid-native, settled 2026-07-18) as one compound undo entry; growth clamps to the
-// minimum-note-distance margin before the next onset on any string.
-void EditorController::Impl::onChartSustainAdjustRequested(int direction)
+// Grows or shrinks the selection's sustains by one grid step — or one 1/960-beat fine step,
+// the uniform Ctrl precision tier on the extent verbs — as one compound undo entry; growth
+// clamps to the minimum-note-distance margin before the next onset on any string.
+void EditorController::Impl::onChartSustainAdjustRequested(int direction, bool fine)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
@@ -2871,7 +2871,8 @@ void EditorController::Impl::onChartSustainAdjustRequested(int direction)
     }
 
     const common::core::GridPosition reference = chartSelection().notes().front().position;
-    const common::core::Fraction step = chartGridStepBeats(reference);
+    const common::core::Fraction step =
+        fine ? common::core::Fraction{1, 960} : chartGridStepBeats(reference);
     const common::core::Fraction delta =
         direction > 0 ? step : common::core::Fraction{-step.numerator, step.denominator};
     static_cast<void>(applyChartEditPlan(planAdjustSustain(

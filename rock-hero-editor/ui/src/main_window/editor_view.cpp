@@ -964,8 +964,8 @@ void EditorView::toggleUndoHistoryPanel()
 }
 
 // Selection verbs follow the selection, not the pointer (user decision 2026-07-17): with a
-// chart selection active, Alt+wheel (sustain, whole grid steps) and Alt+Shift+wheel (fret
-// shift) act on it wherever the pointer sits inside the editor window.
+// chart selection active, Alt+wheel (sustain — Ctrl composes the 1/960 fine step) and
+// Alt+Shift+wheel (fret shift) act on it wherever the pointer sits inside the editor window.
 bool EditorView::dispatchSelectionWheel(
     const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel)
 {
@@ -983,7 +983,7 @@ bool EditorView::dispatchSelectionWheel(
     }
     else
     {
-        m_controller.onChartSustainAdjustRequested(direction);
+        m_controller.onChartSustainAdjustRequested(direction, event.mods.isCtrlDown());
     }
     return true;
 }
@@ -1069,15 +1069,16 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
             {
                 if (shift)
                 {
-                    // Alt+Shift + axis picks the property: horizontal resizes extent in time,
-                    // vertical shifts frets — matching Alt+Shift+wheel, whose vertical gesture
-                    // shifts frets the same way (2026-07-17 consistency pass).
+                    // Alt+Shift + axis picks the property: horizontal resizes extent in time
+                    // (Ctrl composes the 1/960 fine step), vertical shifts frets — matching
+                    // Alt+Shift+wheel, whose vertical gesture shifts frets the same way
+                    // (2026-07-17 consistency pass).
                     if (chart_shown && !m_state.chart_edit.selected_notes.empty() &&
                         (*arrow_direction == core::ChartStepDirection::Left ||
                          *arrow_direction == core::ChartStepDirection::Right))
                     {
                         m_controller.onChartSustainAdjustRequested(
-                            *arrow_direction == core::ChartStepDirection::Right ? 1 : -1);
+                            *arrow_direction == core::ChartStepDirection::Right ? 1 : -1, ctrl);
                         return true;
                     }
                     if (chart_shown && !m_state.chart_edit.selected_notes.empty() &&
