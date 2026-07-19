@@ -363,6 +363,10 @@ void TrackViewport::setArmedChartCaret(std::optional<double> seconds)
     }
 
     m_armed_caret_seconds = seconds;
+    // Arming state changed: drop the stationary-tick memo so the next derivation always runs
+    // (a caret can dissolve onto the exact seconds the passive mark already showed, which
+    // would otherwise read as an unchanged key while the overlay-hidden flag must flip).
+    m_last_ruler_cursor_key.reset();
     updateRulerCursor();
 }
 
@@ -894,27 +898,47 @@ void TrackViewport::updateRulerCursor()
     const double mark_seconds =
         playing ? m_transport.position().seconds
                 : m_armed_caret_seconds.value_or(m_transport.position().seconds);
+    // A stationary tick (paused, no caret, nothing moved or resized) skips the mark push and
+    // the caret-mask derivation below — this runs at vblank cadence, and idle frames must not
+    // rebuild lane extents. An armed caret always re-derives: its square can move without any
+    // key input changing (a value edit at the caret slot shifts the on-curve y).
+    const RulerCursorKey key{
+        .playing = playing,
+        .mark_seconds = mark_seconds,
+        .range = m_timeline_range,
+        .width = m_content.getWidth(),
+    };
+    if (!m_armed_caret_seconds.has_value() && m_last_ruler_cursor_key == key)
+    {
+        return;
+    }
+    m_last_ruler_cursor_key = key;
     m_timeline_ruler.setCursorPosition(common::core::TimePosition{mark_seconds}, !playing);
 
     // The same marker position feeds the behind-content paused column: hidden during playback
-    // (the overlay's moving line takes over in front) and without a chart (the overlay keeps
-    // the chartless paused line as the only indicator). While a caret is armed the column
-    // rides the caret's slot, with the square's own span cut out of it — ONLY the cursor
-    // hides behind the caret; the tab view reports the span since it owns the geometry.
-    const bool paused_column_visible = !playing && m_tab_displayed_strings > 0;
+    // (the overlay's moving line takes over in front) and — unless a lane caret is armed —
+    // without a chart (the overlay keeps the chartless paused line as the only indicator).
+    // While a caret is armed the column rides the caret's slot, with the square's own span cut
+    // out of it — ONLY the cursor hides behind the caret; the owning view reports the span
+    // since it owns the geometry. A lane caret in a chartless arrangement (mouse-armed —
+    // automation lanes need no chart) switches the indicator to the masked column too, so the
+    // overlay's front line can never draw through the caret square.
+    const std::optional<juce::Range<float>> tab_mask = m_tab_view.caretMaskYRange();
+    const std::optional<juce::Range<float>> automation_mask =
+        m_tone_automation_lanes_view.caretMaskYRange();
+    const bool paused_column_visible =
+        !playing && (m_tab_displayed_strings > 0 || automation_mask.has_value());
+    m_cursor_overlay.setPausedCursorHidden(
+        m_tab_displayed_strings > 0 || automation_mask.has_value());
     std::optional<juce::Range<float>> caret_mask_y{};
     if (paused_column_visible)
     {
-        if (const std::optional<juce::Range<float>> lane_mask = m_tab_view.caretMaskYRange())
+        // At most one of the two surfaces publishes a caret at a time (one marker).
+        if (tab_mask.has_value())
         {
-            caret_mask_y = *lane_mask + static_cast<float>(m_tab_view.getY());
+            caret_mask_y = *tab_mask + static_cast<float>(m_tab_view.getY());
         }
-        // A caret riding an automation lane row (§9b) reports its square the same way; at
-        // most one of the two surfaces publishes a caret at a time (one marker).
-        else if (
-            const std::optional<juce::Range<float>> automation_mask =
-                m_tone_automation_lanes_view.caretMaskYRange()
-        )
+        else if (automation_mask.has_value())
         {
             caret_mask_y =
                 *automation_mask + static_cast<float>(m_tone_automation_lanes_view.getY());

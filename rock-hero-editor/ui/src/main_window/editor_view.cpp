@@ -661,31 +661,23 @@ void EditorView::setState(const core::EditorViewState& state)
     // Caret navigation keeps its measure comfortably in view: whenever the caret lands at a
     // new time (arming or stepping — string-only moves keep the same seconds and glide
     // nothing), the window glides until the caret's measure is fully visible, with the same
-    // eased shift playback follow uses.
-    if (m_state.chart_edit.caret.has_value() &&
-        (!previous_state.chart_edit.caret.has_value() ||
-         std::is_neq(
-             previous_state.chart_edit.caret->seconds <=> m_state.chart_edit.caret->seconds)))
-    {
-        m_track_viewport->ensureMeasureVisible(
-            m_state.chart_edit.caret->measure_start_seconds,
-            m_state.chart_edit.caret->measure_end_seconds,
-            m_state.chart_edit.caret->seconds);
-    }
-    // A lane-riding caret glides the very same way (one caret, one reveal rule): its published
-    // ref carries the same measure bounds, and the two blocks can never both fire because the
-    // caret publishes through exactly one of the two states.
-    if (m_state.tone_automation.lane_caret.has_value() &&
-        (!previous_state.tone_automation.lane_caret.has_value() ||
-         std::is_neq(
-             previous_state.tone_automation.lane_caret->seconds <=>
-             m_state.tone_automation.lane_caret->seconds)))
-    {
-        m_track_viewport->ensureMeasureVisible(
-            m_state.tone_automation.lane_caret->measure_start_seconds,
-            m_state.tone_automation.lane_caret->measure_end_seconds,
-            m_state.tone_automation.lane_caret->seconds);
-    }
+    // eased shift playback follow uses. One reveal rule serves both caret rows (the two can
+    // never both fire — the caret publishes through exactly one of the two states).
+    const auto glide_if_caret_moved =
+        [this](const auto& previous_caret, const auto& current_caret) {
+            if (current_caret.has_value() &&
+                (!previous_caret.has_value() ||
+                 std::is_neq(previous_caret->seconds <=> current_caret->seconds)))
+            {
+                m_track_viewport->ensureMeasureVisible(
+                    current_caret->measure_start_seconds,
+                    current_caret->measure_end_seconds,
+                    current_caret->seconds);
+            }
+        };
+    glide_if_caret_moved(previous_state.chart_edit.caret, m_state.chart_edit.caret);
+    glide_if_caret_moved(
+        previous_state.tone_automation.lane_caret, m_state.tone_automation.lane_caret);
     // The count chip appears from two selected notes up: typing acts on the whole selection,
     // so its size must stay visible even with the highlights scrolled off-screen.
     const std::size_t selected_count = m_state.chart_edit.selected_notes.size();
@@ -735,32 +727,25 @@ void EditorView::setState(const core::EditorViewState& state)
 
     m_tone_automation_lanes_view.setVisibleTimeline(m_state.visible_timeline);
     m_tone_automation_lanes_view.setGridNoteValue(m_state.grid_note_value);
-    // Editing clamps inside the active tone region's window: the lane is authored per tone but
-    // edited per region instance. The active region (the cursor-following tone, or the formal
-    // selection when one exists) is the one whose lanes are shown, so it defines the editable span.
-    common::core::TimeRange active_region_window{};
+    // One scan resolves the active region for both consumers below: the lanes' editable
+    // window (the lane is authored per tone but edited per region instance — the active
+    // region defines the span) and the signal-chain header's tone name (the panel edits the
+    // active == audible tone).
+    const core::ToneRegionViewState* active_region = nullptr;
     for (const core::ToneRegionViewState& region : m_state.tone_track.regions)
     {
         if (region.active)
         {
-            active_region_window = region.time_range;
+            active_region = &region;
             break;
         }
     }
-    m_tone_automation_lanes_view.setEditableWindow(active_region_window);
+    m_tone_automation_lanes_view.setEditableWindow(
+        active_region != nullptr ? active_region->time_range : common::core::TimeRange{});
     m_tone_automation_lanes_view.setState(m_state.tone_automation);
 
-    // The panel edits the active (== audible) tone, so its header names that tone.
-    std::string active_tone_name;
-    for (const core::ToneRegionViewState& region : m_state.tone_track.regions)
-    {
-        if (region.active)
-        {
-            active_tone_name = region.name;
-            break;
-        }
-    }
-    m_signal_chain_panel.setToneName(std::move(active_tone_name));
+    m_signal_chain_panel.setToneName(
+        active_region != nullptr ? active_region->name : std::string{});
     // While the designer is active the panel header shows the tone document instead of a
     // project catalog tone; the slice also carries the file-strip visibility.
     m_signal_chain_panel.setToneDesignerState(m_state.tone_designer);
@@ -1072,24 +1057,20 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
                     // Alt+Shift + axis picks the property: horizontal resizes extent in time
                     // (Ctrl composes the 1/960 fine step), vertical shifts frets — matching
                     // Alt+Shift+wheel, whose vertical gesture shifts frets the same way
-                    // (2026-07-17 consistency pass).
-                    if (chart_shown && !m_state.chart_edit.selected_notes.empty() &&
-                        (*arrow_direction == core::ChartStepDirection::Left ||
-                         *arrow_direction == core::ChartStepDirection::Right))
+                    // (2026-07-17 consistency pass). The controller re-checks the chart and
+                    // selection itself, so the view forwards unconditionally.
+                    if (*arrow_direction == core::ChartStepDirection::Left ||
+                        *arrow_direction == core::ChartStepDirection::Right)
                     {
                         m_controller.onChartSustainAdjustRequested(
                             *arrow_direction == core::ChartStepDirection::Right ? 1 : -1, ctrl);
-                        return true;
                     }
-                    if (chart_shown && !m_state.chart_edit.selected_notes.empty() &&
-                        (*arrow_direction == core::ChartStepDirection::Up ||
-                         *arrow_direction == core::ChartStepDirection::Down))
+                    else
                     {
                         m_controller.onChartFretShiftRequested(
                             *arrow_direction == core::ChartStepDirection::Up ? 1 : -1);
-                        return true;
                     }
-                    return false;
+                    return true;
                 }
 
                 // Alt+arrows: the one selection-move intent — the controller dispatches on
@@ -1126,7 +1107,10 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
             : key_code >= juce::KeyPress::numberPad0 && key_code <= juce::KeyPress::numberPad9
                 ? key_code - juce::KeyPress::numberPad0
                 : -1;
-        if (!ctrl && !alt && fret_digit >= 0 && m_state.tone_automation.lane_caret.has_value() &&
+        // The lanes view re-checks its own (possibly gesture-deferred) lane caret copy, so the
+        // view forwards without pre-checking the published one — the two can disagree
+        // mid-gesture, and the deferred copy is the one the editor opens against.
+        if (!ctrl && !alt && fret_digit >= 0 &&
             m_tone_automation_lanes_view.beginCaretValueEntry(fret_digit))
         {
             return true;
@@ -1136,28 +1120,16 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
             m_controller.onChartFretDigitTyped(fret_digit);
             return true;
         }
-        // Esc on an in-flight marquee aborts it right here (gesture cancels outrank the tone
-        // views' own cancels); the marker and selection rungs of the Esc ladder run after
-        // those, in the shared Escape block below.
-        if (chart_shown && key.isKeyCode(juce::KeyPress::escapeKey) &&
-            m_state.chart_edit.marquee.has_value())
-        {
-            m_controller.onChartEscapePressed();
-            return true;
-        }
     }
 
     // Delete deletes THE selection: one selection exists editor-wide and the controller
     // dispatches on its kind (the old point → chart → region precedence ladder retired with
-    // the unified selection, 2026-07-18). The view only checks that some selection is
-    // published so an idle Delete keeps propagating to other key consumers.
+    // the unified selection, 2026-07-18). The controller publishes the one presence flag, so
+    // an idle Delete keeps propagating to other key consumers without the view re-deriving
+    // the union.
     if (key == juce::KeyPress{juce::KeyPress::deleteKey})
     {
-        const bool region_selected = std::ranges::any_of(
-            m_state.tone_track.regions,
-            [](const core::ToneRegionViewState& region) { return region.selected; });
-        if (m_state.tone_automation.selected_point.has_value() ||
-            !m_state.chart_edit.selected_notes.empty() || region_selected)
+        if (m_state.selection_present)
         {
             m_controller.onSelectionDeleteRequested();
             return true;
@@ -1197,14 +1169,12 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
         {
             return true;
         }
-        const bool region_selected_for_esc = std::ranges::any_of(
-            m_state.tone_track.regions,
-            [](const core::ToneRegionViewState& region) { return region.selected; });
-        if (m_state.tone_automation.drag_preview.has_value() ||
+        // The ladder fires on any published rung: an in-flight gesture (marquee or the
+        // controller-owned lane drag), an armed caret on either row, or THE selection.
+        if (m_state.chart_edit.marquee.has_value() ||
+            m_state.tone_automation.drag_preview.has_value() ||
             m_state.chart_edit.caret.has_value() ||
-            m_state.tone_automation.lane_caret.has_value() ||
-            !m_state.chart_edit.selected_notes.empty() ||
-            m_state.tone_automation.selected_point.has_value() || region_selected_for_esc)
+            m_state.tone_automation.lane_caret.has_value() || m_state.selection_present)
         {
             m_controller.onChartEscapePressed();
             return true;

@@ -20,7 +20,7 @@ viewport lays the component out, so the cursor overlay and content height stay a
 
 #include "timeline/cursor_overlay.h"
 
-#include <cstdint>
+#include <cstddef>
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <map>
@@ -306,6 +306,17 @@ private:
         int height{0};
     };
 
+    // The value band inside a lane extent (the strip where norm values map to y). The one
+    // geometry authority: every paint, hit-test, mask, and pointer-event derivation of the
+    // band goes through valueBandFor/valueBandY so they can never diverge.
+    struct ValueBand
+    {
+        int top{0};
+        int height{1};
+    };
+    [[nodiscard]] static ValueBand valueBandFor(const LaneExtent& extent);
+    [[nodiscard]] static float valueBandY(const ValueBand& band, float norm_value);
+
     // The lane-height resize drag, the one gesture the view still owns: a pure presentation
     // concern (lane heights flow up through the height callback, never the model). The point
     // move/insert drag moved to the controller (it owns hit resolution, snap, and the delta-value
@@ -464,9 +475,6 @@ private:
     // Resolves the published selection reference back to the durable point identity, or empty
     // when the state publishes no (or a stale) selection.
     [[nodiscard]] std::optional<SelectedPoint> selectedPointFromState() const;
-
-    // Resolves the real lane row (not the trailing "+" lane) containing a local y, or empty.
-    [[nodiscard]] std::optional<std::size_t> laneIndexAtY(int y) const;
 
     // Current tracking-line value for a lane: the live provider when available, else state.
     [[nodiscard]] float trackingValueFor(const core::ToneAutomationLaneViewState& lane) const;
