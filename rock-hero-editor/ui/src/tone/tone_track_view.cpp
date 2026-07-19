@@ -226,17 +226,18 @@ void ToneTrackView::paint(juce::Graphics& g)
         }
     }
 
-    // The Alt-held insert ghost: the boundary line a click (or the in-flight placement's release)
-    // would create, visible before anything mutates.
+    // The Alt-held insert ghost: the boundary a click (or the in-flight placement's release) would
+    // create, visible before anything mutates. Drawn as a 1px column fill at the grid's own integer
+    // x — matching the tempo grid's 1px dots — rather than a 1.5px centered drawLine, which smears
+    // across the column boundary (antialiased over ~2px) and reads as a fat line sitting a pixel off
+    // the crisp grid dots even when its center is on the column. The fill occupies [x, x + 1), the
+    // exact column the grid dots occupy, so the preview lands on the grid line.
     if (m_insert_ghost_x.has_value())
     {
         g.setColour(editorTheme().accent.withAlpha(0.7f));
-        g.drawLine(
-            *m_insert_ghost_x,
-            static_cast<float>(g_region_vertical_inset),
-            *m_insert_ghost_x,
-            static_cast<float>(bounds.getHeight() - g_region_vertical_inset),
-            1.5f);
+        const float top = static_cast<float>(g_region_vertical_inset);
+        const float bottom = static_cast<float>(bounds.getHeight() - g_region_vertical_inset);
+        g.fillRect(*m_insert_ghost_x, top, 1.0f, bottom - top);
     }
 }
 
