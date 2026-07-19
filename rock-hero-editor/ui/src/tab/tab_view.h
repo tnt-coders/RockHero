@@ -187,6 +187,18 @@ public:
     void mouseUp(const juce::MouseEvent& event) override;
 
     /*!
+    \brief Forwards a button-less hover as a chart pointer Move intent (the Alt insert ghost).
+    \param event Mouse event delivered by JUCE.
+    */
+    void mouseMove(const juce::MouseEvent& event) override;
+
+    /*!
+    \brief Forwards the pointer leaving the lane as a chart pointer Exit intent, clearing hover.
+    \param event Mouse event delivered by JUCE.
+    */
+    void mouseExit(const juce::MouseEvent& event) override;
+
+    /*!
     \brief Stores the visible timeline range used to map note times to pixels.
     \param visible_timeline Timeline range represented by the component width.
     */

@@ -278,6 +278,139 @@ TEST_CASE("EditorController inserts a fret-0 note on the Insert verb", "[core][c
     CHECK(chartOrNull(controller)->notes.size() == notes_before + 1);
 }
 
+// Alt+click is the mouse form of the Insert verb (2026-07-18): a press-release on an empty slot
+// plants a fret-0 note there, selects it, and arms the caret on it, so the very next typed digit
+// retypes it — "place, then correct the value".
+TEST_CASE("EditorController plants a fret-0 note on Alt+click", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+    const std::size_t notes_before = chartOrNull(controller)->notes.size();
+
+    // x = 200 is 10.0s (measure 6, later than every fixture note) on the empty string-4 lane.
+    click(controller, 200.0f, 100.0f, ChartPointerModifiers{.alt = true});
+
+    const auto* chart = chartOrNull(controller);
+    REQUIRE(chart->notes.size() == notes_before + 1);
+    // The planted note sorts last (its measure is beyond the fixture's) and carries fret 0.
+    CHECK(chart->notes.back().string == 4);
+    CHECK(chart->notes.back().fret == 0);
+
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK(state->chart_edit.selected_notes.size() == 1);
+    const ChartCaretViewState* caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->seconds == Catch::Approx(10.0));
+    CHECK(caret->string == 4);
+
+    // Muscle-memory correction: the note lands selected, so a digit retypes it in place — no
+    // second note, the string-4 note is now fret 7.
+    controller.onChartFretDigitTyped(7);
+    chart = chartOrNull(controller);
+    CHECK(chart->notes.size() == notes_before + 1);
+    CHECK(chart->notes.back().fret == 7);
+
+    // Alt+click on an existing note keeps its plain select meaning — Insert refuses occupied
+    // slots, so Alt+click never duplicates and is never destructive.
+    click(controller, 40.0f, 220.0f, ChartPointerModifiers{.alt = true});
+    CHECK(chartOrNull(controller)->notes.size() == notes_before + 1);
+    CHECK(state->chart_edit.selected_notes.size() == 1);
+}
+
+// The Alt-hover insert ghost is published only where an Alt+click would actually land: present
+// over an insertable empty slot with Alt held, absent without Alt, absent over an occupied slot,
+// and cleared when the pointer leaves the lane (§7, no lying affordance).
+TEST_CASE("EditorController publishes the Alt insert ghost honestly", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    // Alt over the empty string-4 slot at 10.0s: the ring appears exactly there.
+    controller.onChartPointerMove(pointerEvent(200.0f, 100.0f, ChartPointerModifiers{.alt = true}));
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    REQUIRE(state->chart_edit.insert_ghost.has_value());
+    CHECK(state->chart_edit.insert_ghost->seconds == Catch::Approx(10.0));
+    CHECK(state->chart_edit.insert_ghost->string == 4);
+
+    // Drop Alt over the same slot: no ring — Alt is the create gate, a plain hover shows none.
+    controller.onChartPointerMove(pointerEvent(200.0f, 100.0f));
+    CHECK_FALSE(state->chart_edit.insert_ghost.has_value());
+
+    // Alt over the occupied string-1 slot at 2.0s: no ring — an Alt+click there would not insert.
+    controller.onChartPointerMove(pointerEvent(40.0f, 220.0f, ChartPointerModifiers{.alt = true}));
+    CHECK_FALSE(state->chart_edit.insert_ghost.has_value());
+
+    // Alt back over the empty slot, then the pointer leaves the lane: Exit clears the ring.
+    controller.onChartPointerMove(pointerEvent(200.0f, 100.0f, ChartPointerModifiers{.alt = true}));
+    REQUIRE(state->chart_edit.insert_ghost.has_value());
+    controller.onChartPointerExit();
+    CHECK_FALSE(state->chart_edit.insert_ghost.has_value());
+}
+
+// Alt+drag from an empty slot is the neutral-create gesture, not a marquee: no selection box
+// forms, the ghost follows the pointer, and the release plants one note at the release slot.
+TEST_CASE("EditorController Alt+drag plants a note and suppresses the marquee", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+    const std::size_t notes_before = chartOrNull(controller)->notes.size();
+
+    // Press on the empty string-4 slot and drag past the click threshold, Alt held throughout.
+    controller.onChartPointerDown(pointerEvent(200.0f, 100.0f, ChartPointerModifiers{.alt = true}));
+    controller.onChartPointerDrag(pointerEvent(240.0f, 100.0f, ChartPointerModifiers{.alt = true}));
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    // No marquee under Alt, and the ring follows the drag.
+    CHECK_FALSE(state->chart_edit.marquee.has_value());
+    CHECK(state->chart_edit.insert_ghost.has_value());
+
+    // Release plants exactly one fret-0 note at the release slot (240 px = 12.0s), clearing the ring.
+    controller.onChartPointerUp(pointerEvent(240.0f, 100.0f, ChartPointerModifiers{.alt = true}));
+    REQUIRE(chartOrNull(controller)->notes.size() == notes_before + 1);
+    CHECK(chartOrNull(controller)->notes.back().string == 4);
+    CHECK(chartOrNull(controller)->notes.back().fret == 0);
+    CHECK_FALSE(state->chart_edit.insert_ghost.has_value());
+    CHECK(state->chart_edit.selected_notes.size() == 1);
+}
+
 // Typed digits set every selected note to the typed value; Alt+Shift+wheel's fret-shift intent
 // moves the whole selection by one, shape-preserving, refusing (never clamping) at fret zero
 // and at the fret cap (settled 2026-07-17).

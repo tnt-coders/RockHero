@@ -223,6 +223,22 @@ public:
     virtual void onChartPointerUp(const ChartPointerEvent& event) = 0;
 
     /*!
+    \brief Handles a button-less hover over the tablature lane (the Alt insert ghost).
+
+    While paused with Alt held over an insertable empty slot the controller publishes the insert
+    ghost — the hollow ring where an Alt+click would plant a fret-0 note — snapping and occupancy
+    resolved exactly as the click itself would, so the ring only ever shows where an insert would
+    land (§7, no lying affordance). Without Alt, over a note, or while playing, any standing ghost
+    clears. The hover never mutates the chart or moves the marker.
+
+    \param event Pointer event in lane-local pixels with the painted lane geometry.
+    */
+    virtual void onChartPointerMove(const ChartPointerEvent& event) = 0;
+
+    /*! \brief Handles the pointer leaving the tablature lane, clearing any Alt insert ghost. */
+    virtual void onChartPointerExit() = 0;
+
+    /*!
     \brief Handles an arrow key on the position marker (the marker model, 2026-07-18).
 
     While the marker is passive, the first press arms the caret at the paused cursor — the

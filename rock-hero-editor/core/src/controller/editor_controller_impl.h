@@ -150,6 +150,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onChartPointerDown(const ChartPointerEvent& event);
     void onChartPointerDrag(const ChartPointerEvent& event);
     void onChartPointerUp(const ChartPointerEvent& event);
+    void onChartPointerMove(const ChartPointerEvent& event);
+    void onChartPointerExit();
     void onChartCaretStepRequested(ChartStepDirection direction, bool measure);
     // The one selection-move intent (Alt+arrows): dispatches on the editor-wide selection's
     // kind — automation point, chart notes — and falls back to create-then-nudge at an armed
@@ -166,6 +168,18 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] const common::core::TabViewState* displayedTabProjection() const;
     [[nodiscard]] std::optional<ChartNoteKey> chartNoteKeyAt(std::size_t projection_index) const;
     void clearChartEditingState();
+    // True when a chart note already occupies the given slot (one binary search over the
+    // (position, string)-sorted notes). The insert-legality test shared by caret arming, the
+    // Alt+click insert, and the insert ghost's honesty gate.
+    [[nodiscard]] bool chartSlotOccupied(common::core::GridPosition position, int string) const;
+    // Plants a note at an empty slot and makes it the selection with the caret armed on it — the
+    // shared primitive behind the Alt+click neutral-create (fret 0) and any future placement. A
+    // no-op when the slot is occupied (planInsertNote refuses).
+    void insertChartNoteAt(common::core::GridPosition position, int string, int fret);
+    // Resolves the Alt-hover insert ghost and publishes it when Alt is held over an insertable
+    // empty slot, else clears it. Dirty-checked against the current ghost so a hover that stays
+    // within one grid slot pushes no view rebuild.
+    void publishChartInsertGhost(const ChartPointerEvent& event);
     // Arms the caret at a slot and re-derives the selection from what sits under it (a note
     // selects, an empty slot clears).
     void armChartCaret(common::core::GridPosition position, int string);
@@ -681,6 +695,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         std::optional<std::size_t> hit_note{};
     };
     std::optional<ChartPointerGesture> m_chart_gesture{};
+
+    // The Alt-hover insert ghost, resolved to its rendered seconds+string (never a musical
+    // operation acts on it — it is recomputed wholesale each hover), present only while Alt
+    // hovers an insertable empty slot. Published verbatim into the chart-edit view state.
+    std::optional<ChartInsertGhostViewState> m_chart_insert_ghost{};
 
     // In-flight multi-digit fret entry: the value typed so far, the tick of its last keystroke,
     // the pre-entry note values (so the widened undo entry still restores the originals), the

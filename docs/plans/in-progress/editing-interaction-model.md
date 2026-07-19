@@ -104,14 +104,14 @@ Ctrl = precision. Duplication is Ctrl+D on the selection when it arrives.
 
 | Input | Meaning — identical on every surface | Mutates? |
 |---|---|---|
-| Hover | Affordance only: cursor shape, edge highlight (the chart's Alt ghost retired 2026-07-17 with the caret model; the tone strip keeps its Alt ghost boundary preview) | No |
+| Hover | Affordance only: cursor shape, edge highlight, and the Alt insert ghost on every empty-slot surface — the tone strip's ghost boundary, the automation lanes' on-curve ring, and the tab lane's fret-0 note ring (the chart ghost retired 2026-07-17 with the caret model, then returned 2026-07-18 as the neutral-create preview when Alt+click became the mouse form of Insert) | No |
 | Click on object | Select the individual object *and* arm the caret onto it — both surfaces (automation points joined chart notes 2026-07-18 evening); Ctrl+click toggles membership. Chart notes follow the containment hierarchy (2026-07-17): click = note, double-click = its chord, span-rail click = the span's full note set (rides the span slice) | No |
 | Click on empty | Place the caret at the nearest grid slot on the clicked row and deselect — with play-from-caret this IS the seek. Applies on the tab lane, the ruler, *and* automation lanes (2026-07-18 row-axis amendment, superseding "tone/automation never move the caret"); the tone strip keeps its own click meanings | No |
 | Drag on object | Move (time, plus value/string when 2D); Shift axis-locks; commits once on release | Yes |
 | Edge-drag on extent | Resize (region boundary, sustain tail, span edge) | Yes |
 | Drag on empty | Marquee select, where multi-select exists | No |
-| Alt+click | Insert at the snapped position — tone-surface objects only (splitting a tone region, placing automation points); chart notes insert via the caret + digits (2026-07-17). An automation point lands **on the curve** — value = the curve's value at the snapped x (discrete lanes: the current state), so placement is sonically silent until you pull it (2026-07-18) | Yes |
-| Alt+drag from empty | Insert and place in one press-drag-release gesture (tone surfaces). On automation lanes the drag is **delta-based** from the on-curve landing point — value follows the pointer's vertical delta, never jumping to the raw pointer y; time stays grid-snapped (Ctrl fine); Shift keeps the dominant-axis lock (2026-07-18) | Yes |
+| Alt+click | Insert at the snapped position on every surface (2026-07-18, superseding the 2026-07-17 caret-only chart insert): splits a tone region, places an automation point, or plants a **fret-0 note** on the tab lane — the mouse form of the Insert verb. The neutral default lands sonically silent: an automation point lands **on the curve** (value = the curve's value at the snapped x; discrete lanes: the current state), a fret-0 note lands **selected with the caret armed on it** so the next digit retypes it. Over an occupied slot the press keeps its select meaning (Insert refuses occupied slots), so Alt+click is never destructive | Yes |
+| Alt+drag from empty | Insert and place in one press-drag-release gesture, every surface. On automation lanes the drag is **delta-based** from the on-curve landing point — value follows the pointer's vertical delta, never jumping to the raw pointer y; time stays grid-snapped (Ctrl fine); Shift keeps the dominant-axis lock (2026-07-18). On the tab lane the note plants at the release slot with the ring following under Alt (marquee is suppressed while Alt is held) | Yes |
 | Alt+wheel | Adjust the selection's *displayed duration* by one grid step: sustain for bare notes, span extent for a whole chord/arpeggio group, member tails for a proper subset (2026-07-17 — see chart-span-and-selection-model.md); Ctrl+Alt+wheel steps the fine grid; successive ticks coalesce into one undo entry | Yes |
 | Alt+Shift+wheel | Shift the selection's frets by one per tick, shape-preserving; refuses at fret zero and the fret cap (2026-07-17) | Yes |
 | Double-click on object | Open its primary property editor (rename/pick tone, type BPM); chart notes diverge — double-click selects the chord (containment hierarchy), a span's future double-click opens its name/fingering editor, and there is no note-properties dialog (2026-07-17: derived-over-authored leaves nothing needing a form; bends get direct manipulation later) | Via editor |
@@ -286,7 +286,9 @@ Keyboard accelerators form one family: Ctrl+T inserts a tone change at the playh
   reintroduces persistent-mode errors. Revisit after note authoring exists; if added, it needs a
   loud cursor/toolbar indicator and Esc-to-exit.
 - **Alt+click on an existing note as toggle-delete** (Ableton draw-mode style): fast for charting
-  but makes Alt destructive. Decide with note authoring; everywhere else Alt+click only inserts.
+  but makes Alt destructive. Declined (2026-07-18, when Alt+click chart-note create landed): Alt+click
+  on an occupied slot keeps its non-destructive select meaning, uniform with every other surface —
+  Alt+click only ever inserts, never deletes.
 - **Freehand lane painting** (Alt+drag across a lane writing multiple points at grid steps):
   powerful bulk-authoring upgrade, same grammar; not needed until it is.
 - **Arrow-nudging a selected tone region** (moving both of its boundaries as one step): needs a
@@ -372,6 +374,33 @@ surfaces (implemented immediately; commits `0f8e14f2` and `f6b4397e`):
    (docs/plans/todo/tab-pointer-drag-editing.md): the parking rationale — "drag where time is
    continuous, keys where time is discrete" — dissolved when note time became
    continuous-capable, rather than being outweighed.
+
+## Amendment record — 2026-07-18: Alt+click chart-note create
+
+Settled with the user the same day, closing the last create-gesture asymmetry the marker work
+left standing — every empty-slot surface armed the caret on a plain click, but only the tone
+surfaces *created* on Alt+click. The user's framing: since Alt+click already drops automation
+points and tone splits, it should plant a note too, with the old white ring ghost back while Alt
+is held.
+
+1. **Alt+click plants a fret-0 note on the tab lane** — the mouse form of the Insert verb, the
+   chart sibling of the automation lane's on-curve Alt+click. Fret 0 is the note's neutral
+   default (its "on the curve"): the note lands **selected with the caret armed on it**, so the
+   next digit retypes it — "place, then correct the value", one insert entry plus one retype
+   entry. Alt+drag plants at the release slot (press-drag-release, marquee suppressed under Alt);
+   Alt+click over an occupied slot keeps its select meaning (`planInsertNote` refuses the slot),
+   so Alt+click is never destructive.
+2. **The chart Alt ghost returns** — a hollow white ring at the prospective slot while Alt
+   hovers an insertable empty slot, retired 2026-07-17 with the caret model and brought back now
+   that Alt+click authors again. Round (distinct from the caret's square) and controller-resolved
+   from the same snap + occupancy the click uses, so it shows only where an Alt+click would land
+   (no lying affordance) — absent over occupied slots, without Alt, and while playing.
+3. **Not the deleted quasimode.** This is the lightweight Insert-verb mouse form, *not* §9's
+   removed Alt insert quasimode (the composable ghost, Alt+digit fret composition, session
+   accumulation, sticky last-fret): fret entry stays the caret's typing rule and the ghost
+   carries no editable fret. Supersedes §9's "Alt returns to being purely the mutation gate" for
+   the empty slot — Alt is the mutation gate on objects and the neutral-create gate on empty
+   slots, uniform across the tab lane, automation lanes, and tone strip.
 
 Implemented 2026-07-09, amended 2026-07-16 per the record above (see the per-surface section
 for current behavior):
