@@ -907,13 +907,13 @@ TEST_CASE("EditorController nudges the selection and refuses collisions", "[core
     click(controller, 40.0f, 220.0f);
 
     // Alt+Up would land on the occupied measure-2 string-2 slot: refused, nothing changes.
-    controller.onChartSelectionMoveRequested(ChartStepDirection::Up);
+    controller.onSelectionMoveRequested(ChartStepDirection::Up, false);
     chart = chartOrNull(controller);
     CHECK(chart->notes[0].string == 1);
     CHECK(chart->notes[0].position == (common::core::GridPosition{.measure = 2, .beat = 1}));
 
     // Alt+Right moves one quarter-note step; the selection follows the moved note.
-    controller.onChartSelectionMoveRequested(ChartStepDirection::Right);
+    controller.onSelectionMoveRequested(ChartStepDirection::Right, false);
     chart = chartOrNull(controller);
     CHECK(chart->notes[1].position == (common::core::GridPosition{.measure = 2, .beat = 2}));
     CHECK(chart->notes[1].string == 1);
@@ -924,6 +924,52 @@ TEST_CASE("EditorController nudges the selection and refuses collisions", "[core
     chart = chartOrNull(controller);
     CHECK(chart->notes[0].position == (common::core::GridPosition{.measure = 2, .beat = 1}));
     CHECK(chart->notes[0].string == 1);
+}
+
+// The Ctrl fine tier on notes (settled 2026-07-18): Alt+Ctrl+Left/Right moves the selection by
+// one 1/960-beat step, off the grid; grid steps stay relative afterwards, so the offset rides
+// along, and the fine step back returns to the exact lattice slot.
+TEST_CASE("EditorController fine-moves the selection by 1/960 beat", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+    click(controller, 40.0f, 220.0f);
+
+    // The moved note sorts after its untouched measure-2 chord mate once it carries an offset.
+    controller.onSelectionMoveRequested(ChartStepDirection::Right, true);
+    const auto* chart = chartOrNull(controller);
+    CHECK(
+        chart->notes[1].position ==
+        (common::core::GridPosition{
+            .measure = 2, .beat = 1, .offset = common::core::Fraction{1, 960}
+        }));
+    CHECK(chart->notes[1].string == 1);
+
+    // A grid step from the off-grid slot stays relative: the 1/960 offset rides along.
+    controller.onSelectionMoveRequested(ChartStepDirection::Right, false);
+    chart = chartOrNull(controller);
+    CHECK(
+        chart->notes[1].position ==
+        (common::core::GridPosition{
+            .measure = 2, .beat = 2, .offset = common::core::Fraction{1, 960}
+        }));
+
+    // The fine step back lands exactly on the lattice again — no residue.
+    controller.onSelectionMoveRequested(ChartStepDirection::Left, true);
+    chart = chartOrNull(controller);
+    CHECK(chart->notes[1].position == (common::core::GridPosition{.measure = 2, .beat = 2}));
 }
 
 // Loading a different song clears the selection so keys never leak across charts.

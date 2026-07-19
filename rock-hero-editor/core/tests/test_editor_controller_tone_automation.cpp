@@ -1,6 +1,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <cmath>
 #include <compare>
 #include <filesystem>
 #include <rock_hero/common/audio/automation/i_tone_automation.h>
@@ -531,6 +532,96 @@ TEST_CASE(
     editor.controller.onSelectionDeleteRequested();
     REQUIRE(editor.model().size() == 1);
     CHECK(editor.model().front().points.size() == 1);
+}
+
+TEST_CASE(
+    "EditorController moves the selected automation point through the one move dispatch",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor;
+    editor.controller.onSetToneAutomationPoints(
+        g_instance,
+        g_param,
+        {
+            common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.2F},
+            common::core::ToneAutomationPoint{.position = pointAt(2, 1), .norm_value = 0.8F},
+        });
+    editor.controller.onToneAutomationPointSelected(g_instance, g_param, pointAt(2, 1));
+
+    // Alt+Up steps the value by 0.01 as one committed edit; the selection stays on the point.
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Up, false);
+    REQUIRE(editor.model().front().points.size() == 2);
+    CHECK(std::abs(editor.model().front().points.back().norm_value - 0.81F) < 0.0001F);
+
+    // Alt+Right moves to the adjacent grid line; the selection re-points to the new identity.
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Right, false);
+    CHECK(editor.model().front().points.back().position == pointAt(2, 2));
+    REQUIRE(editor.automation().selected_point.has_value());
+    CHECK(editor.automation().selected_point->point_index == 1);
+
+    // Arm the lane caret onto the moved point (2.5 s = measure 2 beat 2): further nudges carry
+    // the caret along — it stays on its object through the move.
+    editor.controller.onToneAutomationLaneCaretRequested(
+        g_instance, g_param, common::core::TimePosition{2.5});
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Right, false);
+    CHECK(editor.model().front().points.back().position == pointAt(2, 3));
+    REQUIRE(editor.automation().lane_caret.has_value());
+    CHECK(editor.automation().lane_caret->position == pointAt(2, 3));
+
+    // Ctrl+Alt+Left steps back one 1/960 beat: the point (and its caret) leave the lattice
+    // exactly.
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Left, true);
+    const common::core::GridPosition fine_slot{
+        .measure = 2, .beat = 2, .offset = common::core::Fraction{959, 960}
+    };
+    CHECK(editor.model().front().points.back().position == fine_slot);
+    REQUIRE(editor.automation().lane_caret.has_value());
+    CHECK(editor.automation().lane_caret->position == fine_slot);
+
+    // A grid step from the off-grid slot re-snaps onto the lattice walk; the step that would
+    // land on the region's end boundary (4.0 s) is refused by the window clamp.
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Right, false);
+    CHECK(editor.model().front().points.back().position == pointAt(2, 4));
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Right, false);
+    CHECK(editor.model().front().points.back().position == pointAt(2, 4));
+
+    // At the map edge the step collapses: refused, nothing changes.
+    editor.controller.onToneAutomationPointSelected(g_instance, g_param, pointAt(1, 1));
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Left, false);
+    CHECK(editor.model().front().points.front().position == pointAt(1, 1));
+}
+
+TEST_CASE(
+    "EditorController creates on the curve when the move intent lands on an empty lane slot",
+    "[core][tone-automation]")
+{
+    AutomationEditor editor;
+    editor.controller.onSetToneAutomationPoints(
+        g_instance,
+        g_param,
+        {
+            common::core::ToneAutomationPoint{.position = pointAt(1, 1), .norm_value = 0.2F},
+            common::core::ToneAutomationPoint{.position = pointAt(3, 1), .norm_value = 0.8F},
+        });
+
+    // Arm the caret at the empty midpoint slot (2.0 s, measure 2 beat 1), where the drawn
+    // curve reads 0.5; arming an empty slot leaves nothing selected.
+    editor.controller.onToneAutomationLaneCaretRequested(
+        g_instance, g_param, common::core::TimePosition{2.0});
+    CHECK_FALSE(editor.automation().selected_point.has_value());
+
+    // Alt+Up creates ON the curve with the step baked in — one points edit, one undo entry —
+    // and the new point becomes the selection.
+    editor.controller.onSelectionMoveRequested(ChartStepDirection::Up, false);
+    REQUIRE(editor.model().front().points.size() == 3);
+    CHECK(editor.model().front().points[1].position == pointAt(2, 1));
+    CHECK(std::abs(editor.model().front().points[1].norm_value - 0.51F) < 0.0001F);
+    REQUIRE(editor.automation().selected_point.has_value());
+    CHECK(editor.automation().selected_point->point_index == 1);
+
+    // One undo removes the whole create-then-nudge (the step was baked into the creation).
+    editor.controller.onUndoRequested();
+    CHECK(editor.model().front().points.size() == 2);
 }
 
 } // namespace rock_hero::editor::core

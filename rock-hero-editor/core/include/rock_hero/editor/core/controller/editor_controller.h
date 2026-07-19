@@ -432,8 +432,8 @@ public:
     /*! \copydoc IEditorController::onChartCaretStepRequested */
     void onChartCaretStepRequested(ChartStepDirection direction, bool measure) override;
 
-    /*! \copydoc IEditorController::onChartSelectionMoveRequested */
-    void onChartSelectionMoveRequested(ChartStepDirection direction) override;
+    /*! \copydoc IEditorController::onSelectionMoveRequested */
+    void onSelectionMoveRequested(ChartStepDirection direction, bool fine) override;
 
     /*! \copydoc IEditorController::onChartSelectionDeleteRequested */
     void onChartSelectionDeleteRequested() override;

@@ -1069,23 +1069,12 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
                     return false;
                 }
 
-                // Alt+arrows: move the selected automation point, else the chart selection.
-                using NudgeDirection = ToneAutomationLanesView::NudgeDirection;
-                const NudgeDirection point_direction =
-                    *arrow_direction == core::ChartStepDirection::Left    ? NudgeDirection::Earlier
-                    : *arrow_direction == core::ChartStepDirection::Right ? NudgeDirection::Later
-                    : *arrow_direction == core::ChartStepDirection::Up    ? NudgeDirection::Up
-                                                                          : NudgeDirection::Down;
-                if (m_tone_automation_lanes_view.nudgeSelectedPoint(point_direction, ctrl))
-                {
-                    return true;
-                }
-                if (chart_shown && !m_state.chart_edit.selected_notes.empty())
-                {
-                    m_controller.onChartSelectionMoveRequested(*arrow_direction);
-                    return true;
-                }
-                return false;
+                // Alt+arrows: the one selection-move intent — the controller dispatches on
+                // the selection's kind (automation point, chart notes) and falls back to
+                // create-then-nudge at an armed empty lane slot; Ctrl selects the 1/960-beat
+                // (0.001-value) fine tier on both surfaces.
+                m_controller.onSelectionMoveRequested(*arrow_direction, ctrl);
+                return true;
             }
 
             if (shift)

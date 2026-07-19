@@ -72,8 +72,9 @@ restored by ONE undo, compound delete, multi-digit fret combining, sustain clamp
 nudge collisions refused, plus the Phase 3 suites re-verified against the nudge semantics.
 **Keyboard grammar amended 2026-07-16** (user decision; full record in
 docs/plans/in-progress/editing-interaction-model.md): plain keys never mutate — plain arrows now
-navigate the caret unconditionally, **Alt+arrows** moves the selection (new
-`onChartSelectionMoveRequested` intent), **Shift+Alt+Left/Right** resizes sustains (Shift+arrows
+navigate the caret unconditionally, **Alt+arrows** moves the selection (the intent unified
+across surfaces as `onSelectionMoveRequested` on 2026-07-18 — selection-kind dispatch with the
+Ctrl 1/960 fine tier on both), **Shift+Alt+Left/Right** resizes sustains (Shift+arrows
 is reserved for future selection extension), and the automation lanes' plain-arrow point nudge
 gained the same Alt requirement so the rule holds on every surface. Sustain **tail-drag is
 parked** behind a watch-item trigger (docs/tracking/watch-items.md "Chart editing"); plain-wheel

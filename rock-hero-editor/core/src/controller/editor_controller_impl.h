@@ -151,7 +151,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onChartPointerDrag(const ChartPointerEvent& event);
     void onChartPointerUp(const ChartPointerEvent& event);
     void onChartCaretStepRequested(ChartStepDirection direction, bool measure);
-    void onChartSelectionMoveRequested(ChartStepDirection direction);
+    // The one selection-move intent (Alt+arrows): dispatches on the editor-wide selection's
+    // kind — automation point, chart notes — and falls back to create-then-nudge at an armed
+    // empty lane caret slot. `fine` selects the 1/960-beat tier on the time axis (and the
+    // 0.001 value tier on lanes) — the uniform precision escape hatch, both surfaces.
+    void onSelectionMoveRequested(ChartStepDirection direction, bool fine);
+    void moveChartSelection(ChartStepDirection direction, bool fine);
     void onChartSelectionDeleteRequested();
     void onSelectionDeleteRequested();
     void onChartFretDigitTyped(int digit);
@@ -226,6 +231,19 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Deletes the selected automation point by replaying its lane's points without it through
     // onSetToneAutomationPoints (the Delete-key dispatch for the automation alternative).
     void deleteSelectedAutomationPoint(const AutomationPointSelection& selection);
+    // Moves the selected automation point (the move-intent dispatch for the automation
+    // alternative): Up/Down steps the value (one real state on a discrete lane, else 0.01 or
+    // 0.001 fine), Left/Right steps the time axis via steppedLaneNudgePosition. Refused moves
+    // (stale selection, map edge, neighbor collision, window edge) are silent no-ops.
+    void moveSelectedAutomationPoint(
+        const AutomationPointSelection& selection, ChartStepDirection direction, bool fine);
+    // One lane keyboard time-step through the beat axis so the result stays an exact rational:
+    // the adjacent tempo-grid line, or one 1/960-beat fine step.
+    [[nodiscard]] common::core::GridPosition steppedLaneNudgePosition(
+        const common::core::GridPosition& from, bool later, bool fine) const;
+    // The active tone region's time window — the span automation edits clamp inside (the lane
+    // is authored per tone but edited per region instance). Empty when no region is active.
+    [[nodiscard]] common::core::TimeRange activeToneRegionWindow() const;
     void onPluginBrowserRequested();
     void onPluginInsertSlotSelected(std::size_t chain_index, std::size_t block_index);
     void onPluginBrowserClosed();
@@ -753,6 +771,33 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Inserts an on-curve point at an armed lane caret's slot (the Insert dispatch for lane
     // rows); a no-op when a point already sits there.
     void insertLanePointAtCaret(const ChartCaret& caret);
+
+    // The resolved ingredients for planting a point at an armed lane caret's slot: the lane's
+    // existing points, the on-curve landing value at the caret, and the parameter's value
+    // shape. Null when the slot is occupied or nothing can land (no points and no live value).
+    struct LanePointPlan
+    {
+        std::vector<common::core::ToneAutomationPoint> points;
+        float value{0.0F};
+        bool is_discrete{false};
+        int discrete_value_count{0};
+    };
+    // Non-const only because the session exposes its automation entries mutably.
+    [[nodiscard]] std::optional<LanePointPlan> planLanePointAtCaret(const ChartCaret& caret);
+
+    // Plants a planned point (sorted insert, points-edit intent, select) — the shared creation
+    // tail of the Insert verb and the Alt+arrow create-then-nudge.
+    void plantLanePoint(
+        const AutomationLaneRow& row, LanePointPlan plan, common::core::GridPosition position,
+        float value);
+
+    // The move-intent fallback on an armed empty lane slot: creates the on-curve point with the
+    // arrow's step already baked in — value step for Up/Down, time step for Left/Right — so
+    // "grab the curve here and pull" is one keystroke and ONE undo entry. A refused time step
+    // (map edge, neighbor collision, window edge) still creates at the caret itself: the grab
+    // succeeded, only the pull refused.
+    void createAndNudgeLanePointAtCaret(
+        const ChartCaret& caret, ChartStepDirection direction, bool fine);
 
     // Durable automation identity of one live tone-chain plugin instance.
     struct ToneAutomationIdentity
