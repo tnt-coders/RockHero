@@ -7,7 +7,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
-#include <iterator>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <utility>
@@ -61,16 +60,41 @@ const juce::Colour g_dim_overlay{juce::Colours::black.withAlpha(0.35f)};
 // Alpha applied to a lane whose plugin or parameter no longer resolves.
 constexpr float g_unresolved_alpha = 0.35f;
 
-// Converts an exact musical position to seconds through the tempo map (UI-local mirror of the
-// editor-core conversion, which lives in a target-private header).
-[[nodiscard]] double secondsAtPosition(
-    const rock_hero::common::core::TempoMap& tempo_map,
-    const rock_hero::common::core::GridPosition& position)
+// Copies a lane's published points into model form, echoing every point bit-identically and
+// skipping at most one position — the shared base of the view's points-edit intents, so a
+// field added to ToneAutomationPoint needs exactly one copy site.
+[[nodiscard]] std::vector<rock_hero::common::core::ToneAutomationPoint> copyLanePoints(
+    const rock_hero::editor::core::ToneAutomationLaneViewState& lane,
+    const rock_hero::common::core::GridPosition* skip_position)
 {
-    const double global_beat =
-        static_cast<double>(tempo_map.globalBeatIndex(position.measure, position.beat)) +
-        position.offset.toDouble();
-    return tempo_map.secondsAtGlobalBeatPosition(global_beat);
+    std::vector<rock_hero::common::core::ToneAutomationPoint> points;
+    points.reserve(lane.points.size() + 1);
+    for (const rock_hero::editor::core::ToneAutomationPointViewState& point : lane.points)
+    {
+        if (skip_position != nullptr && point.position == *skip_position)
+        {
+            continue;
+        }
+        points.push_back(
+            rock_hero::common::core::ToneAutomationPoint{
+                .position = point.position,
+                .norm_value = point.norm_value,
+                .curve_shape = point.curve_shape,
+            });
+    }
+    return points;
+}
+
+// Inserts a point at its ascending-position slot (the upper-bound insert every builder uses).
+void insertPointSorted(
+    std::vector<rock_hero::common::core::ToneAutomationPoint>& points,
+    rock_hero::common::core::ToneAutomationPoint inserted)
+{
+    const auto insert_at = std::ranges::find_if(
+        points, [&inserted](const rock_hero::common::core::ToneAutomationPoint& candidate) {
+            return inserted.position < candidate.position;
+        });
+    points.insert(insert_at, std::move(inserted));
 }
 
 // One-field text editor hosted in a callout for typed exact-value entry on a point. Return
@@ -204,6 +228,12 @@ float ToneAutomationLanesView::trackingValueFor(const core::ToneAutomationLaneVi
 
 void ToneAutomationLanesView::setVisibleTimeline(common::core::TimeRange visible_timeline)
 {
+    // Equality-gated like the sibling views' setters: view assembly pushes this every state
+    // application, and an unchanged window repaints nothing.
+    if (m_visible_timeline == visible_timeline)
+    {
+        return;
+    }
     m_visible_timeline = visible_timeline;
     repaint();
 }
@@ -241,6 +271,12 @@ void ToneAutomationLanesView::setState(const core::ToneAutomationViewState& stat
 
 void ToneAutomationLanesView::applyState(const core::ToneAutomationViewState& state)
 {
+    // Unchanged pushes repaint nothing (the TabView equality gate): plugin-state notifications
+    // fire state rebuilds in bursts, and most change nothing the lanes render.
+    if (m_state == state)
+    {
+        return;
+    }
     // Total height, not lane count, is what the viewport lays rows out from: selecting a tone
     // with zero lanes still grows the view from nothing to the "+" lane, and switching tones can
     // keep the count while the per-lane stored heights differ.
@@ -251,8 +287,8 @@ void ToneAutomationLanesView::applyState(const core::ToneAutomationViewState& st
     // preview-less push (the common case, and the drag's own committing push) clears them.
     if (m_state.drag_preview.has_value())
     {
-        if (const std::optional<float> guide_x =
-                xForSeconds(secondsAtPosition(m_tempo_map, m_state.drag_preview->position));
+        if (const std::optional<float> guide_x = xForSeconds(
+                core::secondsAtGridPosition(m_tempo_map, m_state.drag_preview->position));
             guide_x.has_value())
         {
             publishSnapGuide(TimelineSnapGuide{.x = *guide_x, .label = juce::String{}});
@@ -377,6 +413,21 @@ float ToneAutomationLanesView::snappedValueForLane(
     return static_cast<float>(nearest) / static_cast<float>(steps);
 }
 
+ToneAutomationLanesView::ValueBand ToneAutomationLanesView::valueBandFor(const LaneExtent& extent)
+{
+    // Inset from the lane's outer bounds by the value-band inset above and the resize band
+    // below, so a point at value 0 or 1 never sits inside the resize grab.
+    return ValueBand{
+        .top = extent.top + g_value_band_inset,
+        .height = std::max(1, extent.height - (2 * g_value_band_inset) - g_resize_band_height),
+    };
+}
+
+float ToneAutomationLanesView::valueBandY(const ValueBand& band, float norm_value)
+{
+    return static_cast<float>(band.top) + (1.0f - norm_value) * static_cast<float>(band.height);
+}
+
 // The lane caret square: centered on the curve at the published caret slot — exactly where
 // Insert and typed values land — shared by paint and the paused-column mask.
 std::optional<juce::Rectangle<float>> ToneAutomationLanesView::laneCaretSquare() const
@@ -393,12 +444,8 @@ std::optional<juce::Rectangle<float>> ToneAutomationLanesView::laneCaretSquare()
     }
     const std::vector<LaneExtent> extents = laneExtents();
     const LaneExtent& extent = extents[m_state.lane_caret->lane_index];
-    const int band_top = extent.top + g_value_band_inset;
-    const int band_height =
-        std::max(1, extent.height - (2 * g_value_band_inset) - g_resize_band_height);
     const float y =
-        static_cast<float>(band_top) +
-        (1.0f - curveValueAt(lane, m_state.lane_caret->seconds)) * static_cast<float>(band_height);
+        valueBandY(valueBandFor(extent), curveValueAt(lane, m_state.lane_caret->seconds));
     const float half_side = g_point_draw_radius + 2.0f;
     return juce::Rectangle<float>{
         *x - half_side, y - half_side, 2.0f * half_side, 2.0f * half_side
@@ -505,10 +552,7 @@ std::optional<ToneAutomationLanesView::Hit> ToneAutomationLanesView::hitAt(
                 continue;
             }
             const float value_y =
-                static_cast<float>(extent.top + g_value_band_inset) +
-                (1.0f - lane.points[point_index].norm_value) *
-                    static_cast<float>(
-                        extent.height - (2 * g_value_band_inset) - g_resize_band_height);
+                valueBandY(valueBandFor(extent), lane.points[point_index].norm_value);
             const float dx = static_cast<float>(local_point.x) - *x;
             const float dy = static_cast<float>(local_point.y) - value_y;
             if ((dx * dx) + (dy * dy) <=
@@ -586,13 +630,8 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
         // and the grid must read exactly as it does on the waveform row — so lanes paint no
         // background at all; separators and name chips carry the lane boundaries.
 
-        const int band_top = extent.top + g_value_band_inset;
-        const int band_height =
-            std::max(1, extent.height - (2 * g_value_band_inset) - g_resize_band_height);
-        const auto value_to_y = [band_top, band_height](float norm_value) {
-            return static_cast<float>(band_top) +
-                   (1.0f - norm_value) * static_cast<float>(band_height);
-        };
+        const ValueBand band = valueBandFor(extent);
+        const auto value_to_y = [band](float norm_value) { return valueBandY(band, norm_value); };
 
         // The drawn list substitutes (or inserts) the controller's published drag preview so the
         // gesture paints live without touching the authoritative state: a moved point hides its
@@ -627,7 +666,7 @@ void ToneAutomationLanesView::paint(juce::Graphics& graphics)
         if (active_preview != nullptr)
         {
             const DrawnPoint preview{
-                .seconds = secondsAtPosition(m_tempo_map, active_preview->position),
+                .seconds = core::secondsAtGridPosition(m_tempo_map, active_preview->position),
                 .norm_value = active_preview->value,
                 .selected = false,
             };
@@ -880,7 +919,7 @@ void ToneAutomationLanesView::mouseMove(const juce::MouseEvent& event)
                         musicalPositionForX(static_cast<float>(event.getPosition().x), event.mods);
                     position.has_value())
                 {
-                    const double seconds = secondsAtPosition(m_tempo_map, *position);
+                    const double seconds = core::secondsAtGridPosition(m_tempo_map, *position);
                     readout = ValueReadout{
                         .anchor = event.getPosition(),
                         .text = readoutTextFor(*position, lane, curveValueAt(lane, seconds)),
@@ -945,14 +984,24 @@ void ToneAutomationLanesView::mouseDown(const juce::MouseEvent& event)
         {
             showPointMenu(*point_hit);
         }
-        else if (
-            hit.has_value() && (std::holds_alternative<LaneChipHit>(*hit) ||
-                                std::holds_alternative<ResizeBandHit>(*hit) ||
-                                std::holds_alternative<LaneAreaHit>(*hit))
-        )
+        else if (hit.has_value())
         {
-            if (const std::optional<std::size_t> lane_index = laneIndexAtY(event.getPosition().y);
-                lane_index.has_value())
+            // Every lane-zone hit already carries its row: use the stored index rather than
+            // re-deriving the lane from y a second time.
+            std::optional<std::size_t> lane_index;
+            if (const auto* const chip = std::get_if<LaneChipHit>(&*hit))
+            {
+                lane_index = chip->lane_index;
+            }
+            else if (const auto* const band = std::get_if<ResizeBandHit>(&*hit))
+            {
+                lane_index = band->lane_index;
+            }
+            else if (const auto* const area = std::get_if<LaneAreaHit>(&*hit))
+            {
+                lane_index = area->lane_index;
+            }
+            if (lane_index.has_value())
             {
                 showLaneMenu(*lane_index);
             }
@@ -1077,34 +1126,24 @@ bool ToneAutomationLanesView::cancelActiveGesture()
 }
 
 // Emits the points-edit intent that inserts a new point into a lane (echoing every existing
-// point bit-identically) and selects it — the shared creation primitive for the caret's typed
-// values and the Alt+arrow create-then-nudge.
+// point bit-identically) and selects it — the creation primitive behind the caret's typed
+// values.
 void ToneAutomationLanesView::requestPointInsert(
     const core::ToneAutomationLaneViewState& lane, const common::core::GridPosition& position,
     float value)
 {
-    std::vector<common::core::ToneAutomationPoint> points;
-    points.reserve(lane.points.size() + 1);
-    for (const core::ToneAutomationPointViewState& point : lane.points)
-    {
-        if (point.position == position)
-        {
-            // The slot is occupied after all (a state race); creating nothing is the answer.
-            return;
-        }
-        points.push_back(
-            common::core::ToneAutomationPoint{
-                .position = point.position,
-                .norm_value = point.norm_value,
-                .curve_shape = point.curve_shape,
-            });
-    }
-    const common::core::ToneAutomationPoint created{.position = position, .norm_value = value};
-    const auto insert_at = std::ranges::find_if(
-        points, [&created](const common::core::ToneAutomationPoint& candidate) {
-            return created.position < candidate.position;
+    const bool occupied = std::ranges::any_of(
+        lane.points, [&position](const core::ToneAutomationPointViewState& point) {
+            return point.position == position;
         });
-    points.insert(insert_at, created);
+    if (occupied)
+    {
+        // The slot is occupied after all (a state race); creating nothing is the answer.
+        return;
+    }
+    std::vector<common::core::ToneAutomationPoint> points = copyLanePoints(lane, nullptr);
+    insertPointSorted(
+        points, common::core::ToneAutomationPoint{.position = position, .norm_value = value});
     m_listener.onToneAutomationPointsEditRequested(
         lane.instance_id, lane.param_id, std::move(points));
     m_listener.onToneAutomationPointSelectRequested(lane.instance_id, lane.param_id, position);
@@ -1218,12 +1257,11 @@ std::vector<core::ToneAutomationLaneExtent> ToneAutomationLanesView::laneValueBa
     bands.reserve(m_state.lanes.size());
     for (std::size_t lane_index = 0; lane_index < m_state.lanes.size(); ++lane_index)
     {
-        const LaneExtent& extent = extents[lane_index];
+        const ValueBand band = valueBandFor(extents[lane_index]);
         bands.push_back(
             core::ToneAutomationLaneExtent{
-                .value_band_top = static_cast<float>(extent.top + g_value_band_inset),
-                .value_band_height = static_cast<float>(
-                    std::max(1, extent.height - (2 * g_value_band_inset) - g_resize_band_height)),
+                .value_band_top = static_cast<float>(band.top),
+                .value_band_height = static_cast<float>(band.height),
             });
     }
     return bands;
@@ -1496,11 +1534,7 @@ void ToneAutomationLanesView::showPointValueEditor(const PointHit& hit)
 
     // Anchor the callout to the point's on-screen location.
     const std::vector<LaneExtent> extents = laneExtents();
-    const LaneExtent& extent = extents[hit.lane_index];
-    const float point_y =
-        static_cast<float>(extent.top + g_value_band_inset) +
-        (1.0f - point.norm_value) *
-            static_cast<float>(extent.height - (2 * g_value_band_inset) - g_resize_band_height);
+    const float point_y = valueBandY(valueBandFor(extents[hit.lane_index]), point.norm_value);
     const int point_x =
         static_cast<int>(xForSeconds(point.seconds).value_or(static_cast<float>(getWidth()) / 2));
     const juce::Rectangle<int> anchor =
@@ -1508,9 +1542,10 @@ void ToneAutomationLanesView::showPointValueEditor(const PointHit& hit)
     juce::CallOutBox::launchAsynchronously(std::move(content), anchor, nullptr);
 }
 
-// Emits the points-edit intent that removes the point at the given position from its lane. Shared by
-// the right-click "Delete Point" menu and the keyboard-Delete path; a no-op when the lane or point
-// no longer exists (a state push may have removed it while a menu was open).
+// Emits the points-edit intent that removes the point at the given position from its lane —
+// the right-click "Delete Point" menu's path (keyboard Delete routes through the controller's
+// unified selection dispatch); a no-op when the lane no longer exists (a state push may have
+// removed it while a menu was open).
 void ToneAutomationLanesView::requestPointDelete(
     const std::string& instance_id, const std::string& param_id,
     const common::core::GridPosition& position)
@@ -1521,22 +1556,8 @@ void ToneAutomationLanesView::requestPointDelete(
         {
             continue;
         }
-        std::vector<common::core::ToneAutomationPoint> points;
-        points.reserve(lane.points.size());
-        for (const core::ToneAutomationPointViewState& point : lane.points)
-        {
-            if (point.position == position)
-            {
-                continue;
-            }
-            points.push_back(
-                common::core::ToneAutomationPoint{
-                    .position = point.position,
-                    .norm_value = point.norm_value,
-                    .curve_shape = point.curve_shape,
-                });
-        }
-        m_listener.onToneAutomationPointsEditRequested(instance_id, param_id, std::move(points));
+        m_listener.onToneAutomationPointsEditRequested(
+            instance_id, param_id, copyLanePoints(lane, &position));
         return;
     }
 }
@@ -1563,31 +1584,14 @@ void ToneAutomationLanesView::requestPointReplace(
         {
             return;
         }
-        std::vector<common::core::ToneAutomationPoint> points;
-        points.reserve(lane.points.size());
-        for (const core::ToneAutomationPointViewState& point : lane.points)
-        {
-            if (point.position == position)
-            {
-                continue;
-            }
-            points.push_back(
-                common::core::ToneAutomationPoint{
-                    .position = point.position,
-                    .norm_value = point.norm_value,
-                    .curve_shape = point.curve_shape,
-                });
-        }
-        const common::core::ToneAutomationPoint edited{
-            .position = new_position,
-            .norm_value = new_value,
-            .curve_shape = target->curve_shape,
-        };
-        const auto insert_at = std::ranges::find_if(
-            points, [&edited](const common::core::ToneAutomationPoint& candidate) {
-                return edited.position < candidate.position;
+        std::vector<common::core::ToneAutomationPoint> points = copyLanePoints(lane, &position);
+        insertPointSorted(
+            points,
+            common::core::ToneAutomationPoint{
+                .position = new_position,
+                .norm_value = new_value,
+                .curve_shape = target->curve_shape,
             });
-        points.insert(insert_at, edited);
         m_listener.onToneAutomationPointsEditRequested(instance_id, param_id, std::move(points));
         // Re-announce the selection at the edited point's new identity: the edit's state push
         // resolved the old position to nothing, and the follow-up push from this intent lights
@@ -1627,21 +1631,6 @@ std::optional<ToneAutomationLanesView::SelectedPoint> ToneAutomationLanesView::
         .param_id = lane.param_id,
         .position = lane.points[ref.point_index].position,
     };
-}
-
-// Resolves the real lane row (not the trailing "+" lane) containing a local y, or empty.
-std::optional<std::size_t> ToneAutomationLanesView::laneIndexAtY(int y) const
-{
-    const std::vector<LaneExtent> extents = laneExtents();
-    for (std::size_t lane_index = 0; lane_index < m_state.lanes.size(); ++lane_index)
-    {
-        if (y >= extents[lane_index].top &&
-            y < extents[lane_index].top + extents[lane_index].height)
-        {
-            return lane_index;
-        }
-    }
-    return std::nullopt;
 }
 
 void ToneAutomationLanesView::publishSnapGuide(std::optional<TimelineSnapGuide> guide)

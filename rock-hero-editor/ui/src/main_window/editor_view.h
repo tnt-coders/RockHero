@@ -442,6 +442,12 @@ private:
     // PluginBrowserWindow::Listener implementation.
     void onPluginBrowserBusyCancelRequested() override;
 
+    // Shows or hides the 3D preview window (View > 3D Preview, or F3).
+    void togglePreviewWindow();
+
+    // Updates the top-level window title to reflect the open project name, REAPER-style.
+    void updateWindowTitle();
+
     // Controller that owns editor workflow policy.
     core::IEditorController& m_controller;
 
@@ -460,13 +466,7 @@ private:
     // Playback-time telemetry the 3D preview samples while playing (plan 44).
     const common::audio::IPlaybackClock& m_playback_clock;
 
-    // Shows or hides the 3D preview window (View > 3D Preview, or F3).
-    void togglePreviewWindow();
-
     // Last state pushed by the controller; used for load target lookup and layout mapping.
-    // Updates the top-level window title to reflect the open project name, REAPER-style.
-    void updateWindowTitle();
-
     core::EditorViewState m_state{};
 
     // Flat app-menu look-and-feel owned for the lifetime of the menu bar.

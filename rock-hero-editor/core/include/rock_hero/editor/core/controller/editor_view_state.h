@@ -633,6 +633,16 @@ struct EditorViewState
     ChartEditViewState chart_edit{};
 
     /*!
+    \brief True when the one editor-wide selection resolves to something published.
+
+    Derived from the published per-surface states (selected chart notes, a selected tone
+    region, or a resolved automation point), so a stale selection reads as absent exactly as
+    it renders. The view's Delete guard reads this single flag instead of re-deriving the
+    union — an idle Delete keeps propagating to other key consumers.
+    */
+    bool selection_present{false};
+
+    /*!
     \brief Seconds-resolved 3D highway projection of the displayed arrangement.
 
     The shared scene model the 3D preview window renders (plan 44) — the same projection the

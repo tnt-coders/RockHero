@@ -3856,6 +3856,15 @@ EditorViewState EditorController::Impl::deriveViewState() const
 
     state.busy = m_busy.viewState();
 
+    // Derived from the PUBLISHED per-surface states, not the raw variant: a stale selection
+    // (one whose object vanished) publishes nothing, and Delete must keep propagating then.
+    state.selection_present =
+        !state.chart_edit.selected_notes.empty() ||
+        state.tone_automation.selected_point.has_value() ||
+        std::ranges::any_of(state.tone_track.regions, [](const ToneRegionViewState& region) {
+            return region.selected;
+        });
+
     return state;
 }
 

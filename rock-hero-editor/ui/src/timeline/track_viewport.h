@@ -7,6 +7,7 @@
 
 #include "timeline/timeline_ruler.h"
 
+#include <compare>
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <optional>
@@ -474,6 +475,27 @@ private:
     // ruler's aligned mark (the caret is the position display) and re-centers wheel zoom on
     // the caret.
     std::optional<double> m_armed_caret_seconds{};
+
+    // The last ruler-cursor derivation's inputs, so the vblank tick skips the mark and
+    // paused-column re-derivation entirely while everything is stationary. While a caret is
+    // armed the tick always re-derives — the caret square's y can move (a value edit at the
+    // slot) without any of these inputs changing.
+    struct RulerCursorKey
+    {
+        bool playing{false};
+        double mark_seconds{0.0};
+        common::core::TimeRange range{};
+        int width{0};
+
+        friend bool operator==(const RulerCursorKey& lhs, const RulerCursorKey& rhs)
+        {
+            // Exact by design; is_eq keeps -Wfloat-equal builds clean.
+            return lhs.playing == rhs.playing &&
+                   std::is_eq(lhs.mark_seconds <=> rhs.mark_seconds) && lhs.range == rhs.range &&
+                   lhs.width == rhs.width;
+        }
+    };
+    std::optional<RulerCursorKey> m_last_ruler_cursor_key{};
 
     // Coarse playing flag from core::EditorViewState, used to avoid vblank state polling.
     bool m_playback_active{false};
