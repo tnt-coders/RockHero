@@ -291,6 +291,15 @@ implementation files. Architecture and layering decisions should remain aligned 
 `docs/design/architecture.md` and
 `docs/design/architectural-principles.md`, especially around dependency boundaries, adapter design,
 framework isolation, and automated-testable structure.
+
+Minimize platform-specific code: limit OS-conditional compilation (`#if`/`#ifdef` on `_WIN32`,
+`JUCE_WINDOWS`, and the like) and native OS APIs to the absolutely essential — only what provably
+cannot be expressed in an OS-agnostic way — reaching for the stack's abstraction layers (JUCE,
+SDL3, bgfx, the C++ standard library) first, and keeping any unavoidable guard confined to one seam
+with a comment stating why no generic form exists. The full rule is **Minimize Platform-Specific
+Code** in `docs/design/architectural-principles.md`, with the mechanical C++ form in
+`docs/design/coding-conventions.md`.
+
 JUCE and Tracktion Engine are integrated as a git submodule (`external/tracktion_engine/`), not via
 Conan. Other dependencies are declared in `conanfile.txt` and resolved automatically through
 CMake's `find_package` via the `cmake-conan` integration. Each build directory has its own
