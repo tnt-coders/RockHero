@@ -158,6 +158,18 @@ struct ToneAutomationLaneCaretRef
     common::core::GridPosition position{};
 
     /*!
+    \brief Start of the caret's measure in seconds, for the keep-in-view window glide.
+
+    Lane caret navigation glides the window exactly as chart caret navigation does (the same
+    measure-reveal rule); published with the caret so the view never re-derives measure bounds
+    from the tempo map.
+    */
+    double measure_start_seconds{0.0};
+
+    /*! \brief End of the caret's measure (the next measure's start) in seconds. */
+    double measure_end_seconds{0.0};
+
+    /*!
     \brief Compares two lane caret references by their stored values.
     \param lhs Left-hand reference.
     \param rhs Right-hand reference.

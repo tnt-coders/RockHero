@@ -758,6 +758,19 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // can never disagree about which rows exist.
     [[nodiscard]] std::vector<AutomationLaneRow> visibleAutomationLaneRows() const;
 
+    // The caret row's next authored object strictly beyond the caret in the step direction —
+    // a note on its string, a point on its lane. Objects are first-class caret stops (the
+    // union stop set, settled 2026-07-18): plain arrows step to the nearer of the adjacent
+    // grid line and this, so an off-grid object stays reachable from the keyboard.
+    [[nodiscard]] std::optional<common::core::GridPosition> nextRowObjectStop(
+        const ChartCaret& caret, bool later);
+
+    // The authored points of one lane row, resolved through the durable plugin identity, or
+    // null when nothing resolves. Non-const only because the session exposes its automation
+    // entries mutably.
+    [[nodiscard]] const std::vector<common::core::ToneAutomationPoint>* lanePointsFor(
+        const std::string& instance_id, const std::string& param_id);
+
     // A lane click's seek-and-arm intent (the row-axis form of the chart lane's empty click):
     // seeks to the nearest grid slot on the clicked lane and arms the caret there.
     void onToneAutomationLaneCaretRequested(

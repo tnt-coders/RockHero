@@ -1114,6 +1114,26 @@ void EditorController::Impl::insertLanePointAtCaret(const ChartCaret& caret)
     }
 }
 
+// The authored points of one lane row, resolved through the durable plugin identity: the one
+// lookup every lane handler shares (caret arming, stepping, planting, moving, deleting).
+const std::vector<common::core::ToneAutomationPoint>* EditorController::Impl::lanePointsFor(
+    const std::string& instance_id, const std::string& param_id)
+{
+    const auto identity = m_tone_plugin_identities.find(instance_id);
+    const std::vector<common::core::ToneParameterAutomation>* const automation =
+        m_session.currentToneAutomation();
+    if (identity == m_tone_plugin_identities.end() || automation == nullptr)
+    {
+        return nullptr;
+    }
+    const auto entry = std::ranges::find_if(
+        *automation, [&](const common::core::ToneParameterAutomation& candidate) {
+            return candidate.plugin_id == identity->second.plugin_id &&
+                   candidate.param_id == param_id;
+        });
+    return entry == automation->end() ? nullptr : &entry->points;
+}
+
 // Resolves everything a point creation at an armed lane caret needs: the lane's authored
 // points, the on-curve landing value at the caret slot, and the parameter's value shape.
 std::optional<EditorController::Impl::LanePointPlan> EditorController::Impl::planLanePointAtCaret(
@@ -1124,22 +1144,16 @@ std::optional<EditorController::Impl::LanePointPlan> EditorController::Impl::pla
         return std::nullopt;
     }
     const auto identity = m_tone_plugin_identities.find(caret.lane->instance_id);
-    const std::vector<common::core::ToneParameterAutomation>* const automation =
-        m_session.currentToneAutomation();
-    if (identity == m_tone_plugin_identities.end() || automation == nullptr)
+    if (identity == m_tone_plugin_identities.end() || m_session.currentToneAutomation() == nullptr)
     {
         return std::nullopt;
     }
 
-    const auto entry = std::ranges::find_if(
-        *automation, [&](const common::core::ToneParameterAutomation& candidate) {
-            return candidate.plugin_id == identity->second.plugin_id &&
-                   candidate.param_id == caret.lane->param_id;
-        });
     LanePointPlan plan;
-    if (entry != automation->end())
+    if (const std::vector<common::core::ToneAutomationPoint>* const points =
+            lanePointsFor(caret.lane->instance_id, caret.lane->param_id))
     {
-        plan.points = entry->points;
+        plan.points = *points;
     }
     const bool occupied =
         std::ranges::any_of(plan.points, [&](const common::core::ToneAutomationPoint& point) {
@@ -1319,7 +1333,10 @@ common::core::TimeRange EditorController::Impl::activeToneRegionWindow() const
 
 // A deliberate point click: the point becomes THE editor-wide selection, replacing whatever any
 // other surface had selected (one selection, structurally). Direct like the chart pointer
-// intents rather than an action: selection is display policy, not an undoable edit.
+// intents rather than an action: selection is display policy, not an undoable edit. The caret
+// arms at the clicked slot (2026-07-18 fix — it used to stay behind), so keyboard verbs
+// continue from the object just touched; arming re-derives the selection from the slot, which
+// is the clicked point. Armed implies paused, so while playing the click only selects.
 void EditorController::Impl::onToneAutomationPointSelected(
     std::string instance_id, std::string param_id, common::core::GridPosition position)
 {
@@ -1327,11 +1344,22 @@ void EditorController::Impl::onToneAutomationPointSelected(
     {
         return;
     }
-    m_selection = AutomationPointSelection{
-        .instance_id = std::move(instance_id),
-        .param_id = std::move(param_id),
-        .position = position,
-    };
+    if (m_transport.state().playing)
+    {
+        m_selection = AutomationPointSelection{
+            .instance_id = std::move(instance_id),
+            .param_id = std::move(param_id),
+            .position = position,
+        };
+    }
+    else
+    {
+        armLaneCaret(
+            position,
+            AutomationLaneRow{
+                .instance_id = std::move(instance_id), .param_id = std::move(param_id)
+            });
+    }
     updateView();
 }
 
@@ -1342,34 +1370,23 @@ void EditorController::Impl::onToneAutomationPointSelected(
 void EditorController::Impl::deleteSelectedAutomationPoint(
     const AutomationPointSelection& selection)
 {
-    const auto identity = m_tone_plugin_identities.find(selection.instance_id);
-    const std::vector<common::core::ToneParameterAutomation>* const automation =
-        m_session.currentToneAutomation();
-    if (identity == m_tone_plugin_identities.end() || automation == nullptr)
-    {
-        return;
-    }
-
-    const auto entry = std::ranges::find_if(
-        *automation, [&](const common::core::ToneParameterAutomation& candidate) {
-            return candidate.plugin_id == identity->second.plugin_id &&
-                   candidate.param_id == selection.param_id;
-        });
-    if (entry == automation->end())
+    const std::vector<common::core::ToneAutomationPoint>* const points =
+        lanePointsFor(selection.instance_id, selection.param_id);
+    if (points == nullptr)
     {
         return;
     }
 
     std::vector<common::core::ToneAutomationPoint> remaining;
-    remaining.reserve(entry->points.size());
-    for (const common::core::ToneAutomationPoint& point : entry->points)
+    remaining.reserve(points->size());
+    for (const common::core::ToneAutomationPoint& point : *points)
     {
         if (!(point.position == selection.position))
         {
             remaining.push_back(point);
         }
     }
-    if (remaining.size() == entry->points.size())
+    if (remaining.size() == points->size())
     {
         // The selection went stale (the point is already gone); deleting nothing is the answer.
         return;
@@ -1387,31 +1404,21 @@ void EditorController::Impl::deleteSelectedAutomationPoint(
 void EditorController::Impl::moveSelectedAutomationPoint(
     const AutomationPointSelection& selection, ChartStepDirection direction, bool fine)
 {
-    const auto identity = m_tone_plugin_identities.find(selection.instance_id);
-    const std::vector<common::core::ToneParameterAutomation>* const automation =
-        m_session.currentToneAutomation();
-    if (identity == m_tone_plugin_identities.end() || automation == nullptr)
+    const std::vector<common::core::ToneAutomationPoint>* const lane_points =
+        lanePointsFor(selection.instance_id, selection.param_id);
+    if (lane_points == nullptr)
     {
         return;
     }
-    const auto entry = std::ranges::find_if(
-        *automation, [&](const common::core::ToneParameterAutomation& candidate) {
-            return candidate.plugin_id == identity->second.plugin_id &&
-                   candidate.param_id == selection.param_id;
-        });
-    if (entry == automation->end())
-    {
-        return;
-    }
-    const auto point = std::ranges::find_if(
-        entry->points, [&](const common::core::ToneAutomationPoint& candidate) {
+    const auto point =
+        std::ranges::find_if(*lane_points, [&](const common::core::ToneAutomationPoint& candidate) {
             return candidate.position == selection.position;
         });
-    if (point == entry->points.end())
+    if (point == lane_points->end())
     {
         return;
     }
-    const std::size_t point_index = static_cast<std::size_t>(point - entry->points.begin());
+    const std::size_t point_index = static_cast<std::size_t>(point - lane_points->begin());
 
     if (direction == ChartStepDirection::Up || direction == ChartStepDirection::Down)
     {
@@ -1441,7 +1448,7 @@ void EditorController::Impl::moveSelectedAutomationPoint(
         // no-change detection is deliberately exact.
         if (std::is_neq(new_value <=> point->norm_value))
         {
-            std::vector<common::core::ToneAutomationPoint> points = entry->points;
+            std::vector<common::core::ToneAutomationPoint> points = *lane_points;
             points[point_index].norm_value = new_value;
             onSetToneAutomationPoints(selection.instance_id, selection.param_id, std::move(points));
             updateView();
@@ -1457,11 +1464,11 @@ void EditorController::Impl::moveSelectedAutomationPoint(
     {
         return;
     }
-    if (point != entry->points.begin() && !(std::prev(point)->position < new_position))
+    if (point != lane_points->begin() && !(std::prev(point)->position < new_position))
     {
         return;
     }
-    if (std::next(point) != entry->points.end() && !(new_position < std::next(point)->position))
+    if (std::next(point) != lane_points->end() && !(new_position < std::next(point)->position))
     {
         return;
     }
@@ -1471,7 +1478,7 @@ void EditorController::Impl::moveSelectedAutomationPoint(
     {
         return;
     }
-    std::vector<common::core::ToneAutomationPoint> points = entry->points;
+    std::vector<common::core::ToneAutomationPoint> points = *lane_points;
     // The step cannot cross a neighbor (clamped strictly between them), so order survives
     // without a re-sort.
     points[point_index].position = new_position;
