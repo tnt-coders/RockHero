@@ -137,10 +137,24 @@ public:
         std::function<void(core::ChartPointerPhase, const core::ChartPointerEvent&)>;
 
     /*!
+    \brief Receives the armed caret square's paused-column cut-out span in content coordinates.
+
+    Pushed whenever the mask changes (empty while no caret is armed) so the track viewport never
+    has to poll this lane's geometry to keep the paused cursor's gap in step with the caret.
+    */
+    using CaretMaskCallback = std::function<void(std::optional<juce::Range<float>>)>;
+
+    /*!
     \brief Installs the sink that receives the lane's chart pointer intents.
     \param on_pointer_event Callback invoked for every gesture phase; empty disables forwarding.
     */
     void setPointerEventCallback(PointerEventCallback on_pointer_event);
+
+    /*!
+    \brief Installs the sink notified when the caret mask (paused-column cut-out) changes.
+    \param callback Callback receiving the caret square's content-coordinate y span, or empty.
+    */
+    void setCaretMaskCallback(CaretMaskCallback callback);
 
     /*!
     \brief Applies the chart-editing overlay state (selection, marquee).
@@ -222,6 +236,12 @@ public:
     */
     void paint(juce::Graphics& g) override;
 
+    /*! \brief Republishes the caret mask, whose content-coordinate span shifts when the lane moves. */
+    void moved() override;
+
+    /*! \brief Republishes the caret mask, whose row geometry shifts when the lane is resized. */
+    void resized() override;
+
     /*!
     \brief Returns the armed caret square's vertical span in local coordinates, if displayed.
 
@@ -246,6 +266,12 @@ private:
     // Builds the chart pointer event for a mouse event using the currently painted geometry.
     [[nodiscard]] core::ChartPointerEvent makePointerEvent(const juce::MouseEvent& event) const;
 
+    // Recomputes the caret square's content-coordinate mask and pushes it to the sink when it
+    // changed since the last publish. Called from every site that can move the square: edit-state
+    // and projection pushes, and layout changes (resize/reposition). The caret is fixed to a string
+    // row, so unlike the automation lanes this needs no per-frame tick.
+    void publishCaretMask();
+
     // Seconds-resolved tab projection shared with the controller; null without a chart.
     std::shared_ptr<const common::core::TabViewState> m_tab{};
 
@@ -254,6 +280,12 @@ private:
 
     // Sink receiving the lane's chart pointer intents; empty disables pointer forwarding.
     PointerEventCallback m_on_pointer_event{};
+
+    // Caret-mask sink into the track viewport's paused-column cut-out; empty disables it.
+    CaretMaskCallback m_caret_mask_callback{};
+
+    // Last caret mask handed to the sink, so a republish only fires on an actual change.
+    std::optional<juce::Range<float>> m_published_caret_mask{};
 
     // User minimum lane count; zero means match the chart's string count.
     int m_minimum_displayed_strings{0};

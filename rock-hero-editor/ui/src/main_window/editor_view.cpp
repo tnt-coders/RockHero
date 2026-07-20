@@ -434,6 +434,21 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
             m_track_viewport->relayoutForContentHeightChange();
         }
     });
+    // Each caret-bearing lane pushes its paused-column cut-out mask straight to the viewport, so the
+    // viewport never polls sibling geometry to keep the paused cursor's gap in step with the caret.
+    m_tab_view.setCaretMaskCallback([this](std::optional<juce::Range<float>> mask) {
+        if (m_track_viewport != nullptr)
+        {
+            m_track_viewport->setTabCaretMask(mask);
+        }
+    });
+    m_tone_automation_lanes_view.setCaretMaskCallback(
+        [this](std::optional<juce::Range<float>> mask) {
+            if (m_track_viewport != nullptr)
+            {
+                m_track_viewport->setAutomationCaretMask(mask);
+            }
+        });
     m_cursor_overlay->setHitTestPassThrough([this](juce::Point<int> position) {
         // The tab lane claims its whole band while a chart is displayed; its controller-side
         // gesture policy still turns empty clicks into seeks, so seeking is preserved.
@@ -651,7 +666,9 @@ void EditorView::setState(const core::EditorViewState& state)
     // An armed caret hides the paused playhead (the caret is the position display) and
     // becomes the wheel-zoom center; passive keeps the paused cursor line at the transport
     // position and zooms around it. A lane-riding caret (§9b) is armed all the same, just
-    // published through the automation state instead of the chart overlay.
+    // published through the automation state instead of the chart overlay. Ordering against the
+    // caret-bearing views' setState no longer matters: the paused column's caret mask is pushed
+    // by those views (setTab/AutomationCaretMask), not polled here.
     m_track_viewport->setArmedChartCaret(
         m_state.chart_edit.caret.has_value()
             ? std::optional<double>{m_state.chart_edit.caret->seconds}

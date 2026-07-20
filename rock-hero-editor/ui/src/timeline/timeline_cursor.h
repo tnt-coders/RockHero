@@ -92,4 +92,20 @@ fine grid, keeping the stored position an exact rational far finer than audible 
     common::core::TimeRange visible_timeline, int width, float content_x,
     const juce::ModifierKeys& mods);
 
+/*!
+\brief Reports whether two optional caret-mask y-ranges are exactly equal.
+
+The caret-bearing views push this range (the paused cursor's cut-out span) to the track viewport,
+which gates redundant refreshes on it and folds it into its ruler-cursor memo. Empty compares equal
+only to empty; two present ranges compare by exact bounds. Hand-written rather than relying on
+juce::Range's operator== so the exact float comparison stays -Wfloat-equal clean (is_eq expresses it
+warning-free), matching the project's other exact-float compares.
+
+\param lhs First optional caret-mask range.
+\param rhs Second optional caret-mask range.
+\return True when both are empty, or both present with exactly equal start and end.
+*/
+[[nodiscard]] bool sameCaretMask(
+    const std::optional<juce::Range<float>>& lhs, const std::optional<juce::Range<float>>& rhs);
+
 } // namespace rock_hero::editor::ui

@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "timeline/timeline_cursor.h"
 #include "timeline/timeline_ruler.h"
 
 #include <compare>
@@ -232,6 +233,24 @@ public:
     \param seconds Armed caret position on the arrangement timeline, or empty while passive.
     */
     void setArmedChartCaret(std::optional<double> seconds);
+
+    /*!
+    \brief Stores the tablature caret's paused-column cut-out span, pushed by the tab lane.
+
+    The behind-content paused play-from-here column hides its span behind the armed caret square so
+    only the cursor — not the grid or strings — is masked. The caret-bearing view pushes this span
+    (in content coordinates) whenever it changes rather than the viewport polling the view's
+    geometry, so the gap can never be derived from a caret the view has not adopted yet.
+
+    \param mask Caret square's content-coordinate y span, or empty while no tab caret is armed.
+    */
+    void setTabCaretMask(std::optional<juce::Range<float>> mask);
+
+    /*!
+    \brief Stores the automation-lane caret's paused-column cut-out span, pushed by the lanes view.
+    \param mask Caret square's content-coordinate y span, or empty while no lane caret is armed.
+    */
+    void setAutomationCaretMask(std::optional<juce::Range<float>> mask);
 
     /*!
     \brief Glides the window until the caret's measure sits fully in view (the marker model).
@@ -476,23 +495,32 @@ private:
     // the caret.
     std::optional<double> m_armed_caret_seconds{};
 
+    // Caret paused-column cut-out spans (content coordinates) pushed by the caret-bearing views,
+    // so the paused column's gap is never derived by polling sibling geometry. At most one is set
+    // at a time (one marker editor-wide); empty while that surface has no armed caret.
+    std::optional<juce::Range<float>> m_tab_caret_mask{};
+    std::optional<juce::Range<float>> m_automation_caret_mask{};
+
     // The last ruler-cursor derivation's inputs, so the vblank tick skips the mark and
-    // paused-column re-derivation entirely while everything is stationary. While a caret is
-    // armed the tick always re-derives — the caret square's y can move (a value edit at the
-    // slot) without any of these inputs changing.
+    // paused-column re-derivation entirely while everything is stationary. The caret mask is part
+    // of the key: the caret-bearing views push it, and a mask change (arming, clearing, or a value
+    // edit shifting the square's y) must re-run the derivation even when the mark stayed put — so
+    // no push order can leave the paused column's gap stale. While a caret is armed the tick also
+    // re-derives unconditionally (see updateRulerCursor).
     struct RulerCursorKey
     {
         bool playing{false};
         double mark_seconds{0.0};
         common::core::TimeRange range{};
         int width{0};
+        std::optional<juce::Range<float>> caret_mask{};
 
         friend bool operator==(const RulerCursorKey& lhs, const RulerCursorKey& rhs)
         {
-            // Exact by design; is_eq keeps -Wfloat-equal builds clean.
+            // Exact by design; is_eq / sameCaretMask keep -Wfloat-equal builds clean.
             return lhs.playing == rhs.playing &&
                    std::is_eq(lhs.mark_seconds <=> rhs.mark_seconds) && lhs.range == rhs.range &&
-                   lhs.width == rhs.width;
+                   lhs.width == rhs.width && sameCaretMask(lhs.caret_mask, rhs.caret_mask);
         }
     };
     std::optional<RulerCursorKey> m_last_ruler_cursor_key{};

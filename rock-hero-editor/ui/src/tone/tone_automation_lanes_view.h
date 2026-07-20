@@ -164,6 +164,14 @@ public:
     using HeightsChangedCallback = std::function<void()>;
 
     /*!
+    \brief Receives the lane caret square's paused-column cut-out span in content coordinates.
+
+    Pushed whenever the mask changes (empty while no lane caret is armed) so the track viewport
+    never has to poll this view's geometry to keep the paused cursor's gap in step with the caret.
+    */
+    using CaretMaskCallback = std::function<void(std::optional<juce::Range<float>>)>;
+
+    /*!
     \brief Creates the automation lanes row.
     \param listener Listener that receives automation intents.
     \param tempo_map Tempo map used for musical snapping; referenced, not copied, so the owner must
@@ -222,6 +230,12 @@ public:
     void setHeightsChangedCallback(HeightsChangedCallback callback);
 
     /*!
+    \brief Installs the sink notified when the lane caret mask (paused-column cut-out) changes.
+    \param callback Callback receiving the caret square's content-coordinate y span, or empty.
+    */
+    void setCaretMaskCallback(CaretMaskCallback callback);
+
+    /*!
     \brief Reports the total height of every lane plus the trailing "+" lane.
     \return Row height in pixels for the track viewport's content layout.
     */
@@ -243,6 +257,12 @@ public:
 
     /*! \brief Paints every lane, its curve and points, the insert ghost, and the "+" lane. */
     void paint(juce::Graphics& graphics) override;
+
+    /*! \brief Republishes the caret mask, whose content-coordinate span shifts when the row moves. */
+    void moved() override;
+
+    /*! \brief Republishes the caret mask, whose lane geometry shifts when the row is resized. */
+    void resized() override;
 
     /*! \brief Updates the hover cursor and readout, and forwards the hover (the insert ghost). */
     void mouseMove(const juce::MouseEvent& event) override;
@@ -482,6 +502,13 @@ private:
     // Vblank tick: repaints unauthored lanes whose live value moved since the last frame.
     void repaintMovedTrackingLanes();
 
+    // Recomputes the caret square's content-coordinate mask and, when it changed since the last
+    // publish, pushes it to the caret-mask sink. Called from every site that can move the square:
+    // state application, the vblank tick (an unauthored lane's live value shifts its on-curve y),
+    // and layout changes (resize/reposition). Fire-on-change keeps the per-frame tick a no-op while
+    // the square is stationary.
+    void publishCaretMask();
+
     // Publishes the snap guide (or clears it when empty).
     void publishSnapGuide(std::optional<TimelineSnapGuide> guide);
 
@@ -548,6 +575,12 @@ private:
 
     // Height-change sink into the track viewport's height-only relayout.
     HeightsChangedCallback m_heights_changed_callback{};
+
+    // Caret-mask sink into the track viewport's paused-column cut-out.
+    CaretMaskCallback m_caret_mask_callback{};
+
+    // Last caret mask handed to the sink, so the per-frame publish only fires on an actual change.
+    std::optional<juce::Range<float>> m_published_caret_mask{};
 
     // Last drawn tracking values keyed like lane heights, so the vblank tick only repaints lanes
     // whose live value actually moved.

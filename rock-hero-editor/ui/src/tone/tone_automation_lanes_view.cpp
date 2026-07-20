@@ -181,7 +181,12 @@ ToneAutomationLanesView::ToneAutomationLanesView(
     : m_listener(listener)
     , m_tempo_map(tempo_map)
     , m_tone_automation(tone_automation)
-    , m_vblank_attachment(this, [this] { repaintMovedTrackingLanes(); })
+    , m_vblank_attachment(this, [this] {
+        repaintMovedTrackingLanes();
+        // An unauthored lane's caret rides the live value, so the square (and its mask) can move
+        // with no state push; republish each frame (a no-op while the square is stationary).
+        publishCaretMask();
+    })
 {
     setOpaque(false);
 }
@@ -304,6 +309,10 @@ void ToneAutomationLanesView::applyState(const core::ToneAutomationViewState& st
         m_heights_changed_callback();
     }
     repaint();
+    // The new state can arm, clear, move, or reshape the lane caret (a point edit at its slot
+    // shifts its on-curve y); push the fresh mask now so the paused column's cut-out changes in the
+    // same synchronous pass as the drawn square, never a frame behind it.
+    publishCaretMask();
 }
 
 void ToneAutomationLanesView::setEditableWindow(common::core::TimeRange window)
@@ -320,6 +329,44 @@ void ToneAutomationLanesView::setSnapGuideCallback(SnapGuideCallback callback)
 void ToneAutomationLanesView::setHeightsChangedCallback(HeightsChangedCallback callback)
 {
     m_heights_changed_callback = std::move(callback);
+}
+
+void ToneAutomationLanesView::setCaretMaskCallback(CaretMaskCallback callback)
+{
+    m_caret_mask_callback = std::move(callback);
+    // Seed the sink with the current mask so a callback installed after a caret already exists is
+    // not left believing the column is ungapped.
+    m_published_caret_mask.reset();
+    publishCaretMask();
+}
+
+// Translates the local caret mask into content coordinates and pushes it only when it changed, so
+// the per-frame vblank publish costs nothing while the square is stationary.
+void ToneAutomationLanesView::publishCaretMask()
+{
+    const std::optional<juce::Range<float>> local = caretMaskYRange();
+    const std::optional<juce::Range<float>> content =
+        local.has_value() ? std::optional<juce::Range<float>>{*local + static_cast<float>(getY())}
+                          : std::nullopt;
+    if (sameCaretMask(content, m_published_caret_mask))
+    {
+        return;
+    }
+    m_published_caret_mask = content;
+    if (m_caret_mask_callback)
+    {
+        m_caret_mask_callback(content);
+    }
+}
+
+void ToneAutomationLanesView::moved()
+{
+    publishCaretMask();
+}
+
+void ToneAutomationLanesView::resized()
+{
+    publishCaretMask();
 }
 
 int ToneAutomationLanesView::totalHeight() const
