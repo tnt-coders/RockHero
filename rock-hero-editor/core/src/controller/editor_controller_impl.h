@@ -153,6 +153,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onChartPointerMove(const ChartPointerEvent& event);
     void onChartPointerExit();
     void onChartCaretStepRequested(ChartStepDirection direction, bool measure);
+    // Caret leap to a derived musical position (Home/End, PageUp/Down): resolves an absolute or
+    // section-relative destination from the tempo map and song sections and arms the caret there,
+    // keeping its row. Refuses (stays put) when a section jump has no section in that direction.
+    void onChartCaretJumpRequested(ChartCaretJump target);
     // The one selection-move intent (Alt+arrows): dispatches on the editor-wide selection's
     // kind — automation point, chart notes — and falls back to create-then-nudge at an armed
     // empty lane caret slot. `fine` selects the 1/960-beat tier on the time axis (and the

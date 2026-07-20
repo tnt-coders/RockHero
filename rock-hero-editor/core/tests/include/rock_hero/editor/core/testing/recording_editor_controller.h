@@ -246,6 +246,10 @@ public:
     void onChartCaretStepRequested(ChartStepDirection /*direction*/, bool /*measure*/) override
     {}
 
+    /*! \copydoc IEditorController::onChartCaretJumpRequested */
+    void onChartCaretJumpRequested(ChartCaretJump /*target*/) override
+    {}
+
     /*! \copydoc IEditorController::onSelectionMoveRequested */
     void onSelectionMoveRequested(ChartStepDirection /*direction*/, bool /*fine*/) override
     {}

@@ -97,4 +97,26 @@ enum class ChartStepDirection : std::uint8_t
     Down,
 };
 
+/*!
+\brief A caret leap to a derived musical position (the Home/End and PageUp/Down family).
+
+Unlike ChartStepDirection's one-grid-step moves, each value names an absolute or section-relative
+destination the controller resolves from the tempo map and song sections. All four are horizontal
+reach: they move the caret in time and keep its row (string or lane).
+*/
+enum class ChartCaretJump : std::uint8_t
+{
+    /*! \brief The chart's first position (measure 1, beat 1) — Home. */
+    ChartStart,
+
+    /*! \brief The chart's terminal downbeat — End. */
+    ChartEnd,
+
+    /*! \brief The nearest section starting before the caret — PageUp. */
+    PreviousSection,
+
+    /*! \brief The nearest section starting after the caret — PageDown. */
+    NextSection,
+};
+
 } // namespace rock_hero::editor::core
