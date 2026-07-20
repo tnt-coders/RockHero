@@ -388,53 +388,53 @@ The original question text is kept below for the decision record.
   powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -RunTouchedTests
   ```
 
-### Phase 3 — Keyboard Shortcuts configuration UI
+### Phase 3 — Keyboard Shortcuts configuration UI (stock component, themed — decided 2026-07-20)
 
-- **Scope**: one menu entry ("Edit > Keyboard Shortcuts...") opening a single dialog: commands
-  grouped by category; each row shows the command name and its binding chips (multiple
-  alternatives per command are first-class), an add/change capture affordance, per-binding clear,
-  per-command reset-to-default; a global reset-all-to-defaults. Capture flow probes conflicts
-  live with `findCommandForKeyPress`; assigning an already-owned chord shows a warning naming the
-  current owner and, on confirm, performs **remove-then-add** (`removeKeyPress(key)` then
-  `addKeyPress`) — never trust `addKeyPress` to resolve conflicts (doc/code mismatch,
-  juce_KeyPressMappingSet.h:133-134 vs .cpp:72-104). That is the required overwrite-and-clear
-  semantics: the previous owner loses the chord, exactly one owner remains. Build `KeyPress`
-  values from capture events so the uppercase-without-shift debug assert
-  (juce_KeyPressMappingSet.cpp:67-70) cannot trip. Decision: a custom component styled through
-  `EditorTheme`, not the stock `KeyMappingEditorComponent` — **rationale re-derived from the
-  vendored source and re-confirmed with the user 2026-07-20** after the original wording proved
-  partly wrong (stock's conflict flow IS confirm-then-remove-then-add naming the current owner,
-  juce_KeyMappingEditorComponent.cpp:159-192 — the "flow differs" claim is retracted; stock
-  stays the reference implementation for the dance). The reasons that survive verification:
-  (i) stock's three interaction popups (the key-capture window, the conflict confirm, the
-  reset-all confirm) are created in private non-virtual methods with **no substitution seam**
-  (the only virtuals are shouldCommandBeIncluded/isCommandReadOnly/getDescriptionForKeyPress),
-  and the two confirms route through `AlertWindow::showScopedAsync` — the factory path this
-  project already banned for its hard-coded 50 px padding defect (see
-  `rock-hero-editor/ui/src/shared/themed_message_box.h`); (ii) the editor themes per-component
-  with no global default LookAndFeel, so those top-level popups cannot even be color-matched
-  without an app-wide LnF change of far larger blast radius than the dialog; (iii) stock's row
-  and button classes are private, so any future requirement (per-command reset — already in
-  this phase's scope and absent from stock — search, reserved-grammar rows with custom copy)
-  forces the custom rebuild later plus migration; (iv) what stock uniquely provides — the
-  capture/conflict interaction logic — is small and written against the public
-  `KeyPressMappingSet` API our tests already drive. The main tree surface *would* be ~90%
-  themeable via `drawKeymapChangeButton`/TreeView LnF hooks; the popups are the deciding
-  surface. Custom-dialog precedents: themed list views (plugin browser, signal chain,
-  undo-history overlay) and `GameAudioRecommendationDialog` for custom-content themed
-  `AlertWindow` subclasses launched through `showThemedDialogModally` (the capture window's
-  shape). Remove the
+- **Scope**: one menu entry ("Edit > Keyboard Shortcuts...") opening a themed window that hosts
+  the stock `juce::KeyMappingEditorComponent` over the editor's mapping set: commands grouped by
+  the registry's categories, chips per binding (multiple alternatives first-class, stock displays
+  up to 3 per command), press-to-capture with live conflict display, per-binding change/remove,
+  and reset-all-with-confirm — all stock behavior. Additions on our side: (i) a small
+  component-local LookAndFeel overriding `createAlertWindow` so the two factory-path confirm
+  popups follow the editor's direct-construction dialog pattern instead of the padded factory
+  (see `themed_message_box.h`); (ii) `getCommandInfo` sets
+  `ApplicationCommandInfo::readOnlyInKeyEditor` from the registry's `rebindable` flag so the
+  non-rebindable core trio renders as fixed rows; (iii) `EditorTheme` colours via
+  `setColours` plus the `drawKeymapChangeButton`/TreeView LnF hooks as needed; (iv) the
+  `juce_gui_extra` module wired into the editor UI target (not linked today). Remove the
   `MainWindow::keyPressed` manual forwarding once dialog-era regression tests prove KPMS parity.
-- **Files/modules**: `rock-hero-editor/ui/src/keybinds/` (dialog + row components),
+
+  **Decision record (settled with the user 2026-07-20 after a full vendored-source analysis;
+  supersedes the original custom-component decision):** adopt stock and judge it in action
+  before building anything custom. The analysis that grounds this: the original objections to
+  stock were retracted — its conflict flow IS the required confirm-then-remove-then-add naming
+  the current owner (juce_KeyMappingEditorComponent.cpp:159-192), and its popups match the
+  product's real dialog look, because the editor's "themed" boxes are stock-V4-painted
+  (`themed_message_box.cpp` sets no LookAndFeel; `AlertWindow` uses its associated component
+  for positioning only, juce_AlertWindow.cpp:467) while the factory-path confirms resolve
+  their LookAndFeel from the associated component (juce_AlertWindowHelpers.h:80-92), which
+  stock sets to itself — reachable by a component-local LnF, no global default needed. What
+  stock cannot do (the private-class wall): per-command reset-to-default inside rows (dropped
+  from this phase's scope — global reset + per-binding remove cover it), more than 3 displayed
+  aliases per command (private `maxNumAssignments`, juce_KeyMappingEditorComponent.cpp:287),
+  and future per-row surfaces (search, reserved-grammar rows with custom copy). **Custom-rebuild
+  triggers, recorded:** a real need for any of those, or the themed stock dialog reading as
+  off-product in live use. The swap stays cheap because the registry/persistence substrate is
+  dialog-agnostic; the interaction logic is public-API code our tests already drive.
+- **Files/modules**: `rock-hero-editor/ui/src/keybinds/` (window shell + LnF subclass),
   `editor_view.cpp` (menu entry), `rock-hero-editor/ui/src/main_window/main_window.cpp` (delete
-  forwarding).
+  forwarding), `rock-hero-editor/ui/CMakeLists.txt` + the JUCE module wiring for
+  `juce_gui_extra`.
 - **Public-header impact**: none.
 - **Testing**: headless wiring tests against the mapping set (no pixel assertions): conflict
-  capture leaves exactly one owner; clear empties a command's list; per-command reset restores
-  its defaults (`resetToDefaultMapping`); reset-all restores the full default set; the dialog
-  lists every registered command (guards against unregistered strays).
+  remove-then-add leaves exactly one owner; per-binding remove empties a command's list;
+  reset-all restores the full default set; every non-rebindable registry row carries
+  `readOnlyInKeyEditor` in its command info; the persistence round-trip from Phase 2 already
+  covers rebind-survives-restart. The stock component's internals stay framework-tested.
 - **Exit criteria**: a user can view defaults, rebind, resolve a conflict via
-  overwrite-and-clear, clear, and reset — all persisted across restart; manual forwarding gone.
+  overwrite-and-clear, clear a binding, and reset — all persisted across restart; the
+  non-rebindable trio is visibly fixed; manual forwarding gone; the themed result witnessed in
+  the running editor (the recorded trigger for a custom rebuild is it reading as off-product).
 - **Verification**:
 
   ```powershell
