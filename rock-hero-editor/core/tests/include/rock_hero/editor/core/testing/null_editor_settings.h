@@ -19,9 +19,10 @@ namespace rock_hero::editor::core::testing
 
 Use this when a test must construct an editor controller or editor composition wrapper but does not
 observe settings persistence. Tests that need to assert reads or writes should use a purpose-built
-recording fake instead.
+recording fake — typically a subclass overriding just the accessors under test, which is why this
+class is not final.
 */
-class NullEditorSettings final : public IEditorSettings
+class NullEditorSettings : public IEditorSettings
 {
 public:
     /*!
@@ -151,6 +152,25 @@ public:
     */
     [[nodiscard]] std::expected<void, EditorSettingsError> setTabMinimumDisplayedStrings(
         int) override
+    {
+        return {};
+    }
+
+    /*!
+    \brief Reports that no keymap-override XML is stored.
+    \return Always empty.
+    */
+    [[nodiscard]] std::optional<std::string> keymapXml() const override
+    {
+        return std::nullopt;
+    }
+
+    /*!
+    \brief Ignores keymap-override writes.
+    \return Always empty success.
+    */
+    [[nodiscard]] std::expected<void, EditorSettingsError> setKeymapXml(
+        std::optional<std::string>) override
     {
         return {};
     }

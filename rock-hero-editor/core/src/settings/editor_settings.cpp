@@ -31,6 +31,7 @@ constexpr const char* g_tone_file_directory_key{"toneFileDirectory"};
 constexpr const char* g_use_game_audio_settings_key{"useGameAudioSettings"};
 constexpr const char* g_suppress_game_audio_recommendation_key{"suppressGameAudioRecommendation"};
 constexpr const char* g_tab_minimum_displayed_strings_key{"tabMinimumDisplayedStrings"};
+constexpr const char* g_keymap_xml_key{"keymapXml"};
 
 // Builds the per-user settings file options used by the editor app.
 [[nodiscard]] juce::PropertiesFile::Options editorSettingsOptions()
@@ -259,6 +260,35 @@ std::expected<void, EditorSettingsError> EditorSettings::setInterruptedRestorePr
     }
 
     return saveIfNeeded(m_properties, "Could not save interrupted project restore setting.");
+}
+
+// Reads the persisted keymap-override XML for the editor's command registry.
+std::optional<std::string> EditorSettings::keymapXml() const
+{
+    const juce::String value = m_properties.getValue(g_keymap_xml_key);
+    if (value.isEmpty())
+    {
+        return std::nullopt;
+    }
+
+    return value.toStdString();
+}
+
+// Stores or clears the persisted keymap-override XML (opaque to this store; the UI serializes
+// the mapping set's diff-versus-defaults XML into it).
+std::expected<void, EditorSettingsError> EditorSettings::setKeymapXml(
+    std::optional<std::string> keymap_xml)
+{
+    if (keymap_xml.has_value() && !keymap_xml->empty())
+    {
+        m_properties.setValue(g_keymap_xml_key, juce::String{*keymap_xml});
+    }
+    else
+    {
+        m_properties.removeValue(g_keymap_xml_key);
+    }
+
+    return saveIfNeeded(m_properties, "Could not save keymap setting.");
 }
 
 // Reads the app-wide waveform visibility preference for the timeline's tablature lane.

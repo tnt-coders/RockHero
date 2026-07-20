@@ -21,6 +21,7 @@ add_executable(
     test_arrangement_view.cpp
     test_audio_device_settings_view.cpp
     test_editor.cpp
+    test_editor_keymap_persistence.cpp
     test_editor_view_audio_controls.cpp
     test_editor_view_audio_device_failure_overlay.cpp
     test_editor_view_busy_overlay.cpp

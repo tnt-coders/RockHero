@@ -160,6 +160,20 @@ public:
         int minimum_strings) override;
 
     /*!
+    \brief Reads the persisted keymap-override XML for the editor's command registry.
+    \return Stored keymap XML, or empty when only the defaults apply.
+    */
+    [[nodiscard]] std::optional<std::string> keymapXml() const override;
+
+    /*!
+    \brief Stores or clears the persisted keymap-override XML.
+    \param keymap_xml Diff XML to store, or empty when the keymap is back to pure defaults.
+    \return Empty success, or a typed settings failure.
+    */
+    [[nodiscard]] std::expected<void, EditorSettingsError> setKeymapXml(
+        std::optional<std::string> keymap_xml) override;
+
+    /*!
     \brief Reads the app-local resume marker stored for an editor project path.
     \param project_file Project path whose marker should be restored.
     \return Stored marker, or absence when none is stored or the stored value is unreadable.
