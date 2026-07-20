@@ -278,6 +278,9 @@ Song
     tones[*]           (named tone catalog; each tone's document path derives from its UUID as
                         tones/<uuid>/tone.json and is interpreted exclusively by common/audio)
     tone_track         (gap-free tone regions referencing catalog tones by document ref)
+    tone_automation[*] (per-parameter automation points for the arrangement's tones)
+    chart_ref          (path of the arrangement's chart document, charts/<uuid>.chart.json)
+    chart              (the parsed chart, when the package carries one — see below)
 \endcode
 
 Arrangement difficulty is intended to be a value *derived* from playable chart data, not authored
@@ -322,10 +325,12 @@ Anchor seconds - the only absolute time stored by the tempo map - keep a fixed t
 latency / hit-window floor for the charting and scoring work planned here; higher precision is
 intentionally avoided, since fuzzy note onsets do not carry it.
 
-Playable note, chord, tuning, technique, and synthesized-instrument storage is intentionally
-deferred. Those decisions should be added when note display, gameplay, or import/export work needs a
-real chart model. The current tone-system slice needs only the settled tempo map plus arrangement
-audio and tone-document references.
+Playable chart storage is implemented: each arrangement may carry a `Chart`
+(`rock-hero-common/core/.../chart/chart.h`) holding the tuning (string pitches, capo, cents
+offset), chord templates with fingering, notes (string/fret/sustain plus techniques — attack and
+mute styles, harmonics, bends, slides, vibrato, tremolo), chord/arpeggio shapes, and fret-hand
+positions, persisted as a per-arrangement chart document referenced by `chart_ref`.
+Synthesized-instrument storage remains deferred until a feature needs it.
 
 `Song` is the persistence root. The editor session projects the song's arrangements into a
 headless `Session` and displays one arrangement at a time. Native song package loading validates

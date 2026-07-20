@@ -57,8 +57,14 @@ Three consequences keep the rows pixel-aligned:
 - **One snap function.** `musicalGridPositionForX(...)`
   (`rock-hero-editor/ui/src/timeline/timeline_cursor.h`) converts a pixel to an exact rational
   grid position for *every* gesture — cursor placement, tone-region boundaries, automation
-  points. Ctrl bypasses to the 1/960-beat fine grid. New gestures must go through it, or their
-  snapping will disagree with everyone else's.
+  points. Ctrl bypasses to the 1/960-beat fine grid — and that fine tier is uniform across
+  surfaces *and* input families (the off-grid unification): keyboard moves and the sustain
+  extent verb compose the same `fine` flag the pointer path uses. The keyboard's stepping has
+  its own single primitives next to the grid math (`gridStepBeats` and
+  `adjacentTempoGridPosition` in `editor/core/timeline/tempo_grid_geometry.h` — the one
+  grid-step rule behind both the caret step and the lane nudge, exact-rational so a coarse step
+  from an off-grid position lands on the adjacent line). New gestures must go through these
+  helpers, or their snapping will disagree with everyone else's.
 
 The pinned ruler stacks the **song-level** chip rows on top — sections, tempo markings, and time
 signatures on the editor chrome, with the active value pinned to the left edge while the song
@@ -90,6 +96,21 @@ Two channels exist, and choosing the right one matters:
 
 If you are adding something that changes when the *user edits*, push it; if it changes because
 *audio is playing*, sample it.
+
+One narrow channel runs the other way, **upward**: when the viewport needs geometry a row owns —
+the armed caret square's vertical mask, which the paused-column cursor must cut around — the row
+*publishes* it fire-on-change (`TabView`/`ToneAutomationLanesView::setCaretMaskCallback` →
+`TrackViewport::setTabCaretMask`/`setAutomationCaretMask`, compared with `sameCaretMask` in
+`timeline_cursor.h`). The viewport never polls a sibling row's geometry. The reason is the memo
+below: sampled-channel derivations are gated by change keys, and a polled value that changes
+without a notification freezes inside the memo.
+
+Sampled-channel work is **idle-gated**: `TrackViewport::updateRulerCursor` runs at vblank
+cadence but short-circuits on an unchanged `RulerCursorKey` (`track_viewport.h`), and the
+content views' `setState`/`setVisibleTimeline` equality-gate so unchanged pushes repaint
+nothing. The rule that keeps the memo honest: **every input of the derived value must be a
+field of the key** — the pushed caret mask is one — because a missing field freezes the output,
+and a frozen derivation shows up as a *lingering* (not one-frame) paint glitch.
 
 # The rows
 
@@ -142,6 +163,9 @@ exact-color tests in `rock_hero_common_ui_tests`.
 Renders the gap-free tone regions as spans with name chips pinned to the visible left edge, and
 carries the editing grammar for boundaries: click selects, edge-drag moves a shared boundary
 (snapped; Ctrl fine grid), Alt enters the insert quasimode with a ghost boundary, Esc cancels.
+Boundaries and the split ghost render on the tempo grid's own integer pixel columns
+(`gridAlignedX`; the ghost is a 1px column fill), so a preview sits exactly on the line it will
+commit to.
 Every gesture ends as **one intent** through its `Listener`
 (`onToneRegionBoundaryMoveRequested`, `onToneChangeInsertRequested`, ...) — the view never
 mutates the model. Its input is the `makeToneTrackViewState` projection; the active region
@@ -186,7 +210,9 @@ All of these compile clean when forgotten:
 2. **The component**, following \ref guide_add_view (Listener, `setState`, theme).
 3. **Viewport wiring** in `TrackViewport`: construct/parent the row in its canvas, stack it in
    the layout, and plumb `setVisibleTimeline`, `setGridLines` (if it draws the grid),
-   `setVisibleContentLeft` (if it pins chips), and height into the canvas layout.
+   `setVisibleContentLeft` (if it pins chips), and height into the canvas layout. If the row
+   can host an armed caret, publish its caret mask through the upward channel (see above) —
+   the viewport must never poll it.
 4. **`EditorView::setState` fan-out** — the row exists but renders defaults forever without it.
 5. **Snapping through `musicalGridPositionForX`** for any gesture, and one-intent-on-release
    commit semantics.

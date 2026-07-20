@@ -35,6 +35,20 @@ commit the edit only after side effects succeed, abort otherwise. One user gestu
 exactly one undo entry. Edits that recreate plugins must report it via
 `IEdit::instantiatesPlugin` so replay routes through the busy fence.
 
+**Copy dispatched state by value before a re-entrant dispatch.** *(Editor-only.)* A controller
+intent that reads the live selection or marker variant and then runs an action dispatch must
+copy the alternative it read **by value** first — the dispatch can replace the very variant the
+reference borrowed from, leaving it dangling mid-call (`onSelectionMoveRequested` and its
+siblings in `editor_controller.cpp` are the exemplars). Generally: never pass a reference into
+variant-held state across a call that may reassign the variant.
+
+**A render memo must key every input.** *(Editor-only.)* Vblank-cadence derivations that
+early-out on an unchanged key (`RulerCursorKey` in `ui/src/timeline/track_viewport.h` is the
+exemplar) must include *every* input of the derived value as a key field. A missing field
+freezes the output, and the symptom is a lingering — not one-frame — paint glitch. Corollary:
+a sibling component's geometry must be *pushed* into the memo's key (the caret-mask channel in
+\ref guide_2d_views), never polled from inside the gated derivation.
+
 **Recoverable failures cross boundaries as typed errors.** Domain-owned error values, not
 framework strings; callers branch on the type, never parse message text. Side-effect failures
 that can affect user-visible state must surface — silently folding them into refreshed state is a
