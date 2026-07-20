@@ -2357,6 +2357,70 @@ void EditorController::Impl::stepCaretRow(const ChartCaret& caret, bool up, int 
     armChartCaret(caret.position, std::clamp(caret.string + (up ? 1 : -1), 1, string_count));
 }
 
+namespace
+{
+
+// Shared caret/selection navigation destinations. The caret jumps (onChartCaretStepRequested's
+// measure branch, onChartCaretJumpRequested) and the time-selection extend both resolve their
+// target through these, so the two verbs can never land on different positions for the same
+// motion — the same "shared adjacent-line primitive" law the plain grid step already follows.
+
+// The Guitar Pro measure jump: later -> the next measure's downbeat; earlier -> the current
+// measure's downbeat when mid-measure, else the previous measure's.
+[[nodiscard]] common::core::GridPosition measureJumpPosition(
+    const common::core::GridPosition& from, bool later)
+{
+    const bool at_measure_start = from.beat == 1 && from.offset.numerator == 0;
+    const int target_measure = later              ? from.measure + 1
+                               : at_measure_start ? std::max(1, from.measure - 1)
+                                                  : from.measure;
+    return common::core::GridPosition{.measure = target_measure, .beat = 1, .offset = {}};
+}
+
+// The chart's first position (measure 1, beat 1) — the Home / chart-start destination.
+[[nodiscard]] common::core::GridPosition chartStartPosition() noexcept
+{
+    return common::core::GridPosition{.measure = 1, .beat = 1, .offset = {}};
+}
+
+// The chart's terminal downbeat — the tempo map's closing barline, seated past the last measure
+// (defaultMap places it beyond the audio end). The End / chart-end destination.
+[[nodiscard]] common::core::GridPosition chartEndPosition(const common::core::TempoMap& tempo_map)
+{
+    const auto [end_measure, end_beat] =
+        tempo_map.beatAtGlobalIndex(tempo_map.terminalGlobalBeatIndex());
+    return common::core::GridPosition{.measure = end_measure, .beat = end_beat, .offset = {}};
+}
+
+// The nearest song section starting strictly after (later) or before (!later) the reference, or
+// nullopt when there is none in that direction. Sections are stored sorted by position.
+[[nodiscard]] std::optional<common::core::GridPosition> adjacentSectionPosition(
+    const std::vector<common::core::SongSection>& sections,
+    const common::core::GridPosition& reference, bool later)
+{
+    if (later)
+    {
+        for (const common::core::SongSection& section : sections)
+        {
+            if (reference < section.position)
+            {
+                return section.position;
+            }
+        }
+        return std::nullopt;
+    }
+    for (auto section = sections.rbegin(); section != sections.rend(); ++section)
+    {
+        if (section->position < reference)
+        {
+            return section->position;
+        }
+    }
+    return std::nullopt;
+}
+
+} // namespace
+
 // Arrow keys on the marker (the marker model): while passive, the first press arms the caret
 // at the paused cursor — nearest grid line, remembered string — without stepping; while
 // armed, Left/Right step one grid line on the caret's string — or jump measures under the
@@ -2395,14 +2459,9 @@ void EditorController::Impl::onChartCaretStepRequested(ChartStepDirection direct
     common::core::GridPosition stepped;
     if (measure)
     {
-        // The Guitar Pro measure jump: Right goes to the next measure's start; Left to the
-        // current measure's start when mid-measure, else the previous measure's.
-        const bool at_measure_start =
-            caret.position.beat == 1 && caret.position.offset.numerator == 0;
-        const int target_measure = sign > 0           ? caret.position.measure + 1
-                                   : at_measure_start ? std::max(1, caret.position.measure - 1)
-                                                      : caret.position.measure;
-        stepped = common::core::GridPosition{.measure = target_measure, .beat = 1, .offset = {}};
+        // The Guitar Pro measure jump, shared with the time-selection extend so the two never
+        // drift on the same motion.
+        stepped = measureJumpPosition(caret.position, sign > 0);
     }
     else
     {
@@ -2465,46 +2524,17 @@ void EditorController::Impl::onChartCaretJumpRequested(ChartCaretJump target)
     switch (target)
     {
         case ChartCaretJump::ChartStart:
-            destination = common::core::GridPosition{.measure = 1, .beat = 1, .offset = {}};
+            destination = chartStartPosition();
             break;
         case ChartCaretJump::ChartEnd:
-        {
-            // The terminal downbeat is the map's final barline (defaultMap seats it past the audio
-            // end), so End lands on the chart's closing edge, one step beyond the last measure.
-            const auto [end_measure, end_beat] =
-                tempo_map.beatAtGlobalIndex(tempo_map.terminalGlobalBeatIndex());
-            destination =
-                common::core::GridPosition{.measure = end_measure, .beat = end_beat, .offset = {}};
+            destination = chartEndPosition(tempo_map);
             break;
-        }
         case ChartCaretJump::PreviousSection:
-        {
-            // Sections are sorted by position; the previous is the last one strictly before the
-            // reference.
-            const std::vector<common::core::SongSection>& sections = session().song().sections;
-            for (auto section = sections.rbegin(); section != sections.rend(); ++section)
-            {
-                if (section->position < reference)
-                {
-                    destination = section->position;
-                    break;
-                }
-            }
+            destination = adjacentSectionPosition(session().song().sections, reference, false);
             break;
-        }
         case ChartCaretJump::NextSection:
-        {
-            const std::vector<common::core::SongSection>& sections = session().song().sections;
-            for (const common::core::SongSection& section : sections)
-            {
-                if (reference < section.position)
-                {
-                    destination = section.position;
-                    break;
-                }
-            }
+            destination = adjacentSectionPosition(session().song().sections, reference, true);
             break;
-        }
     }
 
     if (!destination.has_value())
