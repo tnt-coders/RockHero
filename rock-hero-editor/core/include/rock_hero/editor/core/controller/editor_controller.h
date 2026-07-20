@@ -441,6 +441,10 @@ public:
     /*! \copydoc IEditorController::onChartCaretJumpRequested */
     void onChartCaretJumpRequested(ChartCaretJump target) override;
 
+    /*! \copydoc IEditorController::onTimeSelectionExtendRequested */
+    void onTimeSelectionExtendRequested(
+        TimeSelectionExtent extent, ChartStepDirection direction) override;
+
     /*! \copydoc IEditorController::onSelectionMoveRequested */
     void onSelectionMoveRequested(ChartStepDirection direction, bool fine) override;
 

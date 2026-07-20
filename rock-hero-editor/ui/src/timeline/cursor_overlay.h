@@ -84,6 +84,17 @@ public:
     void setSnapGuide(std::optional<TimelineSnapGuide> guide);
 
     /*!
+    \brief Shows or clears the grid-locked time-selection span as a full-height wash.
+
+    The span is stored in seconds and mapped to pixels at paint time, exactly like the cursor, so
+    it survives zoom and scroll without a re-push. Drawn behind the moving cursor across the full
+    canvas height (every surface), matching the range's full-height nature.
+
+    \param range Grid-locked selection span in seconds, or empty to clear it.
+    */
+    void setTimeSelectionRange(std::optional<common::core::TimeRange> range);
+
+    /*!
     \brief Hides the paused cursor while a chart is displayed.
 
     With a chart the content-spanning line renders only during playback (the marker model,
@@ -164,6 +175,10 @@ private:
 
     // Transient snap guide reported by an active track-row drag, if one is showing.
     std::optional<TimelineSnapGuide> m_snap_guide{};
+
+    // Grid-locked time-selection span in seconds, drawn as a full-height wash beneath the cursor;
+    // the seconds map to pixels at paint time so the wash survives zoom and scroll.
+    std::optional<common::core::TimeRange> m_time_selection{};
 
     // Lets track-row pointer targets beneath the overlay receive clicks.
     std::function<bool(juce::Point<int>)> m_hit_test_pass_through;

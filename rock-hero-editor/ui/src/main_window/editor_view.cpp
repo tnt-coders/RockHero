@@ -769,6 +769,7 @@ void EditorView::setState(const core::EditorViewState& state)
 
     m_cursor_overlay->setVisibleTimelineRange(m_state.visible_timeline);
     m_cursor_overlay->setGridNoteValue(m_state.grid_note_value);
+    m_cursor_overlay->setTimeSelectionRange(m_state.time_selection);
     presentUnsavedChangesPromptIfNeeded(m_state.unsaved_changes_prompt);
     presentSaveAsPromptIfNeeded(m_state.save_as_prompt);
     presentToneImportPromptIfNeeded(m_state.tone_import_prompt);
@@ -1100,7 +1101,18 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
 
             if (shift)
             {
-                // Reserved for future caret-anchored selection extension; deliberately unbound.
+                // Shift+arrows build/extend the grid-locked time selection (settled 2026-07-20).
+                // Horizontal only — the span is full-height, so Shift+Up/Down is unbound. Ctrl
+                // reaches the coarser measure unit, the same reach Ctrl gives plain-arrow nav.
+                // (Alt was handled above; this branch is Shift without Alt.)
+                if (*arrow_direction == core::ChartStepDirection::Left ||
+                    *arrow_direction == core::ChartStepDirection::Right)
+                {
+                    m_controller.onTimeSelectionExtendRequested(
+                        ctrl ? core::TimeSelectionExtent::Measure : core::TimeSelectionExtent::Grid,
+                        *arrow_direction);
+                    return true;
+                }
                 return false;
             }
 
@@ -1211,6 +1223,38 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
         if (key.isKeyCode(juce::KeyPress::pageDownKey))
         {
             m_controller.onChartCaretJumpRequested(core::ChartCaretJump::NextSection);
+            return true;
+        }
+    }
+
+    // Shift+PageUp/Dn and Shift+Home/End extend the grid-locked time selection by section and to
+    // the chart bounds — the paging/bounds twins of Shift+arrows (settled 2026-07-20). Left is
+    // earlier (previous section / chart start), Right is later (next section / chart end). Alt is
+    // the authoring gate and is excluded.
+    if (key.getModifiers().isShiftDown() && !key.getModifiers().isAltDown())
+    {
+        if (key.isKeyCode(juce::KeyPress::pageUpKey))
+        {
+            m_controller.onTimeSelectionExtendRequested(
+                core::TimeSelectionExtent::Section, core::ChartStepDirection::Left);
+            return true;
+        }
+        if (key.isKeyCode(juce::KeyPress::pageDownKey))
+        {
+            m_controller.onTimeSelectionExtendRequested(
+                core::TimeSelectionExtent::Section, core::ChartStepDirection::Right);
+            return true;
+        }
+        if (key.isKeyCode(juce::KeyPress::homeKey))
+        {
+            m_controller.onTimeSelectionExtendRequested(
+                core::TimeSelectionExtent::ChartBound, core::ChartStepDirection::Left);
+            return true;
+        }
+        if (key.isKeyCode(juce::KeyPress::endKey))
+        {
+            m_controller.onTimeSelectionExtendRequested(
+                core::TimeSelectionExtent::ChartBound, core::ChartStepDirection::Right);
             return true;
         }
     }

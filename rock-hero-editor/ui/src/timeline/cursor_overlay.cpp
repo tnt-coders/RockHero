@@ -3,6 +3,7 @@
 #include "shared/editor_theme.h"
 #include "timeline/timeline_cursor.h"
 
+#include <algorithm>
 #include <utility>
 
 namespace rock_hero::editor::ui
@@ -36,9 +37,33 @@ void CursorOverlay::setGridNoteValue(common::core::Fraction grid_note_value) noe
     m_grid_note_value = grid_note_value;
 }
 
-// Draws only the cursor; static waveform content remains in ArrangementView below it.
+// Draws the time-selection wash (behind everything), then the cursor, then the snap guide; static
+// waveform content remains in the views below.
 void CursorOverlay::paint(juce::Graphics& g)
 {
+    if (m_time_selection.has_value())
+    {
+        // The grid-locked span in seconds maps to pixels with the same helper as the cursor, so the
+        // wash tracks zoom/scroll and clamps to the visible edges when an endpoint scrolls off.
+        const std::optional<float> left =
+            cursorXForTimelinePosition(m_time_selection->start, m_visible_timeline, getWidth());
+        const std::optional<float> right =
+            cursorXForTimelinePosition(m_time_selection->end, m_visible_timeline, getWidth());
+        if (left.has_value() && right.has_value())
+        {
+            const float x0 = std::min(*left, *right);
+            const float x1 = std::max(*left, *right);
+            const auto height = static_cast<float>(getHeight());
+            const juce::Colour accent = editorTheme().accent;
+            g.setColour(accent.withAlpha(0.14f));
+            g.fillRect(juce::Rectangle<float>{x0, 0.0f, x1 - x0, height});
+            // Crisp 1px boundaries mark the two grid-locked edges (top/bottom are the canvas edges).
+            g.setColour(accent.withAlpha(0.55f));
+            g.fillRect(juce::Rectangle<float>{x0, 0.0f, 1.0f, height});
+            g.fillRect(juce::Rectangle<float>{x1 - 1.0f, 0.0f, 1.0f, height});
+        }
+    }
+
     static_cast<void>(drawTimelineCursor(g, *this, m_cursor_x, 0, editorTheme().playback_cursor));
 
     if (m_snap_guide.has_value())
@@ -68,6 +93,19 @@ void CursorOverlay::setSnapGuide(std::optional<TimelineSnapGuide> guide)
     }
 
     m_snap_guide = std::move(guide);
+    repaint();
+}
+
+// Shows or clears the grid-locked time-selection wash. Stored in seconds and mapped at paint time,
+// so a zoom or scroll re-maps it without a fresh push; only a range change repaints.
+void CursorOverlay::setTimeSelectionRange(std::optional<common::core::TimeRange> range)
+{
+    if (m_time_selection == range)
+    {
+        return;
+    }
+
+    m_time_selection = range;
     repaint();
 }
 

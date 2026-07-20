@@ -271,6 +271,25 @@ public:
     virtual void onChartCaretJumpRequested(ChartCaretJump target) = 0;
 
     /*!
+    \brief Extends (or creates) the grid-locked time selection by one unit (Shift+arrows).
+
+    The time selection is a full-height span across every surface, a mutually-exclusive kind of the
+    one editor-wide selection (decision D): making or extending it dissolves any object selection and
+    demotes the marker to passive. With a range already held, \p direction moves its focus edge one
+    \p extent from the anchor; with none held, the first press anchors at the caret (grid-snapped,
+    even from an off-grid caret) — or, while passive, at the nearest grid line to the paused cursor —
+    then extends from there. Every endpoint snaps to the display grid; a boundary is never off-grid
+    (decision B). \p direction Left is earlier, Right is later (Up/Down are ignored — the span is
+    full-height). A Section or Grid extend with nothing further in that direction is refused, not
+    clamped. Inert while playing — the range anchors on the paused marker.
+
+    \param extent The unit the focus edge moves by.
+    \param direction Left to extend earlier, Right to extend later.
+    */
+    virtual void onTimeSelectionExtendRequested(
+        TimeSelectionExtent extent, ChartStepDirection direction) = 0;
+
+    /*!
     \brief Handles a keyboard move of the one editor-wide selection (the Alt authoring
     modifier).
 

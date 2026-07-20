@@ -907,6 +907,12 @@ void EditorController::onChartCaretJumpRequested(ChartCaretJump target)
     m_impl->onChartCaretJumpRequested(target);
 }
 
+void EditorController::onTimeSelectionExtendRequested(
+    TimeSelectionExtent extent, ChartStepDirection direction)
+{
+    m_impl->onTimeSelectionExtendRequested(extent, direction);
+}
+
 void EditorController::onSelectionMoveRequested(ChartStepDirection direction, bool fine)
 {
     m_impl->onSelectionMoveRequested(direction, fine);
@@ -1650,6 +1656,11 @@ std::string EditorController::Impl::selectedToneRegionId() const
 const AutomationPointSelection* EditorController::Impl::selectedAutomationPoint() const
 {
     return std::get_if<AutomationPointSelection>(&m_selection);
+}
+
+const TimeSelection* EditorController::Impl::selectedTimeSelection() const
+{
+    return std::get_if<TimeSelection>(&m_selection);
 }
 
 // Every selection replacement outside the chart typing flow funnels through here so the
@@ -2563,6 +2574,86 @@ void EditorController::Impl::onChartCaretJumpRequested(ChartCaretJump target)
             armed != nullptr ? armed->string
                              : std::clamp(chartMarkerString(), 1, tab->string_count));
     }
+    updateView();
+}
+
+// Extends or creates the grid-locked time selection (Shift+arrows; settled 2026-07-20). The range
+// is a mutually-exclusive selection kind, so making or extending it demotes the marker to passive
+// and evicts any object selection (decision D). With a range held, the focus edge moves one
+// `extent` in `direction` from the fixed anchor; with none held, the first press anchors on the
+// marker — the armed caret's slot snapped to the grid (an off-grid caret's note stays inside the
+// range), or the nearest grid line to the paused cursor while passive (52-Q9's recommendation) —
+// then extends from there. Every endpoint is a grid position, so a boundary is never off-grid
+// (decision B). A Grid or Section extend with nothing further that way refuses (the focus stays),
+// and a refused first press creates no range. Inert while playing; Up/Down are ignored (the span
+// is full-height).
+void EditorController::Impl::onTimeSelectionExtendRequested(
+    TimeSelectionExtent extent, ChartStepDirection direction)
+{
+    const common::core::TabViewState* const tab = displayedTabProjection();
+    if (tab == nullptr || tab->string_count <= 0 || isBusy() || m_transport.state().playing)
+    {
+        return;
+    }
+    if (direction != ChartStepDirection::Left && direction != ChartStepDirection::Right)
+    {
+        return;
+    }
+    const bool later = direction == ChartStepDirection::Right;
+    const common::core::TempoMap& tempo_map = session().song().tempo_map;
+
+    // Anchor (fixed) + current focus (moving). An existing range keeps both; the first press seeds
+    // them from the marker, grid-snapped even from an off-grid caret (the caret's note then sits
+    // inside the range) or from the paused cursor while passive.
+    const TimeSelection* const existing = selectedTimeSelection();
+    common::core::GridPosition anchor;
+    common::core::GridPosition focus;
+    if (existing != nullptr)
+    {
+        anchor = existing->anchor;
+        focus = existing->focus;
+    }
+    else if (const ChartCaret* const caret = armedChartCaret())
+    {
+        anchor = common::core::snapGridPosition(tempo_map, caret->position, m_grid_note_value);
+        focus = anchor;
+    }
+    else
+    {
+        anchor = nearestTempoGridPosition(tempo_map, m_grid_note_value, m_transport.position());
+        focus = anchor;
+    }
+
+    // Move the focus one unit through the shared caret-navigation destinations, so the range edge
+    // and the caret land on the same slot for the same motion.
+    common::core::GridPosition next_focus = focus;
+    switch (extent)
+    {
+        case TimeSelectionExtent::Grid:
+            next_focus = adjacentTempoGridPosition(tempo_map, m_grid_note_value, focus, later);
+            break;
+        case TimeSelectionExtent::Measure:
+            next_focus = measureJumpPosition(focus, later);
+            break;
+        case TimeSelectionExtent::Section:
+            next_focus =
+                adjacentSectionPosition(session().song().sections, focus, later).value_or(focus);
+            break;
+        case TimeSelectionExtent::ChartBound:
+            next_focus = later ? chartEndPosition(tempo_map) : chartStartPosition();
+            break;
+    }
+
+    // Refused (grid edge, or no section that way): a held range stays; a first press makes none.
+    if (next_focus == focus)
+    {
+        return;
+    }
+
+    // The range replaces any object selection and dissolves the caret (decision D). Demote first,
+    // then set — disarmChartMarker leaves the selection untouched, so the order is safe.
+    disarmChartMarker();
+    setSelection(TimeSelection{.anchor = anchor, .focus = next_focus});
     updateView();
 }
 
@@ -3990,11 +4081,24 @@ EditorViewState EditorController::Impl::deriveViewState() const
 
     state.busy = m_busy.viewState();
 
-    // Derived from the PUBLISHED per-surface states, not the raw variant: a stale selection
-    // (one whose object vanished) publishes nothing, and Delete must keep propagating then.
+    // The grid-locked time selection resolves both endpoints to seconds so the full-canvas overlay
+    // maps them to pixels exactly as it maps the cursor. Grid positions -> seconds through the same
+    // helper the caret display uses.
+    if (const TimeSelection* const range = selectedTimeSelection())
+    {
+        const common::core::TempoMap& tempo_map = session().song().tempo_map;
+        state.time_selection = common::core::TimeRange{
+            .start = common::core::TimePosition{secondsAtGridPosition(tempo_map, range->start())},
+            .end = common::core::TimePosition{secondsAtGridPosition(tempo_map, range->end())},
+        };
+    }
+
+    // Derived from the PUBLISHED per-surface states plus the time span, not the raw variant: a
+    // stale selection (one whose object vanished) publishes nothing, and Delete must keep
+    // propagating then.
     state.selection_present =
         !state.chart_edit.selected_notes.empty() ||
-        state.tone_automation.selected_point.has_value() ||
+        state.tone_automation.selected_point.has_value() || state.time_selection.has_value() ||
         std::ranges::any_of(state.tone_track.regions, [](const ToneRegionViewState& region) {
             return region.selected;
         });
