@@ -21,6 +21,9 @@ target_sources(
             src/busy/busy_overlay.h
             src/input_calibration/input_calibration_window.cpp
             src/input_calibration/input_calibration_window.h
+            src/keybinds/editor_command_id.h
+            src/keybinds/editor_command_registry.cpp
+            src/keybinds/editor_command_registry.h
             src/main_window/editor.cpp
             src/main_window/editor_view.cpp
             src/main_window/editor_view.h

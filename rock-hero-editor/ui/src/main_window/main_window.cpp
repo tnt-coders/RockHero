@@ -70,6 +70,12 @@ MainWindow::MainWindow(
     if (m_editor != nullptr)
     {
         setContentNonOwned(&m_editor->component(), true);
+        // The command mapping set is the single chord-to-command matcher. Attached to the window
+        // shell, it covers both the focused editor (unhandled keys bubble up here) and keys that
+        // arrive while native focus sits on the shell itself. The manual keyPressed forwarding
+        // below stays as a belt-and-braces fallback until the shortcuts dialog era proves parity
+        // (plan 46 Phase 3).
+        addKeyListener(m_editor->commandManager().getKeyMappings());
     }
     setResizable(true, false);
     const juce::Rectangle<int> restore_bounds = restoredMainWindowBounds();
@@ -105,6 +111,12 @@ MainWindow::MainWindow(
 // Removes JUCE's non-owning pointers before the owned editor content is destroyed.
 MainWindow::~MainWindow()
 {
+    // Detach the editor-owned key mapping set before m_editor (and with it the mapping set) is
+    // destroyed; the key-listener list holds a non-owning pointer.
+    if (m_editor != nullptr)
+    {
+        removeKeyListener(m_editor->commandManager().getKeyMappings());
+    }
     // Null out DocumentWindow's non-owning pointer before m_editor is destroyed.
     // Otherwise ~ResizableWindow would call removeChildComponent on a dangling pointer.
     clearContentComponent();

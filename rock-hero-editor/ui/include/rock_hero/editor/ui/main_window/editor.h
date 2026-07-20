@@ -180,6 +180,16 @@ public:
     [[nodiscard]] juce::Component& component() noexcept;
 
     /*!
+    \brief Returns the editor command manager owning the keybind registry and key mappings.
+
+    The window shell attaches the manager's key mapping set as a key listener so registered
+    shortcuts fire wherever focus lands inside the window.
+
+    \return Command manager owned by the composed editor view.
+    */
+    [[nodiscard]] juce::ApplicationCommandManager& commandManager() noexcept;
+
+    /*!
     \brief Opens an editor project package through the guarded controller workflow.
     \param file Project package path to open.
     */

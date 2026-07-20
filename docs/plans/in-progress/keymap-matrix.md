@@ -137,8 +137,9 @@ a range is a no-op pending plan 52's content-delete, and the extend is paused-on
 | Keybind | Behavior | Status |
 |---|---|---|
 | `Space` | play / pause from the marker | Live |
-| `Ctrl+Z` / `Ctrl+Y` | undo / redo (undo requires **not** `Alt`) — **non-rebindable core commands** with `Space` (decided 2026-07-20); `Ctrl+Shift+Z` joins as a redo alias with the registry | Live · `▷46` alias |
-| `Ctrl+T` | insert a tone-change marker at the **playhead** (from any surface) | Live · `Δ` **guard against `Alt`** (require `Ctrl` and not `Alt`) — fixes the `Ctrl+Alt+T` bug |
+| `Ctrl+Z` / `Ctrl+Y` / `Ctrl+Shift+Z` | undo / redo (exact-modifier matched) — **non-rebindable core commands** with `Space` (decided 2026-07-20); `Ctrl+Shift+Z` = redo alias | Live (registry 2026-07-20; plugin-window mirror of the alias rides 46 Phase 4) |
+| `Ctrl+O` · `Ctrl+Shift+O` · `Ctrl+S` · `Ctrl+Shift+S` · `Ctrl+Shift+P` · `Ctrl+W` | Open / Import / Save / Save As / Publish / Close (the tier A file-menu chords; menu items show live shortcuts) | Live (registry 2026-07-20) |
+| `Ctrl+T` | insert a tone-change marker at the **playhead** (from any surface) | Live (guard against `Alt` shipped 2026-07-20 via the registry's exact-modifier matching) |
 | `Esc` | cancel gesture → disarm caret → clear selection | Live |
 | `F3` / `F8` | toggle 3D preview / undo-history inspector | Live |
 | plain wheel | zoom, marker-centered | Live |

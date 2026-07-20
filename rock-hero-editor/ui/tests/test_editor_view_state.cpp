@@ -1,7 +1,22 @@
+#include "keybinds/editor_command_registry.h"
+
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
 
 namespace rock_hero::editor::ui
 {
+
+namespace
+{
+
+// Drives a key press through the command manager's mapping set exactly the way the window
+// shell's key-listener attachment does: chord matching, enablement, then perform.
+[[nodiscard]] bool pressCommandKey(EditorView& view, const juce::KeyPress& key)
+{
+    juce::KeyListener* const mappings = view.commandManager().getKeyMappings();
+    return mappings->keyPressed(key, &view);
+}
+
+} // namespace
 
 // Verifies the arrangement thumbnail is created and later pointed at pushed audio.
 TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-view]")
@@ -73,12 +88,12 @@ TEST_CASE("EditorView setState projects controls with load focus", "[ui][editor-
     auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
     auto& signal_chain_panel = findRequiredDescendant<SignalChainPanel>(view, "signal_chain_panel");
     auto& signal_chain_view = findRequiredDescendant<SignalChainView>(view, "signal_chain_view");
-    constexpr int save_command{3};
-    constexpr int close_command{5};
-    constexpr int exit_command{6};
-    constexpr int publish_command{7};
-    constexpr int undo_command{101};
-    constexpr int redo_command{102};
+    const int save_command = toJuceCommandId(EditorCommandId::SaveProject);
+    const int close_command = toJuceCommandId(EditorCommandId::CloseProject);
+    const int exit_command = toJuceCommandId(EditorCommandId::ExitEditor);
+    const int publish_command = toJuceCommandId(EditorCommandId::PublishSong);
+    const int undo_command = toJuceCommandId(EditorCommandId::Undo);
+    const int redo_command = toJuceCommandId(EditorCommandId::Redo);
     const juce::KeyPress undo_key{'z', juce::ModifierKeys::commandModifier, 0};
     const juce::KeyPress redo_key{'y', juce::ModifierKeys::commandModifier, 0};
 
@@ -93,14 +108,17 @@ TEST_CASE("EditorView setState projects controls with load focus", "[ui][editor-
     CHECK_FALSE(requiredMenuItem(view.getMenuForIndex(0, "File"), save_command).isEnabled);
     CHECK_FALSE(requiredMenuItem(view.getMenuForIndex(1, "Edit"), undo_command).isEnabled);
     CHECK_FALSE(requiredMenuItem(view.getMenuForIndex(1, "Edit"), redo_command).isEnabled);
-    view.menuItemSelected(save_command, 0);
-    view.menuItemSelected(undo_command, 1);
-    view.menuItemSelected(redo_command, 1);
+    // Direct invocation of disabled commands stays a no-op: perform mirrors the enablement
+    // guards, so tests and the preview-window filter cannot bypass them.
+    view.commandManager().invokeDirectly(save_command, false);
+    view.commandManager().invokeDirectly(undo_command, false);
+    view.commandManager().invokeDirectly(redo_command, false);
     CHECK(controller.save_request_count == 0);
     CHECK(controller.undo_request_count == 0);
     CHECK(controller.redo_request_count == 0);
-    CHECK_FALSE(view.keyPressed(undo_key));
-    CHECK_FALSE(view.keyPressed(redo_key));
+    // The mapping set refuses disabled commands at the key level too.
+    CHECK_FALSE(pressCommandKey(view, undo_key));
+    CHECK_FALSE(pressCommandKey(view, redo_key));
     CHECK(controller.undo_request_count == 0);
     CHECK(controller.redo_request_count == 0);
     CHECK_FALSE(getPlayPauseButton(controls).isEnabled());
@@ -172,20 +190,31 @@ TEST_CASE("EditorView setState projects controls with load focus", "[ui][editor-
     const auto redo_item = requiredMenuItem(view.getMenuForIndex(1, "Edit"), redo_command);
     CHECK(redo_item.isEnabled);
     CHECK(redo_item.text == "Redo Restore Plugin");
-    view.menuItemSelected(save_command, 0);
-    view.menuItemSelected(close_command, 0);
-    view.menuItemSelected(exit_command, 0);
-    view.menuItemSelected(undo_command, 1);
-    view.menuItemSelected(redo_command, 1);
+    view.commandManager().invokeDirectly(save_command, false);
+    view.commandManager().invokeDirectly(close_command, false);
+    view.commandManager().invokeDirectly(exit_command, false);
+    view.commandManager().invokeDirectly(undo_command, false);
+    view.commandManager().invokeDirectly(redo_command, false);
     CHECK(controller.save_request_count == 1);
     CHECK(controller.close_request_count == 1);
     CHECK(controller.exit_request_count == 1);
     CHECK(controller.undo_request_count == 1);
     CHECK(controller.redo_request_count == 1);
-    CHECK(view.keyPressed(undo_key));
-    CHECK(view.keyPressed(redo_key));
+    CHECK(pressCommandKey(view, undo_key));
+    CHECK(pressCommandKey(view, redo_key));
     CHECK(controller.undo_request_count == 2);
     CHECK(controller.redo_request_count == 2);
+    // The DAW-convention redo alternative dispatches the same intent (decision 2026-07-20).
+    CHECK(pressCommandKey(
+        view,
+        juce::KeyPress{
+            'z',
+            juce::ModifierKeys{
+                juce::ModifierKeys::commandModifier | juce::ModifierKeys::shiftModifier
+            },
+            0
+        }));
+    CHECK(controller.redo_request_count == 3);
     CHECK(getPlayPauseButton(controls).isEnabled());
     CHECK(getStopButton(controls).isEnabled());
     CHECK(
@@ -195,6 +224,98 @@ TEST_CASE("EditorView setState projects controls with load focus", "[ui][editor-
     CHECK(cursor_overlay.isVisible());
     CHECK_FALSE(getPlayPauseButton(controls).getToggleState());
     CHECK(transport.position_read_count == 4);
+}
+
+// Locks the registry's command ids and default chords: persistence keys off the hex id forever
+// and shipped defaults are user-approved, so any renumbering, reuse, or accidental default
+// change must fail loudly here.
+TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-view][keybinds]")
+{
+    constexpr int command = juce::ModifierKeys::commandModifier;
+    constexpr int shift = juce::ModifierKeys::shiftModifier;
+    const auto chord = [](int key_code, int modifier_flags = 0) {
+        return juce::KeyPress{key_code, juce::ModifierKeys{modifier_flags}, 0};
+    };
+
+    struct ExpectedCommand final
+    {
+        EditorCommandId id{};
+        int value{};
+        bool rebindable{};
+        std::vector<juce::KeyPress> chords{};
+    };
+
+    const std::vector<ExpectedCommand> expected{
+        {EditorCommandId::OpenProject, 0x1001, true, {chord('o', command)}},
+        {EditorCommandId::ImportSong, 0x1002, true, {chord('o', command | shift)}},
+        {EditorCommandId::SaveProject, 0x1003, true, {chord('s', command)}},
+        {EditorCommandId::SaveProjectAs, 0x1004, true, {chord('s', command | shift)}},
+        {EditorCommandId::PublishSong, 0x1005, true, {chord('p', command | shift)}},
+        {EditorCommandId::CloseProject, 0x1006, true, {chord('w', command)}},
+        {EditorCommandId::ExitEditor, 0x1007, true, {}},
+        {EditorCommandId::Undo, 0x1101, false, {chord('z', command)}},
+        {EditorCommandId::Redo, 0x1102, false, {chord('y', command), chord('z', command | shift)}},
+        {EditorCommandId::PlayPause, 0x1201, false, {chord(juce::KeyPress::spaceKey)}},
+        {EditorCommandId::ToggleWaveform, 0x1301, true, {}},
+        {EditorCommandId::ToggleUndoHistory, 0x1302, true, {chord(juce::KeyPress::F8Key)}},
+        {EditorCommandId::TogglePreview3D, 0x1303, true, {chord(juce::KeyPress::F3Key)}},
+        {EditorCommandId::InsertToneChange, 0x1401, true, {chord('t', command)}},
+    };
+
+    const std::vector<EditorCommandSpec>& registry = editorCommandRegistry();
+    REQUIRE(registry.size() == expected.size());
+    for (std::size_t index = 0; index < expected.size(); ++index)
+    {
+        INFO("registry index " << index);
+        CHECK(registry[index].id == expected[index].id);
+        CHECK(toJuceCommandId(registry[index].id) == expected[index].value);
+        CHECK(registry[index].rebindable == expected[index].rebindable);
+        REQUIRE(registry[index].default_keypresses.size() == expected[index].chords.size());
+        for (std::size_t chord_index = 0; chord_index < expected[index].chords.size();
+             ++chord_index)
+        {
+            CHECK(
+                registry[index].default_keypresses[chord_index] ==
+                expected[index].chords[chord_index]);
+        }
+    }
+}
+
+// Verifies the mapping set installs the registry defaults: each default chord resolves to its
+// command, and exact modifier matching keeps guarded neighbors (Ctrl+Alt+T) unbound.
+TEST_CASE("Editor command mappings resolve default chords", "[ui][editor-view][keybinds]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    juce::KeyPressMappingSet* const mappings = view.commandManager().getKeyMappings();
+    REQUIRE(mappings != nullptr);
+    for (const EditorCommandSpec& spec : editorCommandRegistry())
+    {
+        for (const juce::KeyPress& key : spec.default_keypresses)
+        {
+            INFO(spec.name);
+            CHECK(mappings->findCommandForKeyPress(key) == toJuceCommandId(spec.id));
+        }
+    }
+
+    // Exact matching refuses the Alt-composed neighbor of Ctrl+T (the fine-tier authoring
+    // namespace) and the Shift-composed neighbor of Ctrl+Z (which belongs to Redo).
+    const juce::KeyPress ctrl_alt_t{
+        't',
+        juce::ModifierKeys{juce::ModifierKeys::commandModifier | juce::ModifierKeys::altModifier},
+        0
+    };
+    CHECK(mappings->findCommandForKeyPress(ctrl_alt_t) == 0);
+    const juce::KeyPress ctrl_shift_z{
+        'z',
+        juce::ModifierKeys{juce::ModifierKeys::commandModifier | juce::ModifierKeys::shiftModifier},
+        0
+    };
+    CHECK(mappings->findCommandForKeyPress(ctrl_shift_z) == toJuceCommandId(EditorCommandId::Redo));
 }
 
 // Verifies plugin tile remove controls reflect state and emit the selected instance ID.
