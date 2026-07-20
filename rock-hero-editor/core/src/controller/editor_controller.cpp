@@ -902,6 +902,11 @@ void EditorController::onChartCaretStepRequested(ChartStepDirection direction, b
     m_impl->onChartCaretStepRequested(direction, measure);
 }
 
+void EditorController::onChartCaretJumpRequested(ChartCaretJump target)
+{
+    m_impl->onChartCaretJumpRequested(target);
+}
+
 void EditorController::onSelectionMoveRequested(ChartStepDirection direction, bool fine)
 {
     m_impl->onSelectionMoveRequested(direction, fine);
@@ -2433,6 +2438,104 @@ void EditorController::Impl::onChartCaretStepRequested(ChartStepDirection direct
     }
     updateView();
 }
+
+// Caret leap to a derived musical position (Home/End, PageUp/Down; settled 2026-07-20). Each jump
+// resolves an absolute or section-relative destination and arms the caret there on the first
+// press — no arm-at-cursor step first, because the whole point of these keys is the big move. The
+// row is preserved (horizontal reach), so a lane caret keeps its lane and a string caret its
+// string; without an armed caret yet the jump measures from the paused cursor and lands on the
+// remembered string. A section jump with no section in that direction is refused, not clamped, in
+// line with every other refused move. Inert while playing — arming requires a paused transport.
+void EditorController::Impl::onChartCaretJumpRequested(ChartCaretJump target)
+{
+    const common::core::TabViewState* const tab = displayedTabProjection();
+    if (tab == nullptr || tab->string_count <= 0 || isBusy() || m_transport.state().playing)
+    {
+        return;
+    }
+
+    const common::core::TempoMap& tempo_map = session().song().tempo_map;
+    const ChartCaret* const armed = armedChartCaret();
+    const common::core::GridPosition reference =
+        armed != nullptr
+            ? armed->position
+            : nearestTempoGridPosition(tempo_map, m_grid_note_value, m_transport.position());
+
+    std::optional<common::core::GridPosition> destination;
+    switch (target)
+    {
+        case ChartCaretJump::ChartStart:
+            destination = common::core::GridPosition{.measure = 1, .beat = 1, .offset = {}};
+            break;
+        case ChartCaretJump::ChartEnd:
+        {
+            // The terminal downbeat is the map's final barline (defaultMap seats it past the audio
+            // end), so End lands on the chart's closing edge, one step beyond the last measure.
+            const auto [end_measure, end_beat] =
+                tempo_map.beatAtGlobalIndex(tempo_map.terminalGlobalBeatIndex());
+            destination =
+                common::core::GridPosition{.measure = end_measure, .beat = end_beat, .offset = {}};
+            break;
+        }
+        case ChartCaretJump::PreviousSection:
+        {
+            // Sections are sorted by position; the previous is the last one strictly before the
+            // reference.
+            const std::vector<common::core::SongSection>& sections = session().song().sections;
+            for (auto section = sections.rbegin(); section != sections.rend(); ++section)
+            {
+                if (section->position < reference)
+                {
+                    destination = section->position;
+                    break;
+                }
+            }
+            break;
+        }
+        case ChartCaretJump::NextSection:
+        {
+            const std::vector<common::core::SongSection>& sections = session().song().sections;
+            for (const common::core::SongSection& section : sections)
+            {
+                if (reference < section.position)
+                {
+                    destination = section.position;
+                    break;
+                }
+            }
+            break;
+        }
+    }
+
+    if (!destination.has_value())
+    {
+        // A refused section jump keeps an armed caret exactly where it was; a first press with
+        // nothing armed still arms at the reference, so the key always yields a caret to work from
+        // (matching the arrow keys' arm-first press).
+        if (armed == nullptr)
+        {
+            armChartCaret(reference, std::clamp(chartMarkerString(), 1, tab->string_count));
+            updateView();
+        }
+        return;
+    }
+
+    // Preserve the row: a lane caret keeps its lane, a string caret its string, and a fresh caret
+    // lands on the remembered string (bounds/sections are horizontal reach).
+    if (armed != nullptr && armed->lane.has_value())
+    {
+        armLaneCaret(*destination, *armed->lane);
+    }
+    else
+    {
+        armChartCaret(
+            *destination,
+            armed != nullptr ? armed->string
+                             : std::clamp(chartMarkerString(), 1, tab->string_count));
+    }
+    updateView();
+}
+
 // The one selection-move intent (Alt+arrows): one editor-wide selection exists, so the move
 // dispatches on its kind exactly like the Delete dispatch. With no selection at all, an armed
 // caret on an empty lane slot turns the arrow into create-then-nudge (grab the curve and pull

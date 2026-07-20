@@ -256,6 +256,21 @@ public:
     virtual void onChartCaretStepRequested(ChartStepDirection direction, bool measure) = 0;
 
     /*!
+    \brief Handles a caret leap to a derived musical position (Home/End, PageUp/Down).
+
+    Unlike the one-grid-step arrow keys, each jump resolves an absolute or section-relative
+    destination and places the caret there on the first press: ChartStart/ChartEnd leap to the
+    chart's first position / terminal downbeat; PreviousSection/NextSection leap to the nearest
+    song section starting before / after the caret. All four are horizontal reach — they keep the
+    caret's row (string or lane). A section jump with no section in that direction is refused, not
+    clamped (the caret stays put), matching every other refused move; a jump with no armed caret
+    yet measures from the paused cursor. Inert while playing — arming requires a paused transport.
+
+    \param target Destination the jump resolves.
+    */
+    virtual void onChartCaretJumpRequested(ChartCaretJump target) = 0;
+
+    /*!
     \brief Handles a keyboard move of the one editor-wide selection (the Alt authoring
     modifier).
 

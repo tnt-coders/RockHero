@@ -43,7 +43,7 @@ namespace
 // Loads the chart-bearing song fixture through the controller's normal open route.
 [[nodiscard]] bool loadChartArrangement(
     EditorController& controller, FakeProjectServices& project_services,
-    ConfigurableSongAudio& audio)
+    ConfigurableSongAudio& audio, std::vector<common::core::SongSection> sections = {})
 {
     const common::core::TimeRange timeline_range = loadedTimelineRange(30.0);
     audio.next_prepared_audio_duration = timeline_range.duration();
@@ -52,6 +52,7 @@ namespace
     // The default-constructed TempoMap's terminal anchor sits at 2.0s and time queries clamp
     // there; cover the whole fixture timeline the way real imports do.
     song.tempo_map = common::core::TempoMap::defaultMap(timeline_range.duration());
+    song.sections = std::move(sections);
     song.arrangements.front().chart = makeTestChart();
     project_services.next_song = std::move(song);
     controller.onOpenRequested(std::filesystem::path{"loaded.rhp"});
@@ -651,6 +652,116 @@ TEST_CASE("EditorController steps the caret along the grid and strings", "[core]
     REQUIRE(caret != nullptr);
     CHECK(caret->seconds == Catch::Approx(4.0));
     CHECK(caret->string == 1);
+}
+
+// Home and End leap the caret to the chart's bounds — measure 1 beat 1 and the tempo map's
+// terminal downbeat — on the first press, keeping the caret's string because bounds are
+// horizontal reach.
+TEST_CASE("EditorController jumps the caret to the chart bounds", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    // Arm mid-song at measure 4 (6.0s) on string 1.
+    click(controller, 120.0f, 220.0f);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const ChartCaretViewState* caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->seconds == Catch::Approx(6.0));
+    CHECK(caret->string == 1);
+
+    // Home -> chart start (measure 1 beat 1 = 0.0s), string preserved.
+    controller.onChartCaretJumpRequested(ChartCaretJump::ChartStart);
+    caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->seconds == Catch::Approx(0.0));
+    CHECK(caret->string == 1);
+
+    // End -> the tempo map's terminal downbeat, the chart's closing barline past the last measure.
+    const common::core::TempoMap& tempo_map = controller.session().song().tempo_map;
+    const auto [end_measure, end_beat] =
+        tempo_map.beatAtGlobalIndex(tempo_map.terminalGlobalBeatIndex());
+    const double end_seconds = tempo_map.secondsAtBeat(end_measure, end_beat);
+    controller.onChartCaretJumpRequested(ChartCaretJump::ChartEnd);
+    caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(end_seconds > 6.0);
+    CHECK(caret->seconds == Catch::Approx(end_seconds));
+    CHECK(caret->string == 1);
+}
+
+// PageUp/PageDown leap the caret to the previous/next song section; a jump with no section in that
+// direction is refused, not clamped (the caret stays put), matching every other refused move.
+TEST_CASE("EditorController jumps the caret between sections", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    // Sections at measure 3 (4.0s) and measure 7 (12.0s) on the 120 BPM 4/4 fixture.
+    const std::vector<common::core::SongSection> sections{
+        common::core::SongSection{
+            .position = {.measure = 3, .beat = 1, .offset = {}}, .name = "Verse"
+        },
+        common::core::SongSection{
+            .position = {.measure = 7, .beat = 1, .offset = {}}, .name = "Chorus"
+        },
+    };
+    REQUIRE(loadChartArrangement(controller, project_services, audio, sections));
+
+    // Arm mid-song at measure 4 (6.0s).
+    click(controller, 120.0f, 220.0f);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const ChartCaretViewState* caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->seconds == Catch::Approx(6.0));
+
+    // PageUp -> the previous section (measure 3 = 4.0s).
+    controller.onChartCaretJumpRequested(ChartCaretJump::PreviousSection);
+    caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->seconds == Catch::Approx(4.0));
+
+    // PageUp again -> no section before measure 3: refused, caret stays at 4.0s.
+    controller.onChartCaretJumpRequested(ChartCaretJump::PreviousSection);
+    caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->seconds == Catch::Approx(4.0));
+
+    // PageDown -> the next section (measure 7 = 12.0s).
+    controller.onChartCaretJumpRequested(ChartCaretJump::NextSection);
+    caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->seconds == Catch::Approx(12.0));
+
+    // PageDown again -> no section after measure 7: refused, caret stays at 12.0s.
+    controller.onChartCaretJumpRequested(ChartCaretJump::NextSection);
+    caret = caretOrNull(state->chart_edit);
+    REQUIRE(caret != nullptr);
+    CHECK(caret->seconds == Catch::Approx(12.0));
 }
 
 // Playback dissolves the marker's armed state (the marker model): play clears the note
