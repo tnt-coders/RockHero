@@ -2650,10 +2650,26 @@ void EditorController::Impl::onTimeSelectionExtendRequested(
         return;
     }
 
-    // The range replaces any object selection and dissolves the caret (decision D). Demote first,
-    // then set — disarmChartMarker leaves the selection untouched, so the order is safe.
-    disarmChartMarker();
-    setSelection(TimeSelection{.anchor = anchor, .focus = next_focus});
+    // The range dissolves the caret and evicts any object selection (decision D). The dissolution
+    // seeks the transport to the caret's spot (not disarmChartMarker, which deliberately does not
+    // seek), so play-from-here and a later plain arrow resume at the range rather than a stale
+    // transport position; it no-ops when the marker is already passive (an existing range, or the
+    // passive-anchor path). The seek leaves the transport at the anchor, which the collapse case
+    // below relies on for seamless re-extension.
+    dissolveChartCaretInPlace();
+
+    // A focus that stepped exactly back onto the anchor is a shrink to zero width: clear the range
+    // rather than hold an empty span (which would read as present and paint a stray edge). The
+    // transport now rests at the anchor, so a further Shift+extend re-anchors here and continues in
+    // the same place.
+    if (next_focus == anchor)
+    {
+        clearSelection();
+    }
+    else
+    {
+        setSelection(TimeSelection{.anchor = anchor, .focus = next_focus});
+    }
     updateView();
 }
 
