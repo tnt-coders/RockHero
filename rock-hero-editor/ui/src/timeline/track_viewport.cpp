@@ -590,9 +590,9 @@ void TrackViewport::relayoutForContentHeightChange()
     refreshTimelineGridForViewChange();
 }
 
-// Changes the horizontal timeline scale around the current position: the armed caret when one
-// exists (the marker model — the caret is the position, so zoom keeps it centered), else the
-// transport cursor (the playing playhead or the passive paused cursor).
+// Converts a wheel notch into a zoom step: the notch magnitude scales the factor, its sign sets
+// the direction. Skips inertial tails and no-delta wheels; the shared helper does the centering
+// and reporting.
 void TrackViewport::handleMouseWheelZoom(const juce::MouseWheelDetails& wheel)
 {
     const float wheel_delta = hasMouseWheelDelta(wheel.deltaY) ? wheel.deltaY : wheel.deltaX;
@@ -602,16 +602,38 @@ void TrackViewport::handleMouseWheelZoom(const juce::MouseWheelDetails& wheel)
         return;
     }
 
-    const common::core::TimePosition cursor_position{m_armed_caret_seconds.value_or(
-        m_transport.position().seconds)};
     const double wheel_steps = std::max(1.0, static_cast<double>(std::abs(wheel_delta)) * 4.0);
     const double zoom_factor = std::pow(g_mouse_wheel_zoom_factor, wheel_steps);
-    const double next_pixels_per_second =
-        wheel_delta > 0.0f ? m_pixels_per_second * zoom_factor : m_pixels_per_second / zoom_factor;
+    applyZoomAroundCursor(
+        wheel_delta > 0.0f ? m_pixels_per_second * zoom_factor : m_pixels_per_second / zoom_factor);
+}
 
+// Zooms one keyboard step in/out; one step matches a single wheel notch's factor. The project
+// guard mirrors wheel zoom, so a keypress without a loaded timeline is a clean no-op.
+void TrackViewport::zoomByStep(int direction)
+{
+    if (direction == 0 || !m_project_loaded || timelineDurationSeconds() <= 0.0)
+    {
+        return;
+    }
+
+    applyZoomAroundCursor(
+        direction > 0 ? m_pixels_per_second * g_mouse_wheel_zoom_factor
+                      : m_pixels_per_second / g_mouse_wheel_zoom_factor);
+}
+
+// Scales to a new target density around the current position — the armed caret when one exists
+// (the marker model: the caret is the position, so zoom keeps it centered), else the transport
+// cursor (the playing playhead or the passive paused cursor) — then clamps, relays out, and
+// reports the change. Shared by wheel zoom and the keyboard step so both center and persist
+// identically.
+void TrackViewport::applyZoomAroundCursor(double target_pixels_per_second)
+{
+    const common::core::TimePosition cursor_position{m_armed_caret_seconds.value_or(
+        m_transport.position().seconds)};
     const double previous_pixels_per_second = m_pixels_per_second;
     m_pixels_per_second =
-        std::clamp(next_pixels_per_second, minPixelsPerSecond(), g_max_pixels_per_second);
+        std::clamp(target_pixels_per_second, minPixelsPerSecond(), g_max_pixels_per_second);
     layoutScaledCanvas();
     centerViewportOnTime(cursor_position.seconds);
     // Exact inequality via is_neq keeps -Wfloat-equal builds clean; clamp-unchanged detection

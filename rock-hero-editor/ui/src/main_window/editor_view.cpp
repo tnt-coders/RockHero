@@ -1144,24 +1144,37 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
         }
     }
 
-    // Grid resolution steps on +/- (the GP-style step, settled 2026-07-19): "+" (main-row '='
-    // or its shifted '+', and numpad +) makes the grid one preset finer, "-" (main-row '-' and
-    // numpad -) one preset coarser. Ctrl on the same keys is reserved for zoom (lands with the
-    // zoom-step work) and Alt for authoring, so both are excluded here. The step emits through
-    // the grid selector's listener — the same path as a combo selection — so the controller
-    // still owns the applied value.
-    if (!key.getModifiers().isCtrlDown() && !key.getModifiers().isAltDown())
+    // The +/- family drives grid resolution and zoom (the GP-style split, settled 2026-07-19):
+    // plain "+"/"-" steps the grid one preset finer/coarser, Ctrl+"+"/"-" zooms in/out (the
+    // keyboard twin of Ctrl+wheel), both around the marker. Alt is the authoring gate and belongs
+    // to neither, so it is excluded. The keys arrive in several shapes — the main-row '='/'-'
+    // keys (JUCE reports them by their unshifted code regardless of Shift), the shifted '+'
+    // character, and the numpad add/subtract keys (either the numberPad* codes or '+'/'-'
+    // characters depending on WM_CHAR timing) — so the match is the union of all of them; with
+    // Ctrl held the text character is unreliable, which is why the key code carries it there.
+    if (!key.getModifiers().isAltDown())
     {
         const int key_code = key.getKeyCode();
         const juce::juce_wchar text_char = key.getTextCharacter();
-        if (text_char == '+' || text_char == '=' || key_code == juce::KeyPress::numberPadAdd)
+        const bool plus_key = key_code == '=' || key_code == '+' ||
+                              key_code == juce::KeyPress::numberPadAdd || text_char == '=' ||
+                              text_char == '+';
+        const bool minus_key =
+            key_code == '-' || key_code == juce::KeyPress::numberPadSubtract || text_char == '-';
+        if (plus_key || minus_key)
         {
-            m_grid_spacing_selector.stepNoteValue(1);
-            return true;
-        }
-        if (text_char == '-' || key_code == juce::KeyPress::numberPadSubtract)
-        {
-            m_grid_spacing_selector.stepNoteValue(-1);
+            const int direction = plus_key ? 1 : -1;
+            if (key.getModifiers().isCtrlDown())
+            {
+                // Ctrl: zoom the timeline; Ctrl+wheel already does this, so the keys match it.
+                m_track_viewport->zoomByStep(direction);
+            }
+            else
+            {
+                // No Ctrl: step the grid resolution through the selector's listener, the same
+                // path as a combo selection, so the controller still owns the applied value.
+                m_grid_spacing_selector.stepNoteValue(direction);
+            }
             return true;
         }
     }
