@@ -4,6 +4,7 @@
 #include "audio_device/game_audio_recommendation_dialog.h"
 #include "input_calibration/input_calibration_window.h"
 #include "keybinds/editor_command_registry.h"
+#include "keybinds/keyboard_shortcuts_window.h"
 #include "main_window/menu_look_and_feel.h"
 #include "preview/preview_window.h"
 #include "shared/editor_theme.h"
@@ -1313,6 +1314,18 @@ void EditorView::togglePreviewWindow()
     }
 }
 
+// Creates the keyboard-shortcuts window on first use, then shows it; the window survives closes
+// so its tree state and any in-progress inspection are kept across reopenings.
+void EditorView::showKeyboardShortcutsWindow()
+{
+    if (m_keyboard_shortcuts_window == nullptr)
+    {
+        m_keyboard_shortcuts_window =
+            std::make_unique<KeyboardShortcutsWindow>(m_command_manager, getTopLevelComponent());
+    }
+    m_keyboard_shortcuts_window->open();
+}
+
 // Returns the top-level editor menus displayed by the editor.
 juce::StringArray EditorView::getMenuBarNames()
 {
@@ -1345,6 +1358,9 @@ juce::PopupMenu EditorView::getMenuForIndex(int top_level_menu_index, const juce
         juce::PopupMenu menu;
         menu.addCommandItem(&m_command_manager, toJuceCommandId(EditorCommandId::Undo));
         menu.addCommandItem(&m_command_manager, toJuceCommandId(EditorCommandId::Redo));
+        menu.addSeparator();
+        menu.addCommandItem(
+            &m_command_manager, toJuceCommandId(EditorCommandId::ShowKeyboardShortcuts));
         return menu;
     }
 
@@ -1429,6 +1445,12 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
     {
         info.defaultKeypresses.add(key);
     }
+    // Non-rebindable rows render fixed in the shortcuts dialog; the keymap persistence filter
+    // enforces the same rule at the settings-file boundary.
+    if (!spec->rebindable)
+    {
+        info.flags |= juce::ApplicationCommandInfo::readOnlyInKeyEditor;
+    }
 
     switch (static_cast<EditorCommandId>(command_id))
     {
@@ -1476,6 +1498,10 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         {
             info.shortName = editCommandText("Redo", m_state.redo_label);
             info.setActive(m_state.redo_enabled);
+            break;
+        }
+        case EditorCommandId::ShowKeyboardShortcuts:
+        {
             break;
         }
         case EditorCommandId::PlayPause:
@@ -1592,6 +1618,11 @@ bool EditorView::perform(const InvocationInfo& info)
             {
                 m_controller.onRedoRequested();
             }
+            return true;
+        }
+        case EditorCommandId::ShowKeyboardShortcuts:
+        {
+            showKeyboardShortcutsWindow();
             return true;
         }
         case EditorCommandId::PlayPause:

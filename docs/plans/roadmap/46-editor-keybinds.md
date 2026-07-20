@@ -388,7 +388,22 @@ The original question text is kept below for the decision record.
   powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -RunTouchedTests
   ```
 
-### Phase 3 — Keyboard Shortcuts configuration UI (stock component, themed — decided 2026-07-20)
+### Phase 3 — Keyboard Shortcuts configuration UI (stock component, themed — decided 2026-07-20) — CODE COMPLETE 2026-07-20, pending the user's in-action review
+
+> **Execution record (2026-07-20):** landed as scoped — `KeyboardShortcutsWindow`
+> (`ui/src/keybinds/keyboard_shortcuts_window.{h,cpp}`) hosts the stock component in a
+> non-modal, survive-close tool window; the window-local LookAndFeel delegates
+> `createAlertWindow` to `LookAndFeel_V2` (exact stock button/modal-result semantics, no V4
+> padding); `getCommandInfo` derives `readOnlyInKeyEditor` from the registry's rebindable
+> flag; `ShowKeyboardShortcuts` (0x1103, menu-only) joins the registry and the Edit menu;
+> `juce_gui_extra` wired. Tests: read-only flags for every registry row, window
+> hosting/survive-close, command-item + perform wiring; locked-table extended. **One scope
+> revision recorded:** the `MainWindow::keyPressed` manual forwarding is NOT removed — the
+> original removal assumed every key becomes a command, but with the grammar keys staying in
+> the view's decoder (Phase 1 refinement) the forwarding is the only grammar-key path when
+> native focus sits on the window shell; commands never reach it (the mapping-set listener
+> runs first). The remaining exit criterion is the user witnessing the themed stock dialog in
+> the running editor — the recorded custom-rebuild trigger.
 
 - **Scope**: one menu entry ("Edit > Keyboard Shortcuts...") opening a themed window that hosts
   the stock `juce::KeyMappingEditorComponent` over the editor's mapping set: commands grouped by
@@ -414,13 +429,15 @@ The original question text is kept below for the decision record.
   for positioning only, juce_AlertWindow.cpp:467) while the factory-path confirms resolve
   their LookAndFeel from the associated component (juce_AlertWindowHelpers.h:80-92), which
   stock sets to itself — reachable by a component-local LnF, no global default needed. What
-  stock cannot do (the private-class wall): per-command reset-to-default inside rows (dropped
-  from this phase's scope — global reset + per-binding remove cover it), more than 3 displayed
+  stock cannot do (the private-class wall): per-command reset-to-default inside rows — kept as
+  a **possible future enhancement, not committed** (global reset + per-binding remove cover
+  today's need; building it requires the custom key-mapping component) — more than 3 displayed
   aliases per command (private `maxNumAssignments`, juce_KeyMappingEditorComponent.cpp:287),
   and future per-row surfaces (search, reserved-grammar rows with custom copy). **Custom-rebuild
-  triggers, recorded:** a real need for any of those, or the themed stock dialog reading as
-  off-product in live use. The swap stays cheap because the registry/persistence substrate is
-  dialog-agnostic; the interaction logic is public-API code our tests already drive.
+  triggers, recorded:** committing to per-command reset or any of the above, or the themed
+  stock dialog reading as off-product in live use. The swap stays cheap because the
+  registry/persistence substrate is dialog-agnostic; the interaction logic is public-API code
+  our tests already drive.
 - **Files/modules**: `rock-hero-editor/ui/src/keybinds/` (window shell + LnF subclass),
   `editor_view.cpp` (menu entry), `rock-hero-editor/ui/src/main_window/main_window.cpp` (delete
   forwarding), `rock-hero-editor/ui/CMakeLists.txt` + the JUCE module wiring for

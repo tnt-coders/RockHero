@@ -18,8 +18,8 @@ Phase 1):
 
 From the controller inward, a keystroke still travels one of **two paths**: the editor-action
 pipeline (\ref guide_action_anatomy) or the caret/marker interaction model. Keymap
-**persistence is live** (below); the shortcuts dialog is the registry's remaining phase.
-Undo/Redo/Play-Pause are **non-rebindable core commands** by decision.
+**persistence and the shortcuts dialog are live** (below). Undo/Redo/Play-Pause are
+**non-rebindable core commands** by decision.
 
 ```mermaid
 flowchart TB
@@ -62,8 +62,10 @@ keys back:
   first. `MainWindow::keyPressed` stays behind it as a belt-and-braces fallback forwarder into
   `EditorView::keyPressed` for grammar keys when native focus sits on the shell — unless a modal
   component blocks the editor (`isCurrentlyBlockedByAnotherModalComponent`). The forwarding is
-  scheduled for deletion once the shortcuts-dialog era proves mapping-set parity (plan 46
-  Phase 3).
+  **load-bearing, not redundant** — plan 46 originally scheduled it for deletion, but that
+  assumed every key would become a command; with the grammar keys staying in this decoder, the
+  forwarding is the only path grammar keys have when native focus sits on the shell, so it
+  stays (commands never reach it — the mapping-set listener runs first and consumes them).
 - **Interactive children decline focus** so keys stay with `EditorView`. The load-bearing case is
   the timeline viewport (`ui/src/timeline/track_viewport.h`): a stock `juce::Viewport` grabs
   focus and converts arrow keys into scrolling, which would silently steal the caret grammar —
@@ -192,6 +194,22 @@ invariants live here:
   defaults; the next mapping change overwrites it.
 - **Saves are equality-gated** against the stored blob, so the restore's own change broadcast
   and repeated notifications write nothing.
+
+# The shortcuts dialog
+
+"Edit > Keyboard Shortcuts..." opens `KeyboardShortcutsWindow`
+(`ui/src/keybinds/keyboard_shortcuts_window.cpp`): a non-modal tool window hosting the **stock**
+`juce::KeyMappingEditorComponent` over the editor's one mapping set (the plan 46 Phase 3
+decision — adopt stock, judge it in action; the registry/persistence substrate is
+dialog-agnostic, so a custom rebuild stays cheap if its recorded triggers fire). Stock supplies
+the category tree, press-to-capture with live conflict display, the confirm-then-remove-then-add
+conflict flow, per-binding change/remove, and reset-all. Two seams adapt it: a window-local
+LookAndFeel routes its confirm popups through `LookAndFeel_V2::createAlertWindow` (skipping
+V4's hard-coded padding — the defect the themed message boxes dodge by direct construction),
+and non-rebindable registry rows render fixed via `ApplicationCommandInfo::readOnlyInKeyEditor`,
+derived from the registry's `rebindable` flag in `getCommandInfo`. Rebinds apply live and
+persist immediately — dispatch, menu shortcut text, and the keymap persistence all listen to
+the same mapping set.
 
 # The Esc ladder
 

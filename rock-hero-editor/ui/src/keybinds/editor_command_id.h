@@ -56,6 +56,9 @@ enum class EditorCommandId : int
     /*! \brief Edit > Redo (`Ctrl+Y`, `Ctrl+Shift+Z`; non-rebindable core command). */
     Redo = 0x1102,
 
+    /*! \brief Edit > Keyboard Shortcuts... (menu-only). */
+    ShowKeyboardShortcuts = 0x1103,
+
     /*! \brief Toggle transport playback (`Space`; non-rebindable core command). */
     PlayPause = 0x1201,
 
