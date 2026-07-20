@@ -863,9 +863,57 @@ TEST_CASE(
     CHECK(caretOrNull(state->chart_edit) == nullptr);
 
     // A plain arrow clears the range and arms a caret again (object selection evicts the range).
+    // The caret reappears at the range's anchor (6.0s), not a stale transport position: building
+    // the range seeked the transport to the caret, so the marker's passive time is the caret's.
     controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
     CHECK_FALSE(state->time_selection.has_value());
-    CHECK(caretOrNull(state->chart_edit) != nullptr);
+    const ChartCaretViewState* rearmed = caretOrNull(state->chart_edit);
+    REQUIRE(rearmed != nullptr);
+    CHECK(rearmed->seconds == Catch::Approx(6.0));
+}
+
+// Stepping the focus exactly back onto the anchor collapses the range to nothing rather than
+// holding a zero-width span; the transport rests at the anchor, so a further extend continues from
+// there.
+TEST_CASE("EditorController collapses a shrunk-to-zero time selection", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    // Arm mid-song at measure 4 (6.0s) so the anchor is not the origin (which would clamp).
+    click(controller, 120.0f, 220.0f);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+
+    // Shift+Right builds [6.0, 6.5] anchored at 6.0.
+    controller.onTimeSelectionExtendRequested(TimeSelectionExtent::Grid, ChartStepDirection::Right);
+    REQUIRE(state->time_selection.has_value());
+    CHECK(state->time_selection->end.seconds == Catch::Approx(6.5));
+
+    // Shift+Left steps the focus back onto the anchor: the range clears rather than lingering as a
+    // zero-width span, and selection_present drops.
+    controller.onTimeSelectionExtendRequested(TimeSelectionExtent::Grid, ChartStepDirection::Left);
+    CHECK_FALSE(state->time_selection.has_value());
+    CHECK_FALSE(state->selection_present);
+
+    // A further Shift+Left re-anchors at 6.0 (the transport rested there) and extends left to
+    // measure 3 beat 4 (5.5s).
+    controller.onTimeSelectionExtendRequested(TimeSelectionExtent::Grid, ChartStepDirection::Left);
+    REQUIRE(state->time_selection.has_value());
+    CHECK(state->time_selection->start.seconds == Catch::Approx(5.5));
+    CHECK(state->time_selection->end.seconds == Catch::Approx(6.0));
 }
 
 // Shift+PageUp/PageDown extend the range by whole sections; an extend with no section in that
