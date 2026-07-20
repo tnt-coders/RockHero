@@ -31,6 +31,7 @@ class LiveInputMonitor;
 namespace rock_hero::editor::ui
 {
 
+class EditorKeymapPersistence;
 class EditorView;
 
 /*!
@@ -213,6 +214,11 @@ private:
 
     // Concrete private view that renders controller-derived state and emits user intent.
     std::unique_ptr<EditorView> m_view;
+
+    // Restores stored keymap overrides into the view's command manager and saves changes back;
+    // constructed after the view (every command must be registered before restore) and destroyed
+    // before it (the change-listener registration points into the view-owned mapping set).
+    std::unique_ptr<EditorKeymapPersistence> m_keymap_persistence;
 };
 
 } // namespace rock_hero::editor::ui

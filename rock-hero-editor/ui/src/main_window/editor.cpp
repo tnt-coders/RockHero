@@ -1,5 +1,6 @@
 #include "main_window/editor.h"
 
+#include "keybinds/editor_keymap_persistence.h"
 #include "main_window/editor_view.h"
 
 #include <memory>
@@ -67,11 +68,16 @@ Editor::Editor(
                             }))
 {
     m_controller.attachView(*m_view);
+    // After view construction so every command is registered before the stored keymap restores
+    // (the mapping set's restore contract).
+    m_keymap_persistence =
+        std::make_unique<EditorKeymapPersistence>(m_view->commandManager(), services.settings);
 }
 
 // Clears the controller's view callbacks before destroying the concrete view.
 Editor::~Editor()
 {
+    m_keymap_persistence.reset();
     m_controller.detachView();
     m_view.reset();
 }

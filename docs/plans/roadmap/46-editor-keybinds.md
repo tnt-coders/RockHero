@@ -343,7 +343,20 @@ The original question text is kept below for the decision record.
   powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -RunTouchedTests
   ```
 
-### Phase 2 — Persistence and restore
+### Phase 2 — Persistence and restore — COMPLETE 2026-07-20
+
+> **Execution record (2026-07-20):** landed as planned via `IEditorSettings::keymapXml()` /
+> `setKeymapXml()` (a fresh opaque-blob pattern — the audioDeviceState precedent this plan
+> cited had since moved to the AudioConfigStore) and a new
+> `rock-hero-editor/ui/src/keybinds/editor_keymap_persistence.{h,cpp}` unit owned by the
+> `Editor` composition wrapper (constructed after the view, satisfying the
+> register-before-restore contract). One strengthening beyond plan: the pre-restore filter
+> drops **non-rebindable** entries as well as unknown ids, so a hand-edited blob cannot
+> override the fixed core trio. Saves are equality-gated against the stored blob (no writes
+> from the restore's own broadcast). `NullEditorSettings` un-finaled so recording fakes can
+> subclass it. Tests: settings round-trip (core), rebind→diff save + clear-on-reset, restart
+> restore, unrestorable-entry filtering under debug asserts, corrupt-blob tolerance (ui). All
+> suites green.
 
 - **Scope**: persist user overrides as `createXml(true)` diff XML (shipped default changes merge
   under overrides). Extend `IEditorSettings` with the established opaque-blob pattern

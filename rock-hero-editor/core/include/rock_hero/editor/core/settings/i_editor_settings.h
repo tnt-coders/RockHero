@@ -204,6 +204,25 @@ public:
         int minimum_strings) = 0;
 
     /*!
+    \brief Reads the persisted keymap-override XML for the editor's command registry.
+
+    The blob is opaque to this port: the UI layer serializes the command mapping set's
+    diff-versus-defaults XML into it, so shipped default changes merge under user overrides.
+    Absence means the user has never rebound anything (pure defaults).
+
+    \return Stored keymap XML, or empty when only the defaults apply.
+    */
+    [[nodiscard]] virtual std::optional<std::string> keymapXml() const = 0;
+
+    /*!
+    \brief Stores or clears the persisted keymap-override XML.
+    \param keymap_xml Diff XML to store, or empty when the keymap is back to pure defaults.
+    \return Empty success, or a typed settings failure.
+    */
+    [[nodiscard]] virtual std::expected<void, EditorSettingsError> setKeymapXml(
+        std::optional<std::string> keymap_xml) = 0;
+
+    /*!
     \brief Reads the app-local resume marker stored for an editor project path.
 
     The marker persists in whichever state it was left (the marker model, 2026-07-18): armed

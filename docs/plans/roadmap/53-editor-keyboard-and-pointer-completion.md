@@ -3,9 +3,9 @@
 Status: **Executing — Phases 0 and 1 complete 2026-07-20** (Phase 0: G53-FOLD-IN and G46-KEYMAP
 closed, keymap matrix signed, 46-Q2 = parallel systems + extraction watch-item, 46-Q3 dissolved
 by the non-rebindable-core-trio decision; Phase 1: the command registry spine landed as plan 46
-Phases 1+5 — execution record there). **Phase 3 landed ahead of sequence, and Phase 7's keyboard
-half landed** (record below). Next: plan 46 Phase 2 (keymap persistence), then Phase 2 here
-(discovery menus) / plan 46 Phase 3 (shortcuts dialog). This plan builds the complete editor
+Phases 1+5, and plan 46 Phase 2's keymap persistence landed the same day — execution records
+there). **Phase 3 landed ahead of sequence, and Phase 7's keyboard half landed** (record below).
+Next: Phase 2 here (discovery menus) / plan 46 Phase 3 (shortcuts dialog). This plan builds the complete editor
 keybinding + mouse-operation model captured in `docs/plans/in-progress/keymap-matrix.md` and the
 interaction-model fold-in.
 

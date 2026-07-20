@@ -24,6 +24,8 @@ target_sources(
             src/keybinds/editor_command_id.h
             src/keybinds/editor_command_registry.cpp
             src/keybinds/editor_command_registry.h
+            src/keybinds/editor_keymap_persistence.cpp
+            src/keybinds/editor_keymap_persistence.h
             src/main_window/editor.cpp
             src/main_window/editor_view.cpp
             src/main_window/editor_view.h

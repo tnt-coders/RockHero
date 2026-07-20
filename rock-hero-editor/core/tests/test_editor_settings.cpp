@@ -197,6 +197,33 @@ TEST_CASE("EditorSettings clears interrupted restore project", "[core][settings]
     CHECK_FALSE(reloaded_settings.interruptedRestoreProject().has_value());
 }
 
+// The keymap blob is opaque here (the UI serializes the mapping set's diff XML into it); the
+// store only round-trips it and clears it when the keymap returns to pure defaults.
+TEST_CASE("EditorSettings persists and clears the keymap XML", "[core][settings]")
+{
+    const ScopedSettingsFile settings_file{"persists_keymap.settings"};
+    const std::string keymap_xml{R"(<KEYMAPPINGS><MAPPING commandId="1302"/></KEYMAPPINGS>)"};
+
+    {
+        EditorSettings settings{settings_file.path()};
+        CHECK_FALSE(settings.keymapXml().has_value());
+        REQUIRE(settings.setKeymapXml(keymap_xml).has_value());
+    }
+
+    {
+        const EditorSettings reloaded_settings{settings_file.path()};
+        CHECK(reloaded_settings.keymapXml() == std::optional{keymap_xml});
+    }
+
+    {
+        EditorSettings settings{settings_file.path()};
+        REQUIRE(settings.setKeymapXml(std::nullopt).has_value());
+    }
+
+    const EditorSettings reloaded_settings{settings_file.path()};
+    CHECK_FALSE(reloaded_settings.keymapXml().has_value());
+}
+
 // The armed resume marker persists app-local state without storing it in project packages;
 // the exact musical address (including a fine-grid offset) round-trips unchanged.
 TEST_CASE("EditorSettings persists an armed project marker", "[core][settings]")

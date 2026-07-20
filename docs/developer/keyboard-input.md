@@ -17,9 +17,9 @@ Phase 1):
   reserved in the registry's conventions and never assigned as command defaults.
 
 From the controller inward, a keystroke still travels one of **two paths**: the editor-action
-pipeline (\ref guide_action_anatomy) or the caret/marker interaction model. Rebinding
-(persistence + the shortcuts dialog) is the registry's next phase; Undo/Redo/Play-Pause are
-**non-rebindable core commands** by decision.
+pipeline (\ref guide_action_anatomy) or the caret/marker interaction model. Keymap
+**persistence is live** (below); the shortcuts dialog is the registry's remaining phase.
+Undo/Redo/Play-Pause are **non-rebindable core commands** by decision.
 
 ```mermaid
 flowchart TB
@@ -174,6 +174,24 @@ plugin-chain scope, lane multi-select) land phase by phase.*
    propagates rather than being swallowed.
 3. **Modal layers swallow first.** The busy overlay consumes everything; `MainWindow` refuses to
    forward while modally blocked. Path (b) intents self-gate in core, as above.
+
+# Keymap persistence
+
+`EditorKeymapPersistence` (`ui/src/keybinds/editor_keymap_persistence.cpp`, owned by the
+`Editor` composition wrapper) stores user rebinds through the `IEditorSettings` port as an
+opaque blob: the mapping set's **diff-versus-defaults** XML, so shipped default changes merge
+under user overrides, and a defaults-only keymap clears the stored value entirely. Three
+invariants live here:
+
+- **Restore order is a contract**: every command must be registered before `restoreFromXml`,
+  which the composition guarantees by constructing persistence after the view.
+- **Stored entries are filtered before restore**: unknown command ids (a newer editor's blob
+  would trip the mapping set's debug assertion) and **non-rebindable commands** are dropped —
+  a hand-edited settings file cannot override the fixed core trio, which keeps the
+  plugin-window mirror correct even against tampering. A corrupt blob falls back to pure
+  defaults; the next mapping change overwrites it.
+- **Saves are equality-gated** against the stored blob, so the restore's own change broadcast
+  and repeated notifications write nothing.
 
 # The Esc ladder
 
