@@ -148,12 +148,12 @@ fiat.
   selected), not in the click. Ctrl+click toggles individual membership; marquee remains
   geometrically precise; inserting selects the placed note (Alt-session accumulation
   unchanged).
-- **Right-click context menu deferred (2026-07-17):** every candidate v1 item (Set Fret,
-  Insert Note, Delete, Shift) is a strictly worse path to an existing direct gesture. The
-  grammar's menu promise stands; the menu lands when techniques give it non-redundant content
-  (mute/accent/harmonic toggles). A persistent no-modifier hover ghost was rejected as a lying
-  affordance (plain click seeks, it must not advertise insert); if a menu ever needs a
-  position marker, the white ring appears only while the menu is open.
+- **Right-click context menu — SUPERSEDED 2026-07-20:** the 2026-07-17 deferral is retired. The
+  chart menu ships now as a **keybind-discovery menu** — every applicable action listed with its
+  **live shortcut** (via the plan-46 registry) — so its value is *teaching the keys*, and the old
+  "redundant with a direct gesture" objection was the wrong test; techniques will only *add* entries
+  later. (A no-modifier hover ghost stays rejected as a lying affordance; if the menu ever needs a
+  position marker, the white ring appears only while it is open.)
 - **"Note properties" dialog dropped (2026-07-17):** derived-over-authored leaves no per-note
   metadata needing a form; techniques become selection toggles; chord metadata lives in the
   span dialog; bend curves get a direct-manipulation editor when techniques land.
@@ -172,12 +172,12 @@ fiat.
   tick**, shape-preserving by construction, refusing (never clamping) when the lowest fret
   would pass zero or the highest the cap. The relative operation lives on the naturally
   relative gesture; no second selection concept, no focus indicator.
-- Shift+click creates a **time-range selection object** (Guitar Pro-style): one big timespan
-  highlight, **replace** semantics, anchored at the last non-Shift selection action;
-  Shift+clicks while held re-extend from that anchor; with no prior anchor the first
-  Shift+click acts as a plain click. This decision transfers to plan 52 (it settles the
-  creation gesture and display); what operations do with the range remains plan 52's open
-  agenda.
+- Shift+click creates a **time-range selection** (Guitar Pro-style): one big timespan highlight,
+  **replace** semantics, anchored at the last non-Shift selection action; Shift+clicks while held
+  re-extend from that anchor; with no prior anchor the first Shift+click acts as a plain click. It
+  is a mutually-exclusive **kind** of the one selection (2026-07-20 — making it clears any object
+  selection) and is **strictly grid-locked** on pointer *and* keyboard: a boundary is never off-grid
+  (`Ctrl`+ruler-drag = measure-snap, not off-grid; amends plan 47). Transfers to plan 52.
 
 ## 8. Arpeggio conversion — SETTLED
 
@@ -224,12 +224,12 @@ first caret. The paused playhead is gone.
   remains available via Ctrl+click). Arrow movement re-derives the selection from what sits
   under the caret: a note → selected; empty → selection empty, white circle. Alt+arrows
   still MOVE the selection; Alt+Shift keeps the axis rule (horizontal extent, vertical fret).
-- **Shift+arrows = caret-anchored time selection** (fills the reserved slot; settles plan
-  52's keyboard creation gesture): holding Shift and arrowing extends a time selection
-  outward from the caret's starting grid line, text-editor style. Releasing Shift keeps the
-  selection and remembers the caret; a plain arrow afterwards clears the selection and
-  continues moving; pressing Shift again resumes extending. Builds when plan 52's range
-  object lands.
+- **Shift+arrows = caret-anchored time selection** (settled 2026-07-20): `Shift+Left/Right` extends
+  a grid-locked span by the display grid, `Shift+Ctrl+Left/Right` by measure, `Shift+PageUp/Dn` by
+  section, `Shift+Home/End` to chart bounds; `Shift+Up/Down` is unbound. The anchor snaps to grid
+  even from an off-grid caret. It is a mutually-exclusive **kind** of the one selection — making it
+  clears any object selection. Releasing Shift keeps the range; a plain arrow clears it; Shift again
+  resumes. Builds when plan 52's range object lands.
 - **Transport:** Space plays FROM THE CARET. On pause, the playhead hides and the caret
   snaps to the nearest grid line to the stop position, on the remembered string. The
   playhead renders only while playing.
@@ -398,12 +398,15 @@ behavior, amendment record) lives in `editing-interaction-model.md` — this sec
 what extends the marker model itself. Implemented the same day.
 
 - **Rows, not strings.** The armed caret's vertical coordinate generalizes from a string index
-  to a **row**: the chart strings first, then the visible automation lanes (a lane row is
-  identified by instance + parameter, never display index). Plain Up/Down traverse the whole
-  stack, crossing the tab/lanes boundary in both directions; Left/Right and Ctrl+Left/Right
-  behave identically on every row. Clicking an automation lane seeks and arms the caret at the
-  nearest grid line on that lane. A lane leaving the visible set dissolves an armed caret on it
-  to passive (the §9a demotion posture: never clamp onto a wrong row, never invent a position).
+  to a **row**: the chart strings, then the **tone-region row** (2026-07-20 — a span-selecting row;
+  see *Tone-region row* in `editing-interaction-model.md`), then the visible automation lanes (a
+  lane row is identified by instance + parameter, never display index). Plain Up/Down traverse the
+  whole stack, crossing the string↔tone-region↔lanes boundaries in both directions; `Ctrl+Up/Down`
+  jump surface-to-surface (2026-07-20); `Shift+Up/Down` is unbound (the time range is full-height);
+  Left/Right and Ctrl+Left/Right behave identically on every row. Clicking an automation lane seeks
+  and arms the caret at the nearest grid line on that lane. A lane leaving the visible set dissolves
+  an armed caret on it to passive (the §9a demotion posture: never clamp onto a wrong row, never
+  invent a position).
 - **The caret steps the union stop set** (amended the same evening — the off-grid
   unification, full record in `editing-interaction-model.md`): plain Left/Right stop at the
   nearer of the adjacent grid line and the row's next authored object (a note on the string, a
@@ -416,18 +419,25 @@ what extends the marker model itself. Implemented the same day.
   with the digit) on a lane row. Alt+arrows at an armed empty lane slot create-then-nudge, with
   the created point landing **on the curve** (sonically silent until pulled) — the keyboard
   mirror of the on-curve Alt+click placement. **Insert is the neutral-create verb everywhere**
-  (user addition): fret-0 note / on-curve point at an armed empty slot; no-op on occupied slots
-  and while passive, so Insert never mutates existing objects. Its **mouse form is Alt+click** on
+  (user addition): fret-0 note / on-curve point at an armed empty slot, and a tone-change split on
+  the tone-region row (the "empty slot" is a region interior — a create, not a mutation); no-op on
+  occupied slots and while passive, so Insert never mutates an existing object — **with one named
+  exception (2026-07-20): a filled *plugin slot*, where Insert = replace-with-confirm**. Its **mouse
+  form is Alt+click** on
   an empty slot (2026-07-18): the same fret-0 note / on-curve point, previewed by the Alt-held
   insert ghost (the tab lane's returned white ring, the lane's on-curve ring), so the
   neutral-create gesture is uniform across every surface's pointer *and* keyboard.
-- **One selection editor-wide.** Chart selection, automation point, and tone region become
-  alternatives of one editor-core sum type — two live selections are unrepresentable, the
-  Delete precedence ladder retires (Delete deletes *the* selection), and the §9a
-  selection-count chip generalizes to the variant's kind. Deliberate clicks arm the caret onto
-  the clicked object on both surfaces (amended the same evening — automation point clicks
-  joined chart note clicks); selection replacement that arrives as a side effect of another
-  gesture still moves the marker nowhere.
+- **One selection editor-wide — two kinds (2026-07-20).** The single editor-wide selection is, at
+  any moment, one of two mutually-exclusive kinds: an **object selection** (chart selection,
+  automation point-set, or tone region — alternatives of one editor-core sum type) *or* a **time
+  selection** (a grid-locked full-height span). Making one clears the other; two live selections are
+  unrepresentable; the Delete precedence ladder retires (Delete deletes *the* selection, dispatching
+  on kind); the §9a selection-count chip generalizes to the kind. The loop region is a separate
+  transport state; the **plugin chain is a separate modal focus scope**, NOT a member of this
+  selection (drilling in parks it, does not clear it). Deliberate clicks arm the caret onto the
+  clicked object on both surfaces (amended the same evening — automation point clicks joined chart
+  note clicks); selection replacement that arrives as a side effect of another gesture still moves
+  the marker nowhere.
 - **Supersedes**: the 2026-07-17 "tone/automation surfaces never move the caret" ruling (it
   predates the caret having rows there) and §9a's implicit string-only row space.
 
