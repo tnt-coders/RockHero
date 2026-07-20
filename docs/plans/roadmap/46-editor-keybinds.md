@@ -275,7 +275,27 @@ The original question text is kept below for the decision record.
 - **Done**: all three questions closed 2026-07-20 (see the Status line and the Open questions
   section); the gate record lives in docs/plans/roadmap/00-roadmap.md's gate table.
 
-### Phase 1 — Command registry and manager spine (assumes Q2 = (a))
+### Phase 1 — Command registry and manager spine (assumes Q2 = (a)) — COMPLETE 2026-07-20
+
+> **Execution record (2026-07-20, with Phase 5 folded in):** landed as planned with two
+> recorded refinements. (i) **Grammar keys stay in the view's grammar decoder** rather than
+> registering as branching-perform commands: their dispatch is sequential and context-ordered
+> (digit fallthrough lanes→chart, the Esc ladder, Delete's propagate-when-empty), which flat
+> command dispatch cannot express honestly; their chords are instead *reserved* in the registry
+> conventions (`editor_command_id.h`) and the Phase 3 dialog surfaces them as fixed rows. The
+> `+/-` grid/zoom family also stays decoder-side — its union match over key codes, text chars,
+> and numpad shapes (WM_CHAR timing) is inexpressible as exact `KeyPress` entries. (ii) The
+> **non-rebindable core trio** registers with fixed chords, and `Ctrl+Shift+Z` ships as Redo's
+> registered alternative (editor-side; the plugin-window mirror rides Phase 4). Phase 5's
+> substance landed here too: tier A defaults applied (File chords are live command items with
+> shortcut display), growth conventions recorded in the registry header, and the locked-table
+> test pins ids + defaults. `Ctrl+T` is a registered command — exact modifier matching supplies
+> the against-Alt guard. Delivered: `rock-hero-editor/ui/src/keybinds/` (id enum, registry
+> table), `EditorView` as `ApplicationCommandTarget` owning the manager, the mapping set
+> attached on `MainWindow` (manual forwarding kept per plan), menus migrated to
+> `addCommandItem` (strings submenu stays raw ids), editor-side predicates deleted, preview
+> whitelist re-expressed over command ids, tests migrated + locked-table/mapping/dispatch
+> coverage added. Build + editor UI suite green.
 
 - **Scope**: introduce the single command vocabulary and wire existing behavior through it,
   preserving every current shortcut exactly. One `juce::ApplicationCommandManager` owned by the
@@ -451,7 +471,7 @@ The original question text is kept below for the decision record.
   powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -RunTouchedTests
   ```
 
-### Phase 5 — Default keymap application and growth conventions (assumes Q1 approved)
+### Phase 5 — Default keymap application and growth conventions — COMPLETE 2026-07-20 (with Phase 1)
 
 - **Scope**: apply the approved Appendix tier A defaults to the registry (any newly-bound
   file-menu commands become real command items with shortcut display). Record the growth

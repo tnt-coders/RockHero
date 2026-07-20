@@ -58,5 +58,7 @@ Two menu kinds, two conventions — both build their items from *published view 
   silently (`tone_track_view.cpp` and `tone_automation_lanes_view.cpp` are the exemplars,
   including submenu nesting). Selecting an item emits a listener intent like any other gesture.
 - **The menu bar** is `MenuBarModel` in `editor_view.cpp` (`getMenuBarNames` /
-  `getMenuForIndex`): items enable off `m_state.*_enabled` flags, use the command-id constants,
-  and theme through `MenuLookAndFeel`.
+  `getMenuForIndex`): command-backed items are `addCommandItem` rows whose name, enablement,
+  tick state, and live shortcut text all come from the command registry's `getCommandInfo`
+  (\ref guide_keyboard); only the tablature lane-count submenu still uses raw item ids routed
+  through `menuItemSelected`. Theming stays with `MenuLookAndFeel`.

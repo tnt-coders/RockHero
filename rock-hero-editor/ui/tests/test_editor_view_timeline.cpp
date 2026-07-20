@@ -1149,7 +1149,8 @@ TEST_CASE("EditorView right-click does not seek the timeline", "[ui][editor-view
     CHECK_FALSE(controller.last_seek_position.has_value());
 }
 
-// Verifies the focusable editor root maps keyboard play/pause to the transport intent.
+// Verifies keyboard play/pause reaches the transport intent through the command mapping set
+// (Space is a registered command now, not a keyPressed branch).
 TEST_CASE("EditorView forwards space key to the controller", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -1159,7 +1160,8 @@ TEST_CASE("EditorView forwards space key to the controller", "[ui][editor-view]"
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     CHECK(view.getWantsKeyboardFocus());
-    CHECK(view.keyPressed(juce::KeyPress{juce::KeyPress::spaceKey}));
+    juce::KeyListener* const mappings = view.commandManager().getKeyMappings();
+    CHECK(mappings->keyPressed(juce::KeyPress{juce::KeyPress::spaceKey}, &view));
     CHECK(controller.play_pause_press_count == 1);
 }
 

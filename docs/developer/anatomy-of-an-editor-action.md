@@ -20,10 +20,11 @@ owns the one genuinely UI-shaped step: showing the asynchronous JUCE `FileChoose
 picks a file, `EditorView` calls `onImportToneFileRequested(...)` on the controller interface.
 UI involvement ends here; everything after this point is headless and testable.
 
-Keystrokes enter at this same stage: `EditorView::keyPressed` decodes the key and calls the
-identical intent method a button click would, so from the controller inward a keybind and a
-click are indistinguishable. \ref guide_keyboard traces that entry path — focus, decoding, and
-the keys that bypass actions entirely for the caret grammar.
+Keystrokes enter at this same stage: the command mapping set resolves a registered chord and
+`EditorView::perform` calls the identical intent method a button click would (grammar keys
+decode in `EditorView::keyPressed` the same way), so from the controller inward a keybind and a
+click are indistinguishable. \ref guide_keyboard traces that entry path — focus, the two
+dispatchers, and the keys that bypass actions entirely for the caret grammar.
 
 # Stage 2 — The intent becomes an action
 

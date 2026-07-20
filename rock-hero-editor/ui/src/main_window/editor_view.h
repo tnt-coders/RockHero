@@ -65,6 +65,7 @@ position is not part of the derived editor state.
 */
 class EditorView final : public juce::Component,
                          public juce::MenuBarModel,
+                         public juce::ApplicationCommandTarget,
                          public core::IEditorView,
                          private TransportControls::Listener,
                          private GridSpacingSelector::Listener,
@@ -208,6 +209,42 @@ public:
     \param top_level_menu_index Index of the top-level menu that produced the selection.
     */
     void menuItemSelected(int menu_item_id, int top_level_menu_index) override;
+
+    /*!
+    \brief Returns the editor command manager that owns the keybind registry and key mappings.
+
+    The manager's key mapping set is the single chord-to-command matcher; the owning window
+    attaches it as a key listener so shortcuts fire wherever focus lands inside the window.
+
+    \return Command manager owned by this view.
+    */
+    [[nodiscard]] juce::ApplicationCommandManager& commandManager() noexcept;
+
+    /*!
+    \brief Returns the next target in the command chain.
+    \return Always nullptr; the editor view is the sole command target.
+    */
+    [[nodiscard]] juce::ApplicationCommandTarget* getNextCommandTarget() override;
+
+    /*!
+    \brief Lists every registered editor command id.
+    \param commands Receives the registered command ids.
+    */
+    void getAllCommands(juce::Array<juce::CommandID>& commands) override;
+
+    /*!
+    \brief Fills display, default-chord, and enablement info for one command.
+    \param command_id Command to describe.
+    \param info Receives the command's info.
+    */
+    void getCommandInfo(juce::CommandID command_id, juce::ApplicationCommandInfo& info) override;
+
+    /*!
+    \brief Performs one editor command by emitting the matching controller intent.
+    \param info Invocation details carrying the command id.
+    \return True when the command id is a registered editor command.
+    */
+    bool perform(const InvocationInfo& info) override;
 
 private:
     enum class SaveAsChooserPurpose : std::uint8_t
@@ -468,6 +505,12 @@ private:
 
     // Last state pushed by the controller; used for load target lookup and layout mapping.
     core::EditorViewState m_state{};
+
+    // One editor-wide command manager: the keybind registry registers against it, its key
+    // mapping set is the single chord-to-command matcher, and menus display live shortcuts
+    // through it. Declared before the widgets so it outlives every component that references
+    // it during destruction.
+    juce::ApplicationCommandManager m_command_manager;
 
     // Flat app-menu look-and-feel owned for the lifetime of the menu bar.
     std::unique_ptr<juce::LookAndFeel> m_menu_look_and_feel;

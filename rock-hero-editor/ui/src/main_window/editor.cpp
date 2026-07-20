@@ -82,6 +82,12 @@ juce::Component& Editor::component() noexcept
     return *m_view;
 }
 
+// Exposes the view-owned command manager so the window shell can attach its key mapping set.
+juce::ApplicationCommandManager& Editor::commandManager() noexcept
+{
+    return m_view->commandManager();
+}
+
 // Opens a project after construction so app startup can restore the previous session.
 void Editor::openProject(std::filesystem::path file)
 {

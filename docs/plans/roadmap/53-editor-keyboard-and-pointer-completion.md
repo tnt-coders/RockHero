@@ -1,12 +1,13 @@
 # 53 — Editor keyboard + pointer completion
 
-Status: **Executing — Phase 0 complete 2026-07-20 evening** (G53-FOLD-IN and G46-KEYMAP both
-closed: fold-in wording confirmed, keymap matrix signed with every confirm flag accepted, 46-Q2 =
-parallel systems + extraction watch-item, 46-Q3 dissolved by the non-rebindable-core-trio
-decision — see plan 46). **Phase 3 landed ahead of sequence, and Phase 7's keyboard half landed**
-(record below); both pre-registry, migrating onto the registry in Phase 1, which is next. This
-plan builds the complete editor keybinding + mouse-operation model captured in
-`docs/plans/in-progress/keymap-matrix.md` and the interaction-model fold-in.
+Status: **Executing — Phases 0 and 1 complete 2026-07-20** (Phase 0: G53-FOLD-IN and G46-KEYMAP
+closed, keymap matrix signed, 46-Q2 = parallel systems + extraction watch-item, 46-Q3 dissolved
+by the non-rebindable-core-trio decision; Phase 1: the command registry spine landed as plan 46
+Phases 1+5 — execution record there). **Phase 3 landed ahead of sequence, and Phase 7's keyboard
+half landed** (record below). Next: plan 46 Phase 2 (keymap persistence), then Phase 2 here
+(discovery menus) / plan 46 Phase 3 (shortcuts dialog). This plan builds the complete editor
+keybinding + mouse-operation model captured in `docs/plans/in-progress/keymap-matrix.md` and the
+interaction-model fold-in.
 
 **Standing sync rule (binding for every phase):** the change set that completes a phase also
 updates this Status line, the plan's row in `docs/plans/roadmap/00-roadmap.md`'s status table,
@@ -128,7 +129,14 @@ adopt the matrix as the default-keymap appendix). Do the H cleanup. Dissolve `ke
 into the authority docs once its content has landed. **Gate: user sign-off on the fold-in wording
 (the source-of-truth rewrites — the `Ctrl` thesis, the one-selection law, the marker model).**
 
-### Phase 1 — Command registry mechanism  *(extends plan 46, all its phases)*
+### Phase 1 — Command registry mechanism  *(extends plan 46, all its phases)* — REGISTRY SPINE COMPLETE 2026-07-20
+
+> Landed as plan 46 Phases 1+5 (execution record there): the command manager, registry table,
+> mapping-set attachment, menu migration, predicate deletion, and the settled default map.
+> Grammar keys deliberately stay in the grammar decoder with their chords reserved (the
+> refinement recorded in plan 46). Still open from plan 46: Phase 2 (persistence), Phase 3
+> (shortcuts dialog + forwarding removal), rescoped Phase 4 (plugin-window redo alias +
+> predicate dedupe).
 
 Stand up an `EditorCommandManager` over one `juce::ApplicationCommandManager` + `KeyPressMappingSet`
 in a new `rock-hero-editor/ui/src/keybinds/`. Register every command; map to controller intents.

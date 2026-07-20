@@ -3,6 +3,7 @@
 #include "audio_device/audio_device_settings_window.h"
 #include "audio_device/game_audio_recommendation_dialog.h"
 #include "input_calibration/input_calibration_window.h"
+#include "keybinds/editor_command_registry.h"
 #include "main_window/menu_look_and_feel.h"
 #include "preview/preview_window.h"
 #include "shared/editor_theme.h"
@@ -36,20 +37,10 @@ namespace rock_hero::editor::ui
 namespace
 {
 
-constexpr int g_open_command{1};
-constexpr int g_import_command{2};
-constexpr int g_save_command{3};
-constexpr int g_save_as_command{4};
-constexpr int g_close_command{5};
-constexpr int g_exit_command{6};
-constexpr int g_publish_command{7};
-constexpr int g_undo_command{101};
-constexpr int g_redo_command{102};
-constexpr int g_show_waveform_command{201};
-constexpr int g_show_undo_history_command{202};
-constexpr int g_show_preview_command{203};
-// Tablature lane-count menu ids encode the requested minimum as an offset from this base, with
-// the base itself meaning "match the chart" (a zero minimum).
+// Command-backed menu items use the registry's EditorCommandId values as their item ids; only
+// the tablature lane-count submenu keeps raw ids. Its ids encode the requested minimum as an
+// offset from this base, with the base itself meaning "match the chart" (a zero minimum). The
+// range must never collide with the 0x1000+ command-id space.
 constexpr int g_tab_strings_command_base{210};
 constexpr int g_arrangement_selector_width{132};
 // Wide enough for "Arrangement" at the default label font plus the label's side insets;
@@ -141,33 +132,6 @@ constexpr int g_track_viewport_min_height{80};
     }
 
     return juce::String{command_name} + " " + juce::String{label->c_str()};
-}
-
-[[nodiscard]] int normalizedAsciiKeyCode(int key_code) noexcept
-{
-    if (key_code >= 'A' && key_code <= 'Z')
-    {
-        return key_code - 'A' + 'a';
-    }
-    return key_code;
-}
-
-[[nodiscard]] bool hasCommandShortcutModifier(const juce::KeyPress& key) noexcept
-{
-    const juce::ModifierKeys modifiers = key.getModifiers();
-    return modifiers.isCommandDown() && !modifiers.isAltDown();
-}
-
-[[nodiscard]] bool isUndoShortcut(const juce::KeyPress& key) noexcept
-{
-    return hasCommandShortcutModifier(key) && !key.getModifiers().isShiftDown() &&
-           normalizedAsciiKeyCode(key.getKeyCode()) == 'z';
-}
-
-[[nodiscard]] bool isRedoShortcut(const juce::KeyPress& key) noexcept
-{
-    return hasCommandShortcutModifier(key) && !key.getModifiers().isShiftDown() &&
-           normalizedAsciiKeyCode(key.getKeyCode()) == 'y';
 }
 
 // Requests project-load cursor focus once per accepted load, without inferring "a load happened"
@@ -361,6 +325,14 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     })
 {
     setWantsKeyboardFocus(true);
+
+    // Register the keybind registry: every command's info (name, category, default chords,
+    // enablement) comes from this target, and the manager's key mapping set becomes the single
+    // chord-to-command matcher — the owning window attaches it as a key listener. Watching the
+    // manager keeps menu shortcut text current after mapping changes.
+    m_command_manager.registerAllCommandsForTarget(this);
+    m_command_manager.setFirstCommandTarget(this);
+    setApplicationCommandManagerToWatch(&m_command_manager);
 
     m_menu_bar.setComponentID("file_menu_bar");
     m_menu_bar.setLookAndFeel(m_menu_look_and_feel.get());
@@ -607,6 +579,9 @@ void EditorView::setState(const core::EditorViewState& state)
     }
 
     menuItemsChanged();
+    // Command enablement derives from the same state push; refreshing here keeps the mapping
+    // set's availability checks and any command-driven UI in step with the menus.
+    m_command_manager.commandStatusChanged();
     m_track_viewport->setProjectLoaded(m_state.project_loaded);
     m_track_viewport->setTimelineRange(m_state.visible_timeline);
     m_track_viewport->setTransportDisplayState(
@@ -1004,36 +979,16 @@ void EditorView::mouseWheelMove(const juce::MouseEvent& event, const juce::Mouse
 }
 
 // Routes editor-level keyboard shortcuts through the same controller intents as child widgets.
+// The interaction-grammar decoder. Command accelerators (undo/redo, Space, Ctrl+T, F3/F8, the
+// file-menu chords) live in the command manager's key mapping set, attached as a key listener on
+// the owning window — unhandled keys bubble there after this decoder declines them. What stays
+// hand-decoded here is the interaction grammar itself (arrows, digits, Delete, Insert, Esc, and
+// the union-matched +/- grid/zoom family, whose WM_CHAR-timing key shapes exact KeyPress matching
+// cannot express): sequential, context-ordered dispatch that is an input grammar, not a command
+// set. Their chords are reserved in the keybind registry's conventions and never assigned as
+// command defaults.
 bool EditorView::keyPressed(const juce::KeyPress& key)
 {
-    if (isUndoShortcut(key))
-    {
-        if (!m_state.undo_enabled)
-        {
-            return false;
-        }
-
-        m_controller.onUndoRequested();
-        return true;
-    }
-
-    if (isRedoShortcut(key))
-    {
-        if (!m_state.redo_enabled)
-        {
-            return false;
-        }
-
-        m_controller.onRedoRequested();
-        return true;
-    }
-
-    if (key == juce::KeyPress{juce::KeyPress::spaceKey})
-    {
-        m_controller.onPlayPausePressed();
-        return true;
-    }
-
     // Arrow-key dispatch under the amended interaction grammar (2026-07-16; off-grid
     // unification 2026-07-18): plain arrows navigate the marker's caret, Shift+arrows is
     // reserved for the plan-52 range gesture, and every keyboard mutation requires the Alt
@@ -1282,16 +1237,6 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
         return true;
     }
 
-    // Ctrl+T inserts a tone-change marker at the playhead, splitting the region there. Guarded
-    // against Alt (Ctrl and not Alt, matching undo/redo) so Ctrl+Alt+T does not fire it — the
-    // Ctrl+Alt namespace belongs to the fine-tier authoring composition (2026-07-20).
-    if (key.getModifiers().isCtrlDown() && !key.getModifiers().isAltDown() &&
-        key.getKeyCode() == 'T')
-    {
-        createToneMarkerAtPlayhead();
-        return true;
-    }
-
     // Esc cancels the pointer gesture in flight (a point drag, edge drag, or insert placement)
     // first, then steps the marker ladder — an armed caret on ANY row dissolves (lane carets
     // included, 2026-07-18), then THE selection clears, whatever its kind. It falls through
@@ -1322,23 +1267,6 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
         return false;
     }
 
-    // F8 toggles the undo-history inspector.
-    if (key == juce::KeyPress{juce::KeyPress::F8Key})
-    {
-        toggleUndoHistoryPanel();
-        return true;
-    }
-
-    // F3 toggles the 3D preview window (mirrors View > 3D Preview). Opening needs a project;
-    // closing must always work, or a project close would strand an open preview behind a dead
-    // toggle.
-    if (key == juce::KeyPress{juce::KeyPress::F3Key} &&
-        (m_state.project_loaded || (m_preview_window != nullptr && m_preview_window->isVisible())))
-    {
-        togglePreviewWindow();
-        return true;
-    }
-
     return false;
 }
 
@@ -1352,15 +1280,24 @@ void EditorView::togglePreviewWindow()
             m_transport,
             m_playback_clock,
             [this](const juce::KeyPress& key) {
-                // Transport keys only (44-Q4), plus F3 so the toggle works from the preview:
-                // the preview shows no selection context, so editing shortcuts (delete, nudge,
-                // undo) stay with the main window.
-                if (key == juce::KeyPress{juce::KeyPress::spaceKey} ||
-                    key == juce::KeyPress{juce::KeyPress::F3Key})
+                // Transport keys only (44-Q4), plus the preview toggle so it closes from its own
+                // window: the preview shows no selection context, so editing shortcuts (delete,
+                // nudge, undo) stay with the main window. Resolved through the command mappings,
+                // not hardcoded chords, so future rebinds of rebindable commands stay honored.
+                const juce::CommandID command =
+                    m_command_manager.getKeyMappings()->findCommandForKeyPress(key);
+                if (command != toJuceCommandId(EditorCommandId::PlayPause) &&
+                    command != toJuceCommandId(EditorCommandId::TogglePreview3D))
                 {
-                    return keyPressed(key);
+                    return false;
                 }
-                return false;
+                juce::ApplicationCommandInfo info{command};
+                getCommandInfo(command, info);
+                if ((info.flags & juce::ApplicationCommandInfo::isDisabled) != 0)
+                {
+                    return false;
+                }
+                return m_command_manager.invokeDirectly(command, false);
             },
             getTopLevelComponent());
     }
@@ -1385,51 +1322,39 @@ juce::StringArray EditorView::getMenuBarNames()
 // Builds menus using only controller-derived state.
 juce::PopupMenu EditorView::getMenuForIndex(int top_level_menu_index, const juce::String& menu_name)
 {
+    // Command-backed items display their live shortcut automatically: the popup queries the
+    // manager's mapping set per item, so the text stays correct after any future rebind. Name,
+    // enablement, and tick state all come from getCommandInfo — one source for menus and keys.
     if (top_level_menu_index == 0 && menu_name == "File")
     {
         juce::PopupMenu menu;
-        menu.addItem(g_open_command, "Open...", m_state.open_enabled);
-        menu.addItem(g_import_command, "Import...", m_state.import_enabled);
+        menu.addCommandItem(&m_command_manager, toJuceCommandId(EditorCommandId::OpenProject));
+        menu.addCommandItem(&m_command_manager, toJuceCommandId(EditorCommandId::ImportSong));
         menu.addSeparator();
-        menu.addItem(g_save_command, "Save", m_state.save_enabled);
-        menu.addItem(g_save_as_command, "Save As...", m_state.save_as_enabled);
-        menu.addItem(g_publish_command, "Publish...", m_state.publish_enabled);
+        menu.addCommandItem(&m_command_manager, toJuceCommandId(EditorCommandId::SaveProject));
+        menu.addCommandItem(&m_command_manager, toJuceCommandId(EditorCommandId::SaveProjectAs));
+        menu.addCommandItem(&m_command_manager, toJuceCommandId(EditorCommandId::PublishSong));
         menu.addSeparator();
-        menu.addItem(g_close_command, "Close", m_state.close_enabled);
-        menu.addItem(g_exit_command, "Exit");
+        menu.addCommandItem(&m_command_manager, toJuceCommandId(EditorCommandId::CloseProject));
+        menu.addCommandItem(&m_command_manager, toJuceCommandId(EditorCommandId::ExitEditor));
         return menu;
     }
 
     if (top_level_menu_index == 1 && menu_name == "Edit")
     {
         juce::PopupMenu menu;
-        menu.addItem(
-            g_undo_command, editCommandText("Undo", m_state.undo_label), m_state.undo_enabled);
-        menu.addItem(
-            g_redo_command, editCommandText("Redo", m_state.redo_label), m_state.redo_enabled);
+        menu.addCommandItem(&m_command_manager, toJuceCommandId(EditorCommandId::Undo));
+        menu.addCommandItem(&m_command_manager, toJuceCommandId(EditorCommandId::Redo));
         return menu;
     }
 
     if (top_level_menu_index == 2 && menu_name == "View")
     {
         juce::PopupMenu menu;
-        menu.addItem(
-            g_show_waveform_command,
-            "Show Waveform",
-            m_state.project_loaded,
-            m_state.waveform_visible);
-        menu.addItem(
-            g_show_undo_history_command, "Undo History", true, m_undo_history_overlay.isVisible());
-        {
-            const bool preview_open = m_preview_window != nullptr && m_preview_window->isVisible();
-            juce::PopupMenu::Item preview_item{"3D Preview"};
-            preview_item.itemID = g_show_preview_command;
-            preview_item.shortcutKeyDescription = "F3";
-            // Opening needs a project; closing must stay available after a project close.
-            preview_item.isEnabled = m_state.project_loaded || preview_open;
-            preview_item.isTicked = preview_open;
-            menu.addItem(preview_item);
-        }
+        menu.addCommandItem(&m_command_manager, toJuceCommandId(EditorCommandId::ToggleWaveform));
+        menu.addCommandItem(
+            &m_command_manager, toJuceCommandId(EditorCommandId::ToggleUndoHistory));
+        menu.addCommandItem(&m_command_manager, toJuceCommandId(EditorCommandId::TogglePreview3D));
 
         // The lane-count submenu offers "match the chart" plus explicit minimums up to the
         // format's string cap; picking fewer lanes than the chart has can never hide notes
@@ -1456,62 +1381,163 @@ juce::PopupMenu EditorView::getMenuForIndex(int top_level_menu_index, const juce
     return {};
 }
 
-// Routes menu selections to either a chooser or a direct controller intent.
+// Routes raw-id menu selections. Command-backed items dispatch through the command manager
+// (their selection lands in perform), so only the tablature lane-count submenu routes here.
 void EditorView::menuItemSelected(int menu_item_id, int /*top_level_menu_index*/)
 {
-    switch (menu_item_id)
+    // Lane-count submenu ids encode the requested minimum as an offset from the base; the base
+    // itself requests a zero minimum (match the chart).
+    if (menu_item_id >= g_tab_strings_command_base &&
+        menu_item_id <= g_tab_strings_command_base + common::core::g_max_chart_strings)
     {
-        case g_undo_command:
+        m_controller.onTabMinimumDisplayedStringsChangeRequested(
+            menu_item_id - g_tab_strings_command_base);
+    }
+}
+
+juce::ApplicationCommandManager& EditorView::commandManager() noexcept
+{
+    return m_command_manager;
+}
+
+juce::ApplicationCommandTarget* EditorView::getNextCommandTarget()
+{
+    return nullptr;
+}
+
+void EditorView::getAllCommands(juce::Array<juce::CommandID>& commands)
+{
+    for (const EditorCommandSpec& spec : editorCommandRegistry())
+    {
+        commands.add(toJuceCommandId(spec.id));
+    }
+}
+
+// One source for menus and key dispatch: names, categories, and default chords come from the
+// registry table; enablement and tick state derive from the same pushed view state the menus
+// used before the registry existed, so behavior is preserved exactly.
+void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCommandInfo& info)
+{
+    const EditorCommandSpec* const spec = findEditorCommandSpec(command_id);
+    if (spec == nullptr)
+    {
+        return;
+    }
+
+    info.setInfo(spec->name, spec->name, spec->category, 0);
+    for (const juce::KeyPress& key : spec->default_keypresses)
+    {
+        info.defaultKeypresses.add(key);
+    }
+
+    switch (static_cast<EditorCommandId>(command_id))
+    {
+        case EditorCommandId::OpenProject:
         {
-            if (m_state.undo_enabled)
-            {
-                m_controller.onUndoRequested();
-            }
+            info.setActive(m_state.open_enabled);
             break;
         }
-        case g_show_undo_history_command:
+        case EditorCommandId::ImportSong:
         {
-            toggleUndoHistoryPanel();
+            info.setActive(m_state.import_enabled);
             break;
         }
-        case g_show_preview_command:
+        case EditorCommandId::SaveProject:
         {
-            if (m_state.project_loaded ||
-                (m_preview_window != nullptr && m_preview_window->isVisible()))
-            {
-                togglePreviewWindow();
-            }
+            info.setActive(m_state.save_enabled);
             break;
         }
-        case g_redo_command:
+        case EditorCommandId::SaveProjectAs:
         {
-            if (m_state.redo_enabled)
-            {
-                m_controller.onRedoRequested();
-            }
+            info.setActive(m_state.save_as_enabled);
             break;
         }
-        case g_open_command:
+        case EditorCommandId::PublishSong:
+        {
+            info.setActive(m_state.publish_enabled);
+            break;
+        }
+        case EditorCommandId::CloseProject:
+        {
+            info.setActive(m_state.close_enabled);
+            break;
+        }
+        case EditorCommandId::ExitEditor:
+        {
+            break;
+        }
+        case EditorCommandId::Undo:
+        {
+            info.shortName = editCommandText("Undo", m_state.undo_label);
+            info.setActive(m_state.undo_enabled);
+            break;
+        }
+        case EditorCommandId::Redo:
+        {
+            info.shortName = editCommandText("Redo", m_state.redo_label);
+            info.setActive(m_state.redo_enabled);
+            break;
+        }
+        case EditorCommandId::PlayPause:
+        {
+            // Always active: the controller owns transport legality, matching the old
+            // unconditional Space handling.
+            break;
+        }
+        case EditorCommandId::ToggleWaveform:
+        {
+            info.setActive(m_state.project_loaded);
+            info.setTicked(m_state.waveform_visible);
+            break;
+        }
+        case EditorCommandId::ToggleUndoHistory:
+        {
+            info.setTicked(m_undo_history_overlay.isVisible());
+            break;
+        }
+        case EditorCommandId::TogglePreview3D:
+        {
+            // Opening needs a project; closing must stay available after a project close, or a
+            // close would strand an open preview behind a dead toggle.
+            const bool preview_open = m_preview_window != nullptr && m_preview_window->isVisible();
+            info.setActive(m_state.project_loaded || preview_open);
+            info.setTicked(preview_open);
+            break;
+        }
+        case EditorCommandId::InsertToneChange:
+        {
+            break;
+        }
+    }
+}
+
+// The guards mirror getCommandInfo's enablement on purpose: the mapping set and menus already
+// gate on it, but direct invocation paths (tests, the preview-window filter) must stay safe too.
+bool EditorView::perform(const InvocationInfo& info)
+{
+    switch (static_cast<EditorCommandId>(info.commandID))
+    {
+        case EditorCommandId::OpenProject:
         {
             if (m_state.open_enabled)
             {
                 showOpenChooser();
             }
-            break;
+            return true;
         }
-        case g_import_command:
+        case EditorCommandId::ImportSong:
         {
             if (m_state.import_enabled)
             {
                 showImportChooser();
             }
-            break;
+            return true;
         }
-        case g_save_command:
+        case EditorCommandId::SaveProject:
         {
             if (!m_state.save_enabled)
             {
-                break;
+                return true;
             }
             if (m_state.save_requires_destination)
             {
@@ -1521,58 +1547,87 @@ void EditorView::menuItemSelected(int menu_item_id, int /*top_level_menu_index*/
             {
                 m_controller.onSaveRequested();
             }
-            break;
+            return true;
         }
-        case g_save_as_command:
+        case EditorCommandId::SaveProjectAs:
         {
             if (m_state.save_as_enabled)
             {
                 showSaveAsChooser(SaveAsChooserPurpose::UserSaveAs);
             }
-            break;
+            return true;
         }
-        case g_publish_command:
+        case EditorCommandId::PublishSong:
         {
             if (m_state.publish_enabled)
             {
                 showPublishChooser();
             }
-            break;
+            return true;
         }
-        case g_close_command:
+        case EditorCommandId::CloseProject:
         {
             if (m_state.close_enabled)
             {
                 m_controller.onCloseRequested();
             }
-            break;
+            return true;
         }
-        case g_exit_command:
+        case EditorCommandId::ExitEditor:
         {
             m_controller.onExitRequested();
-            break;
+            return true;
         }
-        case g_show_waveform_command:
+        case EditorCommandId::Undo:
+        {
+            if (m_state.undo_enabled)
+            {
+                m_controller.onUndoRequested();
+            }
+            return true;
+        }
+        case EditorCommandId::Redo:
+        {
+            if (m_state.redo_enabled)
+            {
+                m_controller.onRedoRequested();
+            }
+            return true;
+        }
+        case EditorCommandId::PlayPause:
+        {
+            m_controller.onPlayPausePressed();
+            return true;
+        }
+        case EditorCommandId::ToggleWaveform:
         {
             if (m_state.project_loaded)
             {
                 m_controller.onWaveformVisibleChangeRequested(!m_state.waveform_visible);
             }
-            break;
+            return true;
         }
-        default:
+        case EditorCommandId::ToggleUndoHistory:
         {
-            // Lane-count submenu ids encode the requested minimum as an offset from the base;
-            // the base itself requests a zero minimum (match the chart).
-            if (menu_item_id >= g_tab_strings_command_base &&
-                menu_item_id <= g_tab_strings_command_base + common::core::g_max_chart_strings)
+            toggleUndoHistoryPanel();
+            return true;
+        }
+        case EditorCommandId::TogglePreview3D:
+        {
+            if (m_state.project_loaded ||
+                (m_preview_window != nullptr && m_preview_window->isVisible()))
             {
-                m_controller.onTabMinimumDisplayedStringsChangeRequested(
-                    menu_item_id - g_tab_strings_command_base);
+                togglePreviewWindow();
             }
-            break;
+            return true;
+        }
+        case EditorCommandId::InsertToneChange:
+        {
+            createToneMarkerAtPlayhead();
+            return true;
         }
     }
+    return false;
 }
 
 // Opens an asynchronous file chooser and sends accepted project package paths to the controller.
