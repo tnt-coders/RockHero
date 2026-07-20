@@ -400,11 +400,30 @@ The original question text is kept below for the decision record.
   juce_KeyPressMappingSet.h:133-134 vs .cpp:72-104). That is the required overwrite-and-clear
   semantics: the previous owner loses the chord, exactly one owner remains. Build `KeyPress`
   values from capture events so the uppercase-without-shift debug assert
-  (juce_KeyPressMappingSet.cpp:67-70) cannot trip. Decision, made here: a custom component styled
-  through `EditorTheme`, not the stock `KeyMappingEditorComponent` — the stock TreeView look
-  fights the editor theme and its conflict prompt wording/flow differs from the required
-  overwrite-and-clear semantics; the stock component remains the reference implementation for the
-  remove-then-add dance (juce_KeyMappingEditorComponent.cpp:129-192). Remove the
+  (juce_KeyPressMappingSet.cpp:67-70) cannot trip. Decision: a custom component styled through
+  `EditorTheme`, not the stock `KeyMappingEditorComponent` — **rationale re-derived from the
+  vendored source and re-confirmed with the user 2026-07-20** after the original wording proved
+  partly wrong (stock's conflict flow IS confirm-then-remove-then-add naming the current owner,
+  juce_KeyMappingEditorComponent.cpp:159-192 — the "flow differs" claim is retracted; stock
+  stays the reference implementation for the dance). The reasons that survive verification:
+  (i) stock's three interaction popups (the key-capture window, the conflict confirm, the
+  reset-all confirm) are created in private non-virtual methods with **no substitution seam**
+  (the only virtuals are shouldCommandBeIncluded/isCommandReadOnly/getDescriptionForKeyPress),
+  and the two confirms route through `AlertWindow::showScopedAsync` — the factory path this
+  project already banned for its hard-coded 50 px padding defect (see
+  `rock-hero-editor/ui/src/shared/themed_message_box.h`); (ii) the editor themes per-component
+  with no global default LookAndFeel, so those top-level popups cannot even be color-matched
+  without an app-wide LnF change of far larger blast radius than the dialog; (iii) stock's row
+  and button classes are private, so any future requirement (per-command reset — already in
+  this phase's scope and absent from stock — search, reserved-grammar rows with custom copy)
+  forces the custom rebuild later plus migration; (iv) what stock uniquely provides — the
+  capture/conflict interaction logic — is small and written against the public
+  `KeyPressMappingSet` API our tests already drive. The main tree surface *would* be ~90%
+  themeable via `drawKeymapChangeButton`/TreeView LnF hooks; the popups are the deciding
+  surface. Custom-dialog precedents: themed list views (plugin browser, signal chain,
+  undo-history overlay) and `GameAudioRecommendationDialog` for custom-content themed
+  `AlertWindow` subclasses launched through `showThemedDialogModally` (the capture window's
+  shape). Remove the
   `MainWindow::keyPressed` manual forwarding once dialog-era regression tests prove KPMS parity.
 - **Files/modules**: `rock-hero-editor/ui/src/keybinds/` (dialog + row components),
   `editor_view.cpp` (menu entry), `rock-hero-editor/ui/src/main_window/main_window.cpp` (delete
