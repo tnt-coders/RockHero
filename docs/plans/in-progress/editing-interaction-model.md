@@ -39,13 +39,15 @@ decides what its objects are.
 
 ## One meaning per modifier
 
-Each modifier has exactly one meaning, everywhere:
+Each modifier follows one coherent rule; `Ctrl`'s rule is **operation-based** (settled 2026-07-20 —
+the honest partition that replaced the earlier "one physical meaning everywhere" framing, which the
+measure-jump and select-toggle already contradicted):
 
 | Modifier | Meaning |
 |---|---|
-| **Ctrl** | Precision: bypass grid snap (placement and moves quantize to the 1/960-beat fine grid) — **uniform on every surface** including chart notes (the off-grid unification, 2026-07-18 evening, superseding the same morning's grid-native-authoring exception: snap *default* follows the data's judge, the capability is universal). On the tab lane Ctrl additionally means the selection toggle (on clicks) and the measure jump (on plain arrows) |
+| **Ctrl** | Follows the **operation**. **Precision** (bypass grid snap to the 1/960-beat fine grid) when *placing or moving an object* — pointer placement/drag, `Ctrl+Alt+arrows` object nudge — uniform on every surface. **Reach** (jump to the coarser unit: measure, section, chart bounds, first/last row) when *navigating the caret or extending a selection*. **Toggle** membership when *clicking an existing object*. The three never contend on one target — at any moment you are placing, navigating, or clicking an object — so the operation determines the meaning. (Zoom/grid are a separate view domain, see *Zoom & grid*, where `Ctrl` = zoom.) |
 | **Alt** | Author: the gate that makes pointing-device and arrow input mutate — a held "pencil" quasimode for the pointer (click inserts, wheel adjusts extent) and the mutation gate for arrows (Alt+arrows moves the selection, creating first at an empty armed lane slot). Typing has its own deliberate gate — the armed marker (or an existing selection) — not Alt: one deep rule, *plain input never mutates; every mutation passes a gate*, applied per input family (2026-07-18 framing). Which insert verb a surface gets follows from its payload: a note's discrete fret is keyboard-natural (digits at the caret), a point's continuous value is pointer-natural (Alt+click) — two consistent rules meeting different data, not an inconsistency |
-| **Shift** | Range/constrain: Shift+click selects a time range (Guitar Pro-style, replace semantics, anchored at the last non-Shift selection action — reassigned 2026-07-17, plan 52); axis-lock a 2D drag; composes with Alt for extent resize (Shift+Alt+Left/Right); plain Shift+arrows is reserved for future caret-anchored selection extension |
+| **Shift** | Range/extend/constrain: `Shift+click` and `Shift+arrows` build the **time selection** — a grid-locked, full-height span; a mutually-exclusive *kind* of the one editor-wide selection (settled 2026-07-20; see *Two selection kinds*). `Shift+arrows` extends by the display grid, `Shift+Ctrl+arrows` by measure, `Shift+PageUp/Dn` by section, `Shift+Home/End` to chart bounds; `Shift+Up/Down` is unbound (the range is full-height). Shift also axis-locks a 2D drag and composes with Alt for extent resize (`Shift+Alt+Left/Right`) |
 
 **The two-state marker** (2026-07-17's caret model re-settled 2026-07-18; the authoritative
 record is `docs/plans/in-progress/chart-span-and-selection-model.md` §9/§9a — superseding
@@ -66,10 +68,12 @@ friction rationale (threshold, preview, Esc, single-undo commit). Alt remains th
 gate for move/duration/fret-shift verbs; the Alt insert quasimode and its ghost are retired.
 
 **The marker's row axis** (2026-07-18): the armed caret's vertical coordinate is a **row**, and
-the row space does not end at the last string — it continues down through the visible automation
-lanes (a lane row is identified by its instance + parameter, never its display index). Plain
-Up/Down traverse the whole stack and cross the tab/lanes boundary in both directions;
-Left/Right grid-step and Ctrl+Left/Right measure-jump identically on every row. Clicking an
+the row space does not end at the last string — it continues down through the **tone-region row**
+(2026-07-20; a span-selecting row, see *Tone-region row*) and then the visible automation lanes (a
+lane row is identified by its instance + parameter, never its display index). Plain Up/Down traverse
+the whole stack and cross the string↔tone-region↔lanes boundaries in both directions; `Ctrl+Up/Down`
+jump surface-to-surface; Left/Right grid-step and Ctrl+Left/Right measure-jump identically on every
+row. Clicking an
 automation lane seeks (as before) *and* arms the caret at the nearest grid line on that lane —
 this supersedes the 2026-07-17 "tone/automation surfaces never move the caret" ruling, which
 predates the caret having anywhere to be on those surfaces. Clicking an *object* arms the caret
@@ -83,12 +87,20 @@ remains an authoring verb — Ctrl composes with Alt (Ctrl+Alt+arrows) to fine-s
 and the caret rides the object it sits on through its own nudge. A lane that disappears from
 view dissolves an armed caret on it back to passive.
 
-**One selection, editor-wide** (2026-07-18): exactly one selection exists across all surfaces —
-making a selection anywhere replaces the selection everywhere (chart notes, automation point,
-tone region are alternatives of one editor-core sum type, so two live selections are
-unrepresentable). The old Delete precedence ladder (automation point → chart selection → tone
-region) existed only to disambiguate coexisting selections and is retired: Delete deletes *the*
-selection. The other surface's highlights vanishing when you select elsewhere is itself the
+**One selection, editor-wide** (2026-07-18; two-kind + chain-scope refinement 2026-07-20): exactly
+one selection exists across the timeline surfaces — making a selection anywhere replaces the
+selection everywhere. It is, at any moment, **one of two mutually-exclusive kinds**: an **object
+selection** (chart notes, an automation point-set, or a tone region — the alternatives of one
+editor-core sum type) *or* a **time selection** (a grid-locked, full-height span). Making one
+clears the other; two live selections are unrepresentable. The old Delete precedence ladder
+(automation point → chart selection → tone region) existed only to disambiguate coexisting
+selections and is retired: Delete deletes *the* selection, dispatching on its kind. The **loop
+region** is a separate persistent transport state fed by a time selection, not a third selection.
+The **plugin chain** is *not* part of this editor-wide selection at all — it is a separate **modal
+focus scope** (see *Plugin chain*): drilling into it *parks* the timeline selection rather than
+clearing it, so "one selection, editor-wide" scopes to the timeline, and the active scope
+(timeline vs chain) unambiguously determines what `Delete` and the other verbs act on. The other
+surface's highlights vanishing when you select elsewhere is itself the
 feedback that verbs now aim there — no view disabling, no modes. A deliberate *click* on an
 object arms the caret onto it (both surfaces, 2026-07-18 evening — this narrows the earlier
 "cross-surface selection changes never touch the marker" phrasing: the marker follows deliberate
@@ -119,11 +131,11 @@ Ctrl = precision. Duplication is Ctrl+D on the selection when it arrives.
 | Alt+Shift+wheel | Shift the selection's frets by one per tick, shape-preserving; refuses at fret zero and the fret cap (2026-07-17) | Yes |
 | Double-click on object | Open its primary property editor (rename/pick tone, type BPM); chart notes diverge — double-click selects the chord (containment hierarchy), a span's future double-click opens its name/fingering editor, and there is no note-properties dialog (2026-07-17: derived-over-authored leaves nothing needing a form; bends get direct manipulation later) | Via editor |
 | Delete / Backspace | Delete the selection (THE selection — one exists editor-wide, so there is no precedence ladder; 2026-07-18) | Yes |
-| Insert | Neutral create at an armed empty caret slot: a fret-0 note on the tab lane, an on-curve point on an automation lane; no-op on an occupied slot or while passive — Insert never mutates existing objects (2026-07-18) | Yes |
-| Right-click | Context menu, always; every gesture above has a menu equivalent; never destructive on its own. (Chart lane: deliberately deferred 2026-07-17 — every v1 candidate was a worse path to a direct gesture; lands when techniques give it non-redundant content) | Via menu |
+| Insert | Neutral create at an armed empty caret slot: a fret-0 note on the tab lane, an on-curve point on an automation lane, a **tone change** on the tone-region row (a split — the "empty slot" is a region interior; on an existing change it no-ops); no-op on an occupied slot or while passive. **Insert never mutates an existing object — with one named exception (2026-07-20): a filled *plugin slot*, where Insert = replace-with-confirm** (a plugin is the one object with a useful occupied-slot action) | Yes |
+| Right-click | Context menu, always, on **every** surface — chart lane included (the 2026-07-17 deferral is superseded 2026-07-20). Each menu is a **keybind-discovery surface**: every applicable action lists its **live shortcut** (from the plan-46 command registry), so the menu *teaches the keys* rather than offering only a slower path; never destructive on its own | Via menu |
 | Esc | Cancel the in-flight gesture, restoring pre-gesture state | Reverts preview |
-| Arrow keys | Move the caret: Left/Right to the next stop on the row — the nearer of the adjacent grid line and the row's next authored object (the union stop set, 2026-07-18 evening; off-grid notes/points are first-class stops) — Up/Down across rows — strings first, then the visible automation lanes, crossing the boundary in both directions (2026-07-18 row axis) — Ctrl+Left/Right by one measure (GP jump, skipping intermediate stops of both kinds); selection re-derives from what sits under the caret (2026-07-17 caret model) | No |
-| Shift+arrows | Caret-anchored time selection, text-editor style: extends from the caret's starting grid line while held; release keeps the range; a plain arrow clears it; Shift again resumes (settles plan 52's keyboard creation gesture; builds with the range object) | No |
+| Arrow keys | Move the caret: Left/Right to the next stop on the row (the union stop set — the nearer of the adjacent grid line and the row's next authored object; off-grid notes/points are first-class stops). Up/Down across rows — strings, then the **tone-region row**, then the visible automation lanes, crossing the boundaries in both directions (2026-07-20 row axis). **Reach** jumps (2026-07-20): `Ctrl+Left/Right` by one measure; `PageUp/Dn` by section; `Home/End` to chart start/end (`Ctrl+Home/End` alias them); `Ctrl+Up/Down` jump to the adjacent **surface** (chart ↔ tone-region ↔ lanes). Selection re-derives from what sits under the caret | No |
+| Shift+arrows | Caret-anchored **time selection** (a grid-locked, full-height span — a mutually-exclusive kind, see *Two selection kinds*): `Shift+Left/Right` extends by the display grid, `Shift+Ctrl+Left/Right` by measure, `Shift+PageUp/Dn` by section, `Shift+Home/End` to chart bounds. The anchor snaps to grid even from an off-grid caret. `Shift+Up/Down` is unbound. Making a time selection clears any object selection | No |
 | Digits on empty caret | Exact payload entry, per row kind: on a string row, insert a note with the typed fret (multi-digit window widens the same insert); on an automation lane row, open the typed-value editor seeded with the digit and create-or-retype the point at the caret in the parameter's native units (the double-click editor, reached from the keyboard; 2026-07-18) | Yes |
 | Alt+arrows | Move the selection by one grid step (Ctrl+Alt by the fine step); the vertical axis is the surface's own (string for notes, value for automation points). At an armed *empty* lane slot, create first — the point lands on the curve, then the arrow's nudge applies — so "grab the curve here and pull" is one keystroke, mirroring digits-at-empty-caret as the typing gate (2026-07-18) | Yes |
 | Shift+Alt+Left/Right | Grow/shrink the selected object's extent by one grid step (Ctrl composes the fine step) | Yes |
@@ -143,7 +155,12 @@ selection dispatch, and everything else bubbles them there.
 ## Snapping
 
 - **Snap is always on.** There is no snap toggle; off-grid placement is possible but deliberately
-  not encouraged. Holding **Ctrl** during any placement or move bypasses the visible grid.
+  not encouraged. Holding **Ctrl** during any object placement or move bypasses the visible grid.
+- **The time selection is strictly grid-locked (2026-07-20)** — the one exception to Ctrl-bypass.
+  A range boundary can never be off-grid, on pointer *or* keyboard: the ruler drag is a *selection*,
+  not a placement, so it does not use the `placementModeFor` mapping; `Ctrl`+ruler-drag snaps the
+  range to measures (reach), never off-grid; and a keyboard anchor snaps to grid even from an
+  off-grid caret. (Amends plan 47, which is dropping its `Ctrl`-off-grid range endpoints.)
 - Ctrl placement still quantizes to the **1/960-beat fine grid** so stored positions stay exact
   rationals (`timeline_cursor.cpp` — `g_fine_grid_denominator = 960`). 960 is the standard MIDI
   PPQ resolution, divides every practical straight/triplet/quintuplet subdivision, and lands well
@@ -202,8 +219,9 @@ Verified against the vendored JUCE source — everything needed ships in
   boundary, which the editor refuses — the picker is the payload chooser, exactly as the "+" lane
   picker chooses a parameter. Drag a boundary to move the change (both neighbors adjust; coverage
   stays gap-free). Delete removes the selected change/region and merges left; the region menu
-  mirrors it. Ctrl+T stays as the "insert at playhead" keyboard accelerator. Double-click on a
-  region body keeps its primary-edit meaning (rename prompt today).
+  mirrors it. Ctrl+T stays as the "insert at playhead" keyboard accelerator (guarded against Alt,
+  2026-07-20). Double-click on a region body keeps its primary-edit meaning (rename prompt today).
+  The tone strip is **also a keyboard region-row** now (2026-07-20) — see *Tone-region row*.
 - **Automation lanes** (keyboard-first amendment 2026-07-18 — lanes are full marker rows):
   Alt+click/Alt+drag inserts a point that lands **on the curve** at the snapped x (clamped to
   the active region's window); the drag phase is delta-based (value follows the pointer's
@@ -222,7 +240,11 @@ Verified against the vendored JUCE source — everything needed ships in
   text-to-value handler); the point menu carries Delete / Set Value / Reset to Default. The
   lane's pinned name chip is the lane handle: clicking it opens the lane menu, since empty lane
   space belongs to the seek-and-caret overlay. Positional menu-insert is tone-strip-only; on
-  lanes the insert gestures are Alt and the caret verbs.
+  lanes the insert gestures are Alt and the caret verbs. **Lane additions (2026-07-20):** an
+  always-present focusable **"+ add automation" row** ends the lane stack (`Enter`/`Insert` opens a
+  plugin→parameter picker; descent never skips an empty automation surface, and the no-plugins edge
+  points to the chain); and point **multi-select** joins (`Ctrl`+click toggle + marquee), promoting
+  the point selection from one point to a set so a run of points moves together.
 - **Notes** (implemented 2026-07-16; granularity and span verbs settled 2026-07-17, the
   two-state marker 2026-07-18, both in
   docs/plans/in-progress/chart-span-and-selection-model.md §7/§9/§9a): the lane carries one
@@ -253,15 +275,69 @@ Verified against the vendored JUCE source — everything needed ships in
   move-drag verb points use) is **un-parked and scheduled long-term**
   (docs/plans/todo/tab-pointer-drag-editing.md): the morning's "drag where time is continuous"
   parking rationale dissolved when note time became continuous-capable the same evening.
-  **Sustain tail-drag stays parked**
-  (2026-07-16): the wheel/keyboard verbs cover resizing precisely, and the tail's end zone is a
-  small target that competes with drag-move grabs — a watch item in docs/tracking/watch-items.md
-  holds the trigger for revisiting.
+  **Sustain tail-drag is dropped** (2026-07-20): `Alt`+wheel is the mouse sustain command, so a tail
+  edge-drag would be redundant; the `docs/tracking/watch-items.md` tail-drag trigger is retired.
 - **Ruler bands** (future): anchors per the section above; time signatures are point objects on
   the signature band with double-click = type the signature.
 
-Keyboard accelerators form one family: Ctrl+T inserts a tone change at the playhead, and future
-"insert at playhead" commands follow the same shape for anchors and notes.
+Keyboard accelerators form one family: Ctrl+T inserts a tone change at the playhead (guarded against
+Alt, 2026-07-20 — `Ctrl` and not `Alt`, matching undo/redo), and future "insert at playhead" commands
+follow the same shape for anchors and notes. Ctrl+T (playhead) coexists with the tone-region row's
+`Insert` (at the caret) — different target positions.
+
+## Zoom & grid
+
+A separate **view domain** (settled 2026-07-20, GP-aligned) — not the content grammar, so `Ctrl`
+here means zoom, not precision:
+
+- **Grid size** = `+/-` (main-row `=`/`-`, `Shift+=`, and numpad `+`/`-` — all one command); `+`
+  finer, `-` coarser.
+- **Zoom** = `Ctrl` + `+/-` (and `Ctrl`+wheel), marker-centered; plain wheel keeps zooming.
+- The split is deliberate: on the keyboard `+/-` = grid and `Ctrl+` = zoom (Guitar Pro); on the
+  wheel plain = zoom (every canvas's reflex) — each input's natural primary, which is why the two
+  don't mirror. `[ ]` are freed (grid moved off them); loops stay on the ruler-drag + Loop button.
+
+## Tone-region row
+
+The tone strip is a **selectable region-row** in the vertical stack (settled 2026-07-20; between the
+chart strings and the automation lanes) — a *span* surface, not a point surface, so keyboard access
+is region *selection*, never point-placement. The armed caret is a point (a time on the row); its
+selection is **the region it is inside** (`ToneRegionSelection`, which exists) — a generalization of
+"the object under the caret" from *the point-object at the caret* to *the object occupying the
+caret's position*. A **deliberate caret step re-derives** the region (rides it; crossing a boundary
+re-selects the next region); a passive transport/playback move still clears it (the
+`clearCursorCoupledSelection` rule splits by transport-vs-deliberate-nav). No new marker *kind* — the
+caret stays binary passive/armed. With a region selected:
+
+- `←/→` move the time caret, re-selecting the region under it (how you keyboard-pick a split
+  location); `Ctrl+←/→` measure-jump.
+- `Insert` = split at the caret + open the tone picker (a create — see the Insert row).
+- `Delete` = delete the change (merge into the previous region).
+- `Shift+Alt+←/→` = resize the region by moving its **end** boundary (`Ctrl+Shift+Alt` fine) — the
+  note-sustain parallel.
+- `Enter` = drill into that tone's **signal chain**; `Esc` returns to the region.
+- `Shift+arrows` build the full-height time selection, which clears the region (two-kind rule).
+
+## Plugin chain
+
+The signal-chain panel is a **separate modal focus scope** (settled 2026-07-20; issue A2) — NOT part
+of the one editor-wide selection. It is a *slot* axis (signal order), not a time axis, so it has no
+time caret; which tone's chain you edit follows the playhead. **Enter** on a selected tone region
+drills in (focus the first plugin); **Esc** returns to the region. Entering **parks** (does not
+clear) the timeline selection. The chain is *not* in the arrow flow: `↑/↓` / `Ctrl+↑/↓` do not reach
+it and are inert inside it. **A loud active-scope indicator is mandatory** (slot focus ring + active
+panel + de-emphasized timeline) so `←/→` meaning *slots* (not the time caret) is never a surprise.
+With a plugin slot focused (the chain's own focus, mutually-exclusive with the timeline selection at
+the *scope* level, not a variant of `EditorSelection`):
+
+- `←/→` navigate plugin **slots**; `Alt+←/→` reorder (instance-preserving `MovePlugin` — the drag
+  path's contract).
+- `Enter` opens the plugin window (empty slot → the picker); `Insert` = the plugin picker (empty =
+  create, **filled = replace-with-confirm** — the one named Insert exception).
+- `Delete` removes the plugin (confirmation prompt, justified by slow undo-reload; the remove
+  cascades to the plugin's automation lanes as one undo entry via the existing edit path).
+- Deferred: bypass/enable toggle, `Ctrl+D` duplicate, `Ctrl+C/V` copy-paste, the targeted `Ctrl+↑`
+  drill from a plugin to its lanes.
 
 ## Deferred decisions
 
@@ -269,11 +345,12 @@ Keyboard accelerators form one family: Ctrl+T inserts a tone change at the playh
   the 2026-07-16 amendment discussion). No wheel or button binding pans yet; the candidates that
   fit the grammar are Shift+wheel (horizontal pan as "constrain to axis") and middle-button drag
   (modifier-free). Undecided — pick when charting practice shows panning friction.
-- **Caret-anchored keyboard selection extension** (Shift+arrows sweeping notes into the
-  selection from the caret, text-editor style). Shift+arrows is deliberately kept unbound for
-  this.
-- **Keyboard sustain entry beyond Shift+Alt+arrows** (GP-style +/- keys) — only if practice
-  wants it.
+- **Caret-anchored keyboard selection extension — SETTLED 2026-07-20:** `Shift+arrows` now builds
+  the grid-locked **time selection** (verb table + *One selection, editor-wide*), a mutually-
+  exclusive kind, not an object-sweep. No longer deferred.
+- **Keyboard sustain entry beyond Shift+Alt+arrows** — the GP-style `+/-` keys are now the
+  **grid-size** binding (2026-07-20; see *Zoom & grid*), so sustain entry, if ever wanted, needs a
+  different key.
 - **Friendlier grid-preset names** (user direction 2026-07-18, recorded when the triplet
   presets landed): the grid dropdown currently labels presets as raw fractions ("1/6",
   "1/12"); we should probably provide user-friendly names the way REAPER does ("1/4 triplet",
