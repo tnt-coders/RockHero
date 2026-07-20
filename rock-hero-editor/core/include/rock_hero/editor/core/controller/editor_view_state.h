@@ -633,12 +633,22 @@ struct EditorViewState
     ChartEditViewState chart_edit{};
 
     /*!
+    \brief The grid-locked time-selection span resolved to seconds; absent when none is held.
+
+    A full-height range across every surface (chart, tone, lanes) — a mutually-exclusive kind of
+    the one editor-wide selection (decision D). The endpoints are display-grid positions resolved to
+    seconds so the full-canvas overlay maps them to pixels the same way it maps the cursor,
+    surviving zoom and scroll without a re-push. Present implies selection_present.
+    */
+    std::optional<common::core::TimeRange> time_selection{};
+
+    /*!
     \brief True when the one editor-wide selection resolves to something published.
 
     Derived from the published per-surface states (selected chart notes, a selected tone
-    region, or a resolved automation point), so a stale selection reads as absent exactly as
-    it renders. The view's Delete guard reads this single flag instead of re-deriving the
-    union — an idle Delete keeps propagating to other key consumers.
+    region, a resolved automation point, or a time-selection span), so a stale selection reads as
+    absent exactly as it renders. The view's Delete guard reads this single flag instead of
+    re-deriving the union — an idle Delete keeps propagating to other key consumers.
     */
     bool selection_present{false};
 

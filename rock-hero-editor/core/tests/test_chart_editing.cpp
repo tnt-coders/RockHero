@@ -764,6 +764,160 @@ TEST_CASE("EditorController jumps the caret between sections", "[core][chart]")
     CHECK(caret->seconds == Catch::Approx(12.0));
 }
 
+// Shift+arrows build and extend the grid-locked time selection from the marker: a first press
+// anchors at the paused cursor (measure 1 beat 1 = 0.0s) and extends one unit, later presses grow
+// the focus edge, and Ctrl reaches the measure while Shift+End reaches the chart bound. A refused
+// extend (no section that way) creates no range.
+TEST_CASE("EditorController builds and extends the time selection", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    // A refused first extend (no previous section from the chart start) creates no range.
+    controller.onTimeSelectionExtendRequested(
+        TimeSelectionExtent::Section, ChartStepDirection::Left);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK_FALSE(state->time_selection.has_value());
+
+    // First Shift+Right anchors at the paused cursor (measure 1 beat 1 = 0.0s) and extends one
+    // quarter-note grid step (0.5s at 120 BPM 4/4).
+    controller.onTimeSelectionExtendRequested(TimeSelectionExtent::Grid, ChartStepDirection::Right);
+    REQUIRE(state->time_selection.has_value());
+    CHECK(state->time_selection->start.seconds == Catch::Approx(0.0));
+    CHECK(state->time_selection->end.seconds == Catch::Approx(0.5));
+    CHECK(state->selection_present);
+
+    // A second grid extend grows the range to a half note (1.0s), keeping the anchor.
+    controller.onTimeSelectionExtendRequested(TimeSelectionExtent::Grid, ChartStepDirection::Right);
+    REQUIRE(state->time_selection.has_value());
+    CHECK(state->time_selection->start.seconds == Catch::Approx(0.0));
+    CHECK(state->time_selection->end.seconds == Catch::Approx(1.0));
+
+    // Ctrl reaches the measure unit: extend to the next measure downbeat (measure 2 = 2.0s).
+    controller.onTimeSelectionExtendRequested(
+        TimeSelectionExtent::Measure, ChartStepDirection::Right);
+    CHECK(state->time_selection->end.seconds == Catch::Approx(2.0));
+
+    // Extending Left shrinks the focus back one grid step toward the anchor (measure 1 beat 4 =
+    // 1.5s).
+    controller.onTimeSelectionExtendRequested(TimeSelectionExtent::Grid, ChartStepDirection::Left);
+    CHECK(state->time_selection->start.seconds == Catch::Approx(0.0));
+    CHECK(state->time_selection->end.seconds == Catch::Approx(1.5));
+
+    // Shift+End extends the focus to the chart's terminal downbeat; the anchor stays at 0.0.
+    const common::core::TempoMap& tempo_map = controller.session().song().tempo_map;
+    const auto [end_measure, end_beat] =
+        tempo_map.beatAtGlobalIndex(tempo_map.terminalGlobalBeatIndex());
+    const double chart_end = tempo_map.secondsAtBeat(end_measure, end_beat);
+    controller.onTimeSelectionExtendRequested(
+        TimeSelectionExtent::ChartBound, ChartStepDirection::Right);
+    CHECK(state->time_selection->start.seconds == Catch::Approx(0.0));
+    CHECK(state->time_selection->end.seconds == Catch::Approx(chart_end));
+}
+
+// Building a time selection dissolves the caret (decision D), and a plain arrow then clears the
+// range — the settled "a plain arrow clears it" rule — arming a caret again.
+TEST_CASE(
+    "EditorController time selection dissolves the caret and yields to arrows", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    // Arm a caret mid-song at measure 4 (6.0s) on string 1.
+    click(controller, 120.0f, 220.0f);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    REQUIRE(caretOrNull(state->chart_edit) != nullptr);
+
+    // Shift+Right builds a range anchored at the caret's grid slot (6.0s -> 6.5s) and demotes the
+    // marker to passive: the range dissolves the caret.
+    controller.onTimeSelectionExtendRequested(TimeSelectionExtent::Grid, ChartStepDirection::Right);
+    REQUIRE(state->time_selection.has_value());
+    CHECK(state->time_selection->start.seconds == Catch::Approx(6.0));
+    CHECK(state->time_selection->end.seconds == Catch::Approx(6.5));
+    CHECK(caretOrNull(state->chart_edit) == nullptr);
+
+    // A plain arrow clears the range and arms a caret again (object selection evicts the range).
+    controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
+    CHECK_FALSE(state->time_selection.has_value());
+    CHECK(caretOrNull(state->chart_edit) != nullptr);
+}
+
+// Shift+PageUp/PageDown extend the range by whole sections; an extend with no section in that
+// direction is refused, leaving the range unchanged.
+TEST_CASE("EditorController extends the time selection by section", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    // Sections at measure 3 (4.0s) and measure 7 (12.0s) on the 120 BPM 4/4 fixture.
+    const std::vector<common::core::SongSection> sections{
+        common::core::SongSection{
+            .position = {.measure = 3, .beat = 1, .offset = {}}, .name = "Verse"
+        },
+        common::core::SongSection{
+            .position = {.measure = 7, .beat = 1, .offset = {}}, .name = "Chorus"
+        },
+    };
+    REQUIRE(loadChartArrangement(controller, project_services, audio, sections));
+
+    // First Shift+PageDown anchors at measure 1 beat 1 (0.0s) and extends to the first section
+    // after it (measure 3 = 4.0s).
+    controller.onTimeSelectionExtendRequested(
+        TimeSelectionExtent::Section, ChartStepDirection::Right);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    REQUIRE(state->time_selection.has_value());
+    CHECK(state->time_selection->start.seconds == Catch::Approx(0.0));
+    CHECK(state->time_selection->end.seconds == Catch::Approx(4.0));
+
+    // Again extends to the next section (measure 7 = 12.0s).
+    controller.onTimeSelectionExtendRequested(
+        TimeSelectionExtent::Section, ChartStepDirection::Right);
+    CHECK(state->time_selection->end.seconds == Catch::Approx(12.0));
+
+    // Again -> no section past measure 7: refused, the range stays put.
+    controller.onTimeSelectionExtendRequested(
+        TimeSelectionExtent::Section, ChartStepDirection::Right);
+    REQUIRE(state->time_selection.has_value());
+    CHECK(state->time_selection->end.seconds == Catch::Approx(12.0));
+}
+
 // Playback dissolves the marker's armed state (the marker model): play clears the note
 // selection and demotes the caret to the passive cursor; pause rests passive at the raw stop
 // point — typing is inert there — and the first arrow re-arms at the nearest grid line on the

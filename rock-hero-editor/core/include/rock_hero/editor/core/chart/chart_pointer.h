@@ -119,4 +119,26 @@ enum class ChartCaretJump : std::uint8_t
     NextSection,
 };
 
+/*!
+\brief The unit a Shift+arrow time-selection extend grows the range by.
+
+Each value pairs with a ChartStepDirection (Left = earlier, Right = later) to name the moving
+edge's destination — the same motions the caret jumps use, applied to the range's focus edge
+instead of the caret. ChartBound resolves to the chart start (Left) or end (Right).
+*/
+enum class TimeSelectionExtent : std::uint8_t
+{
+    /*! \brief One display-grid step — Shift+Left/Right. */
+    Grid,
+
+    /*! \brief One measure — Shift+Ctrl+Left/Right. */
+    Measure,
+
+    /*! \brief The previous/next section — Shift+PageUp/PageDown. */
+    Section,
+
+    /*! \brief The chart start/end — Shift+Home/End. */
+    ChartBound,
+};
+
 } // namespace rock_hero::editor::core

@@ -157,6 +157,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // section-relative destination from the tempo map and song sections and arms the caret there,
     // keeping its row. Refuses (stays put) when a section jump has no section in that direction.
     void onChartCaretJumpRequested(ChartCaretJump target);
+    // Extends/creates the grid-locked time selection by one unit (Shift+arrows): moves the range's
+    // focus edge one `extent` in `direction` (or anchors on the marker and extends on the first
+    // press), dissolving any object selection and demoting the marker to passive. Reuses the shared
+    // caret navigation destinations so the range edge and the caret never drift on the same motion.
+    void onTimeSelectionExtendRequested(TimeSelectionExtent extent, ChartStepDirection direction);
     // The one selection-move intent (Alt+arrows): dispatches on the editor-wide selection's
     // kind — automation point, chart notes — and falls back to create-then-nudge at an armed
     // empty lane caret slot. `fine` selects the 1/960-beat tier on the time axis (and the
@@ -213,6 +218,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] ChartSelection& chartSelectionMutable();
     [[nodiscard]] std::string selectedToneRegionId() const;
     [[nodiscard]] const AutomationPointSelection* selectedAutomationPoint() const;
+    [[nodiscard]] const TimeSelection* selectedTimeSelection() const;
     // The one non-chart selection assignment seam: every replacement that does not go through
     // chartSelectionMutable() (whose typing flow maintains its own entry keys) lands here, so
     // the fret-entry invalidation invariant lives in exactly one place.
@@ -693,14 +699,15 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // resume state. Zero means no zoom has been reported or restored (view default applies).
     double m_timeline_zoom_pixels_per_second{0.0};
 
-    // The one editor-wide selection (editor_selection.h): chart notes, a tone region, or an
-    // automation point — never more than one at a time, by construction. Access through the
-    // selection accessors above. Cleared on project load/close and arrangement switches; each
-    // alternative keeps its shipped lifecycle (chart clears on play but survives seeks; the
-    // cursor-coupled kinds clear on any cursor move). While the marker is armed the chart
-    // alternative is exactly what sits under the caret (the marker model): arming onto a note
-    // selects it, onto an empty slot clears it; multi-note selections exist only while the
-    // marker is passive.
+    // The one editor-wide selection (editor_selection.h): chart notes, a tone region, an
+    // automation point, or a grid-locked time span — never more than one at a time, by
+    // construction. Access through the selection accessors above. Cleared on project load/close and
+    // arrangement switches; each alternative keeps its shipped lifecycle (chart notes and the time
+    // span clear on play but survive seeks; the cursor-coupled kinds clear on any cursor move).
+    // While the marker is armed the chart alternative is exactly what sits under the caret (the
+    // marker model): arming onto a note selects it, onto an empty slot clears it; multi-note
+    // selections and the time span exist only while the marker is passive (decision D — a range
+    // dissolves the object selection and demotes the marker).
     EditorSelection m_selection{};
 
     // In-flight tablature pointer gesture: armed on Down, disambiguated into click vs. marquee by
