@@ -325,6 +325,18 @@ public:
     void setRestoredZoomPixelsPerSecond(double pixels_per_second);
 
     /*!
+    \brief Zooms the timeline one keyboard step in or out around the current position.
+
+    The keyboard companion to wheel zoom (the editor grammar's Ctrl+ +/-): one step scales the
+    horizontal density by the same factor as a single wheel notch, keeping the armed caret centered
+    when one exists — else the transport cursor — and reports the change through the zoom-changed
+    callback exactly like a wheel zoom. A no-op without a loaded project.
+
+    \param direction Positive to zoom in (denser), negative to zoom out.
+    */
+    void zoomByStep(int direction);
+
+    /*!
     \brief Paints the area around zoomed content when the viewport is larger than the canvas.
     \param g Graphics context used for drawing.
     */
@@ -367,6 +379,11 @@ private:
 
     // Changes the horizontal timeline scale around the current transport cursor.
     void handleMouseWheelZoom(const juce::MouseWheelDetails& wheel);
+
+    // Scales the horizontal density to a new target around the current position (armed caret when
+    // present, else the transport cursor), clamps to the timeline, relays out, recenters, and
+    // reports the change; shared by wheel zoom and the keyboard zoom step.
+    void applyZoomAroundCursor(double target_pixels_per_second);
 
     // Finds the timeline time at the center of the currently visible viewport.
     [[nodiscard]] double viewportCenterTimeSeconds() const noexcept;
