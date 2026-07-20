@@ -108,6 +108,52 @@ void GridSpacingSelector::setNoteValue(common::core::Fraction note_value)
     refreshDisplayedNoteValue();
 }
 
+// Walks the preset ladder from the applied value in the requested direction (the +/- keyboard
+// step). A free-entry value between presets snaps to the nearest preset in the step direction; at
+// an extreme it clamps to the finest/coarsest preset. Emits through the listener so the applied
+// value still changes only when the controller republishes it, exactly like a combo selection.
+void GridSpacingSelector::stepNoteValue(int direction)
+{
+    if (direction == 0)
+    {
+        return;
+    }
+
+    const double current =
+        static_cast<double>(m_note_value.numerator) / static_cast<double>(m_note_value.denominator);
+
+    if (direction > 0)
+    {
+        // Finer: the coarsest preset strictly smaller than the current value (presets run
+        // coarse -> fine, so the first match walking that order is the nearest finer preset).
+        for (const common::core::Fraction preset : g_note_value_presets)
+        {
+            const double value =
+                static_cast<double>(preset.numerator) / static_cast<double>(preset.denominator);
+            if (value < current)
+            {
+                m_listener.onGridNoteValueChosen(preset);
+                return;
+            }
+        }
+        m_listener.onGridNoteValueChosen(g_note_value_presets.back());
+        return;
+    }
+
+    // Coarser: the finest preset strictly larger than the current value (scan fine -> coarse).
+    for (auto it = g_note_value_presets.rbegin(); it != g_note_value_presets.rend(); ++it)
+    {
+        const double value =
+            static_cast<double>(it->numerator) / static_cast<double>(it->denominator);
+        if (value > current)
+        {
+            m_listener.onGridNoteValueChosen(*it);
+            return;
+        }
+    }
+    m_listener.onGridNoteValueChosen(g_note_value_presets.front());
+}
+
 // Gives the caption a fixed left band and the combo box the remaining strip space.
 void GridSpacingSelector::resized()
 {
