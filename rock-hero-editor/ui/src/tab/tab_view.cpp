@@ -1,6 +1,7 @@
 #include "tab/tab_view.h"
 
 #include "shared/editor_theme.h"
+#include "timeline/timeline_cursor.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -67,6 +68,15 @@ void TabView::setPointerEventCallback(PointerEventCallback on_pointer_event)
     m_on_pointer_event = std::move(on_pointer_event);
 }
 
+void TabView::setCaretMaskCallback(CaretMaskCallback callback)
+{
+    m_caret_mask_callback = std::move(callback);
+    // Seed the sink with the current mask so a callback installed after a caret already exists is
+    // not left believing the column is ungapped.
+    m_published_caret_mask.reset();
+    publishCaretMask();
+}
+
 // Applies the chart-editing overlay state; skipped repaints keep unrelated pushes cheap.
 void TabView::setEditState(core::ChartEditViewState edit)
 {
@@ -77,6 +87,9 @@ void TabView::setEditState(core::ChartEditViewState edit)
 
     m_edit = std::move(edit);
     repaint();
+    // The overlay carries the caret; push its fresh mask now so the paused column's cut-out
+    // changes in the same synchronous pass as the drawn square, never a frame behind it.
+    publishCaretMask();
 }
 
 // With a chart displayed the lane claims its whole band — while paused a click arms the caret
@@ -179,6 +192,11 @@ void TabView::setVisibleTimeline(common::core::TimeRange visible_timeline)
 
     m_visible_timeline = visible_timeline;
     repaint();
+    // The caret's y-span is timeline-invariant, so this is a fire-on-change no-op on ordinary
+    // zoom/scroll; it exists to cover the one timeline-driven change to the mask — the
+    // duration<=0 presence flip caretMaskYRange() and paint() both gate on — so the tab lane needs
+    // no per-frame safety net to stay decoupled from the viewport's geometry polling.
+    publishCaretMask();
 }
 
 // Applies the current tab projection and lane-count preference; the projection pointer only
@@ -201,6 +219,9 @@ void TabView::setState(
     }
 
     repaint();
+    // The displayed string count sets the row layout the caret square rides, so a projection or
+    // lane-count change can move the mask even with the caret slot unchanged.
+    publishCaretMask();
 }
 
 // Guards the empty cases, derives the shared metrics, and delegates the drawing to the shared
@@ -340,6 +361,34 @@ std::optional<juce::Range<float>> TabView::caretMaskYRange() const
     // under the outline.
     const float stroke_reach = overlayRingStroke(square->getWidth()) / 2.0f;
     return juce::Range<float>{square->getY() - stroke_reach, square->getBottom() + stroke_reach};
+}
+
+// Translates the local caret mask into content coordinates and pushes it only when it changed.
+void TabView::publishCaretMask()
+{
+    const std::optional<juce::Range<float>> local = caretMaskYRange();
+    const std::optional<juce::Range<float>> content =
+        local.has_value() ? std::optional<juce::Range<float>>{*local + static_cast<float>(getY())}
+                          : std::nullopt;
+    if (sameCaretMask(content, m_published_caret_mask))
+    {
+        return;
+    }
+    m_published_caret_mask = content;
+    if (m_caret_mask_callback)
+    {
+        m_caret_mask_callback(content);
+    }
+}
+
+void TabView::moved()
+{
+    publishCaretMask();
+}
+
+void TabView::resized()
+{
+    publishCaretMask();
 }
 
 // The caret square: centered on the caret's slot, one pixel larger than a note head so it

@@ -370,6 +370,31 @@ void TrackViewport::setArmedChartCaret(std::optional<double> seconds)
     updateRulerCursor();
 }
 
+// The caret-bearing views push their paused-column cut-out spans here whenever they change, so the
+// paused cursor's gap is kept in step with the drawn caret square without the viewport ever polling
+// sibling geometry. The push carries the fresh mask in the same synchronous pass as the square, so
+// no state-application order can leave the gap a frame behind (the earlier defect); updateRulerCursor
+// then folds it into its memo key so a mask-only change is never skipped.
+void TrackViewport::setTabCaretMask(std::optional<juce::Range<float>> mask)
+{
+    if (sameCaretMask(mask, m_tab_caret_mask))
+    {
+        return;
+    }
+    m_tab_caret_mask = mask;
+    updateRulerCursor();
+}
+
+void TrackViewport::setAutomationCaretMask(std::optional<juce::Range<float>> mask)
+{
+    if (sameCaretMask(mask, m_automation_caret_mask))
+    {
+        return;
+    }
+    m_automation_caret_mask = mask;
+    updateRulerCursor();
+}
+
 // Forwards the tab-derived chord/arpeggio name chips to the pinned ruler, which renders them
 // in its bottom tick band directly above the tablature lane.
 void TrackViewport::setShapeLabels(std::vector<RulerShapeLabel> labels)
@@ -898,52 +923,41 @@ void TrackViewport::updateRulerCursor()
     const double mark_seconds =
         playing ? m_transport.position().seconds
                 : m_armed_caret_seconds.value_or(m_transport.position().seconds);
-    // A stationary tick (paused, no caret, nothing moved or resized) skips the mark push and
-    // the caret-mask derivation below — this runs at vblank cadence, and idle frames must not
-    // rebuild lane extents. An armed caret always re-derives: its square can move without any
-    // key input changing (a value edit at the caret slot shifts the on-curve y).
+    // The caret masks arrive pushed from the caret-bearing views (already in content coordinates),
+    // so this never polls their geometry — the gap can no longer be derived from a caret a view has
+    // not adopted yet. At most one is set at a time (one marker editor-wide); the tab lane wins if
+    // both ever were. The paused column shows while paused when a chart occupies the highway band
+    // or a lane caret is armed (a chartless arrangement's lane caret switches the indicator to the
+    // masked column too); the overlay's moving line takes over in front while playing. While a
+    // caret is armed the column rides its slot with the square's own span cut out — ONLY the cursor
+    // hides behind the caret, so the grid and strings it overlaps keep showing.
+    const std::optional<juce::Range<float>>& automation_mask = m_automation_caret_mask;
+    const bool paused_column_visible =
+        !playing && (m_tab_displayed_strings > 0 || automation_mask.has_value());
+    const std::optional<juce::Range<float>> caret_mask_y =
+        paused_column_visible ? (m_tab_caret_mask.has_value() ? m_tab_caret_mask : automation_mask)
+                              : std::nullopt;
+
+    // The caret mask is part of the key, so a mask change (arm, clear, or a value edit shifting the
+    // square's y) re-runs the derivation even at an unchanged mark — no push order can leave the gap
+    // stale. A stationary paused tick with no caret still short-circuits; an armed caret always
+    // re-derives (its square can move via live tracking without any of these inputs changing).
     const RulerCursorKey key{
         .playing = playing,
         .mark_seconds = mark_seconds,
         .range = m_timeline_range,
         .width = m_content.getWidth(),
+        .caret_mask = caret_mask_y,
     };
     if (!m_armed_caret_seconds.has_value() && m_last_ruler_cursor_key == key)
     {
         return;
     }
     m_last_ruler_cursor_key = key;
-    m_timeline_ruler.setCursorPosition(common::core::TimePosition{mark_seconds}, !playing);
 
-    // The same marker position feeds the behind-content paused column: hidden during playback
-    // (the overlay's moving line takes over in front) and — unless a lane caret is armed —
-    // without a chart (the overlay keeps the chartless paused line as the only indicator).
-    // While a caret is armed the column rides the caret's slot, with the square's own span cut
-    // out of it — ONLY the cursor hides behind the caret; the owning view reports the span
-    // since it owns the geometry. A lane caret in a chartless arrangement (mouse-armed —
-    // automation lanes need no chart) switches the indicator to the masked column too, so the
-    // overlay's front line can never draw through the caret square.
-    const std::optional<juce::Range<float>> tab_mask = m_tab_view.caretMaskYRange();
-    const std::optional<juce::Range<float>> automation_mask =
-        m_tone_automation_lanes_view.caretMaskYRange();
-    const bool paused_column_visible =
-        !playing && (m_tab_displayed_strings > 0 || automation_mask.has_value());
+    m_timeline_ruler.setCursorPosition(common::core::TimePosition{mark_seconds}, !playing);
     m_cursor_overlay.setPausedCursorHidden(
         m_tab_displayed_strings > 0 || automation_mask.has_value());
-    std::optional<juce::Range<float>> caret_mask_y{};
-    if (paused_column_visible)
-    {
-        // At most one of the two surfaces publishes a caret at a time (one marker).
-        if (tab_mask.has_value())
-        {
-            caret_mask_y = *tab_mask + static_cast<float>(m_tab_view.getY());
-        }
-        else if (automation_mask.has_value())
-        {
-            caret_mask_y =
-                *automation_mask + static_cast<float>(m_tone_automation_lanes_view.getY());
-        }
-    }
     m_content.setPausedCursorX(
         paused_column_visible
             ? cursorXForTimelinePosition(
