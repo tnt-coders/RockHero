@@ -7,6 +7,13 @@ recommendations and are mirrored into docs/plans/roadmap/00-roadmap.md (Decision
 executable now and is coordinated with docs/plans/roadmap/21-game-audio-engine-and-session.md Phase 1 and
 docs/plans/roadmap/28-practice-mode.md Phase 2 by the whichever-executes-first rule in Decisions below.
 
+> **AMENDED 2026-07-20 by the settled editor keymap** (see
+> docs/plans/roadmap/53-editor-keyboard-and-pointer-completion.md and
+> docs/plans/in-progress/keymap-matrix.md). The time selection is now **strictly grid-locked** on
+> pointer AND keyboard — **drop decision 5's `Ctrl`-off-grid range endpoints**; the ruler drag is a
+> *selection* (grid-locked semantics; `Ctrl`+ruler-drag = measure-snap), not a `placementModeFor`
+> placement. Re-read plan 53 + the interaction-model fold-in before executing Phases 2–4.
+
 ## 2. Goal
 
 Looping works in both products. This plan owns (1) the shared loop-range backend on the common
