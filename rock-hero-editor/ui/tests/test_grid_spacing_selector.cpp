@@ -97,6 +97,49 @@ TEST_CASE("GridSpacingSelector ignores unchanged entry", "[ui][grid-spacing]")
     CHECK(box.getText() == juce::String{"1/4"});
 }
 
+// Verifies the +/- keyboard step walks the preset ladder in the requested direction, snaps a
+// free-entered value to the nearest preset that way, and stays inert (never re-emits, never
+// inverts) once no preset lies further in that direction.
+TEST_CASE("GridSpacingSelector steps the preset ladder", "[ui][grid-spacing]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    RecordingGridListener listener;
+    GridSpacingSelector selector{listener};
+
+    // Finer from a preset lands on the next finer preset (1/8 -> 1/12, the interleaved triplet);
+    // coarser lands on the next coarser preset (1/8 -> 1/6).
+    selector.setNoteValue(common::core::Fraction{1, 8});
+    selector.stepNoteValue(1);
+    CHECK(listener.last_note_value == std::optional{common::core::Fraction{1, 12}});
+    selector.setNoteValue(common::core::Fraction{1, 8});
+    selector.stepNoteValue(-1);
+    CHECK(listener.last_note_value == std::optional{common::core::Fraction{1, 6}});
+
+    // A free-entered value between presets snaps to the nearest preset in the step direction:
+    // 3/16 (between 1/4 and 1/6) steps finer to 1/6 and coarser to 1/4.
+    selector.setNoteValue(common::core::Fraction{3, 16});
+    selector.stepNoteValue(1);
+    CHECK(listener.last_note_value == std::optional{common::core::Fraction{1, 6}});
+    selector.setNoteValue(common::core::Fraction{3, 16});
+    selector.stepNoteValue(-1);
+    CHECK(listener.last_note_value == std::optional{common::core::Fraction{1, 4}});
+
+    // At the ladder ends the step is inert — no re-emit of the current preset.
+    const int count_before_ends = listener.chosen_count;
+    selector.setNoteValue(common::core::Fraction{1, 128}); // finest preset
+    selector.stepNoteValue(1);                             // no finer preset exists
+    selector.setNoteValue(common::core::Fraction{1, 4});   // coarsest preset
+    selector.stepNoteValue(-1);                            // no coarser preset exists
+    CHECK(listener.chosen_count == count_before_ends);
+
+    // A free-entered value past a ladder end never snaps back against the step direction.
+    selector.setNoteValue(common::core::Fraction{1, 256}); // finer than every preset
+    selector.stepNoteValue(1);                             // inert (would have inverted to 1/128)
+    selector.setNoteValue(common::core::Fraction{1, 2});   // coarser than every preset
+    selector.stepNoteValue(-1);                            // inert (would have inverted to 1/4)
+    CHECK(listener.chosen_count == count_before_ends);
+}
+
 // Verifies the default grid displays as 1/4 and entries forward the raw note value unchanged:
 // the note value is the product-wide grid unit, so the view performs no conversion.
 TEST_CASE("EditorView grid selector forwards note values", "[ui][editor-view]")

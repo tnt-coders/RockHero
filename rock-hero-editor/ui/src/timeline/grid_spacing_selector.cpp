@@ -109,9 +109,12 @@ void GridSpacingSelector::setNoteValue(common::core::Fraction note_value)
 }
 
 // Walks the preset ladder from the applied value in the requested direction (the +/- keyboard
-// step). A free-entry value between presets snaps to the nearest preset in the step direction; at
-// an extreme it clamps to the finest/coarsest preset. Emits through the listener so the applied
-// value still changes only when the controller republishes it, exactly like a combo selection.
+// step). A free-entry value between presets snaps to the nearest preset in the step direction; when
+// no preset lies strictly in that direction — already at or past the finest/coarsest preset — the
+// step does nothing rather than snapping back against the requested direction (which a free-entered
+// value past 1/128 or coarser than 1/4 would otherwise do). Presets and the applied value compare
+// as exact rationals through Fraction's ordering. Emits through the listener so the applied value
+// still changes only when the controller republishes it, exactly like a combo selection.
 void GridSpacingSelector::stepNoteValue(int direction)
 {
     if (direction == 0)
@@ -119,39 +122,31 @@ void GridSpacingSelector::stepNoteValue(int direction)
         return;
     }
 
-    const double current =
-        static_cast<double>(m_note_value.numerator) / static_cast<double>(m_note_value.denominator);
-
     if (direction > 0)
     {
-        // Finer: the coarsest preset strictly smaller than the current value (presets run
+        // Finer: the coarsest preset strictly smaller than the applied value (presets run
         // coarse -> fine, so the first match walking that order is the nearest finer preset).
         for (const common::core::Fraction preset : g_note_value_presets)
         {
-            const double value =
-                static_cast<double>(preset.numerator) / static_cast<double>(preset.denominator);
-            if (value < current)
+            if (preset < m_note_value)
             {
                 m_listener.onGridNoteValueChosen(preset);
                 return;
             }
         }
-        m_listener.onGridNoteValueChosen(g_note_value_presets.back());
         return;
     }
 
-    // Coarser: the finest preset strictly larger than the current value (scan fine -> coarse).
-    for (auto it = g_note_value_presets.rbegin(); it != g_note_value_presets.rend(); ++it)
+    // Coarser: the finest preset strictly larger than the applied value (scan fine -> coarse).
+    for (auto preset = g_note_value_presets.rbegin(); preset != g_note_value_presets.rend();
+         ++preset)
     {
-        const double value =
-            static_cast<double>(it->numerator) / static_cast<double>(it->denominator);
-        if (value > current)
+        if (*preset > m_note_value)
         {
-            m_listener.onGridNoteValueChosen(*it);
+            m_listener.onGridNoteValueChosen(*preset);
             return;
         }
     }
-    m_listener.onGridNoteValueChosen(g_note_value_presets.front());
 }
 
 // Gives the caption a fixed left band and the combo box the remaining strip space.

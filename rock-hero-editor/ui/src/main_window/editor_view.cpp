@@ -1152,6 +1152,9 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
     // character, and the numpad add/subtract keys (either the numberPad* codes or '+'/'-'
     // characters depending on WM_CHAR timing) — so the match is the union of all of them; with
     // Ctrl held the text character is unreliable, which is why the key code carries it there.
+    // Because the match is on the unshifted key code, Shift+'-' (its '_') also steps the grid
+    // coarser, symmetric with Shift+'=' ('+') stepping finer — a provisional alias flagged for
+    // matrix sign-off, not a bound key.
     if (!key.getModifiers().isAltDown())
     {
         const int key_code = key.getKeyCode();
@@ -1182,10 +1185,12 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
     // Caret jumps (settled 2026-07-20): Home/End leap the caret to the chart's start/end,
     // PageUp/Dn to the previous/next section. Ctrl+Home/End alias Home/End — a held-Ctrl nav that
     // did nothing would read as broken (decision A) — so the key code alone routes them and Ctrl
-    // rides along. Shift belongs to the time-selection family (Shift+Home/End, Shift+PageUp/Dn
-    // extend the range) and Alt is the authoring gate, so both are excluded here and fall through.
-    // The controller resolves each destination and no-ops without a chart or while playing, so the
-    // view forwards directly.
+    // rides along. The same key-code-only match means Ctrl+PageUp/Dn ride along too: an unlisted
+    // alias, provisional pending matrix sign-off (the same no-dead-Ctrl-nav logic covers it, but
+    // the matrix bound only Ctrl+Home/End). Shift belongs to the time-selection family
+    // (Shift+Home/End, Shift+PageUp/Dn extend the range) and Alt is the authoring gate, so both
+    // are excluded here and fall through. The controller resolves each destination and no-ops
+    // without a chart or while playing, so the view forwards directly.
     if (!key.getModifiers().isShiftDown() && !key.getModifiers().isAltDown())
     {
         if (key.isKeyCode(juce::KeyPress::homeKey))
