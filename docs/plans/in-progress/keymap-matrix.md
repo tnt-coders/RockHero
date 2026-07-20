@@ -59,19 +59,23 @@ Point-caret lives on chart + lanes; the tone strip participates as a selectable 
 | `Ctrl+←/→` | → **measure** jump | → **measure** jump | `✗` | Live |
 | `↑` / `↓` | → adjacent string (crosses into lanes at the edge) | → adjacent lane (crosses into strings at the edge) | `✗` | Live |
 | `Ctrl+↑/↓` | → adjacent **surface** (chart ↔ tone-region ↔ lanes) | → adjacent **surface** | → region-row | `Δ` (replaces the dead first/last-row no-op) |
-| `PageUp` / `PageDn` | → prev / next **section** | → prev / next **section** | `✗` | `✚` |
-| `Home` / `End` | → chart **start / end** | → chart **start / end** | `✗` | `✚` |
-| `Ctrl+Home` / `Ctrl+End` | chart start / end (alias) | chart start / end (alias) | `✗` | `✚` |
+| `PageUp` / `PageDn` | → prev / next **section** | → prev / next **section** | `✗` | Live (ae0e7ad5; Ctrl also rides along as an alias — unlisted here, confirm) |
+| `Home` / `End` | → chart **start / end** | → chart **start / end** | `✗` | Live (ae0e7ad5) |
+| `Ctrl+Home` / `Ctrl+End` | chart start / end (alias) | chart start / end (alias) | `✗` | Live (ae0e7ad5) |
 
 ## Time selection (one full-height span — crosses every surface, so not per-surface)
 
 | Keybind | Behavior | Status |
 |---|---|---|
-| `Shift+←/→` | extend time-range by the **display grid** | `✚▷52` |
-| `Shift+Ctrl+←/→` | extend time-range by **measure** | `✚▷52` |
-| `Shift+PageUp/Dn` | extend time-range by **section** | `✚` |
-| `Shift+Home` / `Shift+End` | extend time-range to chart **start / end** | `✚` |
-| `Shift+↑/↓` | *(nothing — the range is full-height; no vertical extension)* | `—` unbound |
+| `Shift+←/→` | extend time-range by the **display grid** | Live (759b145f) |
+| `Shift+Ctrl+←/→` | extend time-range by **measure** | Live (759b145f) |
+| `Shift+PageUp/Dn` | extend time-range by **section** | Live (759b145f) |
+| `Shift+Home` / `Shift+End` | extend time-range to chart **start / end** | Live (759b145f) |
+| `Shift+↑/↓` | *(nothing — the range is full-height; no vertical extension)* | `—` unbound (confirmed) |
+
+*(759b145f ships conservative defaults on the unsigned sub-decisions, flagged for review:
+typing with a range is inert (52-Q11), Delete over a range is a no-op pending plan 52's
+content-delete, and the extend is paused-only.)*
 
 ## Authoring — move / resize / fret (acts on the object selection)
 
@@ -135,9 +139,9 @@ Point-caret lives on chart + lanes; the tone strip participates as a selectable 
 | `Esc` | cancel gesture → disarm caret → clear selection | Live |
 | `F3` / `F8` | toggle 3D preview / undo-history inspector | Live |
 | plain wheel | zoom, marker-centered | Live |
-| `Ctrl`+wheel | zoom (browser reflex — same as plain wheel) | `✚` |
-| `=` / `-` · `Shift+=` (`+`) · numpad `+`/`-` | **grid** finer (`+`) / coarser (`-`) | `✚` |
-| `Ctrl+=` / `Ctrl+-` · `Ctrl`+numpad `+`/`-` | **zoom** in / out, marker-centered | `✚` |
+| `Ctrl`+wheel | zoom (browser reflex — same as plain wheel) | Live |
+| `=` / `-` · `Shift+=` (`+`) · numpad `+`/`-` | **grid** finer (`+`) / coarser (`-`) | Live (23d3ed7b/44f24ab6; `Shift+-` also matches via key code — harmless, confirm) |
+| `Ctrl+=` / `Ctrl+-` · `Ctrl`+numpad `+`/`-` | **zoom** in / out, marker-centered | Live (44f24ab6) |
 | `[` / `]` | **free** — grid moved to `+/-` | `—` |
 | `L`, `B` | reserved (link/slide, pencil) — unbound | `—` |
 

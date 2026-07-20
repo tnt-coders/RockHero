@@ -211,6 +211,8 @@ and \ref guide_add_file answers where its files live.
 |---|---|---|
 | Add/change an editor operation | \ref guide_action_anatomy | \ref guide_add_action |
 | Add or change a keyboard shortcut | \ref guide_keyboard | its silent steps |
+| Add a pointer gesture / editing verb | \ref guide_2d_views | \ref guide_add_gesture |
+| Add a prompt or confirmation flow | \ref guide_action_anatomy | \ref guide_add_prompt |
 | Add UI to the editor's timeline stack | \ref guide_2d_views | \ref guide_add_view |
 | Add any other editor UI | \ref guide_action_anatomy | \ref guide_add_view |
 | Work on plugins or the signal chain | \ref guide_signal_chain | its extension checklist |
@@ -221,7 +223,9 @@ and \ref guide_add_file answers where its files live.
 | Add or change persisted song/package data | \ref guide_file_formats | \ref guide_package_format |
 | Touch anything timing- or tempo-related | \ref guide_musical_time | \ref guide_2d_views |
 | Make something undoable | \ref guide_undo | its silent steps |
-| Build game-side behavior (menus, session, library) | \ref guide_game | the recipes it maps |
+| Build game-side behavior (menus, session, settings) | \ref guide_game | its silent steps |
+| Touch the game shell, frame loop, or input pump | \ref guide_game_shell | \ref guide_game |
+| Touch the song library or scan pipeline | \ref guide_game_library | its silent steps |
 | Touch busy operations or async work | \ref guide_invariants | \ref guide_patterns |
 
 # Deep Dives
@@ -254,11 +258,16 @@ tours, then use the recipes as checklists while you work:
 - \subpage guide_undo — the unified memento history and the engine's capture machinery.
   *(Editor-only)*
 - \subpage guide_game — what is different on the game side. *(Game)*
+- \subpage guide_game_shell — the SDL3 frame loop, the JUCE pump, and teardown order. *(Game)*
+- \subpage guide_game_library — the song library, peek reader, and scan pipeline. *(Game)*
 
 **Recipes**
 
 - \subpage guide_add_action — checklist for a new editor operation. *(Editor-only)*
 - \subpage guide_add_view — checklist for a new editor UI component. *(Editor-only)*
+- \subpage guide_add_gesture — checklist for a new pointer gesture or editing verb.
+  *(Editor-only)*
+- \subpage guide_add_prompt — checklist for a new prompt or confirmation flow. *(Editor-only)*
 - \subpage guide_add_port — checklist for new audio-engine capability. *(Repo-wide)*
 - \subpage guide_package_format — checklist for song/package format changes. *(Repo-wide)*
 - \subpage guide_add_file — where files go and what registers them. *(Repo-wide)*

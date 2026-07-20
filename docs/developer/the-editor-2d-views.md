@@ -112,6 +112,38 @@ nothing. The rule that keeps the memo honest: **every input of the derived value
 field of the key** — the pushed caret mask is one — because a missing field freezes the output,
 and a frozen derivation shows up as a *lingering* (not one-frame) paint glitch.
 
+# One selection, editor-wide
+
+Exactly one selection exists across all surfaces:
+`EditorSelection = std::variant<std::monostate, ChartSelection, ToneRegionSelection,
+AutomationPointSelection, TimeSelection>` (`editor/core/src/controller/editor_selection.h`).
+Making a selection anywhere replaces it everywhere — two live selections are unrepresentable —
+and verbs (Delete, Alt+arrow moves) dispatch on whichever alternative is active.
+
+**Adding a selection kind is the highest silent-fan-out change in the editor.** Because dispatch
+is `std::visit`/`holds_alternative`, a new alternative compiles clean nearly everywhere it is
+forgotten. The touchpoints:
+
+1. The variant + the new struct in `editor_selection.h`, identified by *value* (ids, exact grid
+   position), never by display index, so it survives rebuild pushes.
+2. Assignment through `setSelection` (the one non-chart seam — it carries the fret-entry
+   invalidation invariant) and the accessors/clears around it in `editor_controller_impl.h`.
+3. The verb dispatches: `onSelectionDeleteRequested` and `onSelectionMoveRequested` — a missing
+   arm means Delete/moves silently no-op on the new kind.
+4. An Esc-ladder rung (\ref guide_keyboard).
+5. The `selection_present` derivation in `deriveViewState()` — the view's Delete/Esc guards
+   read this one flag.
+6. **The lifecycle rules** — the subtlest step. Each kind declares what clears it: on play, on
+   seek, on cursor move, on project load/close/arrangement switch (the per-kind split is
+   documented at the top of `editor_selection.h` and in `clearCursorCoupledSelection`). A kind
+   that forgets to pick dies stale on screen.
+7. The view-side highlight render, and tests covering the dispatches plus the lifecycle clears.
+
+The `TimeSelection` alternative (Shift+arrows, 2026-07-20) is the newest worked example: a
+grid-locked anchor/focus span, mutually exclusive with object selection by construction, whose
+creation demotes the marker to passive through the seek-preserving dissolve
+(`dissolveChartCaretInPlace`) — building a range and pressing Space plays from the range.
+
 # The rows
 
 ## Waveform — `ArrangementView`

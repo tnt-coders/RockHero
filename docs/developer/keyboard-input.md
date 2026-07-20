@@ -88,12 +88,24 @@ path is nothing but *one more trigger* for an action; the policy all lives downs
 
 Ctrl+T (insert a tone change at the playhead) is decoded in the same hub but opens a UI popup
 (the tone picker) before any action runs, and F3/F8 toggle UI panels directly — trigger-only
-keys with no core policy.
+keys with no core policy. Two more UI-only families live here: plain `+`/`-` steps the grid one
+preset finer/coarser through `GridSpacingSelector::stepNoteValue` (emitting via the selector's
+listener, the same path as a combo pick, so the controller still owns the applied value), and
+`Ctrl`+`+`/`-` zooms through `TrackViewport::zoomByStep` — the keyboard twin of Ctrl+wheel,
+sharing its clamp/recenter/report path. The `+`/`-` match is deliberately a union of key codes,
+text characters, and numpad codes, because JUCE reports these keys differently across layouts
+and the text character is unreliable while Ctrl is held.
 
 # Path (b): keys that drive the caret grammar
 
-Arrows, Alt+arrows, Alt+Shift+arrows, digits, Delete, Insert, and Esc are not editor actions.
-They route to dedicated controller intents — `onChartCaretStepRequested`,
+Arrows, Home/End, PageUp/PageDown, their Shift time-selection forms, Alt+arrows,
+Alt+Shift+arrows, digits, Delete, Insert, and Esc are not editor actions. They route to
+dedicated controller intents —
+`onChartCaretStepRequested`, `onChartCaretJumpRequested(ChartCaretJump)` (the Home/End and
+PageUp/Down leaps, one sum type over start/end/previous-section/next-section),
+`onTimeSelectionExtendRequested` (Shift+ the same navigation family: grid, measure, section,
+and chart-bound extends of the grid-locked `TimeSelection` — the range edge reuses the caret's
+shared destination helpers, so the two can never drift on the same motion),
 `onSelectionMoveRequested`, `onChartSustainAdjustRequested(direction, fine)`,
 `onChartFretShiftRequested`, `onChartFretDigitTyped`, `onSelectionDeleteRequested`,
 `onNeutralInsertRequested`, `onChartEscapePressed` — implemented in editor core against the
@@ -167,8 +179,10 @@ this list when the trigger is a key:
    operation-not-key rule.
 2. **Route it to an intent.** An existing operation → call its controller intent. A new
    operation → build the action first (\ref guide_add_action); the keybind is only its trigger.
-   A new caret verb → a new `on...Requested` intent on `IEditorController` implemented against
-   the marker state machine, plus the `RecordingEditorController` override.
+   A new caret verb → a new `on...Requested` intent on `IEditorController` — the pure virtual
+   forces the `EditorController` public forwarder, the `Impl` member (where the behavior
+   lives), and the `RecordingEditorController` override — implemented against the marker state
+   machine.
 3. **Decide the gating layer.** Pipeline-gated action, view pre-gate flag (extend
    `EditorViewState` + `deriveViewState()` if the view must know), or core self-gate for caret
    intents — and remember dead keys should return `false`, not be swallowed.
@@ -187,3 +201,12 @@ enum for gameplay and passes raw keycodes to `MenuBindings`
 (`rock-hero-game/core/.../input/menu_bindings.h`) — a headless, rebindable trigger→action
 resolver for menus. That resolver is the shape plan 46 considers generalizing; nothing is shared
 today.
+
+Adding a game input touches **two channels**, and the event struct is the silent trap:
+`GameWindowEvents` carries both `keys_pressed` (mapped `GameKey`, for gameplay) and
+`key_codes_pressed` (raw codes, for the menu resolver), populated together in `pollEvents`. The
+gameplay chain is compiler-guarded (`GameKey` enumerator → `toGameKey` switch → the exhaustive
+switch in `Game::handleWindowEvents`); the menu chain is not (a `MenuAction` enumerator, its
+default binding in the `Game` constructor, and its arm in `SongSelectMenu::handle` are all
+silent). A key wired into only one channel works in gameplay but not menus, or vice versa. See
+\ref guide_game.
