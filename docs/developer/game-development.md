@@ -20,7 +20,8 @@ it does not edit it.
   `common::audio::rebuildToneAutomationCurves()` — the game-side analogue of the editor's
   post-load rebuild.
 - **The library subsystem** (`rock-hero-game/core/src/library/`) scans package directories using
-  the fast peek reader (`PackageDescription`) and projects entries for the menus.
+  the fast peek reader (`PackageDescription`) and projects entries for the menus — toured in
+  \ref guide_game_library.
 - **`rock-hero-game/ui`** is SDL3 + bgfx, not JUCE: the game window, menus, overlays, and the 3D
   note highway. The highway renderer itself is shared presentation code in
   `rock-hero-common/ui` (the editor's 3D preview uses the same renderer).
@@ -28,10 +29,13 @@ it does not edit it.
   audio adapter yet; planned analysis work (pitch/onset detection) will live there.
 - **`rock-hero-game/app/main.cpp`** composes it all: one `Engine`, the session, the window.
 
-*Design in flux: today the game shell constructs its own adapters and resources; it is decided
-(`docs/tracking/watch-items.md`) that composition moves to `app/main.cpp` with plan 21 Phase 6,
-leaving the shell only the frame loop and input wiring. Don't build against the current
-composition shape.*
+The plan 21 Phase 6 composition split is realized: `app/main.cpp` composes the audio side — the
+`Engine`, `LiveInputMonitor`, `GameplaySession`, workspace paths, and the startup library scan —
+and injects non-owning references into the shell, while `ui/src/surface/rock_hero_game.cpp`
+composes only the render stack (window, device, resources, renderer) in `onInit`. New
+dependencies follow that split: audio/session/library wiring belongs in `main.cpp`,
+render-resource wiring in the shell. The shell's frame loop itself is toured in
+\ref guide_game_shell.
 
 # Supporting systems
 
@@ -61,11 +65,75 @@ Small headless pieces every game feature ends up touching:
 
 # Dev tooling
 
-`rock-hero-game/ui/src/dev/dev_session.cpp` implements `--dev-package`: load a package straight
-from disk with hot reload and a stand-in clock — the fastest loop for iterating on highway
-rendering. `ui/src/overlay/diagnostics_overlay.cpp` draws the screen-space frame-time graph over
+`rock-hero-game/ui/src/dev/dev_session.cpp` backs the `--dev-package` fixture path (parsed in
+`app/main.cpp`, consumed during `Game` construction): load a package straight from disk with hot
+reload and a stand-in clock — the fastest loop for iterating on highway rendering.
+`ui/src/overlay/diagnostics_overlay.cpp` draws the screen-space frame-time graph over
 the scene (fed by `FrameClock`'s pacing stats). Both are dev-only surfaces; neither participates
 in the shipped menu flow.
+
+# Adding a menu screen
+
+Be aware of what does *not* exist: there is no menu stack, no screen framework. The game has
+exactly two modes gated by a single `m_in_menu` bool (`ui/src/game/game.h`), and one concrete
+menu — `SongSelectMenu` (`core/src/menu/song_select_menu.cpp`) with its two-value
+`SongSelectScreen` enum. A new screen (pause, settings, results) is hand-wired, and every
+touchpoint is silent:
+
+1. The screen's headless state machine in `core/menu/` (follow `SongSelectMenu`: data in,
+   `MenuAction` handled, effects reported as values).
+2. The menu member + mode gating in `game.h`/`game.cpp` — a third mode means replacing the
+   `m_in_menu` bool with a state enum; do that rather than stacking bools.
+3. The input branch in `Game::handleWindowEvents` (menu path returns early) and the binding
+   install in the `Game` constructor (`MenuBindings::bind` — only bound actions fire).
+4. The render dispatch (`renderMenu` free function today) — menus draw through the screen-space
+   overlay path, not the highway (see \ref guide_3d_highway).
+5. The transition into/out of gameplay (`launchSong` is the only existing screen→session
+   transition; a new screen needs its own analogue).
+6. Headless tests for the screen machine in `core/tests/`.
+
+# Adding an input
+
+Two channels, one silent trap: `GameWindowEvents` carries both the mapped `GameKey` list
+(gameplay) and the raw keycode list (the menu resolver), populated together in
+`GameWindow::pollEvents`. The gameplay chain is compiler-guarded end to end (`GameKey`
+enumerator → `toGameKey` switch → the exhaustive switch in `Game::handleWindowEvents`); the
+menu chain is not (the `MenuAction` enumerator, its default binding in the `Game` constructor,
+and its arm in the menu's `handle` are each silent). Wire both channels or the key works in
+one mode only. Full context in \ref guide_keyboard.
+
+# Persisting a game setting
+
+`IGameSettings` (`core/include/.../settings/i_game_settings.h`) is the one seam: every plan that
+needs a persisted value adds a **typed getter/setter pair** there (reads return
+`std::optional`, writes return `std::expected`; the header documents the reserved keys). The
+silent step is the three-way sync: a new pure virtual also lands in `GameSettings` (the
+production store) and the test double `NullGameSettings`
+(`core/tests/include/.../testing/null_game_settings.h`).
+
+Audio device configuration is deliberately *not* here: the game keeps its **own**
+`AudioConfigStore` file (sole writer), while the editor's store is opened read-only and only by
+the throwaway `--import-editor-audio` dev path — the two-store split and its fail-loudly rule
+are covered in \ref guide_audio_device.
+
+# Packaged resources and the deploy contract
+
+`GameResources` (`core/src/resources/`) is the one loading seam for packaged assets — today
+`shaderPath`/`shaderBytes`/`textureBytes`; fonts and SFX directories exist in the deploy tree
+but have no resolver yet. Adding an asset kind touches: the enum + resolve method in
+`game_resources.{h,cpp}`, the root-resolution seam `makeGameResources` in the shell, and — the
+silent one — the **CMake deploy**: `rock-hero-game/app/CMakeLists.txt` copies the resource tree
+with a *stamp-based* custom command (deliberately not `POST_BUILD`, so the copy reruns when
+assets change without relinking; the file comments explain), plus the parallel `install()`
+rules. An asset that loads in your build tree and ships nowhere is this checklist's failure
+mode.
+
+# Extending the gameplay session
+
+The stage machine is stable; when a stage is added anyway, the fan-out is: the legality guards
+in `start`/`play`/`pause`/`seek`/`restart` (`gameplay_session.cpp`), the transport-listener
+finish detection, every UI consumer that switches on `stage()` (e.g. the render path's
+`Playing` check), and `test_gameplay_session.cpp`.
 
 # Which recipes apply here
 

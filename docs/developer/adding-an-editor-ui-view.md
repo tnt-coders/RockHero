@@ -46,3 +46,17 @@ get on this recipe.
    `editor_view_test_harness.h` (it supplies port fakes) and `component_test_helpers.h`. Cover
    the synchronous wiring: state in → visible change; gesture → listener call. Behavior beyond
    wiring belongs in editor-core tests, not component tests.
+
+# Popup and menu-bar menus
+
+Two menu kinds, two conventions — both build their items from *published view state only*
+(enablement flags, names), never by querying ports:
+
+- **In-view context menus** are `juce::PopupMenu` shown with
+  `showMenuAsync(Options{}.withMousePosition().withDeletionCheck(*this), ...)` — the
+  `withDeletionCheck` is the async-safety guard from \ref guide_invariants and is easy to drop
+  silently (`tone_track_view.cpp` and `tone_automation_lanes_view.cpp` are the exemplars,
+  including submenu nesting). Selecting an item emits a listener intent like any other gesture.
+- **The menu bar** is `MenuBarModel` in `editor_view.cpp` (`getMenuBarNames` /
+  `getMenuForIndex`): items enable off `m_state.*_enabled` flags, use the command-id constants,
+  and theme through `MenuLookAndFeel`.

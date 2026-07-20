@@ -141,6 +141,45 @@ The codebase deliberately uses both, split by which axis grows (the expression p
 When adding a closed family, name which axis grows and pick the matching side; never convert one
 to the other for symmetry.
 
+## State machines as variants of phase structs
+
+Lifecycle state is a `std::variant` of small per-phase structs, each carrying exactly the data
+its phase needs — chosen to make contradictory combinations *unrepresentable*, replacing
+"optional plus N bools" storage. This is distinct from the `EditorAction` sum type above (that
+one solves dispatch/exhaustiveness); this one kills illegal lifecycle states.
+
+Exemplar: `DeferralState = variant<Idle, AwaitingUnsavedChangesDecision, AwaitingSaveAsPath,
+SavingBeforeReplay>` (`editor/core/src/controller/deferred_project_action_state.h`) — its own
+comment notes the illegal combinations the old optional-plus-two-bools storage allowed.
+Recurring: `ChartMarker = variant<ChartCursor, ChartCaret>` ("cursor and caret at once" is
+unrepresentable, `editor_controller_impl.h`) and the `EditorSelection` variant (never two live
+selections, by construction). Reach for it whenever current storage permits states the design
+forbids.
+
+## Plan / apply split
+
+A mutation is a pure, headless `plan...()` function that reads the model and returns an edit
+description (`std::optional`, empty = refused) without mutating anything; a separate apply step
+checks preconditions and swaps the change in. Undo replays the same plan in reverse, so round
+trips are exact by construction — and the hover ghost can run the *same* planner the click
+runs, so an affordance can never promise an edit the commit would refuse.
+
+Exemplar: `ChartNotesEditPlan` with `planInsertNote` / `planDeleteNotes` / `planMoveNotes` /
+`planRetypeFrets` / `planAdjustSustain`, applied by `applyChartNotesChange` and replayed by
+`ChartNotesEdit` (`editor/core/src/chart/chart_edits.h`). Recurring: `planLanePointAtCaret` →
+`plantLanePoint` (`editor_controller.cpp`), and the game's `library_scan_plan.h` (a pure
+planner that diffs the cached index and returns a deterministic action list, no IO). Reach for
+it when a mutation needs undo, a truthful preview, or side-effect-free tests.
+
+## Refuse, never clamp (edits)
+
+An *edit* that would cross a boundary refuses the whole operation (the planner returns empty)
+rather than clamping to a legal partial result — a fret shift at the cap, a move off the neck,
+a section jump with no section. *Navigation* is the deliberate exception: caret motion clamps
+and re-arms in place. The split keeps mutations predictable (nothing half-applies) while keys
+never feel dead. Exemplars: the "refuses the whole plan, never clamps" contracts in
+`chart_edits.h` and the refused-move comments across `editor_controller.cpp`.
+
 ## Typed boundary errors {#patterns_typed_errors}
 
 Recoverable failures cross project-owned APIs as a code + message pair, never as raw framework
@@ -220,6 +259,62 @@ explicit TransportControls(Listener& listener);
 Recurring in every editor view (`signal_chain_view.h`, `tab_view.h`, `tone_track_view.h`,
 `arrangement_view.h`, ...). `EditorView` implements them all and forwards to the controller.
 
+## Controller-owned pointer-intent seam
+
+For interactive timeline surfaces, the listener/intent pattern goes one level deeper: the view
+converts each raw mouse event into a framework-free struct — lane-local pixel coordinates, the
+exact geometry those pixels were painted with, modifiers, and a phase — and the *controller*
+owns every hit-test, snap, placement, and gesture decision, publishing ghosts and previews back
+through view state. Policy becomes JUCE-free testable, and the hover ghost resolves through the
+same code the click does, so it never lies.
+
+Exemplar: `ChartPointerEvent` (`editor/core/include/.../chart/chart_pointer.h`) with the
+`onChartPointerDown/Drag/Up/Move/Exit` handlers; `ToneAutomationPointerEvent`
+(`.../tone/tone_automation_pointer.h`) is its explicit sibling. Reach for it on any editing
+surface whose placement policy must be headlessly testable. The full recipe is
+\ref guide_add_gesture.
+
+## Gesture frozen at press
+
+The Down handler captures the gesture's model and geometry into a state struct; Drag and Up
+ride that frozen snapshot and never re-resolve. A mid-gesture state push or relayout then
+republishes the *preview* instead of warping the *edit* under the user's hand. Exemplars:
+`ChartPointerGesture` and `ToneAutomationDrag` (`editor_controller_impl.h` — both comment that
+geometry is the Down event's "so one gesture snaps consistently even if a state push relayouts
+mid-drag"). Reach for it in every click-drag whose model can rebuild mid-gesture.
+
+## Equality gates, change keys, and view-state equality
+
+Three related rules keep repaint and publish traffic proportional to actual change:
+
+- **Equality-gated setters**: a setter compares the incoming value and early-returns when equal
+  (`ToneTrackView::setVisibleTimeline` is the exemplar; every row view follows). This is why
+  view-state PODs carry `operator==` at all.
+- **Float members break defaulted `==`** under `-Wfloat-equal` + `-Werror` on the CI
+  toolchains: structs with `float`/`double` fields hand-write equality via `std::is_eq(a <=> b)`
+  (`editor_view_state.h` has several exemplars; `sameCaretMask` in `timeline_cursor.h` is the
+  optional-range form). Large states are `shared_ptr` compared by **pointer identity** instead.
+- **Change keys**: a per-frame derivation memoizes a small struct of its exact inputs and skips
+  work while stationary (`RulerCursorKey`, `track_viewport.h`). Every input of the derived
+  value must be a field of the key — see \ref guide_invariants.
+
+## VBlank sampling, never Timer
+
+Anything animated by playback samples its ports from a `juce::VBlankAttachment` on the message
+thread — never `juce::Timer` — so cadence matches the display and the controller pushes nothing
+per-frame. Exemplar: the viewport's cursor follow (`track_viewport.h`); recurring in the tone
+track's active-region highlight and the lanes' live-value tracking. Pair with a change key
+(above) so a stationary frame does no work.
+
+## Input coalescing windows
+
+Rapid repeated input folds into one committed value and **one undo entry** instead of a stack:
+multi-digit fret entry widens the in-flight edit through `EditorUndoHistory::replaceTop` inside
+a millisecond window (`g_fret_entry_window_ms`, `editor_controller.cpp`); wheel-tick verbs
+coalesce the same way; the engine's plugin dirty tracking settles state transactions behind a
+quiet debounce (`plugin_dirty_tracking.cpp`). Reach for it when a burst of inputs is one user
+gesture — the undo rule is one entry per gesture, not per event.
+
 # Asynchrony and lifetime patterns
 
 ## Workflow objects with busy tokens
@@ -271,6 +366,34 @@ Multi-step async operations keep their state in one heap-owned struct shared by 
 completion lambdas (`OpenTaskState`, `ImportTaskState`, `ProjectWriteTaskState` at the tail of
 `editor_controller_impl.h`; `LiveRigLoadOperation`, `ToneChainReplaceOperation` in the engine).
 One struct per operation kind — never a pile of loose captured locals.
+
+## Cooperative stepped operations
+
+Heavy message-thread work (plugin instantiation) splits into per-message-loop steps that resume
+via `callAsync`, so paints and input run between steps; the per-operation struct above carries
+the state so continuations hold only a pointer. Exemplar: `LiveRigLoadOperation` with
+`executePluginStep` / `yieldThenContinue` / `finalizeLiveRigLoad` (`engine_impl.h`,
+`engine_live_rig.cpp`); `ToneChainReplaceOperation` mirrors it. This is the scheduling half of
+the "yielding continuation chain" idiom in \ref guide_invariants.
+
+## Build new, then swap
+
+A replacement for live state is fully constructed free-floating; only when it is ready does one
+atomic swap happen, and a mid-build failure never touches the existing state. Exemplars: the
+tone-chain replace holds candidates free-floating "so a failure never touches the existing
+chain" (`engine_impl.h`), and the tone-timeline graph keeps the old graph playing until the new
+one is ready (`engine_tone_timeline.cpp`). A companion policy rides these same operations:
+**accumulate all failures, refuse once** — the batch keeps scanning after a missing plugin so
+the finalize step can refuse with the *complete* list, not just the first problem.
+
+## Generation counters for superseded completions
+
+A bare monotonic counter, bumped whenever a newer request starts; each async completion captures
+its generation and no-ops on mismatch. This is the lightweight sibling of the busy-token
+workflow (above) for owners that don't need an overlay or supersede policy — and it composes
+with the liveness guard, which answers a *different* question (generation = superseded, liveness
+= owner died). Exemplar: `GameplaySession::m_load_generation` (`gameplay_session.h`), which
+carries both.
 
 # Creation patterns
 

@@ -1,7 +1,7 @@
 # Developer Guide Completion Plan
 
-Status: census complete, all items executed 2026-07-15 (the guide is 19 pages as of
-2026-07-20). The plan stays
+Status: census complete, all items executed 2026-07-15 (the guide is 23 pages as of
+2026-07-20 evening, after the full gap-review pass). The plan stays
 open as the standing coverage registry: it tracks keeping the guide complete over every *stable*
 area while explicitly *not* documenting unstable or unbuilt ones.
 
@@ -45,6 +45,11 @@ Gaps, ranked by size × centrality (from the full census):
 | 10 | `editor/ui/busy` + `input_calibration` windows | 4 files | **DONE 2026-07-15** | Busy overlay named in invariants; calibration window covered in `audio-device-settings.md`. |
 | 11 | File-format field reference (post-census addition) | all serializers | **DONE 2026-07-15** | `docs/developer/file-formats.md` — complete field tables for .rock/.rhp/.tone containers, song.json, chart and tone documents, project.json, plus cross-format invariants. Format-change recipe now requires same-commit updates to it. |
 | 12 | Keyboard input / keybind wiring (post-census addition) | editor_view keyPressed + controller intents + plugin_window seam | **DONE 2026-07-20** | `docs/developer/keyboard-input.md` — focus model, the decode hub, the action vs caret dispatch paths, gating layers, the plugin-window/preview seams, add-a-keybind silent steps. Flux notes for plan 46 and `keymap-matrix.md`; supersedes nothing (area was undocumented). |
+| 13 | Pointer-gesture / editing-verb recipe (gap review 2026-07-20) | chart_pointer + tone_automation_pointer pipeline | **DONE 2026-07-20** | `docs/developer/adding-a-pointer-gesture.md` — freeze-at-press, plan/apply, honest ghosts, Esc rung, one-undo commit. |
+| 14 | Prompt / confirmation-flow recipe (gap review 2026-07-20) | view-state prompts + DeferredProjectActionState | **DONE 2026-07-20** | `docs/developer/adding-a-prompt-flow.md` — the two prompt shapes, present-once identity, stash-and-replay. |
+| 15 | Game shell / frame loop (gap review 2026-07-20) | sdl3_application + juce_message_pump + game_window | **DONE 2026-07-20** | `docs/developer/the-game-shell.md` — hook contract, JUCE pump seam, quit signal, teardown order, composition split. |
+| 16 | Game library / scan pipeline (gap review 2026-07-20) | core/library (11 files) | **DONE 2026-07-20** | `docs/developer/the-game-library.md` — peek→projection→index→store pipeline, two scan entry points, add-a-field silent steps. |
+| 17 | Pattern-catalog expansion (gap review 2026-07-20) | repo-wide | **DONE 2026-07-20** | design-patterns.md gained: state-as-variant, plan/apply, refuse-never-clamp, pointer-intent seam, gesture freeze, equality gates/change keys, vblank sampling, input coalescing, cooperative stepped ops, build-new-then-swap, accumulate-all-failures, generation counters. |
 
 All census items are DONE as of 2026-07-15. This plan stays open as the registry for future
 coverage: new subsystems get a census row (with a stability flag) when they land, and the

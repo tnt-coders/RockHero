@@ -27,11 +27,15 @@ overlay UI.
 
 Every undoable domain contributes an `*_edits.h` family of small memento structs:
 `signal_chain_edits.h` (insert/remove/move/placement/display-type/state/gain),
+`chart_edits.h` (one plan-replaying note edit per gesture — insert/delete/move/retype/sustain,
+see the plan/apply split in \ref guide_patterns),
 `tone_region_edits.h` (create/delete/resize/rename/boundary-move/reset),
 `tone_automation_edits.h` (one full point-list edit per gesture), and `tone_designer_edits.h`
 (document replace, tone import). Capture rules that keep fidelity:
 
 - Capture the before-state **before** mutating, and push exactly one entry per user gesture.
+  Bursts that *are* one gesture (multi-digit fret typing, wheel ticks) widen the just-pushed
+  entry via `EditorUndoHistory::replaceTop` inside a time window instead of stacking entries.
 - Plugin edits store the **full opaque plugin state** (`PluginInstanceState`, raw
   `getStateInformation` bytes) — granular parameter replay was rejected by decision; full-state
   restore is the fidelity guarantee.

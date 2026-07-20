@@ -123,6 +123,19 @@ HWND), the frame driver (main loop vs vblank ticks), device lifetime policy (pro
 survives-hides), and display options (the editor forces `invert_string_order` and a minimum
 string count to match its 2D tab lane).
 
+# Two visual paths: chart visuals vs screen-space overlays
+
+Before extending anything, pick the right path — they do not share a checklist:
+
+- **Chart visuals** (notes, lanes, markers — anything in world space derived from chart or
+  transport data) go through the projection → `HighwayViewState` → renderer-drawer path below.
+- **Screen-space overlays** (HUD, menus, the diagnostics frame graph) never touch view state or
+  the projection: they are pixel-space `HighwayOverlayRect` lists fed to
+  `HighwayRenderer::drawOverlayRects` (`highway_renderer.h`), with text via the device's debug
+  text. `DiagnosticsOverlay` (`game/ui/src/overlay/`) is the HUD exemplar — record data during
+  the frame, `buildRects()`, draw. The game's menu bar renders the same way. Extending
+  `HighwayViewState` for a HUD element is the wrong path.
+
 # Extending the highway — silent steps
 
 Adding a new *visual element* (a new marker, lane decoration, feedback effect):
@@ -134,12 +147,26 @@ Adding a new *visual element* (a new marker, lane decoration, feedback effect):
    Noop-backend tests (`test_render_device.cpp`).
 4. Both products pick the change up with no further wiring — that is the payoff of the seam.
 
+If the element is *textured*, the asset fan-out is its own silent list:
+
+1. A `GameTexture` enumerator (`game/core/.../resources/game_resources.h`) and a
+   `HighwayTextureSet` member (`highway_renderer.h`).
+2. The game-side load in `RockHeroGame::onInit` (`rock_hero_game.cpp` — best-effort
+   `textureBytes` with procedural fallback) **and** the editor-side load in the preview
+   resources.
+3. The CMake deploy of the shared texture tree (`rock-hero-game/app/CMakeLists.txt`, copying
+   `rock-hero-common/ui/resources/textures`) — see the deploy contract in \ref guide_game.
+
 Adding a new *shader program* is wider, and every step is silent:
 
-1. The `.sc` sources in `rock-hero-common/ui/shaders/`.
-2. The program list inside `rock_hero_stage_highway_shaders` (`cmake/RockHeroRenderStack.cmake`).
+1. The `.sc` sources in `rock-hero-common/ui/shaders/` (the `vs_`/`fs_` naming and the shared
+   `varying.def.sc` are load-bearing for the compile function).
+2. The program list inside `rock_hero_stage_highway_shaders` (`cmake/RockHeroRenderStack.cmake`
+   — the `foreach(shader_program IN ITEMS ...)` list).
 3. A new `HighwayShaderPair` member in `HighwayShaderSet` (`highway_renderer.h`).
-4. **Both** loaders: the game's `loadHighwayShaderSet` and the editor's
+4. A new `GameShaderProgram` enumerator (`game/core/.../resources/game_resources.h`) — the
+   game loader is enum-driven; the editor loader is string-keyed, so the two are asymmetric.
+5. **Both** loaders: the game's `loadHighwayShaderSet` and the editor's
    `loadPreviewHighwayShaders` — forgetting one product compiles fine and fails at runtime in
    that product only.
-5. Program linking + use in the renderer implementation.
+6. Program linking + use in the renderer implementation.
