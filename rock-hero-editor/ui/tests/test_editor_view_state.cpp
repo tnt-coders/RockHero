@@ -255,6 +255,7 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
         {EditorCommandId::ExitEditor, 0x1007, true, {}},
         {EditorCommandId::Undo, 0x1101, false, {chord('z', command)}},
         {EditorCommandId::Redo, 0x1102, false, {chord('y', command), chord('z', command | shift)}},
+        {EditorCommandId::ShowKeyboardShortcuts, 0x1103, true, {}},
         {EditorCommandId::PlayPause, 0x1201, false, {chord(juce::KeyPress::spaceKey)}},
         {EditorCommandId::ToggleWaveform, 0x1301, true, {}},
         {EditorCommandId::ToggleUndoHistory, 0x1302, true, {chord(juce::KeyPress::F8Key)}},
@@ -278,6 +279,27 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
                 registry[index].default_keypresses[chord_index] ==
                 expected[index].chords[chord_index]);
         }
+    }
+}
+
+// Non-rebindable commands must render as fixed rows in the shortcuts dialog: the read-only
+// flag in each command's info is derived from the registry's rebindable field.
+TEST_CASE("Editor command infos mark non-rebindable rows read-only", "[ui][editor-view][keybinds]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    for (const EditorCommandSpec& spec : editorCommandRegistry())
+    {
+        INFO(spec.name);
+        juce::ApplicationCommandInfo info{toJuceCommandId(spec.id)};
+        view.getCommandInfo(toJuceCommandId(spec.id), info);
+        const bool read_only =
+            (info.flags & juce::ApplicationCommandInfo::readOnlyInKeyEditor) != 0;
+        CHECK(read_only == !spec.rebindable);
     }
 }
 

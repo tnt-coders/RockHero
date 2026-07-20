@@ -99,6 +99,14 @@ namespace
         });
     registry.push_back(
         EditorCommandSpec{
+            .id = EditorCommandId::ShowKeyboardShortcuts,
+            .name = "Keyboard Shortcuts...",
+            .category = "Edit",
+            .rebindable = true,
+            .default_keypresses = {},
+        });
+    registry.push_back(
+        EditorCommandSpec{
             .id = EditorCommandId::PlayPause,
             .name = "Play/Pause",
             .category = "Transport",

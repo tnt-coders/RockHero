@@ -48,10 +48,11 @@ class Component;
 namespace rock_hero::editor::ui
 {
 
-// Forward declarations so the timeline cursor overlay, viewport, calibration, and preview window
-// units stay out of this header.
+// Forward declarations so the timeline cursor overlay, viewport, calibration, preview, and
+// keyboard-shortcuts window units stay out of this header.
 class CursorOverlay;
 class InputCalibrationWindow;
+class KeyboardShortcutsWindow;
 class PreviewWindow;
 class TrackViewport;
 
@@ -482,6 +483,10 @@ private:
     // Shows or hides the 3D preview window (View > 3D Preview, or F3).
     void togglePreviewWindow();
 
+    // Opens the keyboard-shortcuts window (Edit > Keyboard Shortcuts...), creating it on first
+    // use; the window survives closes so its tree state is kept.
+    void showKeyboardShortcutsWindow();
+
     // Updates the top-level window title to reflect the open project name, REAPER-style.
     void updateWindowTitle();
 
@@ -594,6 +599,10 @@ private:
     // Optional top-level 3D preview window (plan 44); created on first toggle, then kept and
     // shown/hidden (its render surface rebuilds per open).
     std::unique_ptr<PreviewWindow> m_preview_window;
+
+    // Optional top-level keyboard-shortcuts window; created on first open, then kept and
+    // shown/hidden. Declared after the command manager, whose mapping set it listens to.
+    std::unique_ptr<KeyboardShortcutsWindow> m_keyboard_shortcuts_window;
 
     // True once the settings window has reported close and is waiting for deferred destruction.
     bool m_audio_device_settings_window_reset_pending{false};
