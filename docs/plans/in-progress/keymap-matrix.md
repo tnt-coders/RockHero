@@ -1,9 +1,12 @@
 # RockHero editor keymap — per-keybind × surface reference (working draft for verification)
 
-> **Status: DRAFT for sign-off.** Every keybind is a row; every editing surface is a column, so
-> you can read across one row and see exactly what it does — or doesn't do — on each surface, with
-> no binding hidden by editorial judgement. Once verified, this folds into
-> `editing-interaction-model.md` and the parked rows become plan 46 registry entries.
+> **Status: SIGNED OFF 2026-07-20** (every confirm flag accepted; G53-FOLD-IN and G46-KEYMAP
+> closed — this matrix is the authoritative default keymap, superseding plan 46's Appendix
+> tier A). Every keybind is a row; every editing surface is a column, so you can read across one
+> row and see exactly what it does — or doesn't do — on each surface, with no binding hidden by
+> editorial judgement. The matrix now serves as plan 53's build-tracking artifact: rows flip to
+> Live as phases land, and it dissolves into `editing-interaction-model.md` (with the parked
+> rows as registry entries) when plan 53 completes.
 
 ## The rule this encodes
 
@@ -59,7 +62,7 @@ Point-caret lives on chart + lanes; the tone strip participates as a selectable 
 | `Ctrl+←/→` | → **measure** jump | → **measure** jump | `✗` | Live |
 | `↑` / `↓` | → adjacent string (crosses into lanes at the edge) | → adjacent lane (crosses into strings at the edge) | `✗` | Live |
 | `Ctrl+↑/↓` | → adjacent **surface** (chart ↔ tone-region ↔ lanes) | → adjacent **surface** | → region-row | `Δ` (replaces the dead first/last-row no-op) |
-| `PageUp` / `PageDn` | → prev / next **section** | → prev / next **section** | `✗` | Live (ae0e7ad5; Ctrl also rides along as an alias — unlisted here, confirm) |
+| `PageUp` / `PageDn` | → prev / next **section** | → prev / next **section** | `✗` | Live (ae0e7ad5; Ctrl rides along as an alias — accepted 2026-07-20) |
 | `Home` / `End` | → chart **start / end** | → chart **start / end** | `✗` | Live (ae0e7ad5) |
 | `Ctrl+Home` / `Ctrl+End` | chart start / end (alias) | chart start / end (alias) | `✗` | Live (ae0e7ad5) |
 
@@ -73,9 +76,9 @@ Point-caret lives on chart + lanes; the tone strip participates as a selectable 
 | `Shift+Home` / `Shift+End` | extend time-range to chart **start / end** | Live (759b145f) |
 | `Shift+↑/↓` | *(nothing — the range is full-height; no vertical extension)* | `—` unbound (confirmed) |
 
-*(759b145f ships conservative defaults on the unsigned sub-decisions, flagged for review:
-typing with a range is inert (52-Q11), Delete over a range is a no-op pending plan 52's
-content-delete, and the extend is paused-only.)*
+*(759b145f ships conservative defaults on the unsigned sub-decisions — accepted 2026-07-20 as
+placeholders until plan 52's range verbs land: typing with a range is inert (52-Q11), Delete over
+a range is a no-op pending plan 52's content-delete, and the extend is paused-only.)*
 
 ## Authoring — move / resize / fret (acts on the object selection)
 
@@ -134,13 +137,13 @@ content-delete, and the extend is paused-only.)*
 | Keybind | Behavior | Status |
 |---|---|---|
 | `Space` | play / pause from the marker | Live |
-| `Ctrl+Z` / `Ctrl+Y` | undo / redo (undo requires **not** `Alt`) | Live |
+| `Ctrl+Z` / `Ctrl+Y` | undo / redo (undo requires **not** `Alt`) — **non-rebindable core commands** with `Space` (decided 2026-07-20); `Ctrl+Shift+Z` joins as a redo alias with the registry | Live · `▷46` alias |
 | `Ctrl+T` | insert a tone-change marker at the **playhead** (from any surface) | Live · `Δ` **guard against `Alt`** (require `Ctrl` and not `Alt`) — fixes the `Ctrl+Alt+T` bug |
 | `Esc` | cancel gesture → disarm caret → clear selection | Live |
 | `F3` / `F8` | toggle 3D preview / undo-history inspector | Live |
 | plain wheel | zoom, marker-centered | Live |
 | `Ctrl`+wheel | zoom (browser reflex — same as plain wheel) | Live |
-| `=` / `-` · `Shift+=` (`+`) · numpad `+`/`-` | **grid** finer (`+`) / coarser (`-`) | Live (23d3ed7b/44f24ab6; `Shift+-` also matches via key code — harmless, confirm) |
+| `=` / `-` · `Shift+=` (`+`) · numpad `+`/`-` | **grid** finer (`+`) / coarser (`-`) | Live (23d3ed7b/44f24ab6; `Shift+-` also matches via key code — harmless, accepted 2026-07-20) |
 | `Ctrl+=` / `Ctrl+-` · `Ctrl`+numpad `+`/`-` | **zoom** in / out, marker-centered | Live (44f24ab6) |
 | `[` / `]` | **free** — grid moved to `+/-` | `—` |
 | `L`, `B` | reserved (link/slide, pencil) — unbound | `—` |
@@ -321,10 +324,12 @@ The rule fold-in surfaced conflicts needing a call. Resolutions as they settle:
   note (`+/-` is now grid), and reconcile the `docs/tracking/watch-items.md` "sustain tail-drag"
   entry (the edge-drag is dropped; `Alt`+wheel covers it).
 
-## The rows that still need your verdict (the `◇` cells)
+## Verdict record — all decided (sign-off completed 2026-07-20)
 
 1. **DECIDED (A) — bind `Ctrl+Home`/`Ctrl+End` as chart-bound aliases.** A held-`Ctrl` navigation that does nothing reads as a broken editor — more confusing than a harmless duplicate; remap if a genuine use appears later.
-2. **DECIDED (C) — GP-style zoom/grid.** `+/-` (main `=/-`, `Shift+=`, numpad) = **grid**; `Ctrl`+`+/-` = **zoom**; the wheel stays zoom (plain + `Ctrl`+wheel). `[ ]` freed. Matches GP + browser and dissolves the fine-zoom/browser collision (`Ctrl+=` = normal zoom, not fine). *(Grid direction: `+` = finer — confirm against GP.)*
+2. **DECIDED (C) — GP-style zoom/grid.** `+/-` (main `=/-`, `Shift+=`, numpad) = **grid**; `Ctrl`+`+/-` = **zoom**; the wheel stays zoom (plain + `Ctrl`+wheel). `[ ]` freed. Matches GP + browser and dissolves the fine-zoom/browser collision (`Ctrl+=` = normal zoom, not fine). *(Grid direction confirmed 2026-07-20: `+` = finer.)*
 3. **DECIDED (A) — `Shift+↑/↓` unbound.** The time selection is full-height, so there's no vertical axis to extend along; overloading it for object-multi-select would fracture the object-vs-time split. Stays free.
 4. **DECIDED (B) — strict grid-lock.** *All* time-selection is grid-locked (keyboard **and** pointer); a range boundary can never be off-grid. **Amends plan 47** (drop its `Ctrl`-off-grid range endpoints). A copied range still captures off-grid *content* inside it — only the boundaries snap — so copy/paste always lands clean.
 5. **DECIDED (B) — triage each gap individually** (close vs document-as-intentional, deciding each case explicitly). Per-gap outcomes tracked in *Surface parity triage* below.
+6. **DECIDED 2026-07-20 — Undo/Redo/Play-Pause are non-rebindable core commands** (dissolving 46-Q3: the plugin-window hook's fixed matching stays correct forever). `Ctrl+Shift+Z` joins as a first-class redo alias (DAW muscle memory) with the registry; the plugin-window mirror gains it via plan 46's rescoped Phase 4.
+7. **DECIDED 2026-07-20 — sign-off flags all accepted**: the `Ctrl+PageUp/Dn` ride-along alias, the `Shift+-` grid match, `+` = finer, and 759b145f's conservative time-selection defaults (placeholders pending plan 52).

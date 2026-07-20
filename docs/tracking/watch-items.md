@@ -128,7 +128,11 @@ Decided with the user 2026-07-16 (interaction-model amendment record): resizing 
 is covered precisely by Alt+wheel and Shift+Alt+Left/Right, and a draggable tail end is a small
 target (the tail strip is ~13–19px tall, its end zone a few pixels) that would compete for grab
 space with drag-move on the same note and get fiddly at low zoom. Direct manipulation loses to
-the wheel here — probably. **Trigger**: watching real charting shows users grabbing sustain
+the wheel here — probably. Re-affirmed 2026-07-20 by the keymap surface-parity triage
+(docs/plans/in-progress/keymap-matrix.md, gap 1): edge-drag stays dropped as redundant with
+Alt+wheel, and chart **drag-move** is now scheduled (docs/plans/todo/tab-pointer-drag-editing.md),
+which will claim the same note grab space — raising the bar for ever adding a tail-drag beside it.
+**Trigger**: watching real charting shows users grabbing sustain
 tails expecting a resize and failing (or asking for it). **Remedy**: implement tail-end drag as
 the standard edge-resize verb with a generous grab zone (hit-test via the shared layout
 manifest's tail rectangle), live preview, Esc cancel, single undo entry.
@@ -241,6 +245,23 @@ folds into the baseline. (Closed out of `docs/plans/in-progress/` on 2026-07-08 
   non-automation branch moves a single-point automation curve to follow a plugin-initiated value
   change while the transport is idle (`tracktion_AutomatableParameter.cpp:1439-1441`). Unlikely
   (meter params are not the ones users automate) but adjacent to this subsystem.
+
+## Input bindings
+
+### Editor and game binding systems stay parallel — trigger: the editor wants non-keyboard input
+
+Decided 2026-07-20 (46-Q2 / 26-Q4, one answer): the editor's command registry builds on JUCE's
+`ApplicationCommandManager`/`KeyPressMappingSet` while the game keeps its headless `MenuBindings`
+resolver (`rock-hero-game/core/.../input/menu_bindings.h`); only the *conventions* are shared
+(stable append-only action ids, overwrite-and-clear conflicts, diff-vs-defaults persistence). A
+shared common concept was analyzed and rejected as a one-consumer-per-feature abstraction: JUCE
+cannot bind gamepad/MIDI triggers, the game wants no modifier chords, and no action vocabulary
+overlaps. **Trigger**: the editor gains a real need for non-keyboard input — the likely case is
+MIDI-pedal transport control while charting with a guitar in hand. **Remedy**: extract
+`MenuBindings` (small, headless, tested) to rock-hero-common as its own phase with tests, shaped
+by the then-real second consumer, per the extraction rule in
+docs/design/architectural-principles.md; the editor side feeds resolved actions into its command
+manager rather than replacing it.
 
 ## Logging (Windows paths)
 
