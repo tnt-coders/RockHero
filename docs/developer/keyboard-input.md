@@ -7,8 +7,9 @@ This page traces a keystroke from the operating system to its effect. The headli
 `KeyPressMappingSet`, no registry. Every shortcut is hand-decoded in one `keyPressed` hub and
 routed to a controller intent, and from there down one of **two paths**: the editor-action
 pipeline (\ref guide_action_anatomy) or the caret/marker interaction model. A command registry
-with rebinding is planned (`docs/plans/roadmap/46-editor-keybinds.md`, decision-gated); until it
-lands, this page documents the hand-wired reality.
+with rebinding is now in execution (`docs/plans/roadmap/46-editor-keybinds.md`, gates closed
+2026-07-20, running as `docs/plans/roadmap/53-editor-keyboard-and-pointer-completion.md`
+Phase 1); until it lands, this page documents the hand-wired reality.
 
 ```mermaid
 flowchart TB
@@ -166,7 +167,9 @@ editor Ctrl+Z are literally the same code path from the controller inward.
 
 This means the binding knowledge exists in **three hand-synchronized copies** (the editor hub,
 the plugin-window predicates, and the hook's VK-code form). Changing any global accelerator
-means changing all three — that duplication is the standing motivation for plan 46's registry.
+means changing all three. Undo/Redo/Play-Pause are **non-rebindable core commands** (decided
+2026-07-20), so the copies stay correct under the coming registry; collapsing them into one
+shared helper is plan 46's rescoped Phase 4.
 
 # Adding or changing a keybind — silent steps
 
@@ -199,8 +202,9 @@ The game does not share any of this. SDL3 delivers key events to a poll loop in
 `rock-hero-game/ui/src/surface/game_window.cpp`, which maps physical keys to a small `GameKey`
 enum for gameplay and passes raw keycodes to `MenuBindings`
 (`rock-hero-game/core/.../input/menu_bindings.h`) — a headless, rebindable trigger→action
-resolver for menus. That resolver is the shape plan 46 considers generalizing; nothing is shared
-today.
+resolver for menus. The two systems stay deliberately parallel (decided 2026-07-20, 46-Q2):
+only conventions are shared, and a watch-item records the trigger for ever extracting
+`MenuBindings` to common (the editor wanting non-keyboard input).
 
 Adding a game input touches **two channels**, and the event struct is the silent trap:
 `GameWindowEvents` carries both `keys_pressed` (mapped `GameKey`, for gameplay) and

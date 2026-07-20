@@ -54,6 +54,7 @@ graph TD
         P50[50 tone designer + tone files]
         P51[51 smooth-scroll camera]
         P52[52 range edit operations GATE]
+        P53[53 keyboard+pointer completion]
     end
     subgraph Deferred
         P28[28 practice mode]
@@ -134,6 +135,8 @@ graph TD
     P12 --> P51
     P47 --> P52
     P40 --> P52
+    P46 --> P53
+    P53 --> P52
 ```
 
 Notes on cyclic-looking edges: 26 ↔ 27 is an ordering constraint, not a cycle —
@@ -144,7 +147,9 @@ docs/plans/roadmap/26-game-startup-menus-library.md Phase 4 (settings consumptio
 47's dotted edge to 21 is the whichever-executes-first coordination on the shared loop-port
 surface (47 is expected to execute first and land the Tracktion-backed loop; 21 Phase 1 then
 adds only the speed surface), not a gate; 47 → 28 is plan 28 Phase 2 consuming the landed loop
-backend and reducing to test extension.
+backend and reducing to test extension. 46 → 53 records that plan 53 subsumes plan 46's
+execution (the command registry runs as 53 Phases 1–2); 53 → 52 is the landed grid-locked
+`TimeSelection` that plan 52's range edits consume.
 
 ---
 
@@ -162,7 +167,8 @@ backend and reducing to test extension.
 | **G41-TS (time signatures)** | docs/plans/roadmap/41-tempo-map-authoring.md open question Q1 | Content policy for beats-per-measure edits chosen | 41 Phase 6 only |
 | **G43-METADATA** | docs/plans/roadmap/43-song-information-and-art.md Phase 0 | 43-Q1..Q6 sign-off (publish-vs-save split etc.) | 43 Phases 1–5 |
 | **G45-STRINGS** | docs/plans/roadmap/45-editor-theme-and-string-colors.md Phase 5 | Explicit decision to raise `g_max_chart_strings` to 10 (one-way door once 9/10-string content exists); consumer survey + STOP | 45 Phase 5 only; coordinates with 22's latency budget |
-| **G46-KEYMAP** | docs/plans/roadmap/46-editor-keybinds.md Phase 0 | Default keymap + sharing model + mirroring policy sign-off | 46 Phases 1–5 |
+| **G46-KEYMAP** | docs/plans/roadmap/46-editor-keybinds.md Phase 0 | **CLOSED 2026-07-20**: Q1 = the signed keymap matrix (docs/plans/in-progress/keymap-matrix.md) supersedes tier A; Q2 = (a) parallel systems + extraction watch-item; Q3 superseded — Undo/Redo/Play-Pause are non-rebindable core commands, so the plugin-window mirror set stays fixed (46 Phase 4 rescoped to the Ctrl+Shift+Z redo alias + predicate dedupe) | Nothing — 46 Phases 1–5 unblocked; execution rides plan 53 |
+| **G53-FOLD-IN** | docs/plans/roadmap/53-editor-keyboard-and-pointer-completion.md Phase 0 | **CLOSED 2026-07-20**: the baked-in source-of-truth wording confirmed (the operation-partition `Ctrl` thesis, the two-kind timeline-selection law, the rows-not-strings marker generalization) | Nothing — 53 Phases 1–7 unblocked |
 | **G52-RANGE-EDIT** | docs/plans/roadmap/52-range-edit-operations.md Phase 0 | **OPEN DISCUSSION by explicit user direction (2026-07-16): every one of 52-Q1..Q8 requires individual sign-off** — capture boundaries, clipboard position basis across time-signature changes, paste-overwrite mode, template reconciliation, clipboard transport, content scope + command precedence, auto-loop interplay (answer 52-Q7 jointly with 47-Q2), tone + automation-lane copy semantics (52-Q8) | 52 entirely (Phases 1–3) |
 
 Known tensions from the planning mandate, and where each is resolved (none papered over):
@@ -233,7 +239,7 @@ Phases 1–2 and plan 10 Phase 0 (G10-DECISIONS answers), both Stage 1 items alr
 22. docs/plans/roadmap/43-song-information-and-art.md Phase 0 → Phases 1–5 (after 10 Phase 2).
 23. docs/plans/roadmap/41-tempo-map-authoring.md Phases 1–5 (Phase 6 behind G41-TS); start Phase 2 only after the in-flight docs/plans/in-progress/tone-track-tempo-map-plan.md editor work commits.
 24. docs/plans/roadmap/40-chart-editing.md Phases 1–10 (Phase 2 waits for the in-flight tone work; from-scratch charting promise waits on 41 Phases 1–4).
-25. docs/plans/roadmap/46-editor-keybinds.md Phase 0 → Phases 1–5.
+25. docs/plans/roadmap/53-editor-keyboard-and-pointer-completion.md Phases 1–7 — the settled keyboard + pointer surface, driving docs/plans/roadmap/46-editor-keybinds.md Phases 1–3/5 as its registry phases (46 Phase 4 rescoped: no injection seam — the core trio is non-rebindable; only the Ctrl+Shift+Z redo alias + predicate dedupe remain). Phase 0 closed 2026-07-20; 53 Phase 3 and Phase 7's keyboard half landed ahead of sequence 2026-07-19/20 (pre-registry, in `EditorView::keyPressed`; they migrate onto the registry during 53 Phase 1).
 26. docs/plans/roadmap/45-editor-theme-and-string-colors.md Phases 2–4 (presets, selection, colorblind-safe); Phase 5 behind G45-STRINGS; Phase 6 stretch.
 27. docs/plans/roadmap/44-editor-3d-preview.md Phases 1–5 (after G20-RENDER + 25 Phases 1–2 + 12 + 45 Phase 1).
 28. docs/plans/roadmap/47-editor-loop-selection.md Phases 2–4 (editor loop-selection state and persistence, ruler drag surface with grid snap, engagement/wrap semantics; no game gates — Phase 1 already runs as Stage 1 item 5, and docs/plans/roadmap/28-practice-mode.md Phase 2 consumes the landed backend, reducing to test extension).
@@ -372,7 +378,7 @@ plan's Gate record.**
 - **26-Q1** library index home: (a) rock-hero-game/core with the reusable peek reader in common/core; (b) entirely in common/core. **R: a**.
 - **26-Q2** index storage: (a) versioned JSON + thumbnail files with atomic replace; (b) juce::PropertiesFile; (c) SQLite. **R: a** — inspectable, testable, zero new dependencies.
 - **26-Q3** gamepad backend: (a) SDL3 gamepad subsystem; (b) minimal Win32 XInput adapter behind the same port; (c) defer gamepad, ship keyboard + MIDI pedal first. **R: a**, falling back to (c) if G20-RENDER rejects SDL3 — JUCE has no gamepad support.
-- **26-Q4** bindable-action sharing with editor keybinds (mirrors 46-Q2 — answer once): (a) parallel systems by design; (b) shared bindable-action concept in common. **R: a** — polled game input and JUCE KeyPress dispatch differ in kind; share only naming conventions.
+- **26-Q4** bindable-action sharing with editor keybinds (mirrors 46-Q2 — answer once): **ANSWERED 2026-07-20 via 46-Q2: (a) parallel systems** — polled game input and JUCE KeyPress dispatch differ in kind; share only naming conventions (stable append-only action ids, overwrite-and-clear conflicts, diff persistence). Extraction trigger recorded in docs/tracking/watch-items.md.
 - **26-Q5** bundled starter song: (a) ship one self-authored freely-licensed starter package as a game resource (dual-use as a 23 CI fixture); (b) suggest the first library entry + empty-library help screen. **R: a**.
 
 ### docs/plans/roadmap/27-in-song-flow-results-profiles.md
@@ -455,9 +461,9 @@ plan's Gate record.**
 
 ### docs/plans/roadmap/46-editor-keybinds.md (gates G46-KEYMAP)
 
-- **46-Q1** default keymap appendix: (a) approve tier A as listed (de-facto keys + conservative file-menu standards; tier B reservation-only); (b) edit specific rows. **R: a** — diff-mode persistence merges later default changes under user overrides; only command IDs lock forever.
-- **46-Q2** editor/game bindable-action sharing (mirrors 26-Q4 — answer once): (a) parallel systems (JUCE ApplicationCommandManager for the editor, headless resolver in game/core; shared semantics conventions only); (b) one shared concept in common first. **R: a**.
-- **46-Q3** rebinding the three plugin-window-mirrored commands (Undo/Redo/PlayPause) to chords the Win32 hook cannot mirror: (a) restrict capture to mirrorable chords for those commands; (b) allow any chord with a persistent "not active while a plugin window is focused" note. **R: b**.
+- **46-Q1** default keymap appendix: **ANSWERED 2026-07-20** — the signed keymap matrix (docs/plans/in-progress/keymap-matrix.md) supersedes tier A as the authoritative default map; tier B stays reservation-only.
+- **46-Q2** editor/game bindable-action sharing (mirrors 26-Q4 — answer once): **ANSWERED 2026-07-20: (a) parallel systems**, after a deep-dive (a shared common concept would have one consumer per feature: the editor must sit on JUCE's KeyPressMappingSet machinery, the game's `MenuBindings` is a modifier-free device+code map, and no action vocabulary overlaps); shared semantics stay conventions. An extraction watch-item (docs/tracking/watch-items.md) records the trigger — the editor wanting non-keyboard input — for extracting `MenuBindings` to common with a real second consumer.
+- **46-Q3** rebinding the three plugin-window-mirrored commands (Undo/Redo/PlayPause): **SUPERSEDED 2026-07-20** — the user made all three **non-rebindable core commands** (definitively mapped where users expect), so the Win32 hook's fixed matching stays correct forever and neither restriction nor warning note is needed. `Ctrl+Shift+Z` joins as a first-class Redo alternative (DAW muscle memory; hook-mirrorable) with the registry.
 
 ### docs/plans/roadmap/47-editor-loop-selection.md
 
@@ -558,13 +564,14 @@ One line per plan; update the right-hand cell as phases complete.
 | docs/plans/roadmap/43-song-information-and-art.md | Decision-gated (G43-METADATA) | song.json metadata/art/sort/preview fields, Song Information dialog, shared art codec, publish gate | Not started |
 | docs/plans/roadmap/44-editor-3d-preview.md | **Phases 0–4 substantially complete (2026-07-11)** — remaining: fullscreen, bounds persistence, Phase 5 polish | Editor preview window sharing the highway renderer; playback follow + live edits | View > 3D Preview / F3 opens the preview; shared common/ui renderer (44-Q1: a; 44-Q2 superseded by the user's promotion decision; 44-Q3: a; 44-Q4: b); clock-driven follow with exact paused cursor; live-edit snapshots via EditorViewState::highway; execution record in the plan |
 | docs/plans/roadmap/45-editor-theme-and-string-colors.md | Phase 1 complete; rest Ready (Phase 5 behind G45-STRINGS) | Shared string palette in common/ui, theme presets, colorblind-safe preset, string-cap raise gate | Phase 1 done 2026-07-10 @ 050f884e (palette in common/ui, editor byte-identical; 45-Q2 working: A) |
-| docs/plans/roadmap/46-editor-keybinds.md | Decision-gated (G46-KEYMAP) | JUCE command-manager keybinds, config UI, diff persistence, plugin-window shortcut injection seam | Not started |
+| docs/plans/roadmap/46-editor-keybinds.md | **G46-KEYMAP closed 2026-07-20**; execution rides plan 53 (registry = 53 Phases 1–2) | JUCE command-manager keybinds, config UI, diff persistence; Phase 4 rescoped (core trio non-rebindable — no injection seam, just the Ctrl+Shift+Z redo alias + predicate dedupe) | Not started (Phase 0 complete) |
 | docs/plans/roadmap/47-editor-loop-selection.md | Ready (47-Q1..Q3 carry recommendations; Phase 1 coordinated with 21 Phase 1 by whichever-executes-first) | Shared loop-region port + Tracktion adapter; editor ruler-drag loop selection, auto-engagement, app-local persistence | Not started |
 | docs/plans/roadmap/48-editor-audio-setup.md | Ready | Editor toggle-aware device + calibration surfaces; "use game settings" read-only mirror of the game (default-on first run); no consolidation | Not started — authored 2026-07-12 |
 | docs/plans/roadmap/49-game-app-architecture-symmetry.md | **Complete 2026-07-12** | Split GameShell into SDL3Application base + RockHeroGame app + Game content (editor-symmetric layering); renamed RockHeroEditorApplication -> RockHeroEditor | Done 2026-07-12 @ 47947fc8 (editor rename) + 4d61b97b (game restructure); build + 7 suites green |
 | docs/plans/roadmap/50-tone-designer-and-tone-files.md | **Phases 1–5 complete 2026-07-13** — final acceptance bundle pending user-triggered clang-tidy + witnessed manual checklist | Tone Designer idle rig mode (no-project = live signal chain) + portable `.tone` files; designer New/Open/Save/Save As document semantics, project Import/Export copy semantics, undoable opens/imports, automation-drop confirm | All five phases landed 2026-07-13 (container; ILiveRig surface; designer mode core; panel UI + choosers + prompts; project Import/Export with automation confirm and whole-chain undo); build + all 7 suites green |
 | docs/plans/roadmap/51-smooth-scroll-camera.md | **Parked 2026-07-14** | Time-space camera + clock-driven fixed-cursor smooth-scroll follow for the editor timeline | Adoption reversed after live sight-reading (moving tabs harder to read, as predicted); spike removed, shifted window stands; plan retains the decision trail + the designed-but-unbuilt cursor-locked posture display; re-verify inventory before any future execution |
-| docs/plans/roadmap/52-range-edit-operations.md | **OPEN DISCUSSION — decision-gated (G52-RANGE-EDIT, all of 52-Q1..Q8)** | Plan 47's time selection doubles as an edit range: range copy/cut/paste/delete carrying ALL chart content (notes, shapes, templates, fret-hand positions); paste-overwrite at cursor; signature-aware rebase; tone/automation copy semantics (Q8); single clipboard codec shared with 40 Phase 9 | Authored 2026-07-16 at user request; Q8 + user leanings (transport Loop button, 47-Q2-C) recorded same day; nothing executable until every Q is signed; depends on 47 Phases 2–3 + 40 Phases 3–4 |
+| docs/plans/roadmap/52-range-edit-operations.md | **OPEN DISCUSSION — decision-gated (G52-RANGE-EDIT, all of 52-Q1..Q8)** | Plan 47's time selection doubles as an edit range: range copy/cut/paste/delete carrying ALL chart content (notes, shapes, templates, fret-hand positions); paste-overwrite at cursor; signature-aware rebase; tone/automation copy semantics (Q8); single clipboard codec shared with 40 Phase 9 | Authored 2026-07-16 at user request; Q8 + user leanings (transport Loop button, 47-Q2-C) recorded same day; nothing executable until every Q is signed; depends on 47 Phases 2–3 + 40 Phases 3–4; the grid-locked `TimeSelection` it consumes landed 2026-07-20 via plan 53 Phase 7 (Q6/Q10/Q12 resolved by the two-kind selection law) |
+| docs/plans/roadmap/53-editor-keyboard-and-pointer-completion.md | **Executing** — Phase 0 complete 2026-07-20 (G53-FOLD-IN + G46-KEYMAP closed); Phase 1 (registry) next | The complete settled editor keyboard + pointer surface: command registry + discovery menus (drives plan 46), navigation reach + zoom/grid keys, vertical stack with the tone-region row, modal plugin-chain scope, automation "+ add" row + point multi-select, grid-locked time selection | Phase 3 landed ahead of sequence (23d3ed7b/44f24ab6/ae0e7ad5 + 16a544b4: grid `+/-`, `Ctrl` zoom, Home/End, PageUp/Dn section jumps); Phase 7's keyboard half landed (759b145f/fd043657: `TimeSelection` + `Shift`+extend families, mutual exclusivity); both pre-registry in `EditorView::keyPressed`, migrating onto the registry in Phase 1 |
 
 Milestone 0: **REACHED 2026-07-16** — docs/plans/roadmap/21-game-audio-engine-and-session.md Phase 6 soak
 checklist and docs/plans/roadmap/25-note-highway-3d.md Phase 3 exit criteria (notes scroll in time

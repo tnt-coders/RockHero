@@ -1,8 +1,12 @@
 # Plan 46 — Editor Keybinds
 
-**Status:** Decision-gated — Phase 0 needs sign-off on the default keymap appendix (Q1), the
-editor/game sharing model (Q2), and the plugin-window mirroring policy (Q3) before Phase 1 starts.
-The framework evaluation itself is complete (build on JUCE, evidence below).
+**Status:** **G46-KEYMAP CLOSED 2026-07-20** — Phase 0 complete. Q1 answered by the signed keymap
+matrix (which supersedes the Appendix's tier A as the default map); Q2 = (a) parallel systems plus
+an extraction watch-item; Q3 superseded — Undo/Redo/Play-Pause are **non-rebindable core
+commands** (decision below), so Phase 4's injection seam is no longer needed and that phase
+rescopes to the `Ctrl+Shift+Z` redo alias + predicate dedupe. Execution rides
+docs/plans/roadmap/53-editor-keyboard-and-pointer-completion.md: its Phases 1–2 run this plan's
+Phases 1–3/5. The framework evaluation is complete (build on JUCE, evidence below).
 
 > **AMENDED 2026-07-20 by the settled editor keymap** (see
 > docs/plans/roadmap/53-editor-keyboard-and-pointer-completion.md and
@@ -64,6 +68,14 @@ settled.
   invocations.
 
 ## Current state inventory
+
+> **STALE — re-verify at Phase 1 execution (mandated below).** This inventory is a 2026-07-06
+> snapshot; `EditorView::keyPressed` has since grown far past the three shortcuts listed here
+> (caret navigation and jumps, digits, Delete/Insert, Esc, `Ctrl+T`, F3/F8, grid `+/-`,
+> `Ctrl` zoom, the `Shift`+extend time-selection families — landed through 2026-07-20). The
+> live end-to-end description is docs/developer/keyboard-input.md; the authoritative key list is
+> the signed docs/plans/in-progress/keymap-matrix.md. The plugin-window seam and menu facts
+> below remain accurate.
 
 Scattered key handling (three copies of the same binding knowledge):
 
@@ -187,6 +199,14 @@ Verified against code on 2026-07-06, refactor @ 13e82fb0.
   accordingly and this plan must not reassign it.
 - **Charter's shortcut list is input, not a template** — the user disagrees with many of its
   choices; the Appendix is a from-scratch proposal and an explicit review gate (Q1).
+- **Undo, Redo, and Play/Pause are non-rebindable core commands** — user decision 2026-07-20
+  (answering Q3 by dissolving it): the three plugin-window-mirrored commands are definitively
+  mapped where every user expects them and ship as fixed, non-rebindable registry rows (the same
+  policy as the grammar keys). Consequences: the Win32 hook's hardcoded matching stays correct
+  forever, Phase 4's injection seam is unnecessary, and `Ctrl+Shift+Z` joins `Ctrl+Y` as a
+  first-class Redo alternative (DAW muscle memory; letter+Ctrl+Shift is hook-mirrorable). Making
+  them rebindable later is purely additive — that is the moment Phase 4's original seam design
+  (preserved below) becomes relevant again.
 - **The pointer-modifier vocabulary is fixed** by `docs/plans/in-progress/editing-interaction-model.md`
   (settled 2026-07-09; keyboard grammar re-settled 2026-07-16/18 — re-read that doc plus
   `docs/plans/in-progress/chart-span-and-selection-model.md` §9/§9a at G46-KEYMAP; the list
@@ -203,7 +223,23 @@ Verified against code on 2026-07-06, refactor @ 13e82fb0.
   as commands whose `perform` branches (Phase 1 policy) but ship as
   non-rebindable-by-default rows, so a stray rebind cannot silently break the typing rule.
 
-## Open questions for the user
+## Open questions for the user — ALL CLOSED 2026-07-20
+
+- **Q1 — ANSWERED**: the signed keymap matrix (docs/plans/in-progress/keymap-matrix.md) is the
+  authoritative default map, superseding the Appendix's tier A rows where they differ; tier B
+  stays reservation-only.
+- **Q2 — ANSWERED: (a) parallel systems**, confirmed by a deep-dive with the user: a shared
+  common concept would have exactly one consumer per feature (the editor must sit on JUCE's
+  `KeyPressMappingSet` to get menu display, focus dispatch, and diff persistence; the game's
+  `MenuBindings` is a modifier-free device+code map; no action vocabulary overlaps). Shared
+  semantics stay documented conventions. The extraction trigger — the editor wanting
+  non-keyboard input (e.g. MIDI-pedal transport) — is recorded in docs/tracking/watch-items.md;
+  extract `MenuBindings` to common only when that real second consumer appears.
+- **Q3 — SUPERSEDED** by the non-rebindable-core-commands decision (see Decisions already made):
+  with the trio fixed, no rebind can ever produce a non-mirrorable chord, so neither capture
+  restriction nor a warning note is needed.
+
+The original question text is kept below for the decision record.
 
 1. **Q1 — Default keymap appendix sign-off.** The Appendix below proposes tier A defaults
    (commands existing at baseline). Options: (a) approve tier A as listed; (b) edit specific rows.
@@ -232,11 +268,12 @@ Verified against code on 2026-07-06, refactor @ 13e82fb0.
 
 ## Phased implementation
 
-### Phase 0 — Decision gate
+### Phase 0 — Decision gate — COMPLETE 2026-07-20
 
 - **Scope**: present Q1–Q3 with the Appendix and the build-on-JUCE decision rationale; no code.
 - **Exit criteria**: user sign-off recorded in this file (edit the Status line and Q answers).
-- **STOP — present findings and get sign-off before Phase 1.**
+- **Done**: all three questions closed 2026-07-20 (see the Status line and the Open questions
+  section); the gate record lives in docs/plans/roadmap/00-roadmap.md's gate table.
 
 ### Phase 1 — Command registry and manager spine (assumes Q2 = (a))
 
@@ -353,7 +390,17 @@ Verified against code on 2026-07-06, refactor @ 13e82fb0.
   powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -RunTouchedTests
   ```
 
-### Phase 4 — Plugin-window shortcut injection seam (assumes Q3 answered)
+### Phase 4 — Plugin-window shortcut injection seam (RESCOPED 2026-07-20)
+
+> **RESCOPED by the non-rebindable-core-commands decision:** with Undo/Redo/Play-Pause fixed,
+> no injected-bindings seam, port setter, or editor-side push is needed — the hardcoded trio
+> stays correct by construction. What remains of this phase: (i) add `Ctrl+Shift+Z` as a Redo
+> alternative to the plugin-window matching (both the JUCE `keyPressed` predicates and the
+> VK-code hook copy), matching the registry's default map; (ii) optionally collapse the three
+> hand-synced predicate copies into one shared pure helper unit consumed by both paths — kept
+> from the original scope because the duplication is a real maintenance trap
+> (docs/developer/keyboard-input.md documents it). The original full-seam design below is
+> preserved for the day the trio ever becomes rebindable; do not execute it before then.
 
 - **Scope**: replace the hardcoded binding copies in `rock-hero-common/audio` with injected data,
   keeping common free of editor dependencies (constraint (a)). New public value type in
@@ -458,7 +505,12 @@ overlay still blocks it; verify menu shortcut text updates after the rebind.
   persistence) even if Phase 4 is deferred; the only loss is plugin windows honoring rebinds of
   the three mirrored commands.
 
-## Appendix — proposed default keymap (reviewable, open question Q1)
+## Appendix — proposed default keymap (SUPERSEDED as default-map authority, 2026-07-20)
+
+> The signed docs/plans/in-progress/keymap-matrix.md is now the authoritative default map (Q1);
+> this Appendix stays as the file-menu-standards record and the tier B reservations. Note from
+> the Q3 resolution: Undo (`Ctrl+Z`), Redo (`Ctrl+Y`, `Ctrl+Shift+Z`), and Play/Pause (`Space`)
+> ship as **non-rebindable** rows.
 
 Tier A — commands existing at baseline (or in-flight, marked):
 

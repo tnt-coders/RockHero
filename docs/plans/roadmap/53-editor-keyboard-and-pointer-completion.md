@@ -1,9 +1,37 @@
 # 53 — Editor keyboard + pointer completion
 
-Status: **Design settled 2026-07-20** (the full keymap worked out with the user; the eight fold-in
-conflicts A–H all resolved). Not started. Baseline inventory to re-verify against code before
-execution. This plan builds the complete editor keybinding + mouse-operation model captured in
+Status: **Executing — Phase 0 complete 2026-07-20 evening** (G53-FOLD-IN and G46-KEYMAP both
+closed: fold-in wording confirmed, keymap matrix signed with every confirm flag accepted, 46-Q2 =
+parallel systems + extraction watch-item, 46-Q3 dissolved by the non-rebindable-core-trio
+decision — see plan 46). **Phase 3 landed ahead of sequence, and Phase 7's keyboard half landed**
+(record below); both pre-registry, migrating onto the registry in Phase 1, which is next. This
+plan builds the complete editor keybinding + mouse-operation model captured in
 `docs/plans/in-progress/keymap-matrix.md` and the interaction-model fold-in.
+
+**Standing sync rule (binding for every phase):** the change set that completes a phase also
+updates this Status line, the plan's row in `docs/plans/roadmap/00-roadmap.md`'s status table,
+and flips the affected `keymap-matrix.md` rows to Live. The matrix stays alive as the
+build-tracking artifact until this plan completes, then dissolves into the authority docs
+(amending Phase 0's original dissolve-now instruction).
+
+## Landed ahead of sequence (2026-07-19/20, pre-registry)
+
+Built directly in `EditorView::keyPressed` before Phase 1, while the registry decision was still
+gated; Phase 1 migrates these bindings onto the registry like every other existing shortcut:
+
+- **Phase 3 — fully landed.** Grid `+/-` including `Shift+=` and numpad (23d3ed7b, via
+  `GridSpacingSelector::stepNoteValue`); `Ctrl+=/-` zoom sharing the `Ctrl`-wheel path
+  (44f24ab6, `TrackViewport::zoomByStep`/`applyZoomAroundCursor`); `Home`/`End` +
+  `Ctrl` aliases and `PageUp/Dn` section jumps via the `onChartCaretJumpRequested` intent with
+  one `ChartCaretJump` sum type (ae0e7ad5); ladder-end + exact-rational-compare fixes
+  (16a544b4). The planned `onSectionStepRequested`/`onChartBoundsRequested` intents shipped as
+  the single jump intent instead — the phase text below reads historically.
+- **Phase 7 — keyboard half landed.** The grid-locked `TimeSelection` as a mutually-exclusive
+  `EditorSelection` kind with all four `Shift`+extend families (grid / measure / section /
+  bounds) in 759b145f; transport-stranding + zero-width-collapse fixes in fd043657.
+  Conservative defaults accepted 2026-07-20 as placeholders pending plan 52 (typing inert,
+  Delete no-op, paused-only extend). Remaining in Phase 7: the ruler drag (with plan 47's loop
+  wiring) and plan 52's range-verb consumption.
 
 ## Goal
 
@@ -90,7 +118,7 @@ Full text in `keymap-matrix.md` → *Fold-in issue resolutions*. Summary of the 
 
 ## Phased implementation (dependency-ordered — registry first)
 
-### Phase 0 — Docs + plan amendments (no code)
+### Phase 0 — Docs + plan amendments (no code) — COMPLETE 2026-07-20
 
 Close the design. **G46-KEYMAP** (plan 46 Phase 0 gate) is answered by the settled matrix — record
 it. Apply the interaction-model + chart-span fold-in (the fold-map in `keymap-matrix.md`), amend
@@ -106,8 +134,11 @@ Stand up an `EditorCommandManager` over one `juce::ApplicationCommandManager` + 
 in a new `rock-hero-editor/ui/src/keybinds/`. Register every command; map to controller intents.
 Migrate the scattered `keyPressed` handling out of `editor_view.cpp` and **delete** the duplicated
 predicates (`isUndoShortcut`, etc.). Apply the settled matrix as the default map. Guard `Ctrl+T`
-against `Alt` (E2). **This phase gates everything below** — the discovery menu, rebindable defaults,
-and per-surface front-ends all consume the registry.
+against `Alt` (E2). The core trio (Undo/Redo/Play-Pause) and the grammar keys (digits, arrows,
+Esc, Space, Delete, Insert) register as **non-rebindable** rows (the 2026-07-20 46-Q3 resolution);
+`Ctrl+Shift+Z` joins `Ctrl+Y` as a Redo alternative, with the plugin-window mirror update riding
+plan 46's rescoped Phase 4. **This phase gates everything below** — the discovery menu, rebindable
+defaults, and per-surface front-ends all consume the registry.
 
 ### Phase 2 — Keybind-discovery context menus (every surface)  *(extends plan 46)*
 
@@ -115,7 +146,7 @@ Build the net-new chart-lane menu; route the existing tone/automation menus thro
 commands. Each item shows its **live** shortcut (JUCE `PopupMenu::addCommandItem` reads the current
 mapping — stays correct after a rebind). Depends on Phase 1.
 
-### Phase 3 — Navigation-reach + zoom/grid behaviors
+### Phase 3 — Navigation-reach + zoom/grid behaviors — LANDED AHEAD OF SEQUENCE (see record above)
 
 New intents `onSectionStepRequested` / `onChartBoundsRequested` (sections read from `song.h`; note
 `PageUp/Dn` may read oddly until plan 40 Phase 8 renders section markers — flag). Reuse
@@ -152,7 +183,7 @@ edge points to the chain). Promote `AutomationPointSelection` from a single poin
 **set** (mirror `ChartSelection`); add `Ctrl`+click toggle + marquee on lanes. Depends on Phase 1;
 interlocks Phase 4.
 
-### Phase 7 — Time-selection grid-locked span + `Shift`+arrows  *(amends plans 47/52; D + C)*
+### Phase 7 — Time-selection grid-locked span + `Shift`+arrows  *(amends plans 47/52; D + C)* — KEYBOARD HALF LANDED (see record above)
 
 Build plan 47's `LoopSelectionViewState` as a **strictly grid-locked span**; add a `TimeSelection`
 alternative to `EditorSelection` and wire **mutually-exclusive** two-kind dispatch (making a time
