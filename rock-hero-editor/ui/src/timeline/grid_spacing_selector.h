@@ -73,6 +73,19 @@ public:
     */
     void setNoteValue(common::core::Fraction note_value);
 
+    /*!
+    \brief Steps the grid one preset finer or coarser and emits the chosen value.
+
+    Presets run coarse (1/4) to fine (1/128). A positive \p direction picks the coarsest preset
+    strictly finer than the currently applied value (the keyboard "+" step); a negative one the
+    finest preset strictly coarser (the "-" step) — so a free-entry value in between snaps to the
+    nearest preset in the step direction. Clamps at the finest/coarsest preset; emits through the
+    listener exactly like a combo selection, so the controller still owns the applied value.
+
+    \param direction Positive to step finer, negative to step coarser.
+    */
+    void stepNoteValue(int direction);
+
     /*! \brief Lays out the caption and combo box within the component bounds. */
     void resized() override;
 

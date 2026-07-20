@@ -1106,8 +1106,13 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
 
             if (chart_shown)
             {
-                // Plain arrows move the caret; Ctrl+Left/Right jump measures (the GP jump).
-                m_controller.onChartCaretStepRequested(*arrow_direction, ctrl);
+                // Plain arrows move the caret; Ctrl+Left/Right jump measures (the GP jump). Ctrl is
+                // meaningless on the vertical axis, so it is not forwarded there — it used to pass a
+                // measure flag Up/Down silently ignored, a flag that lied about intent (2026-07-20).
+                // (Ctrl+Up/Down = surface-jump lands with the vertical-nav surface work.)
+                const bool measure = ctrl && (*arrow_direction == core::ChartStepDirection::Left ||
+                                              *arrow_direction == core::ChartStepDirection::Right);
+                m_controller.onChartCaretStepRequested(*arrow_direction, measure);
                 return true;
             }
             return false;
@@ -1139,6 +1144,28 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
         }
     }
 
+    // Grid resolution steps on +/- (the GP-style step, settled 2026-07-19): "+" (main-row '='
+    // or its shifted '+', and numpad +) makes the grid one preset finer, "-" (main-row '-' and
+    // numpad -) one preset coarser. Ctrl on the same keys is reserved for zoom (lands with the
+    // zoom-step work) and Alt for authoring, so both are excluded here. The step emits through
+    // the grid selector's listener — the same path as a combo selection — so the controller
+    // still owns the applied value.
+    if (!key.getModifiers().isCtrlDown() && !key.getModifiers().isAltDown())
+    {
+        const int key_code = key.getKeyCode();
+        const juce::juce_wchar text_char = key.getTextCharacter();
+        if (text_char == '+' || text_char == '=' || key_code == juce::KeyPress::numberPadAdd)
+        {
+            m_grid_spacing_selector.stepNoteValue(1);
+            return true;
+        }
+        if (text_char == '-' || key_code == juce::KeyPress::numberPadSubtract)
+        {
+            m_grid_spacing_selector.stepNoteValue(-1);
+            return true;
+        }
+    }
+
     // Delete deletes THE selection: one selection exists editor-wide and the controller
     // dispatches on its kind (the old point → chart → region precedence ladder retired with
     // the unified selection, 2026-07-18). The controller publishes the one presence flag, so
@@ -1162,8 +1189,11 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
         return true;
     }
 
-    // Ctrl+T inserts a tone-change marker at the playhead, splitting the region there.
-    if (key.getModifiers().isCtrlDown() && key.getKeyCode() == 'T')
+    // Ctrl+T inserts a tone-change marker at the playhead, splitting the region there. Guarded
+    // against Alt (Ctrl and not Alt, matching undo/redo) so Ctrl+Alt+T does not fire it — the
+    // Ctrl+Alt namespace belongs to the fine-tier authoring composition (2026-07-20).
+    if (key.getModifiers().isCtrlDown() && !key.getModifiers().isAltDown() &&
+        key.getKeyCode() == 'T')
     {
         createToneMarkerAtPlayhead();
         return true;
