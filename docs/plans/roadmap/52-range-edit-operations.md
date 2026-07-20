@@ -3,6 +3,12 @@
 ## 1. Status
 
 **OPEN DISCUSSION — decision-gated (G52-RANGE-EDIT). Nothing in this plan is executable yet.**
+
+> **AMENDED 2026-07-20 by the settled editor keymap** (see
+> docs/plans/roadmap/53-editor-keyboard-and-pointer-completion.md). Decision D — object-selection and
+> time-selection are **mutually exclusive** — **resolves 52-Q6, 52-Q10, and 52-Q12** (all three
+> presupposed the two coexist; they never do) and supersedes this plan's "complements, not
+> competitors" framing. Re-read plan 53 + the interaction-model fold-in before executing.
 Authored 2026-07-16 at the user's request. Every open question below (52-Q1..Q8) carries a
 recommendation, but **each individual decision requires explicit user sign-off** — the
 recommendations are discussion inputs, not defaults that activate by silence. The gate closes

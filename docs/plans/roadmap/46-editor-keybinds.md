@@ -3,6 +3,14 @@
 **Status:** Decision-gated — Phase 0 needs sign-off on the default keymap appendix (Q1), the
 editor/game sharing model (Q2), and the plugin-window mirroring policy (Q3) before Phase 1 starts.
 The framework evaluation itself is complete (build on JUCE, evidence below).
+
+> **AMENDED 2026-07-20 by the settled editor keymap** (see
+> docs/plans/roadmap/53-editor-keyboard-and-pointer-completion.md and
+> docs/plans/in-progress/keymap-matrix.md). **Q1 (default keymap) is now answered** by the settled
+> matrix. New scope joins this plan: the **keybind-discovery context menu** on every surface (each
+> item shows its live shortcut) and the full per-surface keyboard model. `Ctrl+T` is **kept but
+> guarded against `Alt`** (not removed). Plan 53 is the sequenced build (registry-first) and drives
+> this plan's registry phases as its Phase 1. Re-read before executing.
 Date: 2026-07-06. Baseline: `refactor @ 13e82fb0`.
 
 ## Goal
