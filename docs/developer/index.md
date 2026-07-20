@@ -210,6 +210,7 @@ and \ref guide_add_file answers where its files live.
 | You want to... | Read | Then follow |
 |---|---|---|
 | Add/change an editor operation | \ref guide_action_anatomy | \ref guide_add_action |
+| Add or change a keyboard shortcut | \ref guide_keyboard | its silent steps |
 | Add UI to the editor's timeline stack | \ref guide_2d_views | \ref guide_add_view |
 | Add any other editor UI | \ref guide_action_anatomy | \ref guide_add_view |
 | Work on plugins or the signal chain | \ref guide_signal_chain | its extension checklist |
@@ -238,6 +239,8 @@ tours, then use the recipes as checklists while you work:
 
 - \subpage guide_2d_views — the editor's timeline rows: waveform, tab, tone track, automation.
   *(Editor-only)*
+- \subpage guide_keyboard — a keystroke's route end to end: focus, decode, and the two dispatch
+  paths. *(Editor-only)*
 - \subpage guide_3d_highway — the shared 3D renderer and how both products consume it.
   *(Repo-wide)*
 - \subpage guide_signal_chain — the plugin rack across all three layers. *(Editor + engine)*

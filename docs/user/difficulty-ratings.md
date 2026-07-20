@@ -5,7 +5,7 @@ difficulty name is a display tier derived from that number.
 
 The rating is computed automatically from the arrangement's notes rather than chosen by hand, so two
 charts of comparable demand land at comparable ratings regardless of who created them. The automatic
-calculator is not implemented yet; see `docs/plans/todo/arrangement-difficulty-derivation-plan.md`.
+calculator is not implemented yet; see `docs/plans/roadmap/11-derived-difficulty-calculator.md`.
 
 | Rating | Difficulty |
 |--------|------------|

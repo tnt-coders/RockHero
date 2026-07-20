@@ -1,6 +1,7 @@
 # Developer Guide Completion Plan
 
-Status: census complete, all items executed 2026-07-15 (the guide is 18 pages). The plan stays
+Status: census complete, all items executed 2026-07-15 (the guide is 19 pages as of
+2026-07-20). The plan stays
 open as the standing coverage registry: it tracks keeping the guide complete over every *stable*
 area while explicitly *not* documenting unstable or unbuilt ones.
 
@@ -10,10 +11,14 @@ area while explicitly *not* documenting unstable or unbuilt ones.
 - **In flux** — light-touch only; every affected passage carries a one-line italic *Design in
   flux* note naming the owning plan file. Current flux areas: tone active-vs-selected
   (proposed), tone parameter automation (active), tone-track/tempo-map UI (active), app-local
-  project view state (active), GameShell composition (decided, lands with plan 21 Phase 6).
-- **Not built** — zero documentation beyond naming it as future work. Current: note authoring /
-  chart editing / tempo-anchor editing (roadmap 40/41/42), game 2D tab view (roadmap 30),
-  detection (roadmap 22/23), and everything later on the roadmap.
+  project view state (active), GameShell composition (decided, lands with plan 21 Phase 6),
+  chart editing / the selection-and-caret model (largely built; grammar still being tuned —
+  `chart-span-and-selection-model.md`, `editing-interaction-model.md`), and the keybind set
+  itself (`keymap-matrix.md` under verification; plan 46's registry decision-gated).
+- **Not built** — zero documentation beyond naming it as future work. Current: tempo-anchor
+  editing (roadmap 41/42), the plan 46 keybind registry/rebinding UI, game 2D tab view
+  (roadmap 30 — its shared scene model and paint core are built and documented; the game-side
+  view is not), detection (roadmap 22/23), and everything later on the roadmap.
 
 ## Census summary (2026-07-15)
 
@@ -39,6 +44,7 @@ Gaps, ranked by size × centrality (from the full census):
 | 9 | `common/audio` `mix` + `tone_timeline` ports | 2 files | **DONE 2026-07-15** | Named with roles in `game-development.md` supporting systems. |
 | 10 | `editor/ui/busy` + `input_calibration` windows | 4 files | **DONE 2026-07-15** | Busy overlay named in invariants; calibration window covered in `audio-device-settings.md`. |
 | 11 | File-format field reference (post-census addition) | all serializers | **DONE 2026-07-15** | `docs/developer/file-formats.md` — complete field tables for .rock/.rhp/.tone containers, song.json, chart and tone documents, project.json, plus cross-format invariants. Format-change recipe now requires same-commit updates to it. |
+| 12 | Keyboard input / keybind wiring (post-census addition) | editor_view keyPressed + controller intents + plugin_window seam | **DONE 2026-07-20** | `docs/developer/keyboard-input.md` — focus model, the decode hub, the action vs caret dispatch paths, gating layers, the plugin-window/preview seams, add-a-keybind silent steps. Flux notes for plan 46 and `keymap-matrix.md`; supersedes nothing (area was undocumented). |
 
 All census items are DONE as of 2026-07-15. This plan stays open as the registry for future
 coverage: new subsystems get a census row (with a stability flag) when they land, and the

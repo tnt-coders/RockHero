@@ -75,6 +75,35 @@ Reach for it when a deliberately unified object grows past one file. The conditi
 header stays logic-free, helpers stay in their slice, the object's own `.cpp` is assembly only)
 are in \ref design_architectural_principles, "Multi-TU Coordination Objects".
 
+## Single-authority helpers (choke points)
+
+When one rule has several call sites, the rule becomes one named function and every consumer
+routes through it. The codebase deliberately collapses duplicated derivations onto such choke
+points, because the second hand-written copy of a formula is where drift starts — the 2026-07
+consolidation pass fixed exactly that class of bug three times (a hand-copied lane-band formula
+missing its min-height guard, a region-boundary resolver dropping the sub-beat offset, a
+seconds round-trip overshooting a grid step).
+
+Exemplars, each the *only* home of its rule:
+
+- `toneRegionSpanSeconds(...)` (`editor/core/src/tone/tone_track_projection.h`) — the one
+  region-span rule; the tone-track projection, cursor-follow, and the active-region window all
+  resolve spans through it.
+- `gridStepBeats` / `adjacentTempoGridPosition`
+  (`editor/core/include/.../timeline/tempo_grid_geometry.h`) — the one keyboard grid-step
+  primitive behind both the chart caret step and the automation-lane nudge.
+- `chartPlacementAt(...)` (`editor/core/src/controller/editor_controller.cpp`) — the single
+  chart placement seam: caret arm, Alt-insert, and the insert ghost share one snap + occupancy
+  judgement, so the ghost can never preview a placement the click would refuse.
+- `setSelection(...)` (`editor_controller_impl.h`) — the one non-chart selection-assignment
+  seam, carrying the fret-entry invalidation invariant so no assignment can forget it.
+- `valueBandFor`/`valueBandY` (`ui/src/tone/tone_automation_lanes_view.h`) — the lane
+  value-band geometry authority that replaced five hand-copied formulas across paint, hit-test,
+  and editor anchoring.
+
+Reach for it the moment you re-derive something a second time: name the rule, give it one home
+next to its data, and route the existing call site through it in the same change.
+
 # Modeling patterns
 
 ## Sum type for stable cases, interface for growing cases

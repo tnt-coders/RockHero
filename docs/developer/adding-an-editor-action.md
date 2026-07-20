@@ -56,7 +56,9 @@ These are the loose ends. Check each one deliberately.
    A forgotten derivation shows stale UI, not an error.
 6. **The trigger.** Wire the actual menu item, keystroke, or button in
    `rock-hero-editor/ui/src/main_window/editor_view.cpp` (or the owning component) — the action
-   compiles and works perfectly while being unreachable.
+   compiles and works perfectly while being unreachable. If the trigger is a key, follow the
+   keybind silent steps in \ref guide_keyboard (decode conventions, gating layer, and the
+   plugin-window/preview mirrors for global accelerators).
 7. **Tests.** Add a `test_*.cpp` under `rock-hero-editor/core/tests/` **and list it in that
    folder's `CMakeLists.txt`** (source lists are explicit; an unlisted test silently never runs).
    Drive the action through the harness

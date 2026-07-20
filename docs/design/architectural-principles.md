@@ -205,9 +205,12 @@ boundary (test-only targets), which is exactly what namespaces are for.
 `common/core` folds by the same feature axis as every other library: `song/` (the song model —
 song, arrangement, difficulty, audio assets and their normalization metadata), `timeline/`
 (musical time — time value types, the tempo map, and the exact rational type for grid-relative
-positions; the same feature name the editor libraries use), `package/` (song-package
-persistence — archive IO, package IDs, workspace paths, and their errors), and `session/` (the
-editable workspace session composing song, arrangement, and timeline state). Mechanisms with no
+positions; the same feature name the editor libraries use), `chart/` (the playable chart model —
+notes, chord templates, tuning, techniques), `tone/` (tone-catalog and automation value types),
+`package/` (song-package persistence — archive IO, package IDs, workspace paths, and their
+errors), `session/` (the editable workspace session composing song, arrangement, and timeline
+state), and the renderer scene models `tab/` and `highway/` (each feeding its shared view in
+both products). Mechanisms with no
 feature (logging, JSON, path bridging, cancellation, application identity) live in `shared/`.
 `common/core` has no facade, so its root holds no files.
 
@@ -559,7 +562,8 @@ will grow:
 - **Growing set of types under a stable operation surface → interface.** When new *cases* arrive
   more often than new operations, a small interface wins: each new case is one class in its
   feature folder touching nothing central. Exemplar: `IEdit` — undo entries keep gaining kinds
-  (signal-chain edits today, tone/automation edits next), while the operation surface
+  (signal-chain, chart, tone-region, tone-automation, and tone-designer edit families exist
+  today, each in its feature's `*_edits.h`), while the operation surface
   (`undo`, `redo`, `label`) stays fixed.
 
 When adding a new closed family, name which axis grows and pick accordingly; when extending an

@@ -72,8 +72,14 @@ side-effecting `ITransport`:
 The editor's grid note value (a `Fraction` of a whole note, default 1/4) is the *shared
 authority* for both drawing and snapping: `tempo_grid_geometry.cpp` computes visible grid lines
 and `nearestTempoGridPosition(...)` returns the exact rational `GridPosition` — the same math, so
-what you see is what you snap to. Ctrl bypasses to a 1/960-beat fine grid. Gestures must go
-through `musicalGridPositionForX` (see \ref guide_2d_views).
+what you see is what you snap to. Ctrl bypasses to a 1/960-beat fine grid, uniformly across
+surfaces and input families: pointer placement, keyboard moves, and the sustain extent verb all
+compose the same fine tier (the off-grid unification). Pointer gestures must go through
+`musicalGridPositionForX` (see \ref guide_2d_views); keyboard stepping has its own single
+primitives in the same header — `gridStepBeats(...)` (one step's size at a measure) and
+`adjacentTempoGridPosition(...)` (the next line from any position, exact-rational, so a coarse
+step from an off-grid start lands on the adjacent line, never overshoots) — and
+`secondsAtGridPosition(...)` turns an exact position back into seconds for geometry.
 
 *Design in flux: making the tempo map user-visible/editable is active work
 (`docs/plans/in-progress/tone-track-tempo-map-plan.md`), and tempo-anchor authoring is an

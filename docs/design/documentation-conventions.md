@@ -183,15 +183,12 @@ Example for an indented member declaration:
 
 \code{.cpp}
     /*!
-\brief Creates the concrete editor view and installs the arrangement thumbnail.
+\brief Creates the concrete editor view and installs the thumbnail factory.
 
     \param controller Controller that receives all user intents emitted by this view.
-    \param transport Read-only transport used by the cursor overlay for current position reads.
-    \param thumbnail_factory Factory used immediately to create the initial row thumbnail.
+    \param audio_ports Required audio ports consumed directly by this view.
     */
-    EditorView(
-        IEditorController& controller, const audio::ITransport& transport,
-        audio::IThumbnailFactory& thumbnail_factory);
+    EditorView(core::IEditorController& controller, AudioPorts audio_ports);
 \endcode
 
 # Doxygen Commands
