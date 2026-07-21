@@ -82,26 +82,28 @@ namespace
     return text;
 }
 
-// Arrow keys render as glyphs — JUCE's "cursor left" wording reads far too verbose on a chip.
-[[nodiscard]] juce::juce_wchar arrowGlyphForKeyCode(int key_code)
+// Arrow keys render as bare direction words — JUCE's "cursor left" reads too verbose on a
+// chip, and the arrow glyph alternatives all fail at chip size (thin line arrows are barely
+// legible at 13px, heavy arrows risk color-emoji presentation on Windows).
+[[nodiscard]] const char* arrowNameForKeyCode(int key_code)
 {
     if (key_code == juce::KeyPress::leftKey)
     {
-        return 0x2190;
+        return "left";
     }
     if (key_code == juce::KeyPress::upKey)
     {
-        return 0x2191;
+        return "up";
     }
     if (key_code == juce::KeyPress::rightKey)
     {
-        return 0x2192;
+        return "right";
     }
     if (key_code == juce::KeyPress::downKey)
     {
-        return 0x2193;
+        return "down";
     }
-    return 0;
+    return nullptr;
 }
 
 } // namespace
@@ -116,10 +118,9 @@ juce::String keyChordText(const juce::KeyPress& key, ShiftedCharacterResolver re
     const int key_code = key.getKeyCode();
     const juce::ModifierKeys modifiers = key.getModifiers();
 
-    if (const juce::juce_wchar arrow_glyph = arrowGlyphForKeyCode(key_code); arrow_glyph != 0)
+    if (const char* const arrow_name = arrowNameForKeyCode(key_code); arrow_name != nullptr)
     {
-        return modifierPrefix(modifiers, /*with_shift=*/true) +
-               juce::String::charToString(arrow_glyph);
+        return modifierPrefix(modifiers, /*with_shift=*/true) + arrow_name;
     }
 
     if (modifiers.isShiftDown() && key_code >= printable_first &&

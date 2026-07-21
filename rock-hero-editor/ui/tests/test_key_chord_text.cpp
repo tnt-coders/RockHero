@@ -60,14 +60,12 @@ TEST_CASE("keyChordText collapses shifted characters", "[ui][keybinds]")
         keyChordText(chord(juce::KeyPress::F9Key, shift), &fakeShiftResolver) ==
         chord(juce::KeyPress::F9Key, shift).getTextDescription());
 
-    // Arrows render as glyphs — JUCE's "cursor left" wording is far too verbose on a chip —
-    // with the full modifier prefix kept.
-    CHECK(
-        keyChordText(chord(juce::KeyPress::leftKey), &fakeShiftResolver) ==
-        juce::String::charToString(juce::juce_wchar{0x2190}));
+    // Arrows render as bare direction words — JUCE's "cursor left" wording is too verbose on
+    // a chip — with the full modifier prefix kept.
+    CHECK(keyChordText(chord(juce::KeyPress::leftKey), &fakeShiftResolver) == "left");
     CHECK(
         keyChordText(chord(juce::KeyPress::rightKey, ctrl | shift), &fakeShiftResolver) ==
-        "ctrl + shift + " + juce::String::charToString(juce::juce_wchar{0x2192}));
+        "ctrl + shift + right");
 }
 
 // addEditorCommandItem pre-fills the item's shortcut text through the shared formatter (JUCE
