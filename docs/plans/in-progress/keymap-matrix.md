@@ -137,7 +137,7 @@ a range is a no-op pending plan 52's content-delete, and the extend is paused-on
 | Keybind | Behavior | Status |
 |---|---|---|
 | `Space` | play / pause from the marker | Live |
-| `Ctrl+Z` / `Ctrl+Y` / `Ctrl+Shift+Z` | undo / redo (exact-modifier matched) — **non-rebindable core commands** with `Space` (decided 2026-07-20); `Ctrl+Shift+Z` = redo alias | Live (registry 2026-07-20; plugin-window mirror of the alias rides 46 Phase 4) |
+| `Ctrl+Z` / `Ctrl+Y` / `Ctrl+Shift+Z` | undo / redo (exact-modifier matched); `Ctrl+Shift+Z` = redo alias — **fully rebindable** with `Space` (fixed-trio decision reversed 2026-07-20; rebinds mirror into plugin windows via the generalized layout-neutral seam) | Live (registry + mirror sync 2026-07-20; manual plugin verification pending) |
 | `Ctrl+O` · `Ctrl+Shift+O` · `Ctrl+S` · `Ctrl+Shift+S` · `Ctrl+Shift+P` · `Ctrl+W` | Open / Import / Save / Save As / Publish / Close (the tier A file-menu chords; menu items show live shortcuts) | Live (registry 2026-07-20) |
 | `Ctrl+T` | insert a tone-change marker at the **playhead** (from any surface) | Live (guard against `Alt` shipped 2026-07-20 via the registry's exact-modifier matching) |
 | `Esc` | cancel gesture → disarm caret → clear selection | Live |
@@ -332,5 +332,5 @@ The rule fold-in surfaced conflicts needing a call. Resolutions as they settle:
 3. **DECIDED (A) — `Shift+↑/↓` unbound.** The time selection is full-height, so there's no vertical axis to extend along; overloading it for object-multi-select would fracture the object-vs-time split. Stays free.
 4. **DECIDED (B) — strict grid-lock.** *All* time-selection is grid-locked (keyboard **and** pointer); a range boundary can never be off-grid. **Amends plan 47** (drop its `Ctrl`-off-grid range endpoints). A copied range still captures off-grid *content* inside it — only the boundaries snap — so copy/paste always lands clean.
 5. **DECIDED (B) — triage each gap individually** (close vs document-as-intentional, deciding each case explicitly). Per-gap outcomes tracked in *Surface parity triage* below.
-6. **DECIDED 2026-07-20 — Undo/Redo/Play-Pause are non-rebindable core commands** (dissolving 46-Q3: the plugin-window hook's fixed matching stays correct forever). `Ctrl+Shift+Z` joins as a first-class redo alias (DAW muscle memory) with the registry; the plugin-window mirror gains it via plan 46's rescoped Phase 4.
+6. **DECIDED 2026-07-20 — Undo/Redo/Play-Pause are non-rebindable core commands** (dissolving 46-Q3). `Ctrl+Shift+Z` joins as a first-class redo alias (DAW muscle memory). **REVERSED the same day** after the mirror-constraint correction (the user's REAPER counterexample): the trio is fully rebindable, and rebinds mirror into plugin windows through the generalized layout-neutral injection seam (plan 46 Phase 4 execution record).
 7. **DECIDED 2026-07-20 — sign-off flags all accepted**: the `Ctrl+PageUp/Dn` ride-along alias, the `Shift+-` grid match, `+` = finer, and 759b145f's conservative time-selection defaults (placeholders pending plan 52).

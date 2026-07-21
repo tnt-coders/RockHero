@@ -1,12 +1,15 @@
 # Plan 46 — Editor Keybinds
 
-**Status:** **G46-KEYMAP CLOSED 2026-07-20** — Phase 0 complete. Q1 answered by the signed keymap
-matrix (which supersedes the Appendix's tier A as the default map); Q2 = (a) parallel systems plus
-an extraction watch-item; Q3 superseded — Undo/Redo/Play-Pause are **non-rebindable core
-commands** (decision below), so Phase 4's injection seam is no longer needed and that phase
-rescopes to the `Ctrl+Shift+Z` redo alias + predicate dedupe. Execution rides
-docs/plans/roadmap/53-editor-keyboard-and-pointer-completion.md: its Phases 1–2 run this plan's
-Phases 1–3/5. The framework evaluation is complete (build on JUCE, evidence below).
+**Status:** **G46-KEYMAP CLOSED 2026-07-20; Phases 0–5 code-complete the same day** — the last
+gate is the manual Nolly/Gateway plugin verification of the generalized shortcut mirror (Phase 4
+execution record) before the `custom-keybind-menu` branch merges. Q1 answered by the signed
+keymap matrix (which supersedes the Appendix's tier A as the default map); Q2 = (a) parallel
+systems plus an extraction watch-item; Q3 dissolved twice over — first by the short-lived
+non-rebindable-trio decision, then, after its same-day reversal, by the generalized
+layout-neutral mirror that can forward nearly any chord. Every command is user-rebindable; only
+grammar-reserved chords are refused. Execution rode
+docs/plans/roadmap/53-editor-keyboard-and-pointer-completion.md Phase 1. The framework
+evaluation is complete (build on JUCE, evidence below).
 
 > **AMENDED 2026-07-20 by the settled editor keymap** (see
 > docs/plans/roadmap/53-editor-keyboard-and-pointer-completion.md and
@@ -207,6 +210,13 @@ Verified against code on 2026-07-06, refactor @ 13e82fb0.
   first-class Redo alternative (DAW muscle memory; letter+Ctrl+Shift is hook-mirrorable). Making
   them rebindable later is purely additive — that is the moment Phase 4's original seam design
   (preserved below) becomes relevant again.
+  **REVERSED 2026-07-20 (same day), after the constraint correction**: the user's REAPER
+  counterexample proved the mirror generalizes to arbitrary chords, so the original no-alias
+  hazard is solved by the *mirror* rather than by prohibition. The trio is fully rebindable;
+  Phase 4's seam executed in generalized form (see its execution record), the `rebindable`
+  registry field and every fixed-row/steal-refusal consumer were removed, and the dialog's
+  "Fixed Commands" section dissolved. Only the interaction grammar's reserved chords remain
+  off-limits to bindings.
 - **The pointer-modifier vocabulary is fixed** by `docs/plans/in-progress/editing-interaction-model.md`
   (settled 2026-07-09; keyboard grammar re-settled 2026-07-16/18 — re-read that doc plus
   `docs/plans/in-progress/chart-span-and-selection-model.md` §9/§9a at G46-KEYMAP; the list
@@ -500,17 +510,27 @@ The original question text is kept below for the decision record.
   powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -RunTouchedTests
   ```
 
-### Phase 4 — Plugin-window shortcut injection seam (RESCOPED 2026-07-20)
+### Phase 4 — Plugin-window shortcut injection seam — EXECUTED IN GENERALIZED FORM 2026-07-20 (code complete; manual plugin verification pending)
 
-> **RESCOPED by the non-rebindable-core-commands decision:** with Undo/Redo/Play-Pause fixed,
-> no injected-bindings seam, port setter, or editor-side push is needed — the hardcoded trio
-> stays correct by construction. What remains of this phase: (i) add `Ctrl+Shift+Z` as a Redo
-> alternative to the plugin-window matching (both the JUCE `keyPressed` predicates and the
-> VK-code hook copy), matching the registry's default map; (ii) optionally collapse the three
-> hand-synced predicate copies into one shared pure helper unit consumed by both paths — kept
-> from the original scope because the duplication is a real maintenance trap
-> (docs/developer/keyboard-input.md documents it). The original full-seam design below is
-> preserved for the day the trio ever becomes rebindable; do not execute it before then.
+> **Execution record:** after the trio-rebindable reversal, this phase executed as the original
+> injected-bindings seam, generalized past the design below in one load-bearing way: chords are
+> **layout-neutral** — a chord names either a base *character* (matched on Windows by
+> translating the incoming virtual key through the active keyboard layout via
+> `MapVirtualKeyW(MAPVK_VK_TO_CHAR)`, so an `Alt+;` binding follows the `;` key across
+> layouts; dead keys refused) or a *named non-character key* (F-keys, arrows, navigation,
+> Return) — and Alt participates as a first-class modifier (`WM_SYSKEYDOWN` was always
+> visible to the hook; only the old chord tests excluded it). Delivered: the public
+> `plugin_window_shortcuts.h` value types + pure matcher + shared JUCE-KeyPress decoder
+> (headlessly tested), `IPluginHost::setPluginWindowShortcuts` implemented by `Engine`
+> (forwarding into the windows' shared binding state) and the fakes, the hardcoded predicate
+> copies in `plugin_window.cpp` **deleted** (the JUCE path and the Win32 hook both decode into
+> chords and match the injected set), built-in defaults keeping an editor-less engine on the
+> editor's default keymap, and the editor-side `PluginWindowShortcutSync` pushing the trio's
+> chords after keymap restore and on every mapping change. `disposeCommandKey`'s Space-yield
+> policy keys off command identity and survives untouched. **Remaining gate: the manual
+> Nolly/Gateway verification** (rebind undo, confirm it fires from a focused plugin window,
+> confirm plugin text fields still type) — only the user can witness this; do not merge the
+> branch before it. The original design below reads historically.
 >
 > **Constraint correction (2026-07-20, prompted by the user's REAPER counterexample — Alt+;
 > play/pause works there through focused VST windows):** the seam design's "Alt intentionally

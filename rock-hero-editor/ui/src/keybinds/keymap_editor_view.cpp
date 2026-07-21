@@ -62,17 +62,8 @@ public:
             owner_id != 0
         )
         {
-            const EditorCommandSpec* const owner_spec = findEditorCommandSpec(owner_id);
-            if (owner_spec != nullptr && !owner_spec->rebindable)
-            {
-                message << "\n\n(Assigned to \"" << owner_spec->name
-                        << "\", which cannot be rebound)";
-            }
-            else
-            {
-                message << "\n\n(Currently assigned to \""
-                        << m_command_manager.getNameOfCommand(owner_id) << "\")";
-            }
+            message << "\n\n(Currently assigned to \""
+                    << m_command_manager.getNameOfCommand(owner_id) << "\")";
         }
         setMessage(message);
         return true;
@@ -233,33 +224,26 @@ public:
                 toJuceCommandId(spec.id));
         for (int index = 0; index < keys.size(); ++index)
         {
-            auto chip =
-                std::make_unique<ChipButton>(keys[index].getTextDescription(), spec.rebindable);
+            auto chip = std::make_unique<ChipButton>(
+                keys[index].getTextDescription(), /*interactive=*/true);
             chip->setComponentID(
                 "keymap_chip_" + juce::String::toHexString(toJuceCommandId(spec.id)) + "_" +
                 juce::String{index});
-            if (spec.rebindable)
-            {
-                chip->onClick = [this, index] { showChipMenu(index); };
-            }
+            chip->onClick = [this, index] { showChipMenu(index); };
             addAndMakeVisible(*chip);
             m_chips.push_back(std::move(chip));
         }
 
-        if (spec.rebindable)
-        {
-            m_add_chip = std::make_unique<ChipButton>("+", true);
-            m_add_chip->setComponentID(
-                "keymap_add_" + juce::String::toHexString(toJuceCommandId(spec.id)));
-            m_add_chip->onClick = [this] { m_owner.beginCapture(m_spec.id, -1); };
-            addAndMakeVisible(*m_add_chip);
-        }
+        m_add_chip = std::make_unique<ChipButton>("+", /*interactive=*/true);
+        m_add_chip->setComponentID(
+            "keymap_add_" + juce::String::toHexString(toJuceCommandId(spec.id)));
+        m_add_chip->onClick = [this] { m_owner.beginCapture(m_spec.id, -1); };
+        addAndMakeVisible(*m_add_chip);
     }
 
     void paint(juce::Graphics& g) override
     {
-        const EditorTheme& theme = editorTheme();
-        g.setColour(m_spec.rebindable ? theme.primary_text : theme.muted_text);
+        g.setColour(editorTheme().primary_text);
         g.setFont(juce::Font{juce::FontOptions{g_row_font_height}});
         g.drawText(
             m_spec.name,
@@ -272,7 +256,7 @@ public:
     // binding has been removed and no chip menu exists.
     void mouseDown(const juce::MouseEvent& event) override
     {
-        if (!event.mods.isPopupMenu() || !m_spec.rebindable)
+        if (!event.mods.isPopupMenu())
         {
             return;
         }
@@ -396,7 +380,7 @@ void KeymapEditorView::applyBindingChange(
     EditorCommandId command, const juce::KeyPress& key, int replace_index)
 {
     const EditorCommandSpec* const spec = findEditorCommandSpec(toJuceCommandId(command));
-    if (spec == nullptr || !spec->rebindable || !key.isValid())
+    if (spec == nullptr || !key.isValid())
     {
         return;
     }
@@ -410,15 +394,6 @@ void KeymapEditorView::applyBindingChange(
     }
 
     juce::KeyPressMappingSet& mappings = *m_command_manager.getKeyMappings();
-
-    // Chords can never be stolen FROM a non-rebindable command either: taking Ctrl+Z away
-    // from Undo would break the fixed core trio the plugin-window hook mirrors.
-    const EditorCommandSpec* const owner_spec =
-        findEditorCommandSpec(mappings.findCommandForKeyPress(key));
-    if (owner_spec != nullptr && !owner_spec->rebindable)
-    {
-        return;
-    }
 
     // The remove-then-add dance: strip the chord from whichever command owns it, drop the
     // binding being replaced, then assign — exactly one owner remains. addKeyPress alone must
@@ -439,15 +414,14 @@ void KeymapEditorView::removeBinding(EditorCommandId command, int key_index)
 void KeymapEditorView::resetCommandToDefault(EditorCommandId command)
 {
     const EditorCommandSpec* const spec = findEditorCommandSpec(toJuceCommandId(command));
-    if (spec == nullptr || !spec->rebindable)
+    if (spec == nullptr)
     {
         return;
     }
 
     // Strip each default chord from whatever command took it meanwhile, so the one-owner law
     // holds through the reset (the mapping set's resetToDefaultMapping re-adds defaults
-    // without any conflict cleanup). Registry defaults never collide with the non-rebindable
-    // trio's chords, so this can never strip from a fixed command.
+    // without any conflict cleanup).
     juce::KeyPressMappingSet& mappings = *m_command_manager.getKeyMappings();
     for (const juce::KeyPress& key : spec->default_keypresses)
     {
@@ -498,15 +472,11 @@ void KeymapEditorView::rebuildRows()
         m_rows.push_back(std::move(row));
     };
 
-    // Rebindable commands first, under their registry categories; everything uneditable
-    // gathers at the bottom (user direction 2026-07-20) so the actionable rows lead.
+    // Every command is rebindable, grouped under its registry category; the fixed grammar
+    // reference gathers at the bottom (user direction 2026-07-20) so actionable rows lead.
     const char* current_category = "";
     for (const EditorCommandSpec& spec : editorCommandRegistry())
     {
-        if (!spec.rebindable)
-        {
-            continue;
-        }
         if (juce::String{spec.category} != juce::String{current_category})
         {
             current_category = spec.category;
@@ -515,19 +485,9 @@ void KeymapEditorView::rebuildRows()
         add_command_row(spec);
     }
 
-    // The fixed core commands, then the grammar reference: visible so the dialog is the
-    // complete keymap, inert because the trio must keep the plugin-window mirror correct and
-    // the grammar is a composed modifier algebra, not per-key bindings (an alternative
-    // navigation *scheme* is the recorded future enhancement, not rebinding).
-    add_header("Fixed Commands");
-    for (const EditorCommandSpec& spec : editorCommandRegistry())
-    {
-        if (!spec.rebindable)
-        {
-            add_command_row(spec);
-        }
-    }
-
+    // The grammar reference: visible so the dialog is the complete keymap, inert because the
+    // grammar is a composed modifier algebra, not per-key bindings (an alternative navigation
+    // *scheme* is the recorded future enhancement, not rebinding).
     add_header("Editing & Navigation (fixed)");
     int reservation_index = 0;
     for (const GrammarReservation& reservation : grammarReservations())
@@ -580,17 +540,6 @@ void KeymapEditorView::confirmAndApply(
 
     const juce::CommandID owner_id =
         m_command_manager.getKeyMappings()->findCommandForKeyPress(key);
-    const EditorCommandSpec* const owner_spec = findEditorCommandSpec(owner_id);
-    if (owner_spec != nullptr && !owner_spec->rebindable)
-    {
-        showThemedWarningBox(
-            this,
-            "Fixed Key Binding",
-            "\"" + key.getTextDescription() + "\" is assigned to \"" +
-                juce::String{owner_spec->name} + "\", which cannot be rebound.");
-        return;
-    }
-
     if (owner_id == 0 || owner_id == toJuceCommandId(command))
     {
         applyBindingChange(command, key, replace_index);

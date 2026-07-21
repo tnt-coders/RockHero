@@ -13,18 +13,15 @@ namespace rock_hero::editor::ui
 namespace
 {
 
-// Drops stored mapping entries the current editor must not restore: unknown command ids (a
-// newer editor's blob — release JUCE ignores them but debug builds hit a jassert inside
-// restoreFromXml) and non-rebindable commands (the fixed core trio stays fixed even against a
-// hand-edited settings file, which keeps the plugin-window shortcut mirror correct).
+// Drops stored mapping entries for unknown command ids (a newer editor's blob — release JUCE
+// ignores them but debug builds hit a jassert inside restoreFromXml).
 void removeUnrestorableEntries(juce::XmlElement& keymap)
 {
     for (int index = keymap.getNumChildElements(); --index >= 0;)
     {
         juce::XmlElement* const entry = keymap.getChildElement(index);
         const juce::CommandID command_id = entry->getStringAttribute("commandId").getHexValue32();
-        const EditorCommandSpec* const spec = findEditorCommandSpec(command_id);
-        if (spec == nullptr || !spec->rebindable)
+        if (findEditorCommandSpec(command_id) == nullptr)
         {
             keymap.removeChildElement(entry, true);
         }

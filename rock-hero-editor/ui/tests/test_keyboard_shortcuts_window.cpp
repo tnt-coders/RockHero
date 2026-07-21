@@ -8,8 +8,8 @@
 namespace rock_hero::editor::ui
 {
 
-// The custom editor lists every registry command as a row: rebindable rows carry enabled chips
-// plus the add affordance, non-rebindable rows render inert chips and no add affordance.
+// The custom editor lists every registry command as a rebindable row: enabled chips per
+// binding plus the add affordance, with the fixed grammar reference gathered at the bottom.
 TEST_CASE("KeymapEditorView builds rows from the registry", "[ui][keybinds]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -26,31 +26,26 @@ TEST_CASE("KeymapEditorView builds rows from the registry", "[ui][keybinds]")
         INFO(spec.name);
         const juce::String id_hex = juce::String::toHexString(toJuceCommandId(spec.id));
         CHECK(findDescendant(editor, "keymap_row_" + id_hex) != nullptr);
-        juce::Component* const add_chip = findDescendant(editor, "keymap_add_" + id_hex);
-        CHECK((add_chip != nullptr) == spec.rebindable);
+        CHECK(findDescendant(editor, "keymap_add_" + id_hex) != nullptr);
         if (!spec.default_keypresses.empty())
         {
             auto& first_chip =
                 findRequiredDescendant<juce::Button>(editor, "keymap_chip_" + id_hex + "_0");
-            CHECK(first_chip.isEnabled() == spec.rebindable);
+            CHECK(first_chip.isEnabled());
             CHECK(
                 first_chip.getButtonText() == spec.default_keypresses.front().getTextDescription());
         }
     }
 
-    // Uneditable rows gather at the bottom: fixed commands sit below every rebindable row,
-    // and the grammar reference sits below the fixed commands.
-    juce::Component* const open_row = findDescendant(
+    // The fixed grammar reference sits below every command row.
+    juce::Component* const last_command_row = findDescendant(
         editor,
-        "keymap_row_" + juce::String::toHexString(toJuceCommandId(EditorCommandId::OpenProject)));
-    juce::Component* const undo_row = findDescendant(
-        editor, "keymap_row_" + juce::String::toHexString(toJuceCommandId(EditorCommandId::Undo)));
+        "keymap_row_" +
+            juce::String::toHexString(toJuceCommandId(EditorCommandId::InsertToneChange)));
     juce::Component* const grammar_row = findDescendant(editor, "keymap_grammar_row_0");
-    REQUIRE(open_row != nullptr);
-    REQUIRE(undo_row != nullptr);
+    REQUIRE(last_command_row != nullptr);
     REQUIRE(grammar_row != nullptr);
-    CHECK(undo_row->getY() > open_row->getY());
-    CHECK(grammar_row->getY() > undo_row->getY());
+    CHECK(grammar_row->getY() > last_command_row->getY());
 }
 
 // applyBindingChange is the overwrite-and-clear dance: the chord's previous owner loses it,
@@ -90,9 +85,9 @@ TEST_CASE("KeymapEditorView applies binding changes with one owner", "[ui][keybi
     CHECK(mappings.findCommandForKeyPress(f7) == 0);
 }
 
-// Non-rebindable commands refuse binding changes even through the direct apply path, so the
-// fixed core trio can never gain an alias the plugin-window hook would not mirror.
-TEST_CASE("KeymapEditorView refuses changes to non-rebindable commands", "[ui][keybinds]")
+// The trio is rebindable like every other command: it can gain an alias, lose a chord to
+// another command through the one-owner dance, and reset back to its registry defaults.
+TEST_CASE("KeymapEditorView rebinds and resets the core trio", "[ui][keybinds]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -101,14 +96,26 @@ TEST_CASE("KeymapEditorView refuses changes to non-rebindable commands", "[ui][k
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
     KeymapEditorView editor{view.commandManager()};
     juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
+    const juce::KeyPress ctrl_z{'z', juce::ModifierKeys::commandModifier, 0};
 
+    // Undo gains an F10 alias.
     const juce::KeyPress f10{juce::KeyPress::F10Key};
     editor.applyBindingChange(EditorCommandId::Undo, f10, -1);
-    CHECK(mappings.findCommandForKeyPress(f10) == 0);
+    CHECK(mappings.findCommandForKeyPress(f10) == toJuceCommandId(EditorCommandId::Undo));
+
+    // Another command may take Ctrl+Z through the one-owner dance.
+    editor.applyBindingChange(EditorCommandId::TogglePreview3D, ctrl_z, -1);
     CHECK(
-        mappings.findCommandForKeyPress(
-            juce::KeyPress{'z', juce::ModifierKeys::commandModifier, 0}) ==
-        toJuceCommandId(EditorCommandId::Undo));
+        mappings.findCommandForKeyPress(ctrl_z) ==
+        toJuceCommandId(EditorCommandId::TogglePreview3D));
+
+    // Resetting Undo restores Ctrl+Z (reclaimed from the squatter) and drops the alias.
+    editor.resetCommandToDefault(EditorCommandId::Undo);
+    CHECK(mappings.findCommandForKeyPress(ctrl_z) == toJuceCommandId(EditorCommandId::Undo));
+    CHECK(mappings.findCommandForKeyPress(f10) == 0);
+    CHECK_FALSE(
+        mappings.getKeyPressesAssignedToCommand(toJuceCommandId(EditorCommandId::TogglePreview3D))
+            .contains(ctrl_z));
 }
 
 // Per-command reset restores exactly the registry defaults, reclaiming a default chord from
@@ -140,13 +147,6 @@ TEST_CASE("KeymapEditorView resets one command to its defaults", "[ui][keybinds]
         mappings.getKeyPressesAssignedToCommand(toJuceCommandId(EditorCommandId::TogglePreview3D))
             .contains(f8));
     CHECK(mappings.findCommandForKeyPress(f9) == 0);
-
-    // Non-rebindable commands refuse the reset path like every other change.
-    editor.resetCommandToDefault(EditorCommandId::Undo);
-    CHECK(
-        mappings.findCommandForKeyPress(
-            juce::KeyPress{'z', juce::ModifierKeys::commandModifier, 0}) ==
-        toJuceCommandId(EditorCommandId::Undo));
 }
 
 // Grammar keys are reserved by physical key across every modifier shape: the decoder runs
@@ -178,9 +178,9 @@ TEST_CASE("Grammar reservations cover the decoder's keys", "[ui][keybinds]")
     CHECK_FALSE(isReservedGrammarChord(juce::KeyPress{juce::KeyPress::spaceKey}));
 }
 
-// Reserved chords are refused at the apply layer, and chords owned by a non-rebindable command
-// can never be stolen through the overwrite-and-clear dance.
-TEST_CASE("KeymapEditorView refuses reserved and fixed-owner chords", "[ui][keybinds]")
+// Grammar-reserved chords are refused at the apply layer: the decoder runs before the mapping
+// set, so a command bound to one would only sometimes fire.
+TEST_CASE("KeymapEditorView refuses reserved chords", "[ui][keybinds]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -190,18 +190,9 @@ TEST_CASE("KeymapEditorView refuses reserved and fixed-owner chords", "[ui][keyb
     KeymapEditorView editor{view.commandManager()};
     juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
 
-    // Binding a command to a grammar key is refused.
     const juce::KeyPress right_arrow{juce::KeyPress::rightKey};
     editor.applyBindingChange(EditorCommandId::TogglePreview3D, right_arrow, -1);
     CHECK(mappings.findCommandForKeyPress(right_arrow) == 0);
-
-    // Stealing Ctrl+Z from Undo through the conflict dance is refused.
-    const juce::KeyPress ctrl_z{'z', juce::ModifierKeys::commandModifier, 0};
-    editor.applyBindingChange(EditorCommandId::TogglePreview3D, ctrl_z, -1);
-    CHECK(mappings.findCommandForKeyPress(ctrl_z) == toJuceCommandId(EditorCommandId::Undo));
-    CHECK_FALSE(
-        mappings.getKeyPressesAssignedToCommand(toJuceCommandId(EditorCommandId::TogglePreview3D))
-            .contains(ctrl_z));
 }
 
 // The dialog lists the fixed editing/navigation reference rows below the command rows.

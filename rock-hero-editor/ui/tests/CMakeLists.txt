@@ -34,6 +34,7 @@ add_executable(
     test_input_calibration_window.cpp
     test_keyboard_shortcuts_window.cpp
     test_plugin_browser_window.cpp
+    test_plugin_window_shortcut_sync.cpp
     test_signal_chain_block_layout.cpp
     test_tab_view.cpp
     test_tone_track_view.cpp

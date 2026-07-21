@@ -1445,13 +1445,6 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
     {
         info.defaultKeypresses.add(key);
     }
-    // Non-rebindable rows render fixed in the shortcuts dialog; the keymap persistence filter
-    // enforces the same rule at the settings-file boundary.
-    if (!spec->rebindable)
-    {
-        info.flags |= juce::ApplicationCommandInfo::readOnlyInKeyEditor;
-    }
-
     switch (static_cast<EditorCommandId>(command_id))
     {
         case EditorCommandId::OpenProject:

@@ -105,10 +105,10 @@ TEST_CASE("EditorKeymapPersistence restores stored overrides", "[ui][keybinds]")
     CHECK(settings.write_count == 0);
 }
 
-// Stored entries a current editor must not restore are dropped before the mapping set sees
-// them: unknown command ids (a newer editor's blob would trip the debug assertion) and
-// non-rebindable core commands (a hand-edited file must not override the fixed trio).
-TEST_CASE("EditorKeymapPersistence drops unrestorable stored entries", "[ui][keybinds]")
+// Stored entries with unknown command ids (a newer editor's blob would trip the mapping set's
+// debug assertion) are dropped before restore; known entries — the fully rebindable trio
+// included — restore normally.
+TEST_CASE("EditorKeymapPersistence drops unknown stored entries", "[ui][keybinds]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     RecordingKeymapSettings settings;
@@ -125,16 +125,14 @@ TEST_CASE("EditorKeymapPersistence drops unrestorable stored entries", "[ui][key
     const EditorKeymapPersistence persistence{view.commandManager(), settings};
 
     juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
-    // The legitimate entry restored; the unknown and non-rebindable entries did not.
+    // Known entries restored — an added F11 alias for Undo included — the unknown one did not.
     CHECK(
         mappings.findCommandForKeyPress(juce::KeyPress{juce::KeyPress::F9Key}) ==
         toJuceCommandId(EditorCommandId::ToggleUndoHistory));
-    CHECK(mappings.findCommandForKeyPress(juce::KeyPress{juce::KeyPress::F10Key}) == 0);
-    CHECK(mappings.findCommandForKeyPress(juce::KeyPress{juce::KeyPress::F11Key}) == 0);
     CHECK(
-        mappings.findCommandForKeyPress(
-            juce::KeyPress{'z', juce::ModifierKeys::commandModifier, 0}) ==
+        mappings.findCommandForKeyPress(juce::KeyPress{juce::KeyPress::F11Key}) ==
         toJuceCommandId(EditorCommandId::Undo));
+    CHECK(mappings.findCommandForKeyPress(juce::KeyPress{juce::KeyPress::F10Key}) == 0);
 }
 
 // A corrupt blob must never brick startup: restore falls back to pure defaults.

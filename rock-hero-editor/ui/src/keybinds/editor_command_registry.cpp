@@ -26,7 +26,6 @@ namespace
             .id = EditorCommandId::OpenProject,
             .name = "Open...",
             .category = "File",
-            .rebindable = true,
             .default_keypresses = {chord('o', command)},
         });
     registry.push_back(
@@ -34,7 +33,6 @@ namespace
             .id = EditorCommandId::ImportSong,
             .name = "Import...",
             .category = "File",
-            .rebindable = true,
             // Ctrl+Shift+O avoids the Ctrl+I italics muscle-memory collision (plan 46 tier A).
             .default_keypresses = {chord('o', command | shift)},
         });
@@ -43,7 +41,6 @@ namespace
             .id = EditorCommandId::SaveProject,
             .name = "Save",
             .category = "File",
-            .rebindable = true,
             .default_keypresses = {chord('s', command)},
         });
     registry.push_back(
@@ -51,7 +48,6 @@ namespace
             .id = EditorCommandId::SaveProjectAs,
             .name = "Save As...",
             .category = "File",
-            .rebindable = true,
             .default_keypresses = {chord('s', command | shift)},
         });
     registry.push_back(
@@ -59,7 +55,6 @@ namespace
             .id = EditorCommandId::PublishSong,
             .name = "Publish...",
             .category = "File",
-            .rebindable = true,
             .default_keypresses = {chord('p', command | shift)},
         });
     registry.push_back(
@@ -67,7 +62,6 @@ namespace
             .id = EditorCommandId::CloseProject,
             .name = "Close",
             .category = "File",
-            .rebindable = true,
             .default_keypresses = {chord('w', command)},
         });
     registry.push_back(
@@ -75,7 +69,6 @@ namespace
             .id = EditorCommandId::ExitEditor,
             .name = "Exit",
             .category = "File",
-            .rebindable = true,
             // Menu-only: the OS owns Alt+F4, so no chord registers here (plan 46 tier A).
             .default_keypresses = {},
         });
@@ -84,7 +77,6 @@ namespace
             .id = EditorCommandId::Undo,
             .name = "Undo",
             .category = "Edit",
-            .rebindable = false,
             .default_keypresses = {chord('z', command)},
         });
     registry.push_back(
@@ -92,7 +84,6 @@ namespace
             .id = EditorCommandId::Redo,
             .name = "Redo",
             .category = "Edit",
-            .rebindable = false,
             // Ctrl+Shift+Z is the DAW-convention alternative (decision 2026-07-20); alternatives
             // per command are first-class in the mapping set.
             .default_keypresses = {chord('y', command), chord('z', command | shift)},
@@ -102,7 +93,6 @@ namespace
             .id = EditorCommandId::ShowKeyboardShortcuts,
             .name = "Keyboard Shortcuts...",
             .category = "Edit",
-            .rebindable = true,
             .default_keypresses = {},
         });
     registry.push_back(
@@ -110,7 +100,6 @@ namespace
             .id = EditorCommandId::PlayPause,
             .name = "Play/Pause",
             .category = "Transport",
-            .rebindable = false,
             .default_keypresses = {chord(juce::KeyPress::spaceKey)},
         });
     registry.push_back(
@@ -118,7 +107,6 @@ namespace
             .id = EditorCommandId::ToggleWaveform,
             .name = "Show Waveform",
             .category = "View",
-            .rebindable = true,
             .default_keypresses = {},
         });
     registry.push_back(
@@ -126,7 +114,6 @@ namespace
             .id = EditorCommandId::ToggleUndoHistory,
             .name = "Undo History",
             .category = "View",
-            .rebindable = true,
             .default_keypresses = {chord(juce::KeyPress::F8Key)},
         });
     registry.push_back(
@@ -134,7 +121,6 @@ namespace
             .id = EditorCommandId::TogglePreview3D,
             .name = "3D Preview",
             .category = "View",
-            .rebindable = true,
             .default_keypresses = {chord(juce::KeyPress::F3Key)},
         });
     registry.push_back(
@@ -142,7 +128,6 @@ namespace
             .id = EditorCommandId::InsertToneChange,
             .name = "Insert Tone Change",
             .category = "Tone",
-            .rebindable = true,
             // Exact modifier matching gives the guard-against-Alt for free: Ctrl+Alt+T does not
             // match, keeping the Ctrl+Alt namespace with the fine-tier authoring composition.
             .default_keypresses = {chord('t', command)},

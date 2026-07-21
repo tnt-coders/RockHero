@@ -18,7 +18,10 @@ namespace rock_hero::editor::ui
 
 The registry is the single authoritative table behind the command manager: `getCommandInfo`
 derives names, categories, and default keypresses from it, and the locked-table unit test pins
-its ids and chords so an accidental renumbering or default change fails the build.
+its ids and chords so an accidental renumbering or default change fails the build. Every
+command is user-rebindable (the fixed-trio decision was reversed 2026-07-20 once the
+plugin-window mirror generalized to arbitrary chords); only the interaction grammar's reserved
+chords are off-limits, enforced by `grammar_reservations`.
 */
 struct EditorCommandSpec final
 {
@@ -30,14 +33,6 @@ struct EditorCommandSpec final
 
     /*! \brief Category grouping for the shortcuts dialog. */
     const char* category{""};
-
-    /*!
-    \brief False for core commands whose chords are fixed (Undo, Redo, Play/Pause).
-
-    Non-rebindable rows keep the plugin-window shortcut mirror correct by construction and
-    protect the interaction grammar from stray rebinds (decision 2026-07-20).
-    */
-    bool rebindable{true};
 
     /*! \brief Default key chords installed into the mapping set; empty for menu-only commands. */
     std::vector<juce::KeyPress> default_keypresses{};

@@ -241,26 +241,25 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
     {
         EditorCommandId id{};
         int value{};
-        bool rebindable{};
         std::vector<juce::KeyPress> chords{};
     };
 
     const std::vector<ExpectedCommand> expected{
-        {EditorCommandId::OpenProject, 0x1001, true, {chord('o', command)}},
-        {EditorCommandId::ImportSong, 0x1002, true, {chord('o', command | shift)}},
-        {EditorCommandId::SaveProject, 0x1003, true, {chord('s', command)}},
-        {EditorCommandId::SaveProjectAs, 0x1004, true, {chord('s', command | shift)}},
-        {EditorCommandId::PublishSong, 0x1005, true, {chord('p', command | shift)}},
-        {EditorCommandId::CloseProject, 0x1006, true, {chord('w', command)}},
-        {EditorCommandId::ExitEditor, 0x1007, true, {}},
-        {EditorCommandId::Undo, 0x1101, false, {chord('z', command)}},
-        {EditorCommandId::Redo, 0x1102, false, {chord('y', command), chord('z', command | shift)}},
-        {EditorCommandId::ShowKeyboardShortcuts, 0x1103, true, {}},
-        {EditorCommandId::PlayPause, 0x1201, false, {chord(juce::KeyPress::spaceKey)}},
-        {EditorCommandId::ToggleWaveform, 0x1301, true, {}},
-        {EditorCommandId::ToggleUndoHistory, 0x1302, true, {chord(juce::KeyPress::F8Key)}},
-        {EditorCommandId::TogglePreview3D, 0x1303, true, {chord(juce::KeyPress::F3Key)}},
-        {EditorCommandId::InsertToneChange, 0x1401, true, {chord('t', command)}},
+        {EditorCommandId::OpenProject, 0x1001, {chord('o', command)}},
+        {EditorCommandId::ImportSong, 0x1002, {chord('o', command | shift)}},
+        {EditorCommandId::SaveProject, 0x1003, {chord('s', command)}},
+        {EditorCommandId::SaveProjectAs, 0x1004, {chord('s', command | shift)}},
+        {EditorCommandId::PublishSong, 0x1005, {chord('p', command | shift)}},
+        {EditorCommandId::CloseProject, 0x1006, {chord('w', command)}},
+        {EditorCommandId::ExitEditor, 0x1007, {}},
+        {EditorCommandId::Undo, 0x1101, {chord('z', command)}},
+        {EditorCommandId::Redo, 0x1102, {chord('y', command), chord('z', command | shift)}},
+        {EditorCommandId::ShowKeyboardShortcuts, 0x1103, {}},
+        {EditorCommandId::PlayPause, 0x1201, {chord(juce::KeyPress::spaceKey)}},
+        {EditorCommandId::ToggleWaveform, 0x1301, {}},
+        {EditorCommandId::ToggleUndoHistory, 0x1302, {chord(juce::KeyPress::F8Key)}},
+        {EditorCommandId::TogglePreview3D, 0x1303, {chord(juce::KeyPress::F3Key)}},
+        {EditorCommandId::InsertToneChange, 0x1401, {chord('t', command)}},
     };
 
     const std::vector<EditorCommandSpec>& registry = editorCommandRegistry();
@@ -270,7 +269,6 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
         INFO("registry index " << index);
         CHECK(registry[index].id == expected[index].id);
         CHECK(toJuceCommandId(registry[index].id) == expected[index].value);
-        CHECK(registry[index].rebindable == expected[index].rebindable);
         REQUIRE(registry[index].default_keypresses.size() == expected[index].chords.size());
         for (std::size_t chord_index = 0; chord_index < expected[index].chords.size();
              ++chord_index)
@@ -279,27 +277,6 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
                 registry[index].default_keypresses[chord_index] ==
                 expected[index].chords[chord_index]);
         }
-    }
-}
-
-// Non-rebindable commands must render as fixed rows in the shortcuts dialog: the read-only
-// flag in each command's info is derived from the registry's rebindable field.
-TEST_CASE("Editor command infos mark non-rebindable rows read-only", "[ui][editor-view][keybinds]")
-{
-    const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    core::testing::RecordingEditorController controller;
-    const FakeTransport transport;
-    RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
-
-    for (const EditorCommandSpec& spec : editorCommandRegistry())
-    {
-        INFO(spec.name);
-        juce::ApplicationCommandInfo info{toJuceCommandId(spec.id)};
-        view.getCommandInfo(toJuceCommandId(spec.id), info);
-        const bool read_only =
-            (info.flags & juce::ApplicationCommandInfo::readOnlyInKeyEditor) != 0;
-        CHECK(read_only == !spec.rebindable);
     }
 }
 

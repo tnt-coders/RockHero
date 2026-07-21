@@ -17,11 +17,10 @@ namespace rock_hero::editor::ui
 Construction restores any stored overrides into the command manager's key mapping set —
 every command must already be registered, which the owning composition guarantees by
 constructing this after the view. Stored entries whose command id is unknown (a newer
-editor's blob) or non-rebindable (the fixed core commands) are dropped before restore, so a
-downgraded or hand-edited settings file can neither trip the mapping set's debug assertion
-nor override a fixed chord. After restore, every mapping-set change saves the current diff;
-a defaults-only keymap clears the stored value entirely (pure diff persistence, so shipped
-default changes merge under user overrides).
+editor's blob) are dropped before restore, so a downgraded settings file cannot trip the
+mapping set's debug assertion. After restore, every mapping-set change saves the current
+diff; a defaults-only keymap clears the stored value entirely (pure diff persistence, so
+shipped default changes merge under user overrides).
 */
 class EditorKeymapPersistence final : private juce::ChangeListener
 {

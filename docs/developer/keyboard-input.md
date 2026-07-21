@@ -18,8 +18,10 @@ Phase 1):
 
 From the controller inward, a keystroke still travels one of **two paths**: the editor-action
 pipeline (\ref guide_action_anatomy) or the caret/marker interaction model. Keymap
-**persistence and the shortcuts dialog are live** (below). Undo/Redo/Play-Pause are
-**non-rebindable core commands** by decision.
+**persistence and the shortcuts dialog are live** (below), and **every command is
+user-rebindable** — including Undo/Redo/Play-Pause, whose chords mirror into hosted plugin
+windows through an injected, layout-neutral binding seam (the fixed-trio decision was reversed
+2026-07-20 once the mirror generalized).
 
 ```mermaid
 flowchart TB
@@ -188,9 +190,7 @@ invariants live here:
 - **Restore order is a contract**: every command must be registered before `restoreFromXml`,
   which the composition guarantees by constructing persistence after the view.
 - **Stored entries are filtered before restore**: unknown command ids (a newer editor's blob
-  would trip the mapping set's debug assertion) and **non-rebindable commands** are dropped —
-  a hand-edited settings file cannot override the fixed core trio, which keeps the
-  plugin-window mirror correct even against tampering. A corrupt blob falls back to pure
+  would trip the mapping set's debug assertion) are dropped. A corrupt blob falls back to pure
   defaults; the next mapping change overwrites it.
 - **Saves are equality-gated** against the stored blob, so the restore's own change broadcast
   and repeated notifications write nothing.
@@ -212,11 +212,9 @@ set (`addKeyPress` alone must never be trusted to resolve conflicts; its documen
 does not exist in code). Right-clicking a row (or any chip's menu) offers **per-command reset to
 default** — disabled when already at defaults, and reclaiming a default chord from whichever
 command took it meanwhile, since the mapping set's own `resetToDefaultMapping` performs no
-conflict cleanup. Non-rebindable rows render inert chips with no affordances, and
-`applyBindingChange` refuses those commands outright, so no dialog path can give the core trio
-an alias the plugin-window hook would not mirror. Rows rebuild on the mapping set's own change
-broadcasts, so rebinds apply live and persist immediately — dispatch, menu shortcut text, and
-the keymap persistence all listen to the same set.
+conflict cleanup. Rows rebuild on the mapping set's own change
+broadcasts, so rebinds apply live and persist immediately — dispatch, menu shortcut text, the
+keymap persistence, and the plugin-window mirror all listen to the same set.
 
 The dialog is also the complete keymap reference, ordered rebindable-first: the registry's
 categories lead, and everything uneditable gathers at the bottom — a **"Fixed Commands"**
@@ -253,13 +251,17 @@ swallow them (Space yields to plugin text fields; undo/redo never yield). Matche
 (`onUndoRequested`, `onRedoRequested`, `onPlayPausePressed`) — so a plugin-window Ctrl+Z and an
 editor Ctrl+Z are literally the same code path from the controller inward.
 
-The editor side of this binding knowledge now lives in the command registry (the old editor-hub
-predicate copy is deleted), but the plugin-window side still keeps **two hand-synchronized
-copies** (the JUCE predicates and the hook's VK-code form) — plus the registry's chords as the
-third statement of the same facts. Undo/Redo/Play-Pause are **non-rebindable core commands**
-(decided 2026-07-20), so the copies stay correct by construction; the `Ctrl+Shift+Z` redo
-alternative is registered editor-side but **not yet mirrored** in the plugin-window copies —
-adding it there and collapsing the pair into one shared helper is plan 46's rescoped Phase 4.
+The hand-synchronized predicate copies are **gone**: the binding knowledge has exactly one
+source — the key mapping set. `PluginWindowShortcutSync` (`ui/src/keybinds/`) converts the
+trio's current chords into the layout-neutral model of
+`rock_hero/common/audio/plugin/plugin_window_shortcuts.h` (a chord names a base *character*,
+matched on Windows by translating the incoming virtual key through the active keyboard layout
+so an `Alt+;` binding follows the `;` key across layouts, or a *named* non-character key) and
+pushes them through `IPluginHost::setPluginWindowShortcuts` after keymap restore and on every
+mapping change. Both plugin-window decode paths — JUCE `keyPressed` and the Win32 hook — match
+the same injected set through one shared, headlessly tested matcher; built-in defaults keep an
+editor-less engine on the editor's default keymap. Any change to this seam re-earns the manual
+real-plugin verification (Nolly/Gateway) — the hook is historically fragile.
 
 # Adding or changing a keybind — silent steps
 
@@ -305,9 +307,10 @@ For a grammar key:
 
 Either way:
 
-- **Update the mirrors if it is a plugin-window-mirrored accelerator**: the plugin-window
-  predicate pair (JUCE + VK-hook forms). The 3D preview whitelist is command-id based and needs
-  a change only if the preview should honor a *new* command.
+- **Plugin-window mirroring is automatic** for the trio (the sync pushes every mapping change);
+  a *new* command that should also fire from plugin windows means extending the
+  `PluginWindowShortcutBindings` seam, not adding predicates. The 3D preview whitelist is
+  command-id based and needs a change only if the preview should honor a new command.
 - **Record it** in `docs/plans/in-progress/keymap-matrix.md` (the binding inventory) and, if it
   changes grammar, `editing-interaction-model.md`.
 - **Tests**: drive the intent through the editor-core harness; for view-layer wiring, assert
