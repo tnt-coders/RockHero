@@ -59,6 +59,15 @@ TEST_CASE("keyChordText collapses shifted characters", "[ui][keybinds]")
     CHECK(
         keyChordText(chord(juce::KeyPress::F9Key, shift), &fakeShiftResolver) ==
         chord(juce::KeyPress::F9Key, shift).getTextDescription());
+
+    // Arrows render as glyphs — JUCE's "cursor left" wording is far too verbose on a chip —
+    // with the full modifier prefix kept.
+    CHECK(
+        keyChordText(chord(juce::KeyPress::leftKey), &fakeShiftResolver) ==
+        juce::String::charToString(juce::juce_wchar{0x2190}));
+    CHECK(
+        keyChordText(chord(juce::KeyPress::rightKey, ctrl | shift), &fakeShiftResolver) ==
+        "ctrl + shift + " + juce::String::charToString(juce::juce_wchar{0x2192}));
 }
 
 // addEditorCommandItem pre-fills the item's shortcut text through the shared formatter (JUCE
@@ -92,6 +101,33 @@ TEST_CASE("addEditorCommandItem renders shortcuts through the formatter", "[ui][
     CHECK(
         actions_item.shortcutKeyDescription ==
         keyChordText(chord('/', juce::ModifierKeys::shiftModifier)));
+}
+
+// Display-equal chords render once in the menu shortcut text — the dedupe expectation is
+// computed through the formatter so the assertion holds on any layout.
+TEST_CASE("addEditorCommandItem dedupes display-equal chords", "[ui][keybinds]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    view.setState(core::EditorViewState{});
+
+    juce::PopupMenu menu;
+    addEditorCommandItem(menu, view.commandManager(), EditorCommandId::GridFiner);
+
+    juce::StringArray expected_texts;
+    for (const juce::KeyPress& key :
+         view.commandManager().getKeyMappings()->getKeyPressesAssignedToCommand(
+             toJuceCommandId(EditorCommandId::GridFiner)))
+    {
+        expected_texts.addIfNotAlreadyThere(keyChordText(key));
+    }
+
+    juce::PopupMenu::MenuItemIterator iterator{menu};
+    REQUIRE(iterator.next());
+    CHECK(iterator.getItem().shortcutKeyDescription == expected_texts.joinIntoString(", "));
 }
 
 } // namespace rock_hero::editor::ui

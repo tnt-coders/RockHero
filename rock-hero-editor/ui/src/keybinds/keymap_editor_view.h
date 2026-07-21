@@ -64,23 +64,26 @@ public:
     /*!
     \brief Applies a captured chord to a command with overwrite-and-clear semantics.
 
-    Removes the chord from whichever command currently owns it, removes the replaced binding
-    when one is being changed, then adds the chord — the remove-then-add dance, public so the
-    mapping-set semantics stay directly testable. Callers gate any confirmation beforehand;
-    this method applies unconditionally.
+    Removes the chord from whichever command currently owns it, removes the replaced bindings,
+    then adds the chord — the remove-then-add dance, public so the mapping-set semantics stay
+    directly testable. Callers gate any confirmation beforehand; this method applies
+    unconditionally. Replacement takes a *set* of indices because the dialog groups
+    display-equal chords (OS key-shape twins like Shift+'=' and the numpad-arrival '+') into
+    one chip: changing that chip replaces every chord it represents.
 
     \param command Command receiving the chord.
     \param key Captured chord to assign.
-    \param replace_index Zero-based binding index being changed, or -1 to add a new binding.
+    \param replace_indices Zero-based binding indices being replaced; empty adds a new binding.
     */
-    void applyBindingChange(EditorCommandId command, const juce::KeyPress& key, int replace_index);
+    void applyBindingChange(
+        EditorCommandId command, const juce::KeyPress& key, std::vector<int> replace_indices);
 
     /*!
-    \brief Removes one of a command's bindings.
-    \param command Command losing a binding.
-    \param key_index Zero-based index of the binding to remove.
+    \brief Removes bindings of one command by index — all of a grouped chip's chords at once.
+    \param command Command losing bindings.
+    \param key_indices Zero-based indices of the bindings to remove.
     */
-    void removeBinding(EditorCommandId command, int key_index);
+    void removeBindings(EditorCommandId command, std::vector<int> key_indices);
 
     /*!
     \brief Restores one command's bindings to the registry defaults.
@@ -103,11 +106,13 @@ private:
     // Rebuilds the header and row components from the registry and the current mappings.
     void rebuildRows();
 
-    // Opens the press-a-key capture dialog for a new or replaced binding.
-    void beginCapture(EditorCommandId command, int replace_index);
+    // Opens the press-a-key capture dialog for a new binding (empty indices) or a replacement
+    // of a grouped chip's chords.
+    void beginCapture(EditorCommandId command, std::vector<int> replace_indices);
 
     // Applies a captured chord, first confirming an overwrite when another command owns it.
-    void confirmAndApply(EditorCommandId command, const juce::KeyPress& key, int replace_index);
+    void confirmAndApply(
+        EditorCommandId command, const juce::KeyPress& key, std::vector<int> replace_indices);
 
     // Confirms and performs the reset of every mapping to the registry defaults.
     void confirmResetAll();

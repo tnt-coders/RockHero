@@ -6,6 +6,7 @@
 #include "shared/text_metrics.h"
 #include "shared/themed_message_box.h"
 
+#include <algorithm>
 #include <memory>
 #include <utility>
 
@@ -169,17 +170,33 @@ public:
     {
         setComponentID("keymap_row_" + juce::String::toHexString(toJuceCommandId(spec.id)));
 
+        // Display-equal chords group into one chip: OS key-shape twins (Shift+'=' and the
+        // numpad-arrival '+' both render "+") are one logical key to the user, so the chip's
+        // menu operates on every chord in its group. Chip component ids carry the group's
+        // first binding index.
         const juce::Array<juce::KeyPress> keys =
             m_owner.m_command_manager.getKeyMappings()->getKeyPressesAssignedToCommand(
                 toJuceCommandId(spec.id));
+        std::vector<juce::String> chip_texts;
         for (int index = 0; index < keys.size(); ++index)
         {
-            auto chip =
-                std::make_unique<ChipButton>(keyChordText(keys[index]), /*interactive=*/true);
+            const juce::String text = keyChordText(keys[index]);
+            const auto matching = std::ranges::find(chip_texts, text);
+            if (matching != chip_texts.end())
+            {
+                m_chip_binding_indices[static_cast<std::size_t>(matching - chip_texts.begin())]
+                    .push_back(index);
+                continue;
+            }
+            chip_texts.push_back(text);
+            m_chip_binding_indices.push_back({index});
+
+            auto chip = std::make_unique<ChipButton>(text, /*interactive=*/true);
             chip->setComponentID(
                 "keymap_chip_" + juce::String::toHexString(toJuceCommandId(spec.id)) + "_" +
                 juce::String{index});
-            chip->onClick = [this, index] { showChipMenu(index); };
+            const std::size_t chip_position = m_chips.size();
+            chip->onClick = [this, chip_position] { showChipMenu(chip_position); };
             addAndMakeVisible(*chip);
             m_chips.push_back(std::move(chip));
         }
@@ -187,7 +204,7 @@ public:
         m_add_chip = std::make_unique<ChipButton>("+", /*interactive=*/true);
         m_add_chip->setComponentID(
             "keymap_add_" + juce::String::toHexString(toJuceCommandId(spec.id)));
-        m_add_chip->onClick = [this] { m_owner.beginCapture(m_spec.id, -1); };
+        m_add_chip->onClick = [this] { m_owner.beginCapture(m_spec.id, {}); };
         addAndMakeVisible(*m_add_chip);
     }
 
@@ -232,31 +249,32 @@ public:
     }
 
 private:
-    // Offers change/remove for one existing binding. The menu owns no state: the callbacks
-    // capture the view and plain values, and the deletion check guards against this row being
-    // rebuilt while the menu is open.
-    void showChipMenu(int key_index)
+    // Offers change/remove for one chip — acting on every chord in the chip's display group.
+    // The menu owns no state: the callbacks capture the view and plain values, and the
+    // deletion check guards against this row being rebuilt while the menu is open.
+    void showChipMenu(std::size_t chip_position)
     {
         juce::PopupMenu menu;
         const juce::Component::SafePointer<KeymapEditorView> safe_owner{&m_owner};
         const EditorCommandId command = m_spec.id;
-        menu.addItem("Change this binding...", [safe_owner, command, key_index] {
+        const std::vector<int> key_indices = m_chip_binding_indices[chip_position];
+        menu.addItem("Change this binding...", [safe_owner, command, key_indices] {
             if (safe_owner != nullptr)
             {
-                safe_owner->beginCapture(command, key_index);
+                safe_owner->beginCapture(command, key_indices);
             }
         });
-        menu.addItem("Remove this binding", [safe_owner, command, key_index] {
+        menu.addItem("Remove this binding", [safe_owner, command, key_indices] {
             if (safe_owner != nullptr)
             {
-                safe_owner->removeBinding(command, key_index);
+                safe_owner->removeBindings(command, key_indices);
             }
         });
         menu.addSeparator();
         appendResetItem(menu);
         menu.showMenuAsync(
             juce::PopupMenu::Options()
-                .withTargetComponent(m_chips[static_cast<std::size_t>(key_index)].get())
+                .withTargetComponent(m_chips[chip_position].get())
                 .withDeletionCheck(*this));
     }
 
@@ -280,6 +298,8 @@ private:
     KeymapEditorView& m_owner;
     const EditorCommandSpec& m_spec;
     std::vector<std::unique_ptr<ChipButton>> m_chips;
+    // Parallel to m_chips: the mapping-set binding indices each chip's display group covers.
+    std::vector<std::vector<int>> m_chip_binding_indices;
     std::unique_ptr<ChipButton> m_add_chip;
 };
 
@@ -327,7 +347,7 @@ void KeymapEditorView::resized()
 }
 
 void KeymapEditorView::applyBindingChange(
-    EditorCommandId command, const juce::KeyPress& key, int replace_index)
+    EditorCommandId command, const juce::KeyPress& key, std::vector<int> replace_indices)
 {
     const EditorCommandSpec* const spec = findEditorCommandSpec(toJuceCommandId(command));
     if (spec == nullptr || !key.isValid())
@@ -338,19 +358,28 @@ void KeymapEditorView::applyBindingChange(
     juce::KeyPressMappingSet& mappings = *m_command_manager.getKeyMappings();
 
     // The remove-then-add dance: strip the chord from whichever command owns it, drop the
-    // binding being replaced, then assign — exactly one owner remains. addKeyPress alone must
+    // bindings being replaced, then assign — exactly one owner remains. addKeyPress alone must
     // never be trusted to resolve conflicts (its documented removal does not exist in code).
+    // Replaced indices are removed highest-first so the earlier ones stay valid; the new chord
+    // lands at the group's first position.
     mappings.removeKeyPress(key);
-    if (replace_index >= 0)
+    std::ranges::sort(replace_indices, std::ranges::greater{});
+    for (const int replace_index : replace_indices)
     {
         mappings.removeKeyPress(toJuceCommandId(command), replace_index);
     }
-    mappings.addKeyPress(toJuceCommandId(command), key, replace_index);
+    const int insert_index = replace_indices.empty() ? -1 : replace_indices.back();
+    mappings.addKeyPress(toJuceCommandId(command), key, insert_index);
 }
 
-void KeymapEditorView::removeBinding(EditorCommandId command, int key_index)
+void KeymapEditorView::removeBindings(EditorCommandId command, std::vector<int> key_indices)
 {
-    m_command_manager.getKeyMappings()->removeKeyPress(toJuceCommandId(command), key_index);
+    // Highest-first so the remaining indices stay valid while removing.
+    std::ranges::sort(key_indices, std::ranges::greater{});
+    for (const int key_index : key_indices)
+    {
+        m_command_manager.getKeyMappings()->removeKeyPress(toJuceCommandId(command), key_index);
+    }
 }
 
 void KeymapEditorView::resetCommandToDefault(EditorCommandId command)
@@ -429,7 +458,7 @@ void KeymapEditorView::rebuildRows()
     resized();
 }
 
-void KeymapEditorView::beginCapture(EditorCommandId command, int replace_index)
+void KeymapEditorView::beginCapture(EditorCommandId command, std::vector<int> replace_indices)
 {
     auto dialog = std::make_unique<KeyCaptureDialog>(m_command_manager, this);
     const KeyCaptureDialog* const dialog_ptr = dialog.get();
@@ -437,17 +466,19 @@ void KeymapEditorView::beginCapture(EditorCommandId command, int replace_index)
     // The modal callback runs before the self-deleting dialog is destroyed, so the raw pointer
     // is still valid for reading the captured chord.
     showThemedDialogModally(
-        std::move(dialog), this, [safe_this, dialog_ptr, command, replace_index](int result) {
+        std::move(dialog),
+        this,
+        [safe_this, dialog_ptr, command, replace_indices = std::move(replace_indices)](int result) {
             if (safe_this == nullptr || result != 1)
             {
                 return;
             }
-            safe_this->confirmAndApply(command, dialog_ptr->captured(), replace_index);
+            safe_this->confirmAndApply(command, dialog_ptr->captured(), replace_indices);
         });
 }
 
 void KeymapEditorView::confirmAndApply(
-    EditorCommandId command, const juce::KeyPress& key, int replace_index)
+    EditorCommandId command, const juce::KeyPress& key, std::vector<int> replace_indices)
 {
     if (!key.isValid())
     {
@@ -458,7 +489,7 @@ void KeymapEditorView::confirmAndApply(
         m_command_manager.getKeyMappings()->findCommandForKeyPress(key);
     if (owner_id == 0 || owner_id == toJuceCommandId(command))
     {
-        applyBindingChange(command, key, replace_index);
+        applyBindingChange(command, key, std::move(replace_indices));
         return;
     }
 
@@ -470,10 +501,10 @@ void KeymapEditorView::confirmAndApply(
             m_command_manager.getNameOfCommand(owner_id) + "\".\n\nRe-assign it to \"" +
             juce::String{findEditorCommandSpec(toJuceCommandId(command))->name} + "\" instead?",
         {"Re-assign", "Cancel"},
-        [safe_this, command, key, replace_index](int choice) {
+        [safe_this, command, key, replace_indices = std::move(replace_indices)](int choice) {
             if (safe_this != nullptr && choice == 0)
             {
-                safe_this->applyBindingChange(command, key, replace_index);
+                safe_this->applyBindingChange(command, key, replace_indices);
             }
         });
 }

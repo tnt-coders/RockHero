@@ -19,7 +19,9 @@ plan 53 Phase 1b, 2026-07-20):
 
 - New commands append new explicit values; never renumber, reuse, or reorder existing ones. Id
   blocks group by category: 0x1x file/edit/transport/view/tone, 0x15xx navigation, 0x16xx
-  selection, 0x17xx editing, 0x18xx value entry, 0x19xx grid & zoom.
+  selection, 0x17xx authoring, 0x18xx value entry, 0x19xx grid & zoom. Blocks are historical
+  hints only — the registry row owns the display category (CancelDismiss, 0x1708, lists under
+  Selection).
 - One command per (chord, verb) pair: precision/reach tiers (`Ctrl` variants) are separate
   commands, so every binding is individually rebindable. The interaction grammar's modifier
   algebra survives as the *shape of the default map*, not as an enforced restriction.
@@ -69,7 +71,7 @@ enum class EditorCommandId : int
     /*! \brief Toggle transport playback (`Space`). */
     PlayPause = 0x1201,
 
-    /*! \brief View > Show Waveform (menu-only). */
+    /*! \brief View > Show Waveform (`F5`). */
     ToggleWaveform = 0x1301,
 
     /*! \brief View > Undo History (`F8`). */
@@ -216,16 +218,16 @@ enum class EditorCommandId : int
     /*! \brief Type digit 9 (`9`, numpad `9`). */
     TypeDigit9 = 0x180A,
 
-    /*! \brief Step the grid one preset finer (`=`, `+`, numpad `+`). */
+    /*! \brief Step the grid one preset finer (`+` main-row or numpad; `=` unshifted alias). */
     GridFiner = 0x1901,
 
-    /*! \brief Step the grid one preset coarser (`-`, numpad `-`). */
+    /*! \brief Step the grid one preset coarser (`-`, main-row or numpad). */
     GridCoarser = 0x1902,
 
-    /*! \brief Zoom the timeline in around the marker (`Ctrl+=`, `Ctrl+numpad +`). */
+    /*! \brief Zoom the timeline in around the marker (`Ctrl` + the plus family). */
     ZoomIn = 0x1903,
 
-    /*! \brief Zoom the timeline out around the marker (`Ctrl+-`, `Ctrl+numpad -`). */
+    /*! \brief Zoom the timeline out around the marker (`Ctrl+-`). */
     ZoomOut = 0x1904,
 };
 

@@ -62,6 +62,48 @@ namespace
 #endif
 }
 
+// Modifier prefix in getTextDescription's order and lowercase style; shift is omitted by the
+// collapse path, which spends it on the resolved character.
+[[nodiscard]] juce::String modifierPrefix(const juce::ModifierKeys& modifiers, bool with_shift)
+{
+    juce::String text;
+    if (modifiers.isCtrlDown())
+    {
+        text << "ctrl + ";
+    }
+    if (with_shift && modifiers.isShiftDown())
+    {
+        text << "shift + ";
+    }
+    if (modifiers.isAltDown())
+    {
+        text << "alt + ";
+    }
+    return text;
+}
+
+// Arrow keys render as glyphs — JUCE's "cursor left" wording reads far too verbose on a chip.
+[[nodiscard]] juce::juce_wchar arrowGlyphForKeyCode(int key_code)
+{
+    if (key_code == juce::KeyPress::leftKey)
+    {
+        return 0x2190;
+    }
+    if (key_code == juce::KeyPress::upKey)
+    {
+        return 0x2191;
+    }
+    if (key_code == juce::KeyPress::rightKey)
+    {
+        return 0x2192;
+    }
+    if (key_code == juce::KeyPress::downKey)
+    {
+        return 0x2193;
+    }
+    return 0;
+}
+
 } // namespace
 
 juce::String keyChordText(const juce::KeyPress& key, ShiftedCharacterResolver resolve_shifted)
@@ -73,6 +115,13 @@ juce::String keyChordText(const juce::KeyPress& key, ShiftedCharacterResolver re
 
     const int key_code = key.getKeyCode();
     const juce::ModifierKeys modifiers = key.getModifiers();
+
+    if (const juce::juce_wchar arrow_glyph = arrowGlyphForKeyCode(key_code); arrow_glyph != 0)
+    {
+        return modifierPrefix(modifiers, /*with_shift=*/true) +
+               juce::String::charToString(arrow_glyph);
+    }
+
     if (modifiers.isShiftDown() && key_code >= printable_first &&
         key_code < printable_last_exclusive)
     {
@@ -85,16 +134,8 @@ juce::String keyChordText(const juce::KeyPress& key, ShiftedCharacterResolver re
         if (resolved != 0 && juce::CharacterFunctions::toLowerCase(resolved) !=
                                  juce::CharacterFunctions::toLowerCase(base))
         {
-            juce::String text;
-            if (modifiers.isCtrlDown())
-            {
-                text << "ctrl + ";
-            }
-            if (modifiers.isAltDown())
-            {
-                text << "alt + ";
-            }
-            return text + juce::String::charToString(resolved);
+            return modifierPrefix(modifiers, /*with_shift=*/false) +
+                   juce::String::charToString(resolved);
         }
     }
     return key.getTextDescription();
@@ -133,17 +174,15 @@ void addEditorCommandItem(
         target != nullptr && (info.flags & juce::ApplicationCommandInfo::isDisabled) == 0;
     item.isTicked = (info.flags & juce::ApplicationCommandInfo::isTicked) != 0;
 
-    juce::String shortcut_text;
+    // Display-equal chords (OS key-shape twins like Shift+'=' and the numpad-arrival '+')
+    // render once — they are one logical key to the user.
+    juce::StringArray chord_texts;
     for (const juce::KeyPress& key :
          command_manager.getKeyMappings()->getKeyPressesAssignedToCommand(command_id))
     {
-        if (shortcut_text.isNotEmpty())
-        {
-            shortcut_text << ", ";
-        }
-        shortcut_text << keyChordText(key);
+        chord_texts.addIfNotAlreadyThere(keyChordText(key));
     }
-    item.shortcutKeyDescription = shortcut_text;
+    item.shortcutKeyDescription = chord_texts.joinIntoString(", ");
 
     menu.addItem(std::move(item));
 }

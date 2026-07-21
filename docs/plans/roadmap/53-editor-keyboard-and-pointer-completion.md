@@ -189,6 +189,22 @@ defaults, and per-surface front-ends all consume the registry.
 > Tests: locked table pins all 64 commands; the digit test moved to mapping-set dispatch; a
 > new test proves an arrow chord moves to another command through the one-owner dance and
 > comes back on per-command reset. Full build + editor ui suite green.
+>
+> **In-action refinement (2026-07-21, user review):** (1) The `+`/`-` chord sets corrected —
+> vendored-source verification showed JUCE's Windows path delivers numpad add/subtract as
+> their plain character key codes (`doKeyDown` has no VK_ADD/SUBTRACT case; `doKeyChar`'s
+> numpad remap covers digits only), so the registered `numberPadAdd/Subtract` chords never
+> matched and were removed as lying entries — the bare `'+'`/`'-'` chords ARE the numpad
+> bindings. GridFiner = Shift+`=` (main-row `+`), `'+'` (numpad arrival), `'='` (unshifted
+> convenience alias, user-kept); the Shift+`'-'` (`_`) ride-along dropped. (2) The duplicate
+> "+" chip fixed structurally: **display-equal chords group into one chip** (and one menu
+> shortcut entry) whose change/remove operate on the whole group —
+> `applyBindingChange`/`removeBindings` take index sets now, so no ghost binding survives a
+> visible removal. (3) Arrows render as glyphs (←/→/↑/↓) in the shared formatter, replacing
+> JUCE's "cursor left" wording. (4) The "Editing" category renamed **"Authoring"** (collided
+> with the Edit menu category) and Cancel/Clear recategorized under Selection (its
+> user-visible rungs disarm the caret and clear the selection; id blocks are historical
+> hints). (5) Show Waveform gained its `F5` default.
 
 **Decision (reverses the 2026-07-20 "fixed + listed" grammar policy, user-directed):** every
 keybind is editable — the grammar keys included. "If a user makes bad keybinds that's their

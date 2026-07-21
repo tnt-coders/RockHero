@@ -708,7 +708,7 @@ Tier A — commands existing at baseline (or in-flight, marked):
 | Edit      | Redo                  | Ctrl+Y, Ctrl+Shift+Z | alternative keypresses are first-class   |
 | Edit      | Actions...            | Shift+/ (`?`)        | renamed + `?` default 2026-07-20         |
 | Transport | Play/Pause            | Space                | current behavior; plugin-window mirrored |
-| View      | Toggle Waveform       | (none)               | menu-only; low frequency                 |
+| View      | Toggle Waveform       | F5                   | default added 2026-07-21                 |
 | Tone      | Insert Tone Change    | Ctrl+T               | in-flight tone work; re-verify at exec   |
 
 Tier B — reservations for future registration (non-binding; settled when

@@ -147,12 +147,12 @@ a range is a no-op pending plan 52's content-delete, and the extend is paused-on
 | `Ctrl+O` · `Ctrl+Shift+O` · `Ctrl+S` · `Ctrl+Shift+S` · `Ctrl+Shift+P` · `Ctrl+W` · `Ctrl+Q` | Open / Import / Save / Save As / Publish / Close / Exit (the tier A file-menu chords; menu items show live shortcuts; `Ctrl+Q` added 2026-07-20) | Live (registry 2026-07-20) |
 | `Ctrl+T` | insert a tone-change marker at the **playhead** (from any surface) | Live (guard against `Alt` shipped 2026-07-20 via the registry's exact-modifier matching) |
 | `Esc` | cancel gesture → disarm caret → clear selection | Live |
-| `F3` / `F8` | toggle 3D preview / undo-history inspector | Live |
+| `F3` / `F5` / `F8` | toggle 3D preview / waveform / undo-history inspector | Live (`F5` added 2026-07-21) |
 | `?` (`Shift+/`) | open the Actions dialog (the binding editor; REAPER's actions-list key) | Live (renamed from "Keyboard Shortcuts" + default added 2026-07-20; display collapses shifted chords through the shared `keyChordText` formatter) |
 | plain wheel | zoom, marker-centered | Live |
 | `Ctrl`+wheel | zoom (browser reflex — same as plain wheel) | Live |
-| `=` / `-` · `Shift+=` (`+`) · numpad `+`/`-` | **grid** finer (`+`) / coarser (`-`) | Live (23d3ed7b/44f24ab6; `Shift+-` also matches via key code — harmless, accepted 2026-07-20) |
-| `Ctrl+=` / `Ctrl+-` · `Ctrl`+numpad `+`/`-` | **zoom** in / out, marker-centered | Live (44f24ab6) |
+| `+` / `-` (main-row or numpad — numpad arrives as the same character key codes) · `=` unshifted alias | **grid** finer (`+`) / coarser (`-`) | Live (chord sets corrected 2026-07-21: `numberPad*` chords never matched on Windows and were removed; `Shift+-` (`_`) alias dropped; display-equal shapes group into one chip) |
+| `Ctrl` + the same `+`/`-` family | **zoom** in / out, marker-centered | Live (44f24ab6; chord sets corrected 2026-07-21) |
 | `[` / `]` | **free** — grid moved to `+/-` | `—` |
 | `L`, `B` | reserved (link/slide, pencil) — unbound | `—` |
 

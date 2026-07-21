@@ -53,12 +53,12 @@ TEST_CASE("KeymapEditorView applies binding changes with one owner", "[ui][keybi
     const juce::KeyPress f9{juce::KeyPress::F9Key};
 
     // Adding a new binding.
-    editor.applyBindingChange(EditorCommandId::ToggleUndoHistory, f9, -1);
+    editor.applyBindingChange(EditorCommandId::ToggleUndoHistory, f9, {});
     CHECK(
         mappings.findCommandForKeyPress(f9) == toJuceCommandId(EditorCommandId::ToggleUndoHistory));
 
     // Assigning the same chord elsewhere strips it from the previous owner.
-    editor.applyBindingChange(EditorCommandId::TogglePreview3D, f9, -1);
+    editor.applyBindingChange(EditorCommandId::TogglePreview3D, f9, {});
     CHECK(mappings.findCommandForKeyPress(f9) == toJuceCommandId(EditorCommandId::TogglePreview3D));
     CHECK_FALSE(
         mappings.getKeyPressesAssignedToCommand(toJuceCommandId(EditorCommandId::ToggleUndoHistory))
@@ -66,13 +66,13 @@ TEST_CASE("KeymapEditorView applies binding changes with one owner", "[ui][keybi
 
     // Replacing binding 0 (F8) swaps it for the new chord.
     const juce::KeyPress f7{juce::KeyPress::F7Key};
-    editor.applyBindingChange(EditorCommandId::ToggleUndoHistory, f7, 0);
+    editor.applyBindingChange(EditorCommandId::ToggleUndoHistory, f7, {0});
     CHECK(
         mappings.findCommandForKeyPress(f7) == toJuceCommandId(EditorCommandId::ToggleUndoHistory));
     CHECK(mappings.findCommandForKeyPress(juce::KeyPress{juce::KeyPress::F8Key}) == 0);
 
     // Removing a binding empties its slot.
-    editor.removeBinding(EditorCommandId::ToggleUndoHistory, 0);
+    editor.removeBindings(EditorCommandId::ToggleUndoHistory, {0});
     CHECK(mappings.findCommandForKeyPress(f7) == 0);
 }
 
@@ -91,11 +91,11 @@ TEST_CASE("KeymapEditorView rebinds and resets the core trio", "[ui][keybinds]")
 
     // Undo gains an F10 alias.
     const juce::KeyPress f10{juce::KeyPress::F10Key};
-    editor.applyBindingChange(EditorCommandId::Undo, f10, -1);
+    editor.applyBindingChange(EditorCommandId::Undo, f10, {});
     CHECK(mappings.findCommandForKeyPress(f10) == toJuceCommandId(EditorCommandId::Undo));
 
     // Another command may take Ctrl+Z through the one-owner dance.
-    editor.applyBindingChange(EditorCommandId::TogglePreview3D, ctrl_z, -1);
+    editor.applyBindingChange(EditorCommandId::TogglePreview3D, ctrl_z, {});
     CHECK(
         mappings.findCommandForKeyPress(ctrl_z) ==
         toJuceCommandId(EditorCommandId::TogglePreview3D));
@@ -125,8 +125,8 @@ TEST_CASE("KeymapEditorView resets one command to its defaults", "[ui][keybinds]
     const juce::KeyPress f9{juce::KeyPress::F9Key};
 
     // Rebind Undo History off its F8 default, then let another command take F8.
-    editor.applyBindingChange(EditorCommandId::ToggleUndoHistory, f9, 0);
-    editor.applyBindingChange(EditorCommandId::TogglePreview3D, f8, -1);
+    editor.applyBindingChange(EditorCommandId::ToggleUndoHistory, f9, {0});
+    editor.applyBindingChange(EditorCommandId::TogglePreview3D, f8, {});
     CHECK(mappings.findCommandForKeyPress(f8) == toJuceCommandId(EditorCommandId::TogglePreview3D));
 
     editor.resetCommandToDefault(EditorCommandId::ToggleUndoHistory);
@@ -158,7 +158,7 @@ TEST_CASE("KeymapEditorView rebinds grammar chords like any other", "[ui][keybin
         mappings.findCommandForKeyPress(right_arrow) ==
         toJuceCommandId(EditorCommandId::CaretStepRight));
 
-    editor.applyBindingChange(EditorCommandId::TogglePreview3D, right_arrow, -1);
+    editor.applyBindingChange(EditorCommandId::TogglePreview3D, right_arrow, {});
     CHECK(
         mappings.findCommandForKeyPress(right_arrow) ==
         toJuceCommandId(EditorCommandId::TogglePreview3D));
@@ -170,6 +170,64 @@ TEST_CASE("KeymapEditorView rebinds grammar chords like any other", "[ui][keybin
     CHECK(
         mappings.findCommandForKeyPress(right_arrow) ==
         toJuceCommandId(EditorCommandId::CaretStepRight));
+}
+
+// Display-equal chords (OS key-shape twins like Shift+'=' and the numpad-arrival '+') render
+// as one chip whose operations cover the whole group. Expectations are computed through the
+// shared formatter so the assertions hold on any layout, grouped or not.
+TEST_CASE("KeymapEditorView groups display-equal chords into one chip", "[ui][keybinds]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    KeymapEditorView editor{view.commandManager()};
+    editor.setSize(560, 520);
+    juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
+
+    const juce::CommandID grid_finer = toJuceCommandId(EditorCommandId::GridFiner);
+    const juce::String id_hex = juce::String::toHexString(grid_finer);
+    const juce::Array<juce::KeyPress> keys = mappings.getKeyPressesAssignedToCommand(grid_finer);
+    REQUIRE(keys.size() >= 2);
+
+    // One chip exists per unique display text, id-tagged with its group's first binding index.
+    std::vector<juce::String> seen_texts;
+    for (int index = 0; index < keys.size(); ++index)
+    {
+        const juce::String text = keyChordText(keys[index]);
+        const bool is_first_of_group =
+            std::find(seen_texts.begin(), seen_texts.end(), text) == seen_texts.end();
+        juce::Component* const chip =
+            findDescendant(editor, "keymap_chip_" + id_hex + "_" + juce::String{index});
+        if (is_first_of_group)
+        {
+            seen_texts.push_back(text);
+            REQUIRE(chip != nullptr);
+            CHECK(dynamic_cast<juce::Button*>(chip)->getButtonText() == text);
+        }
+        else
+        {
+            CHECK(chip == nullptr);
+        }
+    }
+
+    // A group replacement swaps every chord the chip represents for the captured one.
+    std::vector<int> first_group_indices;
+    for (int index = 0; index < keys.size(); ++index)
+    {
+        if (keyChordText(keys[index]) == keyChordText(keys[0]))
+        {
+            first_group_indices.push_back(index);
+        }
+    }
+    const juce::KeyPress f7{juce::KeyPress::F7Key};
+    editor.applyBindingChange(EditorCommandId::GridFiner, f7, first_group_indices);
+    CHECK(mappings.findCommandForKeyPress(f7) == grid_finer);
+    for (const int index : first_group_indices)
+    {
+        CHECK(mappings.findCommandForKeyPress(keys[index]) != grid_finer);
+    }
 }
 
 // Rows rebuild on the mapping set's change broadcast, so external rebinds refresh the chips.
@@ -184,7 +242,7 @@ TEST_CASE("KeymapEditorView refreshes rows on mapping changes", "[ui][keybinds]"
     juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
 
     const juce::KeyPress f9{juce::KeyPress::F9Key};
-    editor.applyBindingChange(EditorCommandId::ToggleUndoHistory, f9, 0);
+    editor.applyBindingChange(EditorCommandId::ToggleUndoHistory, f9, {0});
     mappings.sendSynchronousChangeMessage();
 
     const juce::String id_hex =
