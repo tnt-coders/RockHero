@@ -241,7 +241,9 @@ unsupported platforms simply never collapse). Arrow keys render as bare directio
 ("left", "ctrl + right") instead of JUCE's verbose "cursor left" — arrow glyphs were tried and
 rejected: thin line arrows are barely legible at chip size and fell to font substitution in
 the running editor, and the heavy-arrow codepoints risk color-emoji presentation on Windows.
-It deliberately does not use the captured
+Numpad keys abbreviate JUCE's "numpad" prefix to the conventional "num" ("num 5") —
+display-only, since the keymap XML round-trips JUCE's own descriptions, whose parser needs
+the full spelling. It deliberately does not use the captured
 `KeyPress::textCharacter`: JUCE's keymap XML round-trips description strings and drops it, so
 capture-time data would show "?" today and regress to "shift + /" after a restart. Never call
 `getTextDescription` or raw `addCommandItem` on a user-facing surface — a second rendering path

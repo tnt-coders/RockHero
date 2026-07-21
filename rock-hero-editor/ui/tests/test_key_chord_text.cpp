@@ -66,6 +66,12 @@ TEST_CASE("keyChordText collapses shifted characters", "[ui][keybinds]")
     CHECK(
         keyChordText(chord(juce::KeyPress::rightKey, ctrl | shift), &fakeShiftResolver) ==
         "ctrl + shift + right");
+
+    // Numpad keys abbreviate JUCE's "numpad" prefix to the conventional "num".
+    CHECK(keyChordText(chord(juce::KeyPress::numberPad5), &fakeShiftResolver) == "num 5");
+    CHECK(
+        keyChordText(chord(juce::KeyPress::numberPad7, ctrl), &fakeShiftResolver) ==
+        "ctrl + num 7");
 }
 
 // addEditorCommandItem pre-fills the item's shortcut text through the shared formatter (JUCE
