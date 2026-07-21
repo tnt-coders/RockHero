@@ -139,7 +139,10 @@ juce::String keyChordText(const juce::KeyPress& key, ShiftedCharacterResolver re
                    juce::String::charToString(resolved);
         }
     }
-    return key.getTextDescription();
+    // "num 5" over JUCE's "numpad 5": the abbreviated form is the convention (REAPER "Num",
+    // Windows "Num", IntelliJ "NumPad") and reads tighter on a chip. Display-only — the keymap
+    // XML round-trips JUCE's own descriptions, whose parser needs the full "numpad" spelling.
+    return key.getTextDescription().replace("numpad ", "num ");
 }
 
 juce::String keyChordText(const juce::KeyPress& key)
