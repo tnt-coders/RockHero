@@ -254,7 +254,7 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
         {EditorCommandId::ExitEditor, 0x1007, {}},
         {EditorCommandId::Undo, 0x1101, {chord('z', command)}},
         {EditorCommandId::Redo, 0x1102, {chord('y', command), chord('z', command | shift)}},
-        {EditorCommandId::ShowKeyboardShortcuts, 0x1103, {}},
+        {EditorCommandId::ShowActions, 0x1103, {chord('/', shift)}},
         {EditorCommandId::PlayPause, 0x1201, {chord(juce::KeyPress::spaceKey)}},
         {EditorCommandId::ToggleWaveform, 0x1301, {}},
         {EditorCommandId::ToggleUndoHistory, 0x1302, {chord(juce::KeyPress::F8Key)}},

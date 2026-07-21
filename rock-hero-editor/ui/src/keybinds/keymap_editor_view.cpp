@@ -2,6 +2,7 @@
 
 #include "keybinds/editor_command_registry.h"
 #include "keybinds/grammar_reservations.h"
+#include "keybinds/key_chord_text.h"
 #include "shared/editor_theme.h"
 #include "shared/text_metrics.h"
 #include "shared/themed_message_box.h"
@@ -51,7 +52,7 @@ public:
     bool keyPressed(const juce::KeyPress& key) override
     {
         m_captured = key;
-        juce::String message = "Key: " + key.getTextDescription();
+        juce::String message = "Key: " + keyChordText(key);
         if (isReservedGrammarChord(key))
         {
             message << "\n\n(Reserved for editor navigation and editing)";
@@ -224,8 +225,8 @@ public:
                 toJuceCommandId(spec.id));
         for (int index = 0; index < keys.size(); ++index)
         {
-            auto chip = std::make_unique<ChipButton>(
-                keys[index].getTextDescription(), /*interactive=*/true);
+            auto chip =
+                std::make_unique<ChipButton>(keyChordText(keys[index]), /*interactive=*/true);
             chip->setComponentID(
                 "keymap_chip_" + juce::String::toHexString(toJuceCommandId(spec.id)) + "_" +
                 juce::String{index});
@@ -532,7 +533,7 @@ void KeymapEditorView::confirmAndApply(
         showThemedWarningBox(
             this,
             "Reserved Key",
-            "\"" + key.getTextDescription() +
+            "\"" + keyChordText(key) +
                 "\" is reserved for editor navigation and editing, so it cannot be bound to a "
                 "command.");
         return;
@@ -550,7 +551,7 @@ void KeymapEditorView::confirmAndApply(
     showThemedQuestionBox(
         this,
         "Change Key Binding",
-        "\"" + key.getTextDescription() + "\" is already assigned to \"" +
+        "\"" + keyChordText(key) + "\" is already assigned to \"" +
             m_command_manager.getNameOfCommand(owner_id) + "\".\n\nRe-assign it to \"" +
             juce::String{findEditorCommandSpec(toJuceCommandId(command))->name} + "\" instead?",
         {"Re-assign", "Cancel"},

@@ -23,7 +23,8 @@ Date: 2026-07-06. Baseline: `refactor @ 13e82fb0`.
 ## Goal
 
 Every editor keyboard shortcut lives in one user-rebindable command system: a single registry of
-stable command ids with default bindings, a "Keyboard Shortcuts" configuration dialog (defaults
+stable command ids with default bindings, an "Actions" configuration dialog (renamed from
+"Keyboard Shortcuts" 2026-07-20 to match the adopted REAPER actions model; defaults
 listed, per-command clear and reset-to-default, conflict warning with overwrite-and-clear), diffed
 persistence in the per-user editor settings, shortcut text shown automatically in menus, and
 plugin editor windows honoring the user's actual undo/redo/play-pause bindings instead of a
@@ -468,6 +469,22 @@ The original question text is kept below for the decision record.
 > the same command ids with MIDI chips + learn-capture in the custom `KeymapEditorView` —
 > design drafted in `docs/plans/todo/midi-command-bindings.md`. The stock-vs-custom question
 > is closed for good; do not re-litigate.
+>
+> **"Actions" rename + `?` default + one chord formatter (2026-07-20, user-directed).** The
+> dialog adopted REAPER's user-facing name — `ActionsWindow`, menu item "Actions..." (REAPER's
+> own split is user-facing "Actions" over internal command ids, exactly ours) — and REAPER's
+> `?` opener as its default chord, authored as `Shift+/` (key codes address the physical base
+> key, so the default lands where `?` lives on `Shift+/` and other layouts rebind — capture
+> stores their own chord). Display collapsing rides one shared formatter,
+> `keybinds/key_chord_text.{h,cpp}`: `keyChordText` renders a shifted chord as the character it
+> types (`"?"`, `"ctrl + ?"`) when that differs from the base by more than case (letters stay
+> `"shift + Z"`), resolving through the **live keyboard layout** (Win32
+> `VkKeyScanW`+`ToUnicodeEx` no-side-effect flag; the one platform seam) rather than a US table
+> or the captured `textCharacter` — JUCE's keymap XML round-trips description strings and drops
+> `textCharacter`, so capture-time data would regress after restart. Chips, capture preview,
+> conflict prompts, and menus all route through it; menus via `addEditorCommandItem`, which
+> mirrors `PopupMenu::addCommandItem` but pre-fills `shortcutKeyDescription` (the popup only
+> derives its own raw text when that field arrives empty, juce_PopupMenu.cpp:307-331).
 
 - **Scope**: one menu entry ("Edit > Keyboard Shortcuts...") opening a themed window that hosts
   the stock `juce::KeyMappingEditorComponent` over the editor's mapping set: commands grouped by
@@ -685,7 +702,7 @@ Tier A — commands existing at baseline (or in-flight, marked):
 | File      | Exit                  | (none)               | OS-level Alt+F4; not registered          |
 | Edit      | Undo                  | Ctrl+Z               | current behavior                         |
 | Edit      | Redo                  | Ctrl+Y, Ctrl+Shift+Z | alternative keypresses are first-class   |
-| Edit      | Keyboard Shortcuts... | (none)               | menu-only                                |
+| Edit      | Actions...            | Shift+/ (`?`)        | renamed + `?` default 2026-07-20         |
 | Transport | Play/Pause            | Space                | current behavior; plugin-window mirrored |
 | View      | Toggle Waveform       | (none)               | menu-only; low frequency                 |
 | Tone      | Insert Tone Change    | Ctrl+T               | in-flight tone work; re-verify at exec   |

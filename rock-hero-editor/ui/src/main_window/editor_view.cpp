@@ -3,8 +3,9 @@
 #include "audio_device/audio_device_settings_window.h"
 #include "audio_device/game_audio_recommendation_dialog.h"
 #include "input_calibration/input_calibration_window.h"
+#include "keybinds/actions_window.h"
 #include "keybinds/editor_command_registry.h"
-#include "keybinds/keyboard_shortcuts_window.h"
+#include "keybinds/key_chord_text.h"
 #include "main_window/menu_look_and_feel.h"
 #include "preview/preview_window.h"
 #include "shared/editor_theme.h"
@@ -1316,14 +1317,14 @@ void EditorView::togglePreviewWindow()
 
 // Creates the keyboard-shortcuts window on first use, then shows it; the window survives closes
 // so its tree state and any in-progress inspection are kept across reopenings.
-void EditorView::showKeyboardShortcutsWindow()
+void EditorView::showActionsWindow()
 {
-    if (m_keyboard_shortcuts_window == nullptr)
+    if (m_actions_window == nullptr)
     {
-        m_keyboard_shortcuts_window =
-            std::make_unique<KeyboardShortcutsWindow>(m_command_manager, getTopLevelComponent());
+        m_actions_window =
+            std::make_unique<ActionsWindow>(m_command_manager, getTopLevelComponent());
     }
-    m_keyboard_shortcuts_window->open();
+    m_actions_window->open();
 }
 
 // Returns the top-level editor menus displayed by the editor.
@@ -1335,42 +1336,41 @@ juce::StringArray EditorView::getMenuBarNames()
 // Builds menus using only controller-derived state.
 juce::PopupMenu EditorView::getMenuForIndex(int top_level_menu_index, const juce::String& menu_name)
 {
-    // Command-backed items display their live shortcut automatically: the popup queries the
-    // manager's mapping set per item, so the text stays correct after any future rebind. Name,
-    // enablement, and tick state all come from getCommandInfo — one source for menus and keys.
+    // Command-backed items display their live shortcut, so the text stays correct after any
+    // rebind. Name, enablement, and tick state all come from getCommandInfo — one source for
+    // menus and keys — and addEditorCommandItem renders the shortcut through the shared
+    // keyChordText formatter so menus can never drift from the actions dialog's chips.
     if (top_level_menu_index == 0 && menu_name == "File")
     {
         juce::PopupMenu menu;
-        menu.addCommandItem(&m_command_manager, toJuceCommandId(EditorCommandId::OpenProject));
-        menu.addCommandItem(&m_command_manager, toJuceCommandId(EditorCommandId::ImportSong));
+        addEditorCommandItem(menu, m_command_manager, EditorCommandId::OpenProject);
+        addEditorCommandItem(menu, m_command_manager, EditorCommandId::ImportSong);
         menu.addSeparator();
-        menu.addCommandItem(&m_command_manager, toJuceCommandId(EditorCommandId::SaveProject));
-        menu.addCommandItem(&m_command_manager, toJuceCommandId(EditorCommandId::SaveProjectAs));
-        menu.addCommandItem(&m_command_manager, toJuceCommandId(EditorCommandId::PublishSong));
+        addEditorCommandItem(menu, m_command_manager, EditorCommandId::SaveProject);
+        addEditorCommandItem(menu, m_command_manager, EditorCommandId::SaveProjectAs);
+        addEditorCommandItem(menu, m_command_manager, EditorCommandId::PublishSong);
         menu.addSeparator();
-        menu.addCommandItem(&m_command_manager, toJuceCommandId(EditorCommandId::CloseProject));
-        menu.addCommandItem(&m_command_manager, toJuceCommandId(EditorCommandId::ExitEditor));
+        addEditorCommandItem(menu, m_command_manager, EditorCommandId::CloseProject);
+        addEditorCommandItem(menu, m_command_manager, EditorCommandId::ExitEditor);
         return menu;
     }
 
     if (top_level_menu_index == 1 && menu_name == "Edit")
     {
         juce::PopupMenu menu;
-        menu.addCommandItem(&m_command_manager, toJuceCommandId(EditorCommandId::Undo));
-        menu.addCommandItem(&m_command_manager, toJuceCommandId(EditorCommandId::Redo));
+        addEditorCommandItem(menu, m_command_manager, EditorCommandId::Undo);
+        addEditorCommandItem(menu, m_command_manager, EditorCommandId::Redo);
         menu.addSeparator();
-        menu.addCommandItem(
-            &m_command_manager, toJuceCommandId(EditorCommandId::ShowKeyboardShortcuts));
+        addEditorCommandItem(menu, m_command_manager, EditorCommandId::ShowActions);
         return menu;
     }
 
     if (top_level_menu_index == 2 && menu_name == "View")
     {
         juce::PopupMenu menu;
-        menu.addCommandItem(&m_command_manager, toJuceCommandId(EditorCommandId::ToggleWaveform));
-        menu.addCommandItem(
-            &m_command_manager, toJuceCommandId(EditorCommandId::ToggleUndoHistory));
-        menu.addCommandItem(&m_command_manager, toJuceCommandId(EditorCommandId::TogglePreview3D));
+        addEditorCommandItem(menu, m_command_manager, EditorCommandId::ToggleWaveform);
+        addEditorCommandItem(menu, m_command_manager, EditorCommandId::ToggleUndoHistory);
+        addEditorCommandItem(menu, m_command_manager, EditorCommandId::TogglePreview3D);
 
         // The lane-count submenu offers "match the chart" plus explicit minimums up to the
         // format's string cap; picking fewer lanes than the chart has can never hide notes
@@ -1493,7 +1493,7 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
             info.setActive(m_state.redo_enabled);
             break;
         }
-        case EditorCommandId::ShowKeyboardShortcuts:
+        case EditorCommandId::ShowActions:
         {
             break;
         }
@@ -1613,9 +1613,9 @@ bool EditorView::perform(const InvocationInfo& info)
             }
             return true;
         }
-        case EditorCommandId::ShowKeyboardShortcuts:
+        case EditorCommandId::ShowActions:
         {
-            showKeyboardShortcutsWindow();
+            showActionsWindow();
             return true;
         }
         case EditorCommandId::PlayPause:

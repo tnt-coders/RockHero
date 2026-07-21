@@ -1,6 +1,6 @@
 /*!
-\file keyboard_shortcuts_window.h
-\brief Themed window hosting the editor's custom key-binding editor.
+\file actions_window.h
+\brief Themed window hosting the editor's custom action-binding editor.
 */
 
 #pragma once
@@ -13,15 +13,18 @@ namespace rock_hero::editor::ui
 {
 
 /*!
-\brief Non-modal tool window presenting the rebindable keymap (Edit > Keyboard Shortcuts...).
+\brief Non-modal tool window presenting the editor's actions and their bindings
+       (Edit > Actions..., default `?`).
 
+Named for the REAPER-style actions model: the command registry is the editor's one
+trigger-agnostic action list, and this window is where its bindings are viewed and edited.
 Hosts the custom `KeymapEditorView` over the editor's one key mapping set (plan 46 Phase 3: the
 stock component shipped first and its recorded custom-rebuild trigger fired — the themed stock
 dialog read as off-product in live use). The window stays alive across closes — the close
 button only hides it — and rebinds apply live through the mapping set's own change broadcasts
 (key dispatch, menu shortcut text, and the keymap persistence all listen to the same set).
 */
-class KeyboardShortcutsWindow final : public juce::DocumentWindow
+class ActionsWindow final : public juce::DocumentWindow
 {
 public:
     /*!
@@ -29,23 +32,23 @@ public:
     \param command_manager Command manager owning the key mapping set; must outlive this window.
     \param centering_component Component whose top-level window centers this one; may be null.
     */
-    KeyboardShortcutsWindow(
+    ActionsWindow(
         juce::ApplicationCommandManager& command_manager, juce::Component* centering_component);
 
     /*! \brief Destroys the window and its owned editor view. */
-    ~KeyboardShortcutsWindow() override = default;
+    ~ActionsWindow() override = default;
 
     /*! \brief Copying is disabled because JUCE component ownership is not copyable. */
-    KeyboardShortcutsWindow(const KeyboardShortcutsWindow&) = delete;
+    ActionsWindow(const ActionsWindow&) = delete;
 
     /*! \brief Copy assignment is disabled because JUCE component ownership is not copyable. */
-    KeyboardShortcutsWindow& operator=(const KeyboardShortcutsWindow&) = delete;
+    ActionsWindow& operator=(const ActionsWindow&) = delete;
 
     /*! \brief Moving is disabled because child component registrations are not movable. */
-    KeyboardShortcutsWindow(KeyboardShortcutsWindow&&) = delete;
+    ActionsWindow(ActionsWindow&&) = delete;
 
     /*! \brief Move assignment is disabled because child registrations are not movable. */
-    KeyboardShortcutsWindow& operator=(KeyboardShortcutsWindow&&) = delete;
+    ActionsWindow& operator=(ActionsWindow&&) = delete;
 
     /*! \brief Shows the window, centring it over its owner when opening from hidden. */
     void open();
@@ -54,7 +57,7 @@ public:
     void closeButtonPressed() override;
 
 private:
-    // The custom key-binding editor, listening to the mapping set for live refresh.
+    // The custom binding editor, listening to the mapping set for live refresh.
     KeymapEditorView m_editor_view;
 
     // Owner used to center the window on open; guarded because the owner may close first.

@@ -18,6 +18,7 @@ target_link_libraries(rock_hero_editor_ui_testing INTERFACE rock_hero::editor::u
 # Keep focused editor UI coverage in one target because the test surface is small.
 add_executable(
     rock_hero_editor_ui_tests
+    test_actions_window.cpp
     test_arrangement_view.cpp
     test_audio_device_settings_view.cpp
     test_editor.cpp
@@ -32,7 +33,7 @@ add_executable(
     test_editor_view_timeline.cpp
     test_grid_spacing_selector.cpp
     test_input_calibration_window.cpp
-    test_keyboard_shortcuts_window.cpp
+    test_key_chord_text.cpp
     test_plugin_browser_window.cpp
     test_plugin_window_shortcut_sync.cpp
     test_signal_chain_block_layout.cpp

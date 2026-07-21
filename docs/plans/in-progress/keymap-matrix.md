@@ -137,11 +137,12 @@ a range is a no-op pending plan 52's content-delete, and the extend is paused-on
 | Keybind | Behavior | Status |
 |---|---|---|
 | `Space` | play / pause from the marker | Live |
-| `Ctrl+Z` / `Ctrl+Y` / `Ctrl+Shift+Z` | undo / redo (exact-modifier matched); `Ctrl+Shift+Z` = redo alias — **fully rebindable** with `Space` (fixed-trio decision reversed 2026-07-20; rebinds mirror into plugin windows via the generalized layout-neutral seam) | Live (registry + mirror sync 2026-07-20; manual plugin verification pending) |
+| `Ctrl+Z` / `Ctrl+Y` / `Ctrl+Shift+Z` | undo / redo (exact-modifier matched); `Ctrl+Shift+Z` = redo alias — **fully rebindable** with `Space` (fixed-trio decision reversed 2026-07-20; rebinds mirror into plugin windows via the generalized layout-neutral seam) | Live (registry + mirror sync 2026-07-20; manual plugin verification passed 2026-07-20) |
 | `Ctrl+O` · `Ctrl+Shift+O` · `Ctrl+S` · `Ctrl+Shift+S` · `Ctrl+Shift+P` · `Ctrl+W` | Open / Import / Save / Save As / Publish / Close (the tier A file-menu chords; menu items show live shortcuts) | Live (registry 2026-07-20) |
 | `Ctrl+T` | insert a tone-change marker at the **playhead** (from any surface) | Live (guard against `Alt` shipped 2026-07-20 via the registry's exact-modifier matching) |
 | `Esc` | cancel gesture → disarm caret → clear selection | Live |
 | `F3` / `F8` | toggle 3D preview / undo-history inspector | Live |
+| `?` (`Shift+/`) | open the Actions dialog (the binding editor; REAPER's actions-list key) | Live (renamed from "Keyboard Shortcuts" + default added 2026-07-20; display collapses shifted chords through the shared `keyChordText` formatter) |
 | plain wheel | zoom, marker-centered | Live |
 | `Ctrl`+wheel | zoom (browser reflex — same as plain wheel) | Live |
 | `=` / `-` · `Shift+=` (`+`) · numpad `+`/`-` | **grid** finer (`+`) / coarser (`-`) | Live (23d3ed7b/44f24ab6; `Shift+-` also matches via key code — harmless, accepted 2026-07-20) |

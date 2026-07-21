@@ -56,8 +56,8 @@ enum class EditorCommandId : int
     /*! \brief Edit > Redo (`Ctrl+Y`, `Ctrl+Shift+Z`). */
     Redo = 0x1102,
 
-    /*! \brief Edit > Keyboard Shortcuts... (menu-only). */
-    ShowKeyboardShortcuts = 0x1103,
+    /*! \brief Edit > Actions... (`Shift+/`, i.e. `?` — the REAPER actions-list convention). */
+    ShowActions = 0x1103,
 
     /*! \brief Toggle transport playback (`Space`). */
     PlayPause = 0x1201,
