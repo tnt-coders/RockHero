@@ -83,9 +83,15 @@ alternative), and each tiered verb (plain caret step vs. `Ctrl` measure jump) is
 command on its own chord. Chords register lowercase letters — the mapping set asserts on
 uppercase-without-shift — and letter matching is case-insensitive against OS key codes.
 Key-shape variance is expressed as **alternative default chords** on one command: each digit
-command registers its main-row *and* numpad chords, and the grid/zoom commands register the
-old decoder's `=`/`+`/numpad union as alternatives (the shapes JUCE reports vary with WM_CHAR
-timing).
+command registers its main-row *and* numpad chords (the digits are the only keys JUCE's
+Windows path remaps to `numberPad*` codes), while the numpad add/subtract keys arrive as their
+plain character key codes — `doKeyDown` has no VK_ADD/VK_SUBTRACT case and `doKeyChar`'s
+numpad remap covers digits only (juce_Windowing_windows.cpp:3141-3161, :3178-3195) — so the
+bare `'+'`/`'-'` chords *are* the numpad bindings and `numberPadAdd/Subtract` chords would be
+lying entries that never match. Chords that render identically ("display-equal" OS key-shape
+twins like `Shift+=` and the numpad-arrival `'+'`) group into **one chip** in the actions
+dialog and one entry in menu shortcut text; the chip's change/remove operate on every chord in
+its group, so no ghost binding can survive a visible removal.
 
 Where the same chord needs different verbs by context (the old decoder's sequential dispatch),
 the mechanism is enablement: `KeyPressMappingSet::keyPressed` visits every command mapped to a
@@ -116,8 +122,8 @@ same shape: `GridFiner`/`GridCoarser` step the grid through
 `GridSpacingSelector::stepNoteValue` (emitting via the selector's listener, the same path as a
 combo pick, so the controller still owns the applied value), and `ZoomIn`/`ZoomOut` zoom
 through `TrackViewport::zoomByStep` — the keyboard twin of Ctrl+wheel, sharing its
-clamp/recenter/report path. The old decoder's `=`/`+`/numpad key-shape union lives on as these
-commands' alternative default chords.
+clamp/recenter/report path. Their default chords are the `+`/`-` family (main-row and numpad
+shapes, plus the unshifted `=` convenience alias) — see the key-shape note under Decoding.
 
 # Path (b): keys that drive the caret grammar
 
@@ -214,7 +220,8 @@ keymap persistence, and the plugin-window mirror all listen to the same set.
 
 The dialog is also the complete keymap reference: every registry command appears under its
 category — File through Tone, then the grammar-verb categories (Navigation, Selection,
-Editing, Value Entry, Grid & Zoom) — and **every row is rebindable with no exceptions** (plan
+Authoring, Value Entry, Grid & Zoom; "Authoring" precisely because "Editing" would collide
+with the Edit menu category) — and **every row is rebindable with no exceptions** (plan
 53 Phase 1b dissolved the earlier fixed grammar section and its reservation refusal). Any
 chord can move between commands through the owner-naming conflict confirm, and per-command
 reset reclaims a command's default chords from whichever command took them. Rebinding a
@@ -229,7 +236,8 @@ raw text only when that field arrives empty). The formatter collapses a shifted 
 character it types — `Shift+/` renders as "?", `Ctrl+Shift+/` as "ctrl + ?" — when that differs
 from the base character by more than case (letters keep the explicit "shift + Z" form), and
 resolves the character through the **live keyboard layout** (the unit's one Win32 seam;
-unsupported platforms simply never collapse). It deliberately does not use the captured
+unsupported platforms simply never collapse). Arrow keys render as glyphs (←/→/↑/↓) instead of
+JUCE's verbose "cursor left" wording. It deliberately does not use the captured
 `KeyPress::textCharacter`: JUCE's keymap XML round-trips description strings and drops it, so
 capture-time data would show "?" today and regress to "shift + /" after a restart. Never call
 `getTextDescription` or raw `addCommandItem` on a user-facing surface — a second rendering path

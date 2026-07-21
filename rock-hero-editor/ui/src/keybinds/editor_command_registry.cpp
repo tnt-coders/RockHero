@@ -111,7 +111,7 @@ namespace
             .id = EditorCommandId::ToggleWaveform,
             .name = "Show Waveform",
             .category = "View",
-            .default_keypresses = {},
+            .default_keypresses = {chord(juce::KeyPress::F5Key)},
         });
     registry.push_back(
         EditorCommandSpec{
@@ -269,40 +269,43 @@ namespace
         "Delete Selection",
         "Selection",
         {chord(juce::KeyPress::deleteKey)});
+    // Cancel/Clear sits with the selection verbs (its user-visible rungs disarm the caret and
+    // clear the selection); its 0x1708 id stays in the authoring block — id blocks are
+    // historical hints, the registry row owns the category.
+    add(EditorCommandId::CancelDismiss,
+        "Cancel / Clear",
+        "Selection",
+        {chord(juce::KeyPress::escapeKey)});
 
-    // Editing.
+    // Authoring ("Editing" would collide with the Edit menu category in the dialog).
     add(EditorCommandId::SustainLengthen,
         "Lengthen Sustain",
-        "Editing",
+        "Authoring",
         {chord(juce::KeyPress::rightKey, alt | shift)});
     add(EditorCommandId::SustainShorten,
         "Shorten Sustain",
-        "Editing",
+        "Authoring",
         {chord(juce::KeyPress::leftKey, alt | shift)});
     add(EditorCommandId::SustainLengthenFine,
         "Lengthen Sustain (Fine)",
-        "Editing",
+        "Authoring",
         {chord(juce::KeyPress::rightKey, command | alt | shift)});
     add(EditorCommandId::SustainShortenFine,
         "Shorten Sustain (Fine)",
-        "Editing",
+        "Authoring",
         {chord(juce::KeyPress::leftKey, command | alt | shift)});
     add(EditorCommandId::FretShiftUp,
         "Shift Frets Up",
-        "Editing",
+        "Authoring",
         {chord(juce::KeyPress::upKey, alt | shift)});
     add(EditorCommandId::FretShiftDown,
         "Shift Frets Down",
-        "Editing",
+        "Authoring",
         {chord(juce::KeyPress::downKey, alt | shift)});
     add(EditorCommandId::NeutralInsert,
         "Insert Note / Point",
-        "Editing",
+        "Authoring",
         {chord(juce::KeyPress::insertKey)});
-    add(EditorCommandId::CancelDismiss,
-        "Cancel / Clear",
-        "Editing",
-        {chord(juce::KeyPress::escapeKey)});
 
     // Value entry: digit N types into the armed row's payload; the numpad chord is a
     // first-class alias of the same command.
@@ -326,25 +329,24 @@ namespace
             {chord('0' + digit), chord(juce::KeyPress::numberPad0 + digit)});
     }
 
-    // Grid & zoom: the old decoder's key-shape union becomes alternative default chords — the
-    // main-row '=' key (shifted or not — Shift+'=' types '+'), the '+'/'-' character shapes
-    // some numpad events arrive as, and the numpad add/subtract key codes.
+    // Grid & zoom. The numpad add/subtract keys arrive as their character key codes on
+    // Windows — doKeyDown has no VK_ADD/VK_SUBTRACT case and doKeyChar's numpad remap covers
+    // digits only (juce_Windowing_windows.cpp:3141-3161, :3178-3195) — so the bare '+'/'-'
+    // chords ARE the numpad bindings and juce::KeyPress::numberPadAdd/Subtract never match
+    // (registering them would ship lying chips). Shift+'=' is the main-row plus; it and '+'
+    // display as one grouped "+" chip. The unshifted '=' stays as the no-shift convenience
+    // alias (user-accepted 2026-07-21); the Shift+'-' ('_') ride-along was dropped the same
+    // day.
     add(EditorCommandId::GridFiner,
         "Grid Finer",
         "Grid & Zoom",
-        {chord('='), chord('=', shift), chord('+'), chord(juce::KeyPress::numberPadAdd)});
-    add(EditorCommandId::GridCoarser,
-        "Grid Coarser",
-        "Grid & Zoom",
-        {chord('-'), chord('-', shift), chord(juce::KeyPress::numberPadSubtract)});
+        {chord('=', shift), chord('+'), chord('=')});
+    add(EditorCommandId::GridCoarser, "Grid Coarser", "Grid & Zoom", {chord('-')});
     add(EditorCommandId::ZoomIn,
         "Zoom In",
         "Grid & Zoom",
-        {chord('=', command), chord('+', command), chord(juce::KeyPress::numberPadAdd, command)});
-    add(EditorCommandId::ZoomOut,
-        "Zoom Out",
-        "Grid & Zoom",
-        {chord('-', command), chord(juce::KeyPress::numberPadSubtract, command)});
+        {chord('=', command | shift), chord('+', command), chord('=', command)});
+    add(EditorCommandId::ZoomOut, "Zoom Out", "Grid & Zoom", {chord('-', command)});
 
     return registry;
 }
