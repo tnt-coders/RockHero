@@ -210,8 +210,11 @@ defaults, and per-surface front-ends all consume the registry.
 > alternatives fail too (filled triangles rejected by the user; heavy arrows risk color-emoji
 > presentation). The Shift+`'-'` (`_`) drop was also **reversed same day**: `_` and
 > `Ctrl+_` stay as convenience aliases for Grid Coarser / Zoom Out until something better
-> claims them, symmetric with the `=` alias on the plus side. (4) The "Editing" category
-> renamed **"Authoring"** (collided
+> claims them, symmetric with the `=` alias on the plus side. (3b) **Display convention
+> normalized to capitalized tight Windows style** ("Ctrl+Shift+Z", "Space", "Esc", "Page Up",
+> "Num 5") — JUCE's lowercase "ctrl + z" was its own idiosyncrasy, not a convention;
+> display-only, the stored keymap XML keeps JUCE's spellings, which its parser requires.
+> (4) The "Editing" category renamed **"Authoring"** (collided
 > with the Edit menu category) and Cancel/Clear recategorized under Selection (its
 > user-visible rungs disarm the caret and clear the selection; id blocks are historical
 > hints). (5) Show Waveform gained its `F5` default.

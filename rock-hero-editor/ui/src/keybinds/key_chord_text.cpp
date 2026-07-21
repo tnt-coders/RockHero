@@ -62,48 +62,90 @@ namespace
 #endif
 }
 
-// Modifier prefix in getTextDescription's order and lowercase style; shift is omitted by the
+// Modifier prefix in the Windows convention — capitalized, tight "+" joins ("Ctrl+Shift+Z"),
+// matching what native menus and REAPER/VS Code/IntelliJ all display. Shift is omitted by the
 // collapse path, which spends it on the resolved character.
 [[nodiscard]] juce::String modifierPrefix(const juce::ModifierKeys& modifiers, bool with_shift)
 {
     juce::String text;
     if (modifiers.isCtrlDown())
     {
-        text << "ctrl + ";
+        text << "Ctrl+";
     }
     if (with_shift && modifiers.isShiftDown())
     {
-        text << "shift + ";
+        text << "Shift+";
     }
     if (modifiers.isAltDown())
     {
-        text << "alt + ";
+        text << "Alt+";
     }
     return text;
 }
 
-// Arrow keys render as bare direction words — JUCE's "cursor left" reads too verbose on a
-// chip, and the arrow glyph alternatives all fail at chip size (thin line arrows are barely
-// legible at 13px, heavy arrows risk color-emoji presentation on Windows).
-[[nodiscard]] const char* arrowNameForKeyCode(int key_code)
+// Canonical Windows-convention names for the non-character keys, replacing JUCE's lowercase
+// idiosyncrasies ("spacebar", "return", "cursor left"). Arrows are bare direction words —
+// the glyph alternatives all fail at chip size (thin arrows are barely legible and fell to
+// font substitution in the running editor; heavy arrows risk color-emoji presentation).
+// "Num" abbreviates JUCE's "numpad" per convention (REAPER/Windows "Num"). Returns empty when
+// the key is not a named key.
+[[nodiscard]] juce::String namedKeyText(int key_code)
 {
-    if (key_code == juce::KeyPress::leftKey)
+    struct NamedKey
     {
-        return "left";
-    }
-    if (key_code == juce::KeyPress::upKey)
+        int code;
+        const char* name;
+    };
+    // Runtime table (not a switch) because JUCE key-code constants are runtime values.
+    const NamedKey named_keys[] = {
+        {juce::KeyPress::leftKey, "Left"},
+        {juce::KeyPress::rightKey, "Right"},
+        {juce::KeyPress::upKey, "Up"},
+        {juce::KeyPress::downKey, "Down"},
+        {juce::KeyPress::spaceKey, "Space"},
+        {juce::KeyPress::returnKey, "Enter"},
+        {juce::KeyPress::escapeKey, "Esc"},
+        {juce::KeyPress::backspaceKey, "Backspace"},
+        {juce::KeyPress::deleteKey, "Delete"},
+        {juce::KeyPress::insertKey, "Insert"},
+        {juce::KeyPress::tabKey, "Tab"},
+        {juce::KeyPress::homeKey, "Home"},
+        {juce::KeyPress::endKey, "End"},
+        {juce::KeyPress::pageUpKey, "Page Up"},
+        {juce::KeyPress::pageDownKey, "Page Down"},
+        {juce::KeyPress::numberPadAdd, "Num +"},
+        {juce::KeyPress::numberPadSubtract, "Num -"},
+        {juce::KeyPress::numberPadMultiply, "Num *"},
+        {juce::KeyPress::numberPadDivide, "Num /"},
+        {juce::KeyPress::numberPadDecimalPoint, "Num ."},
+        {juce::KeyPress::numberPadEquals, "Num ="},
+        {juce::KeyPress::numberPadSeparator, "Num ,"},
+        {juce::KeyPress::numberPadDelete, "Num Delete"},
+    };
+    for (const NamedKey& named : named_keys)
     {
-        return "up";
+        if (key_code == named.code)
+        {
+            return named.name;
+        }
     }
-    if (key_code == juce::KeyPress::rightKey)
+    if (key_code >= juce::KeyPress::numberPad0 && key_code <= juce::KeyPress::numberPad9)
     {
-        return "right";
+        return "Num " + juce::String{key_code - juce::KeyPress::numberPad0};
     }
-    if (key_code == juce::KeyPress::downKey)
+    if (key_code >= juce::KeyPress::F1Key && key_code <= juce::KeyPress::F16Key)
     {
-        return "down";
+        return "F" + juce::String{1 + key_code - juce::KeyPress::F1Key};
     }
-    return nullptr;
+    if (key_code >= juce::KeyPress::F17Key && key_code <= juce::KeyPress::F24Key)
+    {
+        return "F" + juce::String{17 + key_code - juce::KeyPress::F17Key};
+    }
+    if (key_code >= juce::KeyPress::F25Key && key_code <= juce::KeyPress::F35Key)
+    {
+        return "F" + juce::String{25 + key_code - juce::KeyPress::F25Key};
+    }
+    return {};
 }
 
 } // namespace
@@ -111,38 +153,45 @@ namespace
 juce::String keyChordText(const juce::KeyPress& key, ShiftedCharacterResolver resolve_shifted)
 {
     // Mirrors getTextDescription's printable-character key-code range; everything outside it
-    // (named keys, numpad codes) keeps its explicit JUCE description.
+    // is a named key or falls through to JUCE's description.
     constexpr int printable_first = 33;
     constexpr int printable_last_exclusive = 176;
 
     const int key_code = key.getKeyCode();
     const juce::ModifierKeys modifiers = key.getModifiers();
 
-    if (const char* const arrow_name = arrowNameForKeyCode(key_code); arrow_name != nullptr)
+    if (const juce::String named = namedKeyText(key_code); named.isNotEmpty())
     {
-        return modifierPrefix(modifiers, /*with_shift=*/true) + arrow_name;
+        return modifierPrefix(modifiers, /*with_shift=*/true) + named;
     }
 
-    if (modifiers.isShiftDown() && key_code >= printable_first &&
-        key_code < printable_last_exclusive)
+    if (key_code >= printable_first && key_code < printable_last_exclusive)
     {
         const juce::juce_wchar base = static_cast<juce::juce_wchar>(key_code);
-        const juce::juce_wchar resolved = resolve_shifted(base);
-
-        // Collapse only when Shift changes the character by more than case: "shift + /"
-        // becomes "?", but letters stay explicit — a bare capital reads ambiguously against
-        // the lowercase chip convention.
-        if (resolved != 0 && juce::CharacterFunctions::toLowerCase(resolved) !=
-                                 juce::CharacterFunctions::toLowerCase(base))
+        if (modifiers.isShiftDown())
         {
-            return modifierPrefix(modifiers, /*with_shift=*/false) +
-                   juce::String::charToString(resolved);
+            // Collapse only when Shift changes the character by more than case: "Shift+/"
+            // becomes "?". Letters stay explicit ("Shift+Z"), because the convention displays
+            // plain letter chords uppercase too — a bare "Z" could not be told apart from the
+            // unshifted binding.
+            const juce::juce_wchar resolved = resolve_shifted(base);
+            if (resolved != 0 && juce::CharacterFunctions::toLowerCase(resolved) !=
+                                     juce::CharacterFunctions::toLowerCase(base))
+            {
+                return modifierPrefix(modifiers, /*with_shift=*/false) +
+                       juce::String::charToString(resolved);
+            }
         }
+        return modifierPrefix(modifiers, /*with_shift=*/true) +
+               juce::String::charToString(juce::CharacterFunctions::toUpperCase(base));
     }
-    // "num 5" over JUCE's "numpad 5": the abbreviated form is the convention (REAPER "Num",
-    // Windows "Num", IntelliJ "NumPad") and reads tighter on a chip. Display-only — the keymap
-    // XML round-trips JUCE's own descriptions, whose parser needs the full "numpad" spelling.
-    return key.getTextDescription().replace("numpad ", "num ");
+
+    // Exotic keys (media keys and the like): JUCE's description with its lowercase modifier
+    // prefixes rewritten into the convention.
+    return key.getTextDescription()
+        .replace("ctrl + ", "Ctrl+")
+        .replace("shift + ", "Shift+")
+        .replace("alt + ", "Alt+");
 }
 
 juce::String keyChordText(const juce::KeyPress& key)

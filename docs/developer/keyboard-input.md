@@ -233,19 +233,23 @@ Every user-facing rendering of a chord goes through **one formatter**,
 `keyChordText` (`ui/src/keybinds/key_chord_text.cpp`): dialog chips, the capture preview, the
 conflict prompts, and menu shortcut text (menus via `addEditorCommandItem`, which mirrors
 `PopupMenu::addCommandItem` but pre-fills the item's shortcut text — the popup derives its own
-raw text only when that field arrives empty). The formatter collapses a shifted chord to the
-character it types — `Shift+/` renders as "?", `Ctrl+Shift+/` as "ctrl + ?" — when that differs
-from the base character by more than case (letters keep the explicit "shift + Z" form), and
-resolves the character through the **live keyboard layout** (the unit's one Win32 seam;
-unsupported platforms simply never collapse). Arrow keys render as bare direction words
-("left", "ctrl + right") instead of JUCE's verbose "cursor left" — arrow glyphs were tried and
-rejected: thin line arrows are barely legible at chip size and fell to font substitution in
-the running editor, and the heavy-arrow codepoints risk color-emoji presentation on Windows.
-Numpad keys abbreviate JUCE's "numpad" prefix to the conventional "num" ("num 5") —
-display-only, since the keymap XML round-trips JUCE's own descriptions, whose parser needs
-the full spelling. It deliberately does not use the captured
+raw text only when that field arrives empty). Chords display in the **Windows convention** —
+capitalized with tight "+" joins ("Ctrl+Shift+Z"), the style native menus, REAPER, VS Code,
+and IntelliJ share; JUCE's lowercase "ctrl + z" is its own idiosyncrasy and appears nowhere
+user-facing. Named keys use canonical spellings ("Space", "Enter", "Esc", "Page Up"); arrows
+render as bare direction words ("Left", "Ctrl+Right") instead of JUCE's verbose "cursor left"
+— arrow glyphs were tried and rejected (thin line arrows are barely legible at chip size and
+fell to font substitution in the running editor; heavy-arrow codepoints risk color-emoji
+presentation on Windows); numpad keys abbreviate to the conventional "Num" ("Num 5"). The
+formatter collapses a shifted chord to the character it types — `Shift+/` renders as "?",
+`Ctrl+Shift+/` as "Ctrl+?" — when that differs from the base character by more than case
+(letters keep the explicit "Shift+Z" form, since plain letter chords display uppercase too),
+resolving the character through the **live keyboard layout** (the unit's one Win32 seam;
+unsupported platforms simply never collapse). It deliberately does not use the captured
 `KeyPress::textCharacter`: JUCE's keymap XML round-trips description strings and drops it, so
-capture-time data would show "?" today and regress to "shift + /" after a restart. Never call
+capture-time data would show "?" today and regress to the explicit form after a restart — and
+those stored descriptions keep JUCE's own spellings ("numpad", "cursor left"), which its
+parser requires; every rewrite here is display-only. Never call
 `getTextDescription` or raw `addCommandItem` on a user-facing surface — a second rendering path
 is exactly the drift this unit exists to prevent.
 

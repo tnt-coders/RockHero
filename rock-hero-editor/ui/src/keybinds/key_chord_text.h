@@ -22,13 +22,15 @@ layout, a dead key, or no layout query available on this platform.
 using ShiftedCharacterResolver = juce::juce_wchar (*)(juce::juce_wchar base_character);
 
 /*!
-\brief Formats a chord for display, collapsing shifted characters to what they type.
+\brief Formats a chord for display in the Windows convention, collapsing shifted characters.
 
-A chord whose shifted character differs from its base by more than letter case renders as the
-character the user actually types — `Shift+/` displays as "?" — with any remaining modifiers
-kept ("ctrl + ?"). Letter chords keep their explicit form ("shift + Z"), because a bare capital
-would be ambiguous against the lowercase chip convention. Everything else falls back to JUCE's
-`getTextDescription`, whose lowercase "ctrl + z" style all binding chips share.
+Chords render capitalized with tight "+" joins — "Ctrl+Shift+Z" — the convention native menus,
+REAPER, VS Code, and IntelliJ share (JUCE's own lowercase "ctrl + z" style is its private
+idiosyncrasy). Named keys use canonical spellings ("Space", "Enter", "Esc", "Page Up",
+"Num 5"; arrows as bare direction words). A chord whose shifted character differs from its
+base by more than letter case renders as the character the user actually types — `Shift+/`
+displays as "?" — with any remaining modifiers kept ("Ctrl+?"). Letter chords keep their
+explicit form ("Shift+Z"), because plain letter chords display uppercase too.
 
 Every user-facing rendering of a chord — dialog chips, capture preview, conflict prompts, and
 menu shortcut text — must route through this function so the surfaces can never drift apart.
