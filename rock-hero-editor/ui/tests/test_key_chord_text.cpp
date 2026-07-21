@@ -10,7 +10,7 @@ namespace
 {
 
 // Fixed fake layout so the collapse rule is asserted layout-independently: '/' shifts to '?',
-// '1' to '!', letters to their capitals, everything else unresolvable.
+// '1' to '!', '=' to '+', letters to their capitals, everything else unresolvable.
 [[nodiscard]] juce::juce_wchar fakeShiftResolver(juce::juce_wchar base)
 {
     if (base == '/')
@@ -20,6 +20,10 @@ namespace
     if (base == '1')
     {
         return '!';
+    }
+    if (base == '=')
+    {
+        return '+';
     }
     if (base >= 'a' && base <= 'z')
     {
@@ -55,6 +59,14 @@ TEST_CASE("keyChordText collapses shifted characters", "[ui][keybinds]")
     CHECK(keyChordText(chord('[', shift), &fakeShiftResolver) == "Shift+[");
     CHECK(keyChordText(chord('/'), &fakeShiftResolver) == "/");
     CHECK(keyChordText(chord('z', ctrl), &fakeShiftResolver) == "Ctrl+Z");
+
+    // A '+' or '-' key under a modifier collides with the "+" joiner ("Ctrl++"), so those two
+    // take their names; the bare chips keep the compact symbol.
+    CHECK(keyChordText(chord('+'), &fakeShiftResolver) == "+");
+    CHECK(keyChordText(chord('-'), &fakeShiftResolver) == "-");
+    CHECK(keyChordText(chord('+', ctrl), &fakeShiftResolver) == "Ctrl+Plus");
+    CHECK(keyChordText(chord('-', ctrl), &fakeShiftResolver) == "Ctrl+Minus");
+    CHECK(keyChordText(chord('=', ctrl | shift), &fakeShiftResolver) == "Ctrl+Plus");
 
     // Named keys use canonical Windows-convention spellings and never collapse.
     CHECK(keyChordText(chord(juce::KeyPress::F9Key, shift), &fakeShiftResolver) == "Shift+F9");

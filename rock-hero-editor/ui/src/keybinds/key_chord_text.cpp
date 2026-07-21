@@ -148,6 +148,22 @@ namespace
     return {};
 }
 
+// Joins the modifier prefix to the key's display. A '+' or '-' key under a modifier collides
+// with the "+" joiner ("Ctrl++"), so those two take their names instead — Microsoft's docs
+// convention ("Ctrl+Plus sign"); bare unmodified chips keep the compact symbol.
+[[nodiscard]] juce::String joinChord(const juce::String& prefix, const juce::String& key_text)
+{
+    if (prefix.isNotEmpty() && key_text == "+")
+    {
+        return prefix + "Plus";
+    }
+    if (prefix.isNotEmpty() && key_text == "-")
+    {
+        return prefix + "Minus";
+    }
+    return prefix + key_text;
+}
+
 } // namespace
 
 juce::String keyChordText(const juce::KeyPress& key, ShiftedCharacterResolver resolve_shifted)
@@ -178,12 +194,14 @@ juce::String keyChordText(const juce::KeyPress& key, ShiftedCharacterResolver re
             if (resolved != 0 && juce::CharacterFunctions::toLowerCase(resolved) !=
                                      juce::CharacterFunctions::toLowerCase(base))
             {
-                return modifierPrefix(modifiers, /*with_shift=*/false) +
-                       juce::String::charToString(resolved);
+                return joinChord(
+                    modifierPrefix(modifiers, /*with_shift=*/false),
+                    juce::String::charToString(resolved));
             }
         }
-        return modifierPrefix(modifiers, /*with_shift=*/true) +
-               juce::String::charToString(juce::CharacterFunctions::toUpperCase(base));
+        return joinChord(
+            modifierPrefix(modifiers, /*with_shift=*/true),
+            juce::String::charToString(juce::CharacterFunctions::toUpperCase(base)));
     }
 
     // Exotic keys (media keys and the like): JUCE's description with its lowercase modifier

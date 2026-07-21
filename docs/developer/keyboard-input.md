@@ -240,7 +240,10 @@ user-facing. Named keys use canonical spellings ("Space", "Enter", "Esc", "Page 
 render as bare direction words ("Left", "Ctrl+Right") instead of JUCE's verbose "cursor left"
 — arrow glyphs were tried and rejected (thin line arrows are barely legible at chip size and
 fell to font substitution in the running editor; heavy-arrow codepoints risk color-emoji
-presentation on Windows); numpad keys abbreviate to the conventional "Num" ("Num 5"). The
+presentation on Windows); numpad keys abbreviate to the conventional "Num" ("Num 5"); and a
+`+` or `-` key under a modifier takes its name — "Ctrl+Plus", "Ctrl+Minus" — because the
+symbol would collide with the "+" joiner ("Ctrl++"), per Microsoft's docs convention, while
+bare unmodified chips keep the compact symbol. The
 formatter collapses a shifted chord to the character it types — `Shift+/` renders as "?",
 `Ctrl+Shift+/` as "Ctrl+?" — when that differs from the base character by more than case
 (letters keep the explicit "Shift+Z" form, since plain letter chords display uppercase too),
