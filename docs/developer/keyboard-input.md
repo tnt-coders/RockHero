@@ -198,18 +198,22 @@ invariants live here:
 # The shortcuts dialog
 
 "Edit > Keyboard Shortcuts..." opens `KeyboardShortcutsWindow`
-(`ui/src/keybinds/keyboard_shortcuts_window.cpp`): a non-modal tool window hosting the **stock**
-`juce::KeyMappingEditorComponent` over the editor's one mapping set (the plan 46 Phase 3
-decision — adopt stock, judge it in action; the registry/persistence substrate is
-dialog-agnostic, so a custom rebuild stays cheap if its recorded triggers fire). Stock supplies
-the category tree, press-to-capture with live conflict display, the confirm-then-remove-then-add
-conflict flow, per-binding change/remove, and reset-all. Two seams adapt it: a window-local
-LookAndFeel routes its confirm popups through `LookAndFeel_V2::createAlertWindow` (skipping
-V4's hard-coded padding — the defect the themed message boxes dodge by direct construction),
-and non-rebindable registry rows render fixed via `ApplicationCommandInfo::readOnlyInKeyEditor`,
-derived from the registry's `rebindable` flag in `getCommandInfo`. Rebinds apply live and
-persist immediately — dispatch, menu shortcut text, and the keymap persistence all listen to
-the same mapping set.
+(`ui/src/keybinds/keyboard_shortcuts_window.cpp`): a non-modal tool window hosting the
+**custom** `KeymapEditorView` (`keymap_editor_view.cpp`) over the editor's one mapping set.
+The stock `juce::KeyMappingEditorComponent` shipped first per the plan 46 Phase 3 decision,
+and its recorded custom-rebuild trigger fired the same day — the themed stock dialog read as
+off-product in live use — so the custom view replaced it (the registry/persistence substrate
+is dialog-agnostic, which is what made the swap cheap). The view lists registry commands under
+their categories with binding chips per chord: chip click offers change/remove, the `+` chip
+opens the press-a-key capture dialog (a themed `AlertWindow` subclass with live "currently
+assigned to..." preview), and conflicts resolve through the overwrite-and-clear flow — a
+themed confirm naming the current owner, then **remove-then-add** against the public mapping
+set (`addKeyPress` alone must never be trusted to resolve conflicts; its documented removal
+does not exist in code). Non-rebindable rows render inert chips with no affordances, and
+`applyBindingChange` refuses those commands outright, so no dialog path can give the core trio
+an alias the plugin-window hook would not mirror. Rows rebuild on the mapping set's own change
+broadcasts, so rebinds apply live and persist immediately — dispatch, menu shortcut text, and
+the keymap persistence all listen to the same set.
 
 # The Esc ladder
 
