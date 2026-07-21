@@ -62,23 +62,22 @@ namespace
 #endif
 }
 
-// Modifier prefix in the Windows convention — capitalized, tight "+" joins ("Ctrl+Shift+Z"),
-// matching what native menus and REAPER/VS Code/IntelliJ all display. Shift is omitted by the
-// collapse path, which spends it on the resolved character.
+// Modifier prefix — capitalized names, joined by the house middle dot ("Ctrl·Shift·"). Shift
+// is omitted by the collapse path, which spends it on the resolved character.
 [[nodiscard]] juce::String modifierPrefix(const juce::ModifierKeys& modifiers, bool with_shift)
 {
     juce::String text;
     if (modifiers.isCtrlDown())
     {
-        text << "Ctrl+";
+        text << "Ctrl" << keyChordJoiner();
     }
     if (with_shift && modifiers.isShiftDown())
     {
-        text << "Shift+";
+        text << "Shift" << keyChordJoiner();
     }
     if (modifiers.isAltDown())
     {
-        text << "Alt+";
+        text << "Alt" << keyChordJoiner();
     }
     return text;
 }
@@ -148,23 +147,15 @@ namespace
     return {};
 }
 
-// Joins the modifier prefix to the key's display. A '+' or '-' key under a modifier collides
-// with the "+" joiner ("Ctrl++"), so those two take their names instead — Microsoft's docs
-// convention ("Ctrl+Plus sign"); bare unmodified chips keep the compact symbol.
-[[nodiscard]] juce::String joinChord(const juce::String& prefix, const juce::String& key_text)
-{
-    if (prefix.isNotEmpty() && key_text == "+")
-    {
-        return prefix + "Plus";
-    }
-    if (prefix.isNotEmpty() && key_text == "-")
-    {
-        return prefix + "Minus";
-    }
-    return prefix + key_text;
-}
-
 } // namespace
+
+juce::String keyChordJoiner()
+{
+    // U+00B7 MIDDLE DOT — Latin-1, present in every font (the math-block dot operator U+22C5
+    // is not, and font substitution already killed the arrow glyphs). Built by codepoint
+    // because plain narrow literals assert on non-ASCII in juce::String.
+    return juce::String::charToString(juce::juce_wchar{0x00B7});
+}
 
 juce::String keyChordText(const juce::KeyPress& key, ShiftedCharacterResolver resolve_shifted)
 {
@@ -194,22 +185,20 @@ juce::String keyChordText(const juce::KeyPress& key, ShiftedCharacterResolver re
             if (resolved != 0 && juce::CharacterFunctions::toLowerCase(resolved) !=
                                      juce::CharacterFunctions::toLowerCase(base))
             {
-                return joinChord(
-                    modifierPrefix(modifiers, /*with_shift=*/false),
-                    juce::String::charToString(resolved));
+                return modifierPrefix(modifiers, /*with_shift=*/false) +
+                       juce::String::charToString(resolved);
             }
         }
-        return joinChord(
-            modifierPrefix(modifiers, /*with_shift=*/true),
-            juce::String::charToString(juce::CharacterFunctions::toUpperCase(base)));
+        return modifierPrefix(modifiers, /*with_shift=*/true) +
+               juce::String::charToString(juce::CharacterFunctions::toUpperCase(base));
     }
 
     // Exotic keys (media keys and the like): JUCE's description with its lowercase modifier
     // prefixes rewritten into the convention.
     return key.getTextDescription()
-        .replace("ctrl + ", "Ctrl+")
-        .replace("shift + ", "Shift+")
-        .replace("alt + ", "Alt+");
+        .replace("ctrl + ", "Ctrl" + keyChordJoiner())
+        .replace("shift + ", "Shift" + keyChordJoiner())
+        .replace("alt + ", "Alt" + keyChordJoiner());
 }
 
 juce::String keyChordText(const juce::KeyPress& key)

@@ -211,9 +211,13 @@ defaults, and per-surface front-ends all consume the registry.
 > presentation). The Shift+`'-'` (`_`) drop was also **reversed same day**: `_` and
 > `Ctrl+_` stay as convenience aliases for Grid Coarser / Zoom Out until something better
 > claims them, symmetric with the `=` alias on the plus side. (3b) **Display convention
-> normalized to capitalized tight Windows style** ("Ctrl+Shift+Z", "Space", "Esc", "Page Up",
-> "Num 5") — JUCE's lowercase "ctrl + z" was its own idiosyncrasy, not a convention;
-> display-only, the stored keymap XML keeps JUCE's spellings, which its parser requires.
+> normalized to capitalized tight style with the middle-dot house separator** ("Ctrl·Shift·Z",
+> "Space", "Esc", "Page Up", "Num 5") — JUCE's lowercase "ctrl + z" was its own idiosyncrasy,
+> not a convention; the "+" joiner was tried first but collides with the `+`/`-` keys
+> ("Ctrl++"), and after weighing "Ctrl+Plus" naming, segmented keycaps (rejected as odd here),
+> and spaced/worded variants, the user chose the dot ("Ctrl·+") — U+00B7 MIDDLE DOT, Latin-1
+> so immune to the font substitution that killed the arrow glyphs. Display-only, the stored
+> keymap XML keeps JUCE's spellings, which its parser requires.
 > (4) The "Editing" category renamed **"Authoring"** (collided
 > with the Edit menu category) and Cancel/Clear recategorized under Selection (its
 > user-visible rungs disarm the caret and clear the selection; id blocks are historical

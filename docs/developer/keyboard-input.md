@@ -233,20 +233,20 @@ Every user-facing rendering of a chord goes through **one formatter**,
 `keyChordText` (`ui/src/keybinds/key_chord_text.cpp`): dialog chips, the capture preview, the
 conflict prompts, and menu shortcut text (menus via `addEditorCommandItem`, which mirrors
 `PopupMenu::addCommandItem` but pre-fills the item's shortcut text — the popup derives its own
-raw text only when that field arrives empty). Chords display in the **Windows convention** —
-capitalized with tight "+" joins ("Ctrl+Shift+Z"), the style native menus, REAPER, VS Code,
-and IntelliJ share; JUCE's lowercase "ctrl + z" is its own idiosyncrasy and appears nowhere
-user-facing. Named keys use canonical spellings ("Space", "Enter", "Esc", "Page Up"); arrows
-render as bare direction words ("Left", "Ctrl+Right") instead of JUCE's verbose "cursor left"
+raw text only when that field arrives empty). Chords display capitalized with tight
+**middle-dot joins** — "Ctrl·Shift·Z", via `keyChordJoiner()` — the editor's house separator
+(user decision 2026-07-21): unlike the conventional "+" joiner it can never collide with the
+`+`/`-` keys ("Ctrl·+" vs the awkward "Ctrl++"), so those keys keep their compact symbols,
+and U+00B7 is Latin-1 — present in every font, immune to the substitution that killed the
+arrow glyphs. (JUCE's lowercase "ctrl + z" is its own idiosyncrasy and appears nowhere
+user-facing.) Named keys use canonical spellings ("Space", "Enter", "Esc", "Page Up"); arrows
+render as bare direction words ("Left", "Ctrl·Right") instead of JUCE's verbose "cursor left"
 — arrow glyphs were tried and rejected (thin line arrows are barely legible at chip size and
 fell to font substitution in the running editor; heavy-arrow codepoints risk color-emoji
-presentation on Windows); numpad keys abbreviate to the conventional "Num" ("Num 5"); and a
-`+` or `-` key under a modifier takes its name — "Ctrl+Plus", "Ctrl+Minus" — because the
-symbol would collide with the "+" joiner ("Ctrl++"), per Microsoft's docs convention, while
-bare unmodified chips keep the compact symbol. The
+presentation on Windows); numpad keys abbreviate to the conventional "Num" ("Num 5"). The
 formatter collapses a shifted chord to the character it types — `Shift+/` renders as "?",
-`Ctrl+Shift+/` as "Ctrl+?" — when that differs from the base character by more than case
-(letters keep the explicit "Shift+Z" form, since plain letter chords display uppercase too),
+`Ctrl+Shift+/` as "Ctrl·?" — when that differs from the base character by more than case
+(letters keep the explicit "Shift·Z" form, since plain letter chords display uppercase too),
 resolving the character through the **live keyboard layout** (the unit's one Win32 seam;
 unsupported platforms simply never collapse). It deliberately does not use the captured
 `KeyPress::textCharacter`: JUCE's keymap XML round-trips description strings and drops it, so
