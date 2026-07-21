@@ -73,7 +73,7 @@ threshold act as momentary triggers only.
 ## Open questions (resolve before executing)
 
 1. **Device selection UX and plumbing** — where the binding device is chosen (audio settings
-   panel vs. the shortcuts dialog), and how it coexists with any future MIDI-to-plugin
+   panel vs. the actions dialog), and how it coexists with any future MIDI-to-plugin
    routing. Depends on state of the audio-device settings code at execution time.
 2. **Channel matching** — store and match the channel, or ignore it? Leaning store-and-match
    (a closed value is honest about what it matched).

@@ -2,8 +2,9 @@
 
 Status: **Executing — Phases 0 and 1 complete 2026-07-20** (Phase 0: G53-FOLD-IN and G46-KEYMAP
 closed, keymap matrix signed, 46-Q2 = parallel systems + extraction watch-item; Phase 1: the
-command registry spine, keymap persistence, the custom themed shortcuts dialog
-(`KeymapEditorView`, branch `custom-keybind-menu`), and the generalized plugin-window shortcut
+command registry spine, keymap persistence, the custom themed actions dialog
+(`ActionsWindow`/`KeymapEditorView`, branch `custom-keybind-menu`; renamed from "Keyboard
+Shortcuts" with a `?` default chord 2026-07-20), and the generalized plugin-window shortcut
 mirror all landed as plan 46 Phases 1–5 — execution records there. 46-Q3 dissolved twice over:
 the non-rebindable-trio decision was reversed the same day, so every command is rebindable with
 the trio mirrored live into plugin windows; the manual plugin verification passed 2026-07-20).
@@ -25,7 +26,7 @@ ad-hoc handler, even when it has no default chord. This is REAPER's "Actions" mo
 form: the registry is one trigger-agnostic action list, and keyboard chords, menu items,
 discovery menus, and future binding front-ends are interchangeable triggers over it
 (`ApplicationCommandManager::invokeDirectly` fires any command from any source). Only
-registered commands appear in the shortcuts dialog, display live shortcut text in menus, and
+registered commands appear in the actions dialog, display live shortcut text in menus, and
 become MIDI-bindable (`docs/plans/todo/midi-command-bindings.md`); a verb that bypasses the
 registry is invisible to all of them, and retrofitting at a hundred commands is what this
 convention avoids. The grammar decoder is the one deliberate carve-out — our equivalent of a

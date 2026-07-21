@@ -7,7 +7,7 @@ const std::vector<GrammarReservation>& grammarReservations()
 {
     // Wording mirrors docs/plans/in-progress/keymap-matrix.md; the interaction model owns the
     // semantics. Each family is split fine enough that every chip is a plain key description
-    // in the same lowercase style JUCE's getTextDescription gives the command rows' chips.
+    // in the same lowercase style keyChordText gives the command rows' chips.
     static const std::vector<GrammarReservation> reservations{
         {"Move caret", {"arrow keys"}},
         {"Jump by measure", {"ctrl + left/right"}},

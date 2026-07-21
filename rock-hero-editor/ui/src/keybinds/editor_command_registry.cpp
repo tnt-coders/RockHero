@@ -90,10 +90,13 @@ namespace
         });
     registry.push_back(
         EditorCommandSpec{
-            .id = EditorCommandId::ShowKeyboardShortcuts,
-            .name = "Keyboard Shortcuts...",
+            .id = EditorCommandId::ShowActions,
+            .name = "Actions...",
             .category = "Edit",
-            .default_keypresses = {},
+            // Shift+/ types "?" — REAPER's actions-list key. The key code addresses the "/"
+            // key, so the default only lands on layouts where "?" lives there; elsewhere the
+            // user rebinds, which stores their own layout's chord.
+            .default_keypresses = {chord('/', shift)},
         });
     registry.push_back(
         EditorCommandSpec{

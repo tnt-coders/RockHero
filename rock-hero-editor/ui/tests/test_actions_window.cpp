@@ -1,6 +1,7 @@
+#include "keybinds/actions_window.h"
 #include "keybinds/editor_command_registry.h"
 #include "keybinds/grammar_reservations.h"
-#include "keybinds/keyboard_shortcuts_window.h"
+#include "keybinds/key_chord_text.h"
 #include "keybinds/keymap_editor_view.h"
 
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
@@ -32,8 +33,9 @@ TEST_CASE("KeymapEditorView builds rows from the registry", "[ui][keybinds]")
             auto& first_chip =
                 findRequiredDescendant<juce::Button>(editor, "keymap_chip_" + id_hex + "_0");
             CHECK(first_chip.isEnabled());
-            CHECK(
-                first_chip.getButtonText() == spec.default_keypresses.front().getTextDescription());
+            // Compared through the shared formatter: chip text collapses shifted characters
+            // ("?"), so raw getTextDescription would mismatch on layout-resolvable chords.
+            CHECK(first_chip.getButtonText() == keyChordText(spec.default_keypresses.front()));
         }
     }
 
@@ -229,12 +231,12 @@ TEST_CASE("KeymapEditorView refreshes rows on mapping changes", "[ui][keybinds]"
     const juce::String id_hex =
         juce::String::toHexString(toJuceCommandId(EditorCommandId::ToggleUndoHistory));
     auto& first_chip = findRequiredDescendant<juce::Button>(editor, "keymap_chip_" + id_hex + "_0");
-    CHECK(first_chip.getButtonText() == f9.getTextDescription());
+    CHECK(first_chip.getButtonText() == keyChordText(f9));
 }
 
-// The shortcuts window hosts the custom editor over the editor's one mapping set and survives
+// The actions window hosts the custom editor over the editor's one mapping set and survives
 // closes: the close button hides it, and reopening keeps the same content alive.
-TEST_CASE("KeyboardShortcutsWindow hosts the editor and survives closes", "[ui][keybinds]")
+TEST_CASE("ActionsWindow hosts the editor and survives closes", "[ui][keybinds]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -242,9 +244,8 @@ TEST_CASE("KeyboardShortcutsWindow hosts the editor and survives closes", "[ui][
     RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
-    KeyboardShortcutsWindow window{view.commandManager(), nullptr};
-    auto& editor_view =
-        findRequiredDescendant<KeymapEditorView>(window, "keyboard_shortcuts_editor_view");
+    ActionsWindow window{view.commandManager(), nullptr};
+    auto& editor_view = findRequiredDescendant<KeymapEditorView>(window, "actions_editor_view");
     CHECK(editor_view.isVisible());
     CHECK_FALSE(window.isVisible());
 
@@ -260,7 +261,7 @@ TEST_CASE("KeyboardShortcutsWindow hosts the editor and survives closes", "[ui][
 
 // The Edit menu exposes the dialog as a command item, and performing the command creates and
 // shows the top-level window.
-TEST_CASE("EditorView opens the keyboard shortcuts window from the command", "[ui][keybinds]")
+TEST_CASE("EditorView opens the actions window from the command", "[ui][keybinds]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -269,22 +270,22 @@ TEST_CASE("EditorView opens the keyboard shortcuts window from the command", "[u
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
     view.setState(core::EditorViewState{});
 
-    const int command_id = toJuceCommandId(EditorCommandId::ShowKeyboardShortcuts);
+    const int command_id = toJuceCommandId(EditorCommandId::ShowActions);
     CHECK(requiredMenuItem(view.getMenuForIndex(1, "Edit"), command_id).isEnabled);
 
     view.commandManager().invokeDirectly(command_id, false);
 
-    juce::TopLevelWindow* shortcuts_window = nullptr;
+    juce::TopLevelWindow* actions_window = nullptr;
     for (int index = 0; index < juce::TopLevelWindow::getNumTopLevelWindows(); ++index)
     {
         juce::TopLevelWindow* const window = juce::TopLevelWindow::getTopLevelWindow(index);
-        if (window->getName() == "Keyboard Shortcuts")
+        if (window->getName() == "Actions")
         {
-            shortcuts_window = window;
+            actions_window = window;
         }
     }
-    REQUIRE(shortcuts_window != nullptr);
-    CHECK(shortcuts_window->isVisible());
+    REQUIRE(actions_window != nullptr);
+    CHECK(actions_window->isVisible());
 }
 
 } // namespace rock_hero::editor::ui

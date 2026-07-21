@@ -1,4 +1,4 @@
-#include "keybinds/keyboard_shortcuts_window.h"
+#include "keybinds/actions_window.h"
 
 #include "shared/editor_theme.h"
 
@@ -18,22 +18,22 @@ constexpr int g_max_height{1600};
 
 } // namespace
 
-KeyboardShortcutsWindow::KeyboardShortcutsWindow(
+ActionsWindow::ActionsWindow(
     juce::ApplicationCommandManager& command_manager, juce::Component* centering_component)
     : juce::DocumentWindow(
-          "Keyboard Shortcuts", editorTheme().bar_background, juce::DocumentWindow::closeButton)
+          "Actions", editorTheme().bar_background, juce::DocumentWindow::closeButton)
     , m_editor_view(command_manager)
     , m_centering_component(centering_component)
 {
     setUsingNativeTitleBar(true);
-    m_editor_view.setComponentID("keyboard_shortcuts_editor_view");
+    m_editor_view.setComponentID("actions_editor_view");
     m_editor_view.setSize(g_default_width, g_default_height);
     setContentNonOwned(&m_editor_view, true);
     setResizable(true, false);
     setResizeLimits(g_min_width, g_min_height, g_max_width, g_max_height);
 }
 
-void KeyboardShortcutsWindow::open()
+void ActionsWindow::open()
 {
     if (!isVisible())
     {
@@ -43,7 +43,7 @@ void KeyboardShortcutsWindow::open()
     toFront(true);
 }
 
-void KeyboardShortcutsWindow::closeButtonPressed()
+void ActionsWindow::closeButtonPressed()
 {
     setVisible(false);
 }

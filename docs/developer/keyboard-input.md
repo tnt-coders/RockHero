@@ -18,7 +18,7 @@ Phase 1):
 
 From the controller inward, a keystroke still travels one of **two paths**: the editor-action
 pipeline (\ref guide_action_anatomy) or the caret/marker interaction model. Keymap
-**persistence and the shortcuts dialog are live** (below), and **every command is
+**persistence and the actions dialog are live** (below), and **every command is
 user-rebindable** — including Undo/Redo/Play-Pause, whose chords mirror into hosted plugin
 windows through an injected, layout-neutral binding seam (the fixed-trio decision was reversed
 2026-07-20 once the mirror generalized).
@@ -195,11 +195,14 @@ invariants live here:
 - **Saves are equality-gated** against the stored blob, so the restore's own change broadcast
   and repeated notifications write nothing.
 
-# The shortcuts dialog
+# The actions dialog
 
-"Edit > Keyboard Shortcuts..." opens `KeyboardShortcutsWindow`
-(`ui/src/keybinds/keyboard_shortcuts_window.cpp`): a non-modal tool window hosting the
+"Edit > Actions..." — default chord `?`, REAPER's actions-list key — opens `ActionsWindow`
+(`ui/src/keybinds/actions_window.cpp`): a non-modal tool window hosting the
 **custom** `KeymapEditorView` (`keymap_editor_view.cpp`) over the editor's one mapping set.
+The user-facing name follows the adopted REAPER actions model (the registry is one
+trigger-agnostic action list); internally the vocabulary stays "commands", the same
+user-facing/internal split REAPER itself uses.
 The stock `juce::KeyMappingEditorComponent` shipped first per the plan 46 Phase 3 decision,
 and its recorded custom-rebuild trigger fired the same day — the themed stock dialog read as
 off-product in live use — so the custom view replaced it (the registry/persistence substrate
@@ -231,6 +234,20 @@ command's default chords from whichever command took them.
 The grammar keys are deliberately not rebindable: remapping one verb breaks its composed
 family; the honest future feature is an alternative navigation *scheme* (recorded as an
 uncommitted enhancement in plan 46), not per-key rebinding.
+
+Every user-facing rendering of a chord goes through **one formatter**,
+`keyChordText` (`ui/src/keybinds/key_chord_text.cpp`): dialog chips, the capture preview, the
+conflict prompts, and menu shortcut text (menus via `addEditorCommandItem`, which mirrors
+`PopupMenu::addCommandItem` but pre-fills the item's shortcut text — the popup derives its own
+raw text only when that field arrives empty). The formatter collapses a shifted chord to the
+character it types — `Shift+/` renders as "?", `Ctrl+Shift+/` as "ctrl + ?" — when that differs
+from the base character by more than case (letters keep the explicit "shift + Z" form), and
+resolves the character through the **live keyboard layout** (the unit's one Win32 seam;
+unsupported platforms simply never collapse). It deliberately does not use the captured
+`KeyPress::textCharacter`: JUCE's keymap XML round-trips description strings and drops it, so
+capture-time data would show "?" today and regress to "shift + /" after a restart. Never call
+`getTextDescription` or raw `addCommandItem` on a user-facing surface — a second rendering path
+is exactly the drift this unit exists to prevent.
 
 # The Esc ladder
 
@@ -279,10 +296,11 @@ fallthrough) goes in the grammar decoder.
 Standing convention (plan 53, adopted 2026-07-20): **every new user-triggerable verb registers
 as a command** rather than shipping as an ad-hoc handler, even when it has no default chord.
 The registry is the editor's trigger-agnostic action list — REAPER's "Actions" model in JUCE
-form — and only registered commands appear in the shortcuts dialog, show live shortcut text in
-menus, and become bindable by future input front-ends (MIDI bindings are planned:
-`docs/plans/todo/midi-command-bindings.md`). A verb that bypasses the registry is invisible to
-all of them. The grammar decoder is the one deliberate carve-out, per the split above.
+form, which the actions dialog is named for — and only registered commands appear in that
+dialog, show live shortcut text in menus, and become bindable by future input front-ends (MIDI
+bindings are planned: `docs/plans/todo/midi-command-bindings.md`). A verb that bypasses the
+registry is invisible to all of them. The grammar decoder is the one deliberate carve-out, per
+the split above.
 
 For a command accelerator (`rock-hero-editor/ui/src/keybinds/`):
 
@@ -296,8 +314,9 @@ For a command accelerator (`rock-hero-editor/ui/src/keybinds/`):
    intent, mirroring the enablement guard).
 4. **Update the locked-table test** (`test_editor_view_state.cpp`, "Editor command registry
    locks ids and default chords") — it fails on any unrecorded id or default change by design.
-5. **Menu display is free** if the command has a menu item (`addCommandItem` shows the live
-   shortcut); a new menu item means one `addCommandItem` line in `getMenuForIndex`.
+5. **Menu items go through `addEditorCommandItem`** (`key_chord_text.h`), never raw
+   `addCommandItem` — one line in `getMenuForIndex`, and the live shortcut text renders through
+   the shared `keyChordText` formatter so menus never drift from the dialog chips.
 
 For a grammar key:
 
@@ -315,7 +334,7 @@ For a grammar key:
    intents — and remember dead keys should return `false`, not be swallowed.
 4. **Reserve it** in `keybinds/grammar_reservations.cpp`: extend `isReservedGrammarChord` if
    the physical key is new to the grammar, and add or amend its display row — the same table
-   drives the shortcuts dialog's fixed reference section and the capture refusal, so a missed
+   drives the actions dialog's fixed reference section and the capture refusal, so a missed
    entry either hides the key from users or lets commands squat on it.
 
 Either way:
