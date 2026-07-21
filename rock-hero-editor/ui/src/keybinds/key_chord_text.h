@@ -22,25 +22,25 @@ layout, a dead key, or no layout query available on this platform.
 using ShiftedCharacterResolver = juce::juce_wchar (*)(juce::juce_wchar base_character);
 
 /*!
-\brief Returns the "·" (middle dot) joining chord parts in every display ("Ctrl·Z").
+\brief Returns the spaced middle dot (" · ") joining chord parts in every display ("Ctrl · Z").
 
-The small dot is the editor's house separator (user decision 2026-07-21): unlike the
-conventional "+", it can never collide with the `+`/`-` keys ("Ctrl·+" vs "Ctrl++"), so those
-keys keep their compact symbols. U+00B7 MIDDLE DOT specifically — a Latin-1 character present
-in every font, immune to the substitution that killed the arrow glyphs (the math-block dot
-operator is not).
+The small dot is the editor's house separator (user decision 2026-07-21, spaced per in-app
+review): unlike the conventional "+", it can never collide with the `+`/`-` keys ("Ctrl · +"
+vs "Ctrl++"), so those keys keep their compact symbols. U+00B7 MIDDLE DOT specifically — a
+Latin-1 character present in every font, immune to the substitution that killed the arrow
+glyphs (the math-block dot operator is not).
 */
 [[nodiscard]] juce::String keyChordJoiner();
 
 /*!
 \brief Formats a chord for display, collapsing shifted characters.
 
-Chords render capitalized with tight middle-dot joins — "Ctrl·Shift·Z" (see `keyChordJoiner`).
-Named keys use canonical spellings ("Space", "Enter", "Esc", "Page Up", "Num 5"; arrows as
-bare direction words). A chord whose shifted character differs from its base by more than
-letter case renders as the character the user actually types — `Shift+/` displays as "?" —
-with any remaining modifiers kept ("Ctrl·?"). Letter chords keep their explicit form
-("Shift·Z"), because plain letter chords display uppercase too.
+Chords render capitalized with spaced middle-dot joins — "Ctrl · Shift · Z" (see
+`keyChordJoiner`). Named keys use canonical spellings ("Space", "Enter", "Esc", "Page Up",
+"Num 5"; arrows as bare direction words). A chord whose shifted character differs from its
+base by more than letter case renders as the character the user actually types — `Shift+/`
+displays as "?" — with any remaining modifiers kept ("Ctrl · ?"). Letter chords keep their
+explicit form ("Shift · Z"), because plain letter chords display uppercase too.
 
 Every user-facing rendering of a chord — dialog chips, capture preview, conflict prompts, and
 menu shortcut text — must route through this function so the surfaces can never drift apart.

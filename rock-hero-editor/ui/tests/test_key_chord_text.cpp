@@ -46,10 +46,10 @@ TEST_CASE("keyChordText collapses shifted characters", "[ui][keybinds]")
     constexpr int shift = juce::ModifierKeys::shiftModifier;
     constexpr int ctrl = juce::ModifierKeys::ctrlModifier;
 
-    // The house separator is the middle dot (U+00B7) — Latin-1, so no font can substitute it,
-    // and it can never collide with the '+'/'-' keys the way a "+" joiner does ("Ctrl++").
+    // The house separator is a spaced middle dot (U+00B7) — Latin-1, so no font can substitute
+    // it, and it can never collide with the '+'/'-' keys the way a "+" joiner does ("Ctrl++").
     const juce::String sep = keyChordJoiner();
-    CHECK(sep == juce::String::charToString(juce::juce_wchar{0x00B7}));
+    CHECK(sep == " " + juce::String::charToString(juce::juce_wchar{0x00B7}) + " ");
 
     CHECK(keyChordText(chord('/', shift), &fakeShiftResolver) == "?");
     CHECK(keyChordText(chord('1', shift), &fakeShiftResolver) == "!");
