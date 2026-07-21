@@ -404,6 +404,21 @@ The original question text is kept below for the decision record.
 > native focus sits on the window shell; commands never reach it (the mapping-set listener
 > runs first). The remaining exit criterion is the user witnessing the themed stock dialog in
 > the running editor — the recorded custom-rebuild trigger.
+>
+> **TRIGGER FIRED 2026-07-20 (same day):** the user judged the themed stock dialog "definitely
+> a bit ugly" in live use — the recorded off-product trigger — and directed the custom rebuild
+> on branch `custom-keybind-menu`. `KeymapEditorView` (`ui/src/keybinds/keymap_editor_view.*`)
+> replaces the stock hosting: EditorTheme-painted category headers and command rows, chip
+> buttons per binding (change/remove via a deletion-checked popup; `+` opens a themed
+> press-a-key capture dialog with live owner preview), overwrite-and-clear through a themed
+> confirm plus the public remove-then-add dance, reset-all behind a themed confirm, rows
+> rebuilt on the set's async change broadcasts, and `applyBindingChange` refusing
+> non-rebindable commands outright (no dialog path can alias the core trio). The stock
+> component, its window-local LookAndFeel, and the `juce_gui_extra` link are gone; the
+> `readOnlyInKeyEditor` flag stays as correct command metadata. Per-command reset remains the
+> recorded uncommitted future enhancement — now trivially addable since the component is ours.
+> Tests cover row structure, one-owner semantics, non-rebindable refusal, live refresh, and
+> the window wiring. Merging this branch completes the phase's in-action review.
 
 - **Scope**: one menu entry ("Edit > Keyboard Shortcuts...") opening a themed window that hosts
   the stock `juce::KeyMappingEditorComponent` over the editor's mapping set: commands grouped by
