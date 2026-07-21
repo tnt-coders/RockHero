@@ -511,6 +511,21 @@ The original question text is kept below for the decision record.
 > from the original scope because the duplication is a real maintenance trap
 > (docs/developer/keyboard-input.md documents it). The original full-seam design below is
 > preserved for the day the trio ever becomes rebindable; do not execute it before then.
+>
+> **Constraint correction (2026-07-20, prompted by the user's REAPER counterexample — Alt+;
+> play/pause works there through focused VST windows):** the seam design's "Alt intentionally
+> unrepresentable" is match *policy*, not mechanism. The hook already inspects `WM_SYSKEYDOWN`
+> (plugin_window.cpp:282) and reads Alt state (:294), and its WM_NULL swallow is
+> modifier-agnostic (:406-421); the Alt/F-key/navigation exclusions live only in the hardcoded
+> chord tests (:297-317). A generalized matcher (juce::KeyPress → virtual-key + Ctrl/Alt/Shift
+> triple against injected chords) can mirror nearly any chord — REAPER demonstrates the
+> approach in production. If the trio ever becomes rebindable, 46-Q3's "non-mirrorable chords"
+> premise therefore nearly vanishes; the honest remaining costs are the generalized matcher,
+> the lone-Alt menu-activation edge around swallowed `WM_SYSKEYDOWN`, and re-earning the
+> manual Nolly/Gateway verification. The chord value type in the seam design below would gain
+> an alt flag and non-character key codes accordingly. The trio's non-rebindability today
+> rests on the user's UX rationale (core commands, definitively mapped), not on this
+> constraint.
 
 - **Scope**: replace the hardcoded binding copies in `rock-hero-common/audio` with injected data,
   keeping common free of editor dependencies (constraint (a)). New public value type in
