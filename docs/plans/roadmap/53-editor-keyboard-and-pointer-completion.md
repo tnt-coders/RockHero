@@ -171,6 +171,58 @@ with their chords reserved; the core trio's short-lived non-rebindable registrat
 46's generalized Phase 4. **This phase gates everything below** — the discovery menu, rebindable
 defaults, and per-surface front-ends all consume the registry.
 
+### Phase 1b — Total rebindability: every grammar verb becomes a command *(user direction 2026-07-20)*
+
+**Decision (reverses the 2026-07-20 "fixed + listed" grammar policy, user-directed):** every
+keybind is editable — the grammar keys included. "If a user makes bad keybinds that's their
+problem; they have the defaults to fall back on." The composed modifier algebra survives as the
+*shape of the default map*, not as an enforced restriction.
+
+**The verified mechanism (juce_KeyPressMappingSet.cpp:322-357):** the mapping set's dispatch
+loop visits **every** command mapped to a chord, **skips disabled commands and keeps looking**
+(:340-346), and returns **false** when nothing enabled fired — the key falls through to other
+handlers. So per-verb commands with state-derived enablement reproduce the decoder's two
+load-bearing behaviors natively: context-ordered dispatch (enablement picks the live verb) and
+decline-and-fall-through (Esc with no rung, Delete with no selection, digits with no surface).
+This also means one chord *can* legally serve several context-exclusive commands — the future
+mechanism for the Phase 5 chain scope's REAPER-style section, though today every chord keeps
+exactly one owner and the dialog's one-owner law stands unchanged.
+
+- **Split per chord-verb, not per key**: each (chord → verb) pair in the decoder becomes its
+  own command, including the Ctrl precision/reach tiers as separate commands (caret step vs.
+  measure jump; selection move vs. fine move; sustain adjust vs. fine; extend by grid vs.
+  measure). The full inventory from `EditorView::keyPressed` (~41 commands): caret step ×4,
+  measure jump ×2, extend grid ×2 / measure ×2 / section ×2 / bounds ×2, selection move ×4 +
+  fine ×4, sustain adjust ×2 + fine ×2, fret shift ×2, type-digit ×10 (numpad chords as
+  first-class aliases), grid finer/coarser ×2 (the '='/'+'/numpad union becomes alternative
+  default chords), zoom in/out ×2, jump start/end ×2 + prev/next section ×2 (Ctrl aliases as
+  alternative chords), delete-selection, neutral-insert, escape. New append-only id blocks
+  (0x1501 navigation, 0x1601 selection/authoring, 0x1701 payload/grid) — record in the enum's
+  growth conventions.
+- **Perform = the decoder branch moved verbatim**: each command's perform emits the same
+  controller intent (Esc keeps its view-gesture cancels first; digits keep the
+  lane-then-chart try order inside one perform). Undo/gesture semantics are untouched — only
+  the trigger moves. Enablement mirrors today's guards: Esc active only when a rung is live,
+  Delete only with a selection, digits when a typing surface exists; verbs that forward
+  unconditionally (core self-gates) register always-active.
+- **Deletions**: the `EditorView::keyPressed` grammar decoder; `grammar_reservations.{h,cpp}`
+  (the reservation predicate, the capture/apply refusal, the dialog's fixed section — grammar
+  rows become ordinary rebindable rows under Navigation/Selection/Editing/Grid categories);
+  the `MainWindow::keyPressed` manual forwarding (its sole purpose was reaching the decoder
+  from shell focus; with everything commands, the window's mapping-set listener covers it —
+  the original plan 46 Phase 3 removal, finally earned).
+- **Dialog**: ~56 rows; verify scrolling/size still work; reference-section tests retire in
+  favor of ordinary-row coverage.
+- **Docs**: amend `editing-interaction-model.md`'s fixed-binding rule (grammar semantics and
+  default shape unchanged — this conversation is the user confirmation), keyboard-input.md's
+  two-dispatcher model collapses to one, keymap-matrix rows, plan 46 grammar-policy record
+  gets the reversal note.
+- **Tests**: locked table grows the full inventory; grammar dispatch tests move from
+  `view.keyPressed` to mapping-set dispatch; fall-through coverage (disabled Esc/Delete
+  propagate); rebind-a-grammar-verb coverage.
+
+Depends on Phase 1 (done). Gate: none — user-directed 2026-07-20; execute next.
+
 ### Phase 2 — Keybind-discovery context menus (every surface)  *(extends plan 46)*
 
 Build the net-new chart-lane menu; route the existing tone/automation menus through registered

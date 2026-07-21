@@ -699,7 +699,7 @@ Tier A — commands existing at baseline (or in-flight, marked):
 | File      | Save As...            | Ctrl+Shift+S         |                                          |
 | File      | Publish...            | Ctrl+Shift+P         |                                          |
 | File      | Close Project         | Ctrl+W               |                                          |
-| File      | Exit                  | (none)               | OS-level Alt+F4; not registered          |
+| File      | Exit                  | Ctrl+Q               | added 2026-07-20; OS separately owns Alt+F4 |
 | Edit      | Undo                  | Ctrl+Z               | current behavior                         |
 | Edit      | Redo                  | Ctrl+Y, Ctrl+Shift+Z | alternative keypresses are first-class   |
 | Edit      | Actions...            | Shift+/ (`?`)        | renamed + `?` default 2026-07-20         |

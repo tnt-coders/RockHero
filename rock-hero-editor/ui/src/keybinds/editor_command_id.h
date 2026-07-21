@@ -47,7 +47,7 @@ enum class EditorCommandId : int
     /*! \brief File > Close (`Ctrl+W`). */
     CloseProject = 0x1006,
 
-    /*! \brief File > Exit (menu-only; the OS owns `Alt+F4`). */
+    /*! \brief File > Exit (`Ctrl+Q`; the OS separately owns `Alt+F4`). */
     ExitEditor = 0x1007,
 
     /*! \brief Edit > Undo (`Ctrl+Z`). */
