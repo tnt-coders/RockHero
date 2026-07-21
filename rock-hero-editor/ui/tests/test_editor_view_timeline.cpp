@@ -1166,7 +1166,8 @@ TEST_CASE("EditorView forwards space key to the controller", "[ui][editor-view]"
 }
 
 // Digits route to the fret intent with or without a selection — the controller owns the
-// retype-vs-insert-at-caret branch (the caret model).
+// retype-vs-insert-at-caret branch (the caret model). Dispatch rides the command mapping set
+// since total rebindability (plan 53 Phase 1b): digits are registered commands now.
 TEST_CASE("EditorView routes digits to the fret intent", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -1181,7 +1182,8 @@ TEST_CASE("EditorView routes digits to the fret intent", "[ui][editor-view]")
     state.tab = std::move(tab);
     view.setState(state);
 
-    CHECK(view.keyPressed(juce::KeyPress{'5', juce::ModifierKeys{}, 0}));
+    juce::KeyListener* const mappings = view.commandManager().getKeyMappings();
+    CHECK(mappings->keyPressed(juce::KeyPress{'5', juce::ModifierKeys{}, 0}, &view));
     CHECK(controller.chart_fret_digit_count == 1);
     CHECK(controller.last_chart_fret_digit == 5);
 }

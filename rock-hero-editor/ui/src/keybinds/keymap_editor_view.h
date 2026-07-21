@@ -25,7 +25,7 @@ captures a new binding through a press-a-key dialog, and conflicts resolve throu
 overwrite-and-clear flow — a themed confirm naming the current owner, then remove-then-add, so
 exactly one owner keeps a chord (`addKeyPress` alone must never be trusted to resolve
 conflicts; its documented conflict removal does not exist in code). Every command is
-rebindable; only the interaction grammar's reserved chords are refused at capture.
+rebindable — the grammar verbs included (plan 53 Phase 1b, total rebindability).
 
 Rows rebuild from the mapping set on every change broadcast, which also keeps the view live
 against rebinds arriving from anywhere else; the broadcasts are asynchronous, so a rebuild
@@ -67,8 +67,7 @@ public:
     Removes the chord from whichever command currently owns it, removes the replaced binding
     when one is being changed, then adds the chord — the remove-then-add dance, public so the
     mapping-set semantics stay directly testable. Callers gate any confirmation beforehand;
-    this method applies unconditionally except for its one refusal: grammar-reserved chords,
-    which the decoder would shadow whenever its surface context applies.
+    this method applies unconditionally.
 
     \param command Command receiving the chord.
     \param key Captured chord to assign.
@@ -100,7 +99,6 @@ private:
     class ChipButton;
     class CategoryHeader;
     class CommandRow;
-    class FixedGrammarRow;
 
     // Rebuilds the header and row components from the registry and the current mappings.
     void rebuildRows();

@@ -980,298 +980,6 @@ void EditorView::mouseWheelMove(const juce::MouseEvent& event, const juce::Mouse
     juce::Component::mouseWheelMove(event, wheel);
 }
 
-// Routes editor-level keyboard shortcuts through the same controller intents as child widgets.
-// The interaction-grammar decoder. Command accelerators (undo/redo, Space, Ctrl+T, F3/F8, the
-// file-menu chords) live in the command manager's key mapping set, attached as a key listener on
-// the owning window — unhandled keys bubble there after this decoder declines them. What stays
-// hand-decoded here is the interaction grammar itself (arrows, digits, Delete, Insert, Esc, and
-// the union-matched +/- grid/zoom family, whose WM_CHAR-timing key shapes exact KeyPress matching
-// cannot express): sequential, context-ordered dispatch that is an input grammar, not a command
-// set. Their chords are reserved in the keybind registry's conventions and never assigned as
-// command defaults.
-bool EditorView::keyPressed(const juce::KeyPress& key)
-{
-    // Arrow-key dispatch under the amended interaction grammar (2026-07-16; off-grid
-    // unification 2026-07-18): plain arrows navigate the marker's caret, Shift+arrows is
-    // reserved for the plan-52 range gesture, and every keyboard mutation requires the Alt
-    // authoring modifier — Alt+arrows moves THE selection through the one controller-side
-    // move intent, Shift+Alt+Left/Right resizes sustains. Ctrl means the measure jump on
-    // plain arrows and the uniform 1/960 fine tier on Alt-moves (both surfaces). Interim
-    // scattered keybinds (recorded for plan 46's registry).
-    {
-        const bool ctrl = key.getModifiers().isCtrlDown();
-        const bool shift = key.getModifiers().isShiftDown();
-        const bool alt = key.getModifiers().isAltDown();
-        const bool chart_shown = m_state.tab != nullptr && m_state.tab->string_count > 0;
-        const auto arrow_direction = [&key]() -> std::optional<core::ChartStepDirection> {
-            if (key.isKeyCode(juce::KeyPress::leftKey))
-            {
-                return core::ChartStepDirection::Left;
-            }
-            if (key.isKeyCode(juce::KeyPress::rightKey))
-            {
-                return core::ChartStepDirection::Right;
-            }
-            if (key.isKeyCode(juce::KeyPress::upKey))
-            {
-                return core::ChartStepDirection::Up;
-            }
-            if (key.isKeyCode(juce::KeyPress::downKey))
-            {
-                return core::ChartStepDirection::Down;
-            }
-            return std::nullopt;
-        }();
-
-        if (arrow_direction.has_value())
-        {
-            if (alt)
-            {
-                if (shift)
-                {
-                    // Alt+Shift + axis picks the property: horizontal resizes extent in time
-                    // (Ctrl composes the 1/960 fine step), vertical shifts frets — matching
-                    // Alt+Shift+wheel, whose vertical gesture shifts frets the same way
-                    // (2026-07-17 consistency pass). The controller re-checks the chart and
-                    // selection itself, so the view forwards unconditionally.
-                    if (*arrow_direction == core::ChartStepDirection::Left ||
-                        *arrow_direction == core::ChartStepDirection::Right)
-                    {
-                        m_controller.onChartSustainAdjustRequested(
-                            *arrow_direction == core::ChartStepDirection::Right ? 1 : -1, ctrl);
-                    }
-                    else
-                    {
-                        m_controller.onChartFretShiftRequested(
-                            *arrow_direction == core::ChartStepDirection::Up ? 1 : -1);
-                    }
-                    return true;
-                }
-
-                // Alt+arrows: the one selection-move intent — the controller dispatches on
-                // the selection's kind (automation point, chart notes) and falls back to
-                // create-then-nudge at an armed empty lane slot; Ctrl selects the 1/960-beat
-                // (0.001-value) fine tier on both surfaces.
-                m_controller.onSelectionMoveRequested(*arrow_direction, ctrl);
-                return true;
-            }
-
-            if (shift)
-            {
-                // Shift+arrows build/extend the grid-locked time selection (settled 2026-07-20).
-                // Horizontal only — the span is full-height, so Shift+Up/Down is unbound. Ctrl
-                // reaches the coarser measure unit, the same reach Ctrl gives plain-arrow nav.
-                // (Alt was handled above; this branch is Shift without Alt.)
-                if (*arrow_direction == core::ChartStepDirection::Left ||
-                    *arrow_direction == core::ChartStepDirection::Right)
-                {
-                    m_controller.onTimeSelectionExtendRequested(
-                        ctrl ? core::TimeSelectionExtent::Measure : core::TimeSelectionExtent::Grid,
-                        *arrow_direction);
-                    return true;
-                }
-                return false;
-            }
-
-            if (chart_shown)
-            {
-                // Plain arrows move the caret; Ctrl+Left/Right jump measures (the GP jump). Ctrl is
-                // meaningless on the vertical axis, so it is not forwarded there — it used to pass a
-                // measure flag Up/Down silently ignored, a flag that lied about intent (2026-07-20).
-                // (Ctrl+Up/Down = surface-jump lands with the vertical-nav surface work.)
-                const bool measure = ctrl && (*arrow_direction == core::ChartStepDirection::Left ||
-                                              *arrow_direction == core::ChartStepDirection::Right);
-                m_controller.onChartCaretStepRequested(*arrow_direction, measure);
-                return true;
-            }
-            return false;
-        }
-
-        // Digits type the row's payload (the typing rule, §9b). On an armed lane caret they
-        // open the typed-value editor seeded with the digit (create-or-retype at the slot); on
-        // the chart rows they type frets — with a selection the typed value retypes it, with
-        // none it inserts at an armed caret, and the passive marker keeps digits inert (the
-        // controller owns that branch). Ctrl+digit and Alt+digit stay unbound.
-        const int key_code = key.getKeyCode();
-        const int fret_digit =
-            key_code >= '0' && key_code <= '9' ? key_code - '0'
-            : key_code >= juce::KeyPress::numberPad0 && key_code <= juce::KeyPress::numberPad9
-                ? key_code - juce::KeyPress::numberPad0
-                : -1;
-        // The lanes view re-checks its own (possibly gesture-deferred) lane caret copy, so the
-        // view forwards without pre-checking the published one — the two can disagree
-        // mid-gesture, and the deferred copy is the one the editor opens against.
-        if (!ctrl && !alt && fret_digit >= 0 &&
-            m_tone_automation_lanes_view.beginCaretValueEntry(fret_digit))
-        {
-            return true;
-        }
-        if (chart_shown && !ctrl && !alt && fret_digit >= 0)
-        {
-            m_controller.onChartFretDigitTyped(fret_digit);
-            return true;
-        }
-    }
-
-    // The +/- family drives grid resolution and zoom (the GP-style split, settled 2026-07-19):
-    // plain "+"/"-" steps the grid one preset finer/coarser, Ctrl+"+"/"-" zooms in/out (the
-    // keyboard twin of Ctrl+wheel), both around the marker. Alt is the authoring gate and belongs
-    // to neither, so it is excluded. The keys arrive in several shapes — the main-row '='/'-'
-    // keys (JUCE reports them by their unshifted code regardless of Shift), the shifted '+'
-    // character, and the numpad add/subtract keys (either the numberPad* codes or '+'/'-'
-    // characters depending on WM_CHAR timing) — so the match is the union of all of them; with
-    // Ctrl held the text character is unreliable, which is why the key code carries it there.
-    // Because the match is on the unshifted key code, Shift+'-' (its '_') also steps the grid
-    // coarser, symmetric with Shift+'=' ('+') stepping finer — a provisional alias flagged for
-    // matrix sign-off, not a bound key.
-    if (!key.getModifiers().isAltDown())
-    {
-        const int key_code = key.getKeyCode();
-        const juce::juce_wchar text_char = key.getTextCharacter();
-        const bool plus_key = key_code == '=' || key_code == '+' ||
-                              key_code == juce::KeyPress::numberPadAdd || text_char == '=' ||
-                              text_char == '+';
-        const bool minus_key =
-            key_code == '-' || key_code == juce::KeyPress::numberPadSubtract || text_char == '-';
-        if (plus_key || minus_key)
-        {
-            const int direction = plus_key ? 1 : -1;
-            if (key.getModifiers().isCtrlDown())
-            {
-                // Ctrl: zoom the timeline; Ctrl+wheel already does this, so the keys match it.
-                m_track_viewport->zoomByStep(direction);
-            }
-            else
-            {
-                // No Ctrl: step the grid resolution through the selector's listener, the same
-                // path as a combo selection, so the controller still owns the applied value.
-                m_grid_spacing_selector.stepNoteValue(direction);
-            }
-            return true;
-        }
-    }
-
-    // Caret jumps (settled 2026-07-20): Home/End leap the caret to the chart's start/end,
-    // PageUp/Dn to the previous/next section. Ctrl+Home/End alias Home/End — a held-Ctrl nav that
-    // did nothing would read as broken (decision A) — so the key code alone routes them and Ctrl
-    // rides along. The same key-code-only match means Ctrl+PageUp/Dn ride along too: an unlisted
-    // alias, provisional pending matrix sign-off (the same no-dead-Ctrl-nav logic covers it, but
-    // the matrix bound only Ctrl+Home/End). Shift belongs to the time-selection family
-    // (Shift+Home/End, Shift+PageUp/Dn extend the range) and Alt is the authoring gate, so both
-    // are excluded here and fall through. The controller resolves each destination and no-ops
-    // without a chart or while playing, so the view forwards directly.
-    if (!key.getModifiers().isShiftDown() && !key.getModifiers().isAltDown())
-    {
-        if (key.isKeyCode(juce::KeyPress::homeKey))
-        {
-            m_controller.onChartCaretJumpRequested(core::ChartCaretJump::ChartStart);
-            return true;
-        }
-        if (key.isKeyCode(juce::KeyPress::endKey))
-        {
-            m_controller.onChartCaretJumpRequested(core::ChartCaretJump::ChartEnd);
-            return true;
-        }
-        if (key.isKeyCode(juce::KeyPress::pageUpKey))
-        {
-            m_controller.onChartCaretJumpRequested(core::ChartCaretJump::PreviousSection);
-            return true;
-        }
-        if (key.isKeyCode(juce::KeyPress::pageDownKey))
-        {
-            m_controller.onChartCaretJumpRequested(core::ChartCaretJump::NextSection);
-            return true;
-        }
-    }
-
-    // Shift+PageUp/Dn and Shift+Home/End extend the grid-locked time selection by section and to
-    // the chart bounds — the paging/bounds twins of Shift+arrows (settled 2026-07-20). Left is
-    // earlier (previous section / chart start), Right is later (next section / chart end). Alt is
-    // the authoring gate and is excluded.
-    if (key.getModifiers().isShiftDown() && !key.getModifiers().isAltDown())
-    {
-        if (key.isKeyCode(juce::KeyPress::pageUpKey))
-        {
-            m_controller.onTimeSelectionExtendRequested(
-                core::TimeSelectionExtent::Section, core::ChartStepDirection::Left);
-            return true;
-        }
-        if (key.isKeyCode(juce::KeyPress::pageDownKey))
-        {
-            m_controller.onTimeSelectionExtendRequested(
-                core::TimeSelectionExtent::Section, core::ChartStepDirection::Right);
-            return true;
-        }
-        if (key.isKeyCode(juce::KeyPress::homeKey))
-        {
-            m_controller.onTimeSelectionExtendRequested(
-                core::TimeSelectionExtent::ChartBound, core::ChartStepDirection::Left);
-            return true;
-        }
-        if (key.isKeyCode(juce::KeyPress::endKey))
-        {
-            m_controller.onTimeSelectionExtendRequested(
-                core::TimeSelectionExtent::ChartBound, core::ChartStepDirection::Right);
-            return true;
-        }
-    }
-
-    // Delete deletes THE selection: one selection exists editor-wide and the controller
-    // dispatches on its kind (the old point → chart → region precedence ladder retired with
-    // the unified selection, 2026-07-18). The controller publishes the one presence flag, so
-    // an idle Delete keeps propagating to other key consumers without the view re-deriving
-    // the union.
-    if (key == juce::KeyPress{juce::KeyPress::deleteKey})
-    {
-        if (m_state.selection_present)
-        {
-            m_controller.onSelectionDeleteRequested();
-            return true;
-        }
-    }
-
-    // Insert is the neutral-create verb (2026-07-18): a fret-0 note at an armed empty string
-    // slot, an on-curve point at an armed empty lane slot; the controller no-ops everywhere
-    // else so Insert never mutates existing objects.
-    if (key == juce::KeyPress{juce::KeyPress::insertKey})
-    {
-        m_controller.onNeutralInsertRequested();
-        return true;
-    }
-
-    // Esc cancels the pointer gesture in flight (a point drag, edge drag, or insert placement)
-    // first, then steps the marker ladder — an armed caret on ANY row dissolves (lane carets
-    // included, 2026-07-18), then THE selection clears, whatever its kind. It falls through
-    // when nothing is active so modal owners keep their own Esc behavior. The lane's move/insert
-    // drag is controller-owned now, so its cancel routes through the controller's Esc handler
-    // (which drops the gesture as its first rung) when the drag preview is standing; the view's own
-    // cancelActiveGesture handles only the lane-resize (and tone-region) edge drags it still owns.
-    if (key.isKeyCode(juce::KeyPress::escapeKey))
-    {
-        if (m_tone_automation_lanes_view.cancelActiveGesture())
-        {
-            return true;
-        }
-        if (m_tone_track_view.cancelActiveGesture())
-        {
-            return true;
-        }
-        // The ladder fires on any published rung: an in-flight gesture (marquee or the
-        // controller-owned lane drag), an armed caret on either row, or THE selection.
-        if (m_state.chart_edit.marquee.has_value() ||
-            m_state.tone_automation.drag_preview.has_value() ||
-            m_state.chart_edit.caret.has_value() ||
-            m_state.tone_automation.lane_caret.has_value() || m_state.selection_present)
-        {
-            m_controller.onChartEscapePressed();
-            return true;
-        }
-        return false;
-    }
-
-    return false;
-}
-
 // Creates the preview window on first use, then shows or hides it; hiding suspends the render
 // surface's frame ticks while its GPU stack stays alive (bgfx cannot re-initialize in-process).
 void EditorView::togglePreviewWindow()
@@ -1317,6 +1025,11 @@ void EditorView::togglePreviewWindow()
 
 // Creates the keyboard-shortcuts window on first use, then shows it; the window survives closes
 // so its tree state and any in-progress inspection are kept across reopenings.
+bool EditorView::chartShown() const noexcept
+{
+    return m_state.tab != nullptr && m_state.tab->string_count > 0;
+}
+
 void EditorView::showActionsWindow()
 {
     if (m_actions_window == nullptr)
@@ -1527,6 +1240,63 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
         {
             break;
         }
+
+        // The grammar verbs (plan 53 Phase 1b) stay always-active on purpose: their old
+        // decoder branches declined silently, and a disabled command whose chord matches makes
+        // JUCE play the system alert sound (KeyPressMappingSet::keyPressed) — so perform
+        // self-gates instead, and the core self-gates its intents anyway.
+        case EditorCommandId::CaretStepLeft:
+        case EditorCommandId::CaretStepRight:
+        case EditorCommandId::CaretStepUp:
+        case EditorCommandId::CaretStepDown:
+        case EditorCommandId::CaretMeasureJumpLeft:
+        case EditorCommandId::CaretMeasureJumpRight:
+        case EditorCommandId::CaretJumpChartStart:
+        case EditorCommandId::CaretJumpChartEnd:
+        case EditorCommandId::CaretJumpPreviousSection:
+        case EditorCommandId::CaretJumpNextSection:
+        case EditorCommandId::TimeSelectionExtendLeft:
+        case EditorCommandId::TimeSelectionExtendRight:
+        case EditorCommandId::TimeSelectionExtendMeasureLeft:
+        case EditorCommandId::TimeSelectionExtendMeasureRight:
+        case EditorCommandId::TimeSelectionExtendPreviousSection:
+        case EditorCommandId::TimeSelectionExtendNextSection:
+        case EditorCommandId::TimeSelectionExtendChartStart:
+        case EditorCommandId::TimeSelectionExtendChartEnd:
+        case EditorCommandId::SelectionMoveLeft:
+        case EditorCommandId::SelectionMoveRight:
+        case EditorCommandId::SelectionMoveUp:
+        case EditorCommandId::SelectionMoveDown:
+        case EditorCommandId::SelectionMoveFineLeft:
+        case EditorCommandId::SelectionMoveFineRight:
+        case EditorCommandId::SelectionMoveFineUp:
+        case EditorCommandId::SelectionMoveFineDown:
+        case EditorCommandId::SelectionDelete:
+        case EditorCommandId::SustainLengthen:
+        case EditorCommandId::SustainShorten:
+        case EditorCommandId::SustainLengthenFine:
+        case EditorCommandId::SustainShortenFine:
+        case EditorCommandId::FretShiftUp:
+        case EditorCommandId::FretShiftDown:
+        case EditorCommandId::NeutralInsert:
+        case EditorCommandId::CancelDismiss:
+        case EditorCommandId::TypeDigit0:
+        case EditorCommandId::TypeDigit1:
+        case EditorCommandId::TypeDigit2:
+        case EditorCommandId::TypeDigit3:
+        case EditorCommandId::TypeDigit4:
+        case EditorCommandId::TypeDigit5:
+        case EditorCommandId::TypeDigit6:
+        case EditorCommandId::TypeDigit7:
+        case EditorCommandId::TypeDigit8:
+        case EditorCommandId::TypeDigit9:
+        case EditorCommandId::GridFiner:
+        case EditorCommandId::GridCoarser:
+        case EditorCommandId::ZoomIn:
+        case EditorCommandId::ZoomOut:
+        {
+            break;
+        }
     }
 }
 
@@ -1648,6 +1418,295 @@ bool EditorView::perform(const InvocationInfo& info)
         case EditorCommandId::InsertToneChange:
         {
             createToneMarkerAtPlayhead();
+            return true;
+        }
+
+            // ---- Grammar verbs (plan 53 Phase 1b). Each perform is the old decoder branch moved
+            // verbatim onto the same controller intents, so undo and gesture semantics are
+            // untouched — only the trigger moved into the mapping set. Guards mirror the decoder's
+            // silent declines; see getCommandInfo for why these register always-active.
+
+        case EditorCommandId::CaretStepLeft:
+        {
+            if (chartShown())
+            {
+                m_controller.onChartCaretStepRequested(core::ChartStepDirection::Left, false);
+            }
+            return true;
+        }
+        case EditorCommandId::CaretStepRight:
+        {
+            if (chartShown())
+            {
+                m_controller.onChartCaretStepRequested(core::ChartStepDirection::Right, false);
+            }
+            return true;
+        }
+        case EditorCommandId::CaretStepUp:
+        {
+            if (chartShown())
+            {
+                m_controller.onChartCaretStepRequested(core::ChartStepDirection::Up, false);
+            }
+            return true;
+        }
+        case EditorCommandId::CaretStepDown:
+        {
+            if (chartShown())
+            {
+                m_controller.onChartCaretStepRequested(core::ChartStepDirection::Down, false);
+            }
+            return true;
+        }
+        case EditorCommandId::CaretMeasureJumpLeft:
+        {
+            if (chartShown())
+            {
+                m_controller.onChartCaretStepRequested(core::ChartStepDirection::Left, true);
+            }
+            return true;
+        }
+        case EditorCommandId::CaretMeasureJumpRight:
+        {
+            if (chartShown())
+            {
+                m_controller.onChartCaretStepRequested(core::ChartStepDirection::Right, true);
+            }
+            return true;
+        }
+
+        // The controller resolves each jump destination and no-ops without a chart or while
+        // playing, so these forward directly.
+        case EditorCommandId::CaretJumpChartStart:
+        {
+            m_controller.onChartCaretJumpRequested(core::ChartCaretJump::ChartStart);
+            return true;
+        }
+        case EditorCommandId::CaretJumpChartEnd:
+        {
+            m_controller.onChartCaretJumpRequested(core::ChartCaretJump::ChartEnd);
+            return true;
+        }
+        case EditorCommandId::CaretJumpPreviousSection:
+        {
+            m_controller.onChartCaretJumpRequested(core::ChartCaretJump::PreviousSection);
+            return true;
+        }
+        case EditorCommandId::CaretJumpNextSection:
+        {
+            m_controller.onChartCaretJumpRequested(core::ChartCaretJump::NextSection);
+            return true;
+        }
+
+        case EditorCommandId::TimeSelectionExtendLeft:
+        {
+            m_controller.onTimeSelectionExtendRequested(
+                core::TimeSelectionExtent::Grid, core::ChartStepDirection::Left);
+            return true;
+        }
+        case EditorCommandId::TimeSelectionExtendRight:
+        {
+            m_controller.onTimeSelectionExtendRequested(
+                core::TimeSelectionExtent::Grid, core::ChartStepDirection::Right);
+            return true;
+        }
+        case EditorCommandId::TimeSelectionExtendMeasureLeft:
+        {
+            m_controller.onTimeSelectionExtendRequested(
+                core::TimeSelectionExtent::Measure, core::ChartStepDirection::Left);
+            return true;
+        }
+        case EditorCommandId::TimeSelectionExtendMeasureRight:
+        {
+            m_controller.onTimeSelectionExtendRequested(
+                core::TimeSelectionExtent::Measure, core::ChartStepDirection::Right);
+            return true;
+        }
+        case EditorCommandId::TimeSelectionExtendPreviousSection:
+        {
+            m_controller.onTimeSelectionExtendRequested(
+                core::TimeSelectionExtent::Section, core::ChartStepDirection::Left);
+            return true;
+        }
+        case EditorCommandId::TimeSelectionExtendNextSection:
+        {
+            m_controller.onTimeSelectionExtendRequested(
+                core::TimeSelectionExtent::Section, core::ChartStepDirection::Right);
+            return true;
+        }
+        case EditorCommandId::TimeSelectionExtendChartStart:
+        {
+            m_controller.onTimeSelectionExtendRequested(
+                core::TimeSelectionExtent::ChartBound, core::ChartStepDirection::Left);
+            return true;
+        }
+        case EditorCommandId::TimeSelectionExtendChartEnd:
+        {
+            m_controller.onTimeSelectionExtendRequested(
+                core::TimeSelectionExtent::ChartBound, core::ChartStepDirection::Right);
+            return true;
+        }
+
+        // The one selection-move intent: the controller dispatches on the selection's kind and
+        // falls back to create-then-nudge at an armed empty lane slot.
+        case EditorCommandId::SelectionMoveLeft:
+        {
+            m_controller.onSelectionMoveRequested(core::ChartStepDirection::Left, false);
+            return true;
+        }
+        case EditorCommandId::SelectionMoveRight:
+        {
+            m_controller.onSelectionMoveRequested(core::ChartStepDirection::Right, false);
+            return true;
+        }
+        case EditorCommandId::SelectionMoveUp:
+        {
+            m_controller.onSelectionMoveRequested(core::ChartStepDirection::Up, false);
+            return true;
+        }
+        case EditorCommandId::SelectionMoveDown:
+        {
+            m_controller.onSelectionMoveRequested(core::ChartStepDirection::Down, false);
+            return true;
+        }
+        case EditorCommandId::SelectionMoveFineLeft:
+        {
+            m_controller.onSelectionMoveRequested(core::ChartStepDirection::Left, true);
+            return true;
+        }
+        case EditorCommandId::SelectionMoveFineRight:
+        {
+            m_controller.onSelectionMoveRequested(core::ChartStepDirection::Right, true);
+            return true;
+        }
+        case EditorCommandId::SelectionMoveFineUp:
+        {
+            m_controller.onSelectionMoveRequested(core::ChartStepDirection::Up, true);
+            return true;
+        }
+        case EditorCommandId::SelectionMoveFineDown:
+        {
+            m_controller.onSelectionMoveRequested(core::ChartStepDirection::Down, true);
+            return true;
+        }
+
+        case EditorCommandId::SelectionDelete:
+        {
+            if (m_state.selection_present)
+            {
+                m_controller.onSelectionDeleteRequested();
+            }
+            return true;
+        }
+
+        case EditorCommandId::SustainLengthen:
+        {
+            m_controller.onChartSustainAdjustRequested(1, false);
+            return true;
+        }
+        case EditorCommandId::SustainShorten:
+        {
+            m_controller.onChartSustainAdjustRequested(-1, false);
+            return true;
+        }
+        case EditorCommandId::SustainLengthenFine:
+        {
+            m_controller.onChartSustainAdjustRequested(1, true);
+            return true;
+        }
+        case EditorCommandId::SustainShortenFine:
+        {
+            m_controller.onChartSustainAdjustRequested(-1, true);
+            return true;
+        }
+        case EditorCommandId::FretShiftUp:
+        {
+            m_controller.onChartFretShiftRequested(1);
+            return true;
+        }
+        case EditorCommandId::FretShiftDown:
+        {
+            m_controller.onChartFretShiftRequested(-1);
+            return true;
+        }
+
+        case EditorCommandId::NeutralInsert:
+        {
+            m_controller.onNeutralInsertRequested();
+            return true;
+        }
+
+        // The Esc ladder: view-owned edge drags cancel first, then the marker ladder fires
+        // when any published rung is live. An idle press is a silent no-op now that dispatch
+        // is command-based; nothing downstream consumed the decoder's old fall-through.
+        case EditorCommandId::CancelDismiss:
+        {
+            if (m_tone_automation_lanes_view.cancelActiveGesture())
+            {
+                return true;
+            }
+            if (m_tone_track_view.cancelActiveGesture())
+            {
+                return true;
+            }
+            if (m_state.chart_edit.marquee.has_value() ||
+                m_state.tone_automation.drag_preview.has_value() ||
+                m_state.chart_edit.caret.has_value() ||
+                m_state.tone_automation.lane_caret.has_value() || m_state.selection_present)
+            {
+                m_controller.onChartEscapePressed();
+            }
+            return true;
+        }
+
+        // Digits type the row's payload (the typing rule, §9b), in the decoder's try order:
+        // the lanes view first (it re-checks its own possibly gesture-deferred caret copy),
+        // then chart fret typing; the passive marker keeps digits inert (the controller owns
+        // that branch).
+        case EditorCommandId::TypeDigit0:
+        case EditorCommandId::TypeDigit1:
+        case EditorCommandId::TypeDigit2:
+        case EditorCommandId::TypeDigit3:
+        case EditorCommandId::TypeDigit4:
+        case EditorCommandId::TypeDigit5:
+        case EditorCommandId::TypeDigit6:
+        case EditorCommandId::TypeDigit7:
+        case EditorCommandId::TypeDigit8:
+        case EditorCommandId::TypeDigit9:
+        {
+            const int digit = static_cast<int>(info.commandID) -
+                              static_cast<int>(toJuceCommandId(EditorCommandId::TypeDigit0));
+            if (m_tone_automation_lanes_view.beginCaretValueEntry(digit))
+            {
+                return true;
+            }
+            if (chartShown())
+            {
+                m_controller.onChartFretDigitTyped(digit);
+            }
+            return true;
+        }
+
+        case EditorCommandId::GridFiner:
+        {
+            // Steps through the selector's listener, the same path as a combo selection, so
+            // the controller still owns the applied value.
+            m_grid_spacing_selector.stepNoteValue(1);
+            return true;
+        }
+        case EditorCommandId::GridCoarser:
+        {
+            m_grid_spacing_selector.stepNoteValue(-1);
+            return true;
+        }
+        case EditorCommandId::ZoomIn:
+        {
+            m_track_viewport->zoomByStep(1);
+            return true;
+        }
+        case EditorCommandId::ZoomOut:
+        {
+            m_track_viewport->zoomByStep(-1);
             return true;
         }
     }

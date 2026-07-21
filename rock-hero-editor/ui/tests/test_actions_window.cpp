@@ -1,6 +1,5 @@
 #include "keybinds/actions_window.h"
 #include "keybinds/editor_command_registry.h"
-#include "keybinds/grammar_reservations.h"
 #include "keybinds/key_chord_text.h"
 #include "keybinds/keymap_editor_view.h"
 
@@ -9,8 +8,8 @@
 namespace rock_hero::editor::ui
 {
 
-// The custom editor lists every registry command as a rebindable row: enabled chips per
-// binding plus the add affordance, with the fixed grammar reference gathered at the bottom.
+// The custom editor lists every registry command — grammar verbs included — as a rebindable
+// row: enabled chips per binding plus the add affordance.
 TEST_CASE("KeymapEditorView builds rows from the registry", "[ui][keybinds]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -38,16 +37,6 @@ TEST_CASE("KeymapEditorView builds rows from the registry", "[ui][keybinds]")
             CHECK(first_chip.getButtonText() == keyChordText(spec.default_keypresses.front()));
         }
     }
-
-    // The fixed grammar reference sits below every command row.
-    juce::Component* const last_command_row = findDescendant(
-        editor,
-        "keymap_row_" +
-            juce::String::toHexString(toJuceCommandId(EditorCommandId::InsertToneChange)));
-    juce::Component* const grammar_row = findDescendant(editor, "keymap_grammar_row_0");
-    REQUIRE(last_command_row != nullptr);
-    REQUIRE(grammar_row != nullptr);
-    CHECK(grammar_row->getY() > last_command_row->getY());
 }
 
 // applyBindingChange is the overwrite-and-clear dance: the chord's previous owner loses it,
@@ -151,38 +140,10 @@ TEST_CASE("KeymapEditorView resets one command to its defaults", "[ui][keybinds]
     CHECK(mappings.findCommandForKeyPress(f9) == 0);
 }
 
-// Grammar keys are reserved by physical key across every modifier shape: the decoder runs
-// before the mapping set, so a command bound to a grammar chord would only sometimes fire.
-TEST_CASE("Grammar reservations cover the decoder's keys", "[ui][keybinds]")
-{
-    constexpr int command = juce::ModifierKeys::commandModifier;
-    constexpr int shift = juce::ModifierKeys::shiftModifier;
-    constexpr int alt = juce::ModifierKeys::altModifier;
-
-    CHECK(isReservedGrammarChord(juce::KeyPress{juce::KeyPress::rightKey}));
-    CHECK(isReservedGrammarChord(
-        juce::KeyPress{juce::KeyPress::leftKey, juce::ModifierKeys{command | shift | alt}, 0}));
-    CHECK(isReservedGrammarChord(juce::KeyPress{'5', juce::ModifierKeys{}, 0}));
-    CHECK(isReservedGrammarChord(
-        juce::KeyPress{juce::KeyPress::numberPad7, juce::ModifierKeys{}, 0}));
-    CHECK(isReservedGrammarChord(juce::KeyPress{juce::KeyPress::deleteKey}));
-    CHECK(isReservedGrammarChord(juce::KeyPress{juce::KeyPress::insertKey}));
-    CHECK(isReservedGrammarChord(juce::KeyPress{juce::KeyPress::escapeKey}));
-    CHECK(isReservedGrammarChord(juce::KeyPress{juce::KeyPress::returnKey}));
-    CHECK(isReservedGrammarChord(juce::KeyPress{juce::KeyPress::homeKey}));
-    CHECK(isReservedGrammarChord(
-        juce::KeyPress{juce::KeyPress::pageDownKey, juce::ModifierKeys{shift}, 0}));
-    CHECK(isReservedGrammarChord(juce::KeyPress{'=', juce::ModifierKeys{command}, 0}));
-    CHECK(isReservedGrammarChord(juce::KeyPress{juce::KeyPress::numberPadSubtract}));
-
-    CHECK_FALSE(isReservedGrammarChord(juce::KeyPress{juce::KeyPress::F9Key}));
-    CHECK_FALSE(isReservedGrammarChord(juce::KeyPress{'o', juce::ModifierKeys{command}, 0}));
-    CHECK_FALSE(isReservedGrammarChord(juce::KeyPress{juce::KeyPress::spaceKey}));
-}
-
-// Grammar-reserved chords are refused at the apply layer: the decoder runs before the mapping
-// set, so a command bound to one would only sometimes fire.
-TEST_CASE("KeymapEditorView refuses reserved chords", "[ui][keybinds]")
+// Total rebindability (plan 53 Phase 1b): grammar chords are ordinary bindings now. A command
+// may take an arrow key through the one-owner dance, the grammar verb loses it, and resetting
+// the verb reclaims it — no chord is refused anymore.
+TEST_CASE("KeymapEditorView rebinds grammar chords like any other", "[ui][keybinds]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -193,24 +154,22 @@ TEST_CASE("KeymapEditorView refuses reserved chords", "[ui][keybinds]")
     juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
 
     const juce::KeyPress right_arrow{juce::KeyPress::rightKey};
+    CHECK(
+        mappings.findCommandForKeyPress(right_arrow) ==
+        toJuceCommandId(EditorCommandId::CaretStepRight));
+
     editor.applyBindingChange(EditorCommandId::TogglePreview3D, right_arrow, -1);
-    CHECK(mappings.findCommandForKeyPress(right_arrow) == 0);
-}
+    CHECK(
+        mappings.findCommandForKeyPress(right_arrow) ==
+        toJuceCommandId(EditorCommandId::TogglePreview3D));
+    CHECK_FALSE(
+        mappings.getKeyPressesAssignedToCommand(toJuceCommandId(EditorCommandId::CaretStepRight))
+            .contains(right_arrow));
 
-// The dialog lists the fixed editing/navigation reference rows below the command rows.
-TEST_CASE("KeymapEditorView lists the fixed grammar reference", "[ui][keybinds]")
-{
-    const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    core::testing::RecordingEditorController controller;
-    const FakeTransport transport;
-    RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
-    KeymapEditorView editor{view.commandManager()};
-
-    for (int index = 0; index < static_cast<int>(grammarReservations().size()); ++index)
-    {
-        CHECK(findDescendant(editor, "keymap_grammar_row_" + juce::String{index}) != nullptr);
-    }
+    editor.resetCommandToDefault(EditorCommandId::CaretStepRight);
+    CHECK(
+        mappings.findCommandForKeyPress(right_arrow) ==
+        toJuceCommandId(EditorCommandId::CaretStepRight));
 }
 
 // Rows rebuild on the mapping set's change broadcast, so external rebinds refresh the chips.

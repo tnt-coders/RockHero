@@ -2,36 +2,32 @@
 
 *Applies to: Editor-only (the game's separate input path is summarized at the end).*
 
-This page traces a keystroke from the operating system to its effect. The editor has **two key
-dispatchers with a clean split** (the command registry landed 2026-07-20; plan 46 / plan 53
-Phase 1):
-
-- **Command accelerators** — undo/redo, Space, `Ctrl+T`, `F3`/`F8`, and the File-menu chords —
-  live in one `juce::ApplicationCommandManager` owned by `EditorView`. Its `KeyPressMappingSet`
-  is attached as a key listener on `MainWindow`, matches chords exactly, checks enablement, and
-  invokes `EditorView::perform`, which emits the same controller intents the menus use. The
-  registry table behind it is `rock-hero-editor/ui/src/keybinds/editor_command_registry.cpp`.
-- **The interaction grammar** — arrows, digits, Delete, Insert, Esc, and the `+`/`-` grid/zoom
-  family — stays hand-decoded in the `EditorView::keyPressed` grammar decoder: sequential,
-  context-ordered dispatch that is an input grammar, not a command set. Grammar chords are
-  reserved in the registry's conventions and never assigned as command defaults.
+This page traces a keystroke from the operating system to its effect. The editor has **one key
+dispatcher** (the command registry landed 2026-07-20; the grammar decoder dissolved into it
+with total rebindability, plan 53 Phase 1b): every keybind — undo/redo, Space, the File-menu
+chords, *and* the interaction grammar's arrows, digits, Delete, Insert, Esc, and `+`/`-`
+grid/zoom keys — is a registered command in one `juce::ApplicationCommandManager` owned by
+`EditorView`. Its `KeyPressMappingSet` is attached as a key listener on `MainWindow`, matches
+chords exactly, checks enablement, and invokes `EditorView::perform`, which emits the same
+controller intents the menus use. The registry table behind it is
+`rock-hero-editor/ui/src/keybinds/editor_command_registry.cpp`; one command exists per
+(chord, verb) pair, so the `Ctrl` precision/reach tiers are separate commands and the
+interaction grammar's modifier algebra survives as the *shape of the default map*, not as an
+enforced restriction.
 
 From the controller inward, a keystroke still travels one of **two paths**: the editor-action
 pipeline (\ref guide_action_anatomy) or the caret/marker interaction model. Keymap
-**persistence and the actions dialog are live** (below), and **every command is
-user-rebindable** — including Undo/Redo/Play-Pause, whose chords mirror into hosted plugin
-windows through an injected, layout-neutral binding seam (the fixed-trio decision was reversed
-2026-07-20 once the mirror generalized).
+**persistence and the actions dialog are live** (below), and **every binding is
+user-rebindable with no exceptions** — Undo/Redo/Play-Pause mirror into hosted plugin windows
+through an injected, layout-neutral binding seam, and the grammar verbs rebind like anything
+else ("bad keybinds are the user's problem; the defaults are the fallback", the 2026-07-20
+direction that reversed the earlier fixed-grammar policy).
 
 ```mermaid
 flowchart TB
     os["OS key event"]
-    ev["`EditorView::keyPressed
-    the grammar decoder`"]
     kpms["`KeyPressMappingSet on MainWindow
-    command chords → EditorView::perform`"]
-    mw["`MainWindow::keyPressed
-    fallback forwarder (belt-and-braces)`"]
+    every chord → EditorView::perform`"]
     pw["`PluginWindow (hosted plugin GUIs)
     mirrored shortcuts + Win32 hook`"]
     pv["`3D preview window
@@ -40,34 +36,25 @@ flowchart TB
     gate → performActionImpl → undo → view state`"]
     caret["`path (b): caret intents → ChartMarker
     state machine in editor core`"]
-    os --> ev
-    ev -- unhandled keys bubble --> kpms
-    kpms --> mw
+    os -- bubbles up the focus chain --> kpms
     os --> pw -- PluginWindowCommand observer --> action
     os --> pv -- via the command mappings --> kpms
     kpms -- perform --> action
-    ev --> action
-    ev --> caret
+    kpms -- perform --> caret
 ```
 
 # Where key events enter
 
-`EditorView` is the keyboard-focus owner (`setWantsKeyboardFocus(true)`); its `keyPressed`
-(`rock-hero-editor/ui/src/main_window/editor_view.cpp`) decodes the interaction grammar first,
-and any key it declines bubbles up the parent chain to `MainWindow`, where the command mapping
-set matches registered chords. Everything else is plumbing that keeps focus there or forwards
-keys back:
+`EditorView` is the keyboard-focus owner (`setWantsKeyboardFocus(true)`); unconsumed keys
+bubble up the parent chain to `MainWindow`, where the command mapping set matches registered
+chords. Everything else is plumbing that keeps focus in the right place:
 
 - **`MainWindow`** (`ui/src/main_window/main_window.cpp`) attaches the command manager's
-  `KeyPressMappingSet` as a key listener in its constructor — key listeners run before a
-  component's own `keyPressed` at each level, so at the window shell the mapping set fires
-  first. `MainWindow::keyPressed` stays behind it as a belt-and-braces fallback forwarder into
-  `EditorView::keyPressed` for grammar keys when native focus sits on the shell — unless a modal
-  component blocks the editor (`isCurrentlyBlockedByAnotherModalComponent`). The forwarding is
-  **load-bearing, not redundant** — plan 46 originally scheduled it for deletion, but that
-  assumed every key would become a command; with the grammar keys staying in this decoder, the
-  forwarding is the only path grammar keys have when native focus sits on the shell, so it
-  stays (commands never reach it — the mapping-set listener runs first and consumes them).
+  `KeyPressMappingSet` as a key listener in its constructor. Attached to the window shell, it
+  covers both the focused editor (unhandled keys bubble up to it) and keys that arrive while
+  native focus sits on the shell itself — which is why no manual key forwarding exists: the
+  old `MainWindow::keyPressed` forwarder existed solely to reach the grammar decoder from
+  shell focus, and dissolved with the decoder (plan 53 Phase 1b).
 - **Interactive children decline focus** so keys stay with `EditorView`. The load-bearing case is
   the timeline viewport (`ui/src/timeline/track_viewport.h`): a stock `juce::Viewport` grabs
   focus and converts arrow keys into scrolling, which would silently steal the caret grammar —
@@ -89,18 +76,25 @@ keys back:
 
 # Decoding
 
-Command accelerators and grammar keys decode differently, and the conventions differ with them:
+All chords match exactly: the mapping set compares `juce::KeyPress` values with exact modifier
+state, so the old hand-written guards come free — `Ctrl+Z` does not fire on `Ctrl+Alt+Z` (Alt
+is the grammar's default authoring modifier) or `Ctrl+Shift+Z` (which is Redo's registered
+alternative), and each tiered verb (plain caret step vs. `Ctrl` measure jump) is its own
+command on its own chord. Chords register lowercase letters — the mapping set asserts on
+uppercase-without-shift — and letter matching is case-insensitive against OS key codes.
+Key-shape variance is expressed as **alternative default chords** on one command: each digit
+command registers its main-row *and* numpad chords, and the grid/zoom commands register the
+old decoder's `=`/`+`/numpad union as alternatives (the shapes JUCE reports vary with WM_CHAR
+timing).
 
-- **Command chords match exactly.** The mapping set compares `juce::KeyPress` values with exact
-  modifier state, so the old hand-written guards come free: `Ctrl+Z` does not fire on
-  `Ctrl+Alt+Z` (Alt is the grammar's authoring modifier) or `Ctrl+Shift+Z` (which is Redo's
-  registered alternative). Chords register lowercase letters — the mapping set asserts on
-  uppercase-without-shift — and letter matching is case-insensitive against OS key codes.
-- **Grammar decoding is a hand-written `if`/`switch` chain** over `juce::KeyPress` in
-  `EditorView::keyPressed`. Digits match both rows (`'0'..'9'` *and*
-  `juce::KeyPress::numberPad0..9`); modifiers are read per-block and given meaning by the
-  operation, not the key — Ctrl is a measure jump on plain arrows, the 1/960 fine tier on
-  authoring verbs, per the interaction model.
+Where the same chord needs different verbs by context (the old decoder's sequential dispatch),
+the mechanism is enablement: `KeyPressMappingSet::keyPressed` visits every command mapped to a
+chord, skips disabled ones and keeps looking, and returns false when nothing enabled fired
+(juce_KeyPressMappingSet.cpp:322-357) — the recorded future mechanism for modal scopes like
+the plugin-chain section. Today every chord has exactly one owner; context branching lives
+*inside* each command's `perform` (the digit try-order, the Esc ladder), and the verbs whose
+old branches declined silently stay **always-active and self-gate in perform**, because a
+disabled command whose chord matches makes JUCE play the system alert sound.
 
 # Path (a): keys that become editor actions
 
@@ -117,21 +111,20 @@ the popup queries the mapping set per item.
 
 `Ctrl+T` (insert a tone change at the playhead) is a registered command whose `perform` opens a
 UI popup (the tone picker) before any action runs, and `F3`/`F8` are commands that toggle UI
-panels directly — trigger-only commands with no core policy. Two UI-only families stay in the
-*grammar decoder* instead: plain `+`/`-` steps the grid one preset finer/coarser through
+panels directly — trigger-only commands with no core policy. Two more UI-only families ride the
+same shape: `GridFiner`/`GridCoarser` step the grid through
 `GridSpacingSelector::stepNoteValue` (emitting via the selector's listener, the same path as a
-combo pick, so the controller still owns the applied value), and `Ctrl`+`+`/`-` zooms through
-`TrackViewport::zoomByStep` — the keyboard twin of Ctrl+wheel, sharing its
-clamp/recenter/report path. They cannot move to the mapping set: the `+`/`-` match is
-deliberately a union of key codes, text characters, and numpad codes, because JUCE reports
-these keys differently across layouts and the text character is unreliable while Ctrl is held —
-shapes exact `KeyPress` matching cannot express.
+combo pick, so the controller still owns the applied value), and `ZoomIn`/`ZoomOut` zoom
+through `TrackViewport::zoomByStep` — the keyboard twin of Ctrl+wheel, sharing its
+clamp/recenter/report path. The old decoder's `=`/`+`/numpad key-shape union lives on as these
+commands' alternative default chords.
 
 # Path (b): keys that drive the caret grammar
 
 Arrows, Home/End, PageUp/PageDown, their Shift time-selection forms, Alt+arrows,
-Alt+Shift+arrows, digits, Delete, Insert, and Esc are not editor actions. They route to
-dedicated controller intents —
+Alt+Shift+arrows, digits, Delete, Insert, and Esc are registered commands like everything
+else, but they are not editor *actions*. Their `perform` cases route to dedicated controller
+intents —
 `onChartCaretStepRequested`, `onChartCaretJumpRequested(ChartCaretJump)` (the Home/End and
 PageUp/Down leaps, one sum type over start/end/previous-section/next-section),
 `onTimeSelectionExtendRequested` (Shift+ the same navigation family: grid, measure, section,
@@ -168,16 +161,16 @@ plugin-chain scope, lane multi-select) land phase by phase.*
 
 1. **The pipeline gate is authoritative.** Path (a) keys land in `runAction`, whose availability
    policy (`editor_action_availability.cpp`) is the real decision.
-2. **The UI pre-gates against published view-state flags.** For commands this is
+2. **The UI pre-gates against published view-state flags.** For menu-visible commands this is
    `getCommandInfo`'s `setActive` (undo/redo against `undo_enabled`/`redo_enabled`, and so on) —
    the mapping set refuses disabled commands and lets the key propagate, menus gray out, and
    `perform` mirrors the same guards so direct invocation paths stay safe; `setState` calls
-   `commandStatusChanged()` on every push to keep it current. The grammar decoder pre-gates the
-   same way inline (Delete against `selection_present`). Both derive from `deriveViewState()`'s
-   *same* availability calls, so the layers cannot disagree; a dead key returns `false` and
-   propagates rather than being swallowed.
-3. **Modal layers swallow first.** The busy overlay consumes everything; `MainWindow` refuses to
-   forward while modally blocked. Path (b) intents self-gate in core, as above.
+   `commandStatusChanged()` on every push to keep it current. The grammar-verb commands gate in
+   `perform` instead (Delete against `selection_present`, caret steps against `chartShown()`) —
+   see the always-active/alert-sound note under Decoding. Both derive from
+   `deriveViewState()`'s *same* availability calls, so the layers cannot disagree.
+3. **Modal layers swallow first.** The busy overlay consumes everything before keys reach the
+   window's listener. Path (b) intents self-gate in core, as above.
 
 # Keymap persistence
 
@@ -219,21 +212,14 @@ conflict cleanup. Rows rebuild on the mapping set's own change
 broadcasts, so rebinds apply live and persist immediately — dispatch, menu shortcut text, the
 keymap persistence, and the plugin-window mirror all listen to the same set.
 
-The dialog is also the complete keymap reference, ordered rebindable-first: the registry's
-categories lead (every command row is rebindable, the Undo/Redo/Play-Pause trio included), and
-the one fixed section gathers at the bottom — **"Editing & Navigation (fixed)"**, which lists
-the interaction grammar split fine enough that every entry's keys render as the same chips as
-the command rows ("Jump by measure — `ctrl + left/right`"), driven by
-`grammar_reservations.cpp` — the same table whose `isReservedGrammarChord`
-predicate makes the capture flow **refuse grammar chords** (reservation is by physical key
-across all modifiers, because the grammar is a modifier algebra; a command bound to a grammar
-chord would be shadowed by the decoder whenever its surface context applies — a sometimes-works
-binding, banned outright). That refusal is the dialog's only restriction: any chord can move
-between commands through the owner-naming conflict confirm, and per-command reset reclaims a
-command's default chords from whichever command took them.
-The grammar keys are deliberately not rebindable: remapping one verb breaks its composed
-family; the honest future feature is an alternative navigation *scheme* (recorded as an
-uncommitted enhancement in plan 46), not per-key rebinding.
+The dialog is also the complete keymap reference: every registry command appears under its
+category — File through Tone, then the grammar-verb categories (Navigation, Selection,
+Editing, Value Entry, Grid & Zoom) — and **every row is rebindable with no exceptions** (plan
+53 Phase 1b dissolved the earlier fixed grammar section and its reservation refusal). Any
+chord can move between commands through the owner-naming conflict confirm, and per-command
+reset reclaims a command's default chords from whichever command took them. Rebinding a
+grammar verb can of course shatter its composed modifier family — that is deliberately the
+user's prerogative now, with per-command and reset-all defaults as the fallback.
 
 Every user-facing rendering of a chord goes through **one formatter**,
 `keyChordText` (`ui/src/keybinds/key_chord_text.cpp`): dialog chips, the capture preview, the
@@ -251,11 +237,11 @@ is exactly the drift this unit exists to prevent.
 
 # The Esc ladder
 
-Esc is one key with a priority ladder split across the two layers: the view first cancels any
-in-flight pointer gesture it still owns (lane and tone-track edge drags), then hands the key to
-`onChartEscapePressed`, whose core ladder steps drag-gesture → chart gesture → disarm the caret
-→ clear the tone-region selection → clear the selection. One rung per press; a new cancellable
-thing must pick its rung deliberately.
+Esc (the `CancelDismiss` command) is one chord with a priority ladder inside its `perform`:
+the view first cancels any in-flight pointer gesture it still owns (lane and tone-track edge
+drags), then hands off to `onChartEscapePressed`, whose core ladder steps drag-gesture → chart
+gesture → disarm the caret → clear the tone-region selection → clear the selection. One rung
+per press; a new cancellable thing must pick its rung deliberately.
 
 # The plugin-window seam
 
@@ -288,10 +274,8 @@ change to this seam re-earns the manual real-plugin verification (Nolly/Gateway;
 # Adding or changing a keybind — silent steps
 
 This checklist strings into \ref guide_add_action — its Part B step "the trigger" is exactly
-this list when the trigger is a key. First decide which dispatcher owns it: a **command
-accelerator** (a chorded shortcut for an operation) goes in the registry; an **interaction
-grammar key** (a caret/selection verb, payload entry, or anything with context-ordered
-fallthrough) goes in the grammar decoder.
+this list when the trigger is a key. There is one dispatcher: every keybind is a registered
+command.
 
 Standing convention (plan 53, adopted 2026-07-20): **every new user-triggerable verb registers
 as a command** rather than shipping as an ad-hoc handler, even when it has no default chord.
@@ -299,56 +283,39 @@ The registry is the editor's trigger-agnostic action list — REAPER's "Actions"
 form, which the actions dialog is named for — and only registered commands appear in that
 dialog, show live shortcut text in menus, and become bindable by future input front-ends (MIDI
 bindings are planned: `docs/plans/todo/midi-command-bindings.md`). A verb that bypasses the
-registry is invisible to all of them. The grammar decoder is the one deliberate carve-out, per
-the split above.
+registry is invisible to all of them, and since Phase 1b there is no carve-out.
 
-For a command accelerator (`rock-hero-editor/ui/src/keybinds/`):
+For any new keybind (`rock-hero-editor/ui/src/keybinds/`):
 
 1. **Append an `EditorCommandId` value** (`editor_command_id.h`) — explicit, append-only, never
-   reused; the hex value is the persistence key forever.
+   reused, in the id block matching its category; the hex value is the persistence key forever.
 2. **Add the registry row** (`editor_command_registry.cpp`): name, category,
-   default chords (lowercase letters; alternatives are first-class). Grammar chords are
-   reserved — never assign them as defaults.
+   default chords (lowercase letters; alternatives are first-class — key-shape variance like
+   main-row vs. numpad is expressed as alternative chords on one command). One command per
+   (chord, verb) pair: a `Ctrl` precision/reach tier is its own command, per the interaction
+   model's operation-not-key rule.
 3. **Extend both `EditorView` switches**: the `getCommandInfo` case (enablement from view-state
    flags, tick state, any live name augmentation) and the `perform` case (emit the controller
-   intent, mirroring the enablement guard).
+   intent, mirroring the enablement guard). A new *operation* means building the action first
+   (\ref guide_add_action); a new *caret verb* means a new `on...Requested` intent on
+   `IEditorController` — the pure virtual forces the `EditorController` forwarder, the `Impl`
+   member, and the `RecordingEditorController` override. **Gating**: menu-visible operations
+   gate via `getCommandInfo` `setActive`; verbs that must decline silently (no beep, no menu
+   row to gray) register always-active and self-gate in `perform` — see Decoding.
 4. **Update the locked-table test** (`test_editor_view_state.cpp`, "Editor command registry
    locks ids and default chords") — it fails on any unrecorded id or default change by design.
 5. **Menu items go through `addEditorCommandItem`** (`key_chord_text.h`), never raw
    `addCommandItem` — one line in `getMenuForIndex`, and the live shortcut text renders through
    the shared `keyChordText` formatter so menus never drift from the dialog chips.
-
-For a grammar key:
-
-1. **Decode it in `EditorView::keyPressed`**, in the block matching its family (arrow/caret,
-   digit, editing verb). Digits cover the numpad; new arrows/verbs read modifiers per the
-   operation-not-key rule.
-2. **Route it to an intent.** An existing operation → call its controller intent. A new
-   operation → build the action first (\ref guide_add_action); the keybind is only its trigger.
-   A new caret verb → a new `on...Requested` intent on `IEditorController` — the pure virtual
-   forces the `EditorController` public forwarder, the `Impl` member (where the behavior
-   lives), and the `RecordingEditorController` override — implemented against the marker state
-   machine.
-3. **Decide the gating layer.** Pipeline-gated action, view pre-gate flag (extend
-   `EditorViewState` + `deriveViewState()` if the view must know), or core self-gate for caret
-   intents — and remember dead keys should return `false`, not be swallowed.
-4. **Reserve it** in `keybinds/grammar_reservations.cpp`: extend `isReservedGrammarChord` if
-   the physical key is new to the grammar, and add or amend its display row — the same table
-   drives the actions dialog's fixed reference section and the capture refusal, so a missed
-   entry either hides the key from users or lets commands squat on it.
-
-Either way:
-
-- **Plugin-window mirroring is automatic** for the trio (the sync pushes every mapping change);
-  a *new* command that should also fire from plugin windows means extending the
-  `PluginWindowShortcutBindings` seam, not adding predicates. The 3D preview whitelist is
-  command-id based and needs a change only if the preview should honor a new command.
-- **Record it** in `docs/plans/in-progress/keymap-matrix.md` (the binding inventory) and, if it
-  changes grammar, `editing-interaction-model.md`.
-- **Tests**: drive the intent through the editor-core harness; for view-layer wiring, assert
-  the `RecordingEditorController` call — through the mapping set
-  (`commandManager().getKeyMappings()->keyPressed(...)`) for commands, through
-  `view.keyPressed` for grammar keys.
+6. **Plugin-window mirroring is automatic** for the trio (the sync pushes every mapping
+   change); a *new* command that should also fire from plugin windows means extending the
+   `PluginWindowShortcutBindings` seam, not adding predicates. The 3D preview whitelist is
+   command-id based and needs a change only if the preview should honor a new command.
+7. **Record it** in `docs/plans/in-progress/keymap-matrix.md` (the binding inventory) and, if
+   it changes grammar semantics, `editing-interaction-model.md`.
+8. **Tests**: drive the intent through the editor-core harness; for view-layer wiring, assert
+   the `RecordingEditorController` call through the mapping set
+   (`commandManager().getKeyMappings()->keyPressed(...)`).
 
 # The game side, briefly
 

@@ -19,9 +19,9 @@ namespace rock_hero::editor::ui
 The registry is the single authoritative table behind the command manager: `getCommandInfo`
 derives names, categories, and default keypresses from it, and the locked-table unit test pins
 its ids and chords so an accidental renumbering or default change fails the build. Every
-command is user-rebindable (the fixed-trio decision was reversed 2026-07-20 once the
-plugin-window mirror generalized to arbitrary chords); only the interaction grammar's reserved
-chords are off-limits, enforced by `grammar_reservations`.
+command is user-rebindable with no exceptions — the grammar verbs are registered commands too
+(plan 53 Phase 1b, total rebindability 2026-07-20), so the interaction grammar's modifier
+algebra lives on only as the shape of the defaults below.
 */
 struct EditorCommandSpec final
 {

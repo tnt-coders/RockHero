@@ -72,8 +72,6 @@ public:
     void restoreLastOpenProject();
 
 private:
-    bool keyPressed(const juce::KeyPress& key) override;
-
     // Requests persisted app exit after controller-level guards allow shutdown.
     ExitCallback m_exit_callback;
 
