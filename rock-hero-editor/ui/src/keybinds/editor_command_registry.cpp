@@ -69,8 +69,9 @@ namespace
             .id = EditorCommandId::ExitEditor,
             .name = "Exit",
             .category = "File",
-            // Menu-only: the OS owns Alt+F4, so no chord registers here (plan 46 tier A).
-            .default_keypresses = {},
+            // Ctrl+Q is the app-owned quit chord (user decision 2026-07-20); the OS separately
+            // owns Alt+F4, which needs no registration.
+            .default_keypresses = {chord('q', command)},
         });
     registry.push_back(
         EditorCommandSpec{

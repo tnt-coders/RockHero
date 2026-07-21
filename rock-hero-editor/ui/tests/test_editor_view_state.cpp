@@ -251,7 +251,7 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
         {EditorCommandId::SaveProjectAs, 0x1004, {chord('s', command | shift)}},
         {EditorCommandId::PublishSong, 0x1005, {chord('p', command | shift)}},
         {EditorCommandId::CloseProject, 0x1006, {chord('w', command)}},
-        {EditorCommandId::ExitEditor, 0x1007, {}},
+        {EditorCommandId::ExitEditor, 0x1007, {chord('q', command)}},
         {EditorCommandId::Undo, 0x1101, {chord('z', command)}},
         {EditorCommandId::Redo, 0x1102, {chord('y', command), chord('z', command | shift)}},
         {EditorCommandId::ShowActions, 0x1103, {chord('/', shift)}},
