@@ -219,8 +219,10 @@ Verified against the vendored JUCE source — everything needed ships in
   boundary, which the editor refuses — the picker is the payload chooser, exactly as the "+" lane
   picker chooses a parameter. Drag a boundary to move the change (both neighbors adjust; coverage
   stays gap-free). Delete removes the selected change/region and merges left; the region menu
-  mirrors it. Ctrl+T stays as the "insert at playhead" keyboard accelerator (guarded against Alt,
-  2026-07-20). Double-click on a region body keeps its primary-edit meaning (rename prompt today).
+  mirrors it. Ctrl+T stays as the "insert at cursor" keyboard accelerator (guarded against Alt,
+  2026-07-20; anchor amended 2026-07-21 to the marker rule — the armed caret when one exists,
+  else the transport position — matching play-from-the-marker's one position concept).
+  Double-click on a region body keeps its primary-edit meaning (rename prompt today).
   The tone strip is **also a keyboard region-row** now (2026-07-20) — see *Tone-region row*.
 - **Automation lanes** (keyboard-first amendment 2026-07-18 — lanes are full marker rows):
   Alt+click/Alt+drag inserts a point that lands **on the curve** at the snapped x (clamped to
@@ -280,10 +282,14 @@ Verified against the vendored JUCE source — everything needed ships in
 - **Ruler bands** (future): anchors per the section above; time signatures are point objects on
   the signature band with double-click = type the signature.
 
-Keyboard accelerators form one family: Ctrl+T inserts a tone change at the playhead (guarded against
-Alt, 2026-07-20 — `Ctrl` and not `Alt`, matching undo/redo), and future "insert at playhead" commands
-follow the same shape for anchors and notes. Ctrl+T (playhead) coexists with the tone-region row's
-`Insert` (at the caret) — different target positions.
+Keyboard accelerators form one family: Ctrl+T inserts a tone change at the **cursor** (guarded
+against Alt, 2026-07-20 — `Ctrl` and not `Alt`, matching undo/redo), where "cursor" means the
+marker rule (amended 2026-07-21): the armed caret when one exists, else the transport position —
+the same "one position concept per transport state" that play-from-the-marker follows, so the
+insert always lands where play would pick up. Future position-anchored insert commands follow the
+same marker-rule shape for anchors and notes. Ctrl+T (works from anywhere, no caret required)
+coexists with the tone-region row's `Insert` (requires that row's armed caret) — different
+invocation scopes, one position rule.
 
 ## Zoom & grid
 

@@ -115,7 +115,8 @@ File-menu chords (`Ctrl+O`, `Ctrl+Shift+O`, `Ctrl+S`, `Ctrl+Shift+S`, `Ctrl+Shif
 ride the same route, and command-backed menu items display their live shortcut automatically —
 the popup queries the mapping set per item.
 
-`Ctrl+T` (insert a tone change at the playhead) is a registered command whose `perform` opens a
+`Ctrl+T` (insert a tone change at the cursor — the marker rule: the armed caret when one
+exists, else the transport position) is a registered command whose `perform` opens a
 UI popup (the tone picker) before any action runs, and `F3`/`F8` are commands that toggle UI
 panels directly — trigger-only commands with no core policy. Two more UI-only families ride the
 same shape: `GridFiner`/`GridCoarser` step the grid through
