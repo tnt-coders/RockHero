@@ -441,6 +441,10 @@ The original question text is kept below for the decision record.
 > every entry's keys render as the same chips as command rows instead of sentence-style
 > descriptions. Ordering is test-asserted.
 >
+> **[SUPERSEDED 2026-07-20 by total rebindability — plan 53 Phase 1b, executed 2026-07-21:
+> the grammar verbs are per-verb registered commands now, every chord rebindable, the decoder
+> and reservations deleted. The record below reads historically.]**
+>
 > **Grammar-key policy settled 2026-07-20 (user sign-off): fixed + listed.** Two defects the
 > user found drove it: the capture flow allowed binding commands to grammar chords (a
 > sometimes-works binding — the decoder shadows it whenever its surface context applies), and

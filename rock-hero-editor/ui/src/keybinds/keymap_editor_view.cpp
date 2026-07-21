@@ -1,7 +1,6 @@
 #include "keybinds/keymap_editor_view.h"
 
 #include "keybinds/editor_command_registry.h"
-#include "keybinds/grammar_reservations.h"
 #include "keybinds/key_chord_text.h"
 #include "shared/editor_theme.h"
 #include "shared/text_metrics.h"
@@ -47,21 +46,15 @@ public:
         setWantsKeyboardFocus(true);
     }
 
-    // Records the pressed chord and previews it, warning about grammar-reserved keys and
-    // naming the current owner so the user sees the coming refusal or overwrite up front.
+    // Records the pressed chord and previews it, naming the current owner so the user sees
+    // the coming overwrite up front.
     bool keyPressed(const juce::KeyPress& key) override
     {
         m_captured = key;
         juce::String message = "Key: " + keyChordText(key);
-        if (isReservedGrammarChord(key))
-        {
-            message << "\n\n(Reserved for editor navigation and editing)";
-        }
-        else if (
-            const juce::CommandID owner_id =
+        if (const juce::CommandID owner_id =
                 m_command_manager.getKeyMappings()->findCommandForKeyPress(key);
-            owner_id != 0
-        )
+            owner_id != 0)
         {
             message << "\n\n(Currently assigned to \""
                     << m_command_manager.getNameOfCommand(owner_id) << "\")";
@@ -136,50 +129,6 @@ public:
         g.setFont(juce::Font{juce::FontOptions{g_chip_font_height}});
         g.drawText(getButtonText(), getLocalBounds(), juce::Justification::centred, true);
     }
-};
-
-// A fixed editing/navigation reference row: the verb on the left, its keys as inert chips on
-// the right — the same chip language as the command rows, so fixed and rebindable rows read
-// identically.
-class KeymapEditorView::FixedGrammarRow final : public juce::Component
-{
-public:
-    explicit FixedGrammarRow(const GrammarReservation& reservation)
-        : m_reservation(reservation)
-    {
-        setInterceptsMouseClicks(false, false);
-        for (const char* const chip_text : m_reservation.chips)
-        {
-            auto chip = std::make_unique<ChipButton>(chip_text, /*interactive=*/false);
-            addAndMakeVisible(*chip);
-            m_chips.push_back(std::move(chip));
-        }
-    }
-
-    void paint(juce::Graphics& g) override
-    {
-        g.setColour(editorTheme().primary_text);
-        g.setFont(juce::Font{juce::FontOptions{g_row_font_height}});
-        g.drawText(
-            m_reservation.name,
-            getLocalBounds().withTrimmedLeft(g_row_inset),
-            juce::Justification::centredLeft,
-            true);
-    }
-
-    void resized() override
-    {
-        int right = getWidth() - g_row_inset;
-        for (int index = static_cast<int>(m_chips.size()); --index >= 0;)
-        {
-            ChipButton& chip = *m_chips[static_cast<std::size_t>(index)];
-            right = placeChipRightAligned(chip, chip.getButtonText(), right, getHeight());
-        }
-    }
-
-private:
-    const GrammarReservation& m_reservation;
-    std::vector<std::unique_ptr<ChipButton>> m_chips;
 };
 
 // A bold category strip separating the registry's command groups.
@@ -386,14 +335,6 @@ void KeymapEditorView::applyBindingChange(
         return;
     }
 
-    // Grammar-reserved chords are refused outright: the grammar decoder runs before the
-    // mapping set and would swallow them whenever its surface context applies, leaving a
-    // binding that only sometimes fires.
-    if (isReservedGrammarChord(key))
-    {
-        return;
-    }
-
     juce::KeyPressMappingSet& mappings = *m_command_manager.getKeyMappings();
 
     // The remove-then-add dance: strip the chord from whichever command owns it, drop the
@@ -473,8 +414,8 @@ void KeymapEditorView::rebuildRows()
         m_rows.push_back(std::move(row));
     };
 
-    // Every command is rebindable, grouped under its registry category; the fixed grammar
-    // reference gathers at the bottom (user direction 2026-07-20) so actionable rows lead.
+    // Every command is rebindable — grammar verbs included (plan 53 Phase 1b) — grouped under
+    // its registry category.
     const char* current_category = "";
     for (const EditorCommandSpec& spec : editorCommandRegistry())
     {
@@ -484,21 +425,6 @@ void KeymapEditorView::rebuildRows()
             add_header(juce::String{spec.category});
         }
         add_command_row(spec);
-    }
-
-    // The grammar reference: visible so the dialog is the complete keymap, inert because the
-    // grammar is a composed modifier algebra, not per-key bindings (an alternative navigation
-    // *scheme* is the recorded future enhancement, not rebinding).
-    add_header("Editing & Navigation (fixed)");
-    int reservation_index = 0;
-    for (const GrammarReservation& reservation : grammarReservations())
-    {
-        auto row = std::make_unique<FixedGrammarRow>(reservation);
-        row->setComponentID("keymap_grammar_row_" + juce::String{reservation_index});
-        row->setSize(0, g_row_height);
-        m_row_list.addAndMakeVisible(*row);
-        m_rows.push_back(std::move(row));
-        ++reservation_index;
     }
     resized();
 }
@@ -525,17 +451,6 @@ void KeymapEditorView::confirmAndApply(
 {
     if (!key.isValid())
     {
-        return;
-    }
-
-    if (isReservedGrammarChord(key))
-    {
-        showThemedWarningBox(
-            this,
-            "Reserved Key",
-            "\"" + keyChordText(key) +
-                "\" is reserved for editor navigation and editing, so it cannot be bound to a "
-                "command.");
         return;
     }
 

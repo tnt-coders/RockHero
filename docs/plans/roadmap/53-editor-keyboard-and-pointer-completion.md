@@ -8,6 +8,8 @@ Shortcuts" with a `?` default chord 2026-07-20), and the generalized plugin-wind
 mirror all landed as plan 46 Phases 1–5 — execution records there. 46-Q3 dissolved twice over:
 the non-rebindable-trio decision was reversed the same day, so every command is rebindable with
 the trio mirrored live into plugin windows; the manual plugin verification passed 2026-07-20).
+**Phase 1b (total rebindability) executed 2026-07-21** — the grammar decoder dissolved into
+49 per-verb commands, everything rebindable, one dispatcher.
 **Phase 3 landed ahead of sequence, and Phase 7's keyboard half landed** (record below).
 Next: Phase 2 here (discovery menus). This plan builds the complete editor
 keybinding + mouse-operation model captured in `docs/plans/in-progress/keymap-matrix.md` and the
@@ -171,7 +173,22 @@ with their chords reserved; the core trio's short-lived non-rebindable registrat
 46's generalized Phase 4. **This phase gates everything below** — the discovery menu, rebindable
 defaults, and per-surface front-ends all consume the registry.
 
-### Phase 1b — Total rebindability: every grammar verb becomes a command *(user direction 2026-07-20)*
+### Phase 1b — Total rebindability: every grammar verb becomes a command *(user direction 2026-07-20)* — EXECUTED 2026-07-21
+
+> **Execution record (2026-07-21):** landed as planned, 49 new commands (10 Navigation, 17
+> Selection, 8 Editing, 10 Value Entry, 4 Grid & Zoom; id blocks 0x1501/0x1601/0x1701/0x1801/
+> 0x1901). Deltas from the plan text: the count came to 49, not ~41 (the Ctrl jump aliases and
+> key-shape unions became alternative chords, but the fine tiers and per-digit commands add
+> up); Esc/Delete/digits (and every silent-decline verb) register **always-active and
+> self-gate in perform**, because a disabled command whose chord matches makes JUCE play the
+> system alert sound (`playAlertSound` = `MessageBeep` on Windows) — the enablement-based
+> fall-through stays reserved for real needs (the future chain-scope section), and idle
+> Esc/Delete are now consumed silent no-ops instead of propagating (nothing downstream
+> consumed them). Deletions all landed: the decoder, `grammar_reservations.{h,cpp}`, the
+> dialog's fixed section and reservation refusals, the `MainWindow::keyPressed` forwarder.
+> Tests: locked table pins all 64 commands; the digit test moved to mapping-set dispatch; a
+> new test proves an arrow chord moves to another command through the one-owner dance and
+> comes back on per-command reset. Full build + editor ui suite green.
 
 **Decision (reverses the 2026-07-20 "fixed + listed" grammar policy, user-directed):** every
 keybind is editable — the grammar keys included. "If a user makes bad keybinds that's their

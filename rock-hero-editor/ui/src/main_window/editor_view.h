@@ -168,13 +168,6 @@ public:
     void parentHierarchyChanged() override;
 
     /*!
-    \brief Handles editor-level keyboard shortcuts.
-    \param key Key press delivered by JUCE.
-    \return True when the shortcut was handled.
-    */
-    bool keyPressed(const juce::KeyPress& key) override;
-
-    /*!
     \brief Routes Alt-modified wheels bubbled from anywhere in the editor to the selection.
 
     Selection verbs follow the selection, not the pointer (user decision 2026-07-17): with a
@@ -486,6 +479,10 @@ private:
     // Opens the actions window (Edit > Actions..., default `?`), creating it on first use; the
     // window survives closes so its tree state is kept.
     void showActionsWindow();
+
+    // True when a chart with strings is loaded — the caret/typing surface the grammar-verb
+    // commands act on exists.
+    [[nodiscard]] bool chartShown() const noexcept;
 
     // Updates the top-level window title to reflect the open project name, REAPER-style.
     void updateWindowTitle();

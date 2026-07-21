@@ -70,11 +70,11 @@ MainWindow::MainWindow(
     if (m_editor != nullptr)
     {
         setContentNonOwned(&m_editor->component(), true);
-        // The command mapping set is the single chord-to-command matcher. Attached to the window
-        // shell, it covers both the focused editor (unhandled keys bubble up here) and keys that
-        // arrive while native focus sits on the shell itself. The manual keyPressed forwarding
-        // below stays as a belt-and-braces fallback until the shortcuts dialog era proves parity
-        // (plan 46 Phase 3).
+        // The command mapping set is the single chord-to-command matcher — since plan 53
+        // Phase 1b every keybind, grammar verbs included, dispatches through it. Attached to
+        // the window shell, it covers both the focused editor (unhandled keys bubble up here)
+        // and keys that arrive while native focus sits on the shell itself, which is why no
+        // manual key forwarding exists anymore.
         addKeyListener(m_editor->commandManager().getKeyMappings());
     }
     setResizable(true, false);
@@ -126,22 +126,6 @@ MainWindow::~MainWindow()
 void MainWindow::closeButtonPressed()
 {
     requestExit();
-}
-
-// Routes editor shortcuts when native focus lands on the top-level window shell.
-bool MainWindow::keyPressed(const juce::KeyPress& key)
-{
-    if (m_editor != nullptr)
-    {
-        juce::Component& editor_component = m_editor->component();
-        if (!editor_component.isCurrentlyBlockedByAnotherModalComponent() &&
-            editor_component.keyPressed(key))
-        {
-            return true;
-        }
-    }
-
-    return juce::DocumentWindow::keyPressed(key);
 }
 
 // Routes platform quit requests through the same guarded exit flow as the close button.

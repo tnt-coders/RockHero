@@ -7,6 +7,12 @@
 > editorial judgement. The matrix now serves as plan 53's build-tracking artifact: rows flip to
 > Live as phases land, and it dissolves into `editing-interaction-model.md` (with the parked
 > rows as registry entries) when plan 53 completes.
+>
+> **Total rebindability (plan 53 Phase 1b, executed 2026-07-21):** every keybind in this
+> matrix is a registered, individually rebindable command — the chords shown are the shipped
+> *defaults*. The modifier rules below describe the default map's shape, no longer an enforced
+> restriction; a user who rebinds away from the algebra owns the result, with per-command and
+> reset-all defaults as the fallback.
 
 ## The rule this encodes
 
