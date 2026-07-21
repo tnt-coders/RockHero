@@ -343,11 +343,11 @@ TEST_CASE("Editor command registry locks ids and default chords", "[ui][editor-v
         {EditorCommandId::TypeDigit8, 0x1809, {chord('8'), chord(juce::KeyPress::numberPad8)}},
         {EditorCommandId::TypeDigit9, 0x180A, {chord('9'), chord(juce::KeyPress::numberPad9)}},
         {EditorCommandId::GridFiner, 0x1901, {chord('=', shift), chord('+'), chord('=')}},
-        {EditorCommandId::GridCoarser, 0x1902, {chord('-')}},
+        {EditorCommandId::GridCoarser, 0x1902, {chord('-'), chord('-', shift)}},
         {EditorCommandId::ZoomIn,
          0x1903,
          {chord('=', command | shift), chord('+', command), chord('=', command)}},
-        {EditorCommandId::ZoomOut, 0x1904, {chord('-', command)}},
+        {EditorCommandId::ZoomOut, 0x1904, {chord('-', command), chord('-', command | shift)}},
     };
 
     const std::vector<EditorCommandSpec>& registry = editorCommandRegistry();

@@ -205,7 +205,13 @@ defaults, and per-surface front-ends all consume the registry.
 > shortcut entry) whose change/remove operate on the whole group —
 > `applyBindingChange`/`removeBindings` take index sets now, so no ghost binding survives a
 > visible removal. (3) Arrows render as glyphs (←/→/↑/↓) in the shared formatter, replacing
-> JUCE's "cursor left" wording. (4) The "Editing" category renamed **"Authoring"** (collided
+> JUCE's "cursor left" wording — **revised same day to bare direction words** ("left",
+> "ctrl + right"): the glyphs fell to font substitution in the running editor and the
+> alternatives fail too (filled triangles rejected by the user; heavy arrows risk color-emoji
+> presentation). The Shift+`'-'` (`_`) drop was also **reversed same day**: `_` and
+> `Ctrl+_` stay as convenience aliases for Grid Coarser / Zoom Out until something better
+> claims them, symmetric with the `=` alias on the plus side. (4) The "Editing" category
+> renamed **"Authoring"** (collided
 > with the Edit menu category) and Cancel/Clear recategorized under Selection (its
 > user-visible rungs disarm the caret and clear the selection; id blocks are historical
 > hints). (5) Show Waveform gained its `F5` default.

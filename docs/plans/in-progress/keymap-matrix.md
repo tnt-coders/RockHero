@@ -151,8 +151,8 @@ a range is a no-op pending plan 52's content-delete, and the extend is paused-on
 | `?` (`Shift+/`) | open the Actions dialog (the binding editor; REAPER's actions-list key) | Live (renamed from "Keyboard Shortcuts" + default added 2026-07-20; display collapses shifted chords through the shared `keyChordText` formatter) |
 | plain wheel | zoom, marker-centered | Live |
 | `Ctrl`+wheel | zoom (browser reflex — same as plain wheel) | Live |
-| `+` / `-` (main-row or numpad — numpad arrives as the same character key codes) · `=` unshifted alias | **grid** finer (`+`) / coarser (`-`) | Live (chord sets corrected 2026-07-21: `numberPad*` chords never matched on Windows and were removed; `Shift+-` (`_`) alias dropped; display-equal shapes group into one chip) |
-| `Ctrl` + the same `+`/`-` family | **zoom** in / out, marker-centered | Live (44f24ab6; chord sets corrected 2026-07-21) |
+| `+` / `-` (main-row or numpad — numpad arrives as the same character key codes) · `=` / `_` convenience aliases | **grid** finer (`+`) / coarser (`-`) | Live (chord sets corrected 2026-07-21: `numberPad*` chords never matched on Windows and were removed; display-equal shapes group into one chip; `=`/`_` aliases kept until something better claims them) |
+| `Ctrl` + the same `+`/`-` family (incl. the `Ctrl+_` alias) | **zoom** in / out, marker-centered | Live (44f24ab6; chord sets corrected 2026-07-21) |
 | `[` / `]` | **free** — grid moved to `+/-` | `—` |
 | `L`, `B` | reserved (link/slide, pencil) — unbound | `—` |
 

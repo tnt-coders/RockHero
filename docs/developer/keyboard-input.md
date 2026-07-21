@@ -237,8 +237,11 @@ raw text only when that field arrives empty). The formatter collapses a shifted 
 character it types — `Shift+/` renders as "?", `Ctrl+Shift+/` as "ctrl + ?" — when that differs
 from the base character by more than case (letters keep the explicit "shift + Z" form), and
 resolves the character through the **live keyboard layout** (the unit's one Win32 seam;
-unsupported platforms simply never collapse). Arrow keys render as glyphs (←/→/↑/↓) instead of
-JUCE's verbose "cursor left" wording. It deliberately does not use the captured
+unsupported platforms simply never collapse). Arrow keys render as bare direction words
+("left", "ctrl + right") instead of JUCE's verbose "cursor left" — arrow glyphs were tried and
+rejected: thin line arrows are barely legible at chip size and fell to font substitution in
+the running editor, and the heavy-arrow codepoints risk color-emoji presentation on Windows.
+It deliberately does not use the captured
 `KeyPress::textCharacter`: JUCE's keymap XML round-trips description strings and drops it, so
 capture-time data would show "?" today and regress to "shift + /" after a restart. Never call
 `getTextDescription` or raw `addCommandItem` on a user-facing surface — a second rendering path

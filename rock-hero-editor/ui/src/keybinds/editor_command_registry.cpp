@@ -337,19 +337,25 @@ namespace
     // digits only (juce_Windowing_windows.cpp:3141-3161, :3178-3195) — so the bare '+'/'-'
     // chords ARE the numpad bindings and juce::KeyPress::numberPadAdd/Subtract never match
     // (registering them would ship lying chips). Shift+'=' is the main-row plus; it and '+'
-    // display as one grouped "+" chip. The unshifted '=' stays as the no-shift convenience
-    // alias (user-accepted 2026-07-21); the Shift+'-' ('_') ride-along was dropped the same
-    // day.
+    // display as one grouped "+" chip. The off-grammar neighbors stay as convenience aliases
+    // until something better claims them (user 2026-07-21): '=' unshifted on the plus side,
+    // Shift+'-' ('_') on the minus side — symmetric slop around the +/- grammar.
     add(EditorCommandId::GridFiner,
         "Grid Finer",
         "Grid & Zoom",
         {chord('=', shift), chord('+'), chord('=')});
-    add(EditorCommandId::GridCoarser, "Grid Coarser", "Grid & Zoom", {chord('-')});
+    add(EditorCommandId::GridCoarser,
+        "Grid Coarser",
+        "Grid & Zoom",
+        {chord('-'), chord('-', shift)});
     add(EditorCommandId::ZoomIn,
         "Zoom In",
         "Grid & Zoom",
         {chord('=', command | shift), chord('+', command), chord('=', command)});
-    add(EditorCommandId::ZoomOut, "Zoom Out", "Grid & Zoom", {chord('-', command)});
+    add(EditorCommandId::ZoomOut,
+        "Zoom Out",
+        "Grid & Zoom",
+        {chord('-', command), chord('-', command | shift)});
 
     return registry;
 }
