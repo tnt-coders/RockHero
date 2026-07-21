@@ -42,6 +42,7 @@ target_sources(
             src/plugin/plugin_scan.h
             src/plugin/plugin_state_memento.cpp
             src/plugin/plugin_state_memento.h
+            src/plugin/plugin_window_shortcuts.cpp
             src/settings/audio_config_error.cpp
             src/settings/audio_config_store.cpp
             src/shared/audio_path_util.cpp

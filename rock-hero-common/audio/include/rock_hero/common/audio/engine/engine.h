@@ -377,6 +377,12 @@ public:
     void setPluginWindowCommandObserver(PluginWindowCommandObserver observer) override;
 
     /*!
+    \brief Replaces the shortcut chords hosted plugin windows claim before the plugin sees them.
+    \param bindings Chord lists for the forwarded Undo/Redo/Play-Pause commands.
+    */
+    void setPluginWindowShortcuts(PluginWindowShortcutBindings bindings) override;
+
+    /*!
     \brief Opens a hosted plugin editor window for the requested runtime instance.
     \param instance_id Opaque instance ID returned in a plugin chain snapshot.
     \return Empty success, or a typed failure.

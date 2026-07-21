@@ -14,6 +14,7 @@
 #include <rock_hero/common/audio/plugin/plugin_chain_snapshot.h>
 #include <rock_hero/common/audio/plugin/plugin_host_error.h>
 #include <rock_hero/common/audio/plugin/plugin_instance_state.h>
+#include <rock_hero/common/audio/plugin/plugin_window_shortcuts.h>
 #include <rock_hero/common/core/shared/cancellation_token.h>
 #include <string>
 #include <vector>
@@ -313,6 +314,19 @@ public:
     \note This method must be called on the message thread.
     */
     virtual void setPluginWindowCommandObserver(PluginWindowCommandObserver observer) = 0;
+
+    /*!
+    \brief Replaces the shortcut chords hosted plugin windows claim before the plugin sees them.
+
+    The editor owns the actual chords now that every command is user-rebindable, so it pushes
+    them after keymap restore and again on every mapping change; until the first push, built-in
+    defaults matching the editor's default keymap apply. Empty chord lists are honored as "do
+    not forward this command".
+
+    \param bindings Chord lists for the forwarded Undo/Redo/Play-Pause commands.
+    \note This method must be called on the message thread.
+    */
+    virtual void setPluginWindowShortcuts(PluginWindowShortcutBindings bindings) = 0;
 
     /*!
     \brief Opens the hosted editor window for a loaded plugin instance.

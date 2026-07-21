@@ -6,6 +6,7 @@
 #include "tracktion/live_rig_gain_plugin.h"
 #include "tracktion/plugin_dirty_tracking.h"
 #include "tracktion/plugin_state_hygiene.h"
+#include "tracktion/plugin_window.h"
 
 #include <algorithm>
 #include <chrono>
@@ -1471,6 +1472,16 @@ void Engine::setPluginWindowCommandObserver(PluginWindowCommandObserver observer
     }
 
     m_impl->m_plugin_window_command_observer = std::move(observer);
+}
+
+void Engine::setPluginWindowShortcuts(PluginWindowShortcutBindings bindings)
+{
+    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        return;
+    }
+
+    PluginWindow::setShortcutBindings(std::move(bindings));
 }
 
 // Opens a plugin editor window through Tracktion's plugin window state.
