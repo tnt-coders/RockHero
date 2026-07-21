@@ -67,7 +67,9 @@ public:
     Removes the chord from whichever command currently owns it, removes the replaced binding
     when one is being changed, then adds the chord — the remove-then-add dance, public so the
     mapping-set semantics stay directly testable. Callers gate any confirmation beforehand;
-    this method applies unconditionally. Non-rebindable commands are refused.
+    this method applies unconditionally except for its refusals: non-rebindable commands,
+    grammar-reserved chords (the decoder would shadow them), and chords currently owned by a
+    non-rebindable command (the fixed core trio can never lose a chord).
 
     \param command Command receiving the chord.
     \param key Captured chord to assign.
@@ -86,6 +88,7 @@ private:
     class ChipButton;
     class CategoryHeader;
     class CommandRow;
+    class FixedGrammarRow;
 
     // Rebuilds the header and row components from the registry and the current mappings.
     void rebuildRows();

@@ -26,6 +26,8 @@ target_sources(
             src/keybinds/editor_command_registry.h
             src/keybinds/editor_keymap_persistence.cpp
             src/keybinds/editor_keymap_persistence.h
+            src/keybinds/grammar_reservations.cpp
+            src/keybinds/grammar_reservations.h
             src/keybinds/keyboard_shortcuts_window.cpp
             src/keybinds/keyboard_shortcuts_window.h
             src/keybinds/keymap_editor_view.cpp

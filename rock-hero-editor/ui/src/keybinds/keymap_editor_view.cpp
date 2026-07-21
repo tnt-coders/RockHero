@@ -1,6 +1,7 @@
 #include "keybinds/keymap_editor_view.h"
 
 #include "keybinds/editor_command_registry.h"
+#include "keybinds/grammar_reservations.h"
 #include "shared/editor_theme.h"
 #include "shared/text_metrics.h"
 #include "shared/themed_message_box.h"
@@ -45,18 +46,33 @@ public:
         setWantsKeyboardFocus(true);
     }
 
-    // Records the pressed chord and previews it, naming the current owner when the chord is
-    // already assigned so the user sees the coming overwrite before confirming.
+    // Records the pressed chord and previews it, warning about grammar-reserved keys and
+    // naming the current owner so the user sees the coming refusal or overwrite up front.
     bool keyPressed(const juce::KeyPress& key) override
     {
         m_captured = key;
         juce::String message = "Key: " + key.getTextDescription();
-        const juce::CommandID owner_id =
-            m_command_manager.getKeyMappings()->findCommandForKeyPress(key);
-        if (owner_id != 0)
+        if (isReservedGrammarChord(key))
         {
-            message << "\n\n(Currently assigned to \""
-                    << m_command_manager.getNameOfCommand(owner_id) << "\")";
+            message << "\n\n(Reserved for editor navigation and editing)";
+        }
+        else if (
+            const juce::CommandID owner_id =
+                m_command_manager.getKeyMappings()->findCommandForKeyPress(key);
+            owner_id != 0
+        )
+        {
+            const EditorCommandSpec* const owner_spec = findEditorCommandSpec(owner_id);
+            if (owner_spec != nullptr && !owner_spec->rebindable)
+            {
+                message << "\n\n(Assigned to \"" << owner_spec->name
+                        << "\", which cannot be rebound)";
+            }
+            else
+            {
+                message << "\n\n(Currently assigned to \""
+                        << m_command_manager.getNameOfCommand(owner_id) << "\")";
+            }
         }
         setMessage(message);
         return true;
@@ -118,6 +134,34 @@ public:
         g.setFont(juce::Font{juce::FontOptions{g_chip_font_height}});
         g.drawText(getButtonText(), getLocalBounds(), juce::Justification::centred, true);
     }
+};
+
+// A fixed editing/navigation reference row: the verb on the left, its composed key family as
+// muted text on the right — deliberately not chips, because these describe modifier families
+// rather than single rebindable chords.
+class KeymapEditorView::FixedGrammarRow final : public juce::Component
+{
+public:
+    explicit FixedGrammarRow(const GrammarReservation& reservation)
+        : m_reservation(reservation)
+    {
+        setInterceptsMouseClicks(false, false);
+    }
+
+    void paint(juce::Graphics& g) override
+    {
+        const EditorTheme& theme = editorTheme();
+        const juce::Rectangle<int> bounds =
+            getLocalBounds().withTrimmedLeft(g_row_inset).withTrimmedRight(g_row_inset);
+        g.setFont(juce::Font{juce::FontOptions{g_row_font_height}});
+        g.setColour(theme.primary_text);
+        g.drawText(m_reservation.name, bounds, juce::Justification::centredLeft, true);
+        g.setColour(theme.muted_text);
+        g.drawText(m_reservation.keys, bounds, juce::Justification::centredRight, true);
+    }
+
+private:
+    const GrammarReservation& m_reservation;
 };
 
 // A bold category strip separating the registry's command groups.
@@ -305,10 +349,28 @@ void KeymapEditorView::applyBindingChange(
         return;
     }
 
+    // Grammar-reserved chords are refused outright: the grammar decoder runs before the
+    // mapping set and would swallow them whenever its surface context applies, leaving a
+    // binding that only sometimes fires.
+    if (isReservedGrammarChord(key))
+    {
+        return;
+    }
+
+    juce::KeyPressMappingSet& mappings = *m_command_manager.getKeyMappings();
+
+    // Chords can never be stolen FROM a non-rebindable command either: taking Ctrl+Z away
+    // from Undo would break the fixed core trio the plugin-window hook mirrors.
+    const EditorCommandSpec* const owner_spec =
+        findEditorCommandSpec(mappings.findCommandForKeyPress(key));
+    if (owner_spec != nullptr && !owner_spec->rebindable)
+    {
+        return;
+    }
+
     // The remove-then-add dance: strip the chord from whichever command owns it, drop the
     // binding being replaced, then assign — exactly one owner remains. addKeyPress alone must
     // never be trusted to resolve conflicts (its documented removal does not exist in code).
-    juce::KeyPressMappingSet& mappings = *m_command_manager.getKeyMappings();
     mappings.removeKeyPress(key);
     if (replace_index >= 0)
     {
@@ -341,6 +403,24 @@ void KeymapEditorView::rebuildRows()
         m_row_list.addAndMakeVisible(*row);
         m_rows.push_back(std::move(row));
     }
+
+    // The fixed editing/navigation reference: visible so the dialog is the complete keymap,
+    // inert because the grammar is a composed modifier algebra, not per-key bindings (an
+    // alternative navigation *scheme* is the recorded future enhancement, not rebinding).
+    auto grammar_header = std::make_unique<CategoryHeader>("Editing & Navigation (fixed)");
+    grammar_header->setSize(0, g_header_height);
+    m_row_list.addAndMakeVisible(*grammar_header);
+    m_rows.push_back(std::move(grammar_header));
+    int reservation_index = 0;
+    for (const GrammarReservation& reservation : grammarReservations())
+    {
+        auto row = std::make_unique<FixedGrammarRow>(reservation);
+        row->setComponentID("keymap_grammar_row_" + juce::String{reservation_index});
+        row->setSize(0, g_row_height);
+        m_row_list.addAndMakeVisible(*row);
+        m_rows.push_back(std::move(row));
+        ++reservation_index;
+    }
     resized();
 }
 
@@ -369,8 +449,30 @@ void KeymapEditorView::confirmAndApply(
         return;
     }
 
+    if (isReservedGrammarChord(key))
+    {
+        showThemedWarningBox(
+            this,
+            "Reserved Key",
+            "\"" + key.getTextDescription() +
+                "\" is reserved for editor navigation and editing, so it cannot be bound to a "
+                "command.");
+        return;
+    }
+
     const juce::CommandID owner_id =
         m_command_manager.getKeyMappings()->findCommandForKeyPress(key);
+    const EditorCommandSpec* const owner_spec = findEditorCommandSpec(owner_id);
+    if (owner_spec != nullptr && !owner_spec->rebindable)
+    {
+        showThemedWarningBox(
+            this,
+            "Fixed Key Binding",
+            "\"" + key.getTextDescription() + "\" is assigned to \"" +
+                juce::String{owner_spec->name} + "\", which cannot be rebound.");
+        return;
+    }
+
     if (owner_id == 0 || owner_id == toJuceCommandId(command))
     {
         applyBindingChange(command, key, replace_index);

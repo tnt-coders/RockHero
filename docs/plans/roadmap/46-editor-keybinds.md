@@ -419,6 +419,20 @@ The original question text is kept below for the decision record.
 > recorded uncommitted future enhancement — now trivially addable since the component is ours.
 > Tests cover row structure, one-owner semantics, non-rebindable refusal, live refresh, and
 > the window wiring. Merging this branch completes the phase's in-action review.
+>
+> **Grammar-key policy settled 2026-07-20 (user sign-off): fixed + listed.** Two defects the
+> user found drove it: the capture flow allowed binding commands to grammar chords (a
+> sometimes-works binding — the decoder shadows it whenever its surface context applies), and
+> the conflict dance could steal chords FROM the non-rebindable trio (removeKeyPress ran
+> unconditionally). Both fixed on the branch via `keybinds/grammar_reservations.{h,cpp}` — one
+> table driving the dialog's read-only "Editing & Navigation (fixed)" reference section, the
+> `isReservedGrammarChord` capture/apply refusal (reserved by physical key across all
+> modifiers, Return included ahead of its planned drill-in verb), and the fixed-owner refusal.
+> The grammar stays non-rebindable by design: it is a composed modifier algebra, so per-key
+> remapping shatters families; an alternative navigation **scheme/preset** (e.g. vim-style) is
+> the recorded uncommitted future enhancement. These fixes had no seam in the stock component
+> (private `setNewKey` removes unconditionally; rows must be command-backed chips), which is
+> what functionally closed the stock-vs-custom deliberation in favor of custom.
 
 - **Scope**: one menu entry ("Edit > Keyboard Shortcuts...") opening a themed window that hosts
   the stock `juce::KeyMappingEditorComponent` over the editor's mapping set: commands grouped by
