@@ -1983,6 +1983,64 @@ TEST_CASE("Engine seek updates current transport position", "[audio][engine][int
     CHECK(transport.position() == common::core::TimePosition{target_seconds});
 }
 
+// The signed asset start offset moves the clip's timeline end in either direction: a negative
+// offset skips the recording's pre-score head (Guitar Pro's negative FramePadding), a positive
+// one delays the whole clip. Seek clamping observes that end through the public transport port.
+TEST_CASE("Engine clamps seeks to the offset-adjusted audio end", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    Engine& engine = harness.engine;
+    ISongAudio& audio = engine;
+    ITransport& transport = engine;
+
+    auto song = makeFixtureSong();
+    REQUIRE(audio.prepareSong(song).has_value());
+    REQUIRE(song.arrangements.size() == 1);
+    common::core::Arrangement& arrangement = song.arrangements.front();
+    const double duration_seconds = arrangement.audio_duration.seconds;
+    REQUIRE(duration_seconds > 0.5);
+
+    SECTION("negative offset trims the head, ending the clip early")
+    {
+        arrangement.audio_asset.start_offset = common::core::TimeDuration{-0.25};
+        REQUIRE(audio.setActiveArrangement(arrangement).has_value());
+
+        transport.seek(common::core::TimePosition{duration_seconds + 5.0});
+        CHECK(transport.position().seconds == Catch::Approx(duration_seconds - 0.25));
+    }
+
+    SECTION("positive offset delays the clip, ending it late")
+    {
+        arrangement.audio_asset.start_offset = common::core::TimeDuration{0.25};
+        REQUIRE(audio.setActiveArrangement(arrangement).has_value());
+
+        transport.seek(common::core::TimePosition{duration_seconds + 5.0});
+        CHECK(transport.position().seconds == Catch::Approx(duration_seconds + 0.25));
+    }
+}
+
+// A negative offset larger than the recording would trim away every sample; activation must fail
+// with the typed duration error instead of inserting an empty clip.
+TEST_CASE(
+    "Engine rejects a start offset that trims the whole recording", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    Engine& engine = harness.engine;
+    ISongAudio& audio = engine;
+
+    auto song = makeFixtureSong();
+    REQUIRE(audio.prepareSong(song).has_value());
+    REQUIRE(song.arrangements.size() == 1);
+    common::core::Arrangement& arrangement = song.arrangements.front();
+    arrangement.audio_asset.start_offset =
+        common::core::TimeDuration{-(arrangement.audio_duration.seconds + 1.0)};
+
+    const auto active_set = audio.setActiveArrangement(arrangement);
+
+    REQUIRE_FALSE(active_set.has_value());
+    CHECK(active_set.error().code == SongAudioErrorCode::InvalidAudioDuration);
+}
+
 // Verifies the cursor-position read reports the post-seek position from the concrete adapter.
 TEST_CASE("Engine position reflects public transport seeks", "[audio][engine][integration]")
 {

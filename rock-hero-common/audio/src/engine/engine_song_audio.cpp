@@ -2,6 +2,7 @@
 #include "shared/audio_path_util.h"
 #include "tracktion/tempo_mirror.h"
 
+#include <algorithm>
 #include <rock_hero/common/core/shared/juce_path.h>
 
 namespace rock_hero::common::audio
@@ -116,14 +117,27 @@ std::expected<void, SongAudioError> Engine::setActiveArrangement(
     auto& transport = m_impl->m_edit->getTransport();
     m_impl->stopTransportAndReleaseContext();
 
-    // A positive asset start offset delays the clip so a backing recording whose content begins
-    // after the score's first beat still lines up; the gap before it plays as silence. Almost
-    // always zero, in which case the clip sits at the timeline origin as before.
-    const auto start =
-        tracktion::TimePosition::fromSeconds(arrangement.audio_asset.start_offset.seconds);
-    const auto length = tracktion::TimeDuration::fromSeconds(arrangement.audio_duration.seconds);
+    // The signed asset start offset is the timeline position of the file's first sample. A
+    // positive offset delays the clip so a backing recording whose content begins after the
+    // score's first beat still lines up; the gap before it plays as silence. A negative offset
+    // means the recording's head precedes the score's first beat — the clip sits at the timeline
+    // origin and the ClipPosition source offset skips that head (Tracktion reads the source from
+    // `offset` seconds in; tracktion_EditTime.h ClipPosition::getStartOfSource).
+    const double offset_seconds = arrangement.audio_asset.start_offset.seconds;
+    const double trim_seconds = std::max(0.0, -offset_seconds);
+    if (trim_seconds >= arrangement.audio_duration.seconds)
+    {
+        return std::unexpected{SongAudioError{
+            SongAudioErrorCode::InvalidAudioDuration,
+            "Backing audio start offset trims away the whole recording: " + arrangement.id
+        }};
+    }
+    const auto start = tracktion::TimePosition::fromSeconds(std::max(0.0, offset_seconds));
+    const auto length =
+        tracktion::TimeDuration::fromSeconds(arrangement.audio_duration.seconds - trim_seconds);
     const tracktion::ClipPosition wave_clip_position{
-        .time = {start, start + length}, .offset = tracktion::TimeDuration{}
+        .time = {start, start + length},
+        .offset = tracktion::TimeDuration::fromSeconds(trim_seconds)
     };
 
     // Final trailing argument asks Tracktion to replace any existing media on the track.
@@ -166,7 +180,10 @@ std::expected<void, SongAudioError> Engine::setActiveArrangement(
         wave_clip->setGainDB(static_cast<float>(arrangement.audio_asset.normalization->gain_db));
     }
 
-    m_impl->m_loaded_length_seconds = arrangement.audio_duration.seconds;
+    // Seek clamping and end-of-file detection track the clip's timeline end, which the start
+    // offset shifts in either direction: a delayed clip ends after the raw duration, a trimmed
+    // one before it.
+    m_impl->m_loaded_length_seconds = (start + length).inSeconds();
 
     // Arrangement activation clears any engaged loop through the shared helper so the looping
     // flag and the stored loop points can never diverge; callers that want a loop across a load

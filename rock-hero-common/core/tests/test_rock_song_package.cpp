@@ -507,6 +507,19 @@ TEST_CASE("Rock song package round-trips audio start offset", "[core][rock-song-
     CHECK_THAT(
         read_song->arrangements.front().audio_asset.start_offset.seconds,
         Catch::Matchers::WithinULP(0.75, 0));
+
+    // The offset is signed: negative values (a recording whose head precedes the score's first
+    // beat, Guitar Pro's negative FramePadding) must survive the round trip unchanged.
+    song.arrangements.front().audio_asset.start_offset = TimeDuration{-1.245};
+    const std::filesystem::path negative_directory = temporary_directory.path() / "negative";
+    REQUIRE(writeRockSongPackageDirectory(negative_directory, song).has_value());
+
+    const auto negative_song = readRockSongPackageDirectory(negative_directory);
+    REQUIRE(negative_song.has_value());
+    REQUIRE(negative_song->arrangements.size() == 1);
+    CHECK_THAT(
+        negative_song->arrangements.front().audio_asset.start_offset.seconds,
+        Catch::Matchers::WithinULP(-1.245, 0));
 }
 
 // Verifies song-structure sections round-trip through song.json at the song level.

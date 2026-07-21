@@ -87,7 +87,7 @@ Sections must be sorted ascending by position; the reader rejects unsorted or un
 | `normalization` | object | opt | Absent/incomplete → dropped and re-analyzed on load. |
 | `normalization.gainDb` | number | req* | Loudness gain in dB (*required within the object). |
 | `normalization.validationSha256` | string | req* | Hash tying the gain to the analyzed audio. |
-| `startOffset` | number | opt | Seconds audio begins after beat 1 (`0`; omitted on write when 0). |
+| `startOffset` | number | opt | Signed seconds of the file's first sample from beat 1: positive delays the audio, negative means its head precedes the score and is skipped at playback (`0`; omitted on write when 0). |
 
 ## arrangements[]
 

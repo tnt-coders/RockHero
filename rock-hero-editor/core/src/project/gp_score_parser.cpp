@@ -362,8 +362,10 @@ std::expected<GpScore, SongImportError> parseGpScore(const std::string& gpif_xml
     if (const juce::XmlElement* const backing = root->getChildByName("BackingTrack");
         backing != nullptr)
     {
-        // Positive padding is silence before the audio; the builder turns it into the start
-        // offset. Always in 44.1kHz frames regardless of the asset's real sample rate.
+        // The audio's signed placement on the score timeline: positive is silence before the
+        // audio, negative pulls the recording's head before the score start. The importer turns
+        // it into the signed asset start offset. Always in 44.1kHz frames regardless of the
+        // asset's real sample rate.
         score.frame_padding = childInt(*backing, "FramePadding", 0);
 
         const std::string asset_id = childText(*backing, "AssetId");

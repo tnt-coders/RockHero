@@ -413,9 +413,11 @@ TEST_CASE("Guitar Pro import offsets the audio by positive frame padding", "[cor
     std::filesystem::remove_all(scratch, cleanup_error);
 }
 
-// Negative frame padding is cosmetic leading silence that does not shift note timing, so it must
-// not become a start offset (which would push the notes off the recording).
-TEST_CASE("Guitar Pro import ignores negative frame padding", "[core][gp-import]")
+// Negative frame padding pulls the recording's head before the score's first beat, and with the
+// origin sync point pinned at frame 0 (as on 99 of 114 surveyed corpus files) it is the only
+// carrier of the audio alignment — dropping it plays the audio |padding|/44100 seconds late.
+// The import must keep it as a signed start offset so playback skips the pre-score head.
+TEST_CASE("Guitar Pro import keeps negative frame padding as a signed offset", "[core][gp-import]")
 {
     const std::filesystem::path scratch =
         std::filesystem::temp_directory_path() / "rh_gp_negative_padding_test";
@@ -433,9 +435,7 @@ TEST_CASE("Guitar Pro import ignores negative frame padding", "[core][gp-import]
     const auto song = importer.importSong(archive, workspace);
     REQUIRE(song.has_value());
     REQUIRE(song->arrangements.size() == 1);
-    CHECK_THAT(
-        song->arrangements.front().audio_asset.start_offset.seconds,
-        Catch::Matchers::WithinULP(0.0, 0));
+    CHECK(song->arrangements.front().audio_asset.start_offset.seconds == Catch::Approx(-2.0));
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }

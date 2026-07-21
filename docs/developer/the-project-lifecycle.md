@@ -63,7 +63,10 @@ Two implementations, dispatched by extension:
 - `GpSongImporter` — Guitar Pro 7/8: parse `Content/score.gpif` (`gp_score_parser`, which rejects
   repeats/jumps — the chart format is linear time), require embedded backing audio, transcode it
   to FLAC (the canonical package audio format), build the tempo map from the score's audio sync
-  points, and materialize one arrangement per track (`gp_chart_builder`).
+  points, and materialize one arrangement per track (`gp_chart_builder`). The backing track's
+  signed `FramePadding` (44.1kHz frames) becomes the asset's signed `start_offset`: positive
+  delays the audio, negative means the recording's head precedes the score and playback skips
+  it. Most real charts carry a negative value, so dropping it desyncs the song.
 
 An import produces an **unsaved** project: no path, `save_requires_destination` set, so the first
 save is forced to Save As — which is also the moment per-project view state starts persisting.

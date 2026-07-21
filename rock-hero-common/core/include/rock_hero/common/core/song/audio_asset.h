@@ -35,12 +35,15 @@ struct AudioAsset
     std::optional<AudioNormalization> normalization;
 
     /*!
-    \brief Timeline offset at which the backing audio begins; the span before it is silent.
+    \brief Signed timeline position of the audio file's first sample.
 
     Zero (the default) places the audio at the score's first beat, the common case. A positive
     offset delays the audio so a recording whose musical content starts after the score's first
-    beat still lines up — Guitar Pro encodes this as a positive backing-track FramePadding, where
-    the first measure precedes the audio. Negative offsets are not used.
+    beat still lines up; the span before it is silent. A negative offset means the recording's
+    head precedes the score's first beat — the first |offset| seconds of the file fall before
+    the timeline origin and are skipped at playback. Guitar Pro encodes both as the signed
+    backing-track FramePadding (44.1kHz frames), and most synced charts in practice carry a
+    negative value because the recording opens with silence or a count-in the score omits.
     */
     TimeDuration start_offset;
 
