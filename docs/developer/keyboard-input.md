@@ -215,6 +215,18 @@ an alias the plugin-window hook would not mirror. Rows rebuild on the mapping se
 broadcasts, so rebinds apply live and persist immediately — dispatch, menu shortcut text, and
 the keymap persistence all listen to the same set.
 
+The dialog is also the complete keymap reference: an **"Editing & Navigation (fixed)"** section
+lists the interaction grammar as read-only family rows ("Move caret — Arrows (Ctrl = measure
+jump)"), driven by `grammar_reservations.cpp` — the same table whose `isReservedGrammarChord`
+predicate makes the capture flow **refuse grammar chords** (reservation is by physical key
+across all modifiers, because the grammar is a modifier algebra; a command bound to a grammar
+chord would be shadowed by the decoder whenever its surface context applies — a sometimes-works
+binding, banned outright). The capture flow equally refuses **taking a chord from a
+non-rebindable owner**, so Ctrl+Z can never be stolen from Undo through the conflict dance.
+The grammar keys are deliberately not rebindable: remapping one verb breaks its composed
+family; the honest future feature is an alternative navigation *scheme* (recorded as an
+uncommitted enhancement in plan 46), not per-key rebinding.
+
 # The Esc ladder
 
 Esc is one key with a priority ladder split across the two layers: the view first cancels any
@@ -280,6 +292,10 @@ For a grammar key:
 3. **Decide the gating layer.** Pipeline-gated action, view pre-gate flag (extend
    `EditorViewState` + `deriveViewState()` if the view must know), or core self-gate for caret
    intents — and remember dead keys should return `false`, not be swallowed.
+4. **Reserve it** in `keybinds/grammar_reservations.cpp`: extend `isReservedGrammarChord` if
+   the physical key is new to the grammar, and add or amend its display row — the same table
+   drives the shortcuts dialog's fixed reference section and the capture refusal, so a missed
+   entry either hides the key from users or lets commands squat on it.
 
 Either way:
 

@@ -1,4 +1,5 @@
 #include "keybinds/editor_command_registry.h"
+#include "keybinds/grammar_reservations.h"
 #include "keybinds/keyboard_shortcuts_window.h"
 #include "keybinds/keymap_editor_view.h"
 
@@ -94,6 +95,77 @@ TEST_CASE("KeymapEditorView refuses changes to non-rebindable commands", "[ui][k
         mappings.findCommandForKeyPress(
             juce::KeyPress{'z', juce::ModifierKeys::commandModifier, 0}) ==
         toJuceCommandId(EditorCommandId::Undo));
+}
+
+// Grammar keys are reserved by physical key across every modifier shape: the decoder runs
+// before the mapping set, so a command bound to a grammar chord would only sometimes fire.
+TEST_CASE("Grammar reservations cover the decoder's keys", "[ui][keybinds]")
+{
+    constexpr int command = juce::ModifierKeys::commandModifier;
+    constexpr int shift = juce::ModifierKeys::shiftModifier;
+    constexpr int alt = juce::ModifierKeys::altModifier;
+
+    CHECK(isReservedGrammarChord(juce::KeyPress{juce::KeyPress::rightKey}));
+    CHECK(isReservedGrammarChord(
+        juce::KeyPress{juce::KeyPress::leftKey, juce::ModifierKeys{command | shift | alt}, 0}));
+    CHECK(isReservedGrammarChord(juce::KeyPress{'5', juce::ModifierKeys{}, 0}));
+    CHECK(isReservedGrammarChord(
+        juce::KeyPress{juce::KeyPress::numberPad7, juce::ModifierKeys{}, 0}));
+    CHECK(isReservedGrammarChord(juce::KeyPress{juce::KeyPress::deleteKey}));
+    CHECK(isReservedGrammarChord(juce::KeyPress{juce::KeyPress::insertKey}));
+    CHECK(isReservedGrammarChord(juce::KeyPress{juce::KeyPress::escapeKey}));
+    CHECK(isReservedGrammarChord(juce::KeyPress{juce::KeyPress::returnKey}));
+    CHECK(isReservedGrammarChord(juce::KeyPress{juce::KeyPress::homeKey}));
+    CHECK(isReservedGrammarChord(
+        juce::KeyPress{juce::KeyPress::pageDownKey, juce::ModifierKeys{shift}, 0}));
+    CHECK(isReservedGrammarChord(juce::KeyPress{'=', juce::ModifierKeys{command}, 0}));
+    CHECK(isReservedGrammarChord(juce::KeyPress{juce::KeyPress::numberPadSubtract}));
+
+    CHECK_FALSE(isReservedGrammarChord(juce::KeyPress{juce::KeyPress::F9Key}));
+    CHECK_FALSE(isReservedGrammarChord(juce::KeyPress{'o', juce::ModifierKeys{command}, 0}));
+    CHECK_FALSE(isReservedGrammarChord(juce::KeyPress{juce::KeyPress::spaceKey}));
+}
+
+// Reserved chords are refused at the apply layer, and chords owned by a non-rebindable command
+// can never be stolen through the overwrite-and-clear dance.
+TEST_CASE("KeymapEditorView refuses reserved and fixed-owner chords", "[ui][keybinds]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    KeymapEditorView editor{view.commandManager()};
+    juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
+
+    // Binding a command to a grammar key is refused.
+    const juce::KeyPress right_arrow{juce::KeyPress::rightKey};
+    editor.applyBindingChange(EditorCommandId::TogglePreview3D, right_arrow, -1);
+    CHECK(mappings.findCommandForKeyPress(right_arrow) == 0);
+
+    // Stealing Ctrl+Z from Undo through the conflict dance is refused.
+    const juce::KeyPress ctrl_z{'z', juce::ModifierKeys::commandModifier, 0};
+    editor.applyBindingChange(EditorCommandId::TogglePreview3D, ctrl_z, -1);
+    CHECK(mappings.findCommandForKeyPress(ctrl_z) == toJuceCommandId(EditorCommandId::Undo));
+    CHECK_FALSE(
+        mappings.getKeyPressesAssignedToCommand(toJuceCommandId(EditorCommandId::TogglePreview3D))
+            .contains(ctrl_z));
+}
+
+// The dialog lists the fixed editing/navigation reference rows below the command rows.
+TEST_CASE("KeymapEditorView lists the fixed grammar reference", "[ui][keybinds]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    KeymapEditorView editor{view.commandManager()};
+
+    for (int index = 0; index < static_cast<int>(grammarReservations().size()); ++index)
+    {
+        CHECK(findDescendant(editor, "keymap_grammar_row_" + juce::String{index}) != nullptr);
+    }
 }
 
 // Rows rebuild on the mapping set's change broadcast, so external rebinds refresh the chips.
