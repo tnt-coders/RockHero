@@ -13,14 +13,17 @@ namespace rock_hero::editor::ui
 
 /*!
 \brief One fixed editing/navigation entry shown in the shortcuts dialog's reference section.
+
+The verb name carries the semantics; each chip label is a plain key description styled like the
+command rows' binding chips, so fixed rows and rebindable rows read the same way.
 */
 struct GrammarReservation final
 {
     /*! \brief Display name of the editing or navigation verb. */
     const char* name{""};
 
-    /*! \brief Human-readable key description, written as the composed family. */
-    const char* keys{""};
+    /*! \brief Key-description chip labels, in display order. */
+    std::vector<const char*> chips{};
 };
 
 /*!

@@ -6,21 +6,28 @@ namespace rock_hero::editor::ui
 const std::vector<GrammarReservation>& grammarReservations()
 {
     // Wording mirrors docs/plans/in-progress/keymap-matrix.md; the interaction model owns the
-    // semantics. Rows describe composed families, not single chords, which is why these render
-    // as text rather than binding chips.
+    // semantics. Each family is split fine enough that every chip is a plain key description
+    // in the same lowercase style JUCE's getTextDescription gives the command rows' chips.
     static const std::vector<GrammarReservation> reservations{
-        {"Move caret", "Arrows  (Ctrl = measure jump)"},
-        {"Jump", "Home / End,  PageUp / PageDn = section"},
-        {"Extend time selection", "Shift+Arrows  (+Ctrl = measure),  Shift+PageUp/Dn / Home / End"},
-        {"Move selection", "Alt+Arrows  (+Ctrl = fine)"},
-        {"Resize sustain", "Shift+Alt+Left/Right  (+Ctrl = fine)"},
-        {"Shift frets", "Shift+Alt+Up/Down"},
-        {"Type fret / value", "0-9  (numpad too)"},
-        {"Delete selection", "Del / Backspace"},
-        {"Insert at caret", "Ins"},
-        {"Cancel / dismiss", "Esc  (gesture, then caret, then selection)"},
-        {"Grid finer / coarser", "+ / -"},
-        {"Zoom in / out", "Ctrl++ / Ctrl+-"},
+        {"Move caret", {"arrow keys"}},
+        {"Jump by measure", {"ctrl + left/right"}},
+        {"Jump to chart start / end", {"home", "end"}},
+        {"Jump by section", {"page up", "page down"}},
+        {"Extend time selection", {"shift + left/right"}},
+        {"Extend by measure", {"ctrl + shift + left/right"}},
+        {"Extend by section", {"shift + page up/down"}},
+        {"Extend to chart start / end", {"shift + home", "shift + end"}},
+        {"Move selection", {"alt + arrows"}},
+        {"Move selection finely", {"ctrl + alt + arrows"}},
+        {"Resize sustain", {"shift + alt + left/right"}},
+        {"Resize sustain finely", {"ctrl + shift + alt + left/right"}},
+        {"Shift frets", {"shift + alt + up/down"}},
+        {"Type fret / value", {"0-9"}},
+        {"Delete selection", {"delete", "backspace"}},
+        {"Insert at caret", {"insert"}},
+        {"Cancel / dismiss", {"escape"}},
+        {"Grid finer / coarser", {"+", "-"}},
+        {"Zoom in / out", {"ctrl + +", "ctrl + -"}},
     };
     return reservations;
 }

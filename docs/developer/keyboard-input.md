@@ -218,9 +218,12 @@ an alias the plugin-window hook would not mirror. Rows rebuild on the mapping se
 broadcasts, so rebinds apply live and persist immediately — dispatch, menu shortcut text, and
 the keymap persistence all listen to the same set.
 
-The dialog is also the complete keymap reference: an **"Editing & Navigation (fixed)"** section
-lists the interaction grammar as read-only family rows ("Move caret — Arrows (Ctrl = measure
-jump)"), driven by `grammar_reservations.cpp` — the same table whose `isReservedGrammarChord`
+The dialog is also the complete keymap reference, ordered rebindable-first: the registry's
+categories lead, and everything uneditable gathers at the bottom — a **"Fixed Commands"**
+section (the non-rebindable trio, rendered as ordinary rows with inert chips) followed by
+**"Editing & Navigation (fixed)"**, which lists the interaction grammar split fine enough that
+every entry's keys render as the same chips as the command rows ("Jump by measure — `ctrl +
+left/right`"), driven by `grammar_reservations.cpp` — the same table whose `isReservedGrammarChord`
 predicate makes the capture flow **refuse grammar chords** (reservation is by physical key
 across all modifiers, because the grammar is a modifier algebra; a command bound to a grammar
 chord would be shadowed by the decoder whenever its surface context applies — a sometimes-works
