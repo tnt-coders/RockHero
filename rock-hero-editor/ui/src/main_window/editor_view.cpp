@@ -1417,7 +1417,7 @@ bool EditorView::perform(const InvocationInfo& info)
         }
         case EditorCommandId::InsertToneChange:
         {
-            createToneMarkerAtPlayhead();
+            createToneMarkerAtCursor();
             return true;
         }
 
@@ -2692,15 +2692,24 @@ void EditorView::onToneAutomationPointsEditRequested(
 
 // Shows the tone-picker menu for inserting a tone-change marker at the playhead: the marker lands at
 // the playhead's exact musical position inside the region it splits.
-void EditorView::createToneMarkerAtPlayhead()
+void EditorView::createToneMarkerAtCursor()
 {
-    // The playhead already sits at an exact position the user placed (a grid line, or a Ctrl-free
-    // fine position), so keep it precisely rather than re-rounding to the nearest whole beat; the
-    // fine-grid quantization preserves any position placed on a practical subdivision.
-    const double playhead = m_transport.position().seconds;
+    // The marker rule ("one position concept per transport state" — the play-from-the-marker
+    // unification, extended to Ctrl+T 2026-07-21): an armed caret IS the position, on either
+    // row family, so the insert lands where play would pick up; the passive cursor is the
+    // transport position. Positions are kept precisely rather than re-rounded to the nearest
+    // whole beat — the fine-grid quantization preserves any position placed on a practical
+    // subdivision (a grid line, or a Ctrl-free fine position).
+    if (m_state.tone_automation.lane_caret.has_value())
+    {
+        createToneMarkerAt(m_state.tone_automation.lane_caret->position);
+        return;
+    }
+    const double seconds = m_state.chart_edit.caret.has_value() ? m_state.chart_edit.caret->seconds
+                                                                : m_transport.position().seconds;
     createToneMarkerAt(
         core::fineGridPositionForBeat(
-            m_state.tempo_map, m_state.tempo_map.beatPositionAtSeconds(playhead)));
+            m_state.tempo_map, m_state.tempo_map.beatPositionAtSeconds(seconds)));
 }
 
 // Shows the tone-picker menu for inserting a tone-change marker at an exact musical position — the

@@ -80,7 +80,8 @@ enum class EditorCommandId : int
     /*! \brief View > 3D Preview (`F3`). */
     TogglePreview3D = 0x1303,
 
-    /*! \brief Insert a tone-change marker at the playhead (`Ctrl+T`). */
+    /*! \brief Insert a tone-change marker at the cursor — the marker rule: the armed caret
+        when one exists, else the transport position (`Ctrl+T`). */
     InsertToneChange = 0x1401,
 
     /*! \brief Step the caret one grid slot left (`Left`). */

@@ -401,8 +401,9 @@ private:
     /*! \copydoc ToneTrackView::Listener::onToneRegionActivated */
     void onToneRegionActivated() override;
 
-    /*! \brief Shows the tone-picker menu to insert a tone-change marker at the playhead. */
-    void createToneMarkerAtPlayhead();
+    /*! \brief Shows the tone-picker menu to insert a tone-change marker at the cursor (the
+        marker rule: the armed caret when one exists, else the transport position). */
+    void createToneMarkerAtCursor();
 
     /*! \brief Shows the tone-picker menu to insert a tone-change marker at a musical position. */
     void createToneMarkerAt(common::core::GridPosition position);

@@ -130,8 +130,12 @@ Full text in `keymap-matrix.md` → *Fold-in issue resolutions*. Summary of the 
   from an off-grid caret snaps to grid. **Amends plan 47** (drop its `Ctrl`-off-grid endpoints).
 - **D** — object- and time-selection are **mutually exclusive** kinds; resolves plan 52 Q6/Q10/Q12;
   overrides its "complements, not competitors."
-- **E2** — **keep `Ctrl+T`** (playhead insert, from anywhere) alongside the tone-row caret insert;
-  fix the `Ctrl+Alt+T` bug by guarding `Ctrl+T` against `Alt`, not by removal.
+- **E2** — **keep `Ctrl+T`** (from anywhere) alongside the tone-row caret insert;
+  fix the `Ctrl+Alt+T` bug by guarding `Ctrl+T` against `Alt`, not by removal. **Amended
+  2026-07-21 (user-signed): the anchor is the marker rule** — the armed caret when one exists,
+  else the transport position — extending play-from-the-marker's one-position-concept to the
+  insert; the original "playhead" (raw transport) anchor predated that unification. Command
+  named "Insert Tone Change at Cursor".
 - **F** — "Insert never mutates" gains **one** named exception (filled plugin slot = replace-with-
   confirm); the tone-row split is a *create*, inside the rule.
 - **G** — the chain must render a **loud active-scope indicator** (slot focus ring + active panel +
