@@ -130,7 +130,9 @@ namespace
     registry.push_back(
         EditorCommandSpec{
             .id = EditorCommandId::InsertToneChange,
-            .name = "Insert Tone Change",
+            // "at Playhead" distinguishes this from the future tone-row caret insert (E2 keeps
+            // both): Ctrl+T acts at the playhead from anywhere, caret state irrelevant.
+            .name = "Insert Tone Change at Playhead",
             .category = "Tone",
             // Exact modifier matching gives the guard-against-Alt for free: Ctrl+Alt+T does not
             // match, keeping the Ctrl+Alt namespace with the fine-tier authoring composition.
