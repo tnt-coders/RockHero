@@ -151,10 +151,11 @@ namespace
 
 juce::String keyChordJoiner()
 {
-    // U+00B7 MIDDLE DOT — Latin-1, present in every font (the math-block dot operator U+22C5
-    // is not, and font substitution already killed the arrow glyphs). Built by codepoint
-    // because plain narrow literals assert on non-ASCII in juce::String.
-    return juce::String::charToString(juce::juce_wchar{0x00B7});
+    // A spaced U+00B7 MIDDLE DOT (" · ") — Latin-1, present in every font (the math-block dot
+    // operator U+22C5 is not, and font substitution already killed the arrow glyphs). Built by
+    // codepoint because plain narrow literals assert on non-ASCII in juce::String; spacing per
+    // in-app review 2026-07-21.
+    return " " + juce::String::charToString(juce::juce_wchar{0x00B7}) + " ";
 }
 
 juce::String keyChordText(const juce::KeyPress& key, ShiftedCharacterResolver resolve_shifted)
