@@ -709,7 +709,7 @@ Tier A — commands existing at baseline (or in-flight, marked):
 | Edit      | Actions...            | Shift+/ (`?`)        | renamed + `?` default 2026-07-20         |
 | Transport | Play/Pause            | Space                | current behavior; plugin-window mirrored |
 | View      | Toggle Waveform       | F5                   | default added 2026-07-21                 |
-| Tone      | Insert Tone Change    | Ctrl+T               | in-flight tone work; re-verify at exec   |
+| Tone      | Insert Tone Change at Playhead | Ctrl+T      | renamed for precision 2026-07-21         |
 
 Tier B — reservations for future registration (non-binding; settled when
 docs/plans/roadmap/40-chart-editing.md and docs/plans/roadmap/41-tempo-map-authoring.md register the commands):
