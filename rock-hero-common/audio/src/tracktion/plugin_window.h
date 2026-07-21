@@ -9,6 +9,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <rock_hero/common/audio/plugin/plugin_window_shortcuts.h>
 #include <string_view>
 #include <tracktion_engine/tracktion_engine.h>
 #include <vector>
@@ -22,19 +23,6 @@
 
 namespace rock_hero::common::audio
 {
-
-/*! \brief Commands forwarded from plugin editor windows to the host-level shortcut observer. */
-enum class PluginWindowCommand : std::uint8_t
-{
-    /*! \brief Forward Ctrl+Z from a plugin window to the editor undo intent. */
-    Undo,
-
-    /*! \brief Forward Ctrl+Y from a plugin window to the editor redo intent. */
-    Redo,
-
-    /*! \brief Forward Space from a plugin window to the transport play/pause intent. */
-    PlayPause,
-};
 
 /*! \brief Routes window commands to the host without coupling this adapter to editor-core. */
 using PluginWindowCommandDispatcher = std::function<void(PluginWindowCommand)>;
@@ -78,6 +66,20 @@ public:
     /*! \brief Flushes any plugin state touched by the editor before Tracktion releases the
     window. */
     ~PluginWindow() override;
+
+    /*!
+    \brief Replaces the shortcut bindings every plugin window matches keys against.
+
+    Shared by all windows because they mirror one editor keymap. The editor pushes bindings
+    through `IPluginHost::setPluginWindowShortcuts` after keymap restore and on every mapping
+    change; until the first push, the built-in defaults apply so an editor-less engine keeps the
+    historical behavior. Must be called on the message thread — the same thread the JUCE
+    key-press path and the Win32 message hook read the bindings on, so no synchronization is
+    needed.
+
+    \param bindings Chord lists for the three forwarded commands.
+    */
+    static void setShortcutBindings(PluginWindowShortcutBindings bindings);
 
     /*! \brief Recreates the plugin editor when Tracktion asks the host window to refresh its
     content. */
@@ -134,6 +136,9 @@ private:
     [[nodiscard]] static bool isKeyDown(int virtual_key) noexcept;
 
     [[nodiscard]] static bool textInputHasFocus() noexcept;
+
+    [[nodiscard]] static std::optional<PluginWindowShortcutKey> namedKeyForVirtualKey(
+        WPARAM virtual_key) noexcept;
 
     [[nodiscard]] static std::optional<PluginWindowCommand> commandForWindowsKeyMessage(
         const MSG& message);

@@ -331,6 +331,9 @@ public:
     void setPluginWindowCommandObserver(common::audio::PluginWindowCommandObserver) override
     {}
 
+    void setPluginWindowShortcuts(common::audio::PluginWindowShortcutBindings) override
+    {}
+
     [[nodiscard]] std::expected<void, common::audio::PluginHostError> openPluginWindow(
         const std::string&) override
     {

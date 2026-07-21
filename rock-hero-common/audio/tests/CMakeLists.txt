@@ -35,6 +35,7 @@ add_executable(
     test_playback_clock.cpp
     test_playback_clock_extrapolator.cpp
     test_plugin_state_hygiene.cpp
+    test_plugin_window_shortcuts.cpp
     test_tempo_mirror.cpp
     test_tone_automation_curve.cpp
     test_tone_automation_rebuild.cpp

@@ -477,6 +477,22 @@ public:
     }
 
     /*!
+    \brief Records the injected plugin-window shortcut bindings.
+    \param bindings Chord lists replacing any previously injected set.
+    */
+    void setPluginWindowShortcuts(PluginWindowShortcutBindings bindings) override
+    {
+        last_window_shortcuts = std::move(bindings);
+        ++window_shortcuts_set_count;
+    }
+
+    /*! \brief Most recently injected plugin-window shortcut bindings. */
+    PluginWindowShortcutBindings last_window_shortcuts{};
+
+    /*! \brief Number of setPluginWindowShortcuts calls. */
+    int window_shortcuts_set_count{0};
+
+    /*!
     \brief Queues a completed fake plugin-state edit for the next flush.
     \param edit Before/after full-state edit to emit.
     */

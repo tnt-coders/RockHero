@@ -14,39 +14,22 @@ namespace rock_hero::common::audio
 namespace
 {
 
-[[nodiscard]] int normalizedAsciiKeyCode(int key_code) noexcept
+// The one shared binding set every plugin window matches against (they mirror one editor
+// keymap). Message-thread-only: written by the editor's push, read by the JUCE key-press path
+// and the Win32 hook, all on the message thread. Function-local so the default construction
+// never races static initialization order.
+[[nodiscard]] PluginWindowShortcutBindings& sharedShortcutBindings()
 {
-    if (key_code >= 'A' && key_code <= 'Z')
-    {
-        return key_code - 'A' + 'a';
-    }
-    return key_code;
-}
-
-[[nodiscard]] bool hasCommandShortcutModifier(const juce::KeyPress& key) noexcept
-{
-    const juce::ModifierKeys modifiers = key.getModifiers();
-    return modifiers.isCommandDown() && !modifiers.isAltDown();
-}
-
-[[nodiscard]] bool isUndoShortcut(const juce::KeyPress& key) noexcept
-{
-    return hasCommandShortcutModifier(key) && !key.getModifiers().isShiftDown() &&
-           normalizedAsciiKeyCode(key.getKeyCode()) == 'z';
-}
-
-[[nodiscard]] bool isRedoShortcut(const juce::KeyPress& key) noexcept
-{
-    return hasCommandShortcutModifier(key) && !key.getModifiers().isShiftDown() &&
-           normalizedAsciiKeyCode(key.getKeyCode()) == 'y';
-}
-
-[[nodiscard]] bool isPlayPauseShortcut(const juce::KeyPress& key) noexcept
-{
-    return key == juce::KeyPress{juce::KeyPress::spaceKey};
+    static PluginWindowShortcutBindings bindings = defaultPluginWindowShortcutBindings();
+    return bindings;
 }
 
 } // namespace
+
+void PluginWindow::setShortcutBindings(PluginWindowShortcutBindings bindings)
+{
+    sharedShortcutBindings() = std::move(bindings);
+}
 
 std::unique_ptr<juce::Component> PluginWindow::create(
     tracktion::Plugin& plugin, PluginWindowCommandDispatcher command_dispatcher)
@@ -181,25 +164,15 @@ void PluginWindow::resized()
 
 bool PluginWindow::handleCommandShortcut(const juce::KeyPress& key, std::string_view source)
 {
-    if (isUndoShortcut(key))
+    const std::optional<PluginWindowCommand> command =
+        matchPluginWindowCommand(sharedShortcutBindings(), pluginWindowChordFromKeyPress(key));
+    if (!command.has_value())
     {
-        postCommandShortcut(PluginWindowCommand::Undo, source);
-        return true;
+        return false;
     }
 
-    if (isRedoShortcut(key))
-    {
-        postCommandShortcut(PluginWindowCommand::Redo, source);
-        return true;
-    }
-
-    if (isPlayPauseShortcut(key))
-    {
-        postCommandShortcut(PluginWindowCommand::PlayPause, source);
-        return true;
-    }
-
-    return false;
+    postCommandShortcut(*command, source);
+    return true;
 }
 
 std::string_view PluginWindow::commandName(PluginWindowCommand command) noexcept
@@ -277,8 +250,87 @@ bool PluginWindow::textInputHasFocus() noexcept
     return info.hwndCaret != nullptr;
 }
 
+// Maps the virtual keys of the named (non-character) chord keys; other keys return None.
+// Must agree with namedKeyForJuceKeyCode in plugin_window_shortcuts.cpp — the two decode paths
+// meeting on one value set is the whole point of the named-key enum.
+std::optional<PluginWindowShortcutKey> PluginWindow::namedKeyForVirtualKey(
+    WPARAM virtual_key) noexcept
+{
+    if (virtual_key >= VK_F1 && virtual_key <= VK_F12)
+    {
+        return static_cast<PluginWindowShortcutKey>(
+            static_cast<int>(PluginWindowShortcutKey::F1) + static_cast<int>(virtual_key - VK_F1));
+    }
+
+    switch (virtual_key)
+    {
+        case VK_LEFT:
+        {
+            return PluginWindowShortcutKey::ArrowLeft;
+        }
+        case VK_RIGHT:
+        {
+            return PluginWindowShortcutKey::ArrowRight;
+        }
+        case VK_UP:
+        {
+            return PluginWindowShortcutKey::ArrowUp;
+        }
+        case VK_DOWN:
+        {
+            return PluginWindowShortcutKey::ArrowDown;
+        }
+        case VK_HOME:
+        {
+            return PluginWindowShortcutKey::Home;
+        }
+        case VK_END:
+        {
+            return PluginWindowShortcutKey::End;
+        }
+        case VK_PRIOR:
+        {
+            return PluginWindowShortcutKey::PageUp;
+        }
+        case VK_NEXT:
+        {
+            return PluginWindowShortcutKey::PageDown;
+        }
+        case VK_DELETE:
+        {
+            return PluginWindowShortcutKey::Delete;
+        }
+        case VK_INSERT:
+        {
+            return PluginWindowShortcutKey::Insert;
+        }
+        case VK_BACK:
+        {
+            return PluginWindowShortcutKey::Backspace;
+        }
+        case VK_TAB:
+        {
+            return PluginWindowShortcutKey::Tab;
+        }
+        case VK_RETURN:
+        {
+            return PluginWindowShortcutKey::Return;
+        }
+        case VK_ESCAPE:
+        {
+            return PluginWindowShortcutKey::Escape;
+        }
+        default:
+        {
+            return std::nullopt;
+        }
+    }
+}
+
 std::optional<PluginWindowCommand> PluginWindow::commandForWindowsKeyMessage(const MSG& message)
 {
+    // WM_SYSKEYDOWN carries Alt-held key presses, so Alt chords are matchable here like any
+    // other; the swallow in the hook is modifier-agnostic.
     if (message.message != WM_KEYDOWN && message.message != WM_SYSKEYDOWN)
     {
         return std::nullopt;
@@ -290,31 +342,37 @@ std::optional<PluginWindowCommand> PluginWindow::commandForWindowsKeyMessage(con
         return std::nullopt;
     }
 
-    const bool control_down = isKeyDown(VK_CONTROL);
-    const bool alt_down = isKeyDown(VK_MENU);
-    const bool shift_down = isKeyDown(VK_SHIFT);
+    PluginWindowShortcutChord chord;
+    chord.ctrl = isKeyDown(VK_CONTROL);
+    chord.alt = isKeyDown(VK_MENU);
+    chord.shift = isKeyDown(VK_SHIFT);
 
-    if (!control_down && !alt_down && !shift_down && message.wParam == VK_SPACE)
+    if (const std::optional<PluginWindowShortcutKey> named_key =
+            namedKeyForVirtualKey(message.wParam);
+        named_key.has_value())
     {
-        return PluginWindowCommand::PlayPause;
+        chord.named_key = *named_key;
+        return matchPluginWindowCommand(sharedShortcutBindings(), chord);
     }
 
-    if (!control_down || alt_down || shift_down)
+    // Translate the virtual key through the active keyboard layout to its base character, so a
+    // character binding matches wherever that character physically sits (Alt+';' matches the
+    // ';' key on any layout). Dead keys report with the high bit set and never match.
+    constexpr UINT dead_key_flag = 0x80000000U;
+    const UINT mapped_character =
+        MapVirtualKeyW(static_cast<UINT>(message.wParam), MAPVK_VK_TO_CHAR);
+    if (mapped_character == 0 || (mapped_character & dead_key_flag) != 0)
     {
         return std::nullopt;
     }
 
-    if (message.wParam == 'Z')
+    char32_t character = static_cast<char32_t>(mapped_character);
+    if (character >= U'A' && character <= U'Z')
     {
-        return PluginWindowCommand::Undo;
+        character = character - U'A' + U'a';
     }
-
-    if (message.wParam == 'Y')
-    {
-        return PluginWindowCommand::Redo;
-    }
-
-    return std::nullopt;
+    chord.character = character;
+    return matchPluginWindowCommand(sharedShortcutBindings(), chord);
 }
 
 bool PluginWindow::ownsNativeWindow(HWND window) const
