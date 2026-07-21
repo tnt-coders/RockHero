@@ -217,16 +217,17 @@ broadcasts, so rebinds apply live and persist immediately — dispatch, menu sho
 keymap persistence, and the plugin-window mirror all listen to the same set.
 
 The dialog is also the complete keymap reference, ordered rebindable-first: the registry's
-categories lead, and everything uneditable gathers at the bottom — a **"Fixed Commands"**
-section (the non-rebindable trio, rendered as ordinary rows with inert chips) followed by
-**"Editing & Navigation (fixed)"**, which lists the interaction grammar split fine enough that
-every entry's keys render as the same chips as the command rows ("Jump by measure — `ctrl +
-left/right`"), driven by `grammar_reservations.cpp` — the same table whose `isReservedGrammarChord`
+categories lead (every command row is rebindable, the Undo/Redo/Play-Pause trio included), and
+the one fixed section gathers at the bottom — **"Editing & Navigation (fixed)"**, which lists
+the interaction grammar split fine enough that every entry's keys render as the same chips as
+the command rows ("Jump by measure — `ctrl + left/right`"), driven by
+`grammar_reservations.cpp` — the same table whose `isReservedGrammarChord`
 predicate makes the capture flow **refuse grammar chords** (reservation is by physical key
 across all modifiers, because the grammar is a modifier algebra; a command bound to a grammar
 chord would be shadowed by the decoder whenever its surface context applies — a sometimes-works
-binding, banned outright). The capture flow equally refuses **taking a chord from a
-non-rebindable owner**, so Ctrl+Z can never be stolen from Undo through the conflict dance.
+binding, banned outright). That refusal is the dialog's only restriction: any chord can move
+between commands through the owner-naming conflict confirm, and per-command reset reclaims a
+command's default chords from whichever command took them.
 The grammar keys are deliberately not rebindable: remapping one verb breaks its composed
 family; the honest future feature is an alternative navigation *scheme* (recorded as an
 uncommitted enhancement in plan 46), not per-key rebinding.
@@ -241,12 +242,13 @@ thing must pick its rung deliberately.
 
 # The plugin-window seam
 
-Cmd/Ctrl+Z, Ctrl+Y, and Space must work while a hosted plugin's own GUI window has focus —
-plugins must never see them. `PluginWindow`
-(`rock-hero-common/audio/src/tracktion/plugin_window.cpp`) re-implements the same three
-shortcut predicates, and on Windows additionally installs a
+The Undo/Redo/Play-Pause chords — whatever the user has bound them to — must work while a
+hosted plugin's own GUI window has focus; plugins must never see them. `PluginWindow`
+(`rock-hero-common/audio/src/tracktion/plugin_window.cpp`) matches incoming keys against the
+injected binding set, and on Windows additionally installs a
 `WH_GETMESSAGE` hook that intercepts key messages *before* a focused native plugin view can
-swallow them (Space yields to plugin text fields; undo/redo never yield). Matches post a
+swallow them (the Play-Pause chord yields to plugin text fields by command identity; undo/redo
+never yield). Matches post a
 `PluginWindowCommand`, which the controller's observer maps back onto the very same intents
 (`onUndoRequested`, `onRedoRequested`, `onPlayPausePressed`) — so a plugin-window Ctrl+Z and an
 editor Ctrl+Z are literally the same code path from the controller inward.
@@ -260,8 +262,11 @@ so an `Alt+;` binding follows the `;` key across layouts, or a *named* non-chara
 pushes them through `IPluginHost::setPluginWindowShortcuts` after keymap restore and on every
 mapping change. Both plugin-window decode paths — JUCE `keyPressed` and the Win32 hook — match
 the same injected set through one shared, headlessly tested matcher; built-in defaults keep an
-editor-less engine on the editor's default keymap. Any change to this seam re-earns the manual
-real-plugin verification (Nolly/Gateway) — the hook is historically fragile.
+editor-less engine on the editor's default keymap. The mechanism itself is the
+industry-standard one (REAPER-class hosts intercept at the plugin window's message loop the
+same way), but its interaction with real VST3 focus handling cannot be proven headlessly — any
+change to this seam re-earns the manual real-plugin verification (Nolly/Gateway; last passed
+2026-07-20).
 
 # Adding or changing a keybind — silent steps
 
@@ -271,11 +276,19 @@ accelerator** (a chorded shortcut for an operation) goes in the registry; an **i
 grammar key** (a caret/selection verb, payload entry, or anything with context-ordered
 fallthrough) goes in the grammar decoder.
 
+Standing convention (plan 53, adopted 2026-07-20): **every new user-triggerable verb registers
+as a command** rather than shipping as an ad-hoc handler, even when it has no default chord.
+The registry is the editor's trigger-agnostic action list — REAPER's "Actions" model in JUCE
+form — and only registered commands appear in the shortcuts dialog, show live shortcut text in
+menus, and become bindable by future input front-ends (MIDI bindings are planned:
+`docs/plans/todo/midi-command-bindings.md`). A verb that bypasses the registry is invisible to
+all of them. The grammar decoder is the one deliberate carve-out, per the split above.
+
 For a command accelerator (`rock-hero-editor/ui/src/keybinds/`):
 
 1. **Append an `EditorCommandId` value** (`editor_command_id.h`) — explicit, append-only, never
    reused; the hex value is the persistence key forever.
-2. **Add the registry row** (`editor_command_registry.cpp`): name, category, rebindable flag,
+2. **Add the registry row** (`editor_command_registry.cpp`): name, category,
    default chords (lowercase letters; alternatives are first-class). Grammar chords are
    reserved — never assign them as defaults.
 3. **Extend both `EditorView` switches**: the `getCommandInfo` case (enablement from view-state

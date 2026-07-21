@@ -453,6 +453,21 @@ The original question text is kept below for the decision record.
 > the recorded uncommitted future enhancement. These fixes had no seam in the stock component
 > (private `setNewKey` removes unconditionally; rows must be command-backed chips), which is
 > what functionally closed the stock-vs-custom deliberation in favor of custom.
+>
+> **Custom permanently settled 2026-07-20 — the MIDI requirement.** The user will eventually
+> want MIDI inputs bound to commands as if they were keybinds, and the stock component cannot
+> ever host that, on three independent vendored-source walls: its only constructor is
+> hard-wired to a `KeyPressMappingSet&` (juce_KeyMappingEditorComponent.h:58); the binding
+> vocabulary `KeyPress` is exactly `{int keyCode; ModifierKeys; juce_wchar}`
+> (juce_KeyPress.h:279-281), with no representation for a note/CC/channel; and the mapping set
+> is a `KeyListener` fed only through keyboard focus (juce_KeyPressMappingSet.h:95, :219), so a
+> MIDI event can reach neither dispatch nor the component's press-a-key capture. JUCE ships no
+> MIDI→command facility anywhere. The command layer *beneath* the component is
+> trigger-agnostic (`ApplicationCommandManager::invokeDirectly`,
+> juce_ApplicationCommandManager.h:219), so MIDI bindings become a RockHero-owned store over
+> the same command ids with MIDI chips + learn-capture in the custom `KeymapEditorView` —
+> design drafted in `docs/plans/todo/midi-command-bindings.md`. The stock-vs-custom question
+> is closed for good; do not re-litigate.
 
 - **Scope**: one menu entry ("Edit > Keyboard Shortcuts...") opening a themed window that hosts
   the stock `juce::KeyMappingEditorComponent` over the editor's mapping set: commands grouped by

@@ -1,12 +1,13 @@
 # 53 — Editor keyboard + pointer completion
 
 Status: **Executing — Phases 0 and 1 complete 2026-07-20** (Phase 0: G53-FOLD-IN and G46-KEYMAP
-closed, keymap matrix signed, 46-Q2 = parallel systems + extraction watch-item, 46-Q3 dissolved
-by the non-rebindable-core-trio decision; Phase 1: the command registry spine landed as plan 46
-Phases 1+5, plan 46 Phase 2's keymap persistence landed the same day, and plan 46 Phase 3's
-shortcuts dialog (stock component, themed shell) is code-complete pending the user's in-action
-review — execution records there). **Phase 3 landed ahead of sequence, and Phase 7's keyboard
-half landed** (record below).
+closed, keymap matrix signed, 46-Q2 = parallel systems + extraction watch-item; Phase 1: the
+command registry spine, keymap persistence, the custom themed shortcuts dialog
+(`KeymapEditorView`, branch `custom-keybind-menu`), and the generalized plugin-window shortcut
+mirror all landed as plan 46 Phases 1–5 — execution records there. 46-Q3 dissolved twice over:
+the non-rebindable-trio decision was reversed the same day, so every command is rebindable with
+the trio mirrored live into plugin windows; the manual plugin verification passed 2026-07-20).
+**Phase 3 landed ahead of sequence, and Phase 7's keyboard half landed** (record below).
 Next: Phase 2 here (discovery menus). This plan builds the complete editor
 keybinding + mouse-operation model captured in `docs/plans/in-progress/keymap-matrix.md` and the
 interaction-model fold-in.
@@ -16,6 +17,22 @@ updates this Status line, the plan's row in `docs/plans/roadmap/00-roadmap.md`'s
 and flips the affected `keymap-matrix.md` rows to Live. The matrix stays alive as the
 build-tracking artifact until this plan completes, then dissolves into the authority docs
 (amending Phase 0's original dissolve-now instruction).
+
+**Standing convention — every action is a registered command (adopted 2026-07-20).** Every new
+user-triggerable verb this plan ships (and all future editor work) registers in the command
+registry (`EditorCommandId` + registry row + `getCommandInfo`/`perform`) rather than as an
+ad-hoc handler, even when it has no default chord. This is REAPER's "Actions" model in JUCE
+form: the registry is one trigger-agnostic action list, and keyboard chords, menu items,
+discovery menus, and future binding front-ends are interchangeable triggers over it
+(`ApplicationCommandManager::invokeDirectly` fires any command from any source). Only
+registered commands appear in the shortcuts dialog, display live shortcut text in menus, and
+become MIDI-bindable (`docs/plans/todo/midi-command-bindings.md`); a verb that bypasses the
+registry is invisible to all of them, and retrofitting at a hundred commands is what this
+convention avoids. The grammar decoder is the one deliberate carve-out — our equivalent of a
+REAPER context *section*: its keys stay reserved and its context-ordered dispatch stays
+sequential. Registering grammar verbs as commands that *delegate into* the decoder (keys stay
+reserved; the verbs become listable and MIDI-bindable) is the recorded future path, owned by
+the MIDI todo plan.
 
 ## Landed ahead of sequence (2026-07-19/20, pre-registry)
 
@@ -136,18 +153,21 @@ into the authority docs once its content has landed. **Gate: user sign-off on th
 > Landed as plan 46 Phases 1+5 (execution record there): the command manager, registry table,
 > mapping-set attachment, menu migration, predicate deletion, and the settled default map.
 > Grammar keys deliberately stay in the grammar decoder with their chords reserved (the
-> refinement recorded in plan 46). Still open from plan 46: Phase 2 (persistence), Phase 3
-> (shortcuts dialog + forwarding removal), rescoped Phase 4 (plugin-window redo alias +
-> predicate dedupe).
+> refinement recorded in plan 46). Plan 46 Phases 2–5 subsequently landed the same day
+> (persistence; the custom `KeymapEditorView` dialog on branch `custom-keybind-menu`; the
+> generalized plugin-window mirror with the hardcoded predicates deleted — manual plugin
+> verification passed 2026-07-20). The planned forwarding removal was revoked: the
+> `MainWindow::keyPressed` forwarding is load-bearing for grammar keys at shell focus.
 
 Stand up an `EditorCommandManager` over one `juce::ApplicationCommandManager` + `KeyPressMappingSet`
 in a new `rock-hero-editor/ui/src/keybinds/`. Register every command; map to controller intents.
 Migrate the scattered `keyPressed` handling out of `editor_view.cpp` and **delete** the duplicated
 predicates (`isUndoShortcut`, etc.). Apply the settled matrix as the default map. Guard `Ctrl+T`
-against `Alt` (E2). The core trio (Undo/Redo/Play-Pause) and the grammar keys (digits, arrows,
-Esc, Space, Delete, Insert) register as **non-rebindable** rows (the 2026-07-20 46-Q3 resolution);
-`Ctrl+Shift+Z` joins `Ctrl+Y` as a Redo alternative, with the plugin-window mirror update riding
-plan 46's rescoped Phase 4. **This phase gates everything below** — the discovery menu, rebindable
+against `Alt` (E2). The grammar keys (digits, arrows, Esc, Delete, Insert) stay in the decoder
+with their chords reserved; the core trio's short-lived non-rebindable registration (the first
+46-Q3 resolution) was reversed the same day — every command is rebindable, `Ctrl+Shift+Z` joins
+`Ctrl+Y` as a Redo alternative, and the trio's live chords mirror into plugin windows via plan
+46's generalized Phase 4. **This phase gates everything below** — the discovery menu, rebindable
 defaults, and per-surface front-ends all consume the registry.
 
 ### Phase 2 — Keybind-discovery context menus (every surface)  *(extends plan 46)*
