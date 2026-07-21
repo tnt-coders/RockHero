@@ -84,6 +84,19 @@ public:
     */
     void removeBinding(EditorCommandId command, int key_index);
 
+    /*!
+    \brief Restores one command's bindings to the registry defaults.
+
+    Offered per row (right-click, and in each chip's menu) — the affordance whose absence from
+    the stock component's private rows helped decide the custom build. One-owner semantics hold
+    through the reset: each default chord is first stripped from whatever command took it in
+    the meantime, because the mapping set's own per-command reset performs no conflict cleanup
+    of its own. Non-rebindable commands are refused (their bindings never move anyway).
+
+    \param command Command to restore to its registry defaults.
+    */
+    void resetCommandToDefault(EditorCommandId command);
+
 private:
     class ChipButton;
     class CategoryHeader;
@@ -101,6 +114,10 @@ private:
 
     // Confirms and performs the reset of every mapping to the registry defaults.
     void confirmResetAll();
+
+    // True when a command's current bindings equal its registry defaults (positional compare;
+    // a reset normalizes ordering anyway, so a false negative only enables a harmless reset).
+    [[nodiscard]] bool isCommandAtDefaults(EditorCommandId command) const;
 
     // Rebuilds rows when the mapping set changes (rebinds here or anywhere else).
     void changeListenerCallback(juce::ChangeBroadcaster* source) override;

@@ -97,6 +97,44 @@ TEST_CASE("KeymapEditorView refuses changes to non-rebindable commands", "[ui][k
         toJuceCommandId(EditorCommandId::Undo));
 }
 
+// Per-command reset restores exactly the registry defaults, reclaiming a default chord from
+// whichever command took it meanwhile — the one-owner law holds through a reset too.
+TEST_CASE("KeymapEditorView resets one command to its defaults", "[ui][keybinds]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    KeymapEditorView editor{view.commandManager()};
+    juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
+
+    const juce::KeyPress f8{juce::KeyPress::F8Key};
+    const juce::KeyPress f9{juce::KeyPress::F9Key};
+
+    // Rebind Undo History off its F8 default, then let another command take F8.
+    editor.applyBindingChange(EditorCommandId::ToggleUndoHistory, f9, 0);
+    editor.applyBindingChange(EditorCommandId::TogglePreview3D, f8, -1);
+    CHECK(mappings.findCommandForKeyPress(f8) == toJuceCommandId(EditorCommandId::TogglePreview3D));
+
+    editor.resetCommandToDefault(EditorCommandId::ToggleUndoHistory);
+
+    // The default is restored, the squatter lost it, and the rebind is gone.
+    CHECK(
+        mappings.findCommandForKeyPress(f8) == toJuceCommandId(EditorCommandId::ToggleUndoHistory));
+    CHECK_FALSE(
+        mappings.getKeyPressesAssignedToCommand(toJuceCommandId(EditorCommandId::TogglePreview3D))
+            .contains(f8));
+    CHECK(mappings.findCommandForKeyPress(f9) == 0);
+
+    // Non-rebindable commands refuse the reset path like every other change.
+    editor.resetCommandToDefault(EditorCommandId::Undo);
+    CHECK(
+        mappings.findCommandForKeyPress(
+            juce::KeyPress{'z', juce::ModifierKeys::commandModifier, 0}) ==
+        toJuceCommandId(EditorCommandId::Undo));
+}
+
 // Grammar keys are reserved by physical key across every modifier shape: the decoder runs
 // before the mapping set, so a command bound to a grammar chord would only sometimes fire.
 TEST_CASE("Grammar reservations cover the decoder's keys", "[ui][keybinds]")

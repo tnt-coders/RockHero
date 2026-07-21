@@ -209,7 +209,10 @@ opens the press-a-key capture dialog (a themed `AlertWindow` subclass with live 
 assigned to..." preview), and conflicts resolve through the overwrite-and-clear flow — a
 themed confirm naming the current owner, then **remove-then-add** against the public mapping
 set (`addKeyPress` alone must never be trusted to resolve conflicts; its documented removal
-does not exist in code). Non-rebindable rows render inert chips with no affordances, and
+does not exist in code). Right-clicking a row (or any chip's menu) offers **per-command reset to
+default** — disabled when already at defaults, and reclaiming a default chord from whichever
+command took it meanwhile, since the mapping set's own `resetToDefaultMapping` performs no
+conflict cleanup. Non-rebindable rows render inert chips with no affordances, and
 `applyBindingChange` refuses those commands outright, so no dialog path can give the core trio
 an alias the plugin-window hook would not mirror. Rows rebuild on the mapping set's own change
 broadcasts, so rebinds apply live and persist immediately — dispatch, menu shortcut text, and

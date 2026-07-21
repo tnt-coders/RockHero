@@ -242,6 +242,21 @@ public:
             true);
     }
 
+    // Right-click anywhere on the row offers the per-command reset — reachable even when every
+    // binding has been removed and no chip menu exists.
+    void mouseDown(const juce::MouseEvent& event) override
+    {
+        if (!event.mods.isPopupMenu() || !m_spec.rebindable)
+        {
+            return;
+        }
+
+        juce::PopupMenu menu;
+        appendResetItem(menu);
+        menu.showMenuAsync(
+            juce::PopupMenu::Options().withTargetComponent(this).withDeletionCheck(*this));
+    }
+
     void resized() override
     {
         const juce::Font chip_font{juce::FontOptions{g_chip_font_height}};
@@ -285,10 +300,29 @@ private:
                 safe_owner->removeBinding(command, key_index);
             }
         });
+        menu.addSeparator();
+        appendResetItem(menu);
         menu.showMenuAsync(
             juce::PopupMenu::Options()
                 .withTargetComponent(m_chips[static_cast<std::size_t>(key_index)].get())
                 .withDeletionCheck(*this));
+    }
+
+    // Adds the per-command reset item, disabled when the bindings already match the defaults.
+    void appendResetItem(juce::PopupMenu& menu)
+    {
+        const juce::Component::SafePointer<KeymapEditorView> safe_owner{&m_owner};
+        const EditorCommandId command = m_spec.id;
+        menu.addItem(
+            "Reset to default",
+            !m_owner.isCommandAtDefaults(command),
+            /*isTicked=*/false,
+            [safe_owner, command] {
+                if (safe_owner != nullptr)
+                {
+                    safe_owner->resetCommandToDefault(command);
+                }
+            });
     }
 
     KeymapEditorView& m_owner;
@@ -382,6 +416,51 @@ void KeymapEditorView::applyBindingChange(
 void KeymapEditorView::removeBinding(EditorCommandId command, int key_index)
 {
     m_command_manager.getKeyMappings()->removeKeyPress(toJuceCommandId(command), key_index);
+}
+
+void KeymapEditorView::resetCommandToDefault(EditorCommandId command)
+{
+    const EditorCommandSpec* const spec = findEditorCommandSpec(toJuceCommandId(command));
+    if (spec == nullptr || !spec->rebindable)
+    {
+        return;
+    }
+
+    // Strip each default chord from whatever command took it meanwhile, so the one-owner law
+    // holds through the reset (the mapping set's resetToDefaultMapping re-adds defaults
+    // without any conflict cleanup). Registry defaults never collide with the non-rebindable
+    // trio's chords, so this can never strip from a fixed command.
+    juce::KeyPressMappingSet& mappings = *m_command_manager.getKeyMappings();
+    for (const juce::KeyPress& key : spec->default_keypresses)
+    {
+        mappings.removeKeyPress(key);
+    }
+    mappings.resetToDefaultMapping(toJuceCommandId(command));
+}
+
+bool KeymapEditorView::isCommandAtDefaults(EditorCommandId command) const
+{
+    const EditorCommandSpec* const spec = findEditorCommandSpec(toJuceCommandId(command));
+    if (spec == nullptr)
+    {
+        return true;
+    }
+
+    const juce::Array<juce::KeyPress> current =
+        m_command_manager.getKeyMappings()->getKeyPressesAssignedToCommand(
+            toJuceCommandId(command));
+    if (static_cast<std::size_t>(current.size()) != spec->default_keypresses.size())
+    {
+        return false;
+    }
+    for (int index = 0; index < current.size(); ++index)
+    {
+        if (!(current[index] == spec->default_keypresses[static_cast<std::size_t>(index)]))
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 void KeymapEditorView::rebuildRows()

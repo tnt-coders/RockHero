@@ -415,10 +415,14 @@ The original question text is kept below for the decision record.
 > rebuilt on the set's async change broadcasts, and `applyBindingChange` refusing
 > non-rebindable commands outright (no dialog path can alias the core trio). The stock
 > component, its window-local LookAndFeel, and the `juce_gui_extra` link are gone; the
-> `readOnlyInKeyEditor` flag stays as correct command metadata. Per-command reset remains the
-> recorded uncommitted future enhancement — now trivially addable since the component is ours.
-> Tests cover row structure, one-owner semantics, non-rebindable refusal, live refresh, and
-> the window wiring. Merging this branch completes the phase's in-action review.
+> `readOnlyInKeyEditor` flag stays as correct command metadata. **Per-command reset shipped
+> 2026-07-20** (user-directed after re-verifying it has no honest stock surfacing): row
+> right-click and chip-menu "Reset to default" items, disabled at defaults, restoring the
+> registry chords with the one-owner law held through the reset (default chords are reclaimed
+> from any command that took them; the mapping set's own reset does no conflict cleanup).
+> Tests cover row structure, one-owner semantics, non-rebindable refusal, live refresh,
+> per-command reset incl. default-chord reclaim, and the window wiring. Merging this branch
+> completes the phase's in-action review.
 >
 > **Grammar-key policy settled 2026-07-20 (user sign-off): fixed + listed.** Two defects the
 > user found drove it: the capture flow allowed binding commands to grammar chords (a
@@ -458,9 +462,11 @@ The original question text is kept below for the decision record.
   for positioning only, juce_AlertWindow.cpp:467) while the factory-path confirms resolve
   their LookAndFeel from the associated component (juce_AlertWindowHelpers.h:80-92), which
   stock sets to itself — reachable by a component-local LnF, no global default needed. What
-  stock cannot do (the private-class wall): per-command reset-to-default inside rows — kept as
-  a **possible future enhancement, not committed** (global reset + per-binding remove cover
-  today's need; building it requires the custom key-mapping component) — more than 3 displayed
+  stock cannot do (the private-class wall): per-command reset-to-default inside rows (later
+  re-verified rigorously at the user's request: `resetToDefaultMapping(CommandID)` is public
+  API at juce_KeyPressMappingSet.h:156, but the only stock surfacing is parsing the private
+  `"<id>_id"` tree-item name format — a silently-breakable hack — or forking; **implemented in
+  the custom view 2026-07-20** as row right-click + chip-menu items), more than 3 displayed
   aliases per command (private `maxNumAssignments`, juce_KeyMappingEditorComponent.cpp:287),
   and future per-row surfaces (search, reserved-grammar rows with custom copy). **Custom-rebuild
   triggers, recorded:** committing to per-command reset or any of the above, or the themed
