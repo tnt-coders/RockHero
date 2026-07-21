@@ -460,7 +460,9 @@ not before. Rules:
   tail to end exactly at the inserted note (shortening to make room is not crowding), and
   moves/merges are unclamped. Promoting the margin to a validity or lint rule would route
   through plan 42's corpus calibration first. A tail already at or past the limit refuses to
-  grow; it is never shrunk by a grow gesture.
+  grow; it is never shrunk by a grow gesture. (Since 2026-07-21 the GP importer trims its own
+  generated tails to this same margin at build time — a builder normalization policy for GP's
+  full-notated durations, not a validity rule; .rock imports still arrive untouched.)
 - **OPEN — override design (deliberately deferred):** the clean ways to intentionally exceed
   the limit (and the exact cases that justify it), plus the margin's configurability surface,
   are a separate design discussion. Until it happens the blanket restriction stands as the

@@ -66,7 +66,12 @@ Two implementations, dispatched by extension:
   points, and materialize one arrangement per track (`gp_chart_builder`). The backing track's
   signed `FramePadding` (44.1kHz frames) becomes the asset's signed `start_offset`: positive
   delays the audio, negative means the recording's head precedes the score and playback skips
-  it. Most real charts carry a negative value, so dropping it desyncs the song.
+  it. Most real charts carry a negative value, so dropping it desyncs the song. The builder then
+  normalizes sustains (tails trim to the minimum-note-distance margin before the next onset on
+  any string without ever clipping a bend/slide payload, and effect-free tails shorter than one
+  beat drop entirely — GP notates every note at full duration) and generates the fret-hand
+  position track with a minimal-shift window walk (the simple starting algorithm;
+  `docs/plans/todo/fhp-corpus-derived-generation.md` holds the eventual corpus-derived one).
 
 An import produces an **unsaved** project: no path, `save_requires_destination` set, so the first
 save is forced to Save As — which is also the moment per-project view state starts persisting.

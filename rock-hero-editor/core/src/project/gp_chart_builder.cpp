@@ -430,7 +430,150 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
     return events;
 }
 
-// Builds one track's chart: tie merging, technique mapping, bends, and slide resolution.
+// Built notes plus their onset on the global beat axis (needed for tie and slide spans, and by
+// the sustain normalization that runs after both).
+struct BuiltNote
+{
+    ChartNote note;
+    Fraction global_beat{};
+    Fraction end_global_beat{};
+    int gp_string{0};
+    int slide_flags{0};
+};
+
+// Reports whether the note carries a technique that lives on its sustain tail. These notes keep
+// their tails through the sub-beat drop rule: removing the tail would remove the technique.
+[[nodiscard]] bool hasSustainTechnique(const ChartNote& note)
+{
+    return !note.bend.empty() || !note.slides.empty() || note.vibrato || note.tremolo;
+}
+
+// Normalizes imported sustains for chart readability (import policy, user rules 2026-07-21):
+//
+// 1. A tail is trimmed to end at least the minimum-note-distance margin — 1/16 of a whole note,
+//    the same settled margin the editor's duration verb clamps to — before the next onset on ANY
+//    string. Same-onset chord members never bind each other, and GP import emits no shape spans,
+//    so the editor rule's span-sibling exemption has nothing to exempt here. Trimming never
+//    clips a bend or slide payload: the tail floors at the last payload offset, so a slide still
+//    reaches its target note (exact adjacency stays legal per 40-Q2-B).
+// 2. After trimming, a note with no sustain-carried technique whose tail is shorter than one
+//    beat loses the tail entirely: Guitar Pro gives every note its full notated duration, and a
+//    sub-beat effect-free tail reads as noise in a chart rather than as a deliberate sustain.
+//
+// Both rules are import normalization only — the editor never rewrites spacing the user authored.
+void normalizeImportedSustains(
+    std::vector<BuiltNote>& built, const MeasureGrid& grid, std::vector<std::string>& notes)
+{
+    int trimmed = 0;
+    int dropped = 0;
+    for (std::size_t index = 0; index < built.size(); ++index)
+    {
+        ChartNote& note = built[index].note;
+        if (note.sustain.numerator > 0)
+        {
+            std::size_t next = index + 1;
+            while (next < built.size() && built[next].global_beat == built[index].global_beat)
+            {
+                ++next;
+            }
+            if (next < built.size())
+            {
+                const auto measure_index = static_cast<std::size_t>(note.position.measure - 1);
+                const Fraction margin{grid.denominator[measure_index], 16};
+                const Fraction limit = subtractFractions(
+                    subtractFractions(built[next].global_beat, built[index].global_beat), margin);
+                if (limit < note.sustain)
+                {
+                    Fraction target = limit.numerator < 0 ? Fraction{} : limit;
+                    if (!note.bend.empty() && target < note.bend.back().offset)
+                    {
+                        target = note.bend.back().offset;
+                    }
+                    if (!note.slides.empty() && target < note.slides.back().offset)
+                    {
+                        target = note.slides.back().offset;
+                    }
+                    if (target < note.sustain)
+                    {
+                        note.sustain = target;
+                        ++trimmed;
+                    }
+                }
+            }
+        }
+        if (note.sustain.numerator > 0 && !hasSustainTechnique(note) && note.sustain < Fraction{1})
+        {
+            note.sustain = Fraction{};
+            ++dropped;
+        }
+    }
+    if (trimmed > 0)
+    {
+        notes.push_back(
+            std::to_string(trimmed) + " sustains were trimmed to the minimum note distance");
+    }
+    if (dropped > 0)
+    {
+        notes.push_back(
+            std::to_string(dropped) + " sub-beat sustains without techniques were dropped");
+    }
+}
+
+// Generates the fret-hand position track with a minimal-shift window walk — the deliberately
+// simple starting algorithm (user decision 2026-07-21): the hand covers a [fret, fret+width-1]
+// window (width four unless one onset spans wider), open strings never constrain it, and when an
+// onset's fretted notes fall outside the window the anchor moves the shortest distance that
+// covers them. Known limits (no lookahead, no phrase segmentation, mid-sustain slide targets
+// uncovered until the next onset) and the corpus-derived generator that should eventually
+// replace this are recorded in docs/plans/todo/fhp-corpus-derived-generation.md.
+[[nodiscard]] std::vector<common::core::FretHandPosition> generateFretHandPositions(
+    const std::vector<ChartNote>& chart_notes)
+{
+    std::vector<common::core::FretHandPosition> positions;
+    int anchor = 0;
+    int width = 4;
+    std::size_t index = 0;
+    while (index < chart_notes.size())
+    {
+        std::size_t onset_end = index;
+        int min_fret = 0;
+        int max_fret = 0;
+        while (onset_end < chart_notes.size() &&
+               chart_notes[onset_end].position == chart_notes[index].position)
+        {
+            const int fret = chart_notes[onset_end].fret;
+            if (fret > 0)
+            {
+                min_fret = min_fret == 0 ? fret : std::min(min_fret, fret);
+                max_fret = std::max(max_fret, fret);
+            }
+            ++onset_end;
+        }
+        if (min_fret > 0 &&
+            (positions.empty() || min_fret < anchor || max_fret > anchor + width - 1))
+        {
+            const int next_width = std::max(4, max_fret - min_fret + 1);
+            // The window may sit anywhere in [max-width+1, min]; the first placement anchors at
+            // the lowest fretted note, later ones shift minimally from the current anchor.
+            const int lowest_anchor = std::max(1, max_fret - next_width + 1);
+            const int next_anchor =
+                positions.empty() ? min_fret : std::clamp(anchor, lowest_anchor, min_fret);
+            positions.push_back(
+                common::core::FretHandPosition{
+                    .position = chart_notes[index].position,
+                    .fret = next_anchor,
+                    .width = next_width,
+                });
+            anchor = next_anchor;
+            width = next_width;
+        }
+        index = onset_end;
+    }
+    return positions;
+}
+
+// Builds one track's chart: tie merging, technique mapping, bends, slide resolution, sustain
+// normalization, and fret-hand position generation.
 [[nodiscard]] Chart buildChart(
     const GpTrack& track, const MeasureGrid& grid, std::vector<std::string>& notes)
 {
@@ -443,15 +586,6 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
 
     const std::vector<NoteEvent> events = collectEvents(track, grid, notes);
 
-    // Built notes plus their onset on the global beat axis (needed for tie and slide spans).
-    struct BuiltNote
-    {
-        ChartNote note;
-        Fraction global_beat{};
-        Fraction end_global_beat{};
-        int gp_string{0};
-        int slide_flags{0};
-    };
     std::vector<BuiltNote> built;
     std::map<int, std::size_t> open_note_per_string;
     std::map<int, int> previous_fret_per_string;
@@ -656,10 +790,22 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
                                              "as plain notes");
     }
 
+    // Runs after slide resolution so slide-extended tails carry their payloads into the trim's
+    // payload floor.
+    normalizeImportedSustains(built, grid, notes);
+
     chart.notes.reserve(built.size());
     for (BuiltNote& entry : built)
     {
         chart.notes.push_back(std::move(entry.note));
+    }
+
+    chart.fret_hand_positions = generateFretHandPositions(chart.notes);
+    if (!chart.fret_hand_positions.empty())
+    {
+        notes.push_back(
+            "generated " + std::to_string(chart.fret_hand_positions.size()) +
+            " fret-hand positions (simple window walk; verify)");
     }
 
     return chart;

@@ -218,12 +218,14 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
 
     REQUIRE(chart.notes.size() == 5);
 
-    // Quarter palm mute on the low string.
+    // Quarter palm mute on the low string. Its notated one-beat tail trims to 3/4 against the
+    // next onset one beat later (minimum-note-distance margin 1/4 in 4/4) and then drops as a
+    // sub-beat effect-free sustain — the import sustain policy.
     CHECK(chart.notes[0].position == GridPosition{.measure = 1, .beat = 1});
     CHECK(chart.notes[0].string == 1);
     CHECK(chart.notes[0].fret == 3);
     CHECK(chart.notes[0].mute == common::core::NoteMute::Palm);
-    CHECK(chart.notes[0].sustain == Fraction{1});
+    CHECK(chart.notes[0].sustain == Fraction{});
 
     // Hammer-on destination that shift-slides into the next note.
     CHECK(chart.notes[1].position == GridPosition{.measure = 1, .beat = 2});
@@ -238,10 +240,12 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(chart.notes[2].fret == 7);
 
     // The tie chain merges into one note whose sustain crosses the barline: onset 1:3, a
-    // quarter in bar one plus a half in bar two makes four beats to the continuation's end.
+    // quarter in bar one plus a half in bar two makes four beats to the continuation's end,
+    // trimmed by the sustain policy to 15/4 (margin 1/4 before the next onset at 2:3) and kept —
+    // vibrato is a sustain-carried technique, so the sub-beat drop rule never applies to it.
     CHECK(chart.notes[3].position == GridPosition{.measure = 1, .beat = 3});
     CHECK(chart.notes[3].string == 2);
-    CHECK(chart.notes[3].sustain == Fraction{4});
+    CHECK(chart.notes[3].sustain == Fraction{15, 4});
     CHECK(chart.notes[3].vibrato);
 
     // Between-fret natural harmonic with the GP bend mapped to [offset, semitones] pairs.
@@ -255,6 +259,56 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(chart.notes[4].bend[1].semitones == Catch::Approx(1.0));
     CHECK(chart.notes[4].bend[2].offset == Fraction{1, 2});
     CHECK(chart.notes[4].bend[2].semitones == Catch::Approx(2.0));
+
+    // The generated fret-hand track walks a minimal-shift window: fret 3 opens a 3-6 window,
+    // fret 7 shifts it minimally up to 4-7, fret 2 shifts it minimally down to 2-5, and the
+    // final fret-3 bend note fits without another move.
+    REQUIRE(chart.fret_hand_positions.size() == 3);
+    CHECK(
+        chart.fret_hand_positions[0] ==
+        common::core::FretHandPosition{
+            .position = GridPosition{.measure = 1, .beat = 1}, .fret = 3, .width = 4
+        });
+    CHECK(
+        chart.fret_hand_positions[1] ==
+        common::core::FretHandPosition{
+            .position = GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}},
+            .fret = 4,
+            .width = 4
+        });
+    CHECK(
+        chart.fret_hand_positions[2] ==
+        common::core::FretHandPosition{
+            .position = GridPosition{.measure = 1, .beat = 3}, .fret = 2, .width = 4
+        });
+
+    std::filesystem::remove_all(scratch, cleanup_error);
+}
+
+// An effect-free sustain that is still at least one beat long after the minimum-distance trim
+// keeps its (trimmed) tail — the sub-beat drop rule only removes tails shorter than one beat.
+TEST_CASE("Guitar Pro import keeps trimmed sustains of a beat or longer", "[core][gp-import]")
+{
+    const std::filesystem::path scratch =
+        std::filesystem::temp_directory_path() / "rh_gp_sustain_keep_test";
+    std::error_code cleanup_error;
+    std::filesystem::remove_all(scratch, cleanup_error);
+    const std::filesystem::path workspace = scratch / "song";
+    std::filesystem::create_directories(workspace);
+
+    // Removing the vibrato from the tie-chain origin makes the merged four-beat note effect-free;
+    // the trim to 15/4 still leaves more than a beat, so the tail survives.
+    const std::string gpif = fixtureWithReplacement("<Vibrato>Slight</Vibrato>", "");
+    const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
+
+    GpSongImporter importer;
+    const auto song = importer.importSong(archive, workspace);
+    REQUIRE(song.has_value());
+    REQUIRE(song->arrangements.size() == 1);
+    const common::core::Chart& chart = requiredChart(song->arrangements.front());
+    REQUIRE(chart.notes.size() == 5);
+    CHECK_FALSE(chart.notes[3].vibrato);
+    CHECK(chart.notes[3].sustain == Fraction{15, 4});
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }
