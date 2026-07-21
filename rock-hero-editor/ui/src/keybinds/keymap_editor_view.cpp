@@ -104,6 +104,16 @@ private:
     juce::KeyPress m_captured{};
 };
 
+// Lays one chip out against the row's right edge, returning the next free right edge.
+[[nodiscard]] int placeChipRightAligned(
+    juce::Component& chip, const juce::String& text, int right, int row_height)
+{
+    const juce::Font font{juce::FontOptions{g_chip_font_height}};
+    const int width = std::max(g_chip_min_width, textWidth(font, text) + g_chip_text_pad);
+    chip.setBounds(right - width, 3, width, row_height - 6);
+    return right - width - g_chip_gap;
+}
+
 } // namespace
 
 // One binding chip: a themed rounded button showing a chord (or "+" for the add affordance).
@@ -136,9 +146,9 @@ public:
     }
 };
 
-// A fixed editing/navigation reference row: the verb on the left, its composed key family as
-// muted text on the right — deliberately not chips, because these describe modifier families
-// rather than single rebindable chords.
+// A fixed editing/navigation reference row: the verb on the left, its keys as inert chips on
+// the right — the same chip language as the command rows, so fixed and rebindable rows read
+// identically.
 class KeymapEditorView::FixedGrammarRow final : public juce::Component
 {
 public:
@@ -146,22 +156,38 @@ public:
         : m_reservation(reservation)
     {
         setInterceptsMouseClicks(false, false);
+        for (const char* const chip_text : m_reservation.chips)
+        {
+            auto chip = std::make_unique<ChipButton>(chip_text, /*interactive=*/false);
+            addAndMakeVisible(*chip);
+            m_chips.push_back(std::move(chip));
+        }
     }
 
     void paint(juce::Graphics& g) override
     {
-        const EditorTheme& theme = editorTheme();
-        const juce::Rectangle<int> bounds =
-            getLocalBounds().withTrimmedLeft(g_row_inset).withTrimmedRight(g_row_inset);
+        g.setColour(editorTheme().primary_text);
         g.setFont(juce::Font{juce::FontOptions{g_row_font_height}});
-        g.setColour(theme.primary_text);
-        g.drawText(m_reservation.name, bounds, juce::Justification::centredLeft, true);
-        g.setColour(theme.muted_text);
-        g.drawText(m_reservation.keys, bounds, juce::Justification::centredRight, true);
+        g.drawText(
+            m_reservation.name,
+            getLocalBounds().withTrimmedLeft(g_row_inset),
+            juce::Justification::centredLeft,
+            true);
+    }
+
+    void resized() override
+    {
+        int right = getWidth() - g_row_inset;
+        for (int index = static_cast<int>(m_chips.size()); --index >= 0;)
+        {
+            ChipButton& chip = *m_chips[static_cast<std::size_t>(index)];
+            right = placeChipRightAligned(chip, chip.getButtonText(), right, getHeight());
+        }
     }
 
 private:
     const GrammarReservation& m_reservation;
+    std::vector<std::unique_ptr<ChipButton>> m_chips;
 };
 
 // A bold category strip separating the registry's command groups.
@@ -259,23 +285,15 @@ public:
 
     void resized() override
     {
-        const juce::Font chip_font{juce::FontOptions{g_chip_font_height}};
         int right = getWidth() - g_row_inset;
-        const auto place = [&right, this](juce::Component& chip, const juce::String& text) {
-            const juce::Font font{juce::FontOptions{g_chip_font_height}};
-            const int width = std::max(g_chip_min_width, textWidth(font, text) + g_chip_text_pad);
-            chip.setBounds(right - width, 3, width, getHeight() - 6);
-            right -= width + g_chip_gap;
-        };
         if (m_add_chip != nullptr)
         {
-            place(*m_add_chip, "+");
+            right = placeChipRightAligned(*m_add_chip, "+", right, getHeight());
         }
         for (int index = static_cast<int>(m_chips.size()); --index >= 0;)
         {
-            place(
-                *m_chips[static_cast<std::size_t>(index)],
-                m_chips[static_cast<std::size_t>(index)]->getButtonText());
+            ChipButton& chip = *m_chips[static_cast<std::size_t>(index)];
+            right = placeChipRightAligned(chip, chip.getButtonText(), right, getHeight());
         }
     }
 
@@ -466,30 +484,51 @@ bool KeymapEditorView::isCommandAtDefaults(EditorCommandId command) const
 void KeymapEditorView::rebuildRows()
 {
     m_rows.clear();
-    const char* current_category = "";
-    for (const EditorCommandSpec& spec : editorCommandRegistry())
-    {
-        if (juce::String{spec.category} != juce::String{current_category})
-        {
-            current_category = spec.category;
-            auto header = std::make_unique<CategoryHeader>(juce::String{spec.category});
-            header->setSize(0, g_header_height);
-            m_row_list.addAndMakeVisible(*header);
-            m_rows.push_back(std::move(header));
-        }
+
+    const auto add_header = [this](const juce::String& text) {
+        auto header = std::make_unique<CategoryHeader>(text);
+        header->setSize(0, g_header_height);
+        m_row_list.addAndMakeVisible(*header);
+        m_rows.push_back(std::move(header));
+    };
+    const auto add_command_row = [this](const EditorCommandSpec& spec) {
         auto row = std::make_unique<CommandRow>(*this, spec);
         row->setSize(0, g_row_height);
         m_row_list.addAndMakeVisible(*row);
         m_rows.push_back(std::move(row));
+    };
+
+    // Rebindable commands first, under their registry categories; everything uneditable
+    // gathers at the bottom (user direction 2026-07-20) so the actionable rows lead.
+    const char* current_category = "";
+    for (const EditorCommandSpec& spec : editorCommandRegistry())
+    {
+        if (!spec.rebindable)
+        {
+            continue;
+        }
+        if (juce::String{spec.category} != juce::String{current_category})
+        {
+            current_category = spec.category;
+            add_header(juce::String{spec.category});
+        }
+        add_command_row(spec);
     }
 
-    // The fixed editing/navigation reference: visible so the dialog is the complete keymap,
-    // inert because the grammar is a composed modifier algebra, not per-key bindings (an
-    // alternative navigation *scheme* is the recorded future enhancement, not rebinding).
-    auto grammar_header = std::make_unique<CategoryHeader>("Editing & Navigation (fixed)");
-    grammar_header->setSize(0, g_header_height);
-    m_row_list.addAndMakeVisible(*grammar_header);
-    m_rows.push_back(std::move(grammar_header));
+    // The fixed core commands, then the grammar reference: visible so the dialog is the
+    // complete keymap, inert because the trio must keep the plugin-window mirror correct and
+    // the grammar is a composed modifier algebra, not per-key bindings (an alternative
+    // navigation *scheme* is the recorded future enhancement, not rebinding).
+    add_header("Fixed Commands");
+    for (const EditorCommandSpec& spec : editorCommandRegistry())
+    {
+        if (!spec.rebindable)
+        {
+            add_command_row(spec);
+        }
+    }
+
+    add_header("Editing & Navigation (fixed)");
     int reservation_index = 0;
     for (const GrammarReservation& reservation : grammarReservations())
     {

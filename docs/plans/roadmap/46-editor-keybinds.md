@@ -424,6 +424,12 @@ The original question text is kept below for the decision record.
 > per-command reset incl. default-chord reclaim, and the window wiring. Merging this branch
 > completes the phase's in-action review.
 >
+> **Layout revised per in-action review (2026-07-20):** rebindable categories lead; everything
+> uneditable gathers at the bottom ("Fixed Commands" — the trio as ordinary inert-chip rows —
+> then "Editing & Navigation (fixed)"), and the grammar reference was split into finer rows so
+> every entry's keys render as the same chips as command rows instead of sentence-style
+> descriptions. Ordering is test-asserted.
+>
 > **Grammar-key policy settled 2026-07-20 (user sign-off): fixed + listed.** Two defects the
 > user found drove it: the capture flow allowed binding commands to grammar chords (a
 > sometimes-works binding — the decoder shadows it whenever its surface context applies), and

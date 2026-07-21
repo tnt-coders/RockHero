@@ -37,6 +37,20 @@ TEST_CASE("KeymapEditorView builds rows from the registry", "[ui][keybinds]")
                 first_chip.getButtonText() == spec.default_keypresses.front().getTextDescription());
         }
     }
+
+    // Uneditable rows gather at the bottom: fixed commands sit below every rebindable row,
+    // and the grammar reference sits below the fixed commands.
+    juce::Component* const open_row = findDescendant(
+        editor,
+        "keymap_row_" + juce::String::toHexString(toJuceCommandId(EditorCommandId::OpenProject)));
+    juce::Component* const undo_row = findDescendant(
+        editor, "keymap_row_" + juce::String::toHexString(toJuceCommandId(EditorCommandId::Undo)));
+    juce::Component* const grammar_row = findDescendant(editor, "keymap_grammar_row_0");
+    REQUIRE(open_row != nullptr);
+    REQUIRE(undo_row != nullptr);
+    REQUIRE(grammar_row != nullptr);
+    CHECK(undo_row->getY() > open_row->getY());
+    CHECK(grammar_row->getY() > undo_row->getY());
 }
 
 // applyBindingChange is the overwrite-and-clear dance: the chord's previous owner loses it,
