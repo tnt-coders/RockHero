@@ -63,12 +63,15 @@ struct ArrangementViewState
     }
 
     /*!
-    \brief Returns the asset's start offset, or zero when no audio is assigned.
+    \brief Returns the asset's signed start offset, or zero when no audio is assigned.
 
     A positive offset delays the backing audio on the timeline so a recording whose content begins
     after the song's first beat lines up; the waveform sits at this offset with silence before it.
+    A negative offset means the recording's head precedes the song's first beat: the pre-score
+    span falls before the timeline origin, so playback and the drawn waveform start that far into
+    the file.
 
-    \return Seconds the audio is offset from the timeline origin.
+    \return Seconds the audio file's first sample sits from the timeline origin.
     */
     [[nodiscard]] constexpr double audioStartOffsetSeconds() const noexcept
     {
@@ -77,6 +80,10 @@ struct ArrangementViewState
 
     /*!
     \brief Calculates the timeline range the audio occupies, accounting for its start offset.
+
+    With a negative offset the range starts before the timeline origin; the pre-zero span is the
+    part of the recording the score omits, which views naturally clip at the viewport edge.
+
     \return Timeline range from the start offset through the offset plus the audio duration.
     */
     [[nodiscard]] constexpr common::core::TimeRange audioTimelineRange() const noexcept

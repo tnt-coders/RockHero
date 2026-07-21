@@ -167,15 +167,19 @@ std::expected<common::core::Song, SongImportError> GpSongImporter::importSong(
         }
     }
 
-    // Positive frame padding is silence Guitar Pro places before the audio when the recording's
-    // content starts after the score's first beat; it becomes the backing audio's start offset so
-    // the notes line up. Guitar Pro counts it in fixed 44.1kHz frames regardless of the asset's
-    // real sample rate (verified against 48kHz corpus assets whose sync tempos only reproduce at
-    // 44100). Negative padding is cosmetic leading silence that does not shift note timing. The
-    // offset is snapped to the same millisecond grid as the tempo map so audio and notes stay on
-    // one time base and the package stores it cleanly.
+    // Frame padding is the audio's signed placement on the score timeline, counted in fixed
+    // 44.1kHz frames regardless of the asset's real sample rate (verified against 48kHz corpus
+    // assets whose sync tempos only reproduce at 44100). Positive padding is silence before the
+    // audio when the recording's content starts after the score's first beat; negative padding
+    // pulls the audio left so its head plays out before the score begins — dropping it desyncs
+    // the song by |padding|/44100 seconds (the 2026-07-21 corpus survey found negative padding
+    // on 99 of 114 files, every one with its origin sync point at frame 0, so the padding is
+    // the only carrier of that alignment). Both signs flow into the asset start offset; the
+    // engine skips the pre-score head for negative values. The offset is snapped to the same
+    // millisecond grid as the tempo map so audio and notes stay on one time base and the
+    // package stores it cleanly.
     constexpr double g_gp_frame_rate{44100.0};
-    const double raw_offset_seconds = std::max(0, score->frame_padding) / g_gp_frame_rate;
+    const double raw_offset_seconds = score->frame_padding / g_gp_frame_rate;
     const common::core::TimeDuration audio_start_offset{
         static_cast<double>(std::llround(raw_offset_seconds * 1000.0)) / 1000.0
     };
