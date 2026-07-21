@@ -1,8 +1,8 @@
 # Plan 46 — Editor Keybinds
 
-**Status:** **G46-KEYMAP CLOSED 2026-07-20; Phases 0–5 code-complete the same day** — the last
-gate is the manual Nolly/Gateway plugin verification of the generalized shortcut mirror (Phase 4
-execution record) before the `custom-keybind-menu` branch merges. Q1 answered by the signed
+**Status:** **G46-KEYMAP CLOSED 2026-07-20; Phases 0–5 code-complete the same day; manual
+plugin verification of the generalized shortcut mirror PASSED (user-witnessed, 2026-07-20)** —
+the `custom-keybind-menu` branch is clear to merge on that front. Q1 answered by the signed
 keymap matrix (which supersedes the Appendix's tier A as the default map); Q2 = (a) parallel
 systems plus an extraction watch-item; Q3 dissolved twice over — first by the short-lived
 non-rebindable-trio decision, then, after its same-day reversal, by the generalized
@@ -527,10 +527,10 @@ The original question text is kept below for the decision record.
 > chords and match the injected set), built-in defaults keeping an editor-less engine on the
 > editor's default keymap, and the editor-side `PluginWindowShortcutSync` pushing the trio's
 > chords after keymap restore and on every mapping change. `disposeCommandKey`'s Space-yield
-> policy keys off command identity and survives untouched. **Remaining gate: the manual
-> Nolly/Gateway verification** (rebind undo, confirm it fires from a focused plugin window,
-> confirm plugin text fields still type) — only the user can witness this; do not merge the
-> branch before it. The original design below reads historically.
+> policy keys off command identity and survives untouched. **Gate CLOSED (2026-07-20): the
+> manual plugin verification passed** — the user confirmed rebound chords fire from a focused
+> plugin window and the app now behaves like REAPER here; the branch is clear to merge on this
+> front. The original design below reads historically.
 >
 > **Constraint correction (2026-07-20, prompted by the user's REAPER counterexample — Alt+;
 > play/pause works there through focused VST windows):** the seam design's "Alt intentionally
