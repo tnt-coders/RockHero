@@ -1,6 +1,7 @@
 #include "main_window/editor.h"
 
 #include "keybinds/editor_keymap_persistence.h"
+#include "keybinds/plugin_window_shortcut_sync.h"
 #include "main_window/editor_view.h"
 
 #include <memory>
@@ -72,11 +73,15 @@ Editor::Editor(
     // (the mapping set's restore contract).
     m_keymap_persistence =
         std::make_unique<EditorKeymapPersistence>(m_view->commandManager(), services.settings);
+    // After the keymap persistence so the first plugin-window push reflects the restored keymap.
+    m_plugin_window_shortcut_sync = std::make_unique<PluginWindowShortcutSync>(
+        m_view->commandManager(), audio_ports.plugin_host);
 }
 
 // Clears the controller's view callbacks before destroying the concrete view.
 Editor::~Editor()
 {
+    m_plugin_window_shortcut_sync.reset();
     m_keymap_persistence.reset();
     m_controller.detachView();
     m_view.reset();

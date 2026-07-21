@@ -32,6 +32,8 @@ target_sources(
             src/keybinds/keyboard_shortcuts_window.h
             src/keybinds/keymap_editor_view.cpp
             src/keybinds/keymap_editor_view.h
+            src/keybinds/plugin_window_shortcut_sync.cpp
+            src/keybinds/plugin_window_shortcut_sync.h
             src/main_window/editor.cpp
             src/main_window/editor_view.cpp
             src/main_window/editor_view.h

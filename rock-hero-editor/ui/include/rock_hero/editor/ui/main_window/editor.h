@@ -33,6 +33,7 @@ namespace rock_hero::editor::ui
 
 class EditorKeymapPersistence;
 class EditorView;
+class PluginWindowShortcutSync;
 
 /*!
 \brief Owns the editor controller and view as one fully wired feature.
@@ -219,6 +220,10 @@ private:
     // constructed after the view (every command must be registered before restore) and destroyed
     // before it (the change-listener registration points into the view-owned mapping set).
     std::unique_ptr<EditorKeymapPersistence> m_keymap_persistence;
+
+    // Mirrors the keymap's Undo/Redo/Play-Pause chords into hosted plugin windows; constructed
+    // after the keymap persistence so its first push reflects the restored keymap.
+    std::unique_ptr<PluginWindowShortcutSync> m_plugin_window_shortcut_sync;
 };
 
 } // namespace rock_hero::editor::ui

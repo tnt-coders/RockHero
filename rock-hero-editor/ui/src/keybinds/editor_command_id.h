@@ -50,16 +50,16 @@ enum class EditorCommandId : int
     /*! \brief File > Exit (menu-only; the OS owns `Alt+F4`). */
     ExitEditor = 0x1007,
 
-    /*! \brief Edit > Undo (`Ctrl+Z`; non-rebindable core command). */
+    /*! \brief Edit > Undo (`Ctrl+Z`). */
     Undo = 0x1101,
 
-    /*! \brief Edit > Redo (`Ctrl+Y`, `Ctrl+Shift+Z`; non-rebindable core command). */
+    /*! \brief Edit > Redo (`Ctrl+Y`, `Ctrl+Shift+Z`). */
     Redo = 0x1102,
 
     /*! \brief Edit > Keyboard Shortcuts... (menu-only). */
     ShowKeyboardShortcuts = 0x1103,
 
-    /*! \brief Toggle transport playback (`Space`; non-rebindable core command). */
+    /*! \brief Toggle transport playback (`Space`). */
     PlayPause = 0x1201,
 
     /*! \brief View > Show Waveform (menu-only). */

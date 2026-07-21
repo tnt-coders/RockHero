@@ -24,8 +24,8 @@ binding chips right-aligned; clicking a chip offers change/remove, the trailing 
 captures a new binding through a press-a-key dialog, and conflicts resolve through the
 overwrite-and-clear flow — a themed confirm naming the current owner, then remove-then-add, so
 exactly one owner keeps a chord (`addKeyPress` alone must never be trusted to resolve
-conflicts; its documented conflict removal does not exist in code). Non-rebindable rows render
-their chords as inert chips with no affordances.
+conflicts; its documented conflict removal does not exist in code). Every command is
+rebindable; only the interaction grammar's reserved chords are refused at capture.
 
 Rows rebuild from the mapping set on every change broadcast, which also keeps the view live
 against rebinds arriving from anywhere else; the broadcasts are asynchronous, so a rebuild
@@ -67,9 +67,8 @@ public:
     Removes the chord from whichever command currently owns it, removes the replaced binding
     when one is being changed, then adds the chord — the remove-then-add dance, public so the
     mapping-set semantics stay directly testable. Callers gate any confirmation beforehand;
-    this method applies unconditionally except for its refusals: non-rebindable commands,
-    grammar-reserved chords (the decoder would shadow them), and chords currently owned by a
-    non-rebindable command (the fixed core trio can never lose a chord).
+    this method applies unconditionally except for its one refusal: grammar-reserved chords,
+    which the decoder would shadow whenever its surface context applies.
 
     \param command Command receiving the chord.
     \param key Captured chord to assign.
@@ -91,7 +90,7 @@ public:
     the stock component's private rows helped decide the custom build. One-owner semantics hold
     through the reset: each default chord is first stripped from whatever command took it in
     the meantime, because the mapping set's own per-command reset performs no conflict cleanup
-    of its own. Non-rebindable commands are refused (their bindings never move anyway).
+    of its own.
 
     \param command Command to restore to its registry defaults.
     */
