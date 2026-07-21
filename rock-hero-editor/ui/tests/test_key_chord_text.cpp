@@ -40,52 +40,60 @@ namespace
 } // namespace
 
 // The collapse rule: a shifted chord renders as the character it types when that differs from
-// the base by more than case; remaining modifiers stay; everything else keeps JUCE's text.
+// the base by more than case; remaining modifiers stay; everything joins on the house dot.
 TEST_CASE("keyChordText collapses shifted characters", "[ui][keybinds]")
 {
     constexpr int shift = juce::ModifierKeys::shiftModifier;
     constexpr int ctrl = juce::ModifierKeys::ctrlModifier;
 
+    // The house separator is the middle dot (U+00B7) — Latin-1, so no font can substitute it,
+    // and it can never collide with the '+'/'-' keys the way a "+" joiner does ("Ctrl++").
+    const juce::String sep = keyChordJoiner();
+    CHECK(sep == juce::String::charToString(juce::juce_wchar{0x00B7}));
+
     CHECK(keyChordText(chord('/', shift), &fakeShiftResolver) == "?");
     CHECK(keyChordText(chord('1', shift), &fakeShiftResolver) == "!");
-    CHECK(keyChordText(chord('/', ctrl | shift), &fakeShiftResolver) == "Ctrl+?");
+    CHECK(keyChordText(chord('/', ctrl | shift), &fakeShiftResolver) == "Ctrl" + sep + "?");
 
     // Letters differ only by case, so they keep the explicit shift form — plain letter chords
     // display uppercase too, so a bare "Z" could not be told apart from the unshifted binding.
-    CHECK(keyChordText(chord('z', shift), &fakeShiftResolver) == "Shift+Z");
+    CHECK(keyChordText(chord('z', shift), &fakeShiftResolver) == "Shift" + sep + "Z");
 
     // Unresolvable (dead key / not a plain key on this layout) and shiftless chords keep the
     // explicit capitalized form.
-    CHECK(keyChordText(chord('[', shift), &fakeShiftResolver) == "Shift+[");
+    CHECK(keyChordText(chord('[', shift), &fakeShiftResolver) == "Shift" + sep + "[");
     CHECK(keyChordText(chord('/'), &fakeShiftResolver) == "/");
-    CHECK(keyChordText(chord('z', ctrl), &fakeShiftResolver) == "Ctrl+Z");
+    CHECK(keyChordText(chord('z', ctrl), &fakeShiftResolver) == "Ctrl" + sep + "Z");
 
-    // A '+' or '-' key under a modifier collides with the "+" joiner ("Ctrl++"), so those two
-    // take their names; the bare chips keep the compact symbol.
+    // The dot separator keeps the '+'/'-' keys as compact symbols even under modifiers.
     CHECK(keyChordText(chord('+'), &fakeShiftResolver) == "+");
     CHECK(keyChordText(chord('-'), &fakeShiftResolver) == "-");
-    CHECK(keyChordText(chord('+', ctrl), &fakeShiftResolver) == "Ctrl+Plus");
-    CHECK(keyChordText(chord('-', ctrl), &fakeShiftResolver) == "Ctrl+Minus");
-    CHECK(keyChordText(chord('=', ctrl | shift), &fakeShiftResolver) == "Ctrl+Plus");
+    CHECK(keyChordText(chord('+', ctrl), &fakeShiftResolver) == "Ctrl" + sep + "+");
+    CHECK(keyChordText(chord('-', ctrl), &fakeShiftResolver) == "Ctrl" + sep + "-");
+    CHECK(keyChordText(chord('=', ctrl | shift), &fakeShiftResolver) == "Ctrl" + sep + "+");
 
-    // Named keys use canonical Windows-convention spellings and never collapse.
-    CHECK(keyChordText(chord(juce::KeyPress::F9Key, shift), &fakeShiftResolver) == "Shift+F9");
+    // Named keys use canonical spellings and never collapse.
+    CHECK(
+        keyChordText(chord(juce::KeyPress::F9Key, shift), &fakeShiftResolver) ==
+        "Shift" + sep + "F9");
     CHECK(keyChordText(chord(juce::KeyPress::spaceKey), &fakeShiftResolver) == "Space");
     CHECK(keyChordText(chord(juce::KeyPress::escapeKey), &fakeShiftResolver) == "Esc");
     CHECK(
-        keyChordText(chord(juce::KeyPress::pageUpKey, ctrl), &fakeShiftResolver) == "Ctrl+Page Up");
+        keyChordText(chord(juce::KeyPress::pageUpKey, ctrl), &fakeShiftResolver) ==
+        "Ctrl" + sep + "Page Up");
 
     // Arrows render as bare direction words — JUCE's "cursor left" wording is too verbose on
     // a chip — with the full modifier prefix kept.
     CHECK(keyChordText(chord(juce::KeyPress::leftKey), &fakeShiftResolver) == "Left");
     CHECK(
         keyChordText(chord(juce::KeyPress::rightKey, ctrl | shift), &fakeShiftResolver) ==
-        "Ctrl+Shift+Right");
+        "Ctrl" + sep + "Shift" + sep + "Right");
 
     // Numpad keys abbreviate JUCE's "numpad" prefix to the conventional "Num".
     CHECK(keyChordText(chord(juce::KeyPress::numberPad5), &fakeShiftResolver) == "Num 5");
     CHECK(
-        keyChordText(chord(juce::KeyPress::numberPad7, ctrl), &fakeShiftResolver) == "Ctrl+Num 7");
+        keyChordText(chord(juce::KeyPress::numberPad7, ctrl), &fakeShiftResolver) ==
+        "Ctrl" + sep + "Num 7");
 }
 
 // addEditorCommandItem pre-fills the item's shortcut text through the shared formatter (JUCE
@@ -109,7 +117,8 @@ TEST_CASE("addEditorCommandItem renders shortcuts through the formatter", "[ui][
     juce::PopupMenu::Item& redo_item = iterator.getItem();
     CHECK(redo_item.itemID == toJuceCommandId(EditorCommandId::Redo));
     CHECK(redo_item.commandManager == &view.commandManager());
-    CHECK(redo_item.shortcutKeyDescription == "Ctrl+Y, Ctrl+Shift+Z");
+    const juce::String sep = keyChordJoiner();
+    CHECK(redo_item.shortcutKeyDescription == "Ctrl" + sep + "Y, Ctrl" + sep + "Shift" + sep + "Z");
 
     // The actions item's text matches the formatter by construction on every layout: "?"
     // where Shift+/ resolves, the explicit "shift + /" elsewhere.
