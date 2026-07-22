@@ -38,7 +38,13 @@ constexpr bgfx::ViewId g_overlay_view = 2;
 constexpr std::uint32_t g_backdrop_color = 0x000000ff;
 
 // Reference board-furniture colors (0xAARRGGBB), source-verified 2026-07-11.
-constexpr ArgbColor g_beat_bar_color = 0xFF0F3B5E;        // beat and measure bars alike
+constexpr ArgbColor g_beat_bar_color = 0xFF0F3B5E; // beat and measure bars alike
+
+// Measure downbeats (and the per-note fret-span lines, which reuse the shape) draw a sharp
+// chord-box-teal attack line exactly where they occur, then a brief beat-blue fade trailing
+// away down the measure — half the old symmetric-wings footprint (user direction).
+constexpr double g_attack_line_half_length = 0.025;
+constexpr double g_attack_fade_length = 0.2;
 constexpr ArgbColor g_fhp_lane_color = 0x402590E8;        // lit runway gap
 constexpr ArgbColor g_fhp_lane_dotted_color = 0x40185C94; // darker gap on inlay-dotted frets
 constexpr ArgbColor g_lane_border_color = 0x0007928F;     // per-fret runway ribbons (alpha varies)
@@ -145,16 +151,6 @@ constexpr ArgbColor g_chord_full_mute_cross_color = 0xFF80D8FF;
 constexpr ArgbColor g_chord_palm_mute_cross_color = 0xFF005064;
 constexpr ArgbColor g_chord_name_color = 0xFFE0E0E0;
 constexpr double g_chord_box_frame_thickness = 0.075;
-
-// Fret-span line under single notes: a floor glow marking the fret slots the note occupies
-// (its own slot for a fretted note, the hand window for an open string). Two gradient wings
-// peak at the note's landing z and die off almost immediately — shorter and lighter than the
-// beat and measure bars, so the two never read alike. Muted to sit like the middle of a chord
-// box's bottom bar: the color is the midpoint of the box teal and its dark variant, peaking at
-// the same half alpha the bar's gradient carries there.
-constexpr ArgbColor g_note_span_line_color = 0xFF008789;
-constexpr double g_note_span_line_glow_length = 0.08;
-constexpr double g_note_span_line_peak_alpha = 0.5;
 
 // Hand-shape span rails on the floor: arpeggio spans in the reference purple, held shapes in
 // the lane-border teal; a solid core with fade-out wings (fret thickness x3 and x9).
@@ -1113,8 +1109,9 @@ void HighwayRenderer::Impl::draw(
     }
 
     // --- Beat and measure bars: the reference's gradient wings in its deep blue, clipped to
-    // each beat's hand window. Measures get a solid core between fade-in and fade-out wings;
-    // plain beats are two wings meeting at the line. ---
+    // each beat's hand window. Measures get a sharp teal attack line on the downbeat with a
+    // brief blue fade trailing into the measure; plain beats are two wings meeting at the
+    // line. ---
     {
         bgfx::setUniform(fade_params.get(), fade_uniform.data());
 
@@ -1137,11 +1134,25 @@ void HighwayRenderer::Impl::draw(
             const std::uint32_t clear = packAbgr(g_beat_bar_color, 0.0);
             if (beat.measure_downbeat)
             {
+                pushFloorQuad(
+                    vertices,
+                    indices,
+                    x0,
+                    x1,
+                    0.015,
+                    z - g_attack_line_half_length,
+                    z + g_attack_line_half_length,
+                    packAbgr(g_chord_box_color));
                 pushFloorQuadGradient(
-                    vertices, indices, x0, x1, 0.015, z - 0.2, z - 0.1, clear, solid);
-                pushFloorQuad(vertices, indices, x0, x1, 0.015, z - 0.1, z + 0.1, solid);
-                pushFloorQuadGradient(
-                    vertices, indices, x0, x1, 0.015, z + 0.1, z + 0.2, solid, clear);
+                    vertices,
+                    indices,
+                    x0,
+                    x1,
+                    0.015,
+                    z + g_attack_line_half_length,
+                    z + g_attack_line_half_length + g_attack_fade_length,
+                    solid,
+                    clear);
             }
             else
             {
@@ -2130,33 +2141,31 @@ void HighwayRenderer::Impl::draw(
                 head_end);
         };
 
-        // Fret-span line: the teal floor glow under this single note, spanning the fret slots
-        // it occupies (drawn into the shadow batch so all other note geometry composites over
-        // it). Pure gradient wings — the alpha peak at the landing z is the line.
+        // Fret-span line: a floor line under this single note, spanning the fret slots it
+        // occupies — the measure lines' exact treatment (sharp teal attack on the landing z,
+        // brief blue fade trailing toward the horizon), just clipped to the note's frets.
+        // Drawn into the shadow batch so all other note geometry composites over it, fading
+        // out with a passed note.
         const auto push_span_line = [&](const double span_x0, const double span_x1) {
-            const std::uint32_t solid =
-                packAbgr(g_note_span_line_color, g_note_span_line_peak_alpha * fade);
-            const std::uint32_t clear = packAbgr(g_note_span_line_color, 0.0);
+            pushFloorQuad(
+                shadow_vertices,
+                shadow_indices,
+                span_x0,
+                span_x1,
+                0.02,
+                z - g_attack_line_half_length,
+                z + g_attack_line_half_length,
+                packAbgr(g_chord_box_color, fade));
             pushFloorQuadGradient(
                 shadow_vertices,
                 shadow_indices,
                 span_x0,
                 span_x1,
                 0.02,
-                z - g_note_span_line_glow_length,
-                z,
-                clear,
-                solid);
-            pushFloorQuadGradient(
-                shadow_vertices,
-                shadow_indices,
-                span_x0,
-                span_x1,
-                0.02,
-                z,
-                z + g_note_span_line_glow_length,
-                solid,
-                clear);
+                z + g_attack_line_half_length,
+                z + g_attack_line_half_length + g_attack_fade_length,
+                packAbgr(g_beat_bar_color, fade),
+                packAbgr(g_beat_bar_color, 0.0));
         };
 
         if (note.fret == 0)
