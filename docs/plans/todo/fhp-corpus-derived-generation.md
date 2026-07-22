@@ -3,7 +3,9 @@
 Status: deferred plan, written 2026-07-21. Re-read the current generator in
 `rock-hero-editor/core/src/project/gp_chart_builder.cpp` (`generateFretHandPositions`) and the
 `FretHandPosition` model before implementing; the corpus paths and algorithm sketch below reflect
-2026-07-21 state.
+2026-07-21 state. The maintained plain-English spec of the shipped algorithm (and the import
+sustain policy beside it) is "GP chart normalization policy" in
+`docs/developer/the-project-lifecycle.md`; this plan holds only its eventual replacement.
 
 ## Problem
 
