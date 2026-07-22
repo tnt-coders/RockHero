@@ -124,11 +124,15 @@ handshape or diagram data, so the tab's chord boxes are derived):
     on each struck string, open strings included — becomes a reusable template, deduplicated
     across the chart. Derived templates are unnamed and carry no fingering (the name chip only
     renders for named shapes).
-11. **Repeated strums of one posture share one span.** Consecutive onsets holding the same
-    posture merge into a single shape span from the first strum through the last strum's
-    *notated* duration (the duration before the sustain policy trims tails — the hand keeps
-    holding while the chug rings). Any intervening non-chord onset or different posture ends
-    the span; an isolated strum gets a span of its own notated duration.
+11. **Repeated strums of one articulation share one span.** Consecutive onsets holding the same
+    frets *and* the same per-string muting merge into a single shape span from the first strum
+    through the last strum's *notated* duration (the duration before the sustain policy trims
+    tails — the hand keeps holding while the chug rings). Any intervening non-chord onset,
+    different posture, or muting change (palm, full, or open, on any string) ends the span — a
+    muted chord is its own chord, so a muted run opens its own box even on the frets of the
+    ringing chord before it, while both share one deduplicated template (the hand posture is
+    identical; muting renders on the notes). An isolated strum gets a span of its own notated
+    duration.
 12. **Derived spans are always chord boxes.** They start at multi-note onsets by construction,
     so the projection's arrival rule never reads them as arpeggio brackets; no arpeggio spans
     are derived (broken-chord grouping waits for the corpus-informed pass).
