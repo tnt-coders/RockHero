@@ -203,6 +203,11 @@ void PreviewSurface::setHighwayState(std::shared_ptr<const common::core::Highway
     m_state_dirty = true;
 }
 
+void PreviewSurface::setCaretSeconds(const std::optional<double> seconds)
+{
+    m_caret_seconds = seconds;
+}
+
 void PreviewSurface::resized()
 {
     updateChildBounds();
@@ -305,8 +310,10 @@ void PreviewSurface::renderFrame()
     m_previous_tick = now;
 
     // Song time: the clock port plus extrapolation while playing (plan 12's policy — raw
-    // transport reads shimmer on a moving field); the exact transport position while paused so
-    // paused seeks always land even if the clock publisher is idle.
+    // transport reads shimmer on a moving field); the marker rule while paused — the armed
+    // caret is THE paused position (the 2026-07-18 marker model), with the exact transport
+    // position as the passive fallback so paused seeks always land even if the clock publisher
+    // is idle.
     const common::audio::PlaybackClockSnapshot snapshot = m_playback_clock.snapshot();
     double song_seconds = 0.0;
     if (snapshot.playing)
@@ -316,7 +323,7 @@ void PreviewSurface::renderFrame()
     else
     {
         m_extrapolator.reset();
-        song_seconds = m_transport.position().seconds;
+        song_seconds = m_caret_seconds.value_or(m_transport.position().seconds);
     }
 
     m_renderer->draw(song_seconds, dt_seconds, m_device->width(), m_device->height());

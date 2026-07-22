@@ -26,8 +26,9 @@ Owns a native child window embedded in the preview window's peer (the pattern th
 spike proved as criterion S2), the process bgfx device, and the shared highway renderer. Frames
 tick on the message thread at vblank cadence — the editor's established display-refresh
 mechanism — sampling song time from the playback clock while playing (block-quantized transport
-reads shimmer on a moving field) and from the transport exactly while paused, so a paused seek
-always lands.
+reads shimmer on a moving field) and from the marker rule while paused: the armed caret is THE
+paused position (the 2026-07-18 marker model), with the exact transport position as the passive
+fallback, so a paused seek or caret move always lands.
 
 Lifecycle: attach() brings the stack up against the current peer on first open and merely
 resumes frame ticks on later opens; suspend() stops the ticks when the window hides (JUCE keeps
@@ -73,6 +74,12 @@ public:
     */
     void setHighwayState(std::shared_ptr<const common::core::HighwayViewState> state);
 
+    /*!
+    \brief Publishes the armed caret's timeline position for the paused-time marker rule.
+    \param seconds Armed caret seconds, or nullopt while the marker is passive.
+    */
+    void setCaretSeconds(std::optional<double> seconds);
+
     /*! \brief Repositions the embedded child window over this component. */
     void resized() override;
 
@@ -110,6 +117,10 @@ private:
     std::optional<common::ui::HighwayRenderer> m_renderer;
 
     std::shared_ptr<const common::core::HighwayViewState> m_state;
+
+    // The armed caret's timeline seconds while the marker is armed; the paused frame shows it
+    // (the marker rule) and falls back to the transport position while passive.
+    std::optional<double> m_caret_seconds;
 
     // Applied to the renderer on the next frame after a state swap.
     bool m_state_dirty{false};

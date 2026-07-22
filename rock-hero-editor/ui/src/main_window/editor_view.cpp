@@ -15,6 +15,7 @@
 #include "timeline/track_viewport.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <compare>
 #include <cstdint>
@@ -575,6 +576,16 @@ void EditorView::setState(const core::EditorViewState& state)
         m_preview_window->setHighwayState(m_state.highway);
     }
 
+    // The paused preview shows the marker-rule time (the armed caret is THE paused position),
+    // so caret moves must land in the 3D view immediately.
+    if (m_preview_window != nullptr && previous_state.chart_edit.caret != m_state.chart_edit.caret)
+    {
+        m_preview_window->setCaretSeconds(
+            m_state.chart_edit.caret.has_value()
+                ? std::optional<double>{m_state.chart_edit.caret->seconds}
+                : std::nullopt);
+    }
+
     if (previous_state.project_file != m_state.project_file)
     {
         updateWindowTitle();
@@ -990,14 +1001,29 @@ void EditorView::togglePreviewWindow()
             m_transport,
             m_playback_clock,
             [this](const juce::KeyPress& key) {
-                // Transport keys only (44-Q4), plus the preview toggle so it closes from its own
-                // window: the preview shows no selection context, so editing shortcuts (delete,
-                // nudge, undo) stay with the main window. Resolved through the command mappings,
-                // not hardcoded chords, so future rebinds of rebindable commands stay honored.
+                // Transport keys, the preview toggle, and the forward/backward song-navigation
+                // verbs (44-Q4, widened 2026-07-22: the paused preview follows the marker, so
+                // caret time travel is meaningful from this window). Editing shortcuts (delete,
+                // nudge, undo) stay with the main window, which shows the selection context.
+                // Resolved through the command mappings, not hardcoded chords, so future
+                // rebinds of rebindable commands stay honored.
+                static constexpr std::array g_preview_commands{
+                    EditorCommandId::PlayPause,
+                    EditorCommandId::TogglePreview3D,
+                    EditorCommandId::CaretStepLeft,
+                    EditorCommandId::CaretStepRight,
+                    EditorCommandId::CaretMeasureJumpLeft,
+                    EditorCommandId::CaretMeasureJumpRight,
+                    EditorCommandId::CaretJumpChartStart,
+                    EditorCommandId::CaretJumpChartEnd,
+                    EditorCommandId::CaretJumpPreviousSection,
+                    EditorCommandId::CaretJumpNextSection,
+                };
                 const juce::CommandID command =
                     m_command_manager.getKeyMappings()->findCommandForKeyPress(key);
-                if (command != toJuceCommandId(EditorCommandId::PlayPause) &&
-                    command != toJuceCommandId(EditorCommandId::TogglePreview3D))
+                if (!std::ranges::any_of(g_preview_commands, [command](const EditorCommandId id) {
+                        return command == toJuceCommandId(id);
+                    }))
                 {
                     return false;
                 }
@@ -1019,6 +1045,10 @@ void EditorView::togglePreviewWindow()
     else
     {
         m_preview_window->setHighwayState(m_state.highway);
+        m_preview_window->setCaretSeconds(
+            m_state.chart_edit.caret.has_value()
+                ? std::optional<double>{m_state.chart_edit.caret->seconds}
+                : std::nullopt);
         m_preview_window->open();
     }
 }
