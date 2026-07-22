@@ -67,14 +67,58 @@ Two implementations, dispatched by extension:
   signed `FramePadding` (44.1kHz frames) becomes the asset's signed `start_offset`: positive
   delays the audio, negative means the recording's head precedes the score and playback skips
   it. Most real charts carry a negative value, so dropping it desyncs the song. The builder then
-  normalizes sustains (tails trim to the minimum-note-distance margin before the next onset on
-  any string without ever clipping a bend/slide payload, and effect-free tails shorter than one
-  beat drop entirely — GP notates every note at full duration) and generates the fret-hand
-  position track with a minimal-shift window walk (the simple starting algorithm;
-  `docs/plans/todo/fhp-corpus-derived-generation.md` holds the eventual corpus-derived one).
+  normalizes sustains and generates fret-hand positions per the policy spec below.
 
 An import produces an **unsaved** project: no path, `save_requires_destination` set, so the first
 save is forced to Save As — which is also the moment per-project view state starts persisting.
+
+## GP chart normalization policy
+
+The plain-English specification of what the builder does to a Guitar Pro chart beyond literal
+conversion. This section is deliberately written as numbered rules so a behavior tweak can be
+made by editing a rule here and re-aligning the code
+(`gp_chart_builder.cpp` — `normalizeImportedSustains`, `generateFretHandPositions`, both covered
+by `test_gp_song_importer.cpp`). These rules apply to GP import only: `.rock` imports and
+editor-authored charts are never rewritten.
+
+**Sustain policy** (GP notates every note at its full duration; a chart only shows deliberate
+sustains):
+
+1. **Trim to the minimum note distance.** A note's tail is shortened so it ends at least the
+   minimum-note-distance margin — 1/16 of a whole note, the same settled margin the editor's
+   duration verb clamps to — before the next onset on *any* string. Notes struck together (chord
+   members) never bind each other.
+2. **Never clip a technique payload.** Trimming stops at the note's last bend point or slide
+   waypoint, so a slide always reaches its target note and a bend keeps its full curve, even
+   when that leaves the tail closer than the margin (exact adjacency is legal).
+3. **Drop short effect-free tails.** After trimming, a note that carries no sustain technique
+   (bend, slide, vibrato, tremolo) and whose tail is now shorter than one beat loses the tail
+   entirely. Order matters: a chugged riff of notated one-beat notes trims to 3/4 and then
+   drops, yielding plain notes. Vibrato and tremolo protect a tail from *dropping* but not from
+   *trimming* — in dense passages such a tail can shrink to nothing.
+4. **"One beat" is one signature beat** — a quarter note in x/4, an eighth in x/8 — matching the
+   chart model's own sustain unit.
+
+**Fret-hand position generation** (GP has no hand-position concept, so the track is generated;
+each rule is a candidate for replacement by the corpus-derived generator planned in
+`docs/plans/todo/fhp-corpus-derived-generation.md`):
+
+5. **The hand is a window.** A position covers frets `[fret, fret + width - 1]` with width four,
+   widening only when a single onset spans more than four frets (wide chords); the next move
+   snaps the width back.
+6. **Open strings never constrain.** Fret-zero notes are playable from anywhere and neither
+   place nor move the window.
+7. **First placement anchors low.** The first fretted onset opens the window at its lowest
+   fretted note.
+8. **Later moves are minimal.** When an onset's fretted notes fall outside the window, the
+   anchor moves the shortest distance that covers them — it never jumps further than needed, so
+   runs walk the window up or down one misfit at a time.
+9. **Mid-sustain slide targets do not move the hand.** Only onsets do; a shift/legato slide's
+   target is covered at the next onset (which sits at the target fret), an unpitched trail-off
+   never needs coverage.
+
+Every generated track logs a conversion note ("simple window walk; verify") so the guess stays
+observable in the import log.
 
 # Startup restore
 

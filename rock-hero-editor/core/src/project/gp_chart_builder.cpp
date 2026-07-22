@@ -448,7 +448,9 @@ struct BuiltNote
     return !note.bend.empty() || !note.slides.empty() || note.vibrato || note.tremolo;
 }
 
-// Normalizes imported sustains for chart readability (import policy, user rules 2026-07-21):
+// Normalizes imported sustains for chart readability (import policy, user rules 2026-07-21).
+// The maintained plain-English spec is "GP chart normalization policy" in
+// docs/developer/the-project-lifecycle.md — tweak behavior there first, then re-align this code.
 //
 // 1. A tail is trimmed to end at least the minimum-note-distance margin — 1/16 of a whole note,
 //    the same settled margin the editor's duration verb clamps to — before the next onset on ANY
@@ -523,9 +525,11 @@ void normalizeImportedSustains(
 // simple starting algorithm (user decision 2026-07-21): the hand covers a [fret, fret+width-1]
 // window (width four unless one onset spans wider), open strings never constrain it, and when an
 // onset's fretted notes fall outside the window the anchor moves the shortest distance that
-// covers them. Known limits (no lookahead, no phrase segmentation, mid-sustain slide targets
-// uncovered until the next onset) and the corpus-derived generator that should eventually
-// replace this are recorded in docs/plans/todo/fhp-corpus-derived-generation.md.
+// covers them. The maintained plain-English spec is "GP chart normalization policy" in
+// docs/developer/the-project-lifecycle.md — tweak behavior there first, then re-align this code.
+// Known limits (no lookahead, no phrase segmentation, mid-sustain slide targets uncovered until
+// the next onset) and the corpus-derived generator that should eventually replace this are
+// recorded in docs/plans/todo/fhp-corpus-derived-generation.md.
 [[nodiscard]] std::vector<common::core::FretHandPosition> generateFretHandPositions(
     const std::vector<ChartNote>& chart_notes)
 {
