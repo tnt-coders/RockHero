@@ -15,19 +15,25 @@ namespace rock_hero::common::core
 /*!
 \brief Every world-space constant of the 3D highway, in one documented struct.
 
-Starting values reproduce Charter's 3D preview coordinate system exactly (the settled visual
-target): X is the fret axis with fret 0 at x = 0, Y is the string axis with the board surface at
-y = 0, and Z is the time axis with the hit line at z = 0 and future notes at positive Z. Collecting
-the constants here is a deliberate departure from the reference implementation's scattered
-magic numbers: tuning the highway is edits to this one struct.
+Starting values reproduce Charter's 3D preview coordinate system (the settled visual target),
+except where a field's comment records a deliberate user tuning away from it: X is the fret axis
+with fret 0 at x = 0, Y is the string axis with the board surface at y = 0, and Z is the time
+axis with the hit line at z = 0 and future notes at positive Z. Collecting the constants here is
+a deliberate departure from the reference implementation's scattered magic numbers: tuning the
+highway is edits to this one struct.
 
 Shared by the game highway and the editor 3D preview; render backends consume these through the
 headless scene model and camera only.
 */
 struct HighwayMetrics
 {
-    /*! \brief Width of the first fret in world units (Charter firstFretDistance). */
-    double first_fret_distance{1.2};
+    /*!
+    \brief Width of the first fret in world units.
+
+    Charter's firstFretDistance is 1.2; ours is user-tuned narrower (2026-07-21) with the note
+    head size deliberately kept at Charter's, so heads fill more of their fret slot.
+    */
+    double first_fret_distance{1.1};
 
     /*!
     \brief Successive-fret width ratio; 1.0 is Charter's equal-width default.
@@ -50,7 +56,12 @@ struct HighwayMetrics
     /*! \brief Seconds of chart visible ahead of the hit line at scroll speed 1.0. */
     double visibility_window_seconds{1.6};
 
-    /*! \brief Note head half-width (Charter firstFretDistance / 2.5). */
+    /*!
+    \brief Note head half-width (Charter firstFretDistance 1.2 / 2.5).
+
+    Deliberately NOT derived from the narrowed \ref first_fret_distance: the fret-width tuning
+    kept note heads at Charter's size.
+    */
     double note_half_width{0.48};
 
     /*! \brief Sustain tail half-width (one third of the note head half-width). */
@@ -80,10 +91,11 @@ struct HighwayMetrics
     /*!
     \brief Neck position the focus blends toward (world X of Charter's weighted whole-neck spot).
 
-    Charter's weighted position is fretPos(24) * 0.4 + fretPos(0) * 0.6 = 11.52 for the default
-    24-fret, equal-width neck (source-verified 2026-07-11).
+    Charter's formula is fretPos(24) * 0.4 + fretPos(0) * 0.6 (source-verified 2026-07-11);
+    for our 24-fret, equal-width neck at the tuned \ref first_fret_distance that is
+    24 * 1.1 * 0.4 = 10.56. Flattened from the formula: keep in step with the fret width.
     */
-    double focus_whole_neck_x{11.52};
+    double focus_whole_neck_x{10.56};
 
     /*!
     \brief Constant world-X offset added to the focus target.

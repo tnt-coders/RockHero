@@ -102,10 +102,21 @@ constexpr double g_open_note_z_squash = 0.1;
 constexpr int g_open_note_segments = 6;
 
 // Sustain tails are three-band ribbons in the reference: solid edge strips around an inner band
-// at 192/255 alpha. Fretted tails split the tail width quarter/half/quarter; open tails span
-// the hand window inset by a margin, with edge bands of the same width.
-constexpr double g_tail_inner_alpha = 192.0 / 255.0;
+// the reference draws at 192/255 alpha. Ours is deliberately more translucent so notes stay
+// readable through a tail's core (user-tuned). Fretted tails split the tail width
+// quarter/half/quarter; open tails span the hand window inset by a margin, with edge bands of
+// the same width.
+constexpr double g_tail_inner_alpha = 96.0 / 255.0;
 constexpr double g_open_tail_margin = 0.2;
+
+// Sustain tails dissolve over this last fraction of the note duration (the glow posts' fade
+// toward the note, mirrored at the tip), so a sustain ends softly instead of stopping dead.
+constexpr double g_tail_tip_fade_fraction = 0.25;
+
+// Glow posts under single notes stand the tail ribbon cross-section upright at a fraction of
+// the tail width; this is the edge alpha where the post meets the floor (user-tuned to stay
+// subtle).
+constexpr double g_shadow_post_floor_alpha = 0.5;
 
 // Adaptive tail sampling for technique-modulated rails: one centerline sample per this many
 // projected screen pixels, hard-capped (the reference's per-millisecond-tessellation fix).
@@ -314,16 +325,40 @@ void pushFloorQuad(
         makeVertex(x0, y, z1, abgr));
 }
 
-// One three-band sustain ribbon on the string plane: solid edge strips [x0,x1] and [x2,x3]
-// around a translucent core [x1,x2] (the reference's tail cross-section).
-void pushTailRibbon(
-    std::vector<PosColorVertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
-    const double x1, const double x2, const double x3, const double lane_y, const double z0,
-    const double z1, const std::uint32_t edge_abgr, const std::uint32_t inner_abgr)
+// One endpoint of a three-band ribbon segment: a centerline offset applied to the band
+// stations, the endpoint position, and the edge/core colors at that end.
+struct RibbonEnd
 {
-    pushFloorQuad(vertices, indices, x0, x1, lane_y, z0, z1, edge_abgr);
-    pushFloorQuad(vertices, indices, x1, x2, lane_y, z0, z1, inner_abgr);
-    pushFloorQuad(vertices, indices, x2, x3, lane_y, z0, z1, edge_abgr);
+    double x_offset;
+    double y;
+    double z;
+    std::uint32_t edge_abgr;
+    std::uint32_t inner_abgr;
+};
+
+// One three-band ribbon segment between two endpoints: solid edge strips [x0,x1] and [x2,x3]
+// around a translucent core [x1,x2] (the reference's tail cross-section), with per-end offsets
+// and colors so a run can bend and fade along its length. Sustain tails chain these along the
+// board; a note glow post stands a single segment upright on the face plane.
+void pushRibbonSegment(
+    std::vector<PosColorVertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
+    const double x1, const double x2, const double x3, const RibbonEnd& a, const RibbonEnd& b)
+{
+    const auto push_band = [&](const double x_from,
+                               const double x_to,
+                               const std::uint32_t color_a,
+                               const std::uint32_t color_b) {
+        pushQuad(
+            vertices,
+            indices,
+            makeVertex(x_from + a.x_offset, a.y, a.z, color_a),
+            makeVertex(x_to + a.x_offset, a.y, a.z, color_a),
+            makeVertex(x_to + b.x_offset, b.y, b.z, color_b),
+            makeVertex(x_from + b.x_offset, b.y, b.z, color_b));
+    };
+    push_band(x0, x1, a.edge_abgr, b.edge_abgr);
+    push_band(x1, x2, a.inner_abgr, b.inner_abgr);
+    push_band(x2, x3, a.edge_abgr, b.edge_abgr);
 }
 
 // Floor quad with per-end colors: the reference's beat-bar gradient wings.
@@ -1238,7 +1273,8 @@ void HighwayRenderer::Impl::draw(
         submitBatch(vertices, indices, posColorUvLayout(), glyph_program.get(), &glyph_texture);
     }
 
-    // --- Notes: shadows, sustain rails, open bars, then heads sorted far-to-near. ---
+    // --- Notes: per-note geometry batched per onset group and flushed far-to-near (see
+    // flush_note_batches below). ---
     const auto [first_note, last_note] = common::core::highwayVisibleNoteRange(
         state.notes, sustain_prefix_max, span_start_seconds, span_end_seconds);
 
@@ -1723,15 +1759,49 @@ void HighwayRenderer::Impl::draw(
             };
         };
 
+    // The four per-note batches flush per onset group, far-to-near: the board view is
+    // painter-ordered with no depth writes, so one global submit per category would let a
+    // distant head or open bar composite over a nearer note's sustain tail (the depth-order
+    // bug this replaces). Within a group the categories keep the reference layering: shadows
+    // under rails under open bars under heads.
+    const bgfx::TextureHandle heads_texture = atlases.heads.get();
+    const auto flush_note_batches = [&] {
+        submitBatch(
+            shadow_vertices, shadow_indices, posColorLayout(), color_program.get(), nullptr);
+        submitBatch(rail_vertices, rail_indices, posColorLayout(), color_program.get(), nullptr);
+        submitBatch(open_vertices, open_indices, posColorLayout(), color_program.get(), nullptr);
+        submitBatch(
+            head_vertices,
+            head_indices,
+            posColorUvLayout(),
+            texture_tint_program.get(),
+            &heads_texture);
+        shadow_vertices.clear();
+        shadow_indices.clear();
+        rail_vertices.clear();
+        rail_indices.clear();
+        open_vertices.clear();
+        open_indices.clear();
+        head_vertices.clear();
+        head_indices.clear();
+    };
+    std::size_t batched_group = chord_groups.size();
+
     for (const std::size_t index : visible)
     {
         const common::core::HighwayNoteView& note = state.notes[index];
-        const ChordGroup& group = chord_groups[note_group[index - first_note]];
+        const std::size_t group_index = note_group[index - first_note];
+        const ChordGroup& group = chord_groups[group_index];
         if (group.box_only)
         {
             // Repeated and dead strums render as their repeat box alone (reference visibility):
             // no heads, shadows, tails, or anticipation for the group's notes.
             continue;
+        }
+        if (group_index != batched_group)
+        {
+            flush_note_batches();
+            batched_group = group_index;
         }
         const double lane_y =
             common::core::highwayStringLaneY(note.string, state.string_count, metrics, invert);
@@ -1766,6 +1836,15 @@ void HighwayRenderer::Impl::draw(
         {
             const double tail_from = std::max(note.start_seconds, now_seconds);
             const double tail_to = std::min(note.end_seconds, span_end_seconds);
+
+            // Tip fade: alpha dissolves over the sustain's last fraction (the glow posts' fade,
+            // mirrored), anchored to the full note duration so the fading tip stays put while
+            // the hit line consumes the body.
+            const double duration = note.end_seconds - note.start_seconds;
+            const auto tip_alpha = [&](const double seconds) {
+                return std::clamp(
+                    (note.end_seconds - seconds) / (duration * g_tail_tip_fade_fraction), 0.0, 1.0);
+            };
 
             // Band X stations: fretted tails straddle the note center, open tails span the hand
             // window with the reference's inset (with a degenerate-window guard for tapered
@@ -1803,18 +1882,45 @@ void HighwayRenderer::Impl::draw(
                 note.vibrato || note.tremolo || !note.bend.empty() || !note.slides.empty();
             if (band_valid && !modulated)
             {
-                pushTailRibbon(
-                    rail_vertices,
-                    rail_indices,
-                    band_x0,
-                    band_x1,
-                    band_x2,
-                    band_x3,
-                    lane_y,
-                    time_to_z(tail_from),
-                    time_to_z(tail_to),
-                    packAbgr(style.tail),
-                    packAbgr(style.tail, g_tail_inner_alpha));
+                const auto ribbon_end = [&](const double seconds) {
+                    const double alpha = tip_alpha(seconds);
+                    return RibbonEnd{
+                        .x_offset = 0.0,
+                        .y = lane_y,
+                        .z = time_to_z(seconds),
+                        .edge_abgr = packAbgr(style.tail, alpha),
+                        .inner_abgr = packAbgr(style.tail, g_tail_inner_alpha * alpha),
+                    };
+                };
+                // Split where the tip fade begins: alpha is linear on each side of the split,
+                // so two segments render the envelope exactly.
+                const double fade_begin_seconds =
+                    note.end_seconds - (duration * g_tail_tip_fade_fraction);
+                const double body_end = std::clamp(fade_begin_seconds, tail_from, tail_to);
+                if (body_end > tail_from)
+                {
+                    pushRibbonSegment(
+                        rail_vertices,
+                        rail_indices,
+                        band_x0,
+                        band_x1,
+                        band_x2,
+                        band_x3,
+                        ribbon_end(tail_from),
+                        ribbon_end(body_end));
+                }
+                if (tail_to > body_end)
+                {
+                    pushRibbonSegment(
+                        rail_vertices,
+                        rail_indices,
+                        band_x0,
+                        band_x1,
+                        band_x2,
+                        band_x3,
+                        ribbon_end(body_end),
+                        ribbon_end(tail_to));
+                }
             }
             else if (band_valid)
             {
@@ -1834,7 +1940,6 @@ void HighwayRenderer::Impl::draw(
                 };
                 std::vector<TailSample> samples;
                 samples.reserve(sample_times.size());
-                const double duration = note.end_seconds - note.start_seconds;
                 for (const double seconds : sample_times)
                 {
                     // Taper progresses over the full note duration, so wobbles anchor on the
@@ -1855,34 +1960,34 @@ void HighwayRenderer::Impl::draw(
                             .x_offset = x_offset,
                             .y = note_y_at(seconds, taper),
                             .z = time_to_z(seconds),
-                            .alpha = slide.alpha,
+                            .alpha = slide.alpha * tip_alpha(seconds),
                         });
                 }
                 for (std::size_t sample = 1; sample < samples.size(); ++sample)
                 {
                     const TailSample& a = samples[sample - 1];
                     const TailSample& b = samples[sample];
-                    const std::uint32_t edge_a = packAbgr(style.tail, a.alpha);
-                    const std::uint32_t edge_b = packAbgr(style.tail, b.alpha);
-                    const std::uint32_t inner_a =
-                        packAbgr(style.tail, g_tail_inner_alpha * a.alpha);
-                    const std::uint32_t inner_b =
-                        packAbgr(style.tail, g_tail_inner_alpha * b.alpha);
-                    const auto push_segment = [&](const double x_from,
-                                                  const double x_to,
-                                                  const std::uint32_t color_a,
-                                                  const std::uint32_t color_b) {
-                        pushQuad(
-                            rail_vertices,
-                            rail_indices,
-                            makeVertex(x_from + a.x_offset, a.y, a.z, color_a),
-                            makeVertex(x_to + a.x_offset, a.y, a.z, color_a),
-                            makeVertex(x_to + b.x_offset, b.y, b.z, color_b),
-                            makeVertex(x_from + b.x_offset, b.y, b.z, color_b));
-                    };
-                    push_segment(band_x0, band_x1, edge_a, edge_b);
-                    push_segment(band_x1, band_x2, inner_a, inner_b);
-                    push_segment(band_x2, band_x3, edge_a, edge_b);
+                    pushRibbonSegment(
+                        rail_vertices,
+                        rail_indices,
+                        band_x0,
+                        band_x1,
+                        band_x2,
+                        band_x3,
+                        RibbonEnd{
+                            .x_offset = a.x_offset,
+                            .y = a.y,
+                            .z = a.z,
+                            .edge_abgr = packAbgr(style.tail, a.alpha),
+                            .inner_abgr = packAbgr(style.tail, g_tail_inner_alpha * a.alpha),
+                        },
+                        RibbonEnd{
+                            .x_offset = b.x_offset,
+                            .y = b.y,
+                            .z = b.z,
+                            .edge_abgr = packAbgr(style.tail, b.alpha),
+                            .inner_abgr = packAbgr(style.tail, g_tail_inner_alpha * b.alpha),
+                        });
                 }
             }
         }
@@ -1922,6 +2027,43 @@ void HighwayRenderer::Impl::draw(
                 corner(-head_half_w, head_half_h, rect[0], rect[1]));
         };
 
+        // Chord membership decides the rolling flip, the shadow, and the chord box (the
+        // reference skips shadows for chord notes).
+        const bool in_chord = group.count >= 2;
+
+        // Note shadow: a glow post — the sustain tails' three-band ribbon stood upright at a
+        // user-tuned fraction of the tail width, rising from the board to the note and fading
+        // out as it reaches the head (user direction; replaced the reference's gradient fan). A
+        // fretted single note plants one under its head; a single-note open bar plants one
+        // under each end.
+        const auto push_shadow_post = [&](const double center_x) {
+            const double post_half_width = metrics.tail_half_width * 0.375;
+            const double floor_alpha = fade * g_shadow_post_floor_alpha;
+            const RibbonEnd floor_end{
+                .x_offset = 0.0,
+                .y = 0.0,
+                .z = z,
+                .edge_abgr = packAbgr(base_color, floor_alpha),
+                .inner_abgr = packAbgr(base_color, g_tail_inner_alpha * floor_alpha),
+            };
+            const RibbonEnd head_end{
+                .x_offset = 0.0,
+                .y = head_y,
+                .z = z,
+                .edge_abgr = packAbgr(base_color, 0.0),
+                .inner_abgr = packAbgr(base_color, 0.0),
+            };
+            pushRibbonSegment(
+                shadow_vertices,
+                shadow_indices,
+                center_x - post_half_width,
+                center_x - (post_half_width / 2.0),
+                center_x + (post_half_width / 2.0),
+                center_x + post_half_width,
+                floor_end,
+                head_end);
+        };
+
         if (note.fret == 0)
         {
             // Open string: the reference's thin rounded bar spanning the active hand window, in
@@ -1930,6 +2072,11 @@ void HighwayRenderer::Impl::draw(
             const double low_x = common::core::highwayFretLineX(low_line, metrics, mirrored);
             const double high_x = common::core::highwayFretLineX(high_line, metrics, mirrored);
             const auto [x0, x1] = std::minmax(low_x, high_x);
+            if (!in_chord)
+            {
+                push_shadow_post(x0);
+                push_shadow_post(x1);
+            }
             pushOpenNoteBar(
                 open_vertices, open_indices, x0, x1, head_y, z, packAbgr(base_color, fade), 1.0);
             if (note.accent)
@@ -1988,33 +2135,9 @@ void HighwayRenderer::Impl::draw(
             x = left_x + ((right_x - left_x) * (touch - touch_floor));
         }
 
-        // Chord membership decides the rolling flip, the shadow, and the chord box (the
-        // reference skips shadows for chord notes).
-        const bool in_chord = group.count >= 2;
-
-        // Note shadow: the reference's vertical gradient fan — a string-colored glow rising
-        // from the board toward the head, load-bearing for depth perception.
         if (!in_chord)
         {
-            const double base_half = head_half_w * 0.5;
-            const double apex_y = std::max(head_y - 0.3, 0.05);
-            const std::uint32_t center_color = packAbgr(base_color, fade);
-            const std::uint32_t edge_color = packAbgr(base_color, 0.0);
-            const auto center_index = static_cast<std::uint16_t>(shadow_vertices.size());
-            shadow_vertices.push_back(makeVertex(x, 0.0, z, center_color));
-            shadow_vertices.push_back(makeVertex(x - base_half, 0.0, z, edge_color));
-            shadow_vertices.push_back(makeVertex(x, apex_y, z, edge_color));
-            shadow_vertices.push_back(makeVertex(x + base_half, 0.0, z, edge_color));
-            for (const std::uint16_t offset :
-                 {std::uint16_t{0},
-                  std::uint16_t{1},
-                  std::uint16_t{2},
-                  std::uint16_t{0},
-                  std::uint16_t{2},
-                  std::uint16_t{3}})
-            {
-                shadow_indices.push_back(static_cast<std::uint16_t>(center_index + offset));
-            }
+            push_shadow_post(x);
         }
 
         // Anticipation ring: scales down onto the landing spot over the last half second
@@ -2149,16 +2272,7 @@ void HighwayRenderer::Impl::draw(
         }
     }
 
-    submitBatch(shadow_vertices, shadow_indices, posColorLayout(), color_program.get(), nullptr);
-    submitBatch(rail_vertices, rail_indices, posColorLayout(), color_program.get(), nullptr);
-    submitBatch(open_vertices, open_indices, posColorLayout(), color_program.get(), nullptr);
-    const bgfx::TextureHandle heads_texture = atlases.heads.get();
-    submitBatch(
-        head_vertices,
-        head_indices,
-        posColorUvLayout(),
-        texture_tint_program.get(),
-        &heads_texture);
+    flush_note_batches();
 
     // --- Board face: dynamic fret lines with the reference's three states (inactive, active
     // within current and upcoming hand windows, and the sqrt-decay hit-flash that thickens up

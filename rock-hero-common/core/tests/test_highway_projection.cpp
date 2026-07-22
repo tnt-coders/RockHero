@@ -251,16 +251,16 @@ TEST_CASE("Highway geometry mirrors and inverts as pure reflections", "[core][hi
     const HighwayMetrics metrics{};
 
     CHECK(highwayFretLineX(0, metrics, false) == Catch::Approx(0.0));
-    CHECK(highwayFretLineX(5, metrics, false) == Catch::Approx(6.0));
-    CHECK(highwayFretLineX(5, metrics, true) == Catch::Approx(-6.0));
+    CHECK(highwayFretLineX(5, metrics, false) == Catch::Approx(5.5));
+    CHECK(highwayFretLineX(5, metrics, true) == Catch::Approx(-5.5));
     CHECK(
         highwayFretLineX(5, metrics, true) == Catch::Approx(-highwayFretLineX(5, metrics, false)));
     CHECK(
         -(-highwayFretLineX(7, metrics, false)) ==
         Catch::Approx(highwayFretLineX(7, metrics, false)));
 
-    CHECK(highwayNoteCenterX(1, metrics, false) == Catch::Approx(0.6));
-    CHECK(highwayNoteCenterX(1, metrics, true) == Catch::Approx(-0.6));
+    CHECK(highwayNoteCenterX(1, metrics, false) == Catch::Approx(0.55));
+    CHECK(highwayNoteCenterX(1, metrics, true) == Catch::Approx(-0.55));
 
     // Lanes are centered on half-string offsets: the bottom lane sits half a string spacing off
     // the board (0.175) so fret margins are symmetric above the top lane and below the bottom.
