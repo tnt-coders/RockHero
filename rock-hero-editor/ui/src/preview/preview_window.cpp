@@ -72,6 +72,11 @@ void PreviewWindow::setHighwayState(std::shared_ptr<const common::core::HighwayV
     m_surface->setHighwayState(std::move(state));
 }
 
+void PreviewWindow::setCaretSeconds(const std::optional<double> seconds)
+{
+    m_surface->setCaretSeconds(seconds);
+}
+
 void PreviewWindow::closeButtonPressed()
 {
     close();

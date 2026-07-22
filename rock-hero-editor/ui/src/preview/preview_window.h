@@ -8,6 +8,7 @@
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
+#include <optional>
 #include <rock_hero/common/audio/clock/i_playback_clock.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
@@ -26,8 +27,9 @@ Show resumes the render surface and hide suspends its frame ticks: a hidden JUCE
 keeps its native peer (and the embedded render child) alive, but the vblank feed is
 visibility-blind, so the ticks stop explicitly while the window is away. The GPU stack itself
 lives from first open until destruction because bgfx cannot re-initialize in-process.
-Transport keys pressed while the preview has focus forward to the main view (44-Q4), so
-play/pause works without refocusing the editor.
+Transport and song-navigation keys pressed while the preview has focus forward to the main view
+(44-Q4, widened 2026-07-22), so play/pause and caret navigation work without refocusing the
+editor.
 */
 class PreviewWindow final : public juce::DocumentWindow
 {
@@ -64,6 +66,12 @@ public:
     \param state Shared scene-model snapshot from the controller; null clears the board.
     */
     void setHighwayState(std::shared_ptr<const common::core::HighwayViewState> state);
+
+    /*!
+    \brief Publishes the armed caret's timeline position for the surface's paused marker rule.
+    \param seconds Armed caret seconds, or nullopt while the marker is passive.
+    */
+    void setCaretSeconds(std::optional<double> seconds);
 
     /*! \brief Title-bar close behaves like the View-menu toggle turning the preview off. */
     void closeButtonPressed() override;
