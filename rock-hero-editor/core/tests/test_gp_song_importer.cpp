@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cmath>
 #include <cstddef>
@@ -407,18 +408,23 @@ TEST_CASE("Guitar Pro import derives chord templates and spans", "[core][gp-impo
     std::filesystem::remove_all(scratch, cleanup_error);
 }
 
-// A muted chord is its own chord: a mute change on the same frets ends the span and opens a new
-// box, while both spans share one frets-deduplicated template.
-TEST_CASE("Guitar Pro import splits chord spans on muting changes", "[core][gp-import]")
+// Any articulation difference is a new chord: a palm mute or a hammered attack on the same
+// frets ends the span and opens a new box, while both spans share one frets-deduplicated
+// template.
+TEST_CASE("Guitar Pro import splits chord spans on articulation changes", "[core][gp-import]")
 {
     const std::filesystem::path scratch =
-        std::filesystem::temp_directory_path() / "rh_gp_muted_chord_test";
+        std::filesystem::temp_directory_path() / "rh_gp_articulation_chord_test";
     std::error_code cleanup_error;
     std::filesystem::remove_all(scratch, cleanup_error);
     const std::filesystem::path workspace = scratch / "song";
     std::filesystem::create_directories(workspace);
 
-    // The same power chord strummed twice, ringing then palm-muted: two spans, one template.
+    // The same power chord strummed twice — plain, then palm-muted or hammered: two spans, one
+    // template either way.
+    const std::string articulation_property = GENERATE(
+        std::string{"<Property name=\"PalmMuted\"><Enable/></Property>\n"},
+        std::string{"<Property name=\"HopoDestination\"><Enable/></Property>\n"});
     std::string gpif{g_fixture_gpif};
     const auto replace_once = [&gpif](const std::string& marker, const std::string& replacement) {
         const std::size_t position = gpif.find(marker);
@@ -435,19 +441,19 @@ TEST_CASE("Guitar Pro import splits chord spans on muting changes", "[core][gp-i
         "</Properties></Note>\n"
         "<Note id=\"7\"><Properties>\n"
         "<Property name=\"String\"><String>0</String></Property>\n"
-        "<Property name=\"Fret\"><Fret>3</Fret></Property>\n"
-        "<Property name=\"PalmMuted\"><Enable/></Property>\n"
-        "</Properties></Note>\n"
-        "<Note id=\"8\"><Properties>\n"
-        "<Property name=\"String\"><String>1</String></Property>\n"
-        "<Property name=\"Fret\"><Fret>5</Fret></Property>\n"
-        "<Property name=\"PalmMuted\"><Enable/></Property>\n"
-        "</Properties></Note>\n"
-        "<Note id=\"9\"><Properties>\n"
-        "<Property name=\"String\"><String>0</String></Property>\n"
-        "<Property name=\"Fret\"><Fret>3</Fret></Property>\n"
-        "</Properties></Note>\n"
-        "</Notes>\n<Rhythms>");
+        "<Property name=\"Fret\"><Fret>3</Fret></Property>\n" +
+            articulation_property +
+            "</Properties></Note>\n"
+            "<Note id=\"8\"><Properties>\n"
+            "<Property name=\"String\"><String>1</String></Property>\n"
+            "<Property name=\"Fret\"><Fret>5</Fret></Property>\n" +
+            articulation_property +
+            "</Properties></Note>\n"
+            "<Note id=\"9\"><Properties>\n"
+            "<Property name=\"String\"><String>0</String></Property>\n"
+            "<Property name=\"Fret\"><Fret>3</Fret></Property>\n"
+            "</Properties></Note>\n"
+            "</Notes>\n<Rhythms>");
     const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
 
     GpSongImporter importer;
