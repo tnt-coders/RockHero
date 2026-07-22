@@ -1,4 +1,4 @@
-# Plan 46 — Editor Keybinds
+ the# Plan 46 — Editor Keybinds
 
 **Status:** **G46-KEYMAP CLOSED 2026-07-20; Phases 0–5 code-complete the same day; manual
 plugin verification of the generalized shortcut mirror PASSED (user-witnessed, 2026-07-20)** —
