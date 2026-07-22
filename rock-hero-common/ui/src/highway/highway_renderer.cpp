@@ -146,6 +146,16 @@ constexpr ArgbColor g_chord_palm_mute_cross_color = 0xFF005064;
 constexpr ArgbColor g_chord_name_color = 0xFFE0E0E0;
 constexpr double g_chord_box_frame_thickness = 0.075;
 
+// Fret-span line under single notes: a floor glow marking the fret slots the note occupies
+// (its own slot for a fretted note, the hand window for an open string). Two gradient wings
+// peak at the note's landing z and die off almost immediately — shorter and lighter than the
+// beat and measure bars, so the two never read alike. Muted to sit like the middle of a chord
+// box's bottom bar: the color is the midpoint of the box teal and its dark variant, peaking at
+// the same half alpha the bar's gradient carries there.
+constexpr ArgbColor g_note_span_line_color = 0xFF008789;
+constexpr double g_note_span_line_glow_length = 0.08;
+constexpr double g_note_span_line_peak_alpha = 0.5;
+
 // Hand-shape span rails on the floor: arpeggio spans in the reference purple, held shapes in
 // the lane-border teal; a solid core with fade-out wings (fret thickness x3 and x9).
 constexpr ArgbColor g_arpeggio_color = 0xFFC040FF;
@@ -1360,8 +1370,8 @@ void HighwayRenderer::Impl::draw(
         std::size_t count;
         bool any_accent;
         common::core::NoteMute common_mute;
-        // True when every note is fully muted (dead chugs never show their notes, and they do
-        // not break a repeat chain).
+        // True when every note is fully muted (a dead chug restating the preceding chord hides
+        // behind the repeat box, and muted runs never break another chord's repeat chain).
         bool all_full_muted;
         // Repeat-chord treatment (the reference's visibility rules): the strum renders as a
         // half-height box with its mute cross and NO notes.
@@ -1455,7 +1465,36 @@ void HighwayRenderer::Impl::draw(
         }
         if (group.all_full_muted)
         {
-            group.box_only = true;
+            // A dead chug earns the X repeat box only when it restates the nearest preceding
+            // chord's posture (muted or not); with fresh frets it displays its notes and their
+            // mute crosses like any chord (user rule 2026-07-21 — the reference blanks every
+            // dead chug).
+            std::size_t cursor = group.first;
+            while (cursor > 0)
+            {
+                const double onset = state.notes[cursor - 1].start_seconds;
+                std::size_t run_begin = cursor - 1;
+                while (run_begin > 0 && std::abs(state.notes[run_begin - 1].start_seconds - onset) <
+                                            g_onset_match_epsilon)
+                {
+                    --run_begin;
+                }
+                const std::size_t run_count = cursor - run_begin;
+                if (run_count >= 2)
+                {
+                    std::vector<std::pair<int, int>> run_frets;
+                    run_frets.reserve(run_count);
+                    for (std::size_t member = run_begin; member < cursor; ++member)
+                    {
+                        run_frets.emplace_back(
+                            state.notes[member].string, state.notes[member].fret);
+                    }
+                    std::ranges::sort(run_frets);
+                    group.box_only = run_frets == group.frets;
+                    break;
+                }
+                cursor = run_begin;
+            }
             continue;
         }
         // Marked chords always show their notes — unless every note is palm muted, where the
@@ -2091,6 +2130,35 @@ void HighwayRenderer::Impl::draw(
                 head_end);
         };
 
+        // Fret-span line: the teal floor glow under this single note, spanning the fret slots
+        // it occupies (drawn into the shadow batch so all other note geometry composites over
+        // it). Pure gradient wings — the alpha peak at the landing z is the line.
+        const auto push_span_line = [&](const double span_x0, const double span_x1) {
+            const std::uint32_t solid =
+                packAbgr(g_note_span_line_color, g_note_span_line_peak_alpha * fade);
+            const std::uint32_t clear = packAbgr(g_note_span_line_color, 0.0);
+            pushFloorQuadGradient(
+                shadow_vertices,
+                shadow_indices,
+                span_x0,
+                span_x1,
+                0.02,
+                z - g_note_span_line_glow_length,
+                z,
+                clear,
+                solid);
+            pushFloorQuadGradient(
+                shadow_vertices,
+                shadow_indices,
+                span_x0,
+                span_x1,
+                0.02,
+                z,
+                z + g_note_span_line_glow_length,
+                solid,
+                clear);
+        };
+
         if (note.fret == 0)
         {
             // Open string: the reference's thin rounded bar spanning the active hand window, in
@@ -2108,6 +2176,10 @@ void HighwayRenderer::Impl::draw(
             // core — and both leg ends fade to nothing: the upright at the shared
             // post_top_y (as if a note head sat on the bar end), skipped entirely when that
             // top leaves no room above the corner miter.
+            if (!in_chord)
+            {
+                push_span_line(x0, x1);
+            }
             const double leg_thickness = 2.0 * post_half_width;
             if (!in_chord && post_top_y > leg_thickness)
             {
@@ -2243,6 +2315,12 @@ void HighwayRenderer::Impl::draw(
 
         if (!in_chord)
         {
+            // Span from the note's own fret slot, not the (possibly harmonic-shifted) head x.
+            const double slot_low_x =
+                common::core::highwayFretLineX(note.fret - 1, metrics, mirrored);
+            const double slot_high_x = common::core::highwayFretLineX(note.fret, metrics, mirrored);
+            const auto [span_x0, span_x1] = std::minmax(slot_low_x, slot_high_x);
+            push_span_line(span_x0, span_x1);
             push_shadow_post(x);
         }
 
