@@ -101,6 +101,10 @@ constexpr double g_open_note_middle_half_thickness = 0.05;
 constexpr double g_open_note_z_squash = 0.1;
 constexpr int g_open_note_segments = 6;
 
+// The bar fades to transparent over this run at each end, so it reads as tapering almost to a
+// point at the hand-window rails instead of stopping flat (user direction).
+constexpr double g_open_note_end_fade_length = 0.3;
+
 // Sustain tails are three-band ribbons in the reference: solid edge strips around an inner band
 // the reference draws at 192/255 alpha. Ours is deliberately more translucent so notes stay
 // readable through a tail's core (user-tuned). Fretted tails split the tail width
@@ -111,12 +115,20 @@ constexpr double g_open_tail_margin = 0.2;
 
 // Sustain tails dissolve over this last fraction of the note duration (the glow posts' fade
 // toward the note, mirrored at the tip), so a sustain ends softly instead of stopping dead.
-constexpr double g_tail_tip_fade_fraction = 0.25;
+constexpr double g_tail_tip_fade_fraction = 0.35;
 
 // Glow posts under single notes stand the tail ribbon cross-section upright at a fraction of
 // the tail width; this is the edge alpha where the post meets the floor (user-tuned to stay
 // subtle).
 constexpr double g_shadow_post_floor_alpha = 0.5;
+
+// Glow posts go fully transparent at this fraction of the way up to the note, so the fade
+// completes slightly before the post reaches the head (user-tuned).
+constexpr double g_shadow_post_top_fraction = 0.85;
+
+// Open-note L posts: how far the floor foot reaches inward, measured from the bar end (the
+// chord box's bottom corner holders, freestanding), fading to nothing at its tip.
+constexpr double g_open_post_foot_length = 0.55;
 
 // Adaptive tail sampling for technique-modulated rails: one centerline sample per this many
 // projected screen pixels, hard-capped (the reference's per-millisecond-tessellation fix).
@@ -326,7 +338,9 @@ void pushFloorQuad(
 }
 
 // One endpoint of a three-band ribbon segment: a centerline offset applied to the band
-// stations, the endpoint position, and the edge/core colors at that end.
+// stations, the endpoint position, and the colors at that end. The outer color sits at the
+// outermost stations x0/x3 — equal to the edge color for solid-edged runs, transparent for
+// open tails so their edges dissolve right at the hand-window rails.
 struct RibbonEnd
 {
     double x_offset;
@@ -334,31 +348,35 @@ struct RibbonEnd
     double z;
     std::uint32_t edge_abgr;
     std::uint32_t inner_abgr;
+    std::uint32_t outer_abgr;
 };
 
-// One three-band ribbon segment between two endpoints: solid edge strips [x0,x1] and [x2,x3]
-// around a translucent core [x1,x2] (the reference's tail cross-section), with per-end offsets
-// and colors so a run can bend and fade along its length. Sustain tails chain these along the
-// board; a note glow post stands a single segment upright on the face plane.
+// One three-band ribbon segment between two endpoints: edge strips [x0,x1] and [x2,x3] around a
+// translucent core [x1,x2] (the reference's tail cross-section), with per-end offsets and
+// colors so a run can bend and fade along its length, and per-corner outer colors so the edge
+// strips can fade across their width. Sustain tails chain these along the board; a note glow
+// post stands a single segment upright on the face plane.
 void pushRibbonSegment(
     std::vector<PosColorVertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
     const double x1, const double x2, const double x3, const RibbonEnd& a, const RibbonEnd& b)
 {
     const auto push_band = [&](const double x_from,
                                const double x_to,
-                               const std::uint32_t color_a,
-                               const std::uint32_t color_b) {
+                               const std::uint32_t from_a,
+                               const std::uint32_t to_a,
+                               const std::uint32_t from_b,
+                               const std::uint32_t to_b) {
         pushQuad(
             vertices,
             indices,
-            makeVertex(x_from + a.x_offset, a.y, a.z, color_a),
-            makeVertex(x_to + a.x_offset, a.y, a.z, color_a),
-            makeVertex(x_to + b.x_offset, b.y, b.z, color_b),
-            makeVertex(x_from + b.x_offset, b.y, b.z, color_b));
+            makeVertex(x_from + a.x_offset, a.y, a.z, from_a),
+            makeVertex(x_to + a.x_offset, a.y, a.z, to_a),
+            makeVertex(x_to + b.x_offset, b.y, b.z, to_b),
+            makeVertex(x_from + b.x_offset, b.y, b.z, from_b));
     };
-    push_band(x0, x1, a.edge_abgr, b.edge_abgr);
-    push_band(x1, x2, a.inner_abgr, b.inner_abgr);
-    push_band(x2, x3, a.edge_abgr, b.edge_abgr);
+    push_band(x0, x1, a.outer_abgr, a.edge_abgr, b.outer_abgr, b.edge_abgr);
+    push_band(x1, x2, a.inner_abgr, a.inner_abgr, b.inner_abgr, b.inner_abgr);
+    push_band(x2, x3, a.edge_abgr, a.outer_abgr, b.edge_abgr, b.outer_abgr);
 }
 
 // Floor quad with per-end colors: the reference's beat-bar gradient wings.
@@ -379,11 +397,13 @@ void pushFloorQuadGradient(
 // The reference open-note bar: a hexagonal prism along X across [x0, x1], with the center
 // station slightly thicker than the ends and the ring squashed nearly flat in Z. Flat-colored
 // and unlit, its silhouette reads as the reference's thin rounded bar from every board-view
-// angle; end-cap fans close the side-on silhouette. The thickness scale draws the reference's
-// accent halo (the same bar at triple cross-section).
+// angle. The end stations are fully transparent, fading in over g_open_note_end_fade_length, so
+// the bar tapers visually to a point at each end (which also makes end caps pointless — the
+// silhouette dissolves before it could show a flat end). The thickness scale draws the
+// reference's accent halo (the same bar at triple cross-section).
 void pushOpenNoteBar(
     std::vector<PosColorVertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
-    const double x1, const double lane_y, const double z, const std::uint32_t abgr,
+    const double x1, const double lane_y, const double z, const ArgbColor argb, const double alpha,
     const double thickness_scale)
 {
     constexpr auto g_ring_size = static_cast<std::size_t>(g_open_note_segments);
@@ -397,12 +417,24 @@ void pushOpenNoteBar(
         ring_z.at(point) = std::sin(angle) * g_open_note_z_squash;
     }
 
-    // Three cross-section stations: end, bulged middle, end.
-    const std::array<double, 3> station_x{x0, (x0 + x1) / 2.0, x1};
-    const std::array<double, 3> station_half{
+    // Five cross-section stations: transparent tips, full-alpha fade-in stations, bulged middle.
+    const double fade_length = std::min(g_open_note_end_fade_length, (x1 - x0) / 4.0);
+    const std::array<double, 5> station_x{
+        x0, x0 + fade_length, (x0 + x1) / 2.0, x1 - fade_length, x1
+    };
+    const std::array<double, 5> station_half{
+        g_open_note_end_half_thickness * thickness_scale,
         g_open_note_end_half_thickness * thickness_scale,
         g_open_note_middle_half_thickness * thickness_scale,
         g_open_note_end_half_thickness * thickness_scale,
+        g_open_note_end_half_thickness * thickness_scale,
+    };
+    const std::array<std::uint32_t, 5> station_abgr{
+        packAbgr(argb, 0.0),
+        packAbgr(argb, alpha),
+        packAbgr(argb, alpha),
+        packAbgr(argb, alpha),
+        packAbgr(argb, 0.0),
     };
 
     const auto ring_vertex = [&](const std::size_t station, const std::size_t point) {
@@ -410,7 +442,7 @@ void pushOpenNoteBar(
             station_x.at(station),
             lane_y + (station_half.at(station) * ring_y.at(point)),
             z + (station_half.at(station) * ring_z.at(point)),
-            abgr);
+            station_abgr.at(station));
     };
 
     // Prism sides between adjacent stations.
@@ -426,22 +458,6 @@ void pushOpenNoteBar(
                 ring_vertex(station, next_point),
                 ring_vertex(station + 1, next_point),
                 ring_vertex(station + 1, point));
-        }
-    }
-
-    // End caps: a triangle fan per end station (no cull state, so winding is free).
-    for (const std::size_t station : {std::size_t{0}, station_x.size() - 1})
-    {
-        const auto base = static_cast<std::uint16_t>(vertices.size());
-        for (std::size_t point = 0; point < g_ring_size; ++point)
-        {
-            vertices.push_back(ring_vertex(station, point));
-        }
-        for (std::size_t point = 1; point + 1 < g_ring_size; ++point)
-        {
-            indices.push_back(base);
-            indices.push_back(static_cast<std::uint16_t>(base + point));
-            indices.push_back(static_cast<std::uint16_t>(base + point + 1));
         }
     }
 }
@@ -1884,12 +1900,14 @@ void HighwayRenderer::Impl::draw(
             {
                 const auto ribbon_end = [&](const double seconds) {
                     const double alpha = tip_alpha(seconds);
+                    const std::uint32_t edge = packAbgr(style.tail, alpha);
                     return RibbonEnd{
                         .x_offset = 0.0,
                         .y = lane_y,
                         .z = time_to_z(seconds),
-                        .edge_abgr = packAbgr(style.tail, alpha),
+                        .edge_abgr = edge,
                         .inner_abgr = packAbgr(style.tail, g_tail_inner_alpha * alpha),
+                        .outer_abgr = note.fret > 0 ? edge : packAbgr(style.tail, 0.0),
                     };
                 };
                 // Split where the tip fade begins: alpha is linear on each side of the split,
@@ -1980,6 +1998,7 @@ void HighwayRenderer::Impl::draw(
                             .z = a.z,
                             .edge_abgr = packAbgr(style.tail, a.alpha),
                             .inner_abgr = packAbgr(style.tail, g_tail_inner_alpha * a.alpha),
+                            .outer_abgr = packAbgr(style.tail, note.fret > 0 ? a.alpha : 0.0),
                         },
                         RibbonEnd{
                             .x_offset = b.x_offset,
@@ -1987,6 +2006,7 @@ void HighwayRenderer::Impl::draw(
                             .z = b.z,
                             .edge_abgr = packAbgr(style.tail, b.alpha),
                             .inner_abgr = packAbgr(style.tail, g_tail_inner_alpha * b.alpha),
+                            .outer_abgr = packAbgr(style.tail, note.fret > 0 ? b.alpha : 0.0),
                         });
                 }
             }
@@ -2032,26 +2052,30 @@ void HighwayRenderer::Impl::draw(
         const bool in_chord = group.count >= 2;
 
         // Note shadow: a glow post — the sustain tails' three-band ribbon stood upright at a
-        // user-tuned fraction of the tail width, rising from the board to the note and fading
-        // out as it reaches the head (user direction; replaced the reference's gradient fan). A
-        // fretted single note plants one under its head; a single-note open bar plants one
-        // under each end.
+        // user-tuned fraction of the tail width, rising from the board toward the note and
+        // completing its fade slightly below it (user direction; replaced the reference's
+        // gradient fan). Fretted single notes only; a single-note open bar builds mitered L
+        // posts from the same cross-section in its own branch below.
+        const double post_half_width = metrics.tail_half_width * 0.375;
+        const double post_floor_alpha = fade * g_shadow_post_floor_alpha;
         const auto push_shadow_post = [&](const double center_x) {
-            const double post_half_width = metrics.tail_half_width * 0.375;
-            const double floor_alpha = fade * g_shadow_post_floor_alpha;
+            const std::uint32_t floor_edge = packAbgr(base_color, post_floor_alpha);
+            const std::uint32_t clear = packAbgr(base_color, 0.0);
             const RibbonEnd floor_end{
                 .x_offset = 0.0,
                 .y = 0.0,
                 .z = z,
-                .edge_abgr = packAbgr(base_color, floor_alpha),
-                .inner_abgr = packAbgr(base_color, g_tail_inner_alpha * floor_alpha),
+                .edge_abgr = floor_edge,
+                .inner_abgr = packAbgr(base_color, g_tail_inner_alpha * post_floor_alpha),
+                .outer_abgr = floor_edge,
             };
             const RibbonEnd head_end{
                 .x_offset = 0.0,
-                .y = head_y,
+                .y = head_y * g_shadow_post_top_fraction,
                 .z = z,
-                .edge_abgr = packAbgr(base_color, 0.0),
-                .inner_abgr = packAbgr(base_color, 0.0),
+                .edge_abgr = clear,
+                .inner_abgr = clear,
+                .outer_abgr = clear,
             };
             pushRibbonSegment(
                 shadow_vertices,
@@ -2074,11 +2098,88 @@ void HighwayRenderer::Impl::draw(
             const auto [x0, x1] = std::minmax(low_x, high_x);
             if (!in_chord)
             {
-                push_shadow_post(x0);
-                push_shadow_post(x1);
+                // L posts pointing inward from the bar ends (the chord box's bottom corner
+                // holders, freestanding — user direction): one continuous two-leg ribbon per
+                // corner, its cross-section turning 45 degrees at the corner station so the
+                // bands wrap the L outline unbroken (an upright post plus a separate foot read
+                // as a cross at the corner, not an L). Cross-section colors are the open-tail
+                // treatment — transparent boundaries around edge strips around the translucent
+                // core — and both leg ends fade to nothing.
+                const double leg_thickness = 2.0 * post_half_width;
+                const double post_top_y = head_y * g_shadow_post_top_fraction;
+                for (const auto& [corner_x, x_sign] : {std::pair{x0, 1.0}, std::pair{x1, -1.0}})
+                {
+                    // A station holds the four cross-section points at fractions 0, 1/4, 3/4, 1
+                    // across the leg thickness, outer L boundary first, plus the alpha envelope
+                    // along the run.
+                    struct LStation
+                    {
+                        std::array<double, 4> x;
+                        std::array<double, 4> y;
+                        double alpha_scale;
+                    };
+                    const auto leg_x = [&](const double fraction) {
+                        return corner_x + (x_sign * leg_thickness * fraction);
+                    };
+                    const double tip_x = corner_x + (x_sign * g_open_post_foot_length);
+                    const std::array<LStation, 3> stations{
+                        // Top of the upright leg: fully faded (the glow posts' top fade).
+                        LStation{
+                            .x = {leg_x(0.0), leg_x(0.25), leg_x(0.75), leg_x(1.0)},
+                            .y = {post_top_y, post_top_y, post_top_y, post_top_y},
+                            .alpha_scale = 0.0,
+                        },
+                        // Corner miter: the diagonal from the outer corner on the floor to the
+                        // inner corner one thickness up and in.
+                        LStation{
+                            .x = {leg_x(0.0), leg_x(0.25), leg_x(0.75), leg_x(1.0)},
+                            .y = {0.0, 0.25 * leg_thickness, 0.75 * leg_thickness, leg_thickness},
+                            .alpha_scale = 1.0,
+                        },
+                        // Foot tip: fully faded.
+                        LStation{
+                            .x = {tip_x, tip_x, tip_x, tip_x},
+                            .y = {0.0, 0.25 * leg_thickness, 0.75 * leg_thickness, leg_thickness},
+                            .alpha_scale = 0.0,
+                        },
+                    };
+                    // Per-station outer/edge/inner colors; bands run outer->edge, core,
+                    // edge->outer like an open tail's cross-section.
+                    const auto station_colors = [&](const LStation& station) {
+                        return std::array<std::uint32_t, 3>{
+                            packAbgr(base_color, 0.0),
+                            packAbgr(base_color, post_floor_alpha * station.alpha_scale),
+                            packAbgr(
+                                base_color,
+                                g_tail_inner_alpha * post_floor_alpha * station.alpha_scale),
+                        };
+                    };
+                    constexpr std::array<std::array<std::size_t, 2>, 3> g_band_colors{
+                        {{0, 1}, {2, 2}, {1, 0}}
+                    };
+                    for (std::size_t segment = 0; segment + 1 < stations.size(); ++segment)
+                    {
+                        const LStation& a = stations.at(segment);
+                        const LStation& b = stations.at(segment + 1);
+                        const std::array<std::uint32_t, 3> colors_a = station_colors(a);
+                        const std::array<std::uint32_t, 3> colors_b = station_colors(b);
+                        for (std::size_t band = 0; band < g_band_colors.size(); ++band)
+                        {
+                            const auto [from_color, to_color] = g_band_colors.at(band);
+                            pushQuad(
+                                shadow_vertices,
+                                shadow_indices,
+                                makeVertex(a.x.at(band), a.y.at(band), z, colors_a.at(from_color)),
+                                makeVertex(
+                                    a.x.at(band + 1), a.y.at(band + 1), z, colors_a.at(to_color)),
+                                makeVertex(
+                                    b.x.at(band + 1), b.y.at(band + 1), z, colors_b.at(to_color)),
+                                makeVertex(b.x.at(band), b.y.at(band), z, colors_b.at(from_color)));
+                        }
+                    }
+                }
             }
-            pushOpenNoteBar(
-                open_vertices, open_indices, x0, x1, head_y, z, packAbgr(base_color, fade), 1.0);
+            pushOpenNoteBar(open_vertices, open_indices, x0, x1, head_y, z, base_color, fade, 1.0);
             if (note.accent)
             {
                 // The reference's accent halo: the same bar at triple thickness, faint.
@@ -2089,7 +2190,8 @@ void HighwayRenderer::Impl::draw(
                     x1,
                     head_y,
                     z,
-                    packAbgr(base_color, fade * (96.0 / 255.0)),
+                    base_color,
+                    fade * (96.0 / 255.0),
                     3.0);
             }
             // Technique markers at the window center (the reference's open-note overlay set).
