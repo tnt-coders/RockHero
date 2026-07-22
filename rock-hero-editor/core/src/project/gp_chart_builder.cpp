@@ -528,11 +528,13 @@ void normalizeImportedSustains(
 // collections are empty), so any onset striking two or more strings becomes a chord posture,
 // deduplicated into the template table, and consecutive onsets holding the same posture merge
 // into one shape span covering the strums' notated (pre-trim) durations — the grouping the tab
-// renders as a chord box over repeated strums. A muted chord is its own chord (user rule
-// 2026-07-21): span continuity compares per-string muting as well as frets, so a palm- or
-// full-muted run opens its own box even on the frets of the ringing chord before it — while the
-// template table stays deduplicated by frets alone (the hand posture is identical; muting
-// renders on the notes). Every derived span starts at a multi-note onset, so the projection's
+// renders as a chord box over repeated strums. ANY articulation difference is a new chord (user
+// rule 2026-07-21): span continuity compares each string's whole note with only its position and
+// duration neutralized, so attack (hammer/pull/tap/slap/pop), muting, harmonics, vibrato,
+// tremolo, accent, bends, and slides — and any technique added to ChartNote later — all split
+// the span, while strum durations never do. The template table stays deduplicated by frets
+// alone (the hand posture is identical; techniques render on the notes). Every derived span
+// starts at a multi-note onset, so the projection's
 // arrival rule always reads it as a chord box, never an arpeggio bracket; no arpeggio spans are
 // derived (broken-chord grouping needs the corpus-informed pass). Derived templates are unnamed
 // and unfingered. The maintained plain-English spec is "GP chart normalization policy" in
@@ -542,8 +544,10 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
     const std::size_t string_count = chart.tuning.strings.size();
     std::map<std::vector<std::optional<int>>, std::size_t> template_indices;
 
-    // One struck string's contribution to a span's articulation identity: fret plus muting.
-    using StringArticulation = std::optional<std::pair<int, NoteMute>>;
+    // One struck string's contribution to a span's articulation identity: the whole note with
+    // its position and duration neutralized, so ChartNote equality decides "same chord" and new
+    // technique fields can never silently drop out of the comparison.
+    using StringArticulation = std::optional<ChartNote>;
 
     struct OpenSpan
     {
@@ -580,7 +584,10 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
             if (const auto string_index = static_cast<std::size_t>(note.string - 1);
                 string_index < string_count)
             {
-                articulation[string_index] = std::pair{note.fret, note.mute};
+                ChartNote key = note;
+                key.position = GridPosition{};
+                key.sustain = Fraction{};
+                articulation[string_index] = std::move(key);
                 ++struck;
             }
             if (notated_end < built[onset_end].end_global_beat)
@@ -596,7 +603,7 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
             {
                 if (articulation[string_index].has_value())
                 {
-                    posture[string_index] = articulation[string_index]->first;
+                    posture[string_index] = articulation[string_index]->fret;
                 }
             }
             const auto [entry, inserted] =
