@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <functional>
 #include <optional>
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/tab/tab_projection.h>
 #include <vector>
 
@@ -16,6 +17,26 @@ namespace
 {
     return static_cast<double>(tempo_map.globalBeatIndex(position.measure, position.beat)) +
            position.offset.toDouble();
+}
+
+// Reports whether a re-picked note sounds on the string exactly at the waypoint's grid
+// position — a shift slide's target. Exact rational arithmetic, so an adjacent onset and a
+// glide landing can never miss each other to rounding.
+[[nodiscard]] bool waypointCoversOnset(
+    const Chart& chart, const TempoMap& tempo_map, const ChartNote& note,
+    const SlideWaypoint& waypoint)
+{
+    const GridPosition landing = advanceGridPosition(tempo_map, note.position, waypoint.offset);
+    auto it =
+        std::ranges::lower_bound(chart.notes, landing, std::ranges::less{}, &ChartNote::position);
+    for (; it != chart.notes.end() && it->position == landing; ++it)
+    {
+        if (it->string == note.string)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 } // namespace
@@ -72,6 +93,8 @@ TabViewState makeTabViewState(const Arrangement& arrangement, const TempoMap& te
                         onset_beat + waypoint.offset.toDouble()),
                     .fret = waypoint.fret,
                     .unpitched = waypoint.unpitched,
+                    .linked = !waypoint.unpitched &&
+                              !waypointCoversOnset(chart, tempo_map, note, waypoint),
                 });
         }
         state.notes.push_back(std::move(view));

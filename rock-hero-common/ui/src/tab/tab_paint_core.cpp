@@ -338,16 +338,18 @@ void drawSlideLines(
 }
 
 // Draws Charter's linked-note head (the same layered circle with a doubly darkened center) with
-// its fret number at each pitched slide waypoint. Charter charts express slide chains as linked
-// notes and draws one of these at every link; our format merges the chain into waypoints, so the
-// waypoints are exactly where Charter's linked heads sit.
+// its fret number at each linked slide waypoint. Charter charts express unpicked slide chains as
+// linked notes and draw one of these at every link; our format merges the chain into waypoints,
+// so the linked waypoints are exactly where Charter's linked heads sit. A shift slide's landing
+// is not linked — the re-picked target note's own head renders there instead, and painting the
+// linked head over it would make a picked note look like a continuation.
 void drawSlideWaypointHeads(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
     const common::core::TabNoteView& note, float center_y)
 {
     for (const common::core::TabSlideView& waypoint : note.slides)
     {
-        if (waypoint.unpitched)
+        if (waypoint.unpitched || !waypoint.linked)
         {
             continue;
         }

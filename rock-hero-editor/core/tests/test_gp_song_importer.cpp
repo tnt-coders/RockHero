@@ -289,6 +289,51 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     std::filesystem::remove_all(scratch, cleanup_error);
 }
 
+// A legato slide is a continuation of the same note (user rule 2026-07-21): the landing is not
+// re-picked, so it folds into the origin as a pitched waypoint instead of keeping its own onset
+// — unlike the shift slide in the main fixture, whose target stays a real note with its own head.
+TEST_CASE("Guitar Pro import merges legato slide landings into the origin", "[core][gp-import]")
+{
+    const std::filesystem::path scratch =
+        std::filesystem::temp_directory_path() / "rh_gp_legato_slide_test";
+    std::error_code cleanup_error;
+    std::filesystem::remove_all(scratch, cleanup_error);
+    const std::filesystem::path workspace = scratch / "song";
+    std::filesystem::create_directories(workspace);
+
+    // Flags 2 is the legato slide; the main fixture's Flags 1 is the shift slide.
+    const std::string gpif = fixtureWithReplacement(
+        "<Property name=\"Slide\"><Flags>1</Flags></Property>",
+        "<Property name=\"Slide\"><Flags>2</Flags></Property>");
+    const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
+
+    GpSongImporter importer;
+    const auto song = importer.importSong(archive, workspace);
+    REQUIRE(song.has_value());
+    REQUIRE(song->arrangements.size() == 1);
+    const common::core::Chart& chart = requiredChart(song->arrangements.front());
+
+    // The fret-7 landing at 1:2+1/2 is no longer an onset: four notes remain.
+    REQUIRE(chart.notes.size() == 4);
+    CHECK(chart.notes[0].position == GridPosition{.measure = 1, .beat = 1});
+    CHECK(chart.notes[2].position == GridPosition{.measure = 1, .beat = 3});
+
+    // The origin keeps its hammer attack and carries the junction waypoint; its sustain extends
+    // through the landing's notated end (one beat), then the minimum-distance trim takes it to
+    // 3/4 — floored above the waypoint, so the glide still reaches fret 7.
+    const common::core::ChartNote& origin = chart.notes[1];
+    CHECK(origin.position == GridPosition{.measure = 1, .beat = 2});
+    CHECK(origin.fret == 5);
+    CHECK(origin.attack == common::core::NoteAttack::Hammer);
+    CHECK(origin.sustain == Fraction{3, 4});
+    REQUIRE(origin.slides.size() == 1);
+    CHECK(origin.slides[0].offset == Fraction{1, 2});
+    CHECK(origin.slides[0].fret == 7);
+    CHECK_FALSE(origin.slides[0].unpitched);
+
+    std::filesystem::remove_all(scratch, cleanup_error);
+}
+
 // Chord derivation: notes struck together become a deduplicated posture template, and
 // consecutive strums of the same posture merge into one shape span covering their notated
 // durations — the grouping the tab renders as a chord box over repeated strums.

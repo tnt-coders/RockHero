@@ -818,59 +818,108 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
     }
 
     // Slides resolve against the next onset on the same string, so they run after every onset
-    // exists. Shift and legato slides glide into that next note; slide-outs trail off unpitched.
+    // exists. A shift slide (flag 1) glides into a re-picked target that keeps its own onset and
+    // head. A legato slide (flag 2) is a continuation of the same note (user rule 2026-07-21):
+    // the target is not re-picked, so it folds into the origin as a pitched waypoint at the
+    // junction — the sustain extends through the target's notated end, its sustain-carried
+    // techniques fold in, and its own onward slide continues the chain until a shift, a
+    // trail-off, or the chain's end stops it. Slide-outs trail off unpitched.
+    std::vector<bool> merged_away(built.size(), false);
     for (std::size_t index = 0; index < built.size(); ++index)
     {
         BuiltNote& entry = built[index];
-        if (entry.slide_flags == 0)
+        if (merged_away[index] || entry.slide_flags == 0)
         {
             continue;
         }
         ChartNote& note = entry.note;
         const Fraction minimum_window{1, 8};
 
-        if ((entry.slide_flags & (1 | 2)) != 0)
+        int flags = entry.slide_flags;
+        int glide_fret = note.fret;
+        std::size_t search_from = index;
+        while ((flags & (1 | 2)) != 0)
         {
             const BuiltNote* next = nullptr;
-            for (std::size_t follower = index + 1; follower < built.size(); ++follower)
+            std::size_t next_index = 0;
+            for (std::size_t follower = search_from + 1; follower < built.size(); ++follower)
             {
-                if (built[follower].gp_string == entry.gp_string)
+                if (built[follower].gp_string == entry.gp_string && !merged_away[follower])
                 {
                     next = &built[follower];
+                    next_index = follower;
                     break;
                 }
             }
-            if (next != nullptr)
+            if (next == nullptr)
             {
-                const Fraction gap = subtractFractions(next->global_beat, entry.global_beat);
-                // The glide runs across the note's own sustain; a zero-sustain source note gets
-                // the smallest window that still reads as a slide, never the whole gap.
-                Fraction window = note.sustain.numerator > 0 ? note.sustain : minimum_window;
-                if (gap.numerator > 0 && gap < window)
-                {
-                    window = gap;
-                }
-                if (note.sustain < window)
-                {
-                    note.sustain = window;
-                }
-                note.slides.push_back(SlideWaypoint{.offset = window, .fret = next->note.fret});
+                // No landing note exists; the glide degrades to an unpitched trail-off.
+                flags |= 4;
+                break;
             }
-            else
+            const Fraction gap = subtractFractions(next->global_beat, entry.global_beat);
+            if ((flags & 2) != 0 && (flags & 1) == 0)
             {
-                entry.slide_flags |= 4;
+                // Legato: the landing continues this note. Waypoint at the junction, sustain
+                // through the target's notated end, techniques folded, chain continued.
+                note.slides.push_back(SlideWaypoint{.offset = gap, .fret = next->note.fret});
+                if (entry.end_global_beat < next->end_global_beat)
+                {
+                    entry.end_global_beat = next->end_global_beat;
+                }
+                note.sustain = subtractFractions(entry.end_global_beat, entry.global_beat);
+                note.vibrato = note.vibrato || next->note.vibrato;
+                note.tremolo = note.tremolo || next->note.tremolo;
+                for (BendPoint point : next->note.bend)
+                {
+                    point.offset = addFractions(point.offset, gap);
+                    if (note.bend.empty() || point.offset > note.bend.back().offset)
+                    {
+                        note.bend.push_back(point);
+                    }
+                }
+                merged_away[next_index] = true;
+                glide_fret = next->note.fret;
+                flags = built[next_index].slide_flags;
+                search_from = next_index;
+                continue;
             }
+
+            // Shift: the glide runs across the note's own sustain into the re-picked target; a
+            // zero-sustain source note gets the smallest window that still reads as a slide,
+            // never the whole gap.
+            Fraction window = note.sustain.numerator > 0 ? note.sustain : minimum_window;
+            if (gap.numerator > 0 && gap < window)
+            {
+                window = gap;
+            }
+            if (note.sustain < window)
+            {
+                note.sustain = window;
+            }
+            note.slides.push_back(SlideWaypoint{.offset = window, .fret = next->note.fret});
+            flags = 0;
+            break;
         }
 
-        if ((entry.slide_flags & (4 | 8)) != 0 && note.slides.empty())
+        if ((flags & (4 | 8)) != 0)
         {
-            const bool upward = (entry.slide_flags & 8) != 0;
-            const int target = upward ? std::min(note.fret + 4, common::core::g_max_fret)
-                                      : std::max(note.fret - 4, 0);
+            const bool upward = (flags & 8) != 0;
+            const int target = upward ? std::min(glide_fret + 4, common::core::g_max_fret)
+                                      : std::max(glide_fret - 4, 0);
+            // The trail-off ends at the sustain end, strictly after any chain waypoint so the
+            // payload stays ascending.
             Fraction window = note.sustain;
+            if (!note.slides.empty() && window <= note.slides.back().offset)
+            {
+                window = addFractions(note.slides.back().offset, minimum_window);
+            }
             if (window.numerator <= 0)
             {
                 window = minimum_window;
+            }
+            if (note.sustain < window)
+            {
                 note.sustain = window;
             }
             note.slides.push_back(
@@ -882,6 +931,22 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
             ++slide_in_count;
         }
     }
+
+    // Legato landings are no longer onsets; drop them before sustain normalization, chord
+    // derivation, and fret-hand generation see the stream.
+    std::size_t write_index = 0;
+    for (std::size_t index = 0; index < built.size(); ++index)
+    {
+        if (!merged_away[index])
+        {
+            if (write_index != index)
+            {
+                built[write_index] = std::move(built[index]);
+            }
+            ++write_index;
+        }
+    }
+    built.resize(write_index);
 
     if (dropped_duplicates > 0)
     {
