@@ -1001,12 +1001,13 @@ void EditorView::togglePreviewWindow()
             m_transport,
             m_playback_clock,
             [this](const juce::KeyPress& key) {
-                // Transport keys, the preview toggle, and the forward/backward song-navigation
-                // verbs (44-Q4, widened 2026-07-22: the paused preview follows the marker, so
-                // caret time travel is meaningful from this window). Editing shortcuts (delete,
-                // nudge, undo) stay with the main window, which shows the selection context.
-                // Resolved through the command mappings, not hardcoded chords, so future
-                // rebinds of rebindable commands stay honored.
+                // Transport keys, the preview toggle, the forward/backward song-navigation
+                // verbs, and the grid granularity pair (44-Q4, widened 2026-07-22: the paused
+                // preview follows the marker, so caret time travel is meaningful from this
+                // window — and the grid size is its travel speed, since arrows step grid
+                // slots). Editing shortcuts (delete, nudge, undo) stay with the main window,
+                // which shows the selection context. Resolved through the command mappings,
+                // not hardcoded chords, so future rebinds of rebindable commands stay honored.
                 static constexpr std::array g_preview_commands{
                     EditorCommandId::PlayPause,
                     EditorCommandId::TogglePreview3D,
@@ -1018,6 +1019,8 @@ void EditorView::togglePreviewWindow()
                     EditorCommandId::CaretJumpChartEnd,
                     EditorCommandId::CaretJumpPreviousSection,
                     EditorCommandId::CaretJumpNextSection,
+                    EditorCommandId::GridFiner,
+                    EditorCommandId::GridCoarser,
                 };
                 const juce::CommandID command =
                     m_command_manager.getKeyMappings()->findCommandForKeyPress(key);
