@@ -528,19 +528,27 @@ void normalizeImportedSustains(
 // collections are empty), so any onset striking two or more strings becomes a chord posture,
 // deduplicated into the template table, and consecutive onsets holding the same posture merge
 // into one shape span covering the strums' notated (pre-trim) durations — the grouping the tab
-// renders as a chord box over repeated strums. Every derived span starts at a multi-note onset,
-// so the projection's arrival rule always reads it as a chord box, never an arpeggio bracket;
-// no arpeggio spans are derived (broken-chord grouping needs the corpus-informed pass). Derived
-// templates are unnamed and unfingered. The maintained plain-English spec is "GP chart
-// normalization policy" in docs/developer/the-project-lifecycle.md.
+// renders as a chord box over repeated strums. A muted chord is its own chord (user rule
+// 2026-07-21): span continuity compares per-string muting as well as frets, so a palm- or
+// full-muted run opens its own box even on the frets of the ringing chord before it — while the
+// template table stays deduplicated by frets alone (the hand posture is identical; muting
+// renders on the notes). Every derived span starts at a multi-note onset, so the projection's
+// arrival rule always reads it as a chord box, never an arpeggio bracket; no arpeggio spans are
+// derived (broken-chord grouping needs the corpus-informed pass). Derived templates are unnamed
+// and unfingered. The maintained plain-English spec is "GP chart normalization policy" in
+// docs/developer/the-project-lifecycle.md.
 void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
 {
     const std::size_t string_count = chart.tuning.strings.size();
     std::map<std::vector<std::optional<int>>, std::size_t> template_indices;
 
+    // One struck string's contribution to a span's articulation identity: fret plus muting.
+    using StringArticulation = std::optional<std::pair<int, NoteMute>>;
+
     struct OpenSpan
     {
         std::size_t chord{0};
+        std::vector<StringArticulation> articulation;
         GridPosition position;
         Fraction start_beat{};
         Fraction end_beat{};
@@ -564,7 +572,7 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
     {
         std::size_t onset_end = index;
         Fraction notated_end = built[index].end_global_beat;
-        std::vector<std::optional<int>> posture(string_count);
+        std::vector<StringArticulation> articulation(string_count);
         std::size_t struck = 0;
         while (onset_end < built.size() && built[onset_end].global_beat == built[index].global_beat)
         {
@@ -572,7 +580,7 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
             if (const auto string_index = static_cast<std::size_t>(note.string - 1);
                 string_index < string_count)
             {
-                posture[string_index] = note.fret;
+                articulation[string_index] = std::pair{note.fret, note.mute};
                 ++struck;
             }
             if (notated_end < built[onset_end].end_global_beat)
@@ -583,6 +591,14 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
         }
         if (struck >= 2)
         {
+            std::vector<std::optional<int>> posture(string_count);
+            for (std::size_t string_index = 0; string_index < string_count; ++string_index)
+            {
+                if (articulation[string_index].has_value())
+                {
+                    posture[string_index] = articulation[string_index]->first;
+                }
+            }
             const auto [entry, inserted] =
                 template_indices.try_emplace(posture, chart.templates.size());
             if (inserted)
@@ -594,7 +610,7 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
                         .fingers = std::vector<std::optional<int>>(string_count),
                     });
             }
-            if (open.has_value() && open->chord == entry->second)
+            if (open.has_value() && open->articulation == articulation)
             {
                 if (open->end_beat < notated_end)
                 {
@@ -606,6 +622,7 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
                 close_span();
                 open = OpenSpan{
                     .chord = entry->second,
+                    .articulation = std::move(articulation),
                     .position = built[index].note.position,
                     .start_beat = built[index].global_beat,
                     .end_beat = notated_end,

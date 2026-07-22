@@ -346,15 +346,17 @@ TEST_CASE("Guitar Pro import derives chord templates and spans", "[core][gp-impo
     const std::filesystem::path workspace = scratch / "song";
     std::filesystem::create_directories(workspace);
 
-    // Beats one and two both strike the fret 3 + fret 5 power chord (a quarter then an eighth);
-    // the single fret-7 note at 1:2+1/2 ends the held posture.
+    // Beats one and two both strike the fret 3 + fret 5 power chord unmuted (a quarter then an
+    // eighth); the single fret-7 note at 1:2+1/2 ends the held posture. The fixture's note 0 is
+    // palm-muted, and a mute change is a span boundary, so the first strum uses an unmuted
+    // fret-3 note instead.
     std::string gpif{g_fixture_gpif};
     const auto replace_once = [&gpif](const std::string& marker, const std::string& replacement) {
         const std::size_t position = gpif.find(marker);
         REQUIRE(position != std::string::npos);
         gpif.replace(position, marker.size(), replacement);
     };
-    replace_once("<Notes>0</Notes>", "<Notes>0 6</Notes>");
+    replace_once("<Notes>0</Notes>", "<Notes>9 6</Notes>");
     replace_once("<Notes>1</Notes>", "<Notes>7 8</Notes>");
     replace_once(
         "</Notes>\n<Rhythms>",
@@ -369,6 +371,10 @@ TEST_CASE("Guitar Pro import derives chord templates and spans", "[core][gp-impo
         "<Note id=\"8\"><Properties>\n"
         "<Property name=\"String\"><String>1</String></Property>\n"
         "<Property name=\"Fret\"><Fret>5</Fret></Property>\n"
+        "</Properties></Note>\n"
+        "<Note id=\"9\"><Properties>\n"
+        "<Property name=\"String\"><String>0</String></Property>\n"
+        "<Property name=\"Fret\"><Fret>3</Fret></Property>\n"
         "</Properties></Note>\n"
         "</Notes>\n<Rhythms>");
     const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
@@ -397,6 +403,68 @@ TEST_CASE("Guitar Pro import derives chord templates and spans", "[core][gp-impo
     CHECK(chart.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
     CHECK(chart.shapes.front().sustain == Fraction{3, 2});
     CHECK(chart.shapes.front().chord == 0);
+
+    std::filesystem::remove_all(scratch, cleanup_error);
+}
+
+// A muted chord is its own chord: a mute change on the same frets ends the span and opens a new
+// box, while both spans share one frets-deduplicated template.
+TEST_CASE("Guitar Pro import splits chord spans on muting changes", "[core][gp-import]")
+{
+    const std::filesystem::path scratch =
+        std::filesystem::temp_directory_path() / "rh_gp_muted_chord_test";
+    std::error_code cleanup_error;
+    std::filesystem::remove_all(scratch, cleanup_error);
+    const std::filesystem::path workspace = scratch / "song";
+    std::filesystem::create_directories(workspace);
+
+    // The same power chord strummed twice, ringing then palm-muted: two spans, one template.
+    std::string gpif{g_fixture_gpif};
+    const auto replace_once = [&gpif](const std::string& marker, const std::string& replacement) {
+        const std::size_t position = gpif.find(marker);
+        REQUIRE(position != std::string::npos);
+        gpif.replace(position, marker.size(), replacement);
+    };
+    replace_once("<Notes>0</Notes>", "<Notes>9 6</Notes>");
+    replace_once("<Notes>1</Notes>", "<Notes>7 8</Notes>");
+    replace_once(
+        "</Notes>\n<Rhythms>",
+        "<Note id=\"6\"><Properties>\n"
+        "<Property name=\"String\"><String>1</String></Property>\n"
+        "<Property name=\"Fret\"><Fret>5</Fret></Property>\n"
+        "</Properties></Note>\n"
+        "<Note id=\"7\"><Properties>\n"
+        "<Property name=\"String\"><String>0</String></Property>\n"
+        "<Property name=\"Fret\"><Fret>3</Fret></Property>\n"
+        "<Property name=\"PalmMuted\"><Enable/></Property>\n"
+        "</Properties></Note>\n"
+        "<Note id=\"8\"><Properties>\n"
+        "<Property name=\"String\"><String>1</String></Property>\n"
+        "<Property name=\"Fret\"><Fret>5</Fret></Property>\n"
+        "<Property name=\"PalmMuted\"><Enable/></Property>\n"
+        "</Properties></Note>\n"
+        "<Note id=\"9\"><Properties>\n"
+        "<Property name=\"String\"><String>0</String></Property>\n"
+        "<Property name=\"Fret\"><Fret>3</Fret></Property>\n"
+        "</Properties></Note>\n"
+        "</Notes>\n<Rhythms>");
+    const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
+
+    GpSongImporter importer;
+    const auto song = importer.importSong(archive, workspace);
+    REQUIRE(song.has_value());
+    REQUIRE(song->arrangements.size() == 1);
+    const common::core::Chart& chart = requiredChart(song->arrangements.front());
+
+    // One frets-identical template, but the palm-muted strum is its own chord: two spans.
+    REQUIRE(chart.templates.size() == 1);
+    REQUIRE(chart.shapes.size() == 2);
+    CHECK(chart.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+    CHECK(chart.shapes[0].sustain == Fraction{1});
+    CHECK(chart.shapes[0].chord == 0);
+    CHECK(chart.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
+    CHECK(chart.shapes[1].sustain == Fraction{1, 2});
+    CHECK(chart.shapes[1].chord == 0);
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }
