@@ -28,7 +28,8 @@ tick on the message thread at vblank cadence — the editor's established displa
 mechanism — sampling song time from the playback clock while playing (block-quantized transport
 reads shimmer on a moving field) and from the marker rule while paused: the armed caret is THE
 paused position (the 2026-07-18 marker model), with the exact transport position as the passive
-fallback, so a paused seek or caret move always lands.
+fallback, so a paused seek or caret move always lands. Paused time glides toward its target
+with a short exponential settle, so navigation reads as motion down the highway, not a cut.
 
 Lifecycle: attach() brings the stack up against the current peer on first open and merely
 resumes frame ticks on later opens; suspend() stops the ticks when the window hides (JUCE keeps
@@ -121,6 +122,10 @@ private:
     // The armed caret's timeline seconds while the marker is armed; the paused frame shows it
     // (the marker rule) and falls back to the transport position while passive.
     std::optional<double> m_caret_seconds;
+
+    // The paused glide's displayed time, settling toward the marker-rule target each frame;
+    // empty forces a snap (first frame, and resumes after a hidden gap must not slew).
+    std::optional<double> m_displayed_seconds;
 
     // Applied to the renderer on the next frame after a state swap.
     bool m_state_dirty{false};

@@ -2,6 +2,7 @@
 
 #include "preview/preview_resources.h"
 
+#include <cmath>
 #include <expected>
 #include <rock_hero/common/audio/clock/playback_clock_snapshot.h>
 #include <rock_hero/common/core/shared/logger.h>
@@ -20,6 +21,13 @@ namespace rock_hero::editor::ui
 
 namespace
 {
+
+// Paused navigation glides: the displayed time settles exponentially toward the marker-rule
+// target with this time constant (~95% settled after three constants), so a caret step reads
+// as motion down the highway rather than a cut. Frame-rate independent via 1 - exp(-dt / tau);
+// within the snap tolerance the glide pins to the target so it provably terminates.
+constexpr double g_paused_glide_time_constant_seconds = 0.06;
+constexpr double g_paused_glide_snap_seconds = 1.0e-3;
 
 #if JUCE_WINDOWS
 
@@ -94,9 +102,10 @@ void PreviewSurface::attach()
     if (m_device.has_value())
     {
         // Resume: the window may have been resized or moved across monitors while hidden, and
-        // the clock must snap rather than slew across the hidden gap.
+        // the clock (and the paused glide) must snap rather than slew across the hidden gap.
         updateChildBounds();
         m_extrapolator.reset();
+        m_displayed_seconds.reset();
         m_previous_tick = std::chrono::nanoseconds{0};
         if (m_vblank == nullptr)
         {
@@ -313,17 +322,33 @@ void PreviewSurface::renderFrame()
     // transport reads shimmer on a moving field); the marker rule while paused — the armed
     // caret is THE paused position (the 2026-07-18 marker model), with the exact transport
     // position as the passive fallback so paused seeks always land even if the clock publisher
-    // is idle.
+    // is idle. Paused time glides toward its target (see the glide constants); playing pins the
+    // glide state to the played time so a pause resumes seamlessly from the stop point.
     const common::audio::PlaybackClockSnapshot snapshot = m_playback_clock.snapshot();
     double song_seconds = 0.0;
     if (snapshot.playing)
     {
         song_seconds = m_extrapolator.advance(snapshot, now).seconds;
+        m_displayed_seconds = song_seconds;
     }
     else
     {
         m_extrapolator.reset();
-        song_seconds = m_caret_seconds.value_or(m_transport.position().seconds);
+        const double target_seconds = m_caret_seconds.value_or(m_transport.position().seconds);
+        if (!m_displayed_seconds.has_value())
+        {
+            m_displayed_seconds = target_seconds;
+        }
+        else
+        {
+            const double mix = 1.0 - std::exp(-dt_seconds / g_paused_glide_time_constant_seconds);
+            *m_displayed_seconds += (target_seconds - *m_displayed_seconds) * mix;
+            if (std::abs(target_seconds - *m_displayed_seconds) < g_paused_glide_snap_seconds)
+            {
+                m_displayed_seconds = target_seconds;
+            }
+        }
+        song_seconds = *m_displayed_seconds;
     }
 
     m_renderer->draw(song_seconds, dt_seconds, m_device->width(), m_device->height());
