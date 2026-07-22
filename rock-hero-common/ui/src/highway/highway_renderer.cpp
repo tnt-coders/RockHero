@@ -45,6 +45,7 @@ constexpr ArgbColor g_beat_bar_color = 0xFF0F3B5E; // beat and measure bars alik
 // away down the measure — half the old symmetric-wings footprint (user direction).
 constexpr double g_attack_line_half_length = 0.025;
 constexpr double g_attack_fade_length = 0.2;
+constexpr double g_attack_line_alpha = 0.85; // full teal read slightly too bright (user-tuned)
 constexpr ArgbColor g_fhp_lane_color = 0x402590E8;        // lit runway gap
 constexpr ArgbColor g_fhp_lane_dotted_color = 0x40185C94; // darker gap on inlay-dotted frets
 constexpr ArgbColor g_lane_border_color = 0x0007928F;     // per-fret runway ribbons (alpha varies)
@@ -1142,7 +1143,7 @@ void HighwayRenderer::Impl::draw(
                     0.015,
                     z - g_attack_line_half_length,
                     z + g_attack_line_half_length,
-                    packAbgr(g_chord_box_color));
+                    packAbgr(g_chord_box_color, g_attack_line_alpha));
                 pushFloorQuadGradient(
                     vertices,
                     indices,
@@ -1220,90 +1221,6 @@ void HighwayRenderer::Impl::draw(
             }
         }
         submitBatch(vertices, indices, posColorLayout(), color_fade_program.get(), nullptr);
-    }
-
-    // --- Scrolling fret numbers: the reference's readability aid. Numbers ride the board floor
-    // at each dotted fret on every measure downbeat (bright inside the current hand range, dim
-    // elsewhere), mark each upcoming hand-position arrival in orange, and pin the current hand's
-    // numbers at the hit line; all fade in as they approach. Drawn before the notes so heads
-    // occlude the floor numbers. ---
-    {
-        std::vector<PosColorUvVertex> vertices;
-        std::vector<std::uint16_t> indices;
-        const double z_faded = common::core::highwayTimeToZ(0.05, scroll, metrics);
-        const double z_close = common::core::highwayTimeToZ(0.25, scroll, metrics);
-
-        // One billboarded number at a fret's slot on the board floor; alpha fades in between the
-        // hit line and z_close when fade is requested (Charter bakes the fade into the color,
-        // since the glyph program has no fade uniform).
-        const auto push_number =
-            [&](const int fret, const double z, const ArgbColor base, const bool fade) {
-                const double glyph_height = z > 0.0 ? 0.70 : 0.40;
-                const std::string label = std::to_string(fret);
-                const double text_width = glyph_height * 0.62 * static_cast<double>(label.size());
-                const double left_x =
-                    common::core::highwayNoteCenterX(fret, metrics, mirrored) - (text_width / 2.0);
-                double alpha_scale = 1.0;
-                if (fade && z < z_close)
-                {
-                    alpha_scale = std::clamp((z - z_faded) / (z_close - z_faded), 0.0, 1.0);
-                }
-                (void)pushGlyphText(
-                    vertices,
-                    indices,
-                    atlases.glyph_layout,
-                    label,
-                    left_x,
-                    -glyph_height / 2.0,
-                    z,
-                    glyph_height,
-                    packAbgr(base, alpha_scale));
-            };
-
-        // Dotted-fret numbers on each visible measure downbeat, lit within the hand range.
-        for (const common::core::HighwayBeatView& beat : state.beats)
-        {
-            if (!beat.measure_downbeat || beat.seconds < now_seconds - 0.2 ||
-                beat.seconds > span_end_seconds)
-            {
-                continue;
-            }
-            const auto [low_line, high_line] = activeFhpFretLines(state, beat.seconds);
-            const double z = time_to_z(beat.seconds);
-            for (int fret = 1; fret <= g_face_fret_count; ++fret)
-            {
-                if (!isDottedFret(fret))
-                {
-                    continue;
-                }
-                const bool active = fret >= low_line + 1 && fret <= high_line;
-                push_number(
-                    fret, z, active ? g_fret_number_active_color : g_fret_number_dim_color, true);
-            }
-        }
-
-        // Upcoming hand-position arrivals, in the FHP orange.
-        for (const common::core::HighwayFhpView& fhp : state.fret_hand_positions)
-        {
-            if (fhp.seconds <= now_seconds || fhp.seconds > span_end_seconds)
-            {
-                continue;
-            }
-            push_number(fhp.fret, time_to_z(fhp.seconds), g_fret_number_fhp_color, true);
-        }
-
-        // The current hand range pinned at the hit line, always solid.
-        const auto [current_low, current_high] = activeFhpFretLines(state, now_seconds);
-        for (int fret = current_low + 1; fret <= current_high; ++fret)
-        {
-            if (fret >= 1 && fret <= g_face_fret_count)
-            {
-                push_number(fret, 0.0, g_fret_number_fhp_color, false);
-            }
-        }
-
-        const bgfx::TextureHandle glyph_texture = atlases.glyphs.get();
-        submitBatch(vertices, indices, posColorUvLayout(), glyph_program.get(), &glyph_texture);
     }
 
     // --- Notes: per-note geometry batched per onset group and flushed far-to-near (see
@@ -2155,7 +2072,7 @@ void HighwayRenderer::Impl::draw(
                 0.02,
                 z - g_attack_line_half_length,
                 z + g_attack_line_half_length,
-                packAbgr(g_chord_box_color, fade));
+                packAbgr(g_chord_box_color, g_attack_line_alpha * fade));
             pushFloorQuadGradient(
                 shadow_vertices,
                 shadow_indices,
@@ -2466,6 +2383,92 @@ void HighwayRenderer::Impl::draw(
     }
 
     flush_note_batches();
+
+    // --- Scrolling fret numbers: the reference's readability aid. Numbers ride the board floor
+    // at each dotted fret on every measure downbeat (bright inside the current hand range, dim
+    // elsewhere), mark each upcoming hand-position arrival in orange, and pin the current hand's
+    // numbers at the hit line; all fade in as they approach. Drawn after the notes so numbers
+    // read over every note, tail, and chord box, but before the board face: the face is the
+    // wall nearest the camera, so its fret lines and skin keep occluding numbers scrolling in
+    // behind it (numbers popping through the fretboard would read as a depth violation). ---
+    {
+        std::vector<PosColorUvVertex> vertices;
+        std::vector<std::uint16_t> indices;
+        const double z_faded = common::core::highwayTimeToZ(0.05, scroll, metrics);
+        const double z_close = common::core::highwayTimeToZ(0.25, scroll, metrics);
+
+        // One billboarded number at a fret's slot on the board floor; alpha fades in between the
+        // hit line and z_close when fade is requested (Charter bakes the fade into the color,
+        // since the glyph program has no fade uniform).
+        const auto push_number =
+            [&](const int fret, const double z, const ArgbColor base, const bool fade) {
+                const double glyph_height = z > 0.0 ? 0.70 : 0.40;
+                const std::string label = std::to_string(fret);
+                const double text_width = glyph_height * 0.62 * static_cast<double>(label.size());
+                const double left_x =
+                    common::core::highwayNoteCenterX(fret, metrics, mirrored) - (text_width / 2.0);
+                double alpha_scale = 1.0;
+                if (fade && z < z_close)
+                {
+                    alpha_scale = std::clamp((z - z_faded) / (z_close - z_faded), 0.0, 1.0);
+                }
+                (void)pushGlyphText(
+                    vertices,
+                    indices,
+                    atlases.glyph_layout,
+                    label,
+                    left_x,
+                    -glyph_height / 2.0,
+                    z,
+                    glyph_height,
+                    packAbgr(base, alpha_scale));
+            };
+
+        // Dotted-fret numbers on each visible measure downbeat, lit within the hand range.
+        for (const common::core::HighwayBeatView& beat : state.beats)
+        {
+            if (!beat.measure_downbeat || beat.seconds < now_seconds - 0.2 ||
+                beat.seconds > span_end_seconds)
+            {
+                continue;
+            }
+            const auto [low_line, high_line] = activeFhpFretLines(state, beat.seconds);
+            const double z = time_to_z(beat.seconds);
+            for (int fret = 1; fret <= g_face_fret_count; ++fret)
+            {
+                if (!isDottedFret(fret))
+                {
+                    continue;
+                }
+                const bool active = fret >= low_line + 1 && fret <= high_line;
+                push_number(
+                    fret, z, active ? g_fret_number_active_color : g_fret_number_dim_color, true);
+            }
+        }
+
+        // Upcoming hand-position arrivals, in the FHP orange.
+        for (const common::core::HighwayFhpView& fhp : state.fret_hand_positions)
+        {
+            if (fhp.seconds <= now_seconds || fhp.seconds > span_end_seconds)
+            {
+                continue;
+            }
+            push_number(fhp.fret, time_to_z(fhp.seconds), g_fret_number_fhp_color, true);
+        }
+
+        // The current hand range pinned at the hit line, always solid.
+        const auto [current_low, current_high] = activeFhpFretLines(state, now_seconds);
+        for (int fret = current_low + 1; fret <= current_high; ++fret)
+        {
+            if (fret >= 1 && fret <= g_face_fret_count)
+            {
+                push_number(fret, 0.0, g_fret_number_fhp_color, false);
+            }
+        }
+
+        const bgfx::TextureHandle glyph_texture = atlases.glyphs.get();
+        submitBatch(vertices, indices, posColorUvLayout(), glyph_program.get(), &glyph_texture);
+    }
 
     // --- Board face: dynamic fret lines with the reference's three states (inactive, active
     // within current and upcoming hand windows, and the sqrt-decay hit-flash that thickens up
