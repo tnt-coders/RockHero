@@ -113,9 +113,9 @@ each rule is a candidate for replacement by the corpus-derived generator planned
 8. **Later moves are minimal.** When an onset's fretted notes fall outside the window, the
    anchor moves the shortest distance that covers them — it never jumps further than needed, so
    runs walk the window up or down one misfit at a time.
-9. **Mid-sustain slide targets do not move the hand.** Only onsets do; a shift/legato slide's
-   target is covered at the next onset (which sits at the target fret), an unpitched trail-off
-   never needs coverage.
+9. **Mid-sustain slide targets do not move the hand.** Only onsets do; a shift slide's target
+   is covered at the next onset (which sits at the target fret), while a legato landing and an
+   unpitched trail-off go uncovered — a known limit of the simple walk.
 
 **Chord template and shape derivation** (`deriveChordShapes`; GP scores in practice carry no
 handshape or diagram data, so the tab's chord boxes are derived):
@@ -132,6 +132,19 @@ handshape or diagram data, so the tab's chord boxes are derived):
 12. **Derived spans are always chord boxes.** They start at multi-note onsets by construction,
     so the projection's arrival rule never reads them as arpeggio brackets; no arpeggio spans
     are derived (broken-chord grouping waits for the corpus-informed pass).
+
+**Slide semantics** (resolved before the sustain policy runs, so merged tails still pass
+through the trim rules):
+
+13. **A shift slide re-picks its landing.** The origin carries the glide waypoint; the target
+    note keeps its own onset and renders its own head. The tab suppresses the linked
+    continuation glyph at such a waypoint (a real note owns the position).
+14. **A legato slide is the same note continuing.** The landing is not re-picked, so it never
+    becomes a note: it folds into the origin as a pitched waypoint at the junction — the
+    sustain extends through the landing's notated end, the landing's sustain techniques
+    (vibrato, tremolo, bends) fold in, and its own onward slide continues the chain until a
+    shift slide, an unpitched trail-off, or the chain's end stops it. The tab renders the
+    junction as Charter's linked continuation head, the same glyph `.rock` linked chains use.
 
 Every generated track logs a conversion note ("simple window walk; verify", "derived N chord
 spans") so the guesses stay observable in the import log.

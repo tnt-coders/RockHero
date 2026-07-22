@@ -59,6 +59,23 @@ namespace
             .bend = {BendPoint{.offset = Fraction{1}, .semitones = 2.0}},
             .slides = {SlideWaypoint{.offset = Fraction{2}, .fret = 9}},
         },
+        // Shift-slide pair: the glide lands exactly on a re-picked note of the same string, so
+        // the waypoint must project as not linked (the target's own head renders there).
+        ChartNote{
+            .position = GridPosition{.measure = 4, .beat = 1},
+            .string = 5,
+            .fret = 5,
+            .sustain = Fraction{1},
+            .bend = {},
+            .slides = {SlideWaypoint{.offset = Fraction{1}, .fret = 8}},
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 4, .beat = 2},
+            .string = 5,
+            .fret = 8,
+            .bend = {},
+            .slides = {},
+        },
     };
     chart.shapes = {
         ChartShape{
@@ -98,7 +115,7 @@ TEST_CASE("Tab projection resolves chart positions to seconds", "[editor-core][t
     const TabViewState state = makeTabViewState(makeArrangementWithChart(), tempo_map);
 
     CHECK(state.string_count == 6);
-    REQUIRE(state.notes.size() == 3);
+    REQUIRE(state.notes.size() == 5);
 
     // 4/4 at the default tempo: measure 2 beat 1 is beat index 4.
     const double beat = tempo_map.secondsAtBeat(1, 2) - tempo_map.secondsAtBeat(1, 1);
@@ -116,6 +133,15 @@ TEST_CASE("Tab projection resolves chart positions to seconds", "[editor-core][t
     REQUIRE(sliding.slides.size() == 1);
     CHECK(sliding.slides[0].seconds == Catch::Approx(10.5 * beat));
     CHECK(sliding.slides[0].fret == 9);
+    // No note sounds at the landing, so the glide is an unpicked continuation: linked head.
+    CHECK(sliding.slides[0].linked);
+
+    // The shift slide's landing coincides with the re-picked fret-8 note on the same string, so
+    // its waypoint is not linked — the target's own head renders there.
+    const TabNoteView& shift_slider = state.notes[3];
+    REQUIRE(shift_slider.slides.size() == 1);
+    CHECK(shift_slider.slides[0].fret == 8);
+    CHECK_FALSE(shift_slider.slides[0].linked);
 
     REQUIRE(state.shapes.size() == 2);
     CHECK(state.shapes[0].name == "F5");

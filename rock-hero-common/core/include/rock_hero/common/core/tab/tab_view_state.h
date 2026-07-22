@@ -44,6 +44,16 @@ struct TabSlideView
     bool unpitched{false};
 
     /*!
+    \brief True when the glide lands as an unpicked continuation of the same note.
+
+    A legato landing renders the linked continuation head at the waypoint. False when a
+    re-picked note sounds on the same string exactly at the waypoint (a shift slide's target):
+    that note's own head renders, and drawing the linked head too would over-paint a picked
+    note into looking unpicked.
+    */
+    bool linked{true};
+
+    /*!
     \brief Compares two slide waypoints by their stored fields.
     \param lhs Left-hand waypoint.
     \param rhs Right-hand waypoint.
