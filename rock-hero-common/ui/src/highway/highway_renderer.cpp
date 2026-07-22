@@ -103,7 +103,7 @@ constexpr int g_open_note_segments = 6;
 
 // The bar fades to transparent over this run at each end, so it reads as tapering almost to a
 // point at the hand-window rails instead of stopping flat (user direction).
-constexpr double g_open_note_end_fade_length = 0.3;
+constexpr double g_open_note_end_fade_length = 0.5;
 
 // Sustain tails are three-band ribbons in the reference: solid edge strips around an inner band
 // the reference draws at 192/255 alpha. Ours is deliberately more translucent so notes stay
@@ -122,13 +122,9 @@ constexpr double g_tail_tip_fade_fraction = 0.35;
 // subtle).
 constexpr double g_shadow_post_floor_alpha = 0.5;
 
-// Glow posts go fully transparent at this fraction of the way up to the note, so the fade
-// completes slightly before the post reaches the head (user-tuned).
-constexpr double g_shadow_post_top_fraction = 0.85;
-
 // Open-note L posts: how far the floor foot reaches inward, measured from the bar end (the
 // chord box's bottom corner holders, freestanding), fading to nothing at its tip.
-constexpr double g_open_post_foot_length = 0.55;
+constexpr double g_open_post_foot_length = 0.5;
 
 // Adaptive tail sampling for technique-modulated rails: one centerline sample per this many
 // projected screen pixels, hard-capped (the reference's per-millisecond-tessellation fix).
@@ -2052,13 +2048,20 @@ void HighwayRenderer::Impl::draw(
         const bool in_chord = group.count >= 2;
 
         // Note shadow: a glow post — the sustain tails' three-band ribbon stood upright at a
-        // user-tuned fraction of the tail width, rising from the board toward the note and
-        // completing its fade slightly below it (user direction; replaced the reference's
-        // gradient fan). Fretted single notes only; a single-note open bar builds mitered L
-        // posts from the same cross-section in its own branch below.
+        // user-tuned fraction of the tail width, rising from the board and going fully
+        // transparent exactly at the head quad's bottom edge (the rotated vertical edge that
+        // lands horizontal after the rolling flip), so post and note art never overlap; a note
+        // whose quad already reaches the board floor needs no post at all. Fretted single
+        // notes only; a single-note open bar builds mitered L posts from the same
+        // cross-section — and the same as-if-a-head-sat-there top — in its own branch below.
         const double post_half_width = metrics.tail_half_width * 0.375;
         const double post_floor_alpha = fade * g_shadow_post_floor_alpha;
+        const double post_top_y = head_y - head_half_h;
         const auto push_shadow_post = [&](const double center_x) {
+            if (post_top_y <= 0.0)
+            {
+                return;
+            }
             const std::uint32_t floor_edge = packAbgr(base_color, post_floor_alpha);
             const std::uint32_t clear = packAbgr(base_color, 0.0);
             const RibbonEnd floor_end{
@@ -2071,7 +2074,7 @@ void HighwayRenderer::Impl::draw(
             };
             const RibbonEnd head_end{
                 .x_offset = 0.0,
-                .y = head_y * g_shadow_post_top_fraction,
+                .y = post_top_y,
                 .z = z,
                 .edge_abgr = clear,
                 .inner_abgr = clear,
@@ -2096,17 +2099,18 @@ void HighwayRenderer::Impl::draw(
             const double low_x = common::core::highwayFretLineX(low_line, metrics, mirrored);
             const double high_x = common::core::highwayFretLineX(high_line, metrics, mirrored);
             const auto [x0, x1] = std::minmax(low_x, high_x);
-            if (!in_chord)
+            // L posts pointing inward from the bar ends (the chord box's bottom corner
+            // holders, freestanding — user direction): one continuous two-leg ribbon per
+            // corner, its cross-section turning 45 degrees at the corner station so the
+            // bands wrap the L outline unbroken (an upright post plus a separate foot read
+            // as a cross at the corner, not an L). Cross-section colors are the open-tail
+            // treatment — transparent boundaries around edge strips around the translucent
+            // core — and both leg ends fade to nothing: the upright at the shared
+            // post_top_y (as if a note head sat on the bar end), skipped entirely when that
+            // top leaves no room above the corner miter.
+            const double leg_thickness = 2.0 * post_half_width;
+            if (!in_chord && post_top_y > leg_thickness)
             {
-                // L posts pointing inward from the bar ends (the chord box's bottom corner
-                // holders, freestanding — user direction): one continuous two-leg ribbon per
-                // corner, its cross-section turning 45 degrees at the corner station so the
-                // bands wrap the L outline unbroken (an upright post plus a separate foot read
-                // as a cross at the corner, not an L). Cross-section colors are the open-tail
-                // treatment — transparent boundaries around edge strips around the translucent
-                // core — and both leg ends fade to nothing.
-                const double leg_thickness = 2.0 * post_half_width;
-                const double post_top_y = head_y * g_shadow_post_top_fraction;
                 for (const auto& [corner_x, x_sign] : {std::pair{x0, 1.0}, std::pair{x1, -1.0}})
                 {
                     // A station holds the four cross-section points at fractions 0, 1/4, 3/4, 1
