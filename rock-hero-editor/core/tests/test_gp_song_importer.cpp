@@ -260,6 +260,10 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(chart.notes[4].bend[2].offset == Fraction{1, 2});
     CHECK(chart.notes[4].bend[2].semitones == Catch::Approx(2.0));
 
+    // No two notes strike together in the fixture, so no chord furniture is derived.
+    CHECK(chart.templates.empty());
+    CHECK(chart.shapes.empty());
+
     // The generated fret-hand track walks a minimal-shift window: fret 3 opens a 3-6 window,
     // fret 7 shifts it minimally up to 4-7, fret 2 shifts it minimally down to 2-5, and the
     // final fret-3 bend note fits without another move.
@@ -281,6 +285,73 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
         common::core::FretHandPosition{
             .position = GridPosition{.measure = 1, .beat = 3}, .fret = 2, .width = 4
         });
+
+    std::filesystem::remove_all(scratch, cleanup_error);
+}
+
+// Chord derivation: notes struck together become a deduplicated posture template, and
+// consecutive strums of the same posture merge into one shape span covering their notated
+// durations — the grouping the tab renders as a chord box over repeated strums.
+TEST_CASE("Guitar Pro import derives chord templates and spans", "[core][gp-import]")
+{
+    const std::filesystem::path scratch =
+        std::filesystem::temp_directory_path() / "rh_gp_chord_shapes_test";
+    std::error_code cleanup_error;
+    std::filesystem::remove_all(scratch, cleanup_error);
+    const std::filesystem::path workspace = scratch / "song";
+    std::filesystem::create_directories(workspace);
+
+    // Beats one and two both strike the fret 3 + fret 5 power chord (a quarter then an eighth);
+    // the single fret-7 note at 1:2+1/2 ends the held posture.
+    std::string gpif{g_fixture_gpif};
+    const auto replace_once = [&gpif](const std::string& marker, const std::string& replacement) {
+        const std::size_t position = gpif.find(marker);
+        REQUIRE(position != std::string::npos);
+        gpif.replace(position, marker.size(), replacement);
+    };
+    replace_once("<Notes>0</Notes>", "<Notes>0 6</Notes>");
+    replace_once("<Notes>1</Notes>", "<Notes>7 8</Notes>");
+    replace_once(
+        "</Notes>\n<Rhythms>",
+        "<Note id=\"6\"><Properties>\n"
+        "<Property name=\"String\"><String>1</String></Property>\n"
+        "<Property name=\"Fret\"><Fret>5</Fret></Property>\n"
+        "</Properties></Note>\n"
+        "<Note id=\"7\"><Properties>\n"
+        "<Property name=\"String\"><String>0</String></Property>\n"
+        "<Property name=\"Fret\"><Fret>3</Fret></Property>\n"
+        "</Properties></Note>\n"
+        "<Note id=\"8\"><Properties>\n"
+        "<Property name=\"String\"><String>1</String></Property>\n"
+        "<Property name=\"Fret\"><Fret>5</Fret></Property>\n"
+        "</Properties></Note>\n"
+        "</Notes>\n<Rhythms>");
+    const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
+
+    GpSongImporter importer;
+    const auto song = importer.importSong(archive, workspace);
+    REQUIRE(song.has_value());
+    REQUIRE(song->arrangements.size() == 1);
+    const common::core::Chart& chart = requiredChart(song->arrangements.front());
+    REQUIRE(chart.notes.size() == 7);
+
+    // One deduplicated unnamed posture: fret 3 on the lowest string, fret 5 on the second.
+    REQUIRE(chart.templates.size() == 1);
+    const common::core::ChordTemplate& posture = chart.templates.front();
+    CHECK(posture.name.empty());
+    REQUIRE(posture.frets.size() == 6);
+    CHECK(posture.frets[0] == std::optional{3});
+    CHECK(posture.frets[1] == std::optional{5});
+    CHECK_FALSE(posture.frets[2].has_value());
+    REQUIRE(posture.fingers.size() == 6);
+    CHECK_FALSE(posture.fingers[0].has_value());
+
+    // Both strums merge into one span from 1:1 through the eighth strum's notated end at
+    // 1:2+1/2 — three half-beats — even though the sustain policy dropped the notes' own tails.
+    REQUIRE(chart.shapes.size() == 1);
+    CHECK(chart.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
+    CHECK(chart.shapes.front().sustain == Fraction{3, 2});
+    CHECK(chart.shapes.front().chord == 0);
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }

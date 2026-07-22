@@ -22,6 +22,8 @@ namespace
 using common::core::BendPoint;
 using common::core::Chart;
 using common::core::ChartNote;
+using common::core::ChartShape;
+using common::core::ChordTemplate;
 using common::core::Fraction;
 using common::core::GridPosition;
 using common::core::NoteAttack;
@@ -521,6 +523,105 @@ void normalizeImportedSustains(
     }
 }
 
+// Derives chord templates and hand-posture spans from the note stream (import policy, user
+// request 2026-07-21). Guitar Pro scores in practice carry no handshape data (corpus chord
+// collections are empty), so any onset striking two or more strings becomes a chord posture,
+// deduplicated into the template table, and consecutive onsets holding the same posture merge
+// into one shape span covering the strums' notated (pre-trim) durations — the grouping the tab
+// renders as a chord box over repeated strums. Every derived span starts at a multi-note onset,
+// so the projection's arrival rule always reads it as a chord box, never an arpeggio bracket;
+// no arpeggio spans are derived (broken-chord grouping needs the corpus-informed pass). Derived
+// templates are unnamed and unfingered. The maintained plain-English spec is "GP chart
+// normalization policy" in docs/developer/the-project-lifecycle.md.
+void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
+{
+    const std::size_t string_count = chart.tuning.strings.size();
+    std::map<std::vector<std::optional<int>>, std::size_t> template_indices;
+
+    struct OpenSpan
+    {
+        std::size_t chord{0};
+        GridPosition position;
+        Fraction start_beat{};
+        Fraction end_beat{};
+    };
+    std::optional<OpenSpan> open;
+    const auto close_span = [&chart, &open]() {
+        if (open.has_value())
+        {
+            chart.shapes.push_back(
+                ChartShape{
+                    .position = open->position,
+                    .sustain = subtractFractions(open->end_beat, open->start_beat),
+                    .chord = open->chord,
+                });
+            open.reset();
+        }
+    };
+
+    std::size_t index = 0;
+    while (index < built.size())
+    {
+        std::size_t onset_end = index;
+        Fraction notated_end = built[index].end_global_beat;
+        std::vector<std::optional<int>> posture(string_count);
+        std::size_t struck = 0;
+        while (onset_end < built.size() && built[onset_end].global_beat == built[index].global_beat)
+        {
+            const ChartNote& note = built[onset_end].note;
+            if (const auto string_index = static_cast<std::size_t>(note.string - 1);
+                string_index < string_count)
+            {
+                posture[string_index] = note.fret;
+                ++struck;
+            }
+            if (notated_end < built[onset_end].end_global_beat)
+            {
+                notated_end = built[onset_end].end_global_beat;
+            }
+            ++onset_end;
+        }
+        if (struck >= 2)
+        {
+            const auto [entry, inserted] =
+                template_indices.try_emplace(posture, chart.templates.size());
+            if (inserted)
+            {
+                chart.templates.push_back(
+                    ChordTemplate{
+                        .name = {},
+                        .frets = std::move(posture),
+                        .fingers = std::vector<std::optional<int>>(string_count),
+                    });
+            }
+            if (open.has_value() && open->chord == entry->second)
+            {
+                if (open->end_beat < notated_end)
+                {
+                    open->end_beat = notated_end;
+                }
+            }
+            else
+            {
+                close_span();
+                open = OpenSpan{
+                    .chord = entry->second,
+                    .position = built[index].note.position,
+                    .start_beat = built[index].global_beat,
+                    .end_beat = notated_end,
+                };
+            }
+        }
+        else
+        {
+            // Any intervening non-chord onset ends the held posture.
+            close_span();
+        }
+        index = onset_end;
+    }
+    close_span();
+}
+
 // Generates the fret-hand position track with a minimal-shift window walk — the deliberately
 // simple starting algorithm (user decision 2026-07-21): the hand covers a [fret, fret+width-1]
 // window (width four unless one onset spans wider), open strings never constrain it, and when an
@@ -797,6 +898,16 @@ void normalizeImportedSustains(
     // Runs after slide resolution so slide-extended tails carry their payloads into the trim's
     // payload floor.
     normalizeImportedSustains(built, grid, notes);
+
+    // Shapes read the notated (pre-trim) note ends, so this runs on the built entries before
+    // their notes move into the chart.
+    deriveChordShapes(built, chart);
+    if (!chart.shapes.empty())
+    {
+        notes.push_back(
+            "derived " + std::to_string(chart.shapes.size()) + " chord spans (" +
+            std::to_string(chart.templates.size()) + " postures)");
+    }
 
     chart.notes.reserve(built.size());
     for (BuiltNote& entry : built)
