@@ -47,6 +47,18 @@ struct HighwayMetrics
     double string_distance{0.35};
 
     /*!
+    \brief Extra world Y between the board surface and the whole string stack.
+
+    Charter rests the lane stack directly on its half-string centering, which puts the bottom
+    lane only half a string spacing (0.175) above the board — but a note head standing vertical
+    in the rolling flip reaches \ref note_half_width (0.48) below its lane center, so
+    bottom-lane heads poked through the floor. Lifting the stack by one string spacing clears
+    the flipped head while the board surface stays at y = 0 as the coordinate origin
+    (user-tuned divergence, 2026-07-22).
+    */
+    double string_stack_lift{0.35};
+
+    /*!
     \brief World Z per second of time distance at scroll speed 1.0.
 
     Charter maps milliseconds by 0.02 world units; this is the same constant in seconds.
@@ -233,6 +245,26 @@ the fret axis through the nut, as pure math the renderer never sees.
 }
 
 /*!
+\brief Returns the world Y of a one-based lane, counted from the bottom.
+
+Lanes are centered on half-string offsets and the whole stack rides
+\ref HighwayMetrics::string_stack_lift above the board, so the bottom lane (1) sits the lift plus
+half a string spacing off the board surface and the fret lines that run from the board to the
+lift plus \ref HighwayMetrics::string_distance times the lane count stick out half a string
+spacing above the top lane. The shared seam so every string-plane consumer (string lanes,
+fingering spots) maps lanes identically.
+
+\param lane One-based lane index, 1 at the bottom.
+\param metrics World-space constants.
+\return World Y of the lane center.
+*/
+[[nodiscard]] inline double highwayLaneToY(int lane, const HighwayMetrics& metrics)
+{
+    return metrics.string_stack_lift +
+           ((static_cast<double>(lane) - 0.5) * metrics.string_distance);
+}
+
+/*!
 \brief Returns the world Y of a string lane above the board surface.
 
 The lowest-pitched string sits at the bottom by default (Charter's orientation); the invert flag
@@ -244,23 +276,6 @@ flips the stacking for players who prefer the mirrored string order.
 \param invert_string_order True to stack the lowest-pitched string on top.
 \return World Y of the string lane.
 */
-/*!
-\brief Returns the world Y of a one-based lane, counted from the bottom.
-
-Lanes are centered on half-string offsets: the bottom lane (1) sits half a string spacing off the
-board surface, so the fret lines that run from the board to \ref HighwayMetrics::string_distance
-times the lane count stick out the same distance above the top lane as below the bottom lane. The
-shared seam so every string-plane consumer (string lanes, fingering spots) maps lanes identically.
-
-\param lane One-based lane index, 1 at the bottom.
-\param metrics World-space constants.
-\return World Y of the lane center.
-*/
-[[nodiscard]] inline double highwayLaneToY(int lane, const HighwayMetrics& metrics)
-{
-    return (static_cast<double>(lane) - 0.5) * metrics.string_distance;
-}
-
 [[nodiscard]] inline double highwayStringLaneY(
     int string, int string_count, const HighwayMetrics& metrics, bool invert_string_order)
 {

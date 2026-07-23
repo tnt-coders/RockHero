@@ -93,6 +93,14 @@ constexpr int g_face_fret_count = 24;
 // Seconds a passed note takes to fade out after crossing the hit line.
 constexpr double g_passed_fade_seconds = 0.15;
 
+// Rolling-flip flat lead: single-note heads land flat this many seconds before the hit line.
+// The reference flips fast and late (a 500 ms roll landing flat 100 ms out, its only
+// source-verifiable timing — the flip has no documented tie to the original game's internal
+// constants); our flip instead spans the whole approach (user request 2026-07-22), and the
+// slower final degrees need a longer flat stretch to read as finished before the board face
+// (user-tuned).
+constexpr double g_flip_flat_lead_seconds = 0.25;
+
 // Tolerance for matching an onset to a shape-span boundary (or grouping simultaneous onsets).
 // Two events at the same musical grid position resolve through the tempo map on different code
 // paths (a forward cursor for note onsets, the plain resolver for shape ends), so they can land
@@ -1492,12 +1500,14 @@ void HighwayRenderer::Impl::draw(
         }
     }
 
-    // Top of the board face's fret lines: with lanes centered on half-string offsets
-    // (highwayLaneToY) this leaves an equal half-string margin above the top lane and below the
-    // bottom one. Shared by the fret-line pass below and everything that must not rise past the
+    // Top of the board face's fret lines: with lanes centered on half-string offsets and the
+    // stack riding string_stack_lift (highwayLaneToY) this leaves a half-string margin above the
+    // top lane; the larger gap below the bottom lane is the lift keeping flipped note heads off
+    // the floor. Shared by the fret-line pass below and everything that must not rise past the
     // fret grid.
     const double face_top_y =
-        static_cast<double>(std::max(state.string_count, 1)) * metrics.string_distance;
+        metrics.string_stack_lift +
+        (static_cast<double>(std::max(state.string_count, 1)) * metrics.string_distance);
 
     // --- Chord and arpeggio boxes: the reference's translucent panels at chord onsets, plus an
     // arpeggio-styled box (the same panel with the fretboard bracket notation overlaid) at each
@@ -2295,14 +2305,19 @@ void HighwayRenderer::Impl::draw(
                     anticipation_cell[1]));
         }
 
-        // Rolling flip: single notes rotate around their travel axis during the last second;
-        // chord notes land flat.
+        // Rolling flip: single notes stand vertical as they enter the visibility window and
+        // roll flat around their travel axis across the whole approach, landing flat
+        // g_flip_flat_lead_seconds before the hit line; chord notes stay flat throughout.
+        const double roll_span_seconds = std::max(
+            span_end_seconds - now_seconds - g_flip_flat_lead_seconds, g_flip_flat_lead_seconds);
         const double rotation =
             in_chord ? 0.0
-                     : std::clamp(
-                           -std::numbers::pi * (note.start_seconds - now_seconds - 0.1),
-                           -std::numbers::pi / 2.0,
-                           0.0);
+                     : (-std::numbers::pi / 2.0) *
+                           std::clamp(
+                               (note.start_seconds - now_seconds - g_flip_flat_lead_seconds) /
+                                   roll_span_seconds,
+                               0.0,
+                               1.0);
         const double cos_r = std::cos(rotation);
         const double sin_r = std::sin(rotation);
         const std::uint32_t tint = packAbgr(base_color, fade);
