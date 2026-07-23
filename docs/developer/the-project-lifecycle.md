@@ -113,9 +113,11 @@ each rule is a candidate for replacement by the corpus-derived generator planned
 8. **Later moves are minimal.** When an onset's fretted notes fall outside the window, the
    anchor moves the shortest distance that covers them — it never jumps further than needed, so
    runs walk the window up or down one misfit at a time.
-9. **Mid-sustain slide targets do not move the hand.** Only onsets do; a shift slide's target
-   is covered at the next onset (which sits at the target fret), while a legato landing and an
-   unpitched trail-off go uncovered — a known limit of the simple walk.
+9. **Pitched slides carry the hand; unpitched slides do not.** Every pitched slide waypoint
+   (shift and legato alike) is a coverage event at the waypoint's own mid-sustain position: if
+   the target fret falls outside the window, the hand moves there — minimally, per rule 8 —
+   exactly when the glide lands, so the window travels with the slide. An unpitched trail-off
+   releases pressure instead of repositioning, so its waypoint never moves the window.
 
 **Chord template and shape derivation** (`deriveChordShapes`; GP scores in practice carry no
 handshape or diagram data, so the tab's chord boxes are derived):

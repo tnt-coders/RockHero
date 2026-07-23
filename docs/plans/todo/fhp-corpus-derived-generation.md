@@ -20,9 +20,9 @@ how a good charter thinks:
   back, producing churn a human would absorb with one stretched position or one deliberate shift.
 - **No phrase awareness** — humans move the hand at phrase boundaries (section starts, rests,
   string-set changes), not mid-lick; the greedy walk moves exactly at the first misfit.
-- **Mid-sustain slide targets are uncovered** — a slide's waypoint fret only pulls the anchor at
-  the *next onset* (shift/legato slides self-heal because the next note sits at the target;
-  unpitched trail-offs never move the hand). Authored charts move the anchor along the slide.
+- ~~Mid-sustain slide targets are uncovered~~ — fixed 2026-07-22: every pitched slide waypoint
+  is now a coverage event at its own mid-sustain position (unpitched trail-offs deliberately
+  never move the hand); see normalization policy rule 9.
 - **Minimal shift is only one prior** — real charters weigh staying low on the neck, keeping the
   index on the phrase's floor fret, and barre-shape reuse; which prior wins varies by context.
 
