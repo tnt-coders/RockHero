@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <functional>
 #include <optional>
+#include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/tab/tab_projection.h>
 #include <vector>
@@ -104,21 +105,16 @@ TabViewState makeTabViewState(const Arrangement& arrangement, const TempoMap& te
     for (const ChartShape& shape : chart.shapes)
     {
         const double start_beat = globalBeatPosition(tempo_map, shape.position);
-        // A span whose start carries two or more simultaneous onsets reads as a strummed chord
-        // box; a single onset at the start means the shape's notes arrive sequentially — an
-        // arpeggio bracket. Chart notes are sorted, so the onsets at the start are contiguous.
+        // Chart notes are sorted, so the onsets at the span start are contiguous (used for the
+        // per-string sounded flags below).
         const auto first_at_start = std::ranges::lower_bound(
             chart.notes, shape.position, std::ranges::less{}, &ChartNote::position);
-        std::size_t simultaneous = 0;
-        for (auto it = first_at_start; it != chart.notes.end() && it->position == shape.position;
-             ++it)
-        {
-            ++simultaneous;
-        }
 
         std::string name = shape.chord < chart.templates.size() ? chart.templates[shape.chord].name
                                                                 : std::string{};
-        const bool arpeggio = simultaneous < 2;
+        // The shared arrival rule: a strummed chord is a box; sequential arrival, or a posture
+        // string ringing through the start un-restruck, renders as arpeggio brackets.
+        const bool arpeggio = chartShapeArrivesAsArpeggio(chart, shape, tempo_map);
 
         // An arpeggio bracket start marks the whole held posture: every template string, each
         // flagged by whether a chart note actually sounds there at the start. Template array

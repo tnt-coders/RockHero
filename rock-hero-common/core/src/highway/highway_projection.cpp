@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/highway/highway_projection.h>
 #include <utility>
 
@@ -103,17 +104,6 @@ HighwayViewState makeHighwayViewState(
     for (const ChartShape& shape : chart.shapes)
     {
         const double start_beat = globalBeatPosition(tempo_map, shape.position);
-        // A span whose start carries two or more simultaneous onsets reads as a strummed chord
-        // box; a single onset at the start means the shape's notes arrive sequentially — an
-        // arpeggio treatment. Chart notes are sorted, so the onsets at the start are contiguous.
-        const auto first_at_start = std::ranges::lower_bound(
-            chart.notes, shape.position, std::ranges::less{}, &ChartNote::position);
-        std::size_t simultaneous = 0;
-        for (auto it = first_at_start; it != chart.notes.end() && it->position == shape.position;
-             ++it)
-        {
-            ++simultaneous;
-        }
 
         std::string name;
         std::vector<HighwayShapeStringView> strings;
@@ -148,7 +138,9 @@ HighwayViewState makeHighwayViewState(
                 .end_seconds =
                     tempo_map.secondsAtGlobalBeatPosition(start_beat + shape.sustain.toDouble()),
                 .name = std::move(name),
-                .arpeggio = simultaneous < 2,
+                // The shared arrival rule: a strummed chord is a box; sequential arrival, or a
+                // posture string ringing through the start un-restruck, renders arpeggio-style.
+                .arpeggio = chartShapeArrivesAsArpeggio(chart, shape, tempo_map),
                 .strings = std::move(strings),
             });
     }

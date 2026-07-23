@@ -87,7 +87,9 @@ sustains):
 1. **Trim to the minimum note distance.** A note's tail is shortened so it ends at least the
    minimum-note-distance margin — 1/16 of a whole note, the same settled margin the editor's
    duration verb clamps to — before the next onset on *any* string. Notes struck together (chord
-   members) never bind each other.
+   members) never bind each other. A sustain extended by a tie merge is exempt from both this
+   trim and the drop rule below: the tie explicitly notates the note ringing into the next
+   event (user rule 2026-07-22), and that ring is what the arpeggio arrival rule reads.
 2. **Never clip a technique payload.** Trimming stops at the note's last bend point or slide
    waypoint, so a slide always reaches its target note and a bend keeps its full curve, even
    when that leaves the tail closer than the margin (exact adjacency is legal).
@@ -137,15 +139,29 @@ handshape or diagram data, so the tab's chord boxes are derived):
     chord with its own box, even on the frets of the chord before it, while frets-identical
     chords share one deduplicated template (the hand posture is identical; techniques render on
     the notes). An isolated strum gets a span of its own notated duration.
-12. **Derived spans are always chord boxes.** They start at multi-note onsets by construction,
-    so the projection's arrival rule never reads them as arpeggio brackets; no arpeggio spans
-    are derived (broken-chord grouping waits for the corpus-informed pass).
+12. **A fully-strummed span is a chord box; a ring-through span is an arpeggio.** A note still
+    ringing through a chord's onset (tie-held from before, not re-struck) joins the derived
+    posture on its string, and the projections' shared arrival rule renders any span with a
+    posture string *still ringing at the span start without an onset there* as an arpeggio: a
+    strum under held content is picking around it, not a full strum (user rule 2026-07-22 —
+    both the chord under a held single note and the re-strum whose tied members keep ringing
+    are arpeggios, so a tied passage with a hand move splits into two arpeggio shapes). A
+    posture string that is merely silent at the start (a partial strum of the shape) keeps the
+    chord box; no other arpeggio grouping is derived (broken-chord grouping waits for the
+    corpus-informed pass).
+12a. **A span ends where the onset that closes it begins.** Tie merging can stretch a strum's
+    ring past the next event, but the shape's box never follows it: when a new posture (or a
+    non-chord onset) closes a span, the closed span's end clamps to that onset, so consecutive
+    shapes never overlap and the next event always reads as its own arrival.
 
 **Slide semantics** (resolved before the sustain policy runs, so merged tails still pass
 through the trim rules):
 
 13. **A shift slide re-picks its landing.** The origin carries the glide waypoint; the target
-    note keeps its own onset and renders its own head. The tab suppresses the linked
+    note keeps its own onset and renders its own head. The glide runs the *full gap* into the
+    landing, so the origin's tail always touches the landing head — deliberately ignoring the
+    minimum-note-distance margin (provisional, user 2026-07-22: the tail tip fade is expected
+    to keep the junction readable; revisit if it reads badly). The tab suppresses the linked
     continuation glyph at such a waypoint (a real note owns the position).
 14. **A legato slide is the same note continuing.** The landing is not re-picked, so it never
     becomes a note: it folds into the origin as a pitched waypoint at the junction — the
@@ -153,6 +169,15 @@ through the trim rules):
     (vibrato, tremolo, bends) fold in, and its own onward slide continues the chain until a
     shift slide, an unpitched trail-off, or the chain's end stops it. The tab renders the
     junction as Charter's linked continuation head, the same glyph `.rock` linked chains use.
+15. **A slide notated on a tied continuation belongs to the merged note — and leaves from the
+    junction.** Tie merging folds the continuation's slide flags into the origin, so a held
+    note that slides away at its end — a tie into a chord whose member then shift-slides down —
+    keeps its glide instead of silently losing it with the merged onset. A hold waypoint at the
+    continuation's own onset pins the pitch until then, so the glide starts where the sliding
+    segment was notated (the tied 6 holds through the chord, *then* slides), not at the merged
+    note's onset. The tab draws no slide line across a hold segment — the linked continuation
+    head at the waypoint renders it as a note tied to itself, and the glide's diagonal leaves
+    from there.
 
 Every generated track logs a conversion note ("simple window walk; verify", "derived N chord
 spans") so the guesses stay observable in the import log.

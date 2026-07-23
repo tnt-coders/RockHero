@@ -309,12 +309,19 @@ void drawSlideLines(
     int previous_fret = note.fret;
     for (const common::core::TabSlideView& waypoint : note.slides)
     {
+        const float to_x = metrics.x(waypoint.seconds) - line_thickness;
+        // A hold segment (same fret) is a tie, not a glide: no diagonal — the linked head at
+        // the waypoint renders the continuation, and the next segment's line leaves from here.
+        if (waypoint.fret == previous_fret)
+        {
+            from_x = to_x;
+            continue;
+        }
         const bool upward = waypoint.fret >= previous_fret;
         const float from_y =
             upward ? span.bottom - line_thickness / 2.0f : span.top + line_thickness / 2.0f;
         const float to_y =
             upward ? span.top + line_thickness / 2.0f : span.bottom - line_thickness / 2.0f;
-        const float to_x = metrics.x(waypoint.seconds) - line_thickness;
 
         g.setColour(juce::Colours::white);
         g.drawLine(from_x, from_y, to_x, to_y, line_thickness);

@@ -76,6 +76,24 @@ cannot drift between chart and song documents.
 [[nodiscard]] bool isValidGridPosition(const GridPosition& position, const TempoMap& tempo_map);
 
 /*!
+\brief Reports whether a shape span arrives as an arpeggio rather than a strummed chord box.
+
+The arrival rule shared by the highway and tab projections: a span is an arpeggio when fewer
+than two notes strike at its start, or when a posture string is still ringing there without
+being re-struck (an earlier note's sustain crosses the span start on a template string with no
+onset at it) — a strum under held content is picking around it, not a full strum, so the shape
+renders as brackets around individual notes rather than one strummed box. A posture string
+that is merely silent at the start (a partial strum of the shape) does not make an arpeggio.
+
+\param chart Chart holding the sorted note stream and template table.
+\param shape Shape span to classify.
+\param tempo_map Song tempo map, for signature-exact sustain-crossing checks.
+\return True when the span renders arpeggio-style.
+*/
+[[nodiscard]] bool chartShapeArrivesAsArpeggio(
+    const Chart& chart, const ChartShape& shape, const TempoMap& tempo_map);
+
+/*!
 \brief Validates the chart's structural rules against the song's tempo map.
 
 Enforces the corpus-validated rule set: a usable tuning; template arrays matching the string

@@ -9,6 +9,7 @@
 #include <map>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_rules.h>
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <string>
 #include <utility>
 #include <vector>
@@ -441,6 +442,14 @@ struct BuiltNote
     Fraction end_global_beat{};
     int gp_string{0};
     int slide_flags{0};
+
+    // Onset of the tied continuation the slide flags were inherited from, when they were: the
+    // glide leaves from the junction, not the merged note's onset (policy rule 15).
+    std::optional<Fraction> slide_from_beat;
+
+    // True once a tie continuation extended this note: the tie explicitly notates ringing into
+    // the next event, so the sustain policy's trim and drop rules leave it alone (rule 1).
+    bool tie_extended{false};
 };
 
 // Reports whether the note carries a technique that lives on its sustain tail. These notes keep
@@ -473,6 +482,12 @@ void normalizeImportedSustains(
     for (std::size_t index = 0; index < built.size(); ++index)
     {
         ChartNote& note = built[index].note;
+        // A tie-merged sustain is exempt from both rules (policy rule 1): the tie explicitly
+        // notates ringing into the next event, and the arpeggio arrival rule reads that ring.
+        if (built[index].tie_extended)
+        {
+            continue;
+        }
         if (note.sustain.numerator > 0)
         {
             std::size_t next = index + 1;
@@ -533,12 +548,13 @@ void normalizeImportedSustains(
 // duration neutralized, so attack (hammer/pull/tap/slap/pop), muting, harmonics, vibrato,
 // tremolo, accent, bends, and slides — and any technique added to ChartNote later — all split
 // the span, while strum durations never do. The template table stays deduplicated by frets
-// alone (the hand posture is identical; techniques render on the notes). Every derived span
-// starts at a multi-note onset, so the projection's
-// arrival rule always reads it as a chord box, never an arpeggio bracket; no arpeggio spans are
-// derived (broken-chord grouping needs the corpus-informed pass). Derived templates are unnamed
-// and unfingered. The maintained plain-English spec is "GP chart normalization policy" in
-// docs/developer/the-project-lifecycle.md.
+// alone (the hand posture is identical; techniques render on the notes). A note still ringing
+// through a chord's onset (tie-held from before, not re-struck) joins the posture on its string
+// (policy rule 12, user rule 2026-07-22); the projections' shared arrival rule then renders the
+// partly-struck span as an arpeggio, while fully-strummed spans stay chord boxes — no other
+// arpeggio grouping is derived (broken-chord grouping needs the corpus-informed pass). Derived
+// templates are unnamed and unfingered. The maintained plain-English spec is "GP chart
+// normalization policy" in docs/developer/the-project-lifecycle.md.
 void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
 {
     const std::size_t string_count = chart.tuning.strings.size();
@@ -558,9 +574,16 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
         Fraction end_beat{};
     };
     std::optional<OpenSpan> open;
-    const auto close_span = [&chart, &open]() {
+    // Closes the held span, clamping its end to the onset that closes it when one does (policy
+    // rule 12a): tie merging can stretch a strum's ring past the next event, but the shape's
+    // box must never overlap the next span or swallow the next onset's arrival.
+    const auto close_span = [&chart, &open](const std::optional<Fraction> closing_beat) {
         if (open.has_value())
         {
+            if (closing_beat.has_value() && *closing_beat < open->end_beat)
+            {
+                open->end_beat = *closing_beat;
+            }
             chart.shapes.push_back(
                 ChartShape{
                     .position = open->position,
@@ -570,6 +593,12 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
             open.reset();
         }
     };
+
+    // The last note sounded per string, for the ring-through rule (policy rule 12): a note
+    // whose notated tail crosses a chord's onset on an un-struck string is still sounding, so
+    // its held fret joins the derived posture — and the projections' arrival rule renders the
+    // partly-struck span as an arpeggio.
+    std::vector<const BuiltNote*> ringing(string_count, nullptr);
 
     std::size_t index = 0;
     while (index < built.size())
@@ -598,6 +627,20 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
         }
         if (struck >= 2)
         {
+            // Ring-through strings join the posture (they never count as struck): the held
+            // note's articulation folds in so span merging still compares whole notes.
+            for (std::size_t string_index = 0; string_index < string_count; ++string_index)
+            {
+                const BuiltNote* const ring = ringing[string_index];
+                if (!articulation[string_index].has_value() && ring != nullptr &&
+                    built[index].global_beat < ring->end_global_beat)
+                {
+                    ChartNote key = ring->note;
+                    key.position = GridPosition{};
+                    key.sustain = Fraction{};
+                    articulation[string_index] = std::move(key);
+                }
+            }
             std::vector<std::optional<int>> posture(string_count);
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
@@ -626,7 +669,7 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
             }
             else
             {
-                close_span();
+                close_span(built[index].global_beat);
                 open = OpenSpan{
                     .chord = entry->second,
                     .articulation = std::move(articulation),
@@ -639,36 +682,21 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
         else
         {
             // Any intervening non-chord onset ends the held posture.
-            close_span();
+            close_span(built[index].global_beat);
+        }
+        // This onset's notes become the ring candidates for later onsets (updated after use:
+        // a note starting at an onset is struck there, not ringing through it).
+        for (std::size_t member = index; member < onset_end; ++member)
+        {
+            if (const auto string_index = static_cast<std::size_t>(built[member].note.string - 1);
+                string_index < string_count)
+            {
+                ringing[string_index] = &built[member];
+            }
         }
         index = onset_end;
     }
-    close_span();
-}
-
-// Musical position `beats` past `position`, normalized across beats and measures through the
-// grid (a slide waypoint's offset is beats from its note's onset). Positions past the score's
-// last measure keep that measure's signature — waypoints live inside trimmed sustains, so that
-// is a guard, not an expected path.
-[[nodiscard]] GridPosition offsetGridPosition(
-    const MeasureGrid& grid, GridPosition position, const Fraction beats)
-{
-    Fraction remaining = addFractions(position.offset, beats);
-    while (!(remaining < Fraction{1}))
-    {
-        remaining = subtractFractions(remaining, Fraction{1});
-        ++position.beat;
-        const std::size_t measure_index = std::min(
-            static_cast<std::size_t>(std::max(position.measure, 1) - 1),
-            grid.beats_per_measure.size() - 1);
-        if (position.beat > grid.beats_per_measure[measure_index])
-        {
-            position.beat = 1;
-            ++position.measure;
-        }
-    }
-    position.offset = remaining;
-    return position;
+    close_span(std::nullopt);
 }
 
 // Generates the fret-hand position track with a minimal-shift window walk — the deliberately
@@ -684,7 +712,7 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
 // that should eventually replace this are recorded in
 // docs/plans/todo/fhp-corpus-derived-generation.md.
 [[nodiscard]] std::vector<common::core::FretHandPosition> generateFretHandPositions(
-    const std::vector<BuiltNote>& built, const MeasureGrid& grid)
+    const std::vector<BuiltNote>& built, const common::core::TempoMap& tempo_map)
 {
     // One instant the hand must cover: an onset's fretted extent, or a pitched waypoint's fret.
     struct CoverageEvent
@@ -723,7 +751,8 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
                 events.push_back(
                     CoverageEvent{
                         .global_beat = addFractions(built[onset_end].global_beat, waypoint.offset),
-                        .position = offsetGridPosition(grid, note.position, waypoint.offset),
+                        .position = common::core::advanceGridPosition(
+                            tempo_map, note.position, waypoint.offset),
                         .min_fret = waypoint.fret,
                         .max_fret = waypoint.fret,
                     });
@@ -785,9 +814,11 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
 }
 
 // Builds one track's chart: tie merging, technique mapping, bends, slide resolution, sustain
-// normalization, and fret-hand position generation.
+// normalization, and fret-hand position generation. The tempo map places mid-sustain
+// slide-waypoint positions on the musical grid.
 [[nodiscard]] Chart buildChart(
-    const GpTrack& track, const MeasureGrid& grid, std::vector<std::string>& notes)
+    const GpTrack& track, const MeasureGrid& grid, const common::core::TempoMap& tempo_map,
+    std::vector<std::string>& notes)
 {
     Chart chart;
     for (const int midi : track.tuning_midi)
@@ -816,6 +847,7 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
             if (open != open_note_per_string.end())
             {
                 BuiltNote& origin = built[open->second];
+                origin.tie_extended = true;
                 if (event_end > origin.end_global_beat)
                 {
                     origin.end_global_beat = event_end;
@@ -837,6 +869,14 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
                             origin.note.bend.push_back(point);
                         }
                     }
+                }
+                // A slide notated on the tied continuation belongs to the merged note (policy
+                // rule 15): the flags fold in rather than vanishing with the merged onset, and
+                // the continuation's own onset marks where the glide leaves from.
+                origin.slide_flags |= source.slide_flags;
+                if (source.slide_flags != 0)
+                {
+                    origin.slide_from_beat = event.global_beat;
                 }
                 if (!source.tie_origin)
                 {
@@ -942,6 +982,19 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
         ChartNote& note = entry.note;
         const Fraction minimum_window{1, 8};
 
+        // Flags inherited from a tied continuation glide from the junction, not the merged
+        // note's onset: a hold waypoint pins the pitch until the sliding segment begins (the
+        // tied 6 holds through its chord, then slides — policy rule 15).
+        if (entry.slide_from_beat.has_value())
+        {
+            const Fraction hold_offset =
+                subtractFractions(*entry.slide_from_beat, entry.global_beat);
+            if (hold_offset.numerator > 0)
+            {
+                note.slides.push_back(SlideWaypoint{.offset = hold_offset, .fret = note.fret});
+            }
+        }
+
         int flags = entry.slide_flags;
         int glide_fret = note.fret;
         std::size_t search_from = index;
@@ -992,14 +1045,11 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
                 continue;
             }
 
-            // Shift: the glide runs across the note's own sustain into the re-picked target; a
-            // zero-sustain source note gets the smallest window that still reads as a slide,
-            // never the whole gap.
-            Fraction window = note.sustain.numerator > 0 ? note.sustain : minimum_window;
-            if (gap.numerator > 0 && gap < window)
-            {
-                window = gap;
-            }
+            // Shift: the glide runs the full gap into the re-picked target, so the tail always
+            // touches the landing head — deliberately ignoring the minimum-note-distance
+            // margin (policy rule 13, provisional 2026-07-22: the tail tip fade is expected to
+            // keep the junction readable).
+            const Fraction window = gap.numerator > 0 ? gap : minimum_window;
             if (note.sustain < window)
             {
                 note.sustain = window;
@@ -1084,7 +1134,7 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
     chart.notes.reserve(built.size());
     // Generated before the notes move out of `built`: the generator needs each note's global
     // beat to place mid-sustain slide-waypoint coverage.
-    chart.fret_hand_positions = generateFretHandPositions(built, grid);
+    chart.fret_hand_positions = generateFretHandPositions(built, tempo_map);
 
     for (BuiltNote& entry : built)
     {
@@ -1171,7 +1221,7 @@ std::expected<GpBuiltSong, SongImportError> buildGpSong(const GpScore& score)
         {
             seen_non_bass = true;
         }
-        arrangement.chart = buildChart(track, grid, song.notes);
+        arrangement.chart = buildChart(track, grid, song.tempo_map, song.notes);
 
         if (auto validation = common::core::validateChartRules(arrangement.chart, song.tempo_map);
             !validation.has_value())
