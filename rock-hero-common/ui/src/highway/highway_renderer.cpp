@@ -12,6 +12,7 @@
 #include <rock_hero/common/core/highway/highway_camera.h>
 #include <rock_hero/common/core/highway/highway_metrics.h>
 #include <rock_hero/common/core/highway/highway_tail.h>
+#include <rock_hero/common/core/highway/highway_window.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/ui/highway/highway_renderer.h>
 #include <rock_hero/common/ui/string_colors/string_color_palette.h>
@@ -48,7 +49,10 @@ constexpr double g_attack_fade_length = 0.2;
 constexpr double g_attack_line_alpha = 0.85; // full teal read slightly too bright (user-tuned)
 constexpr ArgbColor g_fhp_lane_color = 0x402590E8;        // lit runway gap
 constexpr ArgbColor g_fhp_lane_dotted_color = 0x40185C94; // darker gap on inlay-dotted frets
-constexpr ArgbColor g_lane_border_color = 0x0007928F;     // per-fret runway ribbons (alpha varies)
+// The window's own sliding border (fhp-window-motion plan): the highlight hue, strong enough to
+// read as an edge over the lane fill while the fret lines behind it stay straight.
+constexpr ArgbColor g_window_edge_color = 0xB02590E8;
+constexpr ArgbColor g_lane_border_color = 0x0007928F; // per-fret runway ribbons (alpha varies)
 constexpr ArgbColor g_fret_inactive_color = 0xFF202020;
 constexpr ArgbColor g_fret_active_color = 0xFFC0C0C0;
 constexpr ArgbColor g_fret_highlight_color = 0xFFFFA000;
@@ -302,23 +306,66 @@ struct PosColorUvVertex
     return cycle == 0 || cycle == 3 || cycle == 5 || cycle == 7 || cycle == 9;
 }
 
-// Fret window of the hand position active at a given time; the reference four-fret nut window
-// when the chart has none yet.
-[[nodiscard]] std::pair<int, int> activeFhpFretLines(
-    const common::core::HighwayViewState& state, const double seconds)
+// Continuous hand-window extent at a time, as sorted world-X edges: the core query's eased
+// fractional lines mapped through the fractional fret-line overload. Fret lines stay fixed —
+// these are the sliding window border's positions.
+[[nodiscard]] std::pair<double, double> handWindowXAt(
+    const common::core::HighwayViewState& state, const double seconds,
+    const common::core::HighwayMetrics& metrics, const bool mirrored)
 {
-    int fret = 1;
-    int width = 4;
+    const common::core::HighwayHandWindow window =
+        common::core::highwayHandWindowAt(state.fret_hand_positions, seconds);
+    const double low_x = common::core::highwayFretLineX(window.low_line, metrics, mirrored);
+    const double high_x = common::core::highwayFretLineX(window.high_line, metrics, mirrored);
+    return {std::min(low_x, high_x), std::max(low_x, high_x)};
+}
+
+// True when the hand window moves anywhere inside a time span (some placement's ramp overlaps
+// it): geometry spanning the range must then sample the window instead of holding one extent.
+[[nodiscard]] bool handWindowMovesWithin(
+    const common::core::HighwayViewState& state, const double from_seconds, const double to_seconds)
+{
+    return std::ranges::any_of(
+        state.fret_hand_positions, [&](const common::core::HighwayFhpView& fhp) {
+            return fhp.ramp_seconds > 0.0 && fhp.seconds > from_seconds &&
+                   fhp.seconds - fhp.ramp_seconds < to_seconds;
+        });
+}
+
+// Finest time step a window ramp is sliced at, and the per-ramp slice cap. At the shipped
+// z-per-second a slice is a quarter world unit — comparable to the tails' pixel-driven density
+// — and the sin-cubed ease is gentle enough that the cap stays smooth on second-long glides.
+constexpr double g_window_slice_seconds = 0.0125;
+constexpr int g_window_slice_cap = 64;
+
+// Ascending sample times covering [from, to] for window-following geometry: the endpoints, plus
+// every overlapping ramp's clamped bounds and interior slices. Settled stretches contribute no
+// interior samples — the window is constant there, so segments between samples stay straight.
+[[nodiscard]] std::vector<double> windowSampleTimes(
+    const common::core::HighwayViewState& state, const double from_seconds, const double to_seconds)
+{
+    std::vector<double> times{from_seconds};
     for (const common::core::HighwayFhpView& fhp : state.fret_hand_positions)
     {
-        if (fhp.seconds > seconds)
+        if (fhp.ramp_seconds <= 0.0 || fhp.seconds <= from_seconds ||
+            fhp.seconds - fhp.ramp_seconds >= to_seconds)
         {
-            break;
+            continue;
         }
-        fret = fhp.fret;
-        width = fhp.width;
+        const double t0 = std::max(fhp.seconds - fhp.ramp_seconds, from_seconds);
+        const double t1 = std::min(fhp.seconds, to_seconds);
+        const int slices = std::clamp(
+            static_cast<int>((t1 - t0) / g_window_slice_seconds) + 1, 1, g_window_slice_cap);
+        for (int slice = 0; slice <= slices; ++slice)
+        {
+            times.push_back(t0 + ((t1 - t0) * slice / slices));
+        }
     }
-    return {fret - 1, fret + width - 1};
+    times.push_back(to_seconds);
+    std::ranges::sort(times);
+    const auto duplicates = std::ranges::unique(times);
+    times.erase(duplicates.begin(), duplicates.end());
+    return times;
 }
 
 // Appends one quad (two triangles) to a CPU-side batch.
@@ -373,16 +420,18 @@ struct RibbonEnd
 };
 
 // One three-band ribbon segment between two endpoints: edge strips [x0,x1] and [x2,x3] around a
-// translucent core [x1,x2] (the reference's tail cross-section), with per-end offsets and
-// colors so a run can bend and fade along its length, and per-corner outer colors so the edge
-// strips can fade across their width. Sustain tails chain these along the board; a note glow
-// post stands a single segment upright on the face plane.
+// translucent core [x1,x2] (the reference's tail cross-section), with per-end stations, offsets,
+// and colors so a run can bend, fade, and change width along its length, and per-corner outer
+// colors so the edge strips can fade across their width. Sustain tails chain these along the
+// board; a note glow post stands a single segment upright on the face plane; an open tail's band
+// follows the sliding hand window through the per-end stations.
 void pushRibbonSegment(
-    std::vector<PosColorVertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
-    const double x1, const double x2, const double x3, const RibbonEnd& a, const RibbonEnd& b)
+    std::vector<PosColorVertex>& vertices, std::vector<std::uint16_t>& indices,
+    const std::array<double, 4>& stations_a, const std::array<double, 4>& stations_b,
+    const RibbonEnd& a, const RibbonEnd& b)
 {
-    const auto push_band = [&](const double x_from,
-                               const double x_to,
+    const auto push_band = [&](const std::size_t from,
+                               const std::size_t to,
                                const std::uint32_t from_a,
                                const std::uint32_t to_a,
                                const std::uint32_t from_b,
@@ -390,14 +439,23 @@ void pushRibbonSegment(
         pushQuad(
             vertices,
             indices,
-            makeVertex(x_from + a.x_offset, a.y, a.z, from_a),
-            makeVertex(x_to + a.x_offset, a.y, a.z, to_a),
-            makeVertex(x_to + b.x_offset, b.y, b.z, to_b),
-            makeVertex(x_from + b.x_offset, b.y, b.z, from_b));
+            makeVertex(stations_a.at(from) + a.x_offset, a.y, a.z, from_a),
+            makeVertex(stations_a.at(to) + a.x_offset, a.y, a.z, to_a),
+            makeVertex(stations_b.at(to) + b.x_offset, b.y, b.z, to_b),
+            makeVertex(stations_b.at(from) + b.x_offset, b.y, b.z, from_b));
     };
-    push_band(x0, x1, a.outer_abgr, a.edge_abgr, b.outer_abgr, b.edge_abgr);
-    push_band(x1, x2, a.inner_abgr, a.inner_abgr, b.inner_abgr, b.inner_abgr);
-    push_band(x2, x3, a.edge_abgr, a.outer_abgr, b.edge_abgr, b.outer_abgr);
+    push_band(0, 1, a.outer_abgr, a.edge_abgr, b.outer_abgr, b.edge_abgr);
+    push_band(1, 2, a.inner_abgr, a.inner_abgr, b.inner_abgr, b.inner_abgr);
+    push_band(2, 3, a.edge_abgr, a.outer_abgr, b.edge_abgr, b.outer_abgr);
+}
+
+// Constant-cross-section overload for runs whose band never changes width.
+void pushRibbonSegment(
+    std::vector<PosColorVertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
+    const double x1, const double x2, const double x3, const RibbonEnd& a, const RibbonEnd& b)
+{
+    const std::array<double, 4> stations{x0, x1, x2, x3};
+    pushRibbonSegment(vertices, indices, stations, stations, a, b);
 }
 
 // Floor quad with per-end colors: the reference's beat-bar gradient wings.
@@ -1008,9 +1066,10 @@ void HighwayRenderer::Impl::draw(
         0.0F
     };
 
-    // Hand windows visible this frame: each placement owns the time range up to the next one
-    // (the reference lights the runway per window, so the next hand position scrolls in as its
-    // own lit region). A chart with no placements gets the reference nut window.
+    // Settled hand windows visible this frame: each placement owns the time range from its
+    // arrival up to the next placement's ramp start (the transition itself is drawn as a
+    // sampled sweep below, so settled spans shrink by the following ramp). A chart with no
+    // placements gets the reference nut window.
     struct HandWindow
     {
         double start_seconds;
@@ -1023,9 +1082,11 @@ void HighwayRenderer::Impl::draw(
     {
         const common::core::HighwayFhpView& fhp = state.fret_hand_positions[index];
         const double window_end = index + 1 < state.fret_hand_positions.size()
-                                      ? state.fret_hand_positions[index + 1].seconds
+                                      ? state.fret_hand_positions[index + 1].seconds -
+                                            state.fret_hand_positions[index + 1].ramp_seconds
                                       : span_end_seconds;
-        if (window_end <= span_start_seconds || fhp.seconds >= span_end_seconds)
+        if (window_end <= span_start_seconds || fhp.seconds >= span_end_seconds ||
+            window_end <= fhp.seconds)
         {
             continue;
         }
@@ -1037,29 +1098,27 @@ void HighwayRenderer::Impl::draw(
                 .width = fhp.width,
             });
     }
-    // Before the first placement (or on a chart without any) the reference nut window applies.
-    if (hand_windows.empty())
-    {
-        hand_windows.push_back(
-            HandWindow{
-                .start_seconds = span_start_seconds,
-                .end_seconds = span_end_seconds,
-                .fret = 1,
-                .width = 4,
-            });
-    }
-    else if (state.fret_hand_positions.front().seconds > span_start_seconds)
+    // Before the first placement (or on a chart without any) the reference nut window applies,
+    // up to the first placement's ramp start.
+    const double first_ramp_start_seconds =
+        state.fret_hand_positions.empty() ? span_end_seconds
+                                          : state.fret_hand_positions.front().seconds -
+                                                state.fret_hand_positions.front().ramp_seconds;
+    if (first_ramp_start_seconds > span_start_seconds)
     {
         hand_windows.insert(
             hand_windows.begin(),
             HandWindow{
                 .start_seconds = span_start_seconds,
-                .end_seconds = state.fret_hand_positions.front().seconds,
+                .end_seconds = std::min(first_ramp_start_seconds, span_end_seconds),
                 .fret = 1,
                 .width = 4,
             });
     }
-    const auto [current_low_line, current_high_line] = activeFhpFretLines(state, now_seconds);
+    // The window at the current instant, fractional mid-transition: the shared coverage signal
+    // for the hit-line presentation (lane brightness, pinned numbers).
+    const common::core::HighwayHandWindow current_window =
+        common::core::highwayHandWindowAt(state.fret_hand_positions, now_seconds);
 
     // --- Lane border ribbons: one faded runway strip per fret line (the reference's floor
     // grid). Alpha tiers: bright for the current hand range, mid for any visible window's
@@ -1084,9 +1143,15 @@ void HighwayRenderer::Impl::draw(
         const double z1 = time_to_z(span_end_seconds);
         for (int line = 0; line <= g_face_fret_count; ++line)
         {
-            const double alpha = (line >= current_low_line && line <= current_high_line) ? 1.0
-                                 : in_visible_window.at(static_cast<std::size_t>(line))  ? 0.375
-                                                                                         : 0.125;
+            // Coverage crossfade (signed 2026-07-23): each full-length strip lerps from its
+            // non-current tier to full brightness by how deeply the current eased window
+            // contains it, so the brightened band hands off line-by-line in lockstep with the
+            // border crossing the hit line. Lines stay straight and fixed; only alpha animates.
+            const double base_alpha =
+                in_visible_window.at(static_cast<std::size_t>(line)) ? 0.375 : 0.125;
+            const double coverage = common::core::highwayHandWindowLineCoverage(
+                current_window, static_cast<double>(line));
+            const double alpha = base_alpha + ((1.0 - base_alpha) * coverage);
             const double x = common::core::highwayFretLineX(line, metrics, mirrored);
             pushFloorQuad(
                 vertices,
@@ -1101,11 +1166,18 @@ void HighwayRenderer::Impl::draw(
         submitBatch(vertices, indices, posColorLayout(), color_fade_program.get(), nullptr);
     }
 
-    // --- FHP lane highlight: per-window lit runway gaps, darker on inlay-dotted frets. ---
+    // --- FHP lane highlight: the window is a mask over the fixed board (fhp-window-motion
+    // plan). Settled spans light each lane between its own straight fret lines with its own
+    // tint, darker on inlay-dotted frets; a transition sweep clips those same board-fixed lane
+    // fills against the eased border position slice by slice, so the tint pattern never moves
+    // and only the border's crossing reshapes the one or two lanes it is passing through. ---
     {
         bgfx::setUniform(fade_params.get(), fade_uniform.data());
         std::vector<PosColorVertex> vertices;
         std::vector<std::uint16_t> indices;
+        const auto lane_tint = [](const int fret) {
+            return packAbgr(isDottedFret(fret) ? g_fhp_lane_dotted_color : g_fhp_lane_color);
+        };
         for (const HandWindow& window : hand_windows)
         {
             const double z0 = time_to_z(window.start_seconds);
@@ -1119,10 +1191,109 @@ void HighwayRenderer::Impl::draw(
                 const double low_x = common::core::highwayFretLineX(fret - 1, metrics, mirrored);
                 const double high_x = common::core::highwayFretLineX(fret, metrics, mirrored);
                 const auto [x0, x1] = std::minmax(low_x, high_x);
-                const ArgbColor color =
-                    isDottedFret(fret) ? g_fhp_lane_dotted_color : g_fhp_lane_color;
-                pushFloorQuad(vertices, indices, x0, x1, 0.008, z0, z1, packAbgr(color));
+                pushFloorQuad(vertices, indices, x0, x1, 0.008, z0, z1, lane_tint(fret));
             }
+        }
+        // Transition sweeps: per z-slice, per lane, the lane's fixed x-interval clipped against
+        // the window interval at the slice's two ends (a trapezoid only where the border
+        // crosses; interior lanes stay full straight-sided fills in their own tints).
+        for (const common::core::HighwayFhpView& fhp : state.fret_hand_positions)
+        {
+            if (fhp.ramp_seconds <= 0.0 || fhp.seconds <= span_start_seconds ||
+                fhp.seconds - fhp.ramp_seconds >= span_end_seconds)
+            {
+                continue;
+            }
+            const double ramp_from = std::max(fhp.seconds - fhp.ramp_seconds, span_start_seconds);
+            const double ramp_to = std::min(fhp.seconds, span_end_seconds);
+            const std::vector<double> times = windowSampleTimes(state, ramp_from, ramp_to);
+            for (std::size_t sample = 1; sample < times.size(); ++sample)
+            {
+                const auto [win_a0, win_a1] =
+                    handWindowXAt(state, times[sample - 1], metrics, mirrored);
+                const auto [win_b0, win_b1] =
+                    handWindowXAt(state, times[sample], metrics, mirrored);
+                const double za = time_to_z(times[sample - 1]);
+                const double zb = time_to_z(times[sample]);
+                for (int fret = 1; fret <= g_face_fret_count; ++fret)
+                {
+                    const double lane_low =
+                        common::core::highwayFretLineX(fret - 1, metrics, mirrored);
+                    const double lane_high =
+                        common::core::highwayFretLineX(fret, metrics, mirrored);
+                    const auto [lane_x0, lane_x1] = std::minmax(lane_low, lane_high);
+                    // Clip the lane against the window at each slice end; a side the border has
+                    // fully left collapses to a point so the fill tapers instead of inverting.
+                    const auto clip = [&](const double w0, const double w1) {
+                        const double lo = std::max(lane_x0, w0);
+                        const double hi = std::min(lane_x1, w1);
+                        return hi >= lo ? std::pair{lo, hi}
+                                        : std::pair{(lo + hi) / 2.0, (lo + hi) / 2.0};
+                    };
+                    const auto [a_lo, a_hi] = clip(win_a0, win_a1);
+                    const auto [b_lo, b_hi] = clip(win_b0, win_b1);
+                    if (a_hi - a_lo <= 0.0 && b_hi - b_lo <= 0.0)
+                    {
+                        continue;
+                    }
+                    const std::uint32_t tint = lane_tint(fret);
+                    pushQuad(
+                        vertices,
+                        indices,
+                        makeVertex(a_lo, 0.008, za, tint),
+                        makeVertex(a_hi, 0.008, za, tint),
+                        makeVertex(b_hi, 0.008, zb, tint),
+                        makeVertex(b_lo, 0.008, zb, tint));
+                }
+            }
+        }
+        submitBatch(vertices, indices, posColorLayout(), color_fade_program.get(), nullptr);
+    }
+
+    // --- Window border rails: the sliding edges the transitions need to read (signed
+    // 2026-07-23). A subdued shape-rail cross-section runs the full visible span at each window
+    // edge — straight over settled spans, sweeping through each transition — while the fret
+    // lines behind it never bend. ---
+    {
+        bgfx::setUniform(fade_params.get(), fade_uniform.data());
+        std::vector<PosColorVertex> vertices;
+        std::vector<std::uint16_t> indices;
+        const std::vector<double> times =
+            windowSampleTimes(state, span_start_seconds, span_end_seconds);
+        const std::uint32_t solid = packAbgr(g_window_edge_color);
+        const std::uint32_t clear = packAbgr(g_window_edge_color, 0.0);
+        for (std::size_t sample = 1; sample < times.size(); ++sample)
+        {
+            const auto [a_x0, a_x1] = handWindowXAt(state, times[sample - 1], metrics, mirrored);
+            const auto [b_x0, b_x1] = handWindowXAt(state, times[sample], metrics, mirrored);
+            const RibbonEnd end_a{
+                .x_offset = 0.0,
+                .y = 0.012,
+                .z = time_to_z(times[sample - 1]),
+                .edge_abgr = solid,
+                .inner_abgr = solid,
+                .outer_abgr = clear,
+            };
+            const RibbonEnd end_b{
+                .x_offset = 0.0,
+                .y = 0.012,
+                .z = time_to_z(times[sample]),
+                .edge_abgr = solid,
+                .inner_abgr = solid,
+                .outer_abgr = clear,
+            };
+            const auto edge_stations = [](const double x) {
+                return std::array<double, 4>{
+                    x - g_shape_rail_fade_half_width,
+                    x - g_shape_rail_core_half_width,
+                    x + g_shape_rail_core_half_width,
+                    x + g_shape_rail_fade_half_width,
+                };
+            };
+            pushRibbonSegment(
+                vertices, indices, edge_stations(a_x0), edge_stations(b_x0), end_a, end_b);
+            pushRibbonSegment(
+                vertices, indices, edge_stations(a_x1), edge_stations(b_x1), end_a, end_b);
         }
         submitBatch(vertices, indices, posColorLayout(), color_fade_program.get(), nullptr);
     }
@@ -1142,12 +1313,7 @@ void HighwayRenderer::Impl::draw(
             {
                 continue;
             }
-            const auto [low_line, high_line] = activeFhpFretLines(state, beat.seconds);
-            // Named operands: std::minmax over prvalues returns references into destroyed
-            // temporaries (the Phase 3 CI dangling-reference finding).
-            const double low_x = common::core::highwayFretLineX(low_line, metrics, mirrored);
-            const double high_x = common::core::highwayFretLineX(high_line, metrics, mirrored);
-            const auto [x0, x1] = std::minmax(low_x, high_x);
+            const auto [x0, x1] = handWindowXAt(state, beat.seconds, metrics, mirrored);
             const double z = time_to_z(beat.seconds);
             const std::uint32_t solid = packAbgr(g_beat_bar_color);
             const std::uint32_t clear = packAbgr(g_beat_bar_color, 0.0);
@@ -1194,48 +1360,62 @@ void HighwayRenderer::Impl::draw(
             {
                 continue;
             }
-            const double z0 = std::max(0.0, time_to_z(shape.start_seconds));
-            const double z1 = time_to_z(std::min(shape.end_seconds, span_end_seconds));
-            if (z1 <= z0)
-            {
-                continue;
-            }
             const ArgbColor color =
                 shape.arpeggio ? g_arpeggio_color : (g_lane_border_color | 0xFF000000U);
             const std::uint32_t solid = packAbgr(color);
             const std::uint32_t clear = packAbgr(color, 0.0);
-            const auto [low_line, high_line] = activeFhpFretLines(state, shape.start_seconds);
-            for (const int line : {low_line, high_line})
+            // Rails follow the hand window's edges, sampled so a mid-span window move (a chord
+            // slide under a held shape) sweeps them along with everything else; in settled
+            // stretches consecutive samples share one extent and the trapezoids stay straight.
+            const double rail_from = std::max(now_seconds, shape.start_seconds);
+            const double rail_to = std::min(shape.end_seconds, span_end_seconds);
+            const std::vector<double> times = windowSampleTimes(state, rail_from, rail_to);
+            for (std::size_t sample = 1; sample < times.size(); ++sample)
             {
-                const double x = common::core::highwayFretLineX(line, metrics, mirrored);
-                // Solid core between fade-out wings, per line (the reference's cross-section).
-                const auto push_band = [&](const double xa,
-                                           const double xb,
-                                           const std::uint32_t color_a,
-                                           const std::uint32_t color_b) {
+                const auto [a_x0, a_x1] =
+                    handWindowXAt(state, times[sample - 1], metrics, mirrored);
+                const auto [b_x0, b_x1] = handWindowXAt(state, times[sample], metrics, mirrored);
+                const double za = std::max(0.0, time_to_z(times[sample - 1]));
+                const double zb = std::max(0.0, time_to_z(times[sample]));
+                // Solid core between fade-out wings, per edge (the reference's cross-section).
+                const auto push_band = [&](const double xa_from,
+                                           const double xa_to,
+                                           const double xb_from,
+                                           const double xb_to,
+                                           const std::uint32_t color_from,
+                                           const std::uint32_t color_to) {
                     pushQuad(
                         vertices,
                         indices,
-                        makeVertex(xa, 0.01, z0, color_a),
-                        makeVertex(xb, 0.01, z0, color_b),
-                        makeVertex(xb, 0.01, z1, color_b),
-                        makeVertex(xa, 0.01, z1, color_a));
+                        makeVertex(xa_from, 0.01, za, color_from),
+                        makeVertex(xa_to, 0.01, za, color_to),
+                        makeVertex(xb_to, 0.01, zb, color_to),
+                        makeVertex(xb_from, 0.01, zb, color_from));
                 };
-                push_band(
-                    x - g_shape_rail_fade_half_width,
-                    x - g_shape_rail_core_half_width,
-                    clear,
-                    solid);
-                push_band(
-                    x - g_shape_rail_core_half_width,
-                    x + g_shape_rail_core_half_width,
-                    solid,
-                    solid);
-                push_band(
-                    x + g_shape_rail_core_half_width,
-                    x + g_shape_rail_fade_half_width,
-                    solid,
-                    clear);
+                for (const auto& [xa, xb] : {std::pair{a_x0, b_x0}, std::pair{a_x1, b_x1}})
+                {
+                    push_band(
+                        xa - g_shape_rail_fade_half_width,
+                        xa - g_shape_rail_core_half_width,
+                        xb - g_shape_rail_fade_half_width,
+                        xb - g_shape_rail_core_half_width,
+                        clear,
+                        solid);
+                    push_band(
+                        xa - g_shape_rail_core_half_width,
+                        xa + g_shape_rail_core_half_width,
+                        xb - g_shape_rail_core_half_width,
+                        xb + g_shape_rail_core_half_width,
+                        solid,
+                        solid);
+                    push_band(
+                        xa + g_shape_rail_core_half_width,
+                        xa + g_shape_rail_fade_half_width,
+                        xb + g_shape_rail_core_half_width,
+                        xb + g_shape_rail_fade_half_width,
+                        solid,
+                        clear);
+                }
             }
         }
         submitBatch(vertices, indices, posColorLayout(), color_fade_program.get(), nullptr);
@@ -1537,11 +1717,13 @@ void HighwayRenderer::Impl::draw(
         const double full_height_y1 = face_top_y;
 
         // Overlays one arpeggio shape's posture brackets (the fretboard notation) at a box's z:
-        // a bracket per fretted string, or the window-end brackets for an open string.
+        // a bracket per fretted string, or the window-end brackets for an open string. Window
+        // edges arrive fractional mid-transition, so the open brackets center on the edge lanes
+        // through the fractional fret-line map.
         const auto push_arpeggio_brackets = [&](const common::core::HighwayShapeView& shape,
                                                 const double z,
-                                                const int low_line,
-                                                const int high_line) {
+                                                const double low_line,
+                                                const double high_line) {
             if (!atlases.reference_cells)
             {
                 return;
@@ -1582,13 +1764,13 @@ void HighwayRenderer::Impl::draw(
                 {
                     push_bracket(
                         g_head_cell_arpeggio_open_bracket,
-                        common::core::highwayNoteCenterX(low_line + 1, metrics, mirrored),
+                        common::core::highwayFretLineX(low_line + 0.5, metrics, mirrored),
                         y,
                         tint,
                         false);
                     push_bracket(
                         g_head_cell_arpeggio_open_bracket,
-                        common::core::highwayNoteCenterX(high_line, metrics, mirrored),
+                        common::core::highwayFretLineX(high_line - 0.5, metrics, mirrored),
                         y,
                         tint,
                         true);
@@ -1661,10 +1843,14 @@ void HighwayRenderer::Impl::draw(
 
         for (const BoxDraw& box : boxes)
         {
-            const auto [low_line, high_line] = activeFhpFretLines(state, box.start_seconds);
-            const double low_x = common::core::highwayFretLineX(low_line, metrics, mirrored);
-            const double high_x = common::core::highwayFretLineX(high_line, metrics, mirrored);
-            const auto [x0, x1] = std::minmax(low_x, high_x);
+            // Display-time window (user catch 2026-07-23): an approaching box takes the window
+            // at its own onset instant, and a box riding the hit line re-evaluates per frame, so
+            // a held arpeggio slides along with the chord sliding under it instead of staying
+            // frozen at its onset window.
+            const double window_seconds = std::max(box.start_seconds, now_seconds);
+            const common::core::HighwayHandWindow window =
+                common::core::highwayHandWindowAt(state.fret_hand_positions, window_seconds);
+            const auto [x0, x1] = handWindowXAt(state, window_seconds, metrics, mirrored);
             const double z = std::max(0.0, time_to_z(box.start_seconds));
             pushChordBoxPanel(
                 box_vertices,
@@ -1679,7 +1865,7 @@ void HighwayRenderer::Impl::draw(
                 box.mute);
             if (box.arpeggio_shape != nullptr)
             {
-                push_arpeggio_brackets(*box.arpeggio_shape, z, low_line, high_line);
+                push_arpeggio_brackets(*box.arpeggio_shape, z, window.low_line, window.high_line);
             }
         }
 
@@ -1854,39 +2040,50 @@ void HighwayRenderer::Impl::draw(
 
             // Band X stations: fretted tails straddle the note center, open tails span the hand
             // window with the reference's inset (with a degenerate-window guard for tapered
-            // necks).
-            double band_x0 = 0.0;
-            double band_x1 = 0.0;
-            double band_x2 = 0.0;
-            double band_x3 = 0.0;
+            // necks). An open band's stations follow the sliding window per time, collapsing
+            // gracefully when a mid-transition extent gets too narrow for the insets.
+            const auto open_band_stations = [&](const double seconds) {
+                const auto [window_x0, window_x1] =
+                    handWindowXAt(state, seconds, metrics, mirrored);
+                std::array<double, 4> stations{
+                    window_x0 + g_open_tail_margin,
+                    window_x0 + (2.0 * g_open_tail_margin),
+                    window_x1 - (2.0 * g_open_tail_margin),
+                    window_x1 - g_open_tail_margin,
+                };
+                if (stations[2] < stations[1])
+                {
+                    const double center = (stations[1] + stations[2]) / 2.0;
+                    stations[1] = center;
+                    stations[2] = center;
+                    stations[0] = std::min(stations[0], center);
+                    stations[3] = std::max(stations[3], center);
+                }
+                return stations;
+            };
+            std::array<double, 4> band{};
             bool band_valid = tail_to > tail_from;
             double base_x = 0.0;
             if (note.fret > 0)
             {
                 base_x = common::core::highwayNoteCenterX(note.fret, metrics, mirrored);
                 const double half = metrics.tail_half_width;
-                band_x0 = base_x - half;
-                band_x1 = base_x - (half / 2.0);
-                band_x2 = base_x + (half / 2.0);
-                band_x3 = base_x + half;
+                band = {base_x - half, base_x - (half / 2.0), base_x + (half / 2.0), base_x + half};
             }
             else
             {
-                const auto [rail_low, rail_high] = activeFhpFretLines(state, note.start_seconds);
-                const double low_x = common::core::highwayFretLineX(rail_low, metrics, mirrored);
-                const double high_x = common::core::highwayFretLineX(rail_high, metrics, mirrored);
-                const auto [window_x0, window_x1] = std::minmax(low_x, high_x);
-                band_x0 = window_x0 + g_open_tail_margin;
-                band_x3 = window_x1 - g_open_tail_margin;
-                band_x1 = band_x0 + g_open_tail_margin;
-                band_x2 = band_x3 - g_open_tail_margin;
-                band_valid = band_valid && (band_x3 - band_x0 > 2.0 * g_open_tail_margin);
-                base_x = (band_x0 + band_x3) / 2.0;
+                band = open_band_stations(note.start_seconds);
+                band_valid = band_valid && (band[3] - band[0] > 2.0 * g_open_tail_margin);
+                base_x = (band[0] + band[3]) / 2.0;
             }
 
             const bool modulated =
                 note.vibrato || note.tremolo || !note.bend.empty() || !note.slides.empty();
-            if (band_valid && !modulated)
+            // An open band whose window moves under it must sample its stations along the tail
+            // (the tail travels with the hand — fhp-window-motion plan).
+            const bool open_band_moves =
+                note.fret == 0 && handWindowMovesWithin(state, tail_from, tail_to);
+            if (band_valid && !modulated && !open_band_moves)
             {
                 const auto ribbon_end = [&](const double seconds) {
                     const double alpha = tip_alpha(seconds);
@@ -1910,10 +2107,10 @@ void HighwayRenderer::Impl::draw(
                     pushRibbonSegment(
                         rail_vertices,
                         rail_indices,
-                        band_x0,
-                        band_x1,
-                        band_x2,
-                        band_x3,
+                        band[0],
+                        band[1],
+                        band[2],
+                        band[3],
                         ribbon_end(tail_from),
                         ribbon_end(body_end));
                 }
@@ -1922,10 +2119,10 @@ void HighwayRenderer::Impl::draw(
                     pushRibbonSegment(
                         rail_vertices,
                         rail_indices,
-                        band_x0,
-                        band_x1,
-                        band_x2,
-                        band_x3,
+                        band[0],
+                        band[1],
+                        band[2],
+                        band[3],
                         ribbon_end(body_end),
                         ribbon_end(tail_to));
                 }
@@ -1936,11 +2133,24 @@ void HighwayRenderer::Impl::draw(
                     base_x, lane_y, time_to_z(tail_from), base_x, lane_y, time_to_z(tail_to));
                 const std::size_t uniform_count = common::core::highwayTailSampleCount(
                     pixels, g_tail_pixels_per_sample, g_tail_sample_cap);
-                const std::vector<double> sample_times = common::core::makeHighwayTailSampleTimes(
+                std::vector<double> sample_times = common::core::makeHighwayTailSampleTimes(
                     note, tail_from, tail_to, uniform_count);
+                if (open_band_moves)
+                {
+                    // Fold in the window's own ramp samples so the band tracks the eased border
+                    // exactly instead of aliasing across it.
+                    const std::vector<double> window_times =
+                        windowSampleTimes(state, tail_from, tail_to);
+                    sample_times.insert(
+                        sample_times.end(), window_times.begin(), window_times.end());
+                    std::ranges::sort(sample_times);
+                    const auto duplicates = std::ranges::unique(sample_times);
+                    sample_times.erase(duplicates.begin(), duplicates.end());
+                }
 
                 struct TailSample
                 {
+                    std::array<double, 4> stations;
                     double x_offset;
                     double y;
                     double z;
@@ -1965,6 +2175,7 @@ void HighwayRenderer::Impl::draw(
                     }
                     samples.push_back(
                         TailSample{
+                            .stations = open_band_moves ? open_band_stations(seconds) : band,
                             .x_offset = x_offset,
                             .y = note_y_at(seconds, taper),
                             .z = time_to_z(seconds),
@@ -1978,10 +2189,8 @@ void HighwayRenderer::Impl::draw(
                     pushRibbonSegment(
                         rail_vertices,
                         rail_indices,
-                        band_x0,
-                        band_x1,
-                        band_x2,
-                        band_x3,
+                        a.stations,
+                        b.stations,
                         RibbonEnd{
                             .x_offset = a.x_offset,
                             .y = a.y,
@@ -2110,11 +2319,9 @@ void HighwayRenderer::Impl::draw(
         if (note.fret == 0)
         {
             // Open string: the reference's thin rounded bar spanning the active hand window, in
-            // the full note color (the flat tail-width slab it replaces read as a plank).
-            const auto [low_line, high_line] = activeFhpFretLines(state, note.start_seconds);
-            const double low_x = common::core::highwayFretLineX(low_line, metrics, mirrored);
-            const double high_x = common::core::highwayFretLineX(high_line, metrics, mirrored);
-            const auto [x0, x1] = std::minmax(low_x, high_x);
+            // the full note color (the flat tail-width slab it replaces read as a plank). A bar
+            // landing mid-transition takes the eased window at its own onset instant.
+            const auto [x0, x1] = handWindowXAt(state, note.start_seconds, metrics, mirrored);
             // L posts pointing inward from the bar ends (the chord box's bottom corner
             // holders, freestanding — user direction): one continuous two-leg ribbon per
             // corner, its cross-section turning 45 degrees at the corner station so the
@@ -2427,32 +2634,45 @@ void HighwayRenderer::Impl::draw(
 
         // One billboarded number at a fret's slot on the board floor; alpha fades in between the
         // hit line and z_close when fade is requested (Charter bakes the fade into the color,
-        // since the glyph program has no fade uniform).
-        const auto push_number =
-            [&](const int fret, const double z, const ArgbColor base, const bool fade) {
-                const double glyph_height = z > 0.0 ? 0.70 : 0.40;
-                const std::string label = std::to_string(fret);
-                const double text_width = glyph_height * 0.62 * static_cast<double>(label.size());
-                const double left_x =
-                    common::core::highwayNoteCenterX(fret, metrics, mirrored) - (text_width / 2.0);
-                double alpha_scale = 1.0;
-                if (fade && z < z_close)
-                {
-                    alpha_scale = std::clamp((z - z_faded) / (z_close - z_faded), 0.0, 1.0);
-                }
-                (void)pushGlyphText(
-                    vertices,
-                    indices,
-                    atlases.glyph_layout,
-                    label,
-                    left_x,
-                    -glyph_height / 2.0,
-                    z,
-                    glyph_height,
-                    packAbgr(base, alpha_scale));
-            };
+        // since the glyph program has no fade uniform), scaled by the caller's own alpha (the
+        // window-coverage fades).
+        const auto push_number = [&](const int fret,
+                                     const double z,
+                                     const ArgbColor base,
+                                     const bool fade,
+                                     const double alpha) {
+            const double glyph_height = z > 0.0 ? 0.70 : 0.40;
+            const std::string label = std::to_string(fret);
+            const double text_width = glyph_height * 0.62 * static_cast<double>(label.size());
+            const double left_x =
+                common::core::highwayNoteCenterX(fret, metrics, mirrored) - (text_width / 2.0);
+            double alpha_scale = alpha;
+            if (fade && z < z_close)
+            {
+                alpha_scale *= std::clamp((z - z_faded) / (z_close - z_faded), 0.0, 1.0);
+            }
+            (void)pushGlyphText(
+                vertices,
+                indices,
+                atlases.glyph_layout,
+                label,
+                left_x,
+                -glyph_height / 2.0,
+                z,
+                glyph_height,
+                packAbgr(base, alpha_scale));
+        };
+        // How deeply a fret's whole lane sits inside a window: the min of its two lines'
+        // coverages — the shared signal the number fades and color blends follow.
+        const auto fret_coverage = [](const common::core::HighwayHandWindow& window,
+                                      const int fret) {
+            return std::min(
+                common::core::highwayHandWindowLineCoverage(window, static_cast<double>(fret - 1)),
+                common::core::highwayHandWindowLineCoverage(window, static_cast<double>(fret)));
+        };
 
-        // Dotted-fret numbers on each visible measure downbeat, lit within the hand range.
+        // Dotted-fret numbers on each visible measure downbeat, lit within the hand range (a
+        // downbeat mid-transition blends the dim and active colors by its coverage).
         for (const common::core::HighwayBeatView& beat : state.beats)
         {
             if (!beat.measure_downbeat || beat.seconds < now_seconds - 0.2 ||
@@ -2460,7 +2680,8 @@ void HighwayRenderer::Impl::draw(
             {
                 continue;
             }
-            const auto [low_line, high_line] = activeFhpFretLines(state, beat.seconds);
+            const common::core::HighwayHandWindow beat_window =
+                common::core::highwayHandWindowAt(state.fret_hand_positions, beat.seconds);
             const double z = time_to_z(beat.seconds);
             for (int fret = 1; fret <= g_face_fret_count; ++fret)
             {
@@ -2468,9 +2689,13 @@ void HighwayRenderer::Impl::draw(
                 {
                     continue;
                 }
-                const bool active = fret >= low_line + 1 && fret <= high_line;
+                const double coverage = fret_coverage(beat_window, fret);
                 push_number(
-                    fret, z, active ? g_fret_number_active_color : g_fret_number_dim_color, true);
+                    fret,
+                    z,
+                    mixArgb(g_fret_number_dim_color, g_fret_number_active_color, coverage),
+                    true,
+                    1.0);
             }
         }
 
@@ -2481,16 +2706,18 @@ void HighwayRenderer::Impl::draw(
             {
                 continue;
             }
-            push_number(fhp.fret, time_to_z(fhp.seconds), g_fret_number_fhp_color, true);
+            push_number(fhp.fret, time_to_z(fhp.seconds), g_fret_number_fhp_color, true, 1.0);
         }
 
-        // The current hand range pinned at the hit line, always solid.
-        const auto [current_low, current_high] = activeFhpFretLines(state, now_seconds);
-        for (int fret = current_low + 1; fret <= current_high; ++fret)
+        // The current hand's numbers pinned at the hit line. Coverage fade (signed 2026-07-23):
+        // every glyph stays at its own lane's fixed position and animates opacity only, fading
+        // out as the sweeping border leaves its lane and in as the border reaches it.
+        for (int fret = 1; fret <= g_face_fret_count; ++fret)
         {
-            if (fret >= 1 && fret <= g_face_fret_count)
+            const double coverage = fret_coverage(current_window, fret);
+            if (coverage > 0.0)
             {
-                push_number(fret, 0.0, g_fret_number_fhp_color, false);
+                push_number(fret, 0.0, g_fret_number_fhp_color, false, coverage);
             }
         }
 
@@ -2504,14 +2731,14 @@ void HighwayRenderer::Impl::draw(
     // face_bottom_y to face_top_y (the string grid alone — the gap below the grid base belongs
     // to the chord boxes' bottom bars), both defined above the chord-box pass. ---
     {
-        // Active fret lines: the current hand range plus every window arriving soon.
-        std::array<bool, g_face_fret_count + 1> active{};
-        for (int line = current_low_line; line <= current_high_line; ++line)
+        // Active fret lines: the current hand window's coverage (fractional mid-transition, so
+        // the face lines' active state crossfades in lockstep with the sweeping border) plus
+        // every window arriving soon at full weight.
+        std::array<double, g_face_fret_count + 1> active{};
+        for (int line = 0; line <= g_face_fret_count; ++line)
         {
-            if (line >= 0 && line <= g_face_fret_count)
-            {
-                active.at(static_cast<std::size_t>(line)) = true;
-            }
+            active.at(static_cast<std::size_t>(line)) = common::core::highwayHandWindowLineCoverage(
+                current_window, static_cast<double>(line));
         }
         for (const HandWindow& window : hand_windows)
         {
@@ -2524,7 +2751,7 @@ void HighwayRenderer::Impl::draw(
             {
                 if (line >= 0 && line <= g_face_fret_count)
                 {
-                    active.at(static_cast<std::size_t>(line)) = true;
+                    active.at(static_cast<std::size_t>(line)) = 1.0;
                 }
             }
         }
@@ -2557,9 +2784,10 @@ void HighwayRenderer::Impl::draw(
         {
             const double x = common::core::highwayFretLineX(line, metrics, mirrored);
             const double flash_weight = flash.at(static_cast<std::size_t>(line));
-            const ArgbColor state_color = active.at(static_cast<std::size_t>(line))
-                                              ? g_fret_active_color
-                                              : g_fret_inactive_color;
+            const ArgbColor state_color = mixArgb(
+                g_fret_inactive_color,
+                g_fret_active_color,
+                active.at(static_cast<std::size_t>(line)));
             const ArgbColor color = mixArgb(state_color, g_fret_highlight_color, flash_weight);
             const double half = (line == 0 ? 0.05 : 0.025) * (1.0 + (3.0 * flash_weight));
             pushFaceQuad(
@@ -2825,11 +3053,9 @@ void HighwayRenderer::Impl::draw(
             std::ranges::transform(label, label.begin(), [](const char c) {
                 return static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
             });
-            const auto [low_line, high_line] = activeFhpFretLines(state, section.seconds);
-            const double x = common::core::highwayFretLineX(low_line, metrics, mirrored);
             (void)push_text(
                 label,
-                std::min(x, common::core::highwayFretLineX(high_line, metrics, mirrored)),
+                handWindowXAt(state, section.seconds, metrics, mirrored).first,
                 section_y,
                 time_to_z(section.seconds),
                 0.5,
@@ -2850,13 +3076,12 @@ void HighwayRenderer::Impl::draw(
             {
                 continue;
             }
-            const auto [low_line, high_line] = activeFhpFretLines(state, shape.start_seconds);
-            const double low_x = std::min(
-                common::core::highwayFretLineX(low_line, metrics, mirrored),
-                common::core::highwayFretLineX(high_line, metrics, mirrored));
+            // Display-time window: a name riding the hit line follows the window per frame, so
+            // it travels with a chord sliding under its shape span.
+            const double window_seconds = std::max(shape.start_seconds, now_seconds);
             (void)push_text(
                 shape.name,
-                low_x - 1.75,
+                handWindowXAt(state, window_seconds, metrics, mirrored).first - 1.75,
                 chord_name_y,
                 std::max(0.0, time_to_z(shape.start_seconds)),
                 0.7,

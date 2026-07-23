@@ -11,6 +11,7 @@ target_sources(
             src/highway/highway_camera.cpp
             src/highway/highway_projection.cpp
             src/highway/highway_tail.cpp
+            src/highway/highway_window.cpp
             src/package/archive_error.cpp
             src/package/package_id.cpp
             src/package/rock_song_package_format.cpp

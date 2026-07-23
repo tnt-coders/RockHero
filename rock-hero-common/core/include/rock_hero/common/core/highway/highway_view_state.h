@@ -219,6 +219,16 @@ struct HighwayFhpView
     int width{4};
 
     /*!
+    \brief Duration of the eased approach ending at \ref seconds; zero arrives instantly.
+
+    Derived at projection time: a placement landing exactly on a pitched slide waypoint ramps
+    over that glide segment so the window travels with the slide, and every other placement
+    morphs over the minimum-sustain-distance margin (shortened when placements crowd closer
+    than the ramp).
+    */
+    double ramp_seconds{0.0};
+
+    /*!
     \brief Compares two fret-hand position views by their stored fields.
     \param lhs Left-hand view.
     \param rhs Right-hand view.

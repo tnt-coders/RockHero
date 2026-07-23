@@ -164,6 +164,9 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
 
     REQUIRE(state.fret_hand_positions.size() == 1);
     CHECK(state.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
+    // No slide lands on this placement, so it morphs over the 1/16-whole-note margin (a quarter
+    // beat in 4/4).
+    CHECK(state.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.25 * beat));
 
     REQUIRE(state.sections.size() == 1);
     CHECK(state.sections[0].seconds == Catch::Approx(4.0 * beat));
@@ -201,6 +204,67 @@ TEST_CASE("Highway projection pads the displayed string count", "[core][highway]
         HighwayDisplayOptions{.minimum_string_count = 4});
     CHECK(unshifted.string_count == 6);
     CHECK(unshifted.notes[0].string == 1);
+}
+
+// Ramp derivation for the hand window: a placement landing exactly on a pitched waypoint's grid
+// position ramps over that glide segment (slide-locked), ordinary placements morph over the
+// 1/16-whole-note margin, crowded placements shorten against the previous arrival instead of
+// overlapping it, and an unpitched slide-out never slide-matches a placement.
+TEST_CASE("Highway projection derives hand-window ramps", "[core][highway]")
+{
+    const TempoMap tempo_map = makeHighwayTempoMap();
+    const double beat = tempo_map.secondsAtBeat(1, 2) - tempo_map.secondsAtBeat(1, 1);
+
+    Arrangement arrangement = makeArrangementWithChart();
+    REQUIRE(arrangement.chart.has_value());
+    Chart& chart = *arrangement.chart;
+    // A sustained note whose tail trails off unpitched: its gesture must not feed a ramp.
+    chart.notes.push_back(
+        ChartNote{
+            .position = GridPosition{.measure = 4, .beat = 3},
+            .string = 5,
+            .fret = 5,
+            .sustain = Fraction{1},
+            .bend = {},
+            .slides = {},
+            .slide_out = SlideOut{.offset = Fraction{1}, .fret = 12},
+        });
+    chart.fret_hand_positions = {
+        // Ordinary move: the margin morph (a quarter beat in 4/4).
+        FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 1, .width = 4},
+        // Crowded: an eighth of a beat after the previous arrival, so the morph shortens.
+        FretHandPosition{
+            .position = GridPosition{.measure = 2, .beat = 1, .offset = Fraction{1, 8}},
+            .fret = 2,
+            .width = 4,
+        },
+        // Exactly on the fixture's pitched waypoint (3:1+1/2 advanced by its two-beat offset):
+        // slide-locked to the glide segment.
+        FretHandPosition{
+            .position = GridPosition{.measure = 3, .beat = 3, .offset = Fraction{1, 2}},
+            .fret = 6,
+            .width = 4,
+        },
+        // Exactly where the unpitched slide-out ends (4:3 advanced one beat): still a margin
+        // morph, never the slide-out's segment.
+        FretHandPosition{.position = GridPosition{.measure = 4, .beat = 4}, .fret = 9, .width = 4},
+    };
+
+    const HighwayViewState state = makeHighwayViewState(arrangement, tempo_map, {}, {});
+    REQUIRE(state.fret_hand_positions.size() == 4);
+
+    CHECK(state.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
+    CHECK(state.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.25 * beat));
+
+    CHECK(state.fret_hand_positions[1].seconds == Catch::Approx(4.125 * beat));
+    CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(0.125 * beat));
+
+    // The glide starts at the note onset (8.5 beats) and lands at the waypoint (10.5 beats).
+    CHECK(state.fret_hand_positions[2].seconds == Catch::Approx(10.5 * beat));
+    CHECK(state.fret_hand_positions[2].ramp_seconds == Catch::Approx(2.0 * beat));
+
+    CHECK(state.fret_hand_positions[3].seconds == Catch::Approx(15.0 * beat));
+    CHECK(state.fret_hand_positions[3].ramp_seconds == Catch::Approx(0.25 * beat));
 }
 
 // The beat list covers the whole song grid up to the terminal anchor with correct downbeat
