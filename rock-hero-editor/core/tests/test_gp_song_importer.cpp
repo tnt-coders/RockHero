@@ -378,8 +378,7 @@ TEST_CASE("Guitar Pro import keeps the hand still through unpitched slides", "[c
 
     REQUIRE(chart.notes.size() == 5);
     CHECK(chart.notes[1].slides.empty());
-    const auto* slide_out =
-        chart.notes[1].slide_out.has_value() ? &*chart.notes[1].slide_out : nullptr;
+    const auto* const slide_out = common::core::slideOutOrNull(chart.notes[1]);
     REQUIRE(slide_out != nullptr);
     CHECK(slide_out->fret == 1);
 

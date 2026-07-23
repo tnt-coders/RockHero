@@ -100,10 +100,7 @@ HighwayViewState makeHighwayViewState(
         // The slide-out flattens into the view's slide list so the renderer keeps one uniform
         // segment model; it owns its geometry and dims unpitched. Pitched glides — shift and
         // legato alike — are already ordinary waypoints above.
-        // Bind through the has_value ternary: bugprone-unchecked-optional-access credits that,
-        // but not a *note.slide_out deref inside a plain if-guard on this reference member.
-        const SlideOut* const slide_out = note.slide_out.has_value() ? &*note.slide_out : nullptr;
-        if (slide_out != nullptr)
+        if (const SlideOut* const slide_out = slideOutOrNull(note))
         {
             view.slides.push_back(
                 HighwaySlideView{
