@@ -41,10 +41,10 @@ both endpoints, so the border leaves and rejoins the straight steady-window edge
   slow ones). This is intended behavior, not an artifact.
 - The first FHP of a chart morphs in from the default nut window (fret 1, width 4) under the
   same margin rule rather than popping.
-- The window transition region gets its own subtle left/right edge rails (reusing the
-  shape-rail core-plus-fade-wings cross-section at lower intensity): mid-transition the
-  boundary sits between fret lines, so without an owned edge the sheared region has nothing
-  defining it.
+- The window transition's border draws as a phantom fret line — identical to a real lane
+  line's look and in-window strength — gliding between the fixed lines (2026-07-23; a first
+  attempt with dedicated shape-rail-style edges was removed on sight as too pronounced). See
+  renderer item 2.
 
 ## Design
 
@@ -90,10 +90,13 @@ fret-number labels).
    emit trapezoids clipped against the eased border position at the slice ends (z-sliced with
    the sampling idiom modulated tails already use). Nothing about the striping is
    compromised, and no lane geometry ever shears except at the border crossing.
-2. **Window border rails.** Left and right edges of the lit region, full length (steady and
-   ramp spans alike, so the chamfer connects visibly to its neighbors), styled as a subdued
-   shape-rail cross-section. The sliding border is the visible moving element — the reason
-   the window needs an owned edge at all — while the fret lines behind it never bend.
+2. **Window border = a phantom fret line (user, 2026-07-23, third iteration).** The first
+   treatment — dedicated shape-rail-style edge rails (`a59bcdd7`) — read as too pronounced and
+   was removed on sight. The settled replacement: during a transition only, each window edge
+   draws as a phantom fret line with exactly a real lane line's width, color, and in-window
+   (0.375) strength, gliding between the fixed lines and drawn in the lane-border pass so it
+   composites under the highlight fill like the real lines do. Settled spans draw nothing —
+   there the window edges coincide with real fret lines, which already mark them.
 3. **Open-string note tails.** Today the band is sampled once at `note.start_seconds` and held
    flat for the whole tail. Open (and open modulated) tails move onto the z-sampled ribbon
    path with band stations evaluated per sample from the continuous query, so they shear with
