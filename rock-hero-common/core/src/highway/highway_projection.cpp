@@ -2,7 +2,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <rock_hero/common/core/chart/chart_rules.h>
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <rock_hero/common/core/highway/highway_projection.h>
 #include <utility>
 
@@ -57,6 +59,11 @@ HighwayViewState makeHighwayViewState(
     // Sustain ends and intra-note payload offsets can jump past later onsets, so those use the
     // plain resolver instead of a second cursor.
     TempoMap::ForwardBeatTimeCursor onset_cursor{tempo_map};
+    // Pitched glide arrivals feed the hand window's slide-locked ramps: the generator places an
+    // FHP exactly on a waypoint's advanced grid position, so an exact-position match here ties
+    // that placement's ramp to the glide segment (unpitched slide-outs never move the window and
+    // are never recorded). Chord slides record identical values under one key.
+    std::map<GridPosition, double> slide_ramp_starts;
     state.notes.reserve(chart.notes.size());
     for (const ChartNote& note : chart.notes)
     {
@@ -87,15 +94,21 @@ HighwayViewState makeHighwayViewState(
                 });
         }
         view.slides.reserve(note.slides.size() + 1);
+        double glide_segment_start_seconds = view.start_seconds;
         for (const SlideWaypoint& waypoint : note.slides)
         {
+            const double waypoint_seconds =
+                tempo_map.secondsAtGlobalBeatPosition(onset_beat + waypoint.offset.toDouble());
             view.slides.push_back(
                 HighwaySlideView{
-                    .seconds = tempo_map.secondsAtGlobalBeatPosition(
-                        onset_beat + waypoint.offset.toDouble()),
+                    .seconds = waypoint_seconds,
                     .fret = waypoint.fret,
                     .unpitched = false,
                 });
+            slide_ramp_starts.try_emplace(
+                advanceGridPosition(tempo_map, note.position, waypoint.offset),
+                glide_segment_start_seconds);
+            glide_segment_start_seconds = waypoint_seconds;
         }
         // The slide-out flattens into the view's slide list so the renderer keeps one uniform
         // segment model; it owns its geometry and dims unpitched. Pitched glides — shift and
@@ -158,15 +171,44 @@ HighwayViewState makeHighwayViewState(
             });
     }
 
+    // Every placement gets an eased approach ramp (fhp-window-motion plan): a slide-matched
+    // placement ramps over its glide segment so the window travels with the note, any other
+    // placement morphs over the minimum-sustain-distance margin (1/16 whole note at the
+    // arrival's meter, the sustain policy's settled margin), and crowded transitions shorten
+    // against the previous arrival rather than overlapping it. The synthetic pre-first nut
+    // window counts as arriving at the chart origin.
     state.fret_hand_positions.reserve(chart.fret_hand_positions.size());
     for (const FretHandPosition& fhp : chart.fret_hand_positions)
     {
+        const double arrival_seconds =
+            tempo_map.secondsAtGlobalBeatPosition(globalBeatPosition(tempo_map, fhp.position));
+        double ramp_start_seconds = 0.0;
+        if (const auto slide = slide_ramp_starts.find(fhp.position);
+            slide != slide_ramp_starts.end())
+        {
+            ramp_start_seconds = slide->second;
+        }
+        else
+        {
+            const TimeSignatureChange signature = tempo_map.timeSignatureAt(fhp.position.measure);
+            const GridPosition morph_start =
+                advanceGridPosition(tempo_map, fhp.position, Fraction{-signature.denominator, 16});
+            ramp_start_seconds =
+                tempo_map.secondsAtGlobalBeatPosition(globalBeatPosition(tempo_map, morph_start));
+        }
+        const double previous_arrival_seconds = state.fret_hand_positions.empty()
+                                                    ? tempo_map.secondsAtBeat(1, 1)
+                                                    : state.fret_hand_positions.back().seconds;
+        ramp_start_seconds = std::clamp(
+            ramp_start_seconds,
+            std::min(previous_arrival_seconds, arrival_seconds),
+            arrival_seconds);
         state.fret_hand_positions.push_back(
             HighwayFhpView{
-                .seconds = tempo_map.secondsAtGlobalBeatPosition(
-                    globalBeatPosition(tempo_map, fhp.position)),
+                .seconds = arrival_seconds,
                 .fret = fhp.fret,
                 .width = fhp.width,
+                .ramp_seconds = arrival_seconds - ramp_start_seconds,
             });
     }
 

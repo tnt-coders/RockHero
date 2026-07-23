@@ -1,7 +1,11 @@
 # FHP Window Motion Plan
 
-Status: PLANNED 2026-07-23. Design agreed with the user (slide-locked ramps, margin morphs,
-shortened crowded transitions, shared ease); implementation not started.
+Status: IMPLEMENTED 2026-07-23, pending the visual pass. Projection ramps
+(`HighwayFhpView::ramp_seconds`), the continuous window query and coverage signal
+(`highway_window.h`), and every renderer consumer (mask-model highlight with transition sweeps,
+border rails, open tails/bars, shape rails, boxes and brackets at display time, chord names,
+sections, beat bars, face-line crossfade, number fades) are built and unit-tested; the
+verification section's visual confirmation in the editor 3D preview has not run yet.
 
 ## Goal
 
@@ -98,9 +102,14 @@ fret-number labels).
 4. **Hand-shape / arpeggio span rails.** Rails currently sample the window once at
    `shape.start_seconds`; they become z-sampled against the continuous query so a mid-span
    window move shears them identically.
-5. **Single-instant consumers** (beat bars, chord/arpeggio boxes, fingering panel, section
-   furniture): mechanical swap to the continuous query at their own z — they draw at the
-   interpolated extent automatically, no geometry rework.
+5. **Single-instant consumers sample the window at their display time, not their start time
+   (user catch, 2026-07-23).** Board-fixed furniture (beat bars, section furniture, plain
+   chord boxes) swaps to the continuous query at its own onset z. Elements that *ride the hit
+   line* for a span — arpeggio boxes with their brackets, and the fingering panel — evaluate
+   the window at `max(start_seconds, now)` per frame, so a held arpeggio or chord shape
+   slides along with the notes sliding under it instead of staying frozen at its onset
+   window. Shape span rails need no special case: once z-sampled, their near end at the hit
+   line is the current instant's window by construction.
 6. **Fret numbers — coverage fade (signed 2026-07-23).** Numbers never move: every glyph is
    pinned at its own lane's fixed position, labeling the physical fret. During a transition
    each hit-line number animates opacity only, fading out as the sweeping border leaves its
