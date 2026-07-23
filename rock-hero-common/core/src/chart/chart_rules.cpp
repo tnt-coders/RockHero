@@ -1,9 +1,12 @@
 #include "chart/chart_rules.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <rock_hero/common/core/chart/chart_tokens.h>
+#include <rock_hero/common/core/chart/grid_arithmetic.h>
 #include <tuple>
+#include <vector>
 
 namespace rock_hero::common::core
 {
@@ -28,6 +31,71 @@ bool isValidGridPosition(const GridPosition& position, const TempoMap& tempo_map
     return position.measure >= 1 && position.beat >= 1 &&
            position.beat <= tempo_map.beatsPerMeasureAt(position.measure) &&
            position.offset.numerator >= 0 && position.offset < Fraction{1};
+}
+
+bool chartShapeArrivesAsArpeggio(
+    const Chart& chart, const ChartShape& shape, const TempoMap& tempo_map)
+{
+    // Chart notes are sorted, so the onsets at the span start are contiguous.
+    const auto first_at_start = std::ranges::lower_bound(
+        chart.notes, shape.position, std::ranges::less{}, &ChartNote::position);
+    std::size_t simultaneous = 0;
+    for (auto it = first_at_start; it != chart.notes.end() && it->position == shape.position; ++it)
+    {
+        ++simultaneous;
+    }
+    if (simultaneous < 2)
+    {
+        return true;
+    }
+    if (shape.chord >= chart.templates.size())
+    {
+        return false;
+    }
+    // A posture string still ringing at the start without an onset there was not re-struck —
+    // the strum picks around the held note, so the span cannot be one full strum. The backward
+    // scan resolves each such string to its most recent earlier note (the only one that can
+    // still be ringing) and stops once every candidate string is settled.
+    const ChordTemplate& chord_template = chart.templates[shape.chord];
+    std::vector<bool> pending(chord_template.frets.size(), false);
+    std::size_t pending_count = 0;
+    for (std::size_t index = 0; index < chord_template.frets.size(); ++index)
+    {
+        // Bound to a local so the optional check and the access are provably the same object.
+        const std::optional<int>& fret = chord_template.frets[index];
+        if (!fret.has_value())
+        {
+            continue;
+        }
+        const int string = static_cast<int>(index) + 1;
+        bool struck = false;
+        for (auto it = first_at_start; it != chart.notes.end() && it->position == shape.position;
+             ++it)
+        {
+            struck = struck || it->string == string;
+        }
+        if (!struck)
+        {
+            pending[index] = true;
+            ++pending_count;
+        }
+    }
+    for (auto it = first_at_start; pending_count > 0 && it != chart.notes.begin();)
+    {
+        --it;
+        const auto index = static_cast<std::size_t>(it->string - 1);
+        if (index >= pending.size() || !pending[index])
+        {
+            continue;
+        }
+        pending[index] = false;
+        --pending_count;
+        if (shape.position < sustainEndPosition(tempo_map, *it))
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 std::expected<void, ChartError> validateChartRules(const Chart& chart, const TempoMap& tempo_map)

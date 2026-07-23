@@ -290,4 +290,95 @@ TEST_CASE("Chart rules reject structural violations", "[core][chart]")
     CHECK(beyond_octave_result.error().code == ChartErrorCode::InvalidTuning);
 }
 
+// The shared arrival rule: a strummed chord is a box; sequential arrival, or a posture string
+// still ringing at the span start without an onset there, renders arpeggio-style. A posture
+// string that is merely silent (a partial strum) or a ringing note outside the posture keeps
+// the box.
+TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.templates = {
+        ChordTemplate{
+            .name = "",
+            .frets = {3, 6, 8, std::nullopt, std::nullopt, std::nullopt},
+            .fingers = {
+                std::nullopt, std::nullopt, std::nullopt, std::nullopt, std::nullopt, std::nullopt
+            },
+        },
+    };
+    // A sustained note on string 2 rings from 2:1 through 2:3; a two-string strum lands at 2:2.
+    chart.notes = {
+        ChartNote{
+            .position = GridPosition{.measure = 2, .beat = 1},
+            .string = 2,
+            .fret = 6,
+            .sustain = Fraction{2},
+            .bend = {},
+            .slides = {},
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 2, .beat = 2},
+            .string = 1,
+            .fret = 3,
+            .bend = {},
+            .slides = {},
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 2, .beat = 2},
+            .string = 3,
+            .fret = 8,
+            .bend = {},
+            .slides = {},
+        },
+    };
+    const ChartShape strum_under_ring{
+        .position = GridPosition{.measure = 2, .beat = 2},
+        .sustain = Fraction{1},
+        .chord = 0,
+    };
+
+    // String 2's fret 6 is posture, un-restruck, and still ringing at the strum: arpeggio.
+    CHECK(chartShapeArrivesAsArpeggio(chart, strum_under_ring, tempo_map));
+
+    // A single onset at the span start is sequential arrival: arpeggio regardless of ringing.
+    const ChartShape sequential{
+        .position = GridPosition{.measure = 2, .beat = 1},
+        .sustain = Fraction{1},
+        .chord = 0,
+    };
+    CHECK(chartShapeArrivesAsArpeggio(chart, sequential, tempo_map));
+
+    // With the ring ended before the strum, the posture string is merely silent — a partial
+    // strum of the shape keeps the chord box.
+    chart.notes[0].sustain = Fraction{1, 2};
+    CHECK_FALSE(chartShapeArrivesAsArpeggio(chart, strum_under_ring, tempo_map));
+
+    // A ringing note on a string outside the posture never flips the box: sustained content
+    // under an unrelated chord is ordinary.
+    chart.notes[0].sustain = Fraction{2};
+    Chart no_ring_string = chart;
+    no_ring_string.templates[0].frets = {
+        3, std::nullopt, 8, std::nullopt, std::nullopt, std::nullopt
+    };
+    CHECK_FALSE(chartShapeArrivesAsArpeggio(no_ring_string, strum_under_ring, tempo_map));
+
+    // A ring from an earlier chord member is still a ring: the re-strum picks around the held
+    // string, so it is an arpeggio too (a tied passage with a hand move splits into two
+    // arpeggio shapes, user rule 2026-07-22).
+    Chart chord_sourced_ring = chart;
+    chord_sourced_ring.notes.insert(
+        chord_sourced_ring.notes.begin() + 1,
+        ChartNote{
+            .position = GridPosition{.measure = 2, .beat = 1},
+            .string = 4,
+            .fret = 5,
+            .bend = {},
+            .slides = {},
+        });
+    CHECK(chartShapeArrivesAsArpeggio(chord_sourced_ring, strum_under_ring, tempo_map));
+}
+
 } // namespace rock_hero::common::core

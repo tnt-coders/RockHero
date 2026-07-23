@@ -13,6 +13,7 @@
 #include <fstream>
 #include <rock_hero/common/audio/testing/audio_fixtures.h>
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/package/archive_io.h>
 #include <rock_hero/common/core/package/package_id.h>
 #include <string>
@@ -241,12 +242,12 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(chart.notes[2].fret == 7);
 
     // The tie chain merges into one note whose sustain crosses the barline: onset 1:3, a
-    // quarter in bar one plus a half in bar two makes four beats to the continuation's end,
-    // trimmed by the sustain policy to 15/4 (margin 1/4 before the next onset at 2:3) and kept —
-    // vibrato is a sustain-carried technique, so the sub-beat drop rule never applies to it.
+    // quarter in bar one plus a half in bar two makes four beats to the continuation's end.
+    // Tie-merged sustains are exempt from the trim and drop rules (policy rule 1) — the tie
+    // explicitly notates the ring — so the full four beats survive.
     CHECK(chart.notes[3].position == GridPosition{.measure = 1, .beat = 3});
     CHECK(chart.notes[3].string == 2);
-    CHECK(chart.notes[3].sustain == Fraction{15, 4});
+    CHECK(chart.notes[3].sustain == Fraction{4});
     CHECK(chart.notes[3].vibrato);
 
     // Between-fret natural harmonic with the GP bend mapped to [offset, semitones] pairs.
@@ -392,6 +393,164 @@ TEST_CASE("Guitar Pro import keeps the hand still through unpitched slides", "[c
     std::filesystem::remove_all(scratch, cleanup_error);
 }
 
+// One bar, quarter notes: a tied fret-6 whose continuation sits inside a chord and shift-slides
+// down, next to a fret-8 chord member shift-sliding down, with the chord's fret-3 member tied
+// through into the landing chord — the Periphery measure-20 shape the tie/slide/arpeggio rules
+// were written for (policy rules 12, 13, 15).
+constexpr const char* g_tied_chord_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
+<GPIF>
+<GPVersion>8.1.4</GPVersion>
+<Score>
+<Title><![CDATA[TiedChord]]></Title>
+<Artist><![CDATA[Tester]]></Artist>
+<Album><![CDATA[Album]]></Album>
+</Score>
+<MasterTrack>
+<Automations>
+<Automation><Type>Tempo</Type><Bar>0</Bar><Position>0</Position><Value>120 2</Value></Automation>
+</Automations>
+</MasterTrack>
+<BackingTrack><AssetId>0</AssetId></BackingTrack>
+<Assets><Asset id="0"><EmbeddedFilePath>Content/Assets/audio.wav</EmbeddedFilePath></Asset></Assets>
+<Tracks>
+<Track id="0">
+<Name>Guitar</Name>
+<Staves><Staff><Properties>
+<Property name="CapoFret"><Fret>0</Fret></Property>
+<Property name="Tuning"><Pitches>40 45 50 55 59 64</Pitches></Property>
+</Properties></Staff></Staves>
+</Track>
+</Tracks>
+<MasterBars>
+<MasterBar><Time>4/4</Time><Bars>0</Bars></MasterBar>
+</MasterBars>
+<Bars>
+<Bar id="0"><Voices>0 -1 -1 -1</Voices></Bar>
+</Bars>
+<Voices>
+<Voice id="0"><Beats>0 1 2</Beats></Voice>
+</Voices>
+<Beats>
+<Beat id="0"><Rhythm ref="0"/><Notes>0</Notes></Beat>
+<Beat id="1"><Rhythm ref="0"/><Notes>1 2 3</Notes></Beat>
+<Beat id="2"><Rhythm ref="0"/><Notes>4 5 6</Notes></Beat>
+</Beats>
+<Notes>
+<Note id="0"><Tie origin="true" destination="false"/><Properties>
+<Property name="String"><String>1</String></Property>
+<Property name="Fret"><Fret>6</Fret></Property>
+</Properties></Note>
+<Note id="1"><Tie origin="false" destination="true"/><Properties>
+<Property name="String"><String>1</String></Property>
+<Property name="Fret"><Fret>6</Fret></Property>
+<Property name="Slide"><Flags>1</Flags></Property>
+</Properties></Note>
+<Note id="2"><Properties>
+<Property name="String"><String>2</String></Property>
+<Property name="Fret"><Fret>8</Fret></Property>
+<Property name="Slide"><Flags>1</Flags></Property>
+</Properties></Note>
+<Note id="3"><Tie origin="true" destination="false"/><Properties>
+<Property name="String"><String>0</String></Property>
+<Property name="Fret"><Fret>3</Fret></Property>
+</Properties></Note>
+<Note id="4"><Properties>
+<Property name="String"><String>1</String></Property>
+<Property name="Fret"><Fret>2</Fret></Property>
+</Properties></Note>
+<Note id="5"><Properties>
+<Property name="String"><String>2</String></Property>
+<Property name="Fret"><Fret>4</Fret></Property>
+</Properties></Note>
+<Note id="6"><Tie origin="false" destination="true"/><Properties>
+<Property name="String"><String>0</String></Property>
+<Property name="Fret"><Fret>3</Fret></Property>
+</Properties></Note>
+</Notes>
+<Rhythms>
+<Rhythm id="0"><NoteValue>Quarter</NoteValue></Rhythm>
+</Rhythms>
+</GPIF>
+)";
+
+TEST_CASE(
+    "Guitar Pro import carries tied slides and derives ring-through arpeggios", "[core][gp-import]")
+{
+    const std::filesystem::path scratch =
+        std::filesystem::temp_directory_path() / "rh_gp_tied_chord_test";
+    std::error_code cleanup_error;
+    std::filesystem::remove_all(scratch, cleanup_error);
+    const std::filesystem::path workspace = scratch / "song";
+    std::filesystem::create_directories(workspace);
+
+    const std::filesystem::path archive = writeFixtureArchive(scratch, g_tied_chord_gpif);
+    GpSongImporter importer;
+    const auto song = importer.importSong(archive, workspace);
+    REQUIRE(song.has_value());
+    REQUIRE(song->arrangements.size() == 1);
+    const common::core::Chart& chart = requiredChart(song->arrangements.front());
+
+    // (position, string) order: the tied 6, the chord pair at beat 2, the landing pair at 3
+    // (the fret-3 tie continuation merged away).
+    REQUIRE(chart.notes.size() == 5);
+
+    // The tied 6: its continuation merged in (sustain through the chord) and the continuation's
+    // shift-slide flags folded into the merged note (rule 15). A hold waypoint pins fret 6
+    // until the chord where the sliding segment was notated, then the glide runs the full gap
+    // into its fret-2 landing (rule 13) — the tail continues INTO the chord and beyond, immune
+    // to the minimum-note-distance trim through the waypoint floor.
+    const common::core::ChartNote& tied = chart.notes[0];
+    CHECK(tied.position == GridPosition{.measure = 1, .beat = 1});
+    CHECK(tied.string == 2);
+    CHECK(tied.fret == 6);
+    CHECK(tied.sustain == Fraction{2});
+    REQUIRE(tied.slides.size() == 2);
+    CHECK(tied.slides[0].offset == Fraction{1});
+    CHECK(tied.slides[0].fret == 6);
+    CHECK(tied.slides[1].offset == Fraction{2});
+    CHECK(tied.slides[1].fret == 2);
+    CHECK_FALSE(tied.slides[1].unpitched);
+
+    // The chord's fret 8 shift-slides the full gap into its fret-4 landing (no hold: its own
+    // onset carried the flags).
+    const common::core::ChartNote& eight = chart.notes[2];
+    CHECK(eight.position == GridPosition{.measure = 1, .beat = 2});
+    CHECK(eight.string == 3);
+    CHECK(eight.fret == 8);
+    REQUIRE(eight.slides.size() == 1);
+    CHECK(eight.slides[0].offset == Fraction{1});
+    CHECK(eight.slides[0].fret == 4);
+
+    // Both landings keep their own onsets (and heads) inside the beat-3 chord.
+    CHECK(chart.notes[3].position == GridPosition{.measure = 1, .beat = 3});
+    CHECK(chart.notes[3].string == 2);
+    CHECK(chart.notes[3].fret == 2);
+    CHECK(chart.notes[4].string == 3);
+    CHECK(chart.notes[4].fret == 4);
+
+    // Two arpeggio shapes split at the hand move (rule 12): the beat-2 chord's posture includes
+    // the ringing 6, and the beat-3 landing chord — the re-picked 2 and 4 strummed while the
+    // tied fret 3 keeps ringing — is its own arpeggio including that 3. The first span's end
+    // clamps to the landing onset (rule 12a) even though its tied member rings on, so the
+    // shapes never overlap and the landing reads as its own arrival.
+    REQUIRE(chart.shapes.size() == 2);
+    CHECK(chart.shapes[0].position == GridPosition{.measure = 1, .beat = 2});
+    CHECK(chart.shapes[0].sustain == Fraction{1});
+    REQUIRE(chart.shapes[0].chord < chart.templates.size());
+    CHECK(
+        chart.templates[chart.shapes[0].chord].frets ==
+        std::vector<std::optional<int>>{3, 6, 8, std::nullopt, std::nullopt, std::nullopt});
+    CHECK(common::core::chartShapeArrivesAsArpeggio(chart, chart.shapes[0], song->tempo_map));
+    CHECK(chart.shapes[1].position == GridPosition{.measure = 1, .beat = 3});
+    REQUIRE(chart.shapes[1].chord < chart.templates.size());
+    CHECK(
+        chart.templates[chart.shapes[1].chord].frets ==
+        std::vector<std::optional<int>>{3, 2, 4, std::nullopt, std::nullopt, std::nullopt});
+    CHECK(common::core::chartShapeArrivesAsArpeggio(chart, chart.shapes[1], song->tempo_map));
+
+    std::filesystem::remove_all(scratch, cleanup_error);
+}
+
 // Chord derivation: notes struck together become a deduplicated posture template, and
 // consecutive strums of the same posture merge into one shape span covering their notated
 // durations — the grouping the tab renders as a chord box over repeated strums.
@@ -532,9 +691,9 @@ TEST_CASE("Guitar Pro import splits chord spans on articulation changes", "[core
     std::filesystem::remove_all(scratch, cleanup_error);
 }
 
-// An effect-free sustain that is still at least one beat long after the minimum-distance trim
-// keeps its (trimmed) tail — the sub-beat drop rule only removes tails shorter than one beat.
-TEST_CASE("Guitar Pro import keeps trimmed sustains of a beat or longer", "[core][gp-import]")
+// A tie-merged sustain is exempt from the trim and drop rules even with no technique on it:
+// the tie itself is the deliberate-ring notation, so the tail needs no other reason to stay.
+TEST_CASE("Guitar Pro import keeps effect-free tie-merged sustains whole", "[core][gp-import]")
 {
     const std::filesystem::path scratch =
         std::filesystem::temp_directory_path() / "rh_gp_sustain_keep_test";
@@ -543,8 +702,8 @@ TEST_CASE("Guitar Pro import keeps trimmed sustains of a beat or longer", "[core
     const std::filesystem::path workspace = scratch / "song";
     std::filesystem::create_directories(workspace);
 
-    // Removing the vibrato from the tie-chain origin makes the merged four-beat note effect-free;
-    // the trim to 15/4 still leaves more than a beat, so the tail survives.
+    // Removing the vibrato from the tie-chain origin makes the merged four-beat note
+    // effect-free; the tie exemption still keeps the full notated four beats.
     const std::string gpif = fixtureWithReplacement("<Vibrato>Slight</Vibrato>", "");
     const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
 
@@ -555,7 +714,7 @@ TEST_CASE("Guitar Pro import keeps trimmed sustains of a beat or longer", "[core
     const common::core::Chart& chart = requiredChart(song->arrangements.front());
     REQUIRE(chart.notes.size() == 5);
     CHECK_FALSE(chart.notes[3].vibrato);
-    CHECK(chart.notes[3].sustain == Fraction{15, 4});
+    CHECK(chart.notes[3].sustain == Fraction{4});
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }
