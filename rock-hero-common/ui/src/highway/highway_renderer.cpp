@@ -49,10 +49,7 @@ constexpr double g_attack_fade_length = 0.2;
 constexpr double g_attack_line_alpha = 0.85; // full teal read slightly too bright (user-tuned)
 constexpr ArgbColor g_fhp_lane_color = 0x402590E8;        // lit runway gap
 constexpr ArgbColor g_fhp_lane_dotted_color = 0x40185C94; // darker gap on inlay-dotted frets
-// The window's own sliding border (fhp-window-motion plan): the highlight hue, strong enough to
-// read as an edge over the lane fill while the fret lines behind it stay straight.
-constexpr ArgbColor g_window_edge_color = 0xB02590E8;
-constexpr ArgbColor g_lane_border_color = 0x0007928F; // per-fret runway ribbons (alpha varies)
+constexpr ArgbColor g_lane_border_color = 0x0007928F;     // per-fret runway ribbons (alpha varies)
 constexpr ArgbColor g_fret_inactive_color = 0xFF202020;
 constexpr ArgbColor g_fret_active_color = 0xFFC0C0C0;
 constexpr ArgbColor g_fret_highlight_color = 0xFFFFA000;
@@ -332,11 +329,13 @@ struct PosColorUvVertex
         });
 }
 
-// Finest time step a window ramp is sliced at, and the per-ramp slice cap. At the shipped
-// z-per-second a slice is a quarter world unit — comparable to the tails' pixel-driven density
-// — and the sin-cubed ease is gentle enough that the cap stays smooth on second-long glides.
+// Finest time step a window ramp is sliced at, the slices per fret line of edge travel, and the
+// per-ramp slice cap. Density follows the larger of duration and lateral travel: a slow glide
+// needs samples in time, while a sixteenth-margin morph across several frets covers most of its
+// travel in a handful of milliseconds and facets badly under time-only slicing.
 constexpr double g_window_slice_seconds = 0.0125;
-constexpr int g_window_slice_cap = 64;
+constexpr double g_window_slices_per_line = 16.0;
+constexpr int g_window_slice_cap = 160;
 
 // Ascending sample times covering [from, to] for window-following geometry: the endpoints, plus
 // every overlapping ramp's clamped bounds and interior slices. Settled stretches contribute no
@@ -345,8 +344,9 @@ constexpr int g_window_slice_cap = 64;
     const common::core::HighwayViewState& state, const double from_seconds, const double to_seconds)
 {
     std::vector<double> times{from_seconds};
-    for (const common::core::HighwayFhpView& fhp : state.fret_hand_positions)
+    for (std::size_t index = 0; index < state.fret_hand_positions.size(); ++index)
     {
+        const common::core::HighwayFhpView& fhp = state.fret_hand_positions[index];
         if (fhp.ramp_seconds <= 0.0 || fhp.seconds <= from_seconds ||
             fhp.seconds - fhp.ramp_seconds >= to_seconds)
         {
@@ -354,8 +354,23 @@ constexpr int g_window_slice_cap = 64;
         }
         const double t0 = std::max(fhp.seconds - fhp.ramp_seconds, from_seconds);
         const double t1 = std::min(fhp.seconds, to_seconds);
+        // The wider-moving edge's travel in fret-line units, measured from the previous settled
+        // window (the nut window before the first placement).
+        const double previous_low =
+            index > 0 ? static_cast<double>(state.fret_hand_positions[index - 1].fret - 1) : 0.0;
+        const double previous_high = index > 0 ? static_cast<double>(
+                                                     state.fret_hand_positions[index - 1].fret +
+                                                     state.fret_hand_positions[index - 1].width - 1)
+                                               : 4.0;
+        const double travel_lines = std::max(
+            std::abs(static_cast<double>(fhp.fret - 1) - previous_low),
+            std::abs(static_cast<double>(fhp.fret + fhp.width - 1) - previous_high));
         const int slices = std::clamp(
-            static_cast<int>((t1 - t0) / g_window_slice_seconds) + 1, 1, g_window_slice_cap);
+            static_cast<int>(std::max(
+                (t1 - t0) / g_window_slice_seconds, travel_lines * g_window_slices_per_line)) +
+                1,
+            1,
+            g_window_slice_cap);
         for (int slice = 0; slice <= slices; ++slice)
         {
             times.push_back(t0 + ((t1 - t0) * slice / slices));
@@ -1163,6 +1178,42 @@ void HighwayRenderer::Impl::draw(
                 z1,
                 packAbgr(g_lane_border_color | 0xFF000000U, alpha));
         }
+
+        // The sliding window edge during a transition: a phantom fret line — the same width,
+        // color, and in-window strength as a real lane line — gliding between the fixed lines,
+        // so the border reads as ordinary board furniture rather than a new element (user
+        // direction 2026-07-23, replacing the too-pronounced dedicated rails). Settled spans
+        // need nothing: there the window edges coincide with real fret lines.
+        for (const common::core::HighwayFhpView& fhp : state.fret_hand_positions)
+        {
+            if (fhp.ramp_seconds <= 0.0 || fhp.seconds <= span_start_seconds ||
+                fhp.seconds - fhp.ramp_seconds >= span_end_seconds)
+            {
+                continue;
+            }
+            const double ramp_from = std::max(fhp.seconds - fhp.ramp_seconds, span_start_seconds);
+            const double ramp_to = std::min(fhp.seconds, span_end_seconds);
+            const std::vector<double> times = windowSampleTimes(state, ramp_from, ramp_to);
+            const std::uint32_t edge_color = packAbgr(g_lane_border_color | 0xFF000000U, 0.375);
+            for (std::size_t sample = 1; sample < times.size(); ++sample)
+            {
+                const auto [a_x0, a_x1] =
+                    handWindowXAt(state, times[sample - 1], metrics, mirrored);
+                const auto [b_x0, b_x1] = handWindowXAt(state, times[sample], metrics, mirrored);
+                const double za = time_to_z(times[sample - 1]);
+                const double zb = time_to_z(times[sample]);
+                for (const auto& [xa, xb] : {std::pair{a_x0, b_x0}, std::pair{a_x1, b_x1}})
+                {
+                    pushQuad(
+                        vertices,
+                        indices,
+                        makeVertex(xa - 0.025, 0.004, za, edge_color),
+                        makeVertex(xa + 0.025, 0.004, za, edge_color),
+                        makeVertex(xb + 0.025, 0.004, zb, edge_color),
+                        makeVertex(xb - 0.025, 0.004, zb, edge_color));
+                }
+            }
+        }
         submitBatch(vertices, indices, posColorLayout(), color_fade_program.get(), nullptr);
     }
 
@@ -1222,78 +1273,66 @@ void HighwayRenderer::Impl::draw(
                     const double lane_high =
                         common::core::highwayFretLineX(fret, metrics, mirrored);
                     const auto [lane_x0, lane_x1] = std::minmax(lane_low, lane_high);
-                    // Clip the lane against the window at each slice end; a side the border has
-                    // fully left collapses to a point so the fill tapers instead of inverting.
-                    const auto clip = [&](const double w0, const double w1) {
-                        const double lo = std::max(lane_x0, w0);
-                        const double hi = std::min(lane_x1, w1);
-                        return hi >= lo ? std::pair{lo, hi}
-                                        : std::pair{(lo + hi) / 2.0, (lo + hi) / 2.0};
-                    };
-                    const auto [a_lo, a_hi] = clip(win_a0, win_a1);
-                    const auto [b_lo, b_hi] = clip(win_b0, win_b1);
-                    if (a_hi - a_lo <= 0.0 && b_hi - b_lo <= 0.0)
+                    // Clip the lane against the window at each slice end.
+                    const double a_lo = std::max(lane_x0, win_a0);
+                    const double a_hi = std::min(lane_x1, win_a1);
+                    const double b_lo = std::max(lane_x0, win_b0);
+                    const double b_hi = std::min(lane_x1, win_b1);
+                    const bool a_empty = a_hi < a_lo;
+                    const bool b_empty = b_hi < b_lo;
+                    if (a_empty && b_empty)
                     {
                         continue;
                     }
                     const std::uint32_t tint = lane_tint(fret);
-                    pushQuad(
-                        vertices,
-                        indices,
-                        makeVertex(a_lo, 0.008, za, tint),
-                        makeVertex(a_hi, 0.008, za, tint),
-                        makeVertex(b_hi, 0.008, zb, tint),
-                        makeVertex(b_lo, 0.008, zb, tint));
+                    if (!a_empty && !b_empty)
+                    {
+                        pushQuad(
+                            vertices,
+                            indices,
+                            makeVertex(a_lo, 0.008, za, tint),
+                            makeVertex(a_hi, 0.008, za, tint),
+                            makeVertex(b_hi, 0.008, zb, tint),
+                            makeVertex(b_lo, 0.008, zb, tint));
+                        continue;
+                    }
+                    // One end empty: the border crosses a lane boundary inside this slice, so
+                    // the fill must taper to a point exactly where the moving edge meets that
+                    // boundary — collapsing to either slice end instead leaves a sliver of fill
+                    // leading or trailing the border.
+                    const double empty_high = a_empty ? win_a1 : win_b1;
+                    const bool from_low_side = empty_high < lane_x0;
+                    const double edge_at_a = from_low_side ? win_a1 : win_a0;
+                    const double edge_at_b = from_low_side ? win_b1 : win_b0;
+                    const double boundary = from_low_side ? lane_x0 : lane_x1;
+                    const double edge_travel = edge_at_b - edge_at_a;
+                    const double fraction =
+                        std::abs(edge_travel) > 1.0e-12
+                            ? std::clamp((boundary - edge_at_a) / edge_travel, 0.0, 1.0)
+                            : 0.0;
+                    const double z_cross = za + ((zb - za) * fraction);
+                    if (a_empty)
+                    {
+                        pushQuad(
+                            vertices,
+                            indices,
+                            makeVertex(boundary, 0.008, z_cross, tint),
+                            makeVertex(boundary, 0.008, z_cross, tint),
+                            makeVertex(b_hi, 0.008, zb, tint),
+                            makeVertex(b_lo, 0.008, zb, tint));
+                    }
+                    else
+                    {
+                        pushQuad(
+                            vertices,
+                            indices,
+                            makeVertex(a_lo, 0.008, za, tint),
+                            makeVertex(a_hi, 0.008, za, tint),
+                            makeVertex(boundary, 0.008, z_cross, tint),
+                            makeVertex(boundary, 0.008, z_cross, tint));
+                    }
                 }
             }
-        }
-        submitBatch(vertices, indices, posColorLayout(), color_fade_program.get(), nullptr);
-    }
-
-    // --- Window border rails: the sliding edges the transitions need to read (signed
-    // 2026-07-23). A subdued shape-rail cross-section runs the full visible span at each window
-    // edge — straight over settled spans, sweeping through each transition — while the fret
-    // lines behind it never bend. ---
-    {
-        bgfx::setUniform(fade_params.get(), fade_uniform.data());
-        std::vector<PosColorVertex> vertices;
-        std::vector<std::uint16_t> indices;
-        const std::vector<double> times =
-            windowSampleTimes(state, span_start_seconds, span_end_seconds);
-        const std::uint32_t solid = packAbgr(g_window_edge_color);
-        const std::uint32_t clear = packAbgr(g_window_edge_color, 0.0);
-        for (std::size_t sample = 1; sample < times.size(); ++sample)
-        {
-            const auto [a_x0, a_x1] = handWindowXAt(state, times[sample - 1], metrics, mirrored);
-            const auto [b_x0, b_x1] = handWindowXAt(state, times[sample], metrics, mirrored);
-            const RibbonEnd end_a{
-                .x_offset = 0.0,
-                .y = 0.012,
-                .z = time_to_z(times[sample - 1]),
-                .edge_abgr = solid,
-                .inner_abgr = solid,
-                .outer_abgr = clear,
-            };
-            const RibbonEnd end_b{
-                .x_offset = 0.0,
-                .y = 0.012,
-                .z = time_to_z(times[sample]),
-                .edge_abgr = solid,
-                .inner_abgr = solid,
-                .outer_abgr = clear,
-            };
-            const auto edge_stations = [](const double x) {
-                return std::array<double, 4>{
-                    x - g_shape_rail_fade_half_width,
-                    x - g_shape_rail_core_half_width,
-                    x + g_shape_rail_core_half_width,
-                    x + g_shape_rail_fade_half_width,
-                };
-            };
-            pushRibbonSegment(
-                vertices, indices, edge_stations(a_x0), edge_stations(b_x0), end_a, end_b);
-            pushRibbonSegment(
-                vertices, indices, edge_stations(a_x1), edge_stations(b_x1), end_a, end_b);
         }
         submitBatch(vertices, indices, posColorLayout(), color_fade_program.get(), nullptr);
     }
