@@ -121,12 +121,14 @@ each rule is a candidate for replacement by the corpus-derived generator planned
    fretted note.
 8. **Later moves are minimal.** When an onset's fretted notes fall outside the window, the
    anchor moves the shortest distance that covers them — it never jumps further than needed, so
-   runs walk the window up or down one misfit at a time.
+   runs walk the window up or down one misfit at a time. Slides are the exception (rule 9).
 9. **Pitched slides carry the hand; unpitched slides do not.** Every pitched slide waypoint
-   (shift and legato alike) is a coverage event at the waypoint's own mid-sustain position: if
-   the target fret falls outside the window, the hand moves there — minimally, per rule 8 —
-   exactly when the glide lands, so the window travels with the slide. An unpitched slide-out
-   releases pressure instead of repositioning, so its gesture never moves the window.
+   (shift and legato alike) drags the anchor by the waypoint's own fret delta at its mid-sustain
+   position — a five-to-nine glide moves the window up four frets — so the fretting finger keeps
+   its slot in the window while the hand travels with the slide, even when the target would
+   already fit. The dragged anchor clamps only as far as staying on the neck and covering the
+   target requires. An unpitched slide-out releases pressure instead of repositioning, so its
+   gesture never moves the window.
 
 **Chord template and shape derivation** (`deriveChordShapes`; GP scores in practice carry no
 handshape or diagram data, so the tab's chord boxes are derived):

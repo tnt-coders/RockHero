@@ -269,10 +269,11 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(chart.templates.empty());
     CHECK(chart.shapes.empty());
 
-    // The generated fret-hand track walks a minimal-shift window: fret 3 opens a 3-6 window,
-    // fret 7 shifts it minimally up to 4-7 — carried by the shift glide's pitched waypoint, a
-    // quarter beat before the landing onset (rule 9) — fret 2 shifts it minimally down to 2-5,
-    // and the final fret-3 bend note fits without another move.
+    // The generated fret-hand track: fret 3 opens a 3-6 window; the five-to-seven shift glide
+    // drags the anchor by its own +2 delta to a 5-8 window at the pitched waypoint, a quarter
+    // beat before the landing onset (rule 9), keeping the fretting finger on its window slot;
+    // fret 2 shifts minimally down to 2-5, and the final fret-3 bend note fits without another
+    // move.
     REQUIRE(chart.fret_hand_positions.size() == 3);
     CHECK(
         chart.fret_hand_positions[0] ==
@@ -283,7 +284,7 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
         chart.fret_hand_positions[1] ==
         common::core::FretHandPosition{
             .position = GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 4}},
-            .fret = 4,
+            .fret = 5,
             .width = 4
         });
     CHECK(
@@ -337,15 +338,16 @@ TEST_CASE("Guitar Pro import merges legato slide landings into the origin", "[co
     CHECK(origin.slides[0].fret == 7);
     CHECK_FALSE(origin.slide_out.has_value());
 
-    // With no landing onset, hand coverage at fret 7 comes from the pitched waypoint alone:
-    // the glide pulls the window up at the waypoint's own mid-sustain position (normalization
-    // policy rule 9), yielding the same three-position track the shift-slide fixture produces.
+    // With no landing onset, hand movement at fret 7 comes from the pitched waypoint alone:
+    // the glide drags the window up by its own +2 delta at the waypoint's mid-sustain position
+    // (normalization policy rule 9), yielding the same three-position track the shift-slide
+    // fixture produces.
     REQUIRE(chart.fret_hand_positions.size() == 3);
     CHECK(
         chart.fret_hand_positions[1] ==
         common::core::FretHandPosition{
             .position = GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}},
-            .fret = 4,
+            .fret = 5,
             .width = 4
         });
 
@@ -382,14 +384,61 @@ TEST_CASE("Guitar Pro import keeps the hand still through unpitched slides", "[c
     REQUIRE(slide_out != nullptr);
     CHECK(slide_out->fret == 1);
 
-    // Were the trail-off treated as pitched coverage, its fret-1 waypoint would drag a wide
-    // window down mid-sustain; instead the track is the main fixture's plain onset walk.
+    // Were the trail-off treated as a pitched glide, its fret-1 target would drag the window
+    // down mid-sustain; instead the track is the plain onset walk, with the fret-7 landing
+    // shifting the window minimally to 4-7.
     REQUIRE(chart.fret_hand_positions.size() == 3);
     CHECK(chart.fret_hand_positions[0].fret == 3);
     CHECK(
         chart.fret_hand_positions[1] ==
         common::core::FretHandPosition{
             .position = GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}},
+            .fret = 4,
+            .width = 4
+        });
+    CHECK(chart.fret_hand_positions[2].fret == 2);
+
+    std::filesystem::remove_all(scratch, cleanup_error);
+}
+
+// A pitched glide drags the hand by its own fret delta even when the target already fits the
+// window (normalization policy rule 9): with the landing lowered to fret 6, the five-to-six
+// slide's target sits inside the opening 3-6 window, yet the +1 delta still moves the window to
+// 4-7 so the fretting finger keeps its slot.
+TEST_CASE(
+    "Guitar Pro import shifts the hand by the slide delta for in-window targets",
+    "[core][gp-import]")
+{
+    const std::filesystem::path scratch =
+        std::filesystem::temp_directory_path() / "rh_gp_in_window_slide_fhp_test";
+    std::error_code cleanup_error;
+    std::filesystem::remove_all(scratch, cleanup_error);
+    const std::filesystem::path workspace = scratch / "song";
+    std::filesystem::create_directories(workspace);
+
+    // The fret-7 landing becomes fret 6, turning the shift slide into a one-fret glide whose
+    // target the opening window already covers.
+    const std::string gpif = fixtureWithReplacement("<Fret>7</Fret>", "<Fret>6</Fret>");
+    const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
+
+    GpSongImporter importer;
+    const auto song = importer.importSong(archive, workspace);
+    REQUIRE(song.has_value());
+    REQUIRE(song->arrangements.size() == 1);
+    const common::core::Chart& chart = requiredChart(song->arrangements.front());
+
+    REQUIRE(chart.notes.size() == 5);
+    REQUIRE(chart.notes[1].slides.size() == 1);
+    CHECK(chart.notes[1].slides[0].fret == 6);
+
+    // Minimal-shift coverage alone would leave the window at 3-6 through the glide; the slide
+    // delta moves it anyway, at the waypoint's mid-sustain position.
+    REQUIRE(chart.fret_hand_positions.size() == 3);
+    CHECK(chart.fret_hand_positions[0].fret == 3);
+    CHECK(
+        chart.fret_hand_positions[1] ==
+        common::core::FretHandPosition{
+            .position = GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 4}},
             .fret = 4,
             .width = 4
         });

@@ -716,13 +716,14 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
     close_span(std::nullopt);
 }
 
-// Generates the fret-hand position track with a minimal-shift window walk — the deliberately
+// Generates the fret-hand position track with a window walk — the deliberately
 // simple starting algorithm (user decision 2026-07-21): the hand covers a [fret, fret+width-1]
 // window (width four unless one coverage event spans wider), open strings never constrain it,
-// and when an event's frets fall outside the window the anchor moves the shortest distance that
+// and when an onset's frets fall outside the window the anchor moves the shortest distance that
 // covers them. Coverage events are note onsets plus every PITCHED slide waypoint at its own
-// mid-sustain position — the hand travels with a pitched glide, while an unpitched slide-out
-// releases pressure and never moves the window (user rule 2026-07-22). The maintained
+// mid-sustain position; a pitched glide drags the anchor by its own fret delta so the fretting
+// finger keeps its window slot (user rule 2026-07-23), while an unpitched slide-out releases
+// pressure and never moves the window (user rule 2026-07-22). The maintained
 // plain-English spec is "GP chart normalization policy" in
 // docs/developer/the-project-lifecycle.md — tweak behavior there first, then re-align this
 // code. Known limits (no lookahead, no phrase segmentation) and the corpus-derived generator
@@ -732,12 +733,15 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
     const std::vector<BuiltNote>& built, const common::core::TempoMap& tempo_map)
 {
     // One instant the hand must cover: an onset's fretted extent, or a pitched waypoint's fret.
+    // A nonzero shift marks a slide waypoint and carries its fret delta — the glide drags the
+    // anchor by exactly that amount instead of walking it minimally.
     struct CoverageEvent
     {
         Fraction global_beat{};
         GridPosition position;
         int min_fret{0};
         int max_fret{0};
+        int shift{0};
     };
     std::vector<CoverageEvent> events;
     std::size_t index = 0;
@@ -759,6 +763,7 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
                     onset.min_fret == 0 ? note.fret : std::min(onset.min_fret, note.fret);
                 onset.max_fret = std::max(onset.max_fret, note.fret);
             }
+            int slide_source = note.fret;
             for (const SlideWaypoint& waypoint : note.slides)
             {
                 if (waypoint.fret <= 0)
@@ -772,7 +777,9 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
                             tempo_map, note.position, waypoint.offset),
                         .min_fret = waypoint.fret,
                         .max_fret = waypoint.fret,
+                        .shift = slide_source > 0 ? waypoint.fret - slide_source : 0,
                     });
+                slide_source = waypoint.fret;
             }
             ++onset_end;
         }
@@ -796,6 +803,13 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
         {
             merged.back().min_fret = std::min(merged.back().min_fret, event.min_fret);
             merged.back().max_fret = std::max(merged.back().max_fret, event.max_fret);
+            // A chord slide's simultaneous waypoints share one delta; should degenerate input
+            // ever disagree, the first waypoint wins and the coverage clamp below keeps the
+            // window valid.
+            if (merged.back().shift == 0)
+            {
+                merged.back().shift = event.shift;
+            }
         }
         else
         {
@@ -808,16 +822,26 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
     int width = 4;
     for (const CoverageEvent& event : merged)
     {
-        if (!positions.empty() && event.min_fret >= anchor && event.max_fret <= anchor + width - 1)
+        const bool covered =
+            !positions.empty() && event.min_fret >= anchor && event.max_fret <= anchor + width - 1;
+        if (event.shift == 0 && covered)
         {
             continue;
         }
         const int next_width = std::max(4, event.max_fret - event.min_fret + 1);
         // The window may sit anywhere in [max-width+1, min]; the first placement anchors at
-        // the lowest fretted note, later ones shift minimally from the current anchor.
+        // the lowest fretted note. Later ones start from the current anchor dragged by the
+        // event's slide delta (zero for plain onsets) and clamp into the covering range — for
+        // an onset that is exactly the minimal shift, while a glide moves the full slide
+        // distance so the fretting finger keeps its window slot.
         const int lowest_anchor = std::max(1, event.max_fret - next_width + 1);
         const int next_anchor =
-            positions.empty() ? event.min_fret : std::clamp(anchor, lowest_anchor, event.min_fret);
+            positions.empty() ? event.min_fret
+                              : std::clamp(anchor + event.shift, lowest_anchor, event.min_fret);
+        if (covered && next_anchor == anchor && next_width == width)
+        {
+            continue;
+        }
         positions.push_back(
             common::core::FretHandPosition{
                 .position = event.position,
