@@ -47,16 +47,15 @@ struct HighwayMetrics
     double string_distance{0.35};
 
     /*!
-    \brief Extra world Y between the board surface and the whole string stack.
+    \brief World Y of the string grid's base above the floor; the floor stays the origin (y = 0).
 
-    Charter rests the lane stack directly on its half-string centering, which puts the bottom
-    lane only half a string spacing (0.175) above the board — but a note head standing vertical
-    in the rolling flip reaches \ref note_half_width (0.48) below its lane center, so
-    bottom-lane heads poked through the floor. Lifting the stack by one string spacing clears
-    the flipped head while the board surface stays at y = 0 as the coordinate origin
-    (user-tuned divergence, 2026-07-22).
+    Sized to the chord-box frame thickness (the renderer keeps its constant equal to this on
+    purpose): a chord box's bottom bar sits on the floor and fills this gap exactly, giving it
+    the same half-string clearance from the bottom lane that the box's top bar — drawn just
+    past the fret-line top — has from the top lane (user rule 2026-07-23). Fret lines span the
+    string grid alone and do not extend down through this gap.
     */
-    double string_stack_lift{0.35};
+    double string_grid_base_y{0.075};
 
     /*!
     \brief World Z per second of time distance at scroll speed 1.0.
@@ -247,12 +246,14 @@ the fret axis through the nut, as pure math the renderer never sees.
 /*!
 \brief Returns the world Y of a one-based lane, counted from the bottom.
 
-Lanes are centered on half-string offsets and the whole stack rides
-\ref HighwayMetrics::string_stack_lift above the board, so the bottom lane (1) sits the lift plus
-half a string spacing off the board surface and the fret lines that run from the board to the
-lift plus \ref HighwayMetrics::string_distance times the lane count stick out half a string
-spacing above the top lane. The shared seam so every string-plane consumer (string lanes,
-fingering spots) maps lanes identically.
+Lanes are centered on half-string offsets above the string grid's base
+(\ref HighwayMetrics::string_grid_base_y), so the bottom lane (1) sits the base plus half a
+string spacing off the floor and the fret lines spanning the grid stick out the same half-string
+distance above the top lane as below the bottom lane. The grid hugs the flat notes on purpose (a
+far-away head standing vertical in the rolling flip dips below the floor at the horizon; a full
+one-string stack lift clearing it was tried and reverted 2026-07-23 — the flat-against-the-board
+look wins). The shared seam so every string-plane consumer (string lanes, fingering spots) maps
+lanes identically.
 
 \param lane One-based lane index, 1 at the bottom.
 \param metrics World-space constants.
@@ -260,7 +261,7 @@ fingering spots) maps lanes identically.
 */
 [[nodiscard]] inline double highwayLaneToY(int lane, const HighwayMetrics& metrics)
 {
-    return metrics.string_stack_lift +
+    return metrics.string_grid_base_y +
            ((static_cast<double>(lane) - 0.5) * metrics.string_distance);
 }
 

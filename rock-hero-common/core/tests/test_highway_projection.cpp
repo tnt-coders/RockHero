@@ -262,20 +262,21 @@ TEST_CASE("Highway geometry mirrors and inverts as pure reflections", "[core][hi
     CHECK(highwayNoteCenterX(1, metrics, false) == Catch::Approx(0.55));
     CHECK(highwayNoteCenterX(1, metrics, true) == Catch::Approx(-0.55));
 
-    // Lanes are centered on half-string offsets and the stack rides string_stack_lift above the
-    // board, so the bottom lane sits the lift plus half a string spacing off the board
-    // (0.35 + 0.175) — clearance for the rolling flip's vertical note heads.
-    CHECK(highwayStringLaneY(1, 6, metrics, false) == Catch::Approx(0.525));
-    CHECK(highwayStringLaneY(6, 6, metrics, false) == Catch::Approx(2.275));
-    CHECK(highwayStringLaneY(1, 6, metrics, true) == Catch::Approx(2.275));
-    CHECK(highwayStringLaneY(6, 6, metrics, true) == Catch::Approx(0.525));
+    // Lanes are centered on half-string offsets above the string grid's base (0.075, the
+    // chord-box frame thickness): the bottom lane sits the base plus half a string spacing off
+    // the floor (0.075 + 0.175) so fret margins stay symmetric around the grid while a chord
+    // box's bottom bar fills the below-grid gap.
+    CHECK(highwayStringLaneY(1, 6, metrics, false) == Catch::Approx(0.25));
+    CHECK(highwayStringLaneY(6, 6, metrics, false) == Catch::Approx(2.0));
+    CHECK(highwayStringLaneY(1, 6, metrics, true) == Catch::Approx(2.0));
+    CHECK(highwayStringLaneY(6, 6, metrics, true) == Catch::Approx(0.25));
 
     // Eight-string arrangements stack two more lanes above the standard six.
-    CHECK(highwayStringLaneY(8, 8, metrics, false) == Catch::Approx(2.975));
+    CHECK(highwayStringLaneY(8, 8, metrics, false) == Catch::Approx(2.7));
 
     // The shared lane-to-Y seam that highwayStringLaneY delegates to.
-    CHECK(highwayLaneToY(1, metrics) == Catch::Approx(0.525));
-    CHECK(highwayLaneToY(6, metrics) == Catch::Approx(2.275));
+    CHECK(highwayLaneToY(1, metrics) == Catch::Approx(0.25));
+    CHECK(highwayLaneToY(6, metrics) == Catch::Approx(2.0));
 
     CHECK(highwayTimeToZ(1.0, 1.0, metrics) == Catch::Approx(20.0));
     CHECK(highwayTimeToZ(1.0, 2.0, metrics) == Catch::Approx(10.0));
