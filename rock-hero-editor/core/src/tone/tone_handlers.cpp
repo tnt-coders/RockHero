@@ -1699,6 +1699,10 @@ void EditorController::Impl::plantLanePoint(
 void EditorController::Impl::createAndNudgeLanePointAtCaret(
     const ChartCaret& caret, ChartStepDirection direction, bool fine)
 {
+    if (!caret.lane.has_value())
+    {
+        return;
+    }
     std::optional<LanePointPlan> plan = planLanePointAtCaret(caret);
     if (!plan.has_value())
     {

@@ -378,8 +378,10 @@ TEST_CASE("Guitar Pro import keeps the hand still through unpitched slides", "[c
 
     REQUIRE(chart.notes.size() == 5);
     CHECK(chart.notes[1].slides.empty());
-    REQUIRE(chart.notes[1].slide_out.has_value());
-    CHECK(chart.notes[1].slide_out->fret == 1);
+    const auto* slide_out =
+        chart.notes[1].slide_out.has_value() ? &*chart.notes[1].slide_out : nullptr;
+    REQUIRE(slide_out != nullptr);
+    CHECK(slide_out->fret == 1);
 
     // Were the trail-off treated as pitched coverage, its fret-1 waypoint would drag a wide
     // window down mid-sustain; instead the track is the main fixture's plain onset walk.
@@ -860,13 +862,15 @@ namespace
             .string = 1,
             .fret = fret_a,
             .tie_origin = tie_origin,
-            .tie_destination = tie_destination
+            .tie_destination = tie_destination,
+            .harmonic_type = ""
         },
         GpNote{
             .string = 2,
             .fret = fret_b,
             .tie_origin = tie_origin,
-            .tie_destination = tie_destination
+            .tie_destination = tie_destination,
+            .harmonic_type = ""
         }
     };
     return beat;
@@ -952,12 +956,15 @@ TEST_CASE("Guitar Pro import trims reaching tails and holds crossing rings", "[c
         GpScore score = makeLinearScore(1, syncs);
         GpBeat held;
         held.duration_whole = Fraction{1};
-        held.notes = {GpNote{.string = 1, .fret = 5}, GpNote{.string = 2, .fret = 7}};
+        held.notes = {
+            GpNote{.string = 1, .fret = 5, .harmonic_type = ""},
+            GpNote{.string = 2, .fret = 7, .harmonic_type = ""}
+        };
         GpBeat rest;
         rest.duration_whole = Fraction{1, 4};
         GpBeat melody;
         melody.duration_whole = Fraction{1, 4};
-        melody.notes = {GpNote{.string = 5, .fret = 8}};
+        melody.notes = {GpNote{.string = 5, .fret = 8, .harmonic_type = ""}};
         score.tracks[0].bars.push_back(GpBar{.voices = {{held}, {rest, rest, melody, rest}}});
 
         const auto built = buildGpSong(score);

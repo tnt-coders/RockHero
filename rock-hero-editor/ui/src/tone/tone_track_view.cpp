@@ -235,8 +235,8 @@ void ToneTrackView::paint(juce::Graphics& g)
     if (m_insert_ghost_x.has_value())
     {
         g.setColour(editorTheme().accent.withAlpha(0.7f));
-        const float top = static_cast<float>(g_region_vertical_inset);
-        const float bottom = static_cast<float>(bounds.getHeight() - g_region_vertical_inset);
+        const auto top = static_cast<float>(g_region_vertical_inset);
+        const auto bottom = static_cast<float>(bounds.getHeight() - g_region_vertical_inset);
         g.fillRect(*m_insert_ghost_x, top, 1.0f, bottom - top);
     }
 }

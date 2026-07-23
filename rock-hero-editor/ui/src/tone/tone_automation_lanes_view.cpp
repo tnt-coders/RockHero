@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <rock_hero/common/core/chart/chart_tokens.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <utility>
@@ -104,7 +105,7 @@ class PointValueEditorContent final : public juce::Component
 {
 public:
     // Where the caret starts, so each entry path overtypes correctly.
-    enum class InitialCaret
+    enum class InitialCaret : std::uint8_t
     {
         // Prefilled with a complete value: highlight it so the first keystroke replaces it.
         SelectAll,

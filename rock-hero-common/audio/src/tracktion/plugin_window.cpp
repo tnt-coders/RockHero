@@ -20,8 +20,8 @@ namespace
 // never races static initialization order.
 [[nodiscard]] PluginWindowShortcutBindings& sharedShortcutBindings()
 {
-    static PluginWindowShortcutBindings bindings = defaultPluginWindowShortcutBindings();
-    return bindings;
+    static PluginWindowShortcutBindings g_bindings = defaultPluginWindowShortcutBindings();
+    return g_bindings;
 }
 
 } // namespace
@@ -366,7 +366,7 @@ std::optional<PluginWindowCommand> PluginWindow::commandForWindowsKeyMessage(con
         return std::nullopt;
     }
 
-    char32_t character = static_cast<char32_t>(mapped_character);
+    auto character = static_cast<char32_t>(mapped_character);
     if (character >= U'A' && character <= U'Z')
     {
         character = character - U'A' + U'a';

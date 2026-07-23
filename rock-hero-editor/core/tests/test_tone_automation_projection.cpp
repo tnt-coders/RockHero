@@ -185,8 +185,11 @@ TEST_CASE(
     const ToneAutomationViewState selected_state = makeToneAutomationViewState(
         arrangement, tempo_map, "tones/x/tone.json", bindings, {}, port, &selected);
     REQUIRE(selected_state.selected_point.has_value());
-    CHECK(selected_state.selected_point->lane_index == 0);
-    CHECK(selected_state.selected_point->point_index == 1);
+    if (selected_state.selected_point.has_value())
+    {
+        CHECK(selected_state.selected_point->lane_index == 0);
+        CHECK(selected_state.selected_point->point_index == 1);
+    }
 
     const AutomationPointSelection stale{
         .instance_id = "instance-a",

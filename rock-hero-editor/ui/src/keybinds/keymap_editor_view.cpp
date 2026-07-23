@@ -329,7 +329,7 @@ void KeymapEditorView::paint(juce::Graphics& g)
 void KeymapEditorView::resized()
 {
     juce::Rectangle<int> bounds = getLocalBounds();
-    juce::Rectangle<int> reset_strip = bounds.removeFromBottom(g_reset_strip_height);
+    const juce::Rectangle<int> reset_strip = bounds.removeFromBottom(g_reset_strip_height);
     m_reset_button.changeWidthToFitText(reset_strip.getHeight() - 16);
     m_reset_button.setBounds(
         reset_strip.reduced(g_row_inset, 8).removeFromRight(m_reset_button.getWidth()));
@@ -468,12 +468,12 @@ void KeymapEditorView::beginCapture(EditorCommandId command, std::vector<int> re
     showThemedDialogModally(
         std::move(dialog),
         this,
-        [safe_this, dialog_ptr, command, replace_indices = std::move(replace_indices)](int result) {
+        [safe_this, dialog_ptr, command, indices = std::move(replace_indices)](int result) {
             if (safe_this == nullptr || result != 1)
             {
                 return;
             }
-            safe_this->confirmAndApply(command, dialog_ptr->captured(), replace_indices);
+            safe_this->confirmAndApply(command, dialog_ptr->captured(), indices);
         });
 }
 
@@ -501,10 +501,10 @@ void KeymapEditorView::confirmAndApply(
             m_command_manager.getNameOfCommand(owner_id) + "\".\n\nRe-assign it to \"" +
             juce::String{findEditorCommandSpec(toJuceCommandId(command))->name} + "\" instead?",
         {"Re-assign", "Cancel"},
-        [safe_this, command, key, replace_indices = std::move(replace_indices)](int choice) {
+        [safe_this, command, key, indices = std::move(replace_indices)](int choice) {
             if (safe_this != nullptr && choice == 0)
             {
-                safe_this->applyBindingChange(command, key, replace_indices);
+                safe_this->applyBindingChange(command, key, indices);
             }
         });
 }

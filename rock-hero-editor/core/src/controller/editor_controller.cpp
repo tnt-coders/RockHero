@@ -2896,6 +2896,10 @@ void EditorController::Impl::onChartFretDigitTyped(int digit)
 // unhandled so the digit falls through to a fresh flow.
 bool EditorController::Impl::widenChartFretEntry(int digit, std::uint32_t now_ms)
 {
+    if (!m_chart_fret_entry.has_value())
+    {
+        return false;
+    }
     const ChartFretEntry entry = *m_chart_fret_entry;
     const int combined = entry.value * 10 + digit;
     const bool widenable = now_ms - entry.last_keystroke_ms <= g_fret_entry_window_ms &&

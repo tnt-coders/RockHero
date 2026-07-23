@@ -1,5 +1,8 @@
 #include "keybinds/editor_command_registry.h"
 
+#include <array>
+#include <cstddef>
+
 namespace rock_hero::editor::ui
 {
 
@@ -314,7 +317,7 @@ namespace
     // first-class alias of the same command.
     for (int digit = 0; digit <= 9; ++digit)
     {
-        static constexpr const char* digit_names[] = {
+        static constexpr std::array<const char*, 10> digit_names{
             "Type Digit 0",
             "Type Digit 1",
             "Type Digit 2",
@@ -327,7 +330,7 @@ namespace
             "Type Digit 9",
         };
         add(static_cast<EditorCommandId>(static_cast<int>(EditorCommandId::TypeDigit0) + digit),
-            digit_names[digit],
+            digit_names.at(static_cast<std::size_t>(digit)),
             "Value Entry",
             {chord('0' + digit), chord(juce::KeyPress::numberPad0 + digit)});
     }

@@ -3,6 +3,7 @@
 #include "keybinds/key_chord_text.h"
 #include "keybinds/keymap_editor_view.h"
 
+#include <algorithm>
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
 
 namespace rock_hero::editor::ui
@@ -29,7 +30,7 @@ TEST_CASE("KeymapEditorView builds rows from the registry", "[ui][keybinds]")
         CHECK(findDescendant(editor, "keymap_add_" + id_hex) != nullptr);
         if (!spec.default_keypresses.empty())
         {
-            auto& first_chip =
+            const auto& first_chip =
                 findRequiredDescendant<juce::Button>(editor, "keymap_chip_" + id_hex + "_0");
             CHECK(first_chip.isEnabled());
             // Compared through the shared formatter: chip text collapses shifted characters
@@ -49,7 +50,7 @@ TEST_CASE("KeymapEditorView applies binding changes with one owner", "[ui][keybi
     RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
     KeymapEditorView editor{view.commandManager()};
-    juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
+    const juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
     const juce::KeyPress f9{juce::KeyPress::F9Key};
 
     // Adding a new binding.
@@ -86,7 +87,7 @@ TEST_CASE("KeymapEditorView rebinds and resets the core trio", "[ui][keybinds]")
     RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
     KeymapEditorView editor{view.commandManager()};
-    juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
+    const juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
     const juce::KeyPress ctrl_z{'z', juce::ModifierKeys::commandModifier, 0};
 
     // Undo gains an F10 alias.
@@ -119,7 +120,7 @@ TEST_CASE("KeymapEditorView resets one command to its defaults", "[ui][keybinds]
     RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
     KeymapEditorView editor{view.commandManager()};
-    juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
+    const juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
 
     const juce::KeyPress f8{juce::KeyPress::F8Key};
     const juce::KeyPress f9{juce::KeyPress::F9Key};
@@ -151,7 +152,7 @@ TEST_CASE("KeymapEditorView rebinds grammar chords like any other", "[ui][keybin
     RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
     KeymapEditorView editor{view.commandManager()};
-    juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
+    const juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
 
     const juce::KeyPress right_arrow{juce::KeyPress::rightKey};
     CHECK(
@@ -184,7 +185,7 @@ TEST_CASE("KeymapEditorView groups display-equal chords into one chip", "[ui][ke
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
     KeymapEditorView editor{view.commandManager()};
     editor.setSize(560, 520);
-    juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
+    const juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
 
     const juce::CommandID grid_finer = toJuceCommandId(EditorCommandId::GridFiner);
     const juce::String id_hex = juce::String::toHexString(grid_finer);
@@ -247,7 +248,8 @@ TEST_CASE("KeymapEditorView refreshes rows on mapping changes", "[ui][keybinds]"
 
     const juce::String id_hex =
         juce::String::toHexString(toJuceCommandId(EditorCommandId::ToggleUndoHistory));
-    auto& first_chip = findRequiredDescendant<juce::Button>(editor, "keymap_chip_" + id_hex + "_0");
+    const auto& first_chip =
+        findRequiredDescendant<juce::Button>(editor, "keymap_chip_" + id_hex + "_0");
     CHECK(first_chip.getButtonText() == keyChordText(f9));
 }
 
@@ -262,7 +264,8 @@ TEST_CASE("ActionsWindow hosts the editor and survives closes", "[ui][keybinds]"
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     ActionsWindow window{view.commandManager(), nullptr};
-    auto& editor_view = findRequiredDescendant<KeymapEditorView>(window, "actions_editor_view");
+    const auto& editor_view =
+        findRequiredDescendant<KeymapEditorView>(window, "actions_editor_view");
     CHECK(editor_view.isVisible());
     CHECK_FALSE(window.isVisible());
 

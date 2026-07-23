@@ -61,7 +61,10 @@ TEST_CASE("EditorKeymapPersistence saves rebinds and clears on reset", "[ui][key
         toJuceCommandId(EditorCommandId::ToggleUndoHistory), juce::KeyPress{juce::KeyPress::F9Key});
     mappings.sendSynchronousChangeMessage();
     REQUIRE(settings.stored_keymap.has_value());
-    CHECK(settings.stored_keymap->find("KEYMAPPINGS") != std::string::npos);
+    if (settings.stored_keymap.has_value())
+    {
+        CHECK(settings.stored_keymap->find("KEYMAPPINGS") != std::string::npos);
+    }
     const int writes_after_rebind = settings.write_count;
 
     // A change notification with an unchanged diff writes nothing (the equality gate).
@@ -124,7 +127,7 @@ TEST_CASE("EditorKeymapPersistence drops unknown stored entries", "[ui][keybinds
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
     const EditorKeymapPersistence persistence{view.commandManager(), settings};
 
-    juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
+    const juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
     // Known entries restored — an added F11 alias for Undo included — the unknown one did not.
     CHECK(
         mappings.findCommandForKeyPress(juce::KeyPress{juce::KeyPress::F9Key}) ==
@@ -147,7 +150,7 @@ TEST_CASE("EditorKeymapPersistence tolerates an unparseable blob", "[ui][keybind
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
     const EditorKeymapPersistence persistence{view.commandManager(), settings};
 
-    juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
+    const juce::KeyPressMappingSet& mappings = *view.commandManager().getKeyMappings();
     CHECK(
         mappings.findCommandForKeyPress(
             juce::KeyPress{'z', juce::ModifierKeys::commandModifier, 0}) ==

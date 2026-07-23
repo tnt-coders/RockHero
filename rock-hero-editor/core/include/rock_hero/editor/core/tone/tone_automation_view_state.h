@@ -42,7 +42,15 @@ struct ToneAutomationPointViewState
     \return True when both point view states store equal values.
     */
     friend bool operator==(
-        const ToneAutomationPointViewState& lhs, const ToneAutomationPointViewState& rhs) = default;
+        const ToneAutomationPointViewState& lhs, const ToneAutomationPointViewState& rhs)
+    {
+        // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
+        // seconds, norm_value, and curve_shape members. Exact equality is intended (the view echoes
+        // stored values back bit-identically for a dirty-checked republish).
+        return lhs.position == rhs.position && std::is_eq(lhs.seconds <=> rhs.seconds) &&
+               std::is_eq(lhs.norm_value <=> rhs.norm_value) &&
+               std::is_eq(lhs.curve_shape <=> rhs.curve_shape);
+    }
 };
 
 /*! \brief One automation lane (a plugin parameter) shown beneath the tone strip. */
@@ -95,7 +103,20 @@ struct ToneAutomationLaneViewState
     \return True when both lane view states store equal values.
     */
     friend bool operator==(
-        const ToneAutomationLaneViewState& lhs, const ToneAutomationLaneViewState& rhs) = default;
+        const ToneAutomationLaneViewState& lhs, const ToneAutomationLaneViewState& rhs)
+    {
+        // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
+        // live_norm_value and default_norm_value members. Exact equality is intended (a
+        // dirty-checked republish of the same projected lane).
+        return lhs.instance_id == rhs.instance_id && lhs.param_id == rhs.param_id &&
+               lhs.name == rhs.name && lhs.plugin_name == rhs.plugin_name &&
+               lhs.is_discrete == rhs.is_discrete &&
+               lhs.discrete_value_count == rhs.discrete_value_count &&
+               lhs.resolved == rhs.resolved &&
+               std::is_eq(lhs.live_norm_value <=> rhs.live_norm_value) &&
+               std::is_eq(lhs.default_norm_value <=> rhs.default_norm_value) &&
+               lhs.points == rhs.points;
+    }
 };
 
 /*! \brief One parameter the "+" picker can open a new lane for. */
@@ -177,7 +198,16 @@ struct ToneAutomationLaneCaretRef
     \return True when both references store equal values.
     */
     friend bool operator==(
-        const ToneAutomationLaneCaretRef& lhs, const ToneAutomationLaneCaretRef& rhs) = default;
+        const ToneAutomationLaneCaretRef& lhs, const ToneAutomationLaneCaretRef& rhs)
+    {
+        // Hand-written, not defaulted: a defaulted comparison trips clang's -Wfloat-equal on the
+        // seconds, measure_start_seconds, and measure_end_seconds members. Exact equality is
+        // intended (a dirty-checked republish of the same caret slot).
+        return lhs.lane_index == rhs.lane_index && std::is_eq(lhs.seconds <=> rhs.seconds) &&
+               lhs.position == rhs.position &&
+               std::is_eq(lhs.measure_start_seconds <=> rhs.measure_start_seconds) &&
+               std::is_eq(lhs.measure_end_seconds <=> rhs.measure_end_seconds);
+    }
 };
 
 /*!

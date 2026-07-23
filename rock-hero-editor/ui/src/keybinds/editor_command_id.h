@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <juce_gui_basics/juce_gui_basics.h>
 
 namespace rock_hero::editor::ui
@@ -36,7 +37,7 @@ plan 53 Phase 1b, 2026-07-20):
 - These ids are presentation-layer command identities, distinct from `core::EditorActionId`
   (controller-action identity); the two enums never converge.
 */
-enum class EditorCommandId : int
+enum class EditorCommandId : std::uint16_t
 {
     /*! \brief File > Open... (`Ctrl+O`). */
     OpenProject = 0x1001,
