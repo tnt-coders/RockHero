@@ -690,11 +690,14 @@ review before implementation (correctness-first, one commit per fix):
   (frame-varying flicker). Now a total order — onset descending, base string-lane Y ascending
   (higher-on-screen note on top), note index as a unique tiebreak. No depth-buffer change (the
   zero-pitch camera cannot encode world Y in depth).
-- **String height + fret margins.** Lanes centered on half-string offsets (`highwayLaneToY`
-  seam), the whole stack later lifted by `string_stack_lift` (one string spacing) so a
-  vertically flipped bottom-lane head clears the board floor: bottom lane at 0.525, half-string
-  fret margin above the top lane. Board-face top, chord-box top, fingering spots, and
-  section/chord-name anchors all follow.
+- **String height + fret margins.** Lanes centered on half-string offsets above the string
+  grid's base (`highwayLaneToY` seam): the floor stays the y = 0 origin, the grid base sits one
+  chord-box frame thickness (0.075) above it so a box's bottom bar fills that gap and keeps the
+  same half-string clearance from the bottom lane the top bar has from the top lane, and fret
+  lines span the grid alone. Board-face top, chord-box top, fingering spots, and
+  section/chord-name anchors all follow. (A full one-string stack lift clearing the rolling
+  flip's vertical heads was tried and reverted 2026-07-23: the grid hugging the flat notes
+  wins; the far-horizon vertical dip below the floor is accepted.)
 - **Scrolling fret numbers (the readability fix).** Reproduces the reference's
   `Preview3DBeatsDrawer`: dotted-fret numbers ({3,5,7,9,12,15,17,19,21,24}) ride each measure
   downbeat down the board floor (bright blue inside the hand range, dim teal elsewhere), FHP

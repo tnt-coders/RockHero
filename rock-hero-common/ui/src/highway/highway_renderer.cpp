@@ -159,6 +159,8 @@ constexpr ArgbColor g_chord_box_dark_color = 0xFF003C3D;
 constexpr ArgbColor g_chord_full_mute_cross_color = 0xFF80D8FF;
 constexpr ArgbColor g_chord_palm_mute_cross_color = 0xFF005064;
 constexpr ArgbColor g_chord_name_color = 0xFFE0E0E0;
+// Kept equal to HighwayMetrics::string_grid_base_y on purpose: the box's bottom bar sits on
+// the floor (y = 0) and fills the gap below the string grid exactly (see that field's doc).
 constexpr double g_chord_box_frame_thickness = 0.075;
 
 // Hand-shape span rails on the floor: arpeggio spans in the reference purple, held shapes in
@@ -1500,13 +1502,14 @@ void HighwayRenderer::Impl::draw(
         }
     }
 
-    // Top of the board face's fret lines: with lanes centered on half-string offsets and the
-    // stack riding string_stack_lift (highwayLaneToY) this leaves a half-string margin above the
-    // top lane; the larger gap below the bottom lane is the lift keeping flipped note heads off
-    // the floor. Shared by the fret-line pass below and everything that must not rise past the
-    // fret grid.
+    // Vertical extent of the board face's fret lines: the string grid's base (the floor stays
+    // y = 0; the chord box's bottom bar fills the gap below the grid) up to an equal
+    // half-string margin above the top lane (highwayLaneToY centers lanes on half-string
+    // offsets above the base). Shared by the fret-line pass below and everything that must not
+    // rise past the fret grid.
+    const double face_bottom_y = metrics.string_grid_base_y;
     const double face_top_y =
-        metrics.string_stack_lift +
+        metrics.string_grid_base_y +
         (static_cast<double>(std::max(state.string_count, 1)) * metrics.string_distance);
 
     // --- Chord and arpeggio boxes: the reference's translucent panels at chord onsets, plus an
@@ -1757,8 +1760,12 @@ void HighwayRenderer::Impl::draw(
     // under rails under open bars under heads.
     const bgfx::TextureHandle heads_texture = atlases.heads.get();
     const auto flush_note_batches = [&] {
+        // The shadow batch is floor furniture (span lines, glow posts, open-bar corner Ls), so
+        // it takes the floor's distance fade near the board face like every other floor
+        // element; heads, rails, and open bars are gameplay content and stay opaque.
+        bgfx::setUniform(fade_params.get(), fade_uniform.data());
         submitBatch(
-            shadow_vertices, shadow_indices, posColorLayout(), color_program.get(), nullptr);
+            shadow_vertices, shadow_indices, posColorLayout(), color_fade_program.get(), nullptr);
         submitBatch(rail_vertices, rail_indices, posColorLayout(), color_program.get(), nullptr);
         submitBatch(open_vertices, open_indices, posColorLayout(), color_program.get(), nullptr);
         submitBatch(
@@ -2490,7 +2497,8 @@ void HighwayRenderer::Impl::draw(
     // --- Board face: dynamic fret lines with the reference's three states (inactive, active
     // within current and upcoming hand windows, and the sqrt-decay hit-flash that thickens up
     // to 4x — a large part of the alive feel), drawn over passing content. Fret lines run from
-    // the board (y = 0) to face_top_y, defined above the chord-box pass that shares it. ---
+    // face_bottom_y to face_top_y (the string grid alone — the gap below the grid base belongs
+    // to the chord boxes' bottom bars), both defined above the chord-box pass. ---
     {
         // Active fret lines: the current hand range plus every window arriving soon.
         std::array<bool, g_face_fret_count + 1> active{};
@@ -2551,7 +2559,14 @@ void HighwayRenderer::Impl::draw(
             const ArgbColor color = mixArgb(state_color, g_fret_highlight_color, flash_weight);
             const double half = (line == 0 ? 0.05 : 0.025) * (1.0 + (3.0 * flash_weight));
             pushFaceQuad(
-                vertices, indices, x - half, x + half, 0.0, face_top_y, 0.0, packAbgr(color));
+                vertices,
+                indices,
+                x - half,
+                x + half,
+                face_bottom_y,
+                face_top_y,
+                0.0,
+                packAbgr(color));
         }
         submitBatch(vertices, indices, posColorLayout(), color_program.get(), nullptr);
     }
@@ -2591,8 +2606,8 @@ void HighwayRenderer::Impl::draw(
             pushQuad(
                 vertices,
                 indices,
-                makeUvVertex(x0, 0.0, 0.0, white, u0, v1),
-                makeUvVertex(x1, 0.0, 0.0, white, u1, v1),
+                makeUvVertex(x0, face_bottom_y, 0.0, white, u0, v1),
+                makeUvVertex(x1, face_bottom_y, 0.0, white, u1, v1),
                 makeUvVertex(x1, face_top_y, 0.0, white, u1, v0),
                 makeUvVertex(x0, face_top_y, 0.0, white, u0, v0));
         }
