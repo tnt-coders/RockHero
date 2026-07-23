@@ -317,7 +317,7 @@ namespace
     // first-class alias of the same command.
     for (int digit = 0; digit <= 9; ++digit)
     {
-        static constexpr std::array<const char*, 10> digit_names{
+        static constexpr std::array<const char*, 10> g_digit_names{
             "Type Digit 0",
             "Type Digit 1",
             "Type Digit 2",
@@ -330,7 +330,7 @@ namespace
             "Type Digit 9",
         };
         add(static_cast<EditorCommandId>(static_cast<int>(EditorCommandId::TypeDigit0) + digit),
-            digit_names.at(static_cast<std::size_t>(digit)),
+            g_digit_names.at(static_cast<std::size_t>(digit)),
             "Value Entry",
             {chord('0' + digit), chord(juce::KeyPress::numberPad0 + digit)});
     }
@@ -367,8 +367,8 @@ namespace
 
 const std::vector<EditorCommandSpec>& editorCommandRegistry()
 {
-    static const std::vector<EditorCommandSpec> registry = makeRegistry();
-    return registry;
+    static const std::vector<EditorCommandSpec> g_registry = makeRegistry();
+    return g_registry;
 }
 
 const EditorCommandSpec* findEditorCommandSpec(juce::CommandID command_id)

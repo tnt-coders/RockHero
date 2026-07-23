@@ -32,6 +32,7 @@
 #include <juce_core/juce_core.h>
 #include <memory>
 #include <optional>
+#include <ranges>
 #include <rock_hero/common/audio/device/device_restore_outcome.h>
 #include <rock_hero/common/audio/device/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/input/i_live_input.h>
@@ -1631,16 +1632,16 @@ void EditorController::Impl::clearChartEditingState()
 // which is exactly what "no chart selection" means to every chart handler.
 const ChartSelection& EditorController::Impl::chartSelection() const
 {
-    static const ChartSelection empty{};
-    const ChartSelection* const selection = std::get_if<ChartSelection>(&m_selection);
-    return selection != nullptr ? *selection : empty;
+    static const ChartSelection g_empty{};
+    const auto* const selection = std::get_if<ChartSelection>(&m_selection);
+    return selection != nullptr ? *selection : g_empty;
 }
 
 // Mutable access emplaces the chart alternative, so any chart-selection gesture structurally
 // replaces a tone-region or automation-point selection (one selection editor-wide).
 ChartSelection& EditorController::Impl::chartSelectionMutable()
 {
-    if (ChartSelection* const selection = std::get_if<ChartSelection>(&m_selection))
+    if (auto* const selection = std::get_if<ChartSelection>(&m_selection))
     {
         return *selection;
     }
@@ -2420,11 +2421,11 @@ namespace
         }
         return std::nullopt;
     }
-    for (auto section = sections.rbegin(); section != sections.rend(); ++section)
+    for (const auto& section : std::views::reverse(sections))
     {
-        if (section->position < reference)
+        if (section.position < reference)
         {
-            return section->position;
+            return section.position;
         }
     }
     return std::nullopt;
@@ -3000,7 +3001,8 @@ void EditorController::Impl::insertChartFretAtCaret(int digit, std::uint32_t now
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     const ChartCaret* const caret = armedChartCaret();
-    if (arrangement == nullptr || caret == nullptr || caret->lane.has_value())
+    if (arrangement == nullptr || !arrangement->chart.has_value() || caret == nullptr ||
+        caret->lane.has_value())
     {
         // No caret, or the caret rides an automation lane row — lane typing is the
         // typed-value editor (routed in the view), never a fret insert.
