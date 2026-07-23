@@ -96,31 +96,31 @@ namespace
         const char* name;
     };
     // Runtime table (not a switch) because JUCE key-code constants are runtime values.
-    const NamedKey named_keys[] = {
-        {juce::KeyPress::leftKey, "Left"},
-        {juce::KeyPress::rightKey, "Right"},
-        {juce::KeyPress::upKey, "Up"},
-        {juce::KeyPress::downKey, "Down"},
-        {juce::KeyPress::spaceKey, "Space"},
-        {juce::KeyPress::returnKey, "Enter"},
-        {juce::KeyPress::escapeKey, "Esc"},
-        {juce::KeyPress::backspaceKey, "Backspace"},
-        {juce::KeyPress::deleteKey, "Delete"},
-        {juce::KeyPress::insertKey, "Insert"},
-        {juce::KeyPress::tabKey, "Tab"},
-        {juce::KeyPress::homeKey, "Home"},
-        {juce::KeyPress::endKey, "End"},
-        {juce::KeyPress::pageUpKey, "Page Up"},
-        {juce::KeyPress::pageDownKey, "Page Down"},
-        {juce::KeyPress::numberPadAdd, "Num +"},
-        {juce::KeyPress::numberPadSubtract, "Num -"},
-        {juce::KeyPress::numberPadMultiply, "Num *"},
-        {juce::KeyPress::numberPadDivide, "Num /"},
-        {juce::KeyPress::numberPadDecimalPoint, "Num ."},
-        {juce::KeyPress::numberPadEquals, "Num ="},
-        {juce::KeyPress::numberPadSeparator, "Num ,"},
-        {juce::KeyPress::numberPadDelete, "Num Delete"},
-    };
+    const auto named_keys = std::to_array<NamedKey>({
+        {.code = juce::KeyPress::leftKey, .name = "Left"},
+        {.code = juce::KeyPress::rightKey, .name = "Right"},
+        {.code = juce::KeyPress::upKey, .name = "Up"},
+        {.code = juce::KeyPress::downKey, .name = "Down"},
+        {.code = juce::KeyPress::spaceKey, .name = "Space"},
+        {.code = juce::KeyPress::returnKey, .name = "Enter"},
+        {.code = juce::KeyPress::escapeKey, .name = "Esc"},
+        {.code = juce::KeyPress::backspaceKey, .name = "Backspace"},
+        {.code = juce::KeyPress::deleteKey, .name = "Delete"},
+        {.code = juce::KeyPress::insertKey, .name = "Insert"},
+        {.code = juce::KeyPress::tabKey, .name = "Tab"},
+        {.code = juce::KeyPress::homeKey, .name = "Home"},
+        {.code = juce::KeyPress::endKey, .name = "End"},
+        {.code = juce::KeyPress::pageUpKey, .name = "Page Up"},
+        {.code = juce::KeyPress::pageDownKey, .name = "Page Down"},
+        {.code = juce::KeyPress::numberPadAdd, .name = "Num +"},
+        {.code = juce::KeyPress::numberPadSubtract, .name = "Num -"},
+        {.code = juce::KeyPress::numberPadMultiply, .name = "Num *"},
+        {.code = juce::KeyPress::numberPadDivide, .name = "Num /"},
+        {.code = juce::KeyPress::numberPadDecimalPoint, .name = "Num ."},
+        {.code = juce::KeyPress::numberPadEquals, .name = "Num ="},
+        {.code = juce::KeyPress::numberPadSeparator, .name = "Num ,"},
+        {.code = juce::KeyPress::numberPadDelete, .name = "Num Delete"},
+    });
     for (const NamedKey& named : named_keys)
     {
         if (key_code == named.code)

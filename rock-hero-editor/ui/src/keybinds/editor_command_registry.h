@@ -26,7 +26,7 @@ algebra lives on only as the shape of the defaults below.
 struct EditorCommandSpec final
 {
     /*! \brief Stable command identity (the persistence key, locked forever). */
-    EditorCommandId id{};
+    EditorCommandId id;
 
     /*! \brief Base display name shown in menus and the shortcuts dialog. */
     const char* name{""};

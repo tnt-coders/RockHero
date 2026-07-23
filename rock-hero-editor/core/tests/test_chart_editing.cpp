@@ -355,9 +355,10 @@ TEST_CASE("EditorController publishes the Alt insert ghost honestly", "[core][ch
     controller.onChartPointerMove(pointerEvent(200.0f, 100.0f, ChartPointerModifiers{.alt = true}));
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
-    REQUIRE(state->chart_edit.insert_ghost.has_value());
-    CHECK(state->chart_edit.insert_ghost->seconds == Catch::Approx(10.0));
-    CHECK(state->chart_edit.insert_ghost->string == 4);
+    const ChartInsertGhostViewState* insert_ghost = insertGhostOrNull(state->chart_edit);
+    REQUIRE(insert_ghost != nullptr);
+    CHECK(insert_ghost->seconds == Catch::Approx(10.0));
+    CHECK(insert_ghost->string == 4);
 
     // Drop Alt over the same slot: no ring — Alt is the create gate, a plain hover shows none.
     controller.onChartPointerMove(pointerEvent(200.0f, 100.0f));
@@ -795,27 +796,29 @@ TEST_CASE("EditorController builds and extends the time selection", "[core][char
     // First Shift+Right anchors at the paused cursor (measure 1 beat 1 = 0.0s) and extends one
     // quarter-note grid step (0.5s at 120 BPM 4/4).
     controller.onTimeSelectionExtendRequested(TimeSelectionExtent::Grid, ChartStepDirection::Right);
-    REQUIRE(state->time_selection.has_value());
-    CHECK(state->time_selection->start.seconds == Catch::Approx(0.0));
-    CHECK(state->time_selection->end.seconds == Catch::Approx(0.5));
+    const common::core::TimeRange* time_selection = timeSelectionOrNull(*state);
+    REQUIRE(time_selection != nullptr);
+    CHECK(time_selection->start.seconds == Catch::Approx(0.0));
+    CHECK(time_selection->end.seconds == Catch::Approx(0.5));
     CHECK(state->selection_present);
 
     // A second grid extend grows the range to a half note (1.0s), keeping the anchor.
     controller.onTimeSelectionExtendRequested(TimeSelectionExtent::Grid, ChartStepDirection::Right);
-    REQUIRE(state->time_selection.has_value());
-    CHECK(state->time_selection->start.seconds == Catch::Approx(0.0));
-    CHECK(state->time_selection->end.seconds == Catch::Approx(1.0));
+    time_selection = timeSelectionOrNull(*state);
+    REQUIRE(time_selection != nullptr);
+    CHECK(time_selection->start.seconds == Catch::Approx(0.0));
+    CHECK(time_selection->end.seconds == Catch::Approx(1.0));
 
     // Ctrl reaches the measure unit: extend to the next measure downbeat (measure 2 = 2.0s).
     controller.onTimeSelectionExtendRequested(
         TimeSelectionExtent::Measure, ChartStepDirection::Right);
-    CHECK(state->time_selection->end.seconds == Catch::Approx(2.0));
+    CHECK(time_selection->end.seconds == Catch::Approx(2.0));
 
     // Extending Left shrinks the focus back one grid step toward the anchor (measure 1 beat 4 =
     // 1.5s).
     controller.onTimeSelectionExtendRequested(TimeSelectionExtent::Grid, ChartStepDirection::Left);
-    CHECK(state->time_selection->start.seconds == Catch::Approx(0.0));
-    CHECK(state->time_selection->end.seconds == Catch::Approx(1.5));
+    CHECK(time_selection->start.seconds == Catch::Approx(0.0));
+    CHECK(time_selection->end.seconds == Catch::Approx(1.5));
 
     // Shift+End extends the focus to the chart's terminal downbeat; the anchor stays at 0.0.
     const common::core::TempoMap& tempo_map = controller.session().song().tempo_map;
@@ -824,8 +827,8 @@ TEST_CASE("EditorController builds and extends the time selection", "[core][char
     const double chart_end = tempo_map.secondsAtBeat(end_measure, end_beat);
     controller.onTimeSelectionExtendRequested(
         TimeSelectionExtent::ChartBound, ChartStepDirection::Right);
-    CHECK(state->time_selection->start.seconds == Catch::Approx(0.0));
-    CHECK(state->time_selection->end.seconds == Catch::Approx(chart_end));
+    CHECK(time_selection->start.seconds == Catch::Approx(0.0));
+    CHECK(time_selection->end.seconds == Catch::Approx(chart_end));
 }
 
 // Building a time selection dissolves the caret (decision D), and a plain arrow then clears the
@@ -857,9 +860,10 @@ TEST_CASE(
     // Shift+Right builds a range anchored at the caret's grid slot (6.0s -> 6.5s) and demotes the
     // marker to passive: the range dissolves the caret.
     controller.onTimeSelectionExtendRequested(TimeSelectionExtent::Grid, ChartStepDirection::Right);
-    REQUIRE(state->time_selection.has_value());
-    CHECK(state->time_selection->start.seconds == Catch::Approx(6.0));
-    CHECK(state->time_selection->end.seconds == Catch::Approx(6.5));
+    const common::core::TimeRange* time_selection = timeSelectionOrNull(*state);
+    REQUIRE(time_selection != nullptr);
+    CHECK(time_selection->start.seconds == Catch::Approx(6.0));
+    CHECK(time_selection->end.seconds == Catch::Approx(6.5));
     CHECK(caretOrNull(state->chart_edit) == nullptr);
 
     // A plain arrow clears the range and arms a caret again (object selection evicts the range).
@@ -899,8 +903,9 @@ TEST_CASE("EditorController collapses a shrunk-to-zero time selection", "[core][
 
     // Shift+Right builds [6.0, 6.5] anchored at 6.0.
     controller.onTimeSelectionExtendRequested(TimeSelectionExtent::Grid, ChartStepDirection::Right);
-    REQUIRE(state->time_selection.has_value());
-    CHECK(state->time_selection->end.seconds == Catch::Approx(6.5));
+    const common::core::TimeRange* time_selection = timeSelectionOrNull(*state);
+    REQUIRE(time_selection != nullptr);
+    CHECK(time_selection->end.seconds == Catch::Approx(6.5));
 
     // Shift+Left steps the focus back onto the anchor: the range clears rather than lingering as a
     // zero-width span, and selection_present drops.
@@ -911,9 +916,10 @@ TEST_CASE("EditorController collapses a shrunk-to-zero time selection", "[core][
     // A further Shift+Left re-anchors at 6.0 (the transport rested there) and extends left to
     // measure 3 beat 4 (5.5s).
     controller.onTimeSelectionExtendRequested(TimeSelectionExtent::Grid, ChartStepDirection::Left);
-    REQUIRE(state->time_selection.has_value());
-    CHECK(state->time_selection->start.seconds == Catch::Approx(5.5));
-    CHECK(state->time_selection->end.seconds == Catch::Approx(6.0));
+    time_selection = timeSelectionOrNull(*state);
+    REQUIRE(time_selection != nullptr);
+    CHECK(time_selection->start.seconds == Catch::Approx(5.5));
+    CHECK(time_selection->end.seconds == Catch::Approx(6.0));
 }
 
 // Shift+PageUp/PageDown extend the range by whole sections; an extend with no section in that
@@ -950,20 +956,22 @@ TEST_CASE("EditorController extends the time selection by section", "[core][char
         TimeSelectionExtent::Section, ChartStepDirection::Right);
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
-    REQUIRE(state->time_selection.has_value());
-    CHECK(state->time_selection->start.seconds == Catch::Approx(0.0));
-    CHECK(state->time_selection->end.seconds == Catch::Approx(4.0));
+    const common::core::TimeRange* time_selection = timeSelectionOrNull(*state);
+    REQUIRE(time_selection != nullptr);
+    CHECK(time_selection->start.seconds == Catch::Approx(0.0));
+    CHECK(time_selection->end.seconds == Catch::Approx(4.0));
 
     // Again extends to the next section (measure 7 = 12.0s).
     controller.onTimeSelectionExtendRequested(
         TimeSelectionExtent::Section, ChartStepDirection::Right);
-    CHECK(state->time_selection->end.seconds == Catch::Approx(12.0));
+    CHECK(time_selection->end.seconds == Catch::Approx(12.0));
 
     // Again -> no section past measure 7: refused, the range stays put.
     controller.onTimeSelectionExtendRequested(
         TimeSelectionExtent::Section, ChartStepDirection::Right);
-    REQUIRE(state->time_selection.has_value());
-    CHECK(state->time_selection->end.seconds == Catch::Approx(12.0));
+    time_selection = timeSelectionOrNull(*state);
+    REQUIRE(time_selection != nullptr);
+    CHECK(time_selection->end.seconds == Catch::Approx(12.0));
 }
 
 // Playback dissolves the marker's armed state (the marker model): play clears the note

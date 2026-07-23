@@ -418,6 +418,50 @@ an input identity build their OWN LiveInputMonitor over their own fakes and inje
 }
 
 /*!
+\brief Returns a nullable pointer to the selected automation point so tests satisfy optional-access lint.
+\param automation Tone-automation view state that may or may not carry a resolved point selection.
+\return Pointer to the contained selected-point reference, or nullptr.
+*/
+[[nodiscard]] inline const ToneAutomationSelectedPointRef* selectedPointOrNull(
+    const ToneAutomationViewState& automation) noexcept
+{
+    return automation.selected_point.has_value() ? &*automation.selected_point : nullptr;
+}
+
+/*!
+\brief Returns a nullable pointer to the armed lane caret so tests satisfy optional-access lint.
+\param automation Tone-automation view state that may or may not carry a resolved lane caret.
+\return Pointer to the contained lane-caret reference, or nullptr.
+*/
+[[nodiscard]] inline const ToneAutomationLaneCaretRef* laneCaretOrNull(
+    const ToneAutomationViewState& automation) noexcept
+{
+    return automation.lane_caret.has_value() ? &*automation.lane_caret : nullptr;
+}
+
+/*!
+\brief Returns a nullable pointer to the Alt insert ghost so tests can satisfy optional-access lint.
+\param edit Chart-edit view state that may or may not carry an insert ghost.
+\return Pointer to the contained insert-ghost state, or nullptr.
+*/
+[[nodiscard]] inline const ChartInsertGhostViewState* insertGhostOrNull(
+    const ChartEditViewState& edit) noexcept
+{
+    return edit.insert_ghost.has_value() ? &*edit.insert_ghost : nullptr;
+}
+
+/*!
+\brief Returns a nullable pointer to the time selection so tests can satisfy optional-access lint.
+\param state Editor state that may or may not carry a time-range selection.
+\return Pointer to the contained time range, or nullptr.
+*/
+[[nodiscard]] inline const common::core::TimeRange* timeSelectionOrNull(
+    const EditorViewState& state) noexcept
+{
+    return state.time_selection.has_value() ? &*state.time_selection : nullptr;
+}
+
+/*!
 \brief Returns a nullable pointer to the loaded chart so tests can satisfy optional-access lint.
 \param controller Editor controller whose session may hold a charted arrangement.
 \return Pointer to the current arrangement's chart, or nullptr.

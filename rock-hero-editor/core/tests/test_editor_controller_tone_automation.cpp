@@ -520,16 +520,18 @@ TEST_CASE(
     // Selecting a point makes it THE selection: the published point reference resolves and the
     // region's selected flag drops (one selection editor-wide — two cannot coexist).
     editor.controller.onToneAutomationPointSelectRequested(g_instance, g_param, pointAt(2, 1));
-    REQUIRE(editor.automation().selected_point.has_value());
-    CHECK(editor.automation().selected_point->lane_index == 0);
-    CHECK(editor.automation().selected_point->point_index == 1);
+    const ToneAutomationSelectedPointRef* const selected = selectedPointOrNull(editor.automation());
+    REQUIRE(selected != nullptr);
+    CHECK(selected->lane_index == 0);
+    CHECK(selected->point_index == 1);
     CHECK_FALSE(editor.view.last_state->tone_track.regions.front().selected);
 
     // The caret arms at the clicked point's slot (2026-07-18 fix), so keyboard verbs continue
     // from the object just touched.
-    REQUIRE(editor.automation().lane_caret.has_value());
-    CHECK(editor.automation().lane_caret->lane_index == 0);
-    CHECK(editor.automation().lane_caret->position == pointAt(2, 1));
+    const ToneAutomationLaneCaretRef* const caret = laneCaretOrNull(editor.automation());
+    REQUIRE(caret != nullptr);
+    CHECK(caret->lane_index == 0);
+    CHECK(caret->position == pointAt(2, 1));
 
     // A seek is cursor motion: the cursor-coupled selection clears, exactly like the shipped
     // tone-region rule.
@@ -548,9 +550,10 @@ TEST_CASE(
     // the 1.0 s quarter-note line (measure 1 beat 3 at 120 BPM 4/4).
     editor.controller.onToneAutomationLaneCaretRequested(
         g_instance, g_param, common::core::TimePosition{1.1});
-    REQUIRE(editor.automation().lane_caret.has_value());
-    CHECK(editor.automation().lane_caret->lane_index == 0);
-    CHECK(editor.automation().lane_caret->position == pointAt(1, 3));
+    const ToneAutomationLaneCaretRef* const caret = laneCaretOrNull(editor.automation());
+    REQUIRE(caret != nullptr);
+    CHECK(caret->lane_index == 0);
+    CHECK(caret->position == pointAt(1, 3));
     CHECK(editor.transport.position().seconds == Catch::Approx(1.0));
 
     // Insert is the neutral create: on an unauthored lane the point lands on the live tracking
@@ -570,8 +573,9 @@ TEST_CASE(
     // Arming onto the occupied slot re-derives the selection from the point under the caret.
     editor.controller.onToneAutomationLaneCaretRequested(
         g_instance, g_param, common::core::TimePosition{1.0});
-    REQUIRE(editor.automation().selected_point.has_value());
-    CHECK(editor.automation().selected_point->point_index == 0);
+    const ToneAutomationSelectedPointRef* const selected = selectedPointOrNull(editor.automation());
+    REQUIRE(selected != nullptr);
+    CHECK(selected->point_index == 0);
 }
 
 TEST_CASE(
@@ -600,8 +604,9 @@ TEST_CASE(
     // restored point back up instead of leaving it unselected.
     editor.controller.onUndoRequested();
     REQUIRE(editor.model().front().points.size() == 2);
-    REQUIRE(editor.automation().selected_point.has_value());
-    CHECK(editor.automation().selected_point->point_index == 1);
+    const ToneAutomationSelectedPointRef* const selected = selectedPointOrNull(editor.automation());
+    REQUIRE(selected != nullptr);
+    CHECK(selected->point_index == 1);
 
     // A stale selection (the point already gone) deletes nothing.
     editor.controller.onSelectionDeleteRequested();
@@ -632,8 +637,9 @@ TEST_CASE(
     // Alt+Right moves to the adjacent grid line; the selection re-points to the new identity.
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Right, false);
     CHECK(editor.model().front().points.back().position == pointAt(2, 2));
-    REQUIRE(editor.automation().selected_point.has_value());
-    CHECK(editor.automation().selected_point->point_index == 1);
+    const ToneAutomationSelectedPointRef* const selected = selectedPointOrNull(editor.automation());
+    REQUIRE(selected != nullptr);
+    CHECK(selected->point_index == 1);
 
     // Arm the lane caret onto the moved point (2.5 s = measure 2 beat 2): further nudges carry
     // the caret along — it stays on its object through the move.
@@ -641,8 +647,9 @@ TEST_CASE(
         g_instance, g_param, common::core::TimePosition{2.5});
     editor.controller.onSelectionMoveRequested(ChartStepDirection::Right, false);
     CHECK(editor.model().front().points.back().position == pointAt(2, 3));
-    REQUIRE(editor.automation().lane_caret.has_value());
-    CHECK(editor.automation().lane_caret->position == pointAt(2, 3));
+    const ToneAutomationLaneCaretRef* const moved_caret = laneCaretOrNull(editor.automation());
+    REQUIRE(moved_caret != nullptr);
+    CHECK(moved_caret->position == pointAt(2, 3));
 
     // Ctrl+Alt+Left steps back one 1/960 beat: the point (and its caret) leave the lattice
     // exactly.
@@ -651,8 +658,9 @@ TEST_CASE(
         .measure = 2, .beat = 2, .offset = common::core::Fraction{959, 960}
     };
     CHECK(editor.model().front().points.back().position == fine_slot);
-    REQUIRE(editor.automation().lane_caret.has_value());
-    CHECK(editor.automation().lane_caret->position == fine_slot);
+    const ToneAutomationLaneCaretRef* const fine_caret = laneCaretOrNull(editor.automation());
+    REQUIRE(fine_caret != nullptr);
+    CHECK(fine_caret->position == fine_slot);
 
     // A grid step from the off-grid slot lands on the ADJACENT grid line — never jumping past
     // it (the shared adjacent-line primitive, matching the caret's own stepping rule); the
@@ -696,8 +704,9 @@ TEST_CASE(
     REQUIRE(editor.model().front().points.size() == 3);
     CHECK(editor.model().front().points[1].position == pointAt(2, 1));
     CHECK(std::abs(editor.model().front().points[1].norm_value - 0.51F) < 0.0001F);
-    REQUIRE(editor.automation().selected_point.has_value());
-    CHECK(editor.automation().selected_point->point_index == 1);
+    const ToneAutomationSelectedPointRef* const selected = selectedPointOrNull(editor.automation());
+    REQUIRE(selected != nullptr);
+    CHECK(selected->point_index == 1);
 
     // One undo removes the whole create-then-nudge (the step was baked into the creation).
     editor.controller.onUndoRequested();
@@ -785,22 +794,26 @@ TEST_CASE("EditorController steps the lane caret onto off-grid points", "[core][
     const common::core::GridPosition fine_slot{
         .measure = 2, .beat = 1, .offset = common::core::Fraction{959, 960}
     };
-    REQUIRE(editor.automation().lane_caret.has_value());
-    CHECK(editor.automation().lane_caret->position == fine_slot);
+    const ToneAutomationLaneCaretRef* const fine_caret = laneCaretOrNull(editor.automation());
+    REQUIRE(fine_caret != nullptr);
+    CHECK(fine_caret->position == fine_slot);
 
     // Plain Left steps to the (2,1) grid line — an empty slot, so the selection clears.
     editor.controller.onChartCaretStepRequested(ChartStepDirection::Left, false);
-    REQUIRE(editor.automation().lane_caret.has_value());
-    CHECK(editor.automation().lane_caret->position == pointAt(2, 1));
+    const ToneAutomationLaneCaretRef* const left_caret = laneCaretOrNull(editor.automation());
+    REQUIRE(left_caret != nullptr);
+    CHECK(left_caret->position == pointAt(2, 1));
     CHECK_FALSE(editor.automation().selected_point.has_value());
 
     // Plain Right stops ON the off-grid point before the (2,2) line, selecting it (the union
     // stop set on lane rows).
     editor.controller.onChartCaretStepRequested(ChartStepDirection::Right, false);
-    REQUIRE(editor.automation().lane_caret.has_value());
-    CHECK(editor.automation().lane_caret->position == fine_slot);
-    REQUIRE(editor.automation().selected_point.has_value());
-    CHECK(editor.automation().selected_point->point_index == 1);
+    const ToneAutomationLaneCaretRef* const right_caret = laneCaretOrNull(editor.automation());
+    REQUIRE(right_caret != nullptr);
+    CHECK(right_caret->position == fine_slot);
+    const ToneAutomationSelectedPointRef* const selected = selectedPointOrNull(editor.automation());
+    REQUIRE(selected != nullptr);
+    CHECK(selected->point_index == 1);
 }
 
 TEST_CASE(

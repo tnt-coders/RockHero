@@ -247,15 +247,18 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
         }
 
         // A slide-out owns its geometry and must stay ordered like any payload.
-        if (note.slide_out.has_value() &&
-            (note.slide_out->offset <= previous_offset || note.slide_out->offset > note.sustain ||
-             note.slide_out->fret < 0 || note.slide_out->fret > g_max_fret))
+        if (note.slide_out.has_value())
         {
-            return std::unexpected{ChartError{
-                .code = ChartErrorCode::InvalidNotePayload,
-                .message = "slide-out must end after every waypoint, within the sustain at " +
-                           positionText(note.position),
-            }};
+            const SlideOut& slide_out = *note.slide_out;
+            if (slide_out.offset <= previous_offset || slide_out.offset > note.sustain ||
+                slide_out.fret < 0 || slide_out.fret > g_max_fret)
+            {
+                return std::unexpected{ChartError{
+                    .code = ChartErrorCode::InvalidNotePayload,
+                    .message = "slide-out must end after every waypoint, within the sustain at " +
+                               positionText(note.position),
+                }};
+            }
         }
 
         previous_note = &note;

@@ -102,11 +102,14 @@ HighwayViewState makeHighwayViewState(
         // legato alike — are already ordinary waypoints above.
         if (note.slide_out.has_value())
         {
+            // Bound to a local so the optional check and both accesses are provably the same
+            // object (bugprone-unchecked-optional-access does not treat repeated -> as guarded).
+            const SlideOut& slide_out = *note.slide_out;
             view.slides.push_back(
                 HighwaySlideView{
                     .seconds = tempo_map.secondsAtGlobalBeatPosition(
-                        onset_beat + note.slide_out->offset.toDouble()),
-                    .fret = note.slide_out->fret,
+                        onset_beat + slide_out.offset.toDouble()),
+                    .fret = slide_out.fret,
                     .unpitched = true,
                 });
         }

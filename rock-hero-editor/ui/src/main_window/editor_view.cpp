@@ -1240,9 +1240,6 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
             break;
         }
         case EditorCommandId::ShowActions:
-        {
-            break;
-        }
         case EditorCommandId::PlayPause:
         {
             // Always active: the controller owns transport legality, matching the old
@@ -1269,15 +1266,11 @@ void EditorView::getCommandInfo(juce::CommandID command_id, juce::ApplicationCom
             info.setTicked(preview_open);
             break;
         }
+        // InsertToneChange and the grammar verbs (plan 53 Phase 1b) stay always-active on
+        // purpose: their old decoder branches declined silently, and a disabled command whose
+        // chord matches makes JUCE play the system alert sound (KeyPressMappingSet::keyPressed)
+        // — so perform self-gates instead, and the core self-gates its intents anyway.
         case EditorCommandId::InsertToneChange:
-        {
-            break;
-        }
-
-        // The grammar verbs (plan 53 Phase 1b) stay always-active on purpose: their old
-        // decoder branches declined silently, and a disabled command whose chord matches makes
-        // JUCE play the system alert sound (KeyPressMappingSet::keyPressed) — so perform
-        // self-gates instead, and the core self-gates its intents anyway.
         case EditorCommandId::CaretStepLeft:
         case EditorCommandId::CaretStepRight:
         case EditorCommandId::CaretStepUp:

@@ -660,9 +660,10 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
             std::vector<std::optional<int>> posture(string_count);
             for (std::size_t string_index = 0; string_index < string_count; ++string_index)
             {
-                if (articulation[string_index].has_value())
+                const StringArticulation& slot = articulation[string_index];
+                if (slot.has_value())
                 {
-                    posture[string_index] = articulation[string_index]->fret;
+                    posture[string_index] = slot->fret;
                 }
             }
             const auto [entry, inserted] =

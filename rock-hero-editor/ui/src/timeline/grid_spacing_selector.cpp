@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 #include <optional>
+#include <ranges>
 
 namespace rock_hero::editor::ui
 {
@@ -138,12 +139,11 @@ void GridSpacingSelector::stepNoteValue(int direction)
     }
 
     // Coarser: the finest preset strictly larger than the applied value (scan fine -> coarse).
-    for (auto preset = g_note_value_presets.rbegin(); preset != g_note_value_presets.rend();
-         ++preset)
+    for (const common::core::Fraction preset : std::views::reverse(g_note_value_presets))
     {
-        if (*preset > m_note_value)
+        if (preset > m_note_value)
         {
-            m_listener.onGridNoteValueChosen(*preset);
+            m_listener.onGridNoteValueChosen(preset);
             return;
         }
     }
