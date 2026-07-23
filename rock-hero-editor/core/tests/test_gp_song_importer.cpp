@@ -332,6 +332,63 @@ TEST_CASE("Guitar Pro import merges legato slide landings into the origin", "[co
     CHECK(origin.slides[0].fret == 7);
     CHECK_FALSE(origin.slides[0].unpitched);
 
+    // With no landing onset, hand coverage at fret 7 comes from the pitched waypoint alone:
+    // the glide pulls the window up at the waypoint's own mid-sustain position (normalization
+    // policy rule 9), yielding the same three-position track the shift-slide fixture produces.
+    REQUIRE(chart.fret_hand_positions.size() == 3);
+    CHECK(
+        chart.fret_hand_positions[1] ==
+        common::core::FretHandPosition{
+            .position = GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}},
+            .fret = 4,
+            .width = 4
+        });
+
+    std::filesystem::remove_all(scratch, cleanup_error);
+}
+
+// An unpitched trail-off releases pressure instead of repositioning (normalization policy rule
+// 9), so its waypoint never moves the hand: the fret-hand track stays the plain onset walk.
+TEST_CASE("Guitar Pro import keeps the hand still through unpitched slides", "[core][gp-import]")
+{
+    const std::filesystem::path scratch =
+        std::filesystem::temp_directory_path() / "rh_gp_unpitched_slide_fhp_test";
+    std::error_code cleanup_error;
+    std::filesystem::remove_all(scratch, cleanup_error);
+    const std::filesystem::path workspace = scratch / "song";
+    std::filesystem::create_directories(workspace);
+
+    // Flags 4 is the downward slide-out; the fret-5 note now trails off unpitched toward
+    // fret 1 instead of gliding into the fret-7 landing (which stays a real onset).
+    const std::string gpif = fixtureWithReplacement(
+        "<Property name=\"Slide\"><Flags>1</Flags></Property>",
+        "<Property name=\"Slide\"><Flags>4</Flags></Property>");
+    const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
+
+    GpSongImporter importer;
+    const auto song = importer.importSong(archive, workspace);
+    REQUIRE(song.has_value());
+    REQUIRE(song->arrangements.size() == 1);
+    const common::core::Chart& chart = requiredChart(song->arrangements.front());
+
+    REQUIRE(chart.notes.size() == 5);
+    REQUIRE(chart.notes[1].slides.size() == 1);
+    CHECK(chart.notes[1].slides[0].unpitched);
+    CHECK(chart.notes[1].slides[0].fret == 1);
+
+    // Were the trail-off treated as pitched coverage, its fret-1 waypoint would drag a wide
+    // window down mid-sustain; instead the track is the main fixture's plain onset walk.
+    REQUIRE(chart.fret_hand_positions.size() == 3);
+    CHECK(chart.fret_hand_positions[0].fret == 3);
+    CHECK(
+        chart.fret_hand_positions[1] ==
+        common::core::FretHandPosition{
+            .position = GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}},
+            .fret = 4,
+            .width = 4
+        });
+    CHECK(chart.fret_hand_positions[2].fret == 2);
+
     std::filesystem::remove_all(scratch, cleanup_error);
 }
 

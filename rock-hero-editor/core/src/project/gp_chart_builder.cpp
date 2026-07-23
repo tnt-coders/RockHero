@@ -646,57 +646,140 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
     close_span();
 }
 
+// Musical position `beats` past `position`, normalized across beats and measures through the
+// grid (a slide waypoint's offset is beats from its note's onset). Positions past the score's
+// last measure keep that measure's signature — waypoints live inside trimmed sustains, so that
+// is a guard, not an expected path.
+[[nodiscard]] GridPosition offsetGridPosition(
+    const MeasureGrid& grid, GridPosition position, const Fraction beats)
+{
+    Fraction remaining = addFractions(position.offset, beats);
+    while (!(remaining < Fraction{1}))
+    {
+        remaining = subtractFractions(remaining, Fraction{1});
+        ++position.beat;
+        const std::size_t measure_index = std::min(
+            static_cast<std::size_t>(std::max(position.measure, 1) - 1),
+            grid.beats_per_measure.size() - 1);
+        if (position.beat > grid.beats_per_measure[measure_index])
+        {
+            position.beat = 1;
+            ++position.measure;
+        }
+    }
+    position.offset = remaining;
+    return position;
+}
+
 // Generates the fret-hand position track with a minimal-shift window walk — the deliberately
 // simple starting algorithm (user decision 2026-07-21): the hand covers a [fret, fret+width-1]
-// window (width four unless one onset spans wider), open strings never constrain it, and when an
-// onset's fretted notes fall outside the window the anchor moves the shortest distance that
-// covers them. The maintained plain-English spec is "GP chart normalization policy" in
-// docs/developer/the-project-lifecycle.md — tweak behavior there first, then re-align this code.
-// Known limits (no lookahead, no phrase segmentation, mid-sustain slide targets uncovered until
-// the next onset) and the corpus-derived generator that should eventually replace this are
-// recorded in docs/plans/todo/fhp-corpus-derived-generation.md.
+// window (width four unless one coverage event spans wider), open strings never constrain it,
+// and when an event's frets fall outside the window the anchor moves the shortest distance that
+// covers them. Coverage events are note onsets plus every PITCHED slide waypoint at its own
+// mid-sustain position — the hand travels with a pitched glide, while an unpitched trail-off
+// releases pressure and never moves the window (user rule 2026-07-22). The maintained
+// plain-English spec is "GP chart normalization policy" in
+// docs/developer/the-project-lifecycle.md — tweak behavior there first, then re-align this
+// code. Known limits (no lookahead, no phrase segmentation) and the corpus-derived generator
+// that should eventually replace this are recorded in
+// docs/plans/todo/fhp-corpus-derived-generation.md.
 [[nodiscard]] std::vector<common::core::FretHandPosition> generateFretHandPositions(
-    const std::vector<ChartNote>& chart_notes)
+    const std::vector<BuiltNote>& built, const MeasureGrid& grid)
 {
-    std::vector<common::core::FretHandPosition> positions;
-    int anchor = 0;
-    int width = 4;
-    std::size_t index = 0;
-    while (index < chart_notes.size())
+    // One instant the hand must cover: an onset's fretted extent, or a pitched waypoint's fret.
+    struct CoverageEvent
     {
+        Fraction global_beat{};
+        GridPosition position;
+        int min_fret{0};
+        int max_fret{0};
+    };
+    std::vector<CoverageEvent> events;
+    std::size_t index = 0;
+    while (index < built.size())
+    {
+        CoverageEvent onset{
+            .global_beat = built[index].global_beat,
+            .position = built[index].note.position,
+            .min_fret = 0,
+            .max_fret = 0,
+        };
         std::size_t onset_end = index;
-        int min_fret = 0;
-        int max_fret = 0;
-        while (onset_end < chart_notes.size() &&
-               chart_notes[onset_end].position == chart_notes[index].position)
+        while (onset_end < built.size() && built[onset_end].global_beat == built[index].global_beat)
         {
-            const int fret = chart_notes[onset_end].fret;
-            if (fret > 0)
+            const ChartNote& note = built[onset_end].note;
+            if (note.fret > 0)
             {
-                min_fret = min_fret == 0 ? fret : std::min(min_fret, fret);
-                max_fret = std::max(max_fret, fret);
+                onset.min_fret =
+                    onset.min_fret == 0 ? note.fret : std::min(onset.min_fret, note.fret);
+                onset.max_fret = std::max(onset.max_fret, note.fret);
+            }
+            for (const SlideWaypoint& waypoint : note.slides)
+            {
+                if (waypoint.unpitched || waypoint.fret <= 0)
+                {
+                    continue;
+                }
+                events.push_back(
+                    CoverageEvent{
+                        .global_beat = addFractions(built[onset_end].global_beat, waypoint.offset),
+                        .position = offsetGridPosition(grid, note.position, waypoint.offset),
+                        .min_fret = waypoint.fret,
+                        .max_fret = waypoint.fret,
+                    });
             }
             ++onset_end;
         }
-        if (min_fret > 0 &&
-            (positions.empty() || min_fret < anchor || max_fret > anchor + width - 1))
+        if (onset.min_fret > 0)
         {
-            const int next_width = std::max(4, max_fret - min_fret + 1);
-            // The window may sit anywhere in [max-width+1, min]; the first placement anchors at
-            // the lowest fretted note, later ones shift minimally from the current anchor.
-            const int lowest_anchor = std::max(1, max_fret - next_width + 1);
-            const int next_anchor =
-                positions.empty() ? min_fret : std::clamp(anchor, lowest_anchor, min_fret);
-            positions.push_back(
-                common::core::FretHandPosition{
-                    .position = chart_notes[index].position,
-                    .fret = next_anchor,
-                    .width = next_width,
-                });
-            anchor = next_anchor;
-            width = next_width;
+            events.push_back(onset);
         }
         index = onset_end;
+    }
+
+    // Waypoint events land mid-sustain, out of onset order; a stable sort and a same-instant
+    // merge leave one covering extent per distinct position (a shift slide's waypoint merges
+    // into its landing note's onset here, so no duplicate hand position appears).
+    std::ranges::stable_sort(events, [](const CoverageEvent& lhs, const CoverageEvent& rhs) {
+        return lhs.global_beat < rhs.global_beat;
+    });
+    std::vector<CoverageEvent> merged;
+    for (const CoverageEvent& event : events)
+    {
+        if (!merged.empty() && merged.back().global_beat == event.global_beat)
+        {
+            merged.back().min_fret = std::min(merged.back().min_fret, event.min_fret);
+            merged.back().max_fret = std::max(merged.back().max_fret, event.max_fret);
+        }
+        else
+        {
+            merged.push_back(event);
+        }
+    }
+
+    std::vector<common::core::FretHandPosition> positions;
+    int anchor = 0;
+    int width = 4;
+    for (const CoverageEvent& event : merged)
+    {
+        if (!positions.empty() && event.min_fret >= anchor && event.max_fret <= anchor + width - 1)
+        {
+            continue;
+        }
+        const int next_width = std::max(4, event.max_fret - event.min_fret + 1);
+        // The window may sit anywhere in [max-width+1, min]; the first placement anchors at
+        // the lowest fretted note, later ones shift minimally from the current anchor.
+        const int lowest_anchor = std::max(1, event.max_fret - next_width + 1);
+        const int next_anchor =
+            positions.empty() ? event.min_fret : std::clamp(anchor, lowest_anchor, event.min_fret);
+        positions.push_back(
+            common::core::FretHandPosition{
+                .position = event.position,
+                .fret = next_anchor,
+                .width = next_width,
+            });
+        anchor = next_anchor;
+        width = next_width;
     }
     return positions;
 }
@@ -999,12 +1082,14 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
     }
 
     chart.notes.reserve(built.size());
+    // Generated before the notes move out of `built`: the generator needs each note's global
+    // beat to place mid-sustain slide-waypoint coverage.
+    chart.fret_hand_positions = generateFretHandPositions(built, grid);
+
     for (BuiltNote& entry : built)
     {
         chart.notes.push_back(std::move(entry.note));
     }
-
-    chart.fret_hand_positions = generateFretHandPositions(chart.notes);
     if (!chart.fret_hand_positions.empty())
     {
         notes.push_back(
