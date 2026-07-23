@@ -446,61 +446,70 @@ struct BuiltNote
     // Onset of the tied continuation the slide flags were inherited from, when they were: the
     // glide leaves from the junction, not the merged note's onset (policy rule 15).
     std::optional<Fraction> slide_from_beat;
-
-    // True once a tie continuation extended this note: the tie explicitly notates ringing into
-    // the next event, so the sustain policy's trim and drop rules leave it alone (rule 1).
-    bool tie_extended{false};
 };
 
 // Reports whether the note carries a technique that lives on its sustain tail. These notes keep
 // their tails through the sub-beat drop rule: removing the tail would remove the technique.
 [[nodiscard]] bool hasSustainTechnique(const ChartNote& note)
 {
-    return !note.bend.empty() || !note.slides.empty() || note.vibrato || note.tremolo;
+    return !note.bend.empty() || !note.slides.empty() || note.slide_out.has_value() ||
+           note.vibrato || note.tremolo;
 }
 
-// Normalizes imported sustains for chart readability (import policy, user rules 2026-07-21).
-// The maintained plain-English spec is "GP chart normalization policy" in
-// docs/developer/the-project-lifecycle.md — tweak behavior there first, then re-align this code.
+// Normalizes imported sustains for chart readability (import policy, user rules 2026-07-21;
+// hold semantics refined 2026-07-22). The maintained plain-English spec is "GP chart
+// normalization policy" in docs/developer/the-project-lifecycle.md — tweak behavior there
+// first, then re-align this code.
 //
-// 1. A tail is trimmed to end at least the minimum-note-distance margin — 1/16 of a whole note,
-//    the same settled margin the editor's duration verb clamps to — before the next onset on ANY
-//    string. Same-onset chord members never bind each other, and GP import emits no shape spans,
-//    so the editor rule's span-sibling exemption has nothing to exempt here. Trimming never
-//    clips a bend or slide payload: the tail floors at the last payload offset, so a slide still
-//    reaches its target note (exact adjacency stays legal per 40-Q2-B).
-// 2. After trimming, a note with no sustain-carried technique whose tail is shorter than one
+// 1. A tail is trimmed to end at least the minimum-sustain-distance margin — 1/16 of a whole
+//    note, the same settled margin the editor's duration verb clamps to — before the next
+//    onset on ANY string; same-onset chord members never bind each other. One hold is exempt:
+//    a tail ringing strictly past the next onset — merged from a tie or notated across voices
+//    — is a deliberate hold that neither this trim nor the drop rule touches (that ring is
+//    exactly what the projections' arpeggio arrival rule reads). Repeated chords trim like
+//    everything else: their held reading lives in the merged shape span (rule 11), which is
+//    derived from the notated pre-trim ends and already runs through every restrike.
+// 2. Trimming never clips a bend or slide payload: the tail floors at the last payload offset,
+//    so a slide still reaches its target note (exact adjacency stays legal per 40-Q2-B).
+// 3. After trimming, a note with no sustain-carried technique whose tail is shorter than one
 //    beat loses the tail entirely: Guitar Pro gives every note its full notated duration, and a
 //    sub-beat effect-free tail reads as noise in a chart rather than as a deliberate sustain.
 //
-// Both rules are import normalization only — the editor never rewrites spacing the user authored.
+// The rules are import normalization only — the editor never rewrites spacing the user authored.
 void normalizeImportedSustains(
     std::vector<BuiltNote>& built, const MeasureGrid& grid, std::vector<std::string>& notes)
 {
     int trimmed = 0;
     int dropped = 0;
-    for (std::size_t index = 0; index < built.size(); ++index)
+
+    std::size_t group_begin = 0;
+    while (group_begin < built.size())
     {
-        ChartNote& note = built[index].note;
-        // A tie-merged sustain is exempt from both rules (policy rule 1): the tie explicitly
-        // notates ringing into the next event, and the arpeggio arrival rule reads that ring.
-        if (built[index].tie_extended)
+        std::size_t group_end = group_begin + 1;
+        while (group_end < built.size() &&
+               built[group_end].global_beat == built[group_begin].global_beat)
         {
-            continue;
+            ++group_end;
         }
-        if (note.sustain.numerator > 0)
+
+        const bool has_next = group_end < built.size();
+        const Fraction gap =
+            has_next
+                ? subtractFractions(built[group_end].global_beat, built[group_begin].global_beat)
+                : Fraction{};
+        for (std::size_t index = group_begin; index < group_end; ++index)
         {
-            std::size_t next = index + 1;
-            while (next < built.size() && built[next].global_beat == built[index].global_beat)
+            ChartNote& note = built[index].note;
+            // A ring held strictly past the next onset is a deliberate hold (rule 1).
+            if (has_next && gap < note.sustain)
             {
-                ++next;
+                continue;
             }
-            if (next < built.size())
+            if (note.sustain.numerator > 0 && has_next)
             {
                 const auto measure_index = static_cast<std::size_t>(note.position.measure - 1);
                 const Fraction margin{grid.denominator[measure_index], 16};
-                const Fraction limit = subtractFractions(
-                    subtractFractions(built[next].global_beat, built[index].global_beat), margin);
+                const Fraction limit = subtractFractions(gap, margin);
                 if (limit < note.sustain)
                 {
                     Fraction target = limit.numerator < 0 ? Fraction{} : limit;
@@ -512,6 +521,11 @@ void normalizeImportedSustains(
                     {
                         target = note.slides.back().offset;
                     }
+                    // A slide-out floors the trim at its own end like any payload.
+                    if (note.slide_out.has_value() && target < note.slide_out->offset)
+                    {
+                        target = note.slide_out->offset;
+                    }
                     if (target < note.sustain)
                     {
                         note.sustain = target;
@@ -519,17 +533,19 @@ void normalizeImportedSustains(
                     }
                 }
             }
+            if (note.sustain.numerator > 0 && !hasSustainTechnique(note) &&
+                note.sustain < Fraction{1})
+            {
+                note.sustain = Fraction{};
+                ++dropped;
+            }
         }
-        if (note.sustain.numerator > 0 && !hasSustainTechnique(note) && note.sustain < Fraction{1})
-        {
-            note.sustain = Fraction{};
-            ++dropped;
-        }
+        group_begin = group_end;
     }
     if (trimmed > 0)
     {
         notes.push_back(
-            std::to_string(trimmed) + " sustains were trimmed to the minimum note distance");
+            std::to_string(trimmed) + " sustains were trimmed to the minimum sustain distance");
     }
     if (dropped > 0)
     {
@@ -704,7 +720,7 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
 // window (width four unless one coverage event spans wider), open strings never constrain it,
 // and when an event's frets fall outside the window the anchor moves the shortest distance that
 // covers them. Coverage events are note onsets plus every PITCHED slide waypoint at its own
-// mid-sustain position — the hand travels with a pitched glide, while an unpitched trail-off
+// mid-sustain position — the hand travels with a pitched glide, while an unpitched slide-out
 // releases pressure and never moves the window (user rule 2026-07-22). The maintained
 // plain-English spec is "GP chart normalization policy" in
 // docs/developer/the-project-lifecycle.md — tweak behavior there first, then re-align this
@@ -744,7 +760,7 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
             }
             for (const SlideWaypoint& waypoint : note.slides)
             {
-                if (waypoint.unpitched || waypoint.fret <= 0)
+                if (waypoint.fret <= 0)
                 {
                     continue;
                 }
@@ -847,7 +863,6 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
             if (open != open_note_per_string.end())
             {
                 BuiltNote& origin = built[open->second];
-                origin.tie_extended = true;
                 if (event_end > origin.end_global_beat)
                 {
                     origin.end_global_beat = event_end;
@@ -965,12 +980,12 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
     }
 
     // Slides resolve against the next onset on the same string, so they run after every onset
-    // exists. A shift slide (flag 1) glides into a re-picked target that keeps its own onset and
-    // head. A legato slide (flag 2) is a continuation of the same note (user rule 2026-07-21):
-    // the target is not re-picked, so it folds into the origin as a pitched waypoint at the
-    // junction — the sustain extends through the target's notated end, its sustain-carried
-    // techniques fold in, and its own onward slide continues the chain until a shift, a
-    // trail-off, or the chain's end stops it. Slide-outs trail off unpitched.
+    // exists. A shift slide (flag 1) glides toward a re-picked target that keeps its own onset
+    // and head. A legato slide (flag 2) is a continuation of the same note (user rule
+    // 2026-07-21): the target is not re-picked, so it folds into the origin as a pitched
+    // waypoint at the junction — the sustain extends through the target's notated end, its
+    // sustain-carried techniques fold in, and its own onward slide continues the chain until a
+    // shift, a slide-out, or the chain's end stops it. Slide-outs trail off unpitched.
     std::vector<bool> merged_away(built.size(), false);
     for (std::size_t index = 0; index < built.size(); ++index)
     {
@@ -1013,7 +1028,7 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
             }
             if (next == nullptr)
             {
-                // No landing note exists; the glide degrades to an unpitched trail-off.
+                // No landing note exists; the glide degrades to an unpitched slide-out.
                 flags |= 4;
                 break;
             }
@@ -1045,16 +1060,29 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
                 continue;
             }
 
-            // Shift: the glide runs the full gap into the re-picked target, so the tail always
-            // touches the landing head — deliberately ignoring the minimum-note-distance
-            // margin (policy rule 13, provisional 2026-07-22: the tail tip fade is expected to
-            // keep the junction readable).
-            const Fraction window = gap.numerator > 0 ? gap : minimum_window;
-            if (note.sustain < window)
+            // Shift: an ordinary pitched waypoint glides to the re-picked landing's fret,
+            // ending the minimum-sustain-distance margin before the landing's onset like any
+            // trimmed tail (policy rule 13); the landing keeps its own onset and head. The
+            // sustain ends at the glide end, floored at any payload the tie merge folded past
+            // it and kept strictly after the last chain waypoint (a degenerate gap glides
+            // through half of it instead).
+            const auto measure_index = static_cast<std::size_t>(note.position.measure - 1);
+            const Fraction margin{grid.denominator[measure_index], 16};
+            Fraction window = subtractFractions(gap, margin);
+            if (window.numerator <= 0)
             {
-                note.sustain = window;
+                window = multiplyFractions(gap, Fraction{1, 2});
+            }
+            if (!note.bend.empty() && window < note.bend.back().offset)
+            {
+                window = note.bend.back().offset;
+            }
+            if (!note.slides.empty() && window <= note.slides.back().offset)
+            {
+                window = addFractions(note.slides.back().offset, minimum_window);
             }
             note.slides.push_back(SlideWaypoint{.offset = window, .fret = next->note.fret});
+            note.sustain = window;
             flags = 0;
             break;
         }
@@ -1064,7 +1092,7 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
             const bool upward = (flags & 8) != 0;
             const int target = upward ? std::min(glide_fret + 4, common::core::g_max_fret)
                                       : std::max(glide_fret - 4, 0);
-            // The trail-off ends at the sustain end, strictly after any chain waypoint so the
+            // The slide-out ends at the sustain end, strictly after any chain waypoint so the
             // payload stays ascending.
             Fraction window = note.sustain;
             if (!note.slides.empty() && window <= note.slides.back().offset)
@@ -1079,8 +1107,7 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
             {
                 note.sustain = window;
             }
-            note.slides.push_back(
-                SlideWaypoint{.offset = window, .fret = target, .unpitched = true});
+            note.slide_out = common::core::SlideOut{.offset = window, .fret = target};
         }
 
         if ((entry.slide_flags & (16 | 32)) != 0)

@@ -3119,7 +3119,7 @@ void EditorController::Impl::onChartFretShiftRequested(int direction)
 
 // Grows or shrinks the selection's sustains by one grid step — or one 1/960-beat fine step,
 // the uniform Ctrl precision tier on the extent verbs — as one compound undo entry; growth
-// clamps to the minimum-note-distance margin before the next onset on any string.
+// clamps to the minimum-sustain-distance margin before the next onset on any string.
 void EditorController::Impl::onChartSustainAdjustRequested(int direction, bool fine)
 {
     const common::core::Arrangement* const arrangement = session().currentArrangement();

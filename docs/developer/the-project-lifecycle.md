@@ -84,12 +84,19 @@ editor-authored charts are never rewritten.
 **Sustain policy** (GP notates every note at its full duration; a chart only shows deliberate
 sustains):
 
-1. **Trim to the minimum note distance.** A note's tail is shortened so it ends at least the
-   minimum-note-distance margin — 1/16 of a whole note, the same settled margin the editor's
-   duration verb clamps to — before the next onset on *any* string. Notes struck together (chord
-   members) never bind each other. A sustain extended by a tie merge is exempt from both this
-   trim and the drop rule below: the tie explicitly notates the note ringing into the next
-   event (user rule 2026-07-22), and that ring is what the arpeggio arrival rule reads.
+1. **Trim to the minimum sustain distance.** A note's tail is shortened so it ends at least the
+   minimum-sustain-distance margin — 1/16 of a whole note, the same settled margin the editor's
+   duration verb clamps to — before the next onset on *any* string. The margin bounds sustain
+   *tails* only, never note onsets (renamed from "minimum note distance", 2026-07-23): a run of
+   32nds imports every onset as notated, with tails trimmed toward zero and then dropped by the
+   rule below, so dense passages render as plain heads. Notes struck together (chord members)
+   never bind each other. One hold is exempt (user rule 2026-07-22): a tail ringing
+   *strictly past* the next onset — merged from a tie or notated across voices — is a deliberate
+   hold, exempt from this trim and the drop rule below; that ring is what the arpeggio arrival
+   rule reads. A tail that merely *reaches* the next onset trims like any other, ties included.
+   Repeated chords trim too: their held-to-the-restrike reading lives in the merged shape span
+   (rule 11), which derives from the notated pre-trim durations and already runs through every
+   restrike — the box continues while the tails keep the minimum gap.
 2. **Never clip a technique payload.** Trimming stops at the note's last bend point or slide
    waypoint, so a slide always reaches its target note and a bend keeps its full curve, even
    when that leaves the tail closer than the margin (exact adjacency is legal).
@@ -118,8 +125,8 @@ each rule is a candidate for replacement by the corpus-derived generator planned
 9. **Pitched slides carry the hand; unpitched slides do not.** Every pitched slide waypoint
    (shift and legato alike) is a coverage event at the waypoint's own mid-sustain position: if
    the target fret falls outside the window, the hand moves there — minimally, per rule 8 —
-   exactly when the glide lands, so the window travels with the slide. An unpitched trail-off
-   releases pressure instead of repositioning, so its waypoint never moves the window.
+   exactly when the glide lands, so the window travels with the slide. An unpitched slide-out
+   releases pressure instead of repositioning, so its gesture never moves the window.
 
 **Chord template and shape derivation** (`deriveChordShapes`; GP scores in practice carry no
 handshape or diagram data, so the tab's chord boxes are derived):
@@ -157,18 +164,24 @@ handshape or diagram data, so the tab's chord boxes are derived):
 **Slide semantics** (resolved before the sustain policy runs, so merged tails still pass
 through the trim rules):
 
-13. **A shift slide re-picks its landing.** The origin carries the glide waypoint; the target
-    note keeps its own onset and renders its own head. The glide runs the *full gap* into the
-    landing, so the origin's tail always touches the landing head — deliberately ignoring the
-    minimum-note-distance margin (provisional, user 2026-07-22: the tail tip fade is expected
-    to keep the junction readable; revisit if it reads badly). The tab suppresses the linked
-    continuation glyph at such a waypoint (a real note owns the position).
+13. **A shift slide re-picks its landing.** The origin carries an ordinary pitched waypoint
+    that glides to the landing's fret and ends the minimum-sustain-distance margin before the
+    landing's onset — the sustain ends at the glide end, so slides respect the same margin as
+    every other tail (user rule 2026-07-23, superseding the full-gap `slideEnd: "next"`
+    terminal) — and the target note keeps its own onset and head. The projections render a
+    glide-end waypoint (one at exactly the sustain end) without the linked continuation glyph;
+    the re-picked landing's own head renders after it. Unpitched slide-outs are the separate
+    `slideOut` payload, which owns its end offset and gestured fret — no landing note exists,
+    so there is nothing to desync from.
 14. **A legato slide is the same note continuing.** The landing is not re-picked, so it never
     becomes a note: it folds into the origin as a pitched waypoint at the junction — the
     sustain extends through the landing's notated end, the landing's sustain techniques
     (vibrato, tremolo, bends) fold in, and its own onward slide continues the chain until a
-    shift slide, an unpitched trail-off, or the chain's end stops it. The tab renders the
+    shift slide, an unpitched slide-out, or the chain's end stops it. The tab renders the
     junction as Charter's linked continuation head, the same glyph `.rock` linked chains use.
+    The importer never second-guesses the notated slide kind (a coercion of chord-landing
+    legato slides to shift was tried and rejected 2026-07-22): a source charted with the wrong
+    slide kind is fixed in Guitar Pro, not silently rewritten on import.
 15. **A slide notated on a tied continuation belongs to the merged note — and leaves from the
     junction.** Tie merging folds the continuation's slide flags into the origin, so a held
     note that slides away at its end — a tie into a chord whose member then shift-slides down —

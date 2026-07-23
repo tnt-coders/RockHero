@@ -86,7 +86,7 @@ HighwayViewState makeHighwayViewState(
                     .semitones = point.semitones,
                 });
         }
-        view.slides.reserve(note.slides.size());
+        view.slides.reserve(note.slides.size() + 1);
         for (const SlideWaypoint& waypoint : note.slides)
         {
             view.slides.push_back(
@@ -94,7 +94,20 @@ HighwayViewState makeHighwayViewState(
                     .seconds = tempo_map.secondsAtGlobalBeatPosition(
                         onset_beat + waypoint.offset.toDouble()),
                     .fret = waypoint.fret,
-                    .unpitched = waypoint.unpitched,
+                    .unpitched = false,
+                });
+        }
+        // The slide-out flattens into the view's slide list so the renderer keeps one uniform
+        // segment model; it owns its geometry and dims unpitched. Pitched glides — shift and
+        // legato alike — are already ordinary waypoints above.
+        if (note.slide_out.has_value())
+        {
+            view.slides.push_back(
+                HighwaySlideView{
+                    .seconds = tempo_map.secondsAtGlobalBeatPosition(
+                        onset_beat + note.slide_out->offset.toDouble()),
+                    .fret = note.slide_out->fret,
+                    .unpitched = true,
                 });
         }
         state.notes.push_back(std::move(view));

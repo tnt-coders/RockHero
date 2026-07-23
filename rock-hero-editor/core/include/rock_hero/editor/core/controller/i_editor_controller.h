@@ -351,7 +351,7 @@ public:
     One grid step by default, or one 1/960-beat step when \p fine — the uniform Ctrl precision
     tier on the extent verbs (the off-grid unification; Ctrl+Alt+wheel and
     Ctrl+Shift+Alt+Left/Right compose it). Sustains floor at zero and growth clamps to the
-    minimum-note-distance margin before the next onset on any string (span siblings exempt);
+    minimum-sustain-distance margin before the next onset on any string (span siblings exempt);
     the whole selection adjusts as one undo entry.
 
     \param direction +1 to grow, -1 to shrink.

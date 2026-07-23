@@ -194,9 +194,23 @@ namespace
                 SlideWaypoint{
                     .offset = *offset,
                     .fret = Json::readOptionalInt(waypoint_json, "fret", -1),
-                    .unpitched = Json::readOptionalBool(waypoint_json, "unpitched", false),
                 });
         }
+    }
+
+    // The unpitched slide-out owns its end offset and gestured fret (no landing note exists);
+    // pitched glides — shift and legato alike — are ordinary slide waypoints above.
+    if (const juce::var& out_json = Json::value(note_json, "slideOut"); !out_json.isVoid())
+    {
+        auto offset = readFraction(out_json, "offset");
+        if (!offset.has_value())
+        {
+            return std::unexpected{std::move(offset.error())};
+        }
+        note.slide_out = SlideOut{
+            .offset = *offset,
+            .fret = Json::readOptionalInt(out_json, "fret", -1),
+        };
     }
 
     return note;
@@ -334,14 +348,14 @@ void appendOptionalIntArray(std::string& out, const std::vector<std::optional<in
                 line += ", ";
             }
             line += R"({ "offset": ")" + formatBeatFractionToken(waypoint.offset) +
-                    R"(", "fret": )" + std::to_string(waypoint.fret);
-            if (waypoint.unpitched)
-            {
-                line += R"(, "unpitched": true)";
-            }
-            line += " }";
+                    R"(", "fret": )" + std::to_string(waypoint.fret) + " }";
         }
         line += ']';
+    }
+    if (note.slide_out.has_value())
+    {
+        line += R"(, "slideOut": { "offset": ")" + formatBeatFractionToken(note.slide_out->offset) +
+                R"(", "fret": )" + std::to_string(note.slide_out->fret) + " }";
     }
     line += " }";
     return line;
@@ -361,7 +375,9 @@ std::expected<Chart, ChartError> parseChartDocument(const std::string& text)
     const juce::var& root = *document;
 
     // The single chart-document version gate, mirroring the other formats: formatVersion 1 is the
-    // only supported revision, and no other call site may test the chart version.
+    // only supported revision, and no other call site may test the chart version. The format
+    // itself changes in place under this number — every project is fresh, nothing legacy is
+    // preserved, and stale documents are simply re-imported.
     if (Json::readOptionalInt(root, "formatVersion", 0) != 1)
     {
         return std::unexpected{malformed("chart document formatVersion must be 1")};

@@ -1268,7 +1268,7 @@ TEST_CASE("EditorController fret digits combine inside the entry window", "[core
     CHECK(chart->notes[0].fret == 3);
 }
 
-// Sustain growth clamps to the minimum-note-distance margin — 1/16 whole note (a quarter beat
+// Sustain growth clamps to the minimum-sustain-distance margin — 1/16 whole note (a quarter beat
 // in 4/4) — before the next onset on ANY string (settled 2026-07-18); shrinking floors at
 // zero.
 TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][chart]")

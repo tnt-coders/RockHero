@@ -130,7 +130,15 @@ struct BendPoint
     }
 };
 
-/*! \brief One slide waypoint: by this offset the fret hand has glided to the target fret. */
+/*!
+\brief One pitched slide-curve waypoint: by this offset the fret hand has glided to the fret.
+
+Waypoints describe the note's own pitch curve — legato junctions, holds, and shift-slide glides
+toward a re-picked landing — and are always pitched; the only unpitched gesture is the separate
+\ref SlideOut terminal, so an "unpitched middle" cannot be written. A waypoint never sits on a
+later onset of its own string: a shift-slide glide ends the minimum sustain distance before its
+landing, and the landing note renders its own head.
+*/
 struct SlideWaypoint
 {
     /*! \brief Beat-fraction offset from the note onset; strictly positive, within the sustain. */
@@ -138,9 +146,6 @@ struct SlideWaypoint
 
     /*! \brief Target fret reached at this offset. */
     int fret{0};
-
-    /*! \brief True when the glide releases pressure and the pitch trails off unpitched. */
-    bool unpitched{false};
 
     /*!
     \brief Compares two slide waypoints by their stored fields.
@@ -150,6 +155,31 @@ struct SlideWaypoint
     */
     friend constexpr bool operator==(const SlideWaypoint& lhs, const SlideWaypoint& rhs) noexcept =
         default;
+};
+
+/*!
+\brief Unpitched slide-out: pressure releases and the pitch falls away off the note's end.
+
+No landing note exists — that is what distinguishes a slide-out from a pitched glide, which is
+plain \ref SlideWaypoint data — so the gesture legitimately owns its own end offset and target
+fret; there is no other event to desync from.
+*/
+struct SlideOut
+{
+    /*! \brief Beat-fraction offset from the note onset where the slide-out ends; strictly after
+        every curve waypoint, within the sustain. */
+    Fraction offset{};
+
+    /*! \brief Fret the slide-out gestures toward; never a sounded landing. */
+    int fret{0};
+
+    /*!
+    \brief Compares two slide-outs by their stored fields.
+    \param lhs Left-hand slide-out.
+    \param rhs Right-hand slide-out.
+    \return True when both store equal values.
+    */
+    friend constexpr bool operator==(const SlideOut& lhs, const SlideOut& rhs) noexcept = default;
 };
 
 /*!
@@ -203,8 +233,11 @@ struct ChartNote
     /*! \brief Bend curve across the sustain; empty when the note is not bent. */
     std::vector<BendPoint> bend;
 
-    /*! \brief Slide waypoints across the sustain; empty when the note does not slide. */
+    /*! \brief Pitched slide-curve waypoints across the sustain; empty when the curve is flat. */
     std::vector<SlideWaypoint> slides;
+
+    /*! \brief Unpitched slide-out off the note's end; absent when the tail simply ends. */
+    std::optional<SlideOut> slide_out{};
 
     /*!
     \brief Compares two notes by their stored fields.

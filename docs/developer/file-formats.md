@@ -140,12 +140,20 @@ like every other format.
 | `notes[].touch` | number | opt | Touch-harmonic fret point. |
 | `notes[].vibrato` / `.tremolo` / `.accent` | bool | opt | Written only when true. |
 | `notes[].bend` | [fraction, number][] | opt | Offset + semitone pairs. |
-| `notes[].slides[]` | object[] | opt | `{offset: <fraction> req, fret (-1), unpitched (false)}`. |
+| `notes[].slides[]` | object[] | opt | Pitched curve waypoints `{offset: <fraction> req, fret (-1)}` — legato junctions, holds, and shift-slide glides; never sits on a later onset of the string (a shift glide ends the minimum sustain distance before its re-picked landing, at exactly the sustain end). |
+| `notes[].slideOut` | object | opt | Unpitched slide-out `{offset: <fraction> req, fret (-1)}`: pressure releases and the pitch falls away — no landing note exists, so the gesture owns its end offset and gestured fret. Absent = the tail just ends. |
 | `shapes[]` | object[] | opt | `{position, sustain, chord}` all req; chord indexes `chords[]`. |
 | `fhps[]` | object[] | opt | `{position req, fret (0), width (4; omitted when 4)}`. |
 
 Unknown enum tokens are hard read errors; chart *rules* (ordering against the tempo map) are
 validated after load, not by the parser.
+
+**No note references** (updated 2026-07-23, superseding the short-lived `slideEnd: "next"`
+adjacency terminal): payloads never reference other notes — not by ID (which would make
+nonsensical targets representable) and not by a dedicated terminal shape. A shift-slide glide
+stores the fret it glides toward as ordinary pitch-curve data: chart truth of the gesture
+itself, ending the minimum sustain distance before the re-picked landing rather than pointing at
+it. RS-style linkNext identity-fragmentation stays rejected.
 
 # Tone document — `tones/<uuid>/tone.json`
 
