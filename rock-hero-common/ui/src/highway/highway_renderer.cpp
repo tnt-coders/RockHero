@@ -1610,7 +1610,9 @@ void HighwayRenderer::Impl::draw(
                 BoxDraw{
                     .start_seconds = shape.start_seconds,
                     .box_only = false,
-                    .with_top = false,
+                    // The reference's chord-box rule (3+ sounding strings get the top bar),
+                    // counted from the arpeggio's posture strings.
+                    .with_top = shape.strings.size() > 2,
                     .any_accent = false,
                     .mute = common::core::NoteMute::None,
                     .arpeggio_shape = &shape,
