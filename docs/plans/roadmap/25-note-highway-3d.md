@@ -691,8 +691,10 @@ review before implementation (correctness-first, one commit per fix):
   (higher-on-screen note on top), note index as a unique tiebreak. No depth-buffer change (the
   zero-pitch camera cannot encode world Y in depth).
 - **String height + fret margins.** Lanes centered on half-string offsets (`highwayLaneToY`
-  seam): bottom lane at 0.175 (halved), symmetric 0.5·string_distance fret margins. Board-face
-  top, chord-box top, fingering spots, and section/chord-name anchors all follow.
+  seam), the whole stack later lifted by `string_stack_lift` (one string spacing) so a
+  vertically flipped bottom-lane head clears the board floor: bottom lane at 0.525, half-string
+  fret margin above the top lane. Board-face top, chord-box top, fingering spots, and
+  section/chord-name anchors all follow.
 - **Scrolling fret numbers (the readability fix).** Reproduces the reference's
   `Preview3DBeatsDrawer`: dotted-fret numbers ({3,5,7,9,12,15,17,19,21,24}) ride each measure
   downbeat down the board floor (bright blue inside the hand range, dim teal elsewhere), FHP
