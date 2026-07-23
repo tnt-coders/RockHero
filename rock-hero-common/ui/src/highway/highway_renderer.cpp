@@ -134,8 +134,16 @@ constexpr double g_tail_tip_fade_fraction = 0.35;
 
 // Glow posts under single notes stand the tail ribbon cross-section upright at a fraction of
 // the tail width; this is the edge alpha where the post meets the floor (user-tuned to stay
-// subtle).
+// subtle). A post rises from the floor toward its note's lane center, dissolving to nothing
+// partway up — the note art simply overlays the post's top (the old
+// fade-exactly-at-the-head-quad-bottom invariant is removed, user 2026-07-23) — so every lane
+// carries a post whose height scales naturally with the lane's height above the floor.
 constexpr double g_shadow_post_floor_alpha = 0.5;
+
+// Fraction of the lane height where the post's dissolve completes: alpha reaches zero at this
+// point of the rise rather than at the lane center itself, a slightly more aggressive fade
+// (user-tuned 2026-07-23).
+constexpr double g_shadow_post_fade_end_fraction = 0.75;
 
 // Open-note L posts: how far the floor foot reaches inward, measured from the bar end (the
 // chord box's bottom corner holders, freestanding), fading to nothing at its tip.
@@ -2034,20 +2042,15 @@ void HighwayRenderer::Impl::draw(
         const bool in_chord = group.count >= 2;
 
         // Note shadow: a glow post — the sustain tails' three-band ribbon stood upright at a
-        // user-tuned fraction of the tail width, rising from the board and going fully
-        // transparent exactly at the head quad's bottom edge (the rotated vertical edge that
-        // lands horizontal after the rolling flip), so post and note art never overlap; a note
-        // whose quad already reaches the board floor needs no post at all. Fretted single
-        // notes only; a single-note open bar builds mitered L posts from the same
-        // cross-section — and the same as-if-a-head-sat-there top — in its own branch below.
+        // user-tuned fraction of the tail width, rising from the board toward the note's lane
+        // center and dissolving to nothing at the fade-end fraction of that height; the note
+        // art overlays the post's top, so every lane down to the bottom one carries a post
+        // scaled to its own height. Fretted single notes only; a single-note open bar builds
+        // mitered L posts from the same cross-section in its own branch below.
         const double post_half_width = metrics.tail_half_width * 0.375;
+        const double post_top_y = head_y * g_shadow_post_fade_end_fraction;
         const double post_floor_alpha = fade * g_shadow_post_floor_alpha;
-        const double post_top_y = head_y - head_half_h;
         const auto push_shadow_post = [&](const double center_x) {
-            if (post_top_y <= 0.0)
-            {
-                return;
-            }
             const std::uint32_t floor_edge = packAbgr(base_color, post_floor_alpha);
             const std::uint32_t clear = packAbgr(base_color, 0.0);
             const RibbonEnd floor_end{
@@ -2119,7 +2122,7 @@ void HighwayRenderer::Impl::draw(
             // as a cross at the corner, not an L). Cross-section colors are the open-tail
             // treatment — transparent boundaries around edge strips around the translucent
             // core — and both leg ends fade to nothing: the upright at the shared
-            // post_top_y (as if a note head sat on the bar end), skipped entirely when that
+            // post_top_y (the glow posts' fade end below the bar), skipped entirely when that
             // top leaves no room above the corner miter.
             if (!in_chord)
             {
@@ -2144,7 +2147,8 @@ void HighwayRenderer::Impl::draw(
                     };
                     const double tip_x = corner_x + (x_sign * g_open_post_foot_length);
                     const std::array<LStation, 3> stations{
-                        // Top of the upright leg: fully faded (the glow posts' top fade).
+                        // Top of the upright leg: fully faded (the glow posts' dissolve; the
+                        // boosted floor alpha carries the per-lane visibility).
                         LStation{
                             .x = {leg_x(0.0), leg_x(0.25), leg_x(0.75), leg_x(1.0)},
                             .y = {post_top_y, post_top_y, post_top_y, post_top_y},
