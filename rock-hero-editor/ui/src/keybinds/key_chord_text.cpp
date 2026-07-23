@@ -175,7 +175,7 @@ juce::String keyChordText(const juce::KeyPress& key, ShiftedCharacterResolver re
 
     if (key_code >= printable_first && key_code < printable_last_exclusive)
     {
-        const juce::juce_wchar base = static_cast<juce::juce_wchar>(key_code);
+        const auto base = static_cast<juce::juce_wchar>(key_code);
         if (modifiers.isShiftDown())
         {
             // Collapse only when Shift changes the character by more than case: "Shift+/"
@@ -224,7 +224,7 @@ void addEditorCommandItem(
     // pre-filled through keyChordText, because the popup derives its own raw
     // getTextDescription text only when this field arrives empty.
     juce::ApplicationCommandInfo info{*registered};
-    juce::ApplicationCommandTarget* const target =
+    const juce::ApplicationCommandTarget* const target =
         command_manager.getTargetForCommand(command_id, info);
 
     juce::PopupMenu::Item item;

@@ -95,7 +95,7 @@ void insertPointSorted(
         points, [&inserted](const rock_hero::common::core::ToneAutomationPoint& candidate) {
             return inserted.position < candidate.position;
         });
-    points.insert(insert_at, std::move(inserted));
+    points.insert(insert_at, inserted);
 }
 
 // One-field text editor hosted in a callout for typed exact-value entry on a point. Return

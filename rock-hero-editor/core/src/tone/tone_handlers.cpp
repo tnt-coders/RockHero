@@ -979,7 +979,11 @@ std::string EditorController::Impl::automationParameterName(
 {
     std::optional<common::audio::AutomatableParamInfo> parameter =
         paramInfoFor(tone_document_ref, instance_id, param_id);
-    return parameter.has_value() ? std::move(parameter->name) : param_id;
+    if (parameter.has_value())
+    {
+        return std::move(parameter->name);
+    }
+    return param_id;
 }
 
 // Supplies the audible chain's durable plugin ids for capture, in chain order, minting ids for

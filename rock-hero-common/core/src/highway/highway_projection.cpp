@@ -100,16 +100,16 @@ HighwayViewState makeHighwayViewState(
         // The slide-out flattens into the view's slide list so the renderer keeps one uniform
         // segment model; it owns its geometry and dims unpitched. Pitched glides — shift and
         // legato alike — are already ordinary waypoints above.
-        if (note.slide_out.has_value())
+        // Bind through the has_value ternary: bugprone-unchecked-optional-access credits that,
+        // but not a *note.slide_out deref inside a plain if-guard on this reference member.
+        const SlideOut* const slide_out = note.slide_out.has_value() ? &*note.slide_out : nullptr;
+        if (slide_out != nullptr)
         {
-            // Bound to a local so the optional check and both accesses are provably the same
-            // object (bugprone-unchecked-optional-access does not treat repeated -> as guarded).
-            const SlideOut& slide_out = *note.slide_out;
             view.slides.push_back(
                 HighwaySlideView{
                     .seconds = tempo_map.secondsAtGlobalBeatPosition(
-                        onset_beat + slide_out.offset.toDouble()),
-                    .fret = slide_out.fret,
+                        onset_beat + slide_out->offset.toDouble()),
+                    .fret = slide_out->fret,
                     .unpitched = true,
                 });
         }

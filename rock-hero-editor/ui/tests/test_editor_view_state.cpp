@@ -459,7 +459,7 @@ TEST_CASE("Editor command mappings resolve default chords", "[ui][editor-view][k
     RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
-    juce::KeyPressMappingSet* const mappings = view.commandManager().getKeyMappings();
+    const juce::KeyPressMappingSet* const mappings = view.commandManager().getKeyMappings();
     REQUIRE(mappings != nullptr);
     for (const EditorCommandSpec& spec : editorCommandRegistry())
     {

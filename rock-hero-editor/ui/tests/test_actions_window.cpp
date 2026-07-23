@@ -197,8 +197,7 @@ TEST_CASE("KeymapEditorView groups display-equal chords into one chip", "[ui][ke
     for (int index = 0; index < keys.size(); ++index)
     {
         const juce::String text = keyChordText(keys[index]);
-        const bool is_first_of_group =
-            std::find(seen_texts.begin(), seen_texts.end(), text) == seen_texts.end();
+        const bool is_first_of_group = std::ranges::find(seen_texts, text) == seen_texts.end();
         juce::Component* const chip =
             findDescendant(editor, "keymap_chip_" + id_hex + "_" + juce::String{index});
         if (is_first_of_group)
