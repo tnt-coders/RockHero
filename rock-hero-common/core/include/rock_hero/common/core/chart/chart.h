@@ -249,6 +249,20 @@ struct ChartNote
 };
 
 /*!
+\brief Returns the note's unpitched slide-out as a nullable pointer.
+\param note Note whose tail is inspected.
+\return Address of the slide-out when present, or nullptr when the tail simply ends.
+
+Binding the optional behind a parameter lets call sites null-check instead of dereferencing an
+optional, and keeps clang-tidy's unchecked-optional-access analysis reliable inside note loops,
+where a has_value() guard on the loop variable's own member is not otherwise credited.
+*/
+[[nodiscard]] inline const SlideOut* slideOutOrNull(const ChartNote& note) noexcept
+{
+    return note.slide_out.has_value() ? &*note.slide_out : nullptr;
+}
+
+/*!
 \brief Reusable hand posture: per-string frets and fingerings.
 
 Array index 0 is the lowest-pitched string; null entries mean the string is not part of the
