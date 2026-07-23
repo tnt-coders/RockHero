@@ -62,11 +62,8 @@ namespace
             .sustain = Fraction{1, 2},
             .attack = NoteAttack::Tap,
             .bend = {},
-            .slides =
-                {
-                    SlideWaypoint{.offset = Fraction{1, 4}, .fret = 13},
-                    SlideWaypoint{.offset = Fraction{1, 2}, .fret = 15, .unpitched = true},
-                },
+            .slides = {SlideWaypoint{.offset = Fraction{1, 4}, .fret = 13}},
+            .slide_out = SlideOut{.offset = Fraction{1, 2}, .fret = 15},
         },
         ChartNote{
             .position = GridPosition{.measure = 2, .beat = 1},
@@ -99,9 +96,12 @@ namespace
             .position = GridPosition{.measure = 3, .beat = 2},
             .string = 6,
             .fret = 3,
+            .sustain = Fraction{1, 12},
             .attack = NoteAttack::Slap,
             .bend = {},
-            .slides = {},
+            // A shift-slide glide: a pitched waypoint at the sustain end, the minimum note
+            // distance before the re-picked landing (the 3:2+1/3 note below).
+            .slides = {SlideWaypoint{.offset = Fraction{1, 12}, .fret = 5}},
         },
         ChartNote{
             .position = GridPosition{.measure = 3, .beat = 2, .offset = Fraction{1, 3}},
@@ -228,6 +228,12 @@ TEST_CASE("Chart document rejects malformed elements", "[core][chart]")
             R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
             R"( "notes": [ { "position": "1:1", "string": 1, "fret": 0, "bend": [[0, 1]] } ] })")
             .has_value());
+    // A slide-out must carry a parseable end offset.
+    CHECK_FALSE(parseChartDocument(
+                    R"({ "formatVersion": 1, "tuning": { "strings": ["E2"] },)"
+                    R"( "notes": [ { "position": "1:1", "string": 1, "fret": 3,)"
+                    R"( "slideOut": { "fret": 15 } } ] })")
+                    .has_value());
 }
 
 TEST_CASE("Chart rules reject structural violations", "[core][chart]")
@@ -257,6 +263,22 @@ TEST_CASE("Chart rules reject structural violations", "[core][chart]")
     const auto slide_result = validateChartRules(slide_past_sustain, tempo_map);
     REQUIRE_FALSE(slide_result.has_value());
     CHECK(slide_result.error().code == ChartErrorCode::InvalidNotePayload);
+
+    // A slide-out must end strictly after every curve waypoint.
+    Chart trail_before_waypoint = makeFullChart();
+    trail_before_waypoint.notes[2].slide_out = SlideOut{.offset = Fraction{1, 4}, .fret = 15};
+    const auto trail_result = validateChartRules(trail_before_waypoint, tempo_map);
+    REQUIRE_FALSE(trail_result.has_value());
+    CHECK(trail_result.error().code == ChartErrorCode::InvalidNotePayload);
+
+    // A curve waypoint may not sit on a later onset of its string — a glide ends the minimum
+    // note distance before its re-picked landing, whose own head renders there.
+    Chart waypoint_on_onset = makeFullChart();
+    waypoint_on_onset.notes[5].sustain = Fraction{1, 3};
+    waypoint_on_onset.notes[5].slides = {SlideWaypoint{.offset = Fraction{1, 3}, .fret = 5}};
+    const auto coincident_result = validateChartRules(waypoint_on_onset, tempo_map);
+    REQUIRE_FALSE(coincident_result.has_value());
+    CHECK(coincident_result.error().code == ChartErrorCode::InvalidNotePayload);
 
     Chart bad_shape = makeFullChart();
     bad_shape.shapes[0].chord = 9;

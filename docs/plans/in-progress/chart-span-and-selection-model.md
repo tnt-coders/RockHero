@@ -48,7 +48,7 @@ editing), plan 42 (validation hooks), plan 52 (time-range selection), and
 - Creating a stack (placing a note onto an existing onset) auto-creates the template and span
   in the same undo entry as the note insertion.
 - Default span extent floor: 1 beat, for tail-less strikes — clamped at creation to §10's
-  minimum-note-distance limit (`min(1 beat, next outside onset − margin)`) so auto-creation
+  minimum-sustain-distance limit (`min(1 beat, next outside onset − margin)`) so auto-creation
   never mints an extent the duration verb could not have authored (2026-07-18 fold-in audit).
 - Shrinking a span below a following strike splits the span: the remainder becomes a new span
   with the same template (rendering as a fresh full chord box, not a repeat). Growing a span
@@ -441,7 +441,7 @@ what extends the marker model itself. Implemented the same day.
 - **Supersedes**: the 2026-07-17 "tone/automation surfaces never move the caret" ruling (it
   predates the caret having rows there) and §9a's implicit string-only row space.
 
-## 10. Minimum note distance — SETTLED (restriction, 2026-07-18); overrides OPEN
+## 10. Minimum sustain distance — SETTLED (restriction, 2026-07-18); overrides OPEN
 
 Extending a note's tail (the duration verb — and span extents when slice 3 builds them) clamps
 to end at least a **margin before the next onset on ANY string**, not just the same string:

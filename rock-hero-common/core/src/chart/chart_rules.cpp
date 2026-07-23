@@ -223,7 +223,39 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
                                positionText(note.position),
                 }};
             }
+            // A curve waypoint may never sit on a later onset of its own string: a glide into a
+            // real note is the slideEnd "next" terminal, which stores no coordinates. Rejecting
+            // the coordinate copy here is what keeps the desyncable encoding unrepresentable.
+            const GridPosition waypoint_position =
+                advanceGridPosition(tempo_map, note.position, waypoint.offset);
+            for (auto at_waypoint = std::ranges::lower_bound(
+                     chart.notes, waypoint_position, std::ranges::less{}, &ChartNote::position);
+                 at_waypoint != chart.notes.end() && at_waypoint->position == waypoint_position;
+                 ++at_waypoint)
+            {
+                if (at_waypoint->string == note.string)
+                {
+                    return std::unexpected{ChartError{
+                        .code = ChartErrorCode::InvalidNotePayload,
+                        .message = "slide waypoint may not sit on a later onset of its string at " +
+                                   positionText(note.position) +
+                                   "; a glide ends before its re-picked landing",
+                    }};
+                }
+            }
             previous_offset = waypoint.offset;
+        }
+
+        // A slide-out owns its geometry and must stay ordered like any payload.
+        if (note.slide_out.has_value() &&
+            (note.slide_out->offset <= previous_offset || note.slide_out->offset > note.sustain ||
+             note.slide_out->fret < 0 || note.slide_out->fret > g_max_fret))
+        {
+            return std::unexpected{ChartError{
+                .code = ChartErrorCode::InvalidNotePayload,
+                .message = "slide-out must end after every waypoint, within the sustain at " +
+                           positionText(note.position),
+            }};
         }
 
         previous_note = &note;

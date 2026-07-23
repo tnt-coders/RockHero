@@ -23,7 +23,8 @@ namespace
 }
 
 // Drops bend and slide points past the note's (possibly shortened) sustain so the payload rule
-// "offsets within the sustain" keeps holding after a 40-Q2-B truncation.
+// "offsets within the sustain" keeps holding after a 40-Q2-B truncation. A slide-out past the
+// sustain drops like any payload.
 void clipPayloadsToSustain(common::core::ChartNote& note)
 {
     std::erase_if(note.bend, [&note](const common::core::BendPoint& point) {
@@ -32,6 +33,10 @@ void clipPayloadsToSustain(common::core::ChartNote& note)
     std::erase_if(note.slides, [&note](const common::core::SlideWaypoint& waypoint) {
         return note.sustain < waypoint.offset;
     });
+    if (note.slide_out.has_value() && note.sustain < note.slide_out->offset)
+    {
+        note.slide_out.reset();
+    }
 }
 
 // 40-Q2-B normalization: walking each string's sorted notes, any sustain ringing across the next
@@ -290,7 +295,7 @@ std::optional<ChartNotesEditPlan> planAdjustSustain(
         {
             next_sustain = common::core::Fraction{};
         }
-        // The minimum-note-distance rule (settled 2026-07-18; override design deliberately
+        // The minimum-sustain-distance rule (settled 2026-07-18; override design deliberately
         // open): growing a tail clamps it to end at least the margin — 1/16 of a whole note —
         // BEFORE the next onset on ANY string, so extension can never crowd another note.
         // Same-onset chord members sit at equal positions and never block each other, and

@@ -20,26 +20,6 @@ namespace
            position.offset.toDouble();
 }
 
-// Reports whether a re-picked note sounds on the string exactly at the waypoint's grid
-// position — a shift slide's target. Exact rational arithmetic, so an adjacent onset and a
-// glide landing can never miss each other to rounding.
-[[nodiscard]] bool waypointCoversOnset(
-    const Chart& chart, const TempoMap& tempo_map, const ChartNote& note,
-    const SlideWaypoint& waypoint)
-{
-    const GridPosition landing = advanceGridPosition(tempo_map, note.position, waypoint.offset);
-    auto it =
-        std::ranges::lower_bound(chart.notes, landing, std::ranges::less{}, &ChartNote::position);
-    for (; it != chart.notes.end() && it->position == landing; ++it)
-    {
-        if (it->string == note.string)
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
 } // namespace
 
 TabViewState makeTabViewState(const Arrangement& arrangement, const TempoMap& tempo_map)
@@ -85,7 +65,11 @@ TabViewState makeTabViewState(const Arrangement& arrangement, const TempoMap& te
                     .semitones = point.semitones,
                 });
         }
-        view.slides.reserve(note.slides.size());
+        // A waypoint strictly inside the sustain is a legato junction or hold — the same note
+        // continues, so it draws the linked continuation head. A waypoint at exactly the
+        // sustain end is a shift-slide glide-end: the note stops there and the re-picked
+        // landing renders its own head, so no linked glyph.
+        view.slides.reserve(note.slides.size() + 1);
         for (const SlideWaypoint& waypoint : note.slides)
         {
             view.slides.push_back(
@@ -93,9 +77,20 @@ TabViewState makeTabViewState(const Arrangement& arrangement, const TempoMap& te
                     .seconds = tempo_map.secondsAtGlobalBeatPosition(
                         onset_beat + waypoint.offset.toDouble()),
                     .fret = waypoint.fret,
-                    .unpitched = waypoint.unpitched,
-                    .linked = !waypoint.unpitched &&
-                              !waypointCoversOnset(chart, tempo_map, note, waypoint),
+                    .unpitched = false,
+                    .linked = waypoint.offset < note.sustain,
+                });
+        }
+        // The unpitched slide-out flattens into the view's slide list; it owns its geometry.
+        if (note.slide_out.has_value())
+        {
+            view.slides.push_back(
+                TabSlideView{
+                    .seconds = tempo_map.secondsAtGlobalBeatPosition(
+                        onset_beat + note.slide_out->offset.toDouble()),
+                    .fret = note.slide_out->fret,
+                    .unpitched = true,
+                    .linked = false,
                 });
         }
         state.notes.push_back(std::move(view));

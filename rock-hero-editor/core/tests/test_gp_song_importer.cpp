@@ -221,7 +221,7 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     REQUIRE(chart.notes.size() == 5);
 
     // Quarter palm mute on the low string. Its notated one-beat tail trims to 3/4 against the
-    // next onset one beat later (minimum-note-distance margin 1/4 in 4/4) and then drops as a
+    // next onset one beat later (minimum-sustain-distance margin 1/4 in 4/4) and then drops as a
     // sub-beat effect-free sustain — the import sustain policy.
     CHECK(chart.notes[0].position == GridPosition{.measure = 1, .beat = 1});
     CHECK(chart.notes[0].string == 1);
@@ -229,25 +229,28 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(chart.notes[0].mute == common::core::NoteMute::Palm);
     CHECK(chart.notes[0].sustain == Fraction{});
 
-    // Hammer-on destination that shift-slides into the next note.
+    // Hammer-on destination that shift-slides into the next note: an ordinary pitched waypoint
+    // glides to the fret-7 landing, ending the minimum sustain distance before the landing's
+    // onset, and the sustain ends at the glide end.
     CHECK(chart.notes[1].position == GridPosition{.measure = 1, .beat = 2});
     CHECK(chart.notes[1].attack == common::core::NoteAttack::Hammer);
     REQUIRE(chart.notes[1].slides.size() == 1);
+    CHECK(chart.notes[1].slides[0].offset == Fraction{1, 4});
     CHECK(chart.notes[1].slides[0].fret == 7);
-    CHECK(chart.notes[1].slides[0].offset == Fraction{1, 2});
-    CHECK_FALSE(chart.notes[1].slides[0].unpitched);
+    CHECK_FALSE(chart.notes[1].slide_out.has_value());
+    CHECK(chart.notes[1].sustain == Fraction{1, 4});
 
     CHECK(
         chart.notes[2].position == GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
     CHECK(chart.notes[2].fret == 7);
 
     // The tie chain merges into one note whose sustain crosses the barline: onset 1:3, a
-    // quarter in bar one plus a half in bar two makes four beats to the continuation's end.
-    // Tie-merged sustains are exempt from the trim and drop rules (policy rule 1) — the tie
-    // explicitly notates the ring — so the full four beats survive.
+    // quarter in bar one plus a half in bar two makes four notated beats. The ring only
+    // reaches — never crosses — the changed onset at 2:3, so it is no held ring and the
+    // minimum-distance trim applies like any other tail (policy rule 1 holds, 2026-07-22).
     CHECK(chart.notes[3].position == GridPosition{.measure = 1, .beat = 3});
     CHECK(chart.notes[3].string == 2);
-    CHECK(chart.notes[3].sustain == Fraction{4});
+    CHECK(chart.notes[3].sustain == Fraction{15, 4});
     CHECK(chart.notes[3].vibrato);
 
     // Between-fret natural harmonic with the GP bend mapped to [offset, semitones] pairs.
@@ -267,8 +270,9 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(chart.shapes.empty());
 
     // The generated fret-hand track walks a minimal-shift window: fret 3 opens a 3-6 window,
-    // fret 7 shifts it minimally up to 4-7, fret 2 shifts it minimally down to 2-5, and the
-    // final fret-3 bend note fits without another move.
+    // fret 7 shifts it minimally up to 4-7 — carried by the shift glide's pitched waypoint, a
+    // quarter beat before the landing onset (rule 9) — fret 2 shifts it minimally down to 2-5,
+    // and the final fret-3 bend note fits without another move.
     REQUIRE(chart.fret_hand_positions.size() == 3);
     CHECK(
         chart.fret_hand_positions[0] ==
@@ -278,7 +282,7 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(
         chart.fret_hand_positions[1] ==
         common::core::FretHandPosition{
-            .position = GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}},
+            .position = GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 4}},
             .fret = 4,
             .width = 4
         });
@@ -331,7 +335,7 @@ TEST_CASE("Guitar Pro import merges legato slide landings into the origin", "[co
     REQUIRE(origin.slides.size() == 1);
     CHECK(origin.slides[0].offset == Fraction{1, 2});
     CHECK(origin.slides[0].fret == 7);
-    CHECK_FALSE(origin.slides[0].unpitched);
+    CHECK_FALSE(origin.slide_out.has_value());
 
     // With no landing onset, hand coverage at fret 7 comes from the pitched waypoint alone:
     // the glide pulls the window up at the waypoint's own mid-sustain position (normalization
@@ -373,9 +377,9 @@ TEST_CASE("Guitar Pro import keeps the hand still through unpitched slides", "[c
     const common::core::Chart& chart = requiredChart(song->arrangements.front());
 
     REQUIRE(chart.notes.size() == 5);
-    REQUIRE(chart.notes[1].slides.size() == 1);
-    CHECK(chart.notes[1].slides[0].unpitched);
-    CHECK(chart.notes[1].slides[0].fret == 1);
+    CHECK(chart.notes[1].slides.empty());
+    REQUIRE(chart.notes[1].slide_out.has_value());
+    CHECK(chart.notes[1].slide_out->fret == 1);
 
     // Were the trail-off treated as pitched coverage, its fret-1 waypoint would drag a wide
     // window down mid-sustain; instead the track is the main fixture's plain onset walk.
@@ -496,30 +500,31 @@ TEST_CASE(
 
     // The tied 6: its continuation merged in (sustain through the chord) and the continuation's
     // shift-slide flags folded into the merged note (rule 15). A hold waypoint pins fret 6
-    // until the chord where the sliding segment was notated, then the glide runs the full gap
-    // into its fret-2 landing (rule 13) — the tail continues INTO the chord and beyond, immune
-    // to the minimum-note-distance trim through the waypoint floor.
+    // until the chord where the sliding segment was notated, then the glide waypoint runs to
+    // its fret-2 landing, ending the minimum sustain distance before the landing onset (rule 13)
+    // — the tail continues INTO the chord and up to the glide end.
     const common::core::ChartNote& tied = chart.notes[0];
     CHECK(tied.position == GridPosition{.measure = 1, .beat = 1});
     CHECK(tied.string == 2);
     CHECK(tied.fret == 6);
-    CHECK(tied.sustain == Fraction{2});
+    CHECK(tied.sustain == Fraction{7, 4});
     REQUIRE(tied.slides.size() == 2);
     CHECK(tied.slides[0].offset == Fraction{1});
     CHECK(tied.slides[0].fret == 6);
-    CHECK(tied.slides[1].offset == Fraction{2});
+    CHECK(tied.slides[1].offset == Fraction{7, 4});
     CHECK(tied.slides[1].fret == 2);
-    CHECK_FALSE(tied.slides[1].unpitched);
+    CHECK_FALSE(tied.slide_out.has_value());
 
-    // The chord's fret 8 shift-slides the full gap into its fret-4 landing (no hold: its own
-    // onset carried the flags).
+    // The chord's fret 8 shift-slides toward its fret-4 landing (no hold: its own onset
+    // carried the flags); the glide waypoint ends the minimum sustain distance before the landing.
     const common::core::ChartNote& eight = chart.notes[2];
     CHECK(eight.position == GridPosition{.measure = 1, .beat = 2});
     CHECK(eight.string == 3);
     CHECK(eight.fret == 8);
     REQUIRE(eight.slides.size() == 1);
-    CHECK(eight.slides[0].offset == Fraction{1});
+    CHECK(eight.slides[0].offset == Fraction{3, 4});
     CHECK(eight.slides[0].fret == 4);
+    CHECK(eight.sustain == Fraction{3, 4});
 
     // Both landings keep their own onsets (and heads) inside the beat-3 chord.
     CHECK(chart.notes[3].position == GridPosition{.measure = 1, .beat = 3});
@@ -691,9 +696,10 @@ TEST_CASE("Guitar Pro import splits chord spans on articulation changes", "[core
     std::filesystem::remove_all(scratch, cleanup_error);
 }
 
-// A tie-merged sustain is exempt from the trim and drop rules even with no technique on it:
-// the tie itself is the deliberate-ring notation, so the tail needs no other reason to stay.
-TEST_CASE("Guitar Pro import keeps effect-free tie-merged sustains whole", "[core][gp-import]")
+// A tie-merged tail that stops at a changed onset trims like any other (the old blanket tie
+// exemption is gone — only rings crossing the next onset hold); the trimmed tail is over a
+// beat, so the effect-free drop rule leaves it in place.
+TEST_CASE("Guitar Pro import trims tie-merged sustains at a changed onset", "[core][gp-import]")
 {
     const std::filesystem::path scratch =
         std::filesystem::temp_directory_path() / "rh_gp_sustain_keep_test";
@@ -703,7 +709,7 @@ TEST_CASE("Guitar Pro import keeps effect-free tie-merged sustains whole", "[cor
     std::filesystem::create_directories(workspace);
 
     // Removing the vibrato from the tie-chain origin makes the merged four-beat note
-    // effect-free; the tie exemption still keeps the full notated four beats.
+    // effect-free; it still trims to the margin and keeps the beat-plus remainder.
     const std::string gpif = fixtureWithReplacement("<Vibrato>Slight</Vibrato>", "");
     const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
 
@@ -714,7 +720,7 @@ TEST_CASE("Guitar Pro import keeps effect-free tie-merged sustains whole", "[cor
     const common::core::Chart& chart = requiredChart(song->arrangements.front());
     REQUIRE(chart.notes.size() == 5);
     CHECK_FALSE(chart.notes[3].vibrato);
-    CHECK(chart.notes[3].sustain == Fraction{4});
+    CHECK(chart.notes[3].sustain == Fraction{15, 4});
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }
@@ -842,7 +848,126 @@ namespace
         notes, [&](const std::string& note) { return note.find(fragment) != std::string::npos; });
 }
 
+// A two-string chord beat for the hold-semantics tests below.
+[[nodiscard]] GpBeat chordBeat(
+    const Fraction duration, const int fret_a, const int fret_b, const bool tie_origin,
+    const bool tie_destination)
+{
+    GpBeat beat;
+    beat.duration_whole = duration;
+    beat.notes = {
+        GpNote{
+            .string = 1,
+            .fret = fret_a,
+            .tie_origin = tie_origin,
+            .tie_destination = tie_destination
+        },
+        GpNote{
+            .string = 2,
+            .fret = fret_b,
+            .tie_origin = tie_origin,
+            .tie_destination = tie_destination
+        }
+    };
+    return beat;
+}
+
 } // namespace
+
+// The sustain hold semantics (policy rule 1, user rule 2026-07-22): every tail that merely
+// reaches the next onset trims to the minimum sustain distance — ties and repeated chords included
+// — while a ring notated strictly past the next onset is a deliberate hold and stays whole.
+// Repeated chords keep their held reading through the merged shape span, which derives from
+// notated pre-trim durations, so the box continues while the tails keep the gap.
+TEST_CASE("Guitar Pro import trims reaching tails and holds crossing rings", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+
+    SECTION("a repeated chord trims its tails while the merged span runs through the restrike")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {chordBeat(Fraction{1, 2}, 5, 7, false, false),
+                     chordBeat(Fraction{1, 2}, 5, 7, false, false)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 4);
+        CHECK(chart.notes[0].sustain == Fraction{7, 4});
+        CHECK(chart.notes[1].sustain == Fraction{7, 4});
+        // One merged span from the first strum through the last strum's notated end.
+        REQUIRE(chart.shapes.size() == 1);
+        CHECK(chart.shapes[0].sustain == Fraction{4});
+    }
+
+    SECTION("a changed chord trims the tails the same way but splits the span")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {chordBeat(Fraction{1, 2}, 5, 7, false, false),
+                     chordBeat(Fraction{1, 2}, 3, 5, false, false)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 4);
+        CHECK(chart.notes[0].sustain == Fraction{7, 4});
+        CHECK(chart.notes[1].sustain == Fraction{7, 4});
+        CHECK(chart.shapes.size() == 2);
+    }
+
+    SECTION("a tie-merged chord reaching a changed onset trims like any other")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {chordBeat(Fraction{1, 4}, 5, 7, true, false),
+                     chordBeat(Fraction{1, 4}, 5, 7, false, true),
+                     chordBeat(Fraction{1, 2}, 3, 5, false, false)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 4);
+        CHECK(chart.notes[0].sustain == Fraction{7, 4});
+        CHECK(chart.notes[1].sustain == Fraction{7, 4});
+    }
+
+    SECTION("a ring notated across voices past the next onset is held whole")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat held;
+        held.duration_whole = Fraction{1};
+        held.notes = {GpNote{.string = 1, .fret = 5}, GpNote{.string = 2, .fret = 7}};
+        GpBeat rest;
+        rest.duration_whole = Fraction{1, 4};
+        GpBeat melody;
+        melody.duration_whole = Fraction{1, 4};
+        melody.notes = {GpNote{.string = 5, .fret = 8}};
+        score.tracks[0].bars.push_back(GpBar{.voices = {{held}, {rest, rest, melody, rest}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 3);
+        CHECK(chart.notes[0].sustain == Fraction{4});
+        CHECK(chart.notes[1].sustain == Fraction{4});
+    }
+}
 
 // A song whose audio sync points stop early leaves most bars to constant-tempo extrapolation, so
 // the build records a drift warning naming the covered range.
