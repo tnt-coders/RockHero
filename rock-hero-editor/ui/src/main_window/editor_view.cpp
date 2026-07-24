@@ -524,6 +524,13 @@ EditorView::~EditorView()
     m_audio_device_failure_overlay.setOpenSettingsCallback({});
     m_menu_bar.setLookAndFeel(nullptr);
     m_menu_bar.setModel(nullptr);
+
+    // Stop watching the command manager while it is still alive. m_command_manager is a member, so
+    // it is destroyed before the MenuBarModel base subobject; ~MenuBarModel then calls
+    // setApplicationCommandManagerToWatch(nullptr), which does removeListener() on the watched
+    // manager. Left set, that dereferences the already-destroyed member — a use-after-free that is
+    // benign in debug but non-deterministically fatal under release/LTO.
+    setApplicationCommandManagerToWatch(nullptr);
 }
 
 // Projects controller-derived state into child widgets and cursor mapping state.

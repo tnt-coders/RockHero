@@ -216,8 +216,9 @@ TEST_CASE("Highway projection derives hand-window ramps", "[core][highway]")
     const double beat = tempo_map.secondsAtBeat(1, 2) - tempo_map.secondsAtBeat(1, 1);
 
     Arrangement arrangement = makeArrangementWithChart();
-    REQUIRE(arrangement.chart.has_value());
-    Chart& chart = *arrangement.chart;
+    Chart* const chart_ptr = arrangement.chart.has_value() ? &*arrangement.chart : nullptr;
+    REQUIRE(chart_ptr != nullptr);
+    Chart& chart = *chart_ptr;
     // A sustained note whose tail trails off unpitched: its gesture must not feed a ramp.
     chart.notes.push_back(
         ChartNote{

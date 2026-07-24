@@ -106,8 +106,8 @@ private:
 class KeymapEditorView::ChipButton final : public juce::Button
 {
 public:
-    ChipButton(const juce::String& text, bool interactive)
-        : juce::Button(text)
+    ChipButton(const juce::String& chip_text, bool interactive)
+        : juce::Button(chip_text)
     {
         setEnabled(interactive);
         setWantsKeyboardFocus(false);
