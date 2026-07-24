@@ -1728,6 +1728,23 @@ void HighwayRenderer::Impl::draw(
         metrics.string_grid_base_y +
         (static_cast<double>(std::max(state.string_count, 1)) * metrics.string_distance);
 
+    // Arpeggio bracket geometry accumulates per box PER STRING in the box pass below and
+    // submits lane-dominantly inside the note pass (user rule 2026-07-24, refining two earlier
+    // orderings): an upright bracket against a flat lane ribbon is occluded by lane height, not
+    // time — a camera ray from above reaches the higher surface first regardless of z — so each
+    // bracket glyph draws over everything on lower lanes (any onset) and yields only to groups
+    // containing notes on lanes above its own. The box panels stay under all notes as before.
+    struct BracketBatch
+    {
+        int lane{0};
+        double span_start_seconds{0.0};
+        double span_end_seconds{0.0};
+        std::vector<PosColorUvVertex> vertices;
+        std::vector<std::uint16_t> indices;
+        bool submitted{false};
+    };
+    std::vector<BracketBatch> bracket_batches;
+
     // --- Chord and arpeggio boxes: the reference's translucent panels at chord onsets, plus an
     // arpeggio-styled box (the same panel with the fretboard bracket notation overlaid) at each
     // arpeggio shape's start. Drawn far-to-near BEFORE the notes so nearer content composites
@@ -1738,8 +1755,6 @@ void HighwayRenderer::Impl::draw(
     {
         std::vector<PosColorVertex> box_vertices;
         std::vector<std::uint16_t> box_indices;
-        std::vector<PosColorUvVertex> bracket_vertices;
-        std::vector<std::uint16_t> bracket_indices;
         // Boxes rise exactly to the fret-line top: any higher and the panel visibly pokes past
         // the fret grid (user-flagged bug; the old top added half a string distance).
         const double full_height_y1 = face_top_y;
@@ -1766,8 +1781,8 @@ void HighwayRenderer::Impl::draw(
                 const float u0 = mirror_u ? rect[2] : rect[0];
                 const float u1 = mirror_u ? rect[0] : rect[2];
                 pushQuad(
-                    bracket_vertices,
-                    bracket_indices,
+                    bracket_batches.back().vertices,
+                    bracket_batches.back().indices,
                     makeUvVertex(center_x - half, center_y - half, z, tint, u0, rect[3]),
                     makeUvVertex(center_x + half, center_y - half, z, tint, u1, rect[3]),
                     makeUvVertex(center_x + half, center_y + half, z, tint, u1, rect[1]),
@@ -1779,6 +1794,15 @@ void HighwayRenderer::Impl::draw(
                     entry.string, state.string_count, metrics, invert);
                 const std::uint32_t tint =
                     packAbgr(stringLaneColor(entry.string, state.string_count, palette));
+                // One lane-tagged batch per posture string, so the note pass can order each
+                // glyph against note content by lane height; the span window scopes which
+                // notes can force the glyph underneath them.
+                bracket_batches.push_back(
+                    BracketBatch{
+                        .lane = invert ? (state.string_count + 1 - entry.string) : entry.string,
+                        .span_start_seconds = shape.start_seconds,
+                        .span_end_seconds = shape.end_seconds,
+                    });
                 if (entry.fret > 0)
                 {
                     push_bracket(
@@ -1898,13 +1922,7 @@ void HighwayRenderer::Impl::draw(
         }
 
         submitBatch(box_vertices, box_indices, posColorLayout(), color_program.get(), nullptr);
-        const bgfx::TextureHandle brackets_texture = atlases.heads.get();
-        submitBatch(
-            bracket_vertices,
-            bracket_indices,
-            posColorUvLayout(),
-            texture_tint_program.get(),
-            &brackets_texture);
+        // Brackets submit interleaved with the note batches (see the declaration above).
     }
 
     const std::array<float, 4> head_cell = atlases.head_layout.cellRect(g_head_cell_standard);
@@ -2006,6 +2024,39 @@ void HighwayRenderer::Impl::draw(
         head_indices.clear();
     };
     std::size_t batched_group = chord_groups.size();
+    // Lane-dominant bracket submission at NOTE granularity (user rule 2026-07-24, twice
+    // refined: groups can hold lanes on both sides of a glyph, so group-level slotting let a
+    // low open tail ride its higher groupmate over the notation). A bracket glyph stays
+    // pending — compositing over every lower lane's tails and heads, whatever their onsets —
+    // until the note about to draw sits on a lane ABOVE the glyph AND overlaps its span; the
+    // batches flush and the glyph submits underneath that note, mid-group when that is where
+    // the lane boundary falls (in-group notes iterate lane-ascending, so lower lanes are
+    // already batched). Never-triggered glyphs drain after the last group.
+    const auto submit_brackets_below = [&](const common::core::HighwayNoteView& note) {
+        const int note_lane = invert ? (state.string_count + 1 - note.string) : note.string;
+        bool flushed = false;
+        for (BracketBatch& batch : bracket_batches)
+        {
+            if (batch.submitted || batch.lane >= note_lane ||
+                note.start_seconds > batch.span_end_seconds ||
+                note.end_seconds < batch.span_start_seconds)
+            {
+                continue;
+            }
+            if (!flushed)
+            {
+                flush_note_batches();
+                flushed = true;
+            }
+            submitBatch(
+                batch.vertices,
+                batch.indices,
+                posColorUvLayout(),
+                texture_tint_program.get(),
+                &heads_texture);
+            batch.submitted = true;
+        }
+    };
 
     for (const std::size_t index : visible)
     {
@@ -2023,6 +2074,7 @@ void HighwayRenderer::Impl::draw(
             flush_note_batches();
             batched_group = group_index;
         }
+        submit_brackets_below(note);
         const double lane_y =
             common::core::highwayStringLaneY(note.string, state.string_count, metrics, invert);
         const ArgbColor base_color = stringLaneColor(note.string, state.string_count, palette);
@@ -2653,6 +2705,21 @@ void HighwayRenderer::Impl::draw(
     }
 
     flush_note_batches();
+    // Drain the never-triggered bracket glyphs: nothing above their lanes overlapped them, so
+    // they read over everything below.
+    for (BracketBatch& batch : bracket_batches)
+    {
+        if (!batch.submitted)
+        {
+            submitBatch(
+                batch.vertices,
+                batch.indices,
+                posColorUvLayout(),
+                texture_tint_program.get(),
+                &heads_texture);
+            batch.submitted = true;
+        }
+    }
 
     // --- Scrolling fret numbers: the reference's readability aid. Numbers ride the board floor
     // at each dotted fret on every measure downbeat (bright inside the current hand range, dim
