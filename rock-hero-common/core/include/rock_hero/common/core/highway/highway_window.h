@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <compare>
 #include <rock_hero/common/core/highway/highway_view_state.h>
 #include <vector>
 
@@ -32,9 +33,17 @@ struct HighwayHandWindow
     \param lhs Left-hand window.
     \param rhs Right-hand window.
     \return True when both windows store equal values.
+
+    Exact edge equality: settled placements land on exact fret-line coordinates, so is_eq keeps
+    GCC's -Wfloat-equal satisfied that the exactness is intended. Callers comparing a morphing
+    window compare with a tolerance instead.
     */
     friend constexpr bool operator==(
-        const HighwayHandWindow& lhs, const HighwayHandWindow& rhs) noexcept = default;
+        const HighwayHandWindow& lhs, const HighwayHandWindow& rhs) noexcept
+    {
+        return std::is_eq(lhs.low_line <=> rhs.low_line) &&
+               std::is_eq(lhs.high_line <=> rhs.high_line);
+    }
 };
 
 /*!
