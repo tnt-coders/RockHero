@@ -446,8 +446,9 @@ what extends the marker model itself. Implemented the same day.
 Extending a note's tail (the duration verb — and span extents when slice 3 builds them) clamps
 to end at least a **margin before the next onset on ANY string**, not just the same string:
 tails must never crowd another note. The margin is 1/16 of a whole note (a quarter beat in
-x/4) — intended to become configurable, but the setting ships with the override design below,
-not before. Rules:
+x/4 — the shared constant in `grid_arithmetic.h`; 1/32 was trialed and reverted on sight,
+2026-07-23) — intended to become configurable, but the setting ships with the override design
+below, not before. Rules:
 
 - Same-onset chord members sit at equal positions and never block each other, and **span
   siblings never block each other**: notes under a shared shape span are implied-held across

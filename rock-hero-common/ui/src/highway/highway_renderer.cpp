@@ -47,19 +47,25 @@ constexpr ArgbColor g_beat_bar_color = 0xFF0F3B5E; // beat and measure bars alik
 constexpr double g_attack_line_half_length = 0.025;
 constexpr double g_attack_fade_length = 0.2;
 constexpr double g_attack_line_alpha = 0.85; // full teal read slightly too bright (user-tuned)
-// The board's lane striping is a permanent property of the whole neck (inlay lanes exist
-// everywhere, not just under the hand): plain lanes carry a faint blue wash while inlay-dotted
-// lanes composite a near-black navy OVER the window light — the stripe must be much darker than
-// the lit result to read as darkening through alpha compositing; a mid-blue stripe of any alpha
-// merely tints (the 2026-07-23 wash-out finding).
-constexpr ArgbColor g_board_lane_color = 0x122590E8;
-constexpr ArgbColor g_board_lane_dotted_color = 0x48091E30;
-// The hand-window light's tint (the old lit-runway strength) and the falloff band the light
-// dissolves across, centered on each eased edge (half strength at the edge, gone half a band
-// outside, full half a band inside), in world units. The centered placement carries the lit
-// region's width; this constant alone sets how sharp or gradual the edge fade is.
-constexpr ArgbColor g_window_light_color = 0x402590E8;
+// The board's lit lane appearance: what each lane's surface looks like where the hand-window
+// light reveals it (plain lanes the runway blue, inlay-dotted lanes distinctly darker — the
+// intrinsic board pattern). The light carries these as vertex color and the per-fragment mask
+// reveals them, the physically honest reading (user rule 2026-07-23): nothing is painted over
+// or under the light, and away from it the board draws nothing and stays dark.
+constexpr ArgbColor g_lit_lane_color = 0x402590E8;
+constexpr ArgbColor g_lit_lane_dotted_color = 0x40185C94;
+// The falloff band the light dissolves across, centered on each eased edge (half strength at
+// the edge, gone half a band outside, full half a band inside), in world units. The centered
+// placement carries the lit region's width; this constant alone sets settled-edge sharpness.
 constexpr double g_window_light_falloff = 0.55;
+// How strongly the light dims while it sweeps through a transition, at full steepness. The
+// motion-dim model (user, 2026-07-23, replacing two edge-widening attempts that either bulged
+// the silhouette or collapsed the lit core): the exterior shape keeps the settled fade
+// cross-section along the entire eased contour, and the transition's fading lives in overall
+// brightness instead — a light rushing across lanes cannot fully illuminate them, so the lit
+// strip dips toward this fraction darker at peak sweep speed and recovers by arrival
+// (deepened from 0.6 on sight, 2026-07-23).
+constexpr double g_window_morph_dim = 0.85;
 constexpr ArgbColor g_lane_border_color = 0x0007928F; // per-fret runway ribbons (alpha varies)
 constexpr ArgbColor g_fret_inactive_color = 0xFF202020;
 constexpr ArgbColor g_fret_active_color = 0xFFC0C0C0;
@@ -1205,8 +1211,11 @@ void HighwayRenderer::Impl::draw(
     // carries the fragment's distances inside the window's eased edges (linear within a slice,
     // so interpolation is exact); the fragment shader dissolves the light softly across the
     // falloff band straddling each edge. No geometric clipping, no border line — soft edges at
-    // any zoom, and transitions cannot facet or misalign. Drawn BEFORE the lane striping so
-    // the inlay stripes composite over the light instead of being washed out by it. ---
+    // any zoom, and transitions cannot facet or misalign. The slab is emitted per board lane
+    // so each quad carries its lane's intrinsic lit tint (plain vs inlay-dotted) as vertex
+    // color: the light reveals the board's own coloring rather than painting over it, and the
+    // shared per-fragment mask is identical across lanes (the edge distances are one linear
+    // field in x), so the lit region still reads as one continuous light. ---
     {
         const std::array<float, 4> light_params{
             static_cast<float>(g_window_light_falloff), 0.0F, 0.0F, 0.0F
@@ -1214,58 +1223,106 @@ void HighwayRenderer::Impl::draw(
         bgfx::setUniform(window_light_params.get(), light_params.data());
         std::vector<PosColorUvVertex> vertices;
         std::vector<std::uint16_t> indices;
-        const double board_low = common::core::highwayFretLineX(0, metrics, mirrored);
-        const double board_high =
-            common::core::highwayFretLineX(g_face_fret_count, metrics, mirrored);
-        const auto [board_x0, board_x1] = std::minmax(board_low, board_high);
-        const std::uint32_t tint = packAbgr(g_window_light_color);
         const std::vector<double> times =
             windowSampleTimes(state, span_start_seconds, span_end_seconds);
+        std::vector<double> zs(times.size());
+        std::vector<double> lows(times.size());
+        std::vector<double> highs(times.size());
+        for (std::size_t sample = 0; sample < times.size(); ++sample)
+        {
+            const auto [low_x, high_x] = handWindowXAt(state, times[sample], metrics, mirrored);
+            zs[sample] = time_to_z(times[sample]);
+            lows[sample] = low_x;
+            highs[sample] = high_x;
+        }
+        // Motion dim (user model 2026-07-23): the silhouette keeps the settled cross-section
+        // everywhere — the same x-measured fade band along the whole eased contour — and the
+        // transition's fading lives in the light's brightness instead. Each ramp dims along a
+        // sin-squared bell over its own progress: full brightness at the ramp's start and end,
+        // deepest exactly mid-transition, so the light reads as gradually fading out of the
+        // lit span, through the dark middle of the sweep, and back into the arriving span
+        // (user shaping 2026-07-23 — a per-sample speed dim plateaued at maximum across most
+        // of a fast morph instead). The bell's depth scales with the ramp's overall sweep
+        // steepness, so slow glides keep most of their glow.
+        std::vector<double> dims(times.size(), 1.0);
+        for (const common::core::HighwayFhpView& fhp : state.fret_hand_positions)
+        {
+            if (fhp.ramp_seconds <= 0.0 || fhp.seconds <= span_start_seconds ||
+                fhp.seconds - fhp.ramp_seconds >= span_end_seconds)
+            {
+                continue;
+            }
+            const double ramp_start = fhp.seconds - fhp.ramp_seconds;
+            const auto [low_from, high_from] = handWindowXAt(state, ramp_start, metrics, mirrored);
+            const auto [low_to, high_to] = handWindowXAt(state, fhp.seconds, metrics, mirrored);
+            const double dz = time_to_z(fhp.seconds) - time_to_z(ramp_start);
+            if (dz <= 0.0)
+            {
+                continue;
+            }
+            const double slope =
+                std::max(std::abs(low_to - low_from), std::abs(high_to - high_from)) / dz;
+            const double depth = g_window_morph_dim * (slope / std::sqrt(1.0 + (slope * slope)));
+            for (std::size_t sample = 0; sample < times.size(); ++sample)
+            {
+                if (times[sample] < ramp_start || times[sample] > fhp.seconds)
+                {
+                    continue;
+                }
+                const double progress = (times[sample] - ramp_start) / fhp.ramp_seconds;
+                const double bell = std::sin(std::numbers::pi * progress);
+                dims[sample] = std::min(dims[sample], 1.0 - (depth * bell * bell));
+            }
+        }
+        const double spill = g_window_light_falloff / 2.0;
         for (std::size_t sample = 1; sample < times.size(); ++sample)
         {
-            const auto [low_a, high_a] = handWindowXAt(state, times[sample - 1], metrics, mirrored);
-            const auto [low_b, high_b] = handWindowXAt(state, times[sample], metrics, mirrored);
-            const double za = time_to_z(times[sample - 1]);
-            const double zb = time_to_z(times[sample]);
-            const auto vertex = [&](const double x,
-                                    const double z,
-                                    const double low,
-                                    const double high) {
-                return makeUvVertex(
-                    x, 0.006, z, tint, static_cast<float>(x - low), static_cast<float>(high - x));
-            };
-            pushQuad(
-                vertices,
-                indices,
-                vertex(board_x0, za, low_a, high_a),
-                vertex(board_x1, za, low_a, high_a),
-                vertex(board_x1, zb, low_b, high_b),
-                vertex(board_x0, zb, low_b, high_b));
+            const double za = zs[sample - 1];
+            const double zb = zs[sample];
+            const double low_a = lows[sample - 1];
+            const double low_b = lows[sample];
+            const double high_a = highs[sample - 1];
+            const double high_b = highs[sample];
+            // Every fragment past the half-band spill outside both slice-end windows is fully
+            // dark, so lanes entirely beyond it draw nothing.
+            const double lit_x0 = std::min(low_a, low_b) - spill;
+            const double lit_x1 = std::max(high_a, high_b) + spill;
+            for (int fret = 1; fret <= g_face_fret_count; ++fret)
+            {
+                const double lane_low = common::core::highwayFretLineX(fret - 1, metrics, mirrored);
+                const double lane_high = common::core::highwayFretLineX(fret, metrics, mirrored);
+                const auto [lane_x0, lane_x1] = std::minmax(lane_low, lane_high);
+                if (lane_x1 < lit_x0 || lane_x0 > lit_x1)
+                {
+                    continue;
+                }
+                const ArgbColor lane_color =
+                    isDottedFret(fret) ? g_lit_lane_dotted_color : g_lit_lane_color;
+                const std::uint32_t tint_a = packAbgr(lane_color, dims[sample - 1]);
+                const std::uint32_t tint_b = packAbgr(lane_color, dims[sample]);
+                const auto vertex = [&](const double x,
+                                        const double z,
+                                        const double low,
+                                        const double high,
+                                        const std::uint32_t tint) {
+                    return makeUvVertex(
+                        x,
+                        0.008,
+                        z,
+                        tint,
+                        static_cast<float>((x - low) + spill),
+                        static_cast<float>((high - x) + spill));
+                };
+                pushQuad(
+                    vertices,
+                    indices,
+                    vertex(lane_x0, za, low_a, high_a, tint_a),
+                    vertex(lane_x1, za, low_a, high_a, tint_a),
+                    vertex(lane_x1, zb, low_b, high_b, tint_b),
+                    vertex(lane_x0, zb, low_b, high_b, tint_b));
+            }
         }
         submitBatch(vertices, indices, posColorUvLayout(), window_light_program.get(), nullptr);
-    }
-
-    // --- Board lane striping: the plain/dotted lane tints drawn board-wide, a permanent
-    // property of the neck (fhp-window-motion plan, lighting redesign). Composited OVER the
-    // window light (user rule 2026-07-23): the dark inlay stripes visibly darken the lit
-    // region instead of dissolving under it, and still show faintly on the unlit board. Like
-    // the light, board coloring carries no hit-line distance fade — it is constant along the
-    // whole board, unlike event furniture. ---
-    {
-        std::vector<PosColorVertex> vertices;
-        std::vector<std::uint16_t> indices;
-        const double z0 = time_to_z(span_start_seconds);
-        const double z1 = time_to_z(span_end_seconds);
-        for (int fret = 1; fret <= g_face_fret_count; ++fret)
-        {
-            const double low_x = common::core::highwayFretLineX(fret - 1, metrics, mirrored);
-            const double high_x = common::core::highwayFretLineX(fret, metrics, mirrored);
-            const auto [x0, x1] = std::minmax(low_x, high_x);
-            const ArgbColor color =
-                isDottedFret(fret) ? g_board_lane_dotted_color : g_board_lane_color;
-            pushFloorQuad(vertices, indices, x0, x1, 0.008, z0, z1, packAbgr(color));
-        }
-        submitBatch(vertices, indices, posColorLayout(), color_program.get(), nullptr);
     }
 
     // --- Beat and measure bars: the reference's gradient wings in its deep blue, clipped to

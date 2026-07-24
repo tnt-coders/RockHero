@@ -296,8 +296,8 @@ std::optional<ChartNotesEditPlan> planAdjustSustain(
             next_sustain = common::core::Fraction{};
         }
         // The minimum-sustain-distance rule (settled 2026-07-18; override design deliberately
-        // open): growing a tail clamps it to end at least the margin — 1/16 of a whole note —
-        // BEFORE the next onset on ANY string, so extension can never crowd another note.
+        // open): growing a tail clamps it to end at least the shared margin BEFORE the next
+        // onset on ANY string, so extension can never crowd another note.
         // Same-onset chord members sit at equal positions and never block each other, and
         // notes under a shared shape span are implied-held across each other's onsets (§5),
         // so span siblings never block either — the first later onset outside every shared
@@ -330,7 +330,7 @@ std::optional<ChartNotesEditPlan> planAdjustSustain(
                     tempo_map.timeSignatureAt(note.position.measure);
                 const common::core::Fraction limit =
                     common::core::beatDistance(tempo_map, note.position, blocker->position) -
-                    common::core::Fraction{signature.denominator, 16};
+                    common::core::minimumSustainDistanceBeats(signature.denominator);
                 if (limit < next_sustain)
                 {
                     next_sustain = note.sustain < limit ? limit : note.sustain;

@@ -164,8 +164,8 @@ TEST_CASE("Highway projection resolves chart positions to seconds", "[core][high
 
     REQUIRE(state.fret_hand_positions.size() == 1);
     CHECK(state.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
-    // No slide lands on this placement, so it morphs over the 1/16-whole-note margin (a quarter
-    // beat in 4/4).
+    // No slide lands on this placement, so it morphs over the shared minimum-sustain-distance
+    // margin (1/16 whole note — a quarter beat in 4/4).
     CHECK(state.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.25 * beat));
 
     REQUIRE(state.sections.size() == 1);
@@ -208,8 +208,8 @@ TEST_CASE("Highway projection pads the displayed string count", "[core][highway]
 
 // Ramp derivation for the hand window: a placement landing exactly on a pitched waypoint's grid
 // position ramps over that glide segment (slide-locked), ordinary placements morph over the
-// 1/16-whole-note margin, crowded placements shorten against the previous arrival instead of
-// overlapping it, and an unpitched slide-out never slide-matches a placement.
+// shared minimum-sustain-distance margin, crowded placements shorten against the previous
+// arrival instead of overlapping it, and an unpitched slide-out never slide-matches a placement.
 TEST_CASE("Highway projection derives hand-window ramps", "[core][highway]")
 {
     const TempoMap tempo_map = makeHighwayTempoMap();
@@ -232,9 +232,10 @@ TEST_CASE("Highway projection derives hand-window ramps", "[core][highway]")
     chart.fret_hand_positions = {
         // Ordinary move: the margin morph (a quarter beat in 4/4).
         FretHandPosition{.position = GridPosition{.measure = 2, .beat = 1}, .fret = 1, .width = 4},
-        // Crowded: an eighth of a beat after the previous arrival, so the morph shortens.
+        // Crowded: a sixteenth of a beat after the previous arrival — closer than the margin —
+        // so the morph shortens against it.
         FretHandPosition{
-            .position = GridPosition{.measure = 2, .beat = 1, .offset = Fraction{1, 8}},
+            .position = GridPosition{.measure = 2, .beat = 1, .offset = Fraction{1, 16}},
             .fret = 2,
             .width = 4,
         },
@@ -256,8 +257,8 @@ TEST_CASE("Highway projection derives hand-window ramps", "[core][highway]")
     CHECK(state.fret_hand_positions[0].seconds == Catch::Approx(4.0 * beat));
     CHECK(state.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.25 * beat));
 
-    CHECK(state.fret_hand_positions[1].seconds == Catch::Approx(4.125 * beat));
-    CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(0.125 * beat));
+    CHECK(state.fret_hand_positions[1].seconds == Catch::Approx(4.0625 * beat));
+    CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(0.0625 * beat));
 
     // The glide starts at the note onset (8.5 beats) and lands at the waypoint (10.5 beats).
     CHECK(state.fret_hand_positions[2].seconds == Catch::Approx(10.5 * beat));

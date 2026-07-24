@@ -173,10 +173,9 @@ HighwayViewState makeHighwayViewState(
 
     // Every placement gets an eased approach ramp (fhp-window-motion plan): a slide-matched
     // placement ramps over its glide segment so the window travels with the note, any other
-    // placement morphs over the minimum-sustain-distance margin (1/16 whole note at the
-    // arrival's meter, the sustain policy's settled margin), and crowded transitions shorten
-    // against the previous arrival rather than overlapping it. The synthetic pre-first nut
-    // window counts as arriving at the chart origin.
+    // placement morphs over the shared minimum-sustain-distance margin at the arrival's meter,
+    // and crowded transitions shorten against the previous arrival rather than overlapping it.
+    // The synthetic pre-first nut window counts as arriving at the chart origin.
     state.fret_hand_positions.reserve(chart.fret_hand_positions.size());
     for (const FretHandPosition& fhp : chart.fret_hand_positions)
     {
@@ -191,8 +190,9 @@ HighwayViewState makeHighwayViewState(
         else
         {
             const TimeSignatureChange signature = tempo_map.timeSignatureAt(fhp.position.measure);
-            const GridPosition morph_start =
-                advanceGridPosition(tempo_map, fhp.position, Fraction{-signature.denominator, 16});
+            const Fraction margin = minimumSustainDistanceBeats(signature.denominator);
+            const GridPosition morph_start = advanceGridPosition(
+                tempo_map, fhp.position, Fraction{-margin.numerator, margin.denominator});
             ramp_start_seconds =
                 tempo_map.secondsAtGlobalBeatPosition(globalBeatPosition(tempo_map, morph_start));
         }

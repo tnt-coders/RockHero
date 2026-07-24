@@ -85,7 +85,9 @@ editor-authored charts are never rewritten.
 sustains):
 
 1. **Trim to the minimum sustain distance.** A note's tail is shortened so it ends at least the
-   minimum-sustain-distance margin — 1/16 of a whole note, the same settled margin the editor's
+   minimum-sustain-distance margin — 1/16 of a whole note, the shared constant in
+   `grid_arithmetic.h` (1/32 was trialed and reverted on sight, 2026-07-23), the same settled
+   margin the editor's
    duration verb clamps to — before the next onset on *any* string. The margin bounds sustain
    *tails* only, never note onsets (renamed from "minimum note distance", 2026-07-23): a run of
    32nds imports every onset as notated, with tails trimmed toward zero and then dropped by the
@@ -161,7 +163,7 @@ handshape or diagram data, so the tab's chord boxes are derived):
 12a. **A closed span keeps the minimum sustain distance, like every other element.** Tie
     merging can stretch a strum's ring past the next event, but the shape's box never follows
     it: when a new posture (or a non-chord onset) closes a span, the closed span's end trims to
-    at least the minimum-sustain-distance margin (1/16 whole note, rule 4) before that onset —
+    at least the minimum-sustain-distance margin (rule 1's shared constant) before that onset —
     the same rule sustains follow, so consecutive shapes keep the same visible gap as
     everything else instead of butting exactly (user rule 2026-07-23, superseding the
     clamp-to-the-onset form). The trim floors at the span's last strum, so the box always
