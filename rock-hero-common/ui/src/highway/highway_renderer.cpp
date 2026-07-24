@@ -1802,6 +1802,8 @@ void HighwayRenderer::Impl::draw(
                         .lane = invert ? (state.string_count + 1 - entry.string) : entry.string,
                         .span_start_seconds = shape.start_seconds,
                         .span_end_seconds = shape.end_seconds,
+                        .vertices = {},
+                        .indices = {},
                     });
                 if (entry.fret > 0)
                 {

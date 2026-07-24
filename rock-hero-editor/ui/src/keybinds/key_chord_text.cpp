@@ -67,11 +67,11 @@ namespace
 [[nodiscard]] juce::String modifierPrefix(const juce::ModifierKeys& modifiers, bool with_shift)
 {
     juce::String text;
-    // Bindings register the commandModifier (Ctrl on Windows/Linux, Cmd on macOS), so query that
-    // bit rather than isCtrlDown(): on macOS a Cmd chord leaves isCtrlDown() false, which would
-    // drop the prefix entirely. The label stays "Ctrl" everywhere per the Windows-convention
-    // display the formatter adopts.
-    if (modifiers.isCommandDown())
+    // Label the primary modifier "Ctrl" whether it arrives as the Ctrl or the Command bit. On
+    // Windows/Linux the two are the same bit; on macOS bindings register commandModifier (Cmd)
+    // while ctrlModifier chords carry the distinct Ctrl bit, and the Windows-convention display
+    // names both "Ctrl" -- so testing only one bit drops the prefix for the other on macOS.
+    if (modifiers.isCtrlDown() || modifiers.isCommandDown())
     {
         text << "Ctrl" << keyChordJoiner();
     }
