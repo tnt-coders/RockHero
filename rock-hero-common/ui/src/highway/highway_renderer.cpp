@@ -64,8 +64,9 @@ constexpr double g_window_light_falloff = 0.55;
 // cross-section along the entire eased contour, and the transition's fading lives in overall
 // brightness instead — a light rushing across lanes cannot fully illuminate them, so the lit
 // strip dips toward this fraction darker at peak sweep speed and recovers by arrival
-// (deepened from 0.6 on sight, 2026-07-23).
-constexpr double g_window_morph_dim = 0.85;
+// (tuned on sight 0.6 -> 0.85 -> 0.95, 2026-07-23; the sin-squared bell keeps the overall feel
+// gentler than the old full-length plateau even at this depth).
+constexpr double g_window_morph_dim = 0.95;
 constexpr ArgbColor g_lane_border_color = 0x0007928F; // per-fret runway ribbons (alpha varies)
 constexpr ArgbColor g_fret_inactive_color = 0xFF202020;
 constexpr ArgbColor g_fret_active_color = 0xFFC0C0C0;
@@ -2099,7 +2100,14 @@ void HighwayRenderer::Impl::draw(
             }
             else
             {
-                band = open_band_stations(note.start_seconds);
+                // Sampled at the VISIBLE tail start, not the onset: tail_from advances with
+                // playback, and once a window move has scrolled fully behind the hit line the
+                // remaining tail must hold the settled post-move window — the onset-time window
+                // is the pre-move one, and using it snapped a ringing open tail back to the old
+                // hand position the instant the ramp left the visible span (user finding
+                // 2026-07-23). With no ramp inside [tail_from, tail_to] the window is constant
+                // across the whole visible tail, so tail_from is exact.
+                band = open_band_stations(tail_from);
                 band_valid = band_valid && (band[3] - band[0] > 2.0 * g_open_tail_margin);
                 base_x = (band[0] + band[3]) / 2.0;
             }
