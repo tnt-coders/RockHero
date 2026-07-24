@@ -41,10 +41,10 @@ both endpoints, so the border leaves and rejoins the straight steady-window edge
   slow ones). This is intended behavior, not an artifact.
 - The first FHP of a chart morphs in from the default nut window (fret 1, width 4) under the
   same margin rule rather than popping.
-- The window transition's border draws as a phantom fret line — identical to a real lane
-  line's look and in-window strength — gliding between the fixed lines (2026-07-23; a first
-  attempt with dedicated shape-rail-style edges was removed on sight as too pronounced). See
-  renderer item 2.
+- The highlight is a per-fragment window light over a uniformly drawn board with subtle
+  board-wide lane striping; its soft falloff is the only edge (user redesign 2026-07-23,
+  after dedicated edge rails and then a phantom fret line both read wrong). See renderer
+  items 1-2.
 
 ## Design
 
@@ -81,22 +81,21 @@ The discrete `activeFhpFretLines` step function is replaced at geometry call sit
 continuous query; it survives only where integers are required (lane-brightness bookkeeping,
 fret-number labels).
 
-1. **FHP lane highlight — the window is a mask, the board owns the lanes (user model,
-   2026-07-23).** Fret lines always stay straight, and the plain/dotted inlay tint is a fixed
-   board-aligned property of each lane; the highlight reveals each lane's own tint wherever
-   the lane falls inside the window region. Steady spans therefore keep today's per-lane
-   quads unchanged. In a ramp's z-range, interior lanes still emit full straight-sided quads
-   in their own tints; only the one or two lanes being entered/exited at each moving edge
-   emit trapezoids clipped against the eased border position at the slice ends (z-sliced with
-   the sampling idiom modulated tails already use). Nothing about the striping is
-   compromised, and no lane geometry ever shears except at the border crossing.
-2. **Window border = a phantom fret line (user, 2026-07-23, third iteration).** The first
-   treatment — dedicated shape-rail-style edge rails (`a59bcdd7`) — read as too pronounced and
-   was removed on sight. The settled replacement: during a transition only, each window edge
-   draws as a phantom fret line with exactly a real lane line's width, color, and in-window
-   (0.375) strength, gliding between the fixed lines and drawn in the lane-border pass so it
-   composites under the highlight fill like the real lines do. Settled spans draw nothing —
-   there the window edges coincide with real fret lines, which already mark them.
+1. **FHP highlight = a per-fragment window light (user redesign, 2026-07-23, supersedes the
+   geometric mask).** The board draws uniform: the plain/dotted lane striping is a permanent,
+   subtle, board-wide property of the neck (`g_board_lane_*`). The highlight itself is one
+   continuous brightness calculation across the window width, evaluated per pixel: a single
+   slab tessellated at the window sample times whose vertices carry each fragment's distances
+   inside the two eased edges (linear within a slice, so interpolation is exact), with the
+   `window_light` fragment shader dissolving the light over a smoothstep falloff
+   (`g_window_light_falloff`, half a fret) past each edge. Soft edges at any zoom;
+   transitions cannot facet or misalign because nothing is clipped. Two earlier geometric
+   treatments (per-lane clipped sweeps with dedicated edge rails `a59bcdd7`, then a phantom
+   fret line `3a18527c`) are superseded and deleted.
+2. **No drawn border.** The light's soft falloff *is* the edge; the fret lines behind it stay
+   straight and untouched. Adding a shader program touches the six silent steps in
+   `docs/developer/the-3d-highway.md` (sources, CMake staging list, `HighwayShaderSet`,
+   `GameShaderProgram`, both product loaders, renderer link).
 3. **Open-string note tails.** Today the band is sampled once at `note.start_seconds` and held
    flat for the whole tail. Open (and open modulated) tails move onto the z-sampled ribbon
    path with band stations evaluated per sample from the continuous query, so they shear with

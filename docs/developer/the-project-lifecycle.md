@@ -158,10 +158,14 @@ handshape or diagram data, so the tab's chord boxes are derived):
     posture string that is merely silent at the start (a partial strum of the shape) keeps the
     chord box; no other arpeggio grouping is derived (broken-chord grouping waits for the
     corpus-informed pass).
-12a. **A span ends where the onset that closes it begins.** Tie merging can stretch a strum's
-    ring past the next event, but the shape's box never follows it: when a new posture (or a
-    non-chord onset) closes a span, the closed span's end clamps to that onset, so consecutive
-    shapes never overlap and the next event always reads as its own arrival.
+12a. **A closed span keeps the minimum sustain distance, like every other element.** Tie
+    merging can stretch a strum's ring past the next event, but the shape's box never follows
+    it: when a new posture (or a non-chord onset) closes a span, the closed span's end trims to
+    at least the minimum-sustain-distance margin (1/16 whole note, rule 4) before that onset —
+    the same rule sustains follow, so consecutive shapes keep the same visible gap as
+    everything else instead of butting exactly (user rule 2026-07-23, superseding the
+    clamp-to-the-onset form). The trim floors at the span's last strum, so the box always
+    reaches its final restrike even when events crowd closer than the margin.
 
 **Slide semantics** (resolved before the sustain policy runs, so merged tails still pass
 through the trim rules):

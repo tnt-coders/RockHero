@@ -586,11 +586,12 @@ TEST_CASE(
     // Two arpeggio shapes split at the hand move (rule 12): the beat-2 chord's posture includes
     // the ringing 6, and the beat-3 landing chord — the re-picked 2 and 4 strummed while the
     // tied fret 3 keeps ringing — is its own arpeggio including that 3. The first span's end
-    // clamps to the landing onset (rule 12a) even though its tied member rings on, so the
-    // shapes never overlap and the landing reads as its own arrival.
+    // trims to the minimum sustain distance before the landing onset (rule 12a — spans keep the
+    // same margin as every other element) even though its tied member rings on, so the landing
+    // reads as its own arrival with the standard gap.
     REQUIRE(chart.shapes.size() == 2);
     CHECK(chart.shapes[0].position == GridPosition{.measure = 1, .beat = 2});
-    CHECK(chart.shapes[0].sustain == Fraction{1});
+    CHECK(chart.shapes[0].sustain == Fraction{3, 4});
     REQUIRE(chart.shapes[0].chord < chart.templates.size());
     CHECK(
         chart.templates[chart.shapes[0].chord].frets ==
@@ -669,11 +670,12 @@ TEST_CASE("Guitar Pro import derives chord templates and spans", "[core][gp-impo
     REQUIRE(posture.fingers.size() == 6);
     CHECK_FALSE(posture.fingers[0].has_value());
 
-    // Both strums merge into one span from 1:1 through the eighth strum's notated end at
-    // 1:2+1/2 — three half-beats — even though the sustain policy dropped the notes' own tails.
+    // Both strums merge into one span from 1:1 toward the eighth strum's notated end at
+    // 1:2+1/2, trimmed to the minimum sustain distance before the closing fret-7 onset there
+    // (rule 12a) — even though the sustain policy dropped the notes' own tails.
     REQUIRE(chart.shapes.size() == 1);
     CHECK(chart.shapes.front().position == GridPosition{.measure = 1, .beat = 1});
-    CHECK(chart.shapes.front().sustain == Fraction{3, 2});
+    CHECK(chart.shapes.front().sustain == Fraction{5, 4});
     CHECK(chart.shapes.front().chord == 0);
 
     std::filesystem::remove_all(scratch, cleanup_error);
@@ -733,14 +735,16 @@ TEST_CASE("Guitar Pro import splits chord spans on articulation changes", "[core
     REQUIRE(song->arrangements.size() == 1);
     const common::core::Chart& chart = requiredChart(song->arrangements.front());
 
-    // One frets-identical template, but the palm-muted strum is its own chord: two spans.
+    // One frets-identical template, but the palm-muted strum is its own chord: two spans, each
+    // trimmed to the minimum sustain distance before the event that closes it (rule 12a) — the
+    // differing strum at beat 2, then the fret-7 onset at 1:2+1/2.
     REQUIRE(chart.templates.size() == 1);
     REQUIRE(chart.shapes.size() == 2);
     CHECK(chart.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
-    CHECK(chart.shapes[0].sustain == Fraction{1});
+    CHECK(chart.shapes[0].sustain == Fraction{3, 4});
     CHECK(chart.shapes[0].chord == 0);
     CHECK(chart.shapes[1].position == GridPosition{.measure = 1, .beat = 2});
-    CHECK(chart.shapes[1].sustain == Fraction{1, 2});
+    CHECK(chart.shapes[1].sustain == Fraction{1, 4});
     CHECK(chart.shapes[1].chord == 0);
 
     std::filesystem::remove_all(scratch, cleanup_error);

@@ -69,9 +69,15 @@ std::optional<common::ui::HighwayShaderSet> loadPreviewHighwayShaders()
     set.texture_tint = load_pair("texture_tint");
     set.glyph = load_pair("glyph");
     set.texture = load_pair("texture");
+    set.window_light = load_pair("window_light");
 
     for (const common::ui::HighwayShaderPair* pair :
-         {&set.color, &set.color_fade, &set.texture_tint, &set.glyph, &set.texture})
+         {&set.color,
+          &set.color_fade,
+          &set.texture_tint,
+          &set.glyph,
+          &set.texture,
+          &set.window_light})
     {
         if (pair->vertex.empty() || pair->fragment.empty())
         {

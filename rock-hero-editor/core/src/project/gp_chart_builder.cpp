@@ -568,10 +568,12 @@ void normalizeImportedSustains(
 // through a chord's onset (tie-held from before, not re-struck) joins the posture on its string
 // (policy rule 12, user rule 2026-07-22); the projections' shared arrival rule then renders the
 // partly-struck span as an arpeggio, while fully-strummed spans stay chord boxes — no other
-// arpeggio grouping is derived (broken-chord grouping needs the corpus-informed pass). Derived
-// templates are unnamed and unfingered. The maintained plain-English spec is "GP chart
-// normalization policy" in docs/developer/the-project-lifecycle.md.
-void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
+// arpeggio grouping is derived (broken-chord grouping needs the corpus-informed pass). A span
+// closed by a following event trims to the minimum-sustain-distance margin before it — the same
+// margin every other element keeps (policy rule 12a, user rule 2026-07-23). Derived templates
+// are unnamed and unfingered. The maintained plain-English spec is "GP chart normalization
+// policy" in docs/developer/the-project-lifecycle.md.
+void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& grid, Chart& chart)
 {
     const std::size_t string_count = chart.tuning.strings.size();
     std::map<std::vector<std::optional<int>>, std::size_t> template_indices;
@@ -588,22 +590,42 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
         GridPosition position;
         Fraction start_beat{};
         Fraction end_beat{};
+        Fraction last_strum_beat{};
     };
     std::optional<OpenSpan> open;
-    // Closes the held span, clamping its end to the onset that closes it when one does (policy
-    // rule 12a): tie merging can stretch a strum's ring past the next event, but the shape's
-    // box must never overlap the next span or swallow the next onset's arrival.
-    const auto close_span = [&chart, &open](const std::optional<Fraction> closing_beat) {
+    // The closing onset reduced by the minimum-sustain-distance margin (1/16 whole note at the
+    // closing onset's measure) — where a span it closes must end.
+    const auto margin_limit = [&grid](const BuiltNote& closing) {
+        const auto measure_index = static_cast<std::size_t>(closing.note.position.measure - 1);
+        return subtractFractions(
+            closing.global_beat, Fraction{grid.denominator[measure_index], 16});
+    };
+    // Closes the held span. A span closed by a following event trims to the margin before it
+    // (policy rule 12a — spans keep the same minimum sustain distance as every other element,
+    // user rule 2026-07-23), floored at the last strum so the box always reaches its final
+    // restrike. A span that would lose all length (a single strum crowded closer than the
+    // margin) falls back to exact adjacency, mirroring the sustain rules' protected-adjacency
+    // precedent — chart validation rejects zero-length spans.
+    const auto close_span = [&chart, &open](
+                                const std::optional<Fraction> closing_limit,
+                                const std::optional<Fraction>
+                                    closing_beat) {
         if (open.has_value())
         {
-            if (closing_beat.has_value() && *closing_beat < open->end_beat)
+            Fraction end = open->end_beat;
+            if (closing_limit.has_value() && *closing_limit < end)
             {
-                open->end_beat = *closing_beat;
+                end = std::max(*closing_limit, open->last_strum_beat);
+            }
+            if (!(open->start_beat < end) && closing_beat.has_value() &&
+                *closing_beat < open->end_beat)
+            {
+                end = *closing_beat;
             }
             chart.shapes.push_back(
                 ChartShape{
                     .position = open->position,
-                    .sustain = subtractFractions(open->end_beat, open->start_beat),
+                    .sustain = subtractFractions(end, open->start_beat),
                     .chord = open->chord,
                 });
             open.reset();
@@ -683,23 +705,25 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
                 {
                     open->end_beat = notated_end;
                 }
+                open->last_strum_beat = built[index].global_beat;
             }
             else
             {
-                close_span(built[index].global_beat);
+                close_span(margin_limit(built[index]), built[index].global_beat);
                 open = OpenSpan{
                     .chord = entry->second,
                     .articulation = std::move(articulation),
                     .position = built[index].note.position,
                     .start_beat = built[index].global_beat,
                     .end_beat = notated_end,
+                    .last_strum_beat = built[index].global_beat,
                 };
             }
         }
         else
         {
             // Any intervening non-chord onset ends the held posture.
-            close_span(built[index].global_beat);
+            close_span(margin_limit(built[index]), built[index].global_beat);
         }
         // This onset's notes become the ring candidates for later onsets (updated after use:
         // a note starting at an onset is struck there, not ringing through it).
@@ -713,7 +737,7 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
         }
         index = onset_end;
     }
-    close_span(std::nullopt);
+    close_span(std::nullopt, std::nullopt);
 }
 
 // Generates the fret-hand position track with a window walk — the deliberately
@@ -1175,7 +1199,7 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, Chart& chart)
 
     // Shapes read the notated (pre-trim) note ends, so this runs on the built entries before
     // their notes move into the chart.
-    deriveChordShapes(built, chart);
+    deriveChordShapes(built, grid, chart);
     if (!chart.shapes.empty())
     {
         notes.push_back(
