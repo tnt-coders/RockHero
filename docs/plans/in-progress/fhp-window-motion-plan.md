@@ -18,8 +18,9 @@ arpeggio/hand-shape span rails — moves laterally as one unit instead of snappi
    arrives at the waypoint instant after the 2026-07-23 generator change — commit `a51fb314` —
    this plan animates the display.)
 2. **Margin morphs.** Every other FHP transition morphs the window into its next shape
-   (position *and* width) over the minimum-sustain-distance margin — 1/16 of a whole note,
-   the same settled margin the sustain trim and the editor duration verb use — ending exactly
+   (position *and* width) over the minimum-sustain-distance margin — the shared constant in
+   `grid_arithmetic.h` (1/16 whole note), the same margin the sustain trim and the editor
+   duration verb use — ending exactly
    at the FHP's arrival. The morph occupies the gap the trim rule already keeps clear, so the
    window lands in its new shape precisely as the first note of the new position lands.
 
@@ -64,8 +65,8 @@ No chart-format change: every ramp is derived at projection time (derived-over-a
     at exactly the waypoint's advanced position. Unpitched slide-outs are never recorded (they
     release pressure and never move the window).
   - **Margin morph otherwise.** Ramp start = the FHP's global beat position minus the margin
-    (`signature denominator / 16` beats, i.e. 1/16 whole note, using the signature at the
-    FHP's measure), resolved to seconds through the tempo map.
+    (`minimumSustainDistanceBeats` at the signature of the FHP's measure), resolved to seconds
+    through the tempo map.
   - **Clamp.** Ramp start never precedes the previous FHP's arrival (`seconds` of the prior
     view); the synthetic pre-first nut window counts as arriving at chart start.
 - A continuous window query joins the view-state helpers: fractional low/high fret-line

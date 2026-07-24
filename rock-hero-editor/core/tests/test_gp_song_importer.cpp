@@ -230,8 +230,8 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(chart.notes[0].sustain == Fraction{});
 
     // Hammer-on destination that shift-slides into the next note: an ordinary pitched waypoint
-    // glides to the fret-7 landing, ending the minimum sustain distance before the landing's
-    // onset, and the sustain ends at the glide end.
+    // glides to the fret-7 landing, ending the minimum sustain distance (1/16 whole note — a
+    // quarter beat in 4/4) before the landing's onset, and the sustain ends at the glide end.
     CHECK(chart.notes[1].position == GridPosition{.measure = 1, .beat = 2});
     CHECK(chart.notes[1].attack == common::core::NoteAttack::Hammer);
     REQUIRE(chart.notes[1].slides.size() == 1);
@@ -270,9 +270,9 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(chart.shapes.empty());
 
     // The generated fret-hand track: fret 3 opens a 3-6 window; the five-to-seven shift glide
-    // drags the anchor by its own +2 delta to a 5-8 window at the pitched waypoint, a quarter
-    // beat before the landing onset (rule 9), keeping the fretting finger on its window slot;
-    // fret 2 shifts minimally down to 2-5, and the final fret-3 bend note fits without another
+    // drags the anchor by its own +2 delta to a 5-8 window at the pitched waypoint, the margin
+    // before the landing onset (rule 9), keeping the fretting finger on its window slot; fret
+    // 2 shifts minimally down to 2-5, and the final fret-3 bend note fits without another
     // move.
     REQUIRE(chart.fret_hand_positions.size() == 3);
     CHECK(

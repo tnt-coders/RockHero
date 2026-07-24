@@ -461,9 +461,10 @@ struct BuiltNote
 // normalization policy" in docs/developer/the-project-lifecycle.md — tweak behavior there
 // first, then re-align this code.
 //
-// 1. A tail is trimmed to end at least the minimum-sustain-distance margin — 1/16 of a whole
-//    note, the same settled margin the editor's duration verb clamps to — before the next
-//    onset on ANY string; same-onset chord members never bind each other. One hold is exempt:
+// 1. A tail is trimmed to end at least the minimum-sustain-distance margin — the shared
+//    constant in grid_arithmetic.h, the same margin the editor's duration verb clamps to —
+//    before the next onset on ANY string; same-onset chord members never bind each other. One
+//    hold is exempt:
 //    a tail ringing strictly past the next onset — merged from a tie or notated across voices
 //    — is a deliberate hold that neither this trim nor the drop rule touches (that ring is
 //    exactly what the projections' arpeggio arrival rule reads). Repeated chords trim like
@@ -508,7 +509,8 @@ void normalizeImportedSustains(
             if (note.sustain.numerator > 0 && has_next)
             {
                 const auto measure_index = static_cast<std::size_t>(note.position.measure - 1);
-                const Fraction margin{grid.denominator[measure_index], 16};
+                const Fraction margin =
+                    common::core::minimumSustainDistanceBeats(grid.denominator[measure_index]);
                 const Fraction limit = subtractFractions(gap, margin);
                 if (limit < note.sustain)
                 {
@@ -593,12 +595,13 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& g
         Fraction last_strum_beat{};
     };
     std::optional<OpenSpan> open;
-    // The closing onset reduced by the minimum-sustain-distance margin (1/16 whole note at the
-    // closing onset's measure) — where a span it closes must end.
+    // The closing onset reduced by the minimum-sustain-distance margin (at the closing onset's
+    // measure) — where a span it closes must end.
     const auto margin_limit = [&grid](const BuiltNote& closing) {
         const auto measure_index = static_cast<std::size_t>(closing.note.position.measure - 1);
         return subtractFractions(
-            closing.global_beat, Fraction{grid.denominator[measure_index], 16});
+            closing.global_beat,
+            common::core::minimumSustainDistanceBeats(grid.denominator[measure_index]));
     };
     // Closes the held span. A span closed by a following event trims to the margin before it
     // (policy rule 12a — spans keep the same minimum sustain distance as every other element,
@@ -1116,7 +1119,8 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& g
             // it and kept strictly after the last chain waypoint (a degenerate gap glides
             // through half of it instead).
             const auto measure_index = static_cast<std::size_t>(note.position.measure - 1);
-            const Fraction margin{grid.denominator[measure_index], 16};
+            const Fraction margin =
+                common::core::minimumSustainDistanceBeats(grid.denominator[measure_index]);
             Fraction window = subtractFractions(gap, margin);
             if (window.numerator <= 0)
             {

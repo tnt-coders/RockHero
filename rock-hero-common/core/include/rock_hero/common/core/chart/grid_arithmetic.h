@@ -13,6 +13,34 @@ namespace rock_hero::common::core
 {
 
 /*!
+\brief The minimum sustain distance, as a fraction of a whole note.
+
+The one settled spacing every element keeps before a following event: sustain tails, slide
+glide ends, chord/arpeggio shape spans, and the hand-window morph ramps all trim to this margin,
+and the editor's duration verb clamps to it. 1/16 whole note (1/32 was trialed and reverted on
+sight, 2026-07-23).
+*/
+inline constexpr Fraction g_minimum_sustain_distance_whole_note{1, 16};
+
+/*!
+\brief Returns the minimum sustain distance in signature beats.
+
+A whole note is `signature_denominator` beats, so the margin scales with the meter: a quarter
+of a beat in x/4, half a beat in x/8.
+
+\param signature_denominator Note value that represents one beat (the signature's denominator).
+\return The margin as an exact beat fraction.
+*/
+[[nodiscard]] constexpr Fraction minimumSustainDistanceBeats(
+    const int signature_denominator) noexcept
+{
+    return Fraction{
+        signature_denominator * g_minimum_sustain_distance_whole_note.numerator,
+        g_minimum_sustain_distance_whole_note.denominator
+    };
+}
+
+/*!
 \brief Advances a grid position by an exact number of beats.
 
 Whole beats carry across beat and measure boundaries through the tempo map's time-signature
