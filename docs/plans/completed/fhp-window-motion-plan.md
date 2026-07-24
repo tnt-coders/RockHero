@@ -1,11 +1,14 @@
 # FHP Window Motion Plan
 
-Status: IMPLEMENTED 2026-07-23, pending the visual pass. Projection ramps
-(`HighwayFhpView::ramp_seconds`), the continuous window query and coverage signal
-(`highway_window.h`), and every renderer consumer (mask-model highlight with transition sweeps,
-border rails, open tails/bars, shape rails, boxes and brackets at display time, chord names,
-sections, beat bars, face-line crossfade, number fades) are built and unit-tested; the
-verification section's visual confirmation in the editor 3D preview has not run yet.
+Status: COMPLETE 2026-07-23, shipped and visually signed off across `a51fb314..dd8ed457` on
+master. Projection ramps (`HighwayFhpView::ramp_seconds`), the continuous window query and
+coverage signal (`highway_window.h`), and every renderer consumer are live. The transition
+visuals went through several on-sight iterations recorded below; the final design is the
+per-fragment window light revealing intrinsic lane tints over a dark board, the settled fade
+cross-section along the entire eased silhouette, and motion dim (sin-squared bell per ramp,
+depth 0.95 scaled by sweep steepness) carrying the transition's fading in brightness. A
+visible-range bug (ringing open tails snapping to their onset-time window once a transition
+scrolled behind the hit line) was found in the measure-12 pass and fixed in `dd8ed457`.
 
 ## Goal
 
