@@ -53,6 +53,12 @@ struct HighwayShaderSet
 
     /*! \brief Plain textured quads modulated by vertex color (fretboard skin, background art). */
     HighwayShaderPair texture;
+
+    /*!
+    \brief The hand-window light: per-fragment soft-edged brightness across the window width,
+    driven by per-vertex edge distances (the FHP highlight and its transitions).
+    */
+    HighwayShaderPair window_light;
 };
 
 /*!

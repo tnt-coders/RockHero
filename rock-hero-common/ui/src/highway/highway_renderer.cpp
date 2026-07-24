@@ -47,9 +47,20 @@ constexpr ArgbColor g_beat_bar_color = 0xFF0F3B5E; // beat and measure bars alik
 constexpr double g_attack_line_half_length = 0.025;
 constexpr double g_attack_fade_length = 0.2;
 constexpr double g_attack_line_alpha = 0.85; // full teal read slightly too bright (user-tuned)
-constexpr ArgbColor g_fhp_lane_color = 0x402590E8;        // lit runway gap
-constexpr ArgbColor g_fhp_lane_dotted_color = 0x40185C94; // darker gap on inlay-dotted frets
-constexpr ArgbColor g_lane_border_color = 0x0007928F;     // per-fret runway ribbons (alpha varies)
+// The board's lane striping is a permanent property of the whole neck (inlay lanes exist
+// everywhere, not just under the hand): plain lanes carry a faint blue wash while inlay-dotted
+// lanes composite a near-black navy OVER the window light — the stripe must be much darker than
+// the lit result to read as darkening through alpha compositing; a mid-blue stripe of any alpha
+// merely tints (the 2026-07-23 wash-out finding).
+constexpr ArgbColor g_board_lane_color = 0x122590E8;
+constexpr ArgbColor g_board_lane_dotted_color = 0x48091E30;
+// The hand-window light's tint (the old lit-runway strength) and the falloff band the light
+// dissolves across, centered on each eased edge (half strength at the edge, gone half a band
+// outside, full half a band inside), in world units. The centered placement carries the lit
+// region's width; this constant alone sets how sharp or gradual the edge fade is.
+constexpr ArgbColor g_window_light_color = 0x402590E8;
+constexpr double g_window_light_falloff = 0.55;
+constexpr ArgbColor g_lane_border_color = 0x0007928F; // per-fret runway ribbons (alpha varies)
 constexpr ArgbColor g_fret_inactive_color = 0xFF202020;
 constexpr ArgbColor g_fret_active_color = 0xFFC0C0C0;
 constexpr ArgbColor g_fret_highlight_color = 0xFFFFA000;
@@ -802,10 +813,12 @@ struct HighwayRenderer::Impl
     UniqueBgfxHandle<bgfx::ProgramHandle> texture_tint_program;
     UniqueBgfxHandle<bgfx::ProgramHandle> glyph_program;
     UniqueBgfxHandle<bgfx::ProgramHandle> texture_program;
+    UniqueBgfxHandle<bgfx::ProgramHandle> window_light_program;
 
     // Custom uniforms (predefined ones like u_modelViewProj are never created by hand).
     UniqueBgfxHandle<bgfx::UniformHandle> fade_params;
     UniqueBgfxHandle<bgfx::UniformHandle> atlas_sampler;
+    UniqueBgfxHandle<bgfx::UniformHandle> window_light_params;
 
     HighwayAtlases atlases;
 
@@ -909,13 +922,15 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
     auto texture_tint = linkProgram(shaders.texture_tint, "texture_tint");
     auto glyph = linkProgram(shaders.glyph, "glyph");
     auto texture = linkProgram(shaders.texture, "texture");
-    if (!color || !color_fade || !texture_tint || !glyph || !texture)
+    auto window_light = linkProgram(shaders.window_light, "window_light");
+    if (!color || !color_fade || !texture_tint || !glyph || !texture || !window_light)
     {
         const auto& failed = !color          ? color.error()
                              : !color_fade   ? color_fade.error()
                              : !texture_tint ? texture_tint.error()
                              : !glyph        ? glyph.error()
-                                             : texture.error();
+                             : !texture      ? texture.error()
+                                             : window_light.error();
         return std::unexpected{failed};
     }
     impl->color_program = std::move(*color);
@@ -923,11 +938,14 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
     impl->texture_tint_program = std::move(*texture_tint);
     impl->glyph_program = std::move(*glyph);
     impl->texture_program = std::move(*texture);
+    impl->window_light_program = std::move(*window_light);
 
     impl->fade_params = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
         "u_fade_params", bgfx::UniformType::Vec4)};
     impl->atlas_sampler = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
         "s_atlas", bgfx::UniformType::Sampler)};
+    impl->window_light_params = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
+        "u_window_light_params", bgfx::UniformType::Vec4)};
 
     impl->atlases = makeHighwayAtlases(textures.note_atlas_png);
     impl->inlay_texture = uploadPngTexture(textures.inlay_atlas_png);
@@ -1179,162 +1197,75 @@ void HighwayRenderer::Impl::draw(
                 packAbgr(g_lane_border_color | 0xFF000000U, alpha));
         }
 
-        // The sliding window edge during a transition: a phantom fret line — the same width,
-        // color, and in-window strength as a real lane line — gliding between the fixed lines,
-        // so the border reads as ordinary board furniture rather than a new element (user
-        // direction 2026-07-23, replacing the too-pronounced dedicated rails). Settled spans
-        // need nothing: there the window edges coincide with real fret lines.
-        for (const common::core::HighwayFhpView& fhp : state.fret_hand_positions)
-        {
-            if (fhp.ramp_seconds <= 0.0 || fhp.seconds <= span_start_seconds ||
-                fhp.seconds - fhp.ramp_seconds >= span_end_seconds)
-            {
-                continue;
-            }
-            const double ramp_from = std::max(fhp.seconds - fhp.ramp_seconds, span_start_seconds);
-            const double ramp_to = std::min(fhp.seconds, span_end_seconds);
-            const std::vector<double> times = windowSampleTimes(state, ramp_from, ramp_to);
-            const std::uint32_t edge_color = packAbgr(g_lane_border_color | 0xFF000000U, 0.375);
-            for (std::size_t sample = 1; sample < times.size(); ++sample)
-            {
-                const auto [a_x0, a_x1] =
-                    handWindowXAt(state, times[sample - 1], metrics, mirrored);
-                const auto [b_x0, b_x1] = handWindowXAt(state, times[sample], metrics, mirrored);
-                const double za = time_to_z(times[sample - 1]);
-                const double zb = time_to_z(times[sample]);
-                for (const auto& [xa, xb] : {std::pair{a_x0, b_x0}, std::pair{a_x1, b_x1}})
-                {
-                    pushQuad(
-                        vertices,
-                        indices,
-                        makeVertex(xa - 0.025, 0.004, za, edge_color),
-                        makeVertex(xa + 0.025, 0.004, za, edge_color),
-                        makeVertex(xb + 0.025, 0.004, zb, edge_color),
-                        makeVertex(xb - 0.025, 0.004, zb, edge_color));
-                }
-            }
-        }
         submitBatch(vertices, indices, posColorLayout(), color_fade_program.get(), nullptr);
     }
 
-    // --- FHP lane highlight: the window is a mask over the fixed board (fhp-window-motion
-    // plan). Settled spans light each lane between its own straight fret lines with its own
-    // tint, darker on inlay-dotted frets; a transition sweep clips those same board-fixed lane
-    // fills against the eased border position slice by slice, so the tint pattern never moves
-    // and only the border's crossing reshapes the one or two lanes it is passing through. ---
+    // --- Hand-window light: one continuous brightness calculation across the window width,
+    // evaluated per fragment (fhp-window-motion plan, lighting redesign). Each slab vertex
+    // carries the fragment's distances inside the window's eased edges (linear within a slice,
+    // so interpolation is exact); the fragment shader dissolves the light softly across the
+    // falloff band straddling each edge. No geometric clipping, no border line — soft edges at
+    // any zoom, and transitions cannot facet or misalign. Drawn BEFORE the lane striping so
+    // the inlay stripes composite over the light instead of being washed out by it. ---
     {
-        bgfx::setUniform(fade_params.get(), fade_uniform.data());
+        const std::array<float, 4> light_params{
+            static_cast<float>(g_window_light_falloff), 0.0F, 0.0F, 0.0F
+        };
+        bgfx::setUniform(window_light_params.get(), light_params.data());
+        std::vector<PosColorUvVertex> vertices;
+        std::vector<std::uint16_t> indices;
+        const double board_low = common::core::highwayFretLineX(0, metrics, mirrored);
+        const double board_high =
+            common::core::highwayFretLineX(g_face_fret_count, metrics, mirrored);
+        const auto [board_x0, board_x1] = std::minmax(board_low, board_high);
+        const std::uint32_t tint = packAbgr(g_window_light_color);
+        const std::vector<double> times =
+            windowSampleTimes(state, span_start_seconds, span_end_seconds);
+        for (std::size_t sample = 1; sample < times.size(); ++sample)
+        {
+            const auto [low_a, high_a] = handWindowXAt(state, times[sample - 1], metrics, mirrored);
+            const auto [low_b, high_b] = handWindowXAt(state, times[sample], metrics, mirrored);
+            const double za = time_to_z(times[sample - 1]);
+            const double zb = time_to_z(times[sample]);
+            const auto vertex = [&](const double x,
+                                    const double z,
+                                    const double low,
+                                    const double high) {
+                return makeUvVertex(
+                    x, 0.006, z, tint, static_cast<float>(x - low), static_cast<float>(high - x));
+            };
+            pushQuad(
+                vertices,
+                indices,
+                vertex(board_x0, za, low_a, high_a),
+                vertex(board_x1, za, low_a, high_a),
+                vertex(board_x1, zb, low_b, high_b),
+                vertex(board_x0, zb, low_b, high_b));
+        }
+        submitBatch(vertices, indices, posColorUvLayout(), window_light_program.get(), nullptr);
+    }
+
+    // --- Board lane striping: the plain/dotted lane tints drawn board-wide, a permanent
+    // property of the neck (fhp-window-motion plan, lighting redesign). Composited OVER the
+    // window light (user rule 2026-07-23): the dark inlay stripes visibly darken the lit
+    // region instead of dissolving under it, and still show faintly on the unlit board. Like
+    // the light, board coloring carries no hit-line distance fade — it is constant along the
+    // whole board, unlike event furniture. ---
+    {
         std::vector<PosColorVertex> vertices;
         std::vector<std::uint16_t> indices;
-        const auto lane_tint = [](const int fret) {
-            return packAbgr(isDottedFret(fret) ? g_fhp_lane_dotted_color : g_fhp_lane_color);
-        };
-        for (const HandWindow& window : hand_windows)
+        const double z0 = time_to_z(span_start_seconds);
+        const double z1 = time_to_z(span_end_seconds);
+        for (int fret = 1; fret <= g_face_fret_count; ++fret)
         {
-            const double z0 = time_to_z(window.start_seconds);
-            const double z1 = time_to_z(window.end_seconds);
-            for (int fret = window.fret; fret <= window.fret + window.width - 1; ++fret)
-            {
-                if (fret < 1 || fret > g_face_fret_count)
-                {
-                    continue;
-                }
-                const double low_x = common::core::highwayFretLineX(fret - 1, metrics, mirrored);
-                const double high_x = common::core::highwayFretLineX(fret, metrics, mirrored);
-                const auto [x0, x1] = std::minmax(low_x, high_x);
-                pushFloorQuad(vertices, indices, x0, x1, 0.008, z0, z1, lane_tint(fret));
-            }
+            const double low_x = common::core::highwayFretLineX(fret - 1, metrics, mirrored);
+            const double high_x = common::core::highwayFretLineX(fret, metrics, mirrored);
+            const auto [x0, x1] = std::minmax(low_x, high_x);
+            const ArgbColor color =
+                isDottedFret(fret) ? g_board_lane_dotted_color : g_board_lane_color;
+            pushFloorQuad(vertices, indices, x0, x1, 0.008, z0, z1, packAbgr(color));
         }
-        // Transition sweeps: per z-slice, per lane, the lane's fixed x-interval clipped against
-        // the window interval at the slice's two ends (a trapezoid only where the border
-        // crosses; interior lanes stay full straight-sided fills in their own tints).
-        for (const common::core::HighwayFhpView& fhp : state.fret_hand_positions)
-        {
-            if (fhp.ramp_seconds <= 0.0 || fhp.seconds <= span_start_seconds ||
-                fhp.seconds - fhp.ramp_seconds >= span_end_seconds)
-            {
-                continue;
-            }
-            const double ramp_from = std::max(fhp.seconds - fhp.ramp_seconds, span_start_seconds);
-            const double ramp_to = std::min(fhp.seconds, span_end_seconds);
-            const std::vector<double> times = windowSampleTimes(state, ramp_from, ramp_to);
-            for (std::size_t sample = 1; sample < times.size(); ++sample)
-            {
-                const auto [win_a0, win_a1] =
-                    handWindowXAt(state, times[sample - 1], metrics, mirrored);
-                const auto [win_b0, win_b1] =
-                    handWindowXAt(state, times[sample], metrics, mirrored);
-                const double za = time_to_z(times[sample - 1]);
-                const double zb = time_to_z(times[sample]);
-                for (int fret = 1; fret <= g_face_fret_count; ++fret)
-                {
-                    const double lane_low =
-                        common::core::highwayFretLineX(fret - 1, metrics, mirrored);
-                    const double lane_high =
-                        common::core::highwayFretLineX(fret, metrics, mirrored);
-                    const auto [lane_x0, lane_x1] = std::minmax(lane_low, lane_high);
-                    // Clip the lane against the window at each slice end.
-                    const double a_lo = std::max(lane_x0, win_a0);
-                    const double a_hi = std::min(lane_x1, win_a1);
-                    const double b_lo = std::max(lane_x0, win_b0);
-                    const double b_hi = std::min(lane_x1, win_b1);
-                    const bool a_empty = a_hi < a_lo;
-                    const bool b_empty = b_hi < b_lo;
-                    if (a_empty && b_empty)
-                    {
-                        continue;
-                    }
-                    const std::uint32_t tint = lane_tint(fret);
-                    if (!a_empty && !b_empty)
-                    {
-                        pushQuad(
-                            vertices,
-                            indices,
-                            makeVertex(a_lo, 0.008, za, tint),
-                            makeVertex(a_hi, 0.008, za, tint),
-                            makeVertex(b_hi, 0.008, zb, tint),
-                            makeVertex(b_lo, 0.008, zb, tint));
-                        continue;
-                    }
-                    // One end empty: the border crosses a lane boundary inside this slice, so
-                    // the fill must taper to a point exactly where the moving edge meets that
-                    // boundary — collapsing to either slice end instead leaves a sliver of fill
-                    // leading or trailing the border.
-                    const double empty_high = a_empty ? win_a1 : win_b1;
-                    const bool from_low_side = empty_high < lane_x0;
-                    const double edge_at_a = from_low_side ? win_a1 : win_a0;
-                    const double edge_at_b = from_low_side ? win_b1 : win_b0;
-                    const double boundary = from_low_side ? lane_x0 : lane_x1;
-                    const double edge_travel = edge_at_b - edge_at_a;
-                    const double fraction =
-                        std::abs(edge_travel) > 1.0e-12
-                            ? std::clamp((boundary - edge_at_a) / edge_travel, 0.0, 1.0)
-                            : 0.0;
-                    const double z_cross = za + ((zb - za) * fraction);
-                    if (a_empty)
-                    {
-                        pushQuad(
-                            vertices,
-                            indices,
-                            makeVertex(boundary, 0.008, z_cross, tint),
-                            makeVertex(boundary, 0.008, z_cross, tint),
-                            makeVertex(b_hi, 0.008, zb, tint),
-                            makeVertex(b_lo, 0.008, zb, tint));
-                    }
-                    else
-                    {
-                        pushQuad(
-                            vertices,
-                            indices,
-                            makeVertex(a_lo, 0.008, za, tint),
-                            makeVertex(a_hi, 0.008, za, tint),
-                            makeVertex(boundary, 0.008, z_cross, tint),
-                            makeVertex(boundary, 0.008, z_cross, tint));
-                    }
-                }
-            }
-        }
-        submitBatch(vertices, indices, posColorLayout(), color_fade_program.get(), nullptr);
+        submitBatch(vertices, indices, posColorLayout(), color_program.get(), nullptr);
     }
 
     // --- Beat and measure bars: the reference's gradient wings in its deep blue, clipped to

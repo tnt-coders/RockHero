@@ -65,6 +65,9 @@ enum class GameShaderProgram : std::uint8_t
 
     /*! \brief Plain textured quads modulated by vertex color (fretboard skin, background art). */
     Texture,
+
+    /*! \brief The hand-window light: per-fragment soft-edged brightness across the FHP width. */
+    WindowLight,
 };
 
 /*!

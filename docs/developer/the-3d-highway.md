@@ -114,7 +114,7 @@ and `EditorView` pushes the resulting shared pointer into the preview window.
 | Projection + camera math | `rock_hero::common::core` | public dep of `common::ui` |
 | Renderer, atlases, render device | `rock_hero::common::ui` | linking that target |
 | String colors (Charter rules) | `common/ui` `string_color_palette.h` | renderer + 2D tab lane |
-| Shader sources (five programs) | `rock-hero-common/ui/shaders/` | one CMake compile function |
+| Shader sources (six programs) | `rock-hero-common/ui/shaders/` | one CMake compile function |
 | Shader staging | `rock_hero_stage_highway_shaders` | both call it to deploy |
 | Shader *loading* | per product (game/editor loaders) | same byte-vector seam |
 

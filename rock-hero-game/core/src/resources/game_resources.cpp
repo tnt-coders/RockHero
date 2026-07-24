@@ -71,6 +71,10 @@ namespace
         {
             return "texture";
         }
+        case GameShaderProgram::WindowLight:
+        {
+            return "window_light";
+        }
     }
 
     return "color";
