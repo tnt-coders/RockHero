@@ -2081,13 +2081,34 @@ void HighwayRenderer::Impl::draw(
             common::core::highwayStringLaneY(note.string, state.string_count, metrics, invert);
         const ArgbColor base_color = stringLaneColor(note.string, state.string_count, palette);
         const StringLaneStyle style{base_color};
+
+        // Head anchor: an approaching head rides its onset toward the board; a sounding head
+        // pins at the hit line (anchor = now, the arpeggio boxes' display-time treatment) and
+        // travels with its slide, bend, and hand window in sync with the consumed tail; a
+        // finished head scrolls off from the sustain end. The passed fade therefore runs from
+        // the sustain end — for a sustainless note that is the onset, the original behavior.
+        const double head_seconds = std::clamp(now_seconds, note.start_seconds, note.end_seconds);
         const double fade =
+            note.end_seconds >= now_seconds
+                ? 1.0
+                : std::max(0.0, 1.0 - ((now_seconds - note.end_seconds) / g_passed_fade_seconds));
+        // Strike transients (the fret-span attack line) keep the onset anchor and its own
+        // fade: they mark the landing moment and scroll past like the measure lines they
+        // mirror, rather than holding with the pinned head.
+        const double attack_fade =
             note.start_seconds >= now_seconds
                 ? 1.0
                 : std::max(0.0, 1.0 - ((now_seconds - note.start_seconds) / g_passed_fade_seconds));
+        // Slide state at the anchor: a sounding head glides with its slide, and an unpitched
+        // release dims the head and its post in step with the tail.
+        const SlideState head_slide = slide_state_at(
+            note,
+            note.fret > 0 ? common::core::highwayNoteCenterX(note.fret, metrics, mirrored) : 0.0,
+            head_seconds);
 
         // Bend geometry: lift per semitone, inverted on the upper displayed half so curves stay
-        // inside the board; the head anchors at the onset's bend value (a prebend shows).
+        // inside the board; the head anchors at its anchor-time bend value (a prebend shows on
+        // approach, and a pinned sounding head rides the curve with the tail centerline).
         const int displayed_lane = invert ? (state.string_count + 1 - note.string) : note.string;
         const double bend_direction =
             common::core::highwayBendInverted(displayed_lane, state.string_count) ? -1.0 : 1.0;
@@ -2101,7 +2122,15 @@ void HighwayRenderer::Impl::draw(
             }
             return lane_y + (bend_direction * metrics.bend_lift_per_half_step * semitones);
         };
-        const double head_y = note_y_at(note.start_seconds, 0.0);
+        // The pinned head samples the tail centerline's exact taper so its wobbles stay glued
+        // to the tail's hit-line end while sounding (zero at both true tail ends).
+        const double head_taper =
+            note.end_seconds > note.start_seconds
+                ? common::core::highwayTailTaper(
+                      (head_seconds - note.start_seconds) / (note.end_seconds - note.start_seconds),
+                      common::core::g_highway_tail_taper_fraction)
+                : 0.0;
+        const double head_y = note_y_at(head_seconds, head_taper);
 
         // Sustain tail: from the hit line (while sounding) or the onset to the sustain end, as
         // the reference's three-band ribbon (solid edges around a translucent core). Technique
@@ -2304,7 +2333,7 @@ void HighwayRenderer::Impl::draw(
         {
             continue;
         }
-        const double z = time_to_z(note.start_seconds);
+        const double z = time_to_z(head_seconds);
 
         // Marker quads composite over the head base exactly like the reference's CPU-composited
         // per-status textures (alpha "over" is associative), so the atlas cells draw directly.
@@ -2347,7 +2376,7 @@ void HighwayRenderer::Impl::draw(
         // mitered L posts from the same cross-section in its own branch below.
         const double post_half_width = metrics.tail_half_width * 0.375;
         const double post_top_y = head_y * g_shadow_post_fade_end_fraction;
-        const double post_floor_alpha = fade * g_shadow_post_floor_alpha;
+        const double post_floor_alpha = fade * head_slide.alpha * g_shadow_post_floor_alpha;
         const auto push_shadow_post = [&](const double center_x) {
             const std::uint32_t floor_edge = packAbgr(base_color, post_floor_alpha);
             const std::uint32_t clear = packAbgr(base_color, 0.0);
@@ -2381,27 +2410,28 @@ void HighwayRenderer::Impl::draw(
         // Fret-span line: a floor line under this single note, spanning the fret slots it
         // occupies — the measure lines' exact treatment (sharp teal attack on the landing z,
         // brief blue fade trailing toward the horizon), just clipped to the note's frets.
-        // Drawn into the shadow batch so all other note geometry composites over it, fading
-        // out with a passed note.
+        // Drawn into the shadow batch so all other note geometry composites over it. As a
+        // strike transient it keeps the onset anchor and fade while the head pins.
         const auto push_span_line = [&](const double span_x0, const double span_x1) {
+            const double onset_z = time_to_z(note.start_seconds);
             pushFloorQuad(
                 shadow_vertices,
                 shadow_indices,
                 span_x0,
                 span_x1,
                 0.02,
-                z - g_attack_line_half_length,
-                z + g_attack_line_half_length,
-                packAbgr(g_chord_box_color, g_attack_line_alpha * fade));
+                onset_z - g_attack_line_half_length,
+                onset_z + g_attack_line_half_length,
+                packAbgr(g_chord_box_color, g_attack_line_alpha * attack_fade));
             pushFloorQuadGradient(
                 shadow_vertices,
                 shadow_indices,
                 span_x0,
                 span_x1,
                 0.02,
-                z + g_attack_line_half_length,
-                z + g_attack_line_half_length + g_attack_fade_length,
-                packAbgr(g_beat_bar_color, fade),
+                onset_z + g_attack_line_half_length,
+                onset_z + g_attack_line_half_length + g_attack_fade_length,
+                packAbgr(g_beat_bar_color, attack_fade),
                 packAbgr(g_beat_bar_color, 0.0));
         };
 
@@ -2409,8 +2439,9 @@ void HighwayRenderer::Impl::draw(
         {
             // Open string: the reference's thin rounded bar spanning the active hand window, in
             // the full note color (the flat tail-width slab it replaces read as a plank). A bar
-            // landing mid-transition takes the eased window at its own onset instant.
-            const auto [x0, x1] = handWindowXAt(state, note.start_seconds, metrics, mirrored);
+            // landing mid-transition takes the eased window at its own anchor instant, so a
+            // pinned sounding bar follows the sliding window like its ringing tail does.
+            const auto [x0, x1] = handWindowXAt(state, head_seconds, metrics, mirrored);
             // L posts pointing inward from the bar ends (the chord box's bottom corner
             // holders, freestanding — user direction): one continuous two-leg ribbon per
             // corner, its cross-section turning 45 degrees at the corner station so the
@@ -2557,6 +2588,15 @@ void HighwayRenderer::Impl::draw(
                 common::core::highwayFretLineX(touch_fret + 1, metrics, mirrored);
             x = left_x + ((right_x - left_x) * (touch - touch_floor));
         }
+        // A sounding head travels with its glide and shakes with tremolo exactly like the tail
+        // centerline's anchor-time sample, so head and tail stay one gesture at the hit line
+        // (both offsets are zero before the onset).
+        x += head_slide.x_offset;
+        if (note.tremolo)
+        {
+            x += metrics.tail_half_width * head_taper *
+                 common::core::highwayTremoloWobble(head_seconds - note.start_seconds);
+        }
 
         if (!in_chord)
         {
@@ -2629,7 +2669,7 @@ void HighwayRenderer::Impl::draw(
                                1.0);
         const double cos_r = std::cos(rotation);
         const double sin_r = std::sin(rotation);
-        const std::uint32_t tint = packAbgr(base_color, fade);
+        const std::uint32_t tint = packAbgr(base_color, fade * head_slide.alpha);
 
         // Head base: the technique variant under left-hand technique markers, else the standard
         // head (the reference's base-cell selection).
