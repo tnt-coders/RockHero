@@ -22,6 +22,14 @@ namespace
     return TempoMap::defaultMap(TimeDuration{16.0});
 }
 
+// Nullable-pointer view of the arrangement's optional chart, mirroring the editor harness's
+// chartOrNull: the parameter-passed optional lets clang-tidy's unchecked-optional-access track
+// the guard, which it cannot do across a Catch2 REQUIRE.
+[[nodiscard]] Chart* chartOrNull(Arrangement& arrangement)
+{
+    return arrangement.chart.has_value() ? &*arrangement.chart : nullptr;
+}
+
 // Song-level section markers passed beside the arrangement, as the callers pass Song::sections.
 [[nodiscard]] std::vector<SongSection> makeHighwaySections()
 {
@@ -216,7 +224,7 @@ TEST_CASE("Highway projection derives hand-window ramps", "[core][highway]")
     const double beat = tempo_map.secondsAtBeat(1, 2) - tempo_map.secondsAtBeat(1, 1);
 
     Arrangement arrangement = makeArrangementWithChart();
-    Chart* const chart_ptr = arrangement.chart.has_value() ? &*arrangement.chart : nullptr;
+    Chart* const chart_ptr = chartOrNull(arrangement);
     REQUIRE(chart_ptr != nullptr);
     Chart& chart = *chart_ptr;
     // A sustained note whose tail trails off unpitched: its gesture must not feed a ramp.

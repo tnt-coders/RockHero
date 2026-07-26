@@ -33,11 +33,13 @@ struct HighwayHandWindow
     \param lhs Left-hand window.
     \param rhs Right-hand window.
     \return True when both windows store equal values.
-
-    Exact edge equality: settled placements land on exact fret-line coordinates, so is_eq keeps
-    GCC's -Wfloat-equal satisfied that the exactness is intended. Callers comparing a morphing
-    window compare with a tolerance instead.
     */
+    // Window-edge equality is intentionally exact: settled placements land on exact fret-line
+    // coordinates, and callers comparing a morphing window compare with a tolerance instead.
+    // This is not defaulted because the generated comparison uses direct floating-point ==,
+    // which is promoted to a build error by -Wfloat-equal under the shared warning policy.
+    // std::is_eq(lhs.low_line <=> rhs.low_line) preserves exact equality semantics while
+    // avoiding that compiler diagnostic.
     friend constexpr bool operator==(
         const HighwayHandWindow& lhs, const HighwayHandWindow& rhs) noexcept
     {
