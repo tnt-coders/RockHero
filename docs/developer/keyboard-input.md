@@ -239,7 +239,11 @@ raw text only when that field arrives empty). Chords display capitalized with ti
 `+`/`-` keys ("Ctrl·+" vs the awkward "Ctrl++"), so those keys keep their compact symbols,
 and U+00B7 is Latin-1 — present in every font, immune to the substitution that killed the
 arrow glyphs. (JUCE's lowercase "ctrl + z" is its own idiosyncrasy and appears nowhere
-user-facing.) Named keys use canonical spellings ("Space", "Enter", "Esc", "Page Up"); arrows
+user-facing.) Modifier names follow the platform's convention — the formatter's one
+platform-display seam: macOS renders its distinct Command and Ctrl bits as "Cmd" and "Ctrl",
+names Alt "Option", and orders chords Ctrl·Option·Shift·Cmd (the native glyph order, as words);
+everywhere else the Command bit aliases Ctrl and chords render Ctrl·Shift·Alt. Named keys use
+canonical spellings ("Space", "Enter", "Esc", "Page Up"); arrows
 render as bare direction words ("Left", "Ctrl·Right") instead of JUCE's verbose "cursor left"
 — arrow glyphs were tried and rejected (thin line arrows are barely legible at chip size and
 fell to font substitution in the running editor; heavy-arrow codepoints risk color-emoji

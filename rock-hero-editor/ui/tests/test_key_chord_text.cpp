@@ -37,6 +37,26 @@ namespace
     return juce::KeyPress{key_code, juce::ModifierKeys{modifier_flags}, 0};
 }
 
+// Platform-conventional modifier names, mirroring the formatter's one platform seam: macOS
+// carries a distinct Cmd bit and names Alt "Option"; everywhere else Cmd aliases Ctrl.
+[[nodiscard]] juce::String commandModifierName()
+{
+#if JUCE_MAC || JUCE_IOS
+    return "Cmd";
+#else
+    return "Ctrl";
+#endif
+}
+
+[[nodiscard]] juce::String altModifierName()
+{
+#if JUCE_MAC || JUCE_IOS
+    return "Option";
+#else
+    return "Alt";
+#endif
+}
+
 } // namespace
 
 // The collapse rule: a shifted chord renders as the character it types when that differs from
@@ -45,6 +65,8 @@ TEST_CASE("keyChordText collapses shifted characters", "[ui][keybinds]")
 {
     constexpr int shift = juce::ModifierKeys::shiftModifier;
     constexpr int ctrl = juce::ModifierKeys::ctrlModifier;
+    constexpr int alt = juce::ModifierKeys::altModifier;
+    constexpr int command = juce::ModifierKeys::commandModifier;
 
     // The house separator is a spaced middle dot (U+00B7) — Latin-1, so no font can substitute
     // it, and it can never collide with the '+'/'-' keys the way a "+" joiner does ("Ctrl++").
@@ -64,6 +86,22 @@ TEST_CASE("keyChordText collapses shifted characters", "[ui][keybinds]")
     CHECK(keyChordText(chord('[', shift), &fakeShiftResolver) == "Shift" + sep + "[");
     CHECK(keyChordText(chord('/'), &fakeShiftResolver) == "/");
     CHECK(keyChordText(chord('z', ctrl), &fakeShiftResolver) == "Ctrl" + sep + "Z");
+
+    // The Command and Alt bits take the platform's conventional names — "Cmd"/"Option" on
+    // macOS, "Ctrl"/"Alt" everywhere else — and all modifiers held renders in the platform's
+    // conventional order (macOS: Ctrl-Option-Shift-Cmd; elsewhere Cmd aliases the Ctrl bit).
+    CHECK(
+        keyChordText(chord('z', command), &fakeShiftResolver) == commandModifierName() + sep + "Z");
+    CHECK(keyChordText(chord('z', alt), &fakeShiftResolver) == altModifierName() + sep + "Z");
+#if JUCE_MAC || JUCE_IOS
+    CHECK(
+        keyChordText(chord('[', ctrl | alt | shift | command), &fakeShiftResolver) ==
+        "Ctrl" + sep + "Option" + sep + "Shift" + sep + "Cmd" + sep + "[");
+#else
+    CHECK(
+        keyChordText(chord('[', ctrl | alt | shift | command), &fakeShiftResolver) ==
+        "Ctrl" + sep + "Shift" + sep + "Alt" + sep + "[");
+#endif
 
     // The dot separator keeps the '+'/'-' keys as compact symbols even under modifiers.
     CHECK(keyChordText(chord('+'), &fakeShiftResolver) == "+");
@@ -117,8 +155,11 @@ TEST_CASE("addEditorCommandItem renders shortcuts through the formatter", "[ui][
     juce::PopupMenu::Item& redo_item = iterator.getItem();
     CHECK(redo_item.itemID == toJuceCommandId(EditorCommandId::Redo));
     CHECK(redo_item.commandManager == &view.commandManager());
+    // The default Redo bindings register the platform command modifier, so the label follows
+    // the platform convention ("Cmd" on macOS, "Ctrl" elsewhere).
     const juce::String sep = keyChordJoiner();
-    CHECK(redo_item.shortcutKeyDescription == "Ctrl" + sep + "Y, Ctrl" + sep + "Shift" + sep + "Z");
+    const juce::String cmd = commandModifierName();
+    CHECK(redo_item.shortcutKeyDescription == cmd + sep + "Y, " + cmd + sep + "Shift" + sep + "Z");
 
     // The actions item's text matches the formatter by construction on every layout: "?"
     // where Shift+/ resolves, the explicit "shift + /" elsewhere.

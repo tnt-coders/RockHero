@@ -63,25 +63,45 @@ namespace
 }
 
 // Modifier prefix — capitalized names, joined by the house middle dot ("Ctrl·Shift·"). Shift
-// is omitted by the collapse path, which spends it on the resolved character.
+// is omitted by the collapse path, which spends it on the resolved character. The names and
+// their order are the platform's convention, so this table is the display layer's one platform
+// seam: no framework query exposes the conventional modifier names in the house capitalization.
 [[nodiscard]] juce::String modifierPrefix(const juce::ModifierKeys& modifiers, bool with_shift)
 {
+    struct ModifierName
+    {
+        int flag;
+        const char* name;
+    };
+#if JUCE_MAC || JUCE_IOS
+    // macOS carries distinct Ctrl and Cmd bits and orders chords Ctrl-Option-Shift-Cmd (the
+    // native Control-Option-Shift-Command glyph order, as words — font substitution already
+    // killed glyph rendering at chip size for the arrows).
+    constexpr auto modifier_names = std::to_array<ModifierName>({
+        {.flag = juce::ModifierKeys::ctrlModifier, .name = "Ctrl"},
+        {.flag = juce::ModifierKeys::altModifier, .name = "Option"},
+        {.flag = juce::ModifierKeys::shiftModifier, .name = "Shift"},
+        {.flag = juce::ModifierKeys::commandModifier, .name = "Cmd"},
+    });
+#else
+    // Everywhere else the Command bit aliases the Ctrl bit, so one "Ctrl" entry covers both.
+    constexpr auto modifier_names = std::to_array<ModifierName>({
+        {.flag = juce::ModifierKeys::ctrlModifier, .name = "Ctrl"},
+        {.flag = juce::ModifierKeys::shiftModifier, .name = "Shift"},
+        {.flag = juce::ModifierKeys::altModifier, .name = "Alt"},
+    });
+#endif
     juce::String text;
-    // Label the primary modifier "Ctrl" whether it arrives as the Ctrl or the Command bit. On
-    // Windows/Linux the two are the same bit; on macOS bindings register commandModifier (Cmd)
-    // while ctrlModifier chords carry the distinct Ctrl bit, and the Windows-convention display
-    // names both "Ctrl" -- so testing only one bit drops the prefix for the other on macOS.
-    if (modifiers.isCtrlDown() || modifiers.isCommandDown())
+    for (const ModifierName& modifier : modifier_names)
     {
-        text << "Ctrl" << keyChordJoiner();
-    }
-    if (with_shift && modifiers.isShiftDown())
-    {
-        text << "Shift" << keyChordJoiner();
-    }
-    if (modifiers.isAltDown())
-    {
-        text << "Alt" << keyChordJoiner();
+        if (modifier.flag == juce::ModifierKeys::shiftModifier && !with_shift)
+        {
+            continue;
+        }
+        if (modifiers.testFlags(modifier.flag))
+        {
+            text << modifier.name << keyChordJoiner();
+        }
     }
     return text;
 }
@@ -199,11 +219,14 @@ juce::String keyChordText(const juce::KeyPress& key, ShiftedCharacterResolver re
     }
 
     // Exotic keys (media keys and the like): JUCE's description with its lowercase modifier
-    // prefixes rewritten into the convention.
+    // prefixes rewritten into the convention. The macOS spellings rewrite alongside the
+    // Windows/Linux ones without a guard — each occurs only on its own platform.
     return key.getTextDescription()
         .replace("ctrl + ", "Ctrl" + keyChordJoiner())
         .replace("shift + ", "Shift" + keyChordJoiner())
-        .replace("alt + ", "Alt" + keyChordJoiner());
+        .replace("alt + ", "Alt" + keyChordJoiner())
+        .replace("option + ", "Option" + keyChordJoiner())
+        .replace("command + ", "Cmd" + keyChordJoiner());
 }
 
 juce::String keyChordText(const juce::KeyPress& key)
