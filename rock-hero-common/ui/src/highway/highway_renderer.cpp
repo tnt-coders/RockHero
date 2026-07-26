@@ -7,11 +7,13 @@
 #include <cmath>
 #include <cstddef>
 #include <cstring>
+#include <limits>
 #include <numbers>
 #include <ranges>
 #include <rock_hero/common/core/highway/highway_camera.h>
 #include <rock_hero/common/core/highway/highway_metrics.h>
 #include <rock_hero/common/core/highway/highway_tail.h>
+#include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/common/core/highway/highway_window.h>
 #include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/common/ui/highway/highway_renderer.h>
@@ -121,11 +123,9 @@ constexpr double g_passed_fade_seconds = 0.15;
 constexpr double g_flip_flat_lead_seconds = 0.25;
 
 // Tolerance for matching an onset to a shape-span boundary (or grouping simultaneous onsets).
-// Two events at the same musical grid position resolve through the tempo map on different code
-// paths (a forward cursor for note onsets, the plain resolver for shape ends), so they can land
-// a rounding epsilon apart; without this tolerance a chord sitting exactly on a handshape's
-// start or end would intermittently fall outside the span and lose its repeat-box treatment.
-constexpr double g_onset_match_epsilon = 1.0e-4;
+// The core constant (see its rationale there) is shared so this file's chord grouping agrees
+// with highwayDisplayHoldEnds, whose span-held notes drive the visible range.
+constexpr double g_onset_match_epsilon = common::core::g_highway_onset_match_epsilon;
 
 // Open-note bar cross-section (reference OpenNoteModel): a thin hexagonal prism spanning the
 // hand window, half-thickness 0.04 at the ends bulging to 0.05 at the center station, squashed
@@ -841,6 +841,9 @@ struct HighwayRenderer::Impl
     std::uint32_t face_index_count{0};
 
     common::core::HighwayViewState state;
+    // Per-note display hold end (the sustain end, span-extended for sustainless strums): feeds
+    // the visibility prefix max and pins chord heads at the hit line through their span.
+    std::vector<double> display_hold_ends;
     std::vector<double> sustain_prefix_max;
     common::core::HighwayMetrics metrics;
     common::core::HighwayCamera camera;
@@ -983,7 +986,10 @@ HighwayRenderer& HighwayRenderer::operator=(HighwayRenderer&& other) noexcept = 
 void HighwayRenderer::setViewState(common::core::HighwayViewState state)
 {
     m_impl->state = std::move(state);
-    m_impl->sustain_prefix_max = common::core::makeHighwaySustainPrefixMax(m_impl->state.notes);
+    m_impl->display_hold_ends =
+        common::core::highwayDisplayHoldEnds(m_impl->state.notes, m_impl->state.shapes);
+    m_impl->sustain_prefix_max =
+        common::core::makeHighwaySustainPrefixMax(m_impl->display_hold_ends);
     m_impl->camera.reset();
     m_impl->rebuildBoardFace();
 }
@@ -1468,7 +1474,10 @@ void HighwayRenderer::Impl::draw(
     for (std::size_t index = first_note; index < last_note; ++index)
     {
         const common::core::HighwayNoteView& note = state.notes[index];
-        if (note.start_seconds <= span_end_seconds && note.end_seconds >= span_start_seconds)
+        // The hold end, not the sustain end: a span-held strum stays drawable while its head
+        // pins at the hit line long after its sustainless onset has passed.
+        if (note.start_seconds <= span_end_seconds &&
+            display_hold_ends[index] >= span_start_seconds)
         {
             visible.push_back(index);
         }
@@ -1530,6 +1539,9 @@ void HighwayRenderer::Impl::draw(
         // Repeat-chord treatment (the reference's visibility rules): the strum renders as a
         // half-height box with its mute cross and NO notes.
         bool box_only;
+        // Onset of the next note-showing strum, capping this group's span-hold display (see
+        // the take-over pass below); infinity when none follows in the visible range.
+        double hold_cap_seconds;
         // Sorted (string, fret) pairs for matching strums against the shape's posture.
         std::vector<std::pair<int, int>> frets;
     };
@@ -1552,6 +1564,7 @@ void HighwayRenderer::Impl::draw(
             .common_mute = state.notes[index].mute,
             .all_full_muted = true,
             .box_only = false,
+            .hold_cap_seconds = std::numeric_limits<double>::infinity(),
             .frets = {},
         };
         group.frets.reserve(group.count);
@@ -1715,6 +1728,23 @@ void HighwayRenderer::Impl::draw(
                 }
             }
             cursor = run_begin;
+        }
+    }
+
+    // Span-hold take-over: a span-held strum's heads stay pinned at the hit line until the
+    // next strum that shows its notes arrives to re-pin the identical heads there, so the
+    // newcomer owns the hold display from its onset and the two never stack. Box-only
+    // repeats, dead chugs, and single notes continue the hold rather than taking it over,
+    // exactly as they never break a repeat chain.
+    {
+        double next_shown_onset = std::numeric_limits<double>::infinity();
+        for (ChordGroup& group : chord_groups | std::views::reverse)
+        {
+            group.hold_cap_seconds = next_shown_onset;
+            if (group.count >= 2 && !group.box_only && !group.all_full_muted)
+            {
+                next_shown_onset = group.start_seconds;
+            }
         }
     }
 
@@ -2085,13 +2115,19 @@ void HighwayRenderer::Impl::draw(
         // Head anchor: an approaching head rides its onset toward the board; a sounding head
         // pins at the hit line (anchor = now, the arpeggio boxes' display-time treatment) and
         // travels with its slide, bend, and hand window in sync with the consumed tail; a
-        // finished head scrolls off from the sustain end. The passed fade therefore runs from
-        // the sustain end — for a sustainless note that is the onset, the original behavior.
-        const double head_seconds = std::clamp(now_seconds, note.start_seconds, note.end_seconds);
+        // finished head scrolls off from the hold end, where the passed fade begins. The hold
+        // end is the sustain end — or, for a sustainless strum under a hand-shape span, the
+        // span end (the span reads as the chord's hold even though no tail is drawn, and the
+        // pin persists while repeat boxes restate the chord underneath), released early when
+        // a later strum re-shows the chord and takes over the pinned display. For a plain
+        // sustainless note it is the onset, the original behavior.
+        const double hold_end_seconds =
+            std::max(note.end_seconds, std::min(display_hold_ends[index], group.hold_cap_seconds));
+        const double head_seconds = std::clamp(now_seconds, note.start_seconds, hold_end_seconds);
         const double fade =
-            note.end_seconds >= now_seconds
+            hold_end_seconds >= now_seconds
                 ? 1.0
-                : std::max(0.0, 1.0 - ((now_seconds - note.end_seconds) / g_passed_fade_seconds));
+                : std::max(0.0, 1.0 - ((now_seconds - hold_end_seconds) / g_passed_fade_seconds));
         // Strike transients (the fret-span attack line) keep the onset anchor and its own
         // fade: they mark the landing moment and scroll past like the measure lines they
         // mirror, rather than holding with the pinned head.

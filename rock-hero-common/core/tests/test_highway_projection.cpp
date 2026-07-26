@@ -392,4 +392,56 @@ TEST_CASE("Highway visible-note range brackets a time span", "[core][highway]")
     CHECK(late.second == 4);
 }
 
+// Display hold ends: sustainless strum notes under a hand-shape span hold to the span end (the
+// span states the chord's hold even though no tail is drawn), while single notes, sustained
+// notes, dead chugs, and strums outside every span keep their own sustain end.
+TEST_CASE("Highway display hold ends span-extend sustainless strums", "[core][highway]")
+{
+    std::vector<HighwayNoteView> notes;
+    const auto add_note = [&notes](double start, double end, NoteMute mute = NoteMute::None) {
+        HighwayNoteView note;
+        note.start_seconds = start;
+        note.end_seconds = end;
+        note.mute = mute;
+        notes.push_back(std::move(note));
+    };
+    add_note(0.99995, 0.99995); // Chord straddling the span start within the onset epsilon.
+    add_note(1.0, 1.0);
+    add_note(2.0, 2.0); // Single note under the span.
+    add_note(3.0, 3.5); // Mixed chord: a real sustain next to a sustainless partner.
+    add_note(3.0, 3.0);
+    add_note(4.0, 4.0, NoteMute::Full); // Dead chug: choked, not held.
+    add_note(4.0, 4.0, NoteMute::Full);
+    add_note(7.0, 7.0); // Chord under the second span.
+    add_note(7.0, 7.0);
+    add_note(9.0, 9.0); // Chord past the second span's end.
+    add_note(9.0, 9.0);
+
+    std::vector<HighwayShapeView> shapes(2);
+    shapes[0].start_seconds = 1.0;
+    shapes[0].end_seconds = 5.0;
+    shapes[1].start_seconds = 6.5;
+    shapes[1].end_seconds = 8.0;
+
+    const std::vector<double> hold_ends = highwayDisplayHoldEnds(notes, shapes);
+    REQUIRE(hold_ends.size() == notes.size());
+    CHECK(hold_ends[0] == Catch::Approx(5.0));
+    CHECK(hold_ends[1] == Catch::Approx(5.0));
+    CHECK(hold_ends[2] == Catch::Approx(2.0));
+    CHECK(hold_ends[3] == Catch::Approx(3.5));
+    CHECK(hold_ends[4] == Catch::Approx(5.0));
+    CHECK(hold_ends[5] == Catch::Approx(4.0));
+    CHECK(hold_ends[6] == Catch::Approx(4.0));
+    CHECK(hold_ends[7] == Catch::Approx(8.0));
+    CHECK(hold_ends[8] == Catch::Approx(8.0));
+    CHECK(hold_ends[9] == Catch::Approx(9.0));
+    CHECK(hold_ends[10] == Catch::Approx(9.0));
+
+    // The hold ends feed the visible range through the end-time prefix-max overload.
+    const std::vector<double> prefix_max = makeHighwaySustainPrefixMax(hold_ends);
+    REQUIRE(prefix_max.size() == hold_ends.size());
+    CHECK(prefix_max[2] == Catch::Approx(5.0));
+    CHECK(prefix_max[7] == Catch::Approx(8.0));
+}
+
 } // namespace rock_hero::common::core

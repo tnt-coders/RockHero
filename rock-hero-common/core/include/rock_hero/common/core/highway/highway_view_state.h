@@ -6,6 +6,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <functional>
 #include <optional>
@@ -339,6 +340,30 @@ freely, so the visible-range lower bound needs the prefix maximum of end times.
 }
 
 /*!
+\brief Builds the running maximum of per-note end times supplied directly.
+
+Overload for callers whose display end differs from the raw sustain end — the highway renderer
+feeds the hold ends from highwayDisplayHoldEnds so span-held strums stay in the visible range
+while their heads pin at the hit line.
+
+\param end_seconds Per-note end times, ordered like the note list they describe.
+\return Non-decreasing prefix maximum of the entries, sized like the input.
+*/
+[[nodiscard]] inline std::vector<double> makeHighwaySustainPrefixMax(
+    const std::vector<double>& end_seconds)
+{
+    std::vector<double> prefix_max;
+    prefix_max.reserve(end_seconds.size());
+    double running = 0.0;
+    for (const double end : end_seconds)
+    {
+        running = prefix_max.empty() ? end : std::max(running, end);
+        prefix_max.push_back(running);
+    }
+    return prefix_max;
+}
+
+/*!
 \brief Returns the note index range that can intersect a visible time span.
 
 Sorted starts bound the range's end; the non-decreasing prefix maximum of sustain ends bounds its
@@ -366,6 +391,77 @@ individually because an early short note inside the range may end before the spa
         static_cast<std::size_t>(std::distance(prefix_max_end_seconds.begin(), begin_it));
     const auto last = static_cast<std::size_t>(std::distance(notes.begin(), end_it));
     return {std::min(first, last), last};
+}
+
+/*!
+\brief Tolerance for matching an onset to another onset or a shape-span boundary.
+
+Two events at the same musical grid position resolve through the tempo map on different code
+paths (a forward cursor for note onsets, the plain resolver for shape boundaries), so they can
+land a rounding epsilon apart; without this tolerance a chord sitting exactly on a hand shape's
+start or end would intermittently fall outside the span.
+*/
+inline constexpr double g_highway_onset_match_epsilon = 1.0e-4;
+
+/*!
+\brief Resolves each note's display hold end: the sustain end, span-extended for chord strums.
+
+A strum under a hand-shape span is held for the whole span even when its notes carry no
+sustain — the span (and the repeat boxes restating the chord on the highway) tells the player
+how long to keep the shape fretted. Each sustainless note in a same-onset group of two or more
+covered by a span therefore holds to the span's end. Groups whose notes are all fully muted
+stay unextended (a dead chug is choked, not held), as do single notes and notes with explicit
+sustains, whose drawn tails already state their hold. Coverage is positional only — a partial
+strum under the span holds like a full restatement, and no posture matching applies.
+
+\param notes Seconds-resolved notes sorted by start time.
+\param shapes Seconds-resolved hand-posture spans sorted by start time.
+\return Per-note hold end in seconds, sized like notes; never before the note's own end.
+*/
+[[nodiscard]] inline std::vector<double> highwayDisplayHoldEnds(
+    const std::vector<HighwayNoteView>& notes, const std::vector<HighwayShapeView>& shapes)
+{
+    std::vector<double> hold_ends;
+    hold_ends.reserve(notes.size());
+    for (const HighwayNoteView& note : notes)
+    {
+        hold_ends.push_back(note.end_seconds);
+    }
+    // Both streams ascend, so one shape cursor tracks the latest span starting at or before
+    // each onset group.
+    std::size_t next_shape = 0;
+    const HighwayShapeView* covering = nullptr;
+    for (std::size_t index = 0; index < notes.size();)
+    {
+        const double onset = notes[index].start_seconds;
+        std::size_t group_end = index + 1;
+        bool all_full_muted = notes[index].mute == NoteMute::Full;
+        while (group_end < notes.size() &&
+               std::abs(notes[group_end].start_seconds - onset) < g_highway_onset_match_epsilon)
+        {
+            all_full_muted = all_full_muted && notes[group_end].mute == NoteMute::Full;
+            ++group_end;
+        }
+        while (next_shape < shapes.size() &&
+               shapes[next_shape].start_seconds <= onset + g_highway_onset_match_epsilon)
+        {
+            covering = &shapes[next_shape];
+            ++next_shape;
+        }
+        if (group_end - index >= 2 && !all_full_muted && covering != nullptr &&
+            onset <= covering->end_seconds + g_highway_onset_match_epsilon)
+        {
+            for (std::size_t member = index; member < group_end; ++member)
+            {
+                if (notes[member].end_seconds <= notes[member].start_seconds)
+                {
+                    hold_ends[member] = std::max(hold_ends[member], covering->end_seconds);
+                }
+            }
+        }
+        index = group_end;
+    }
+    return hold_ends;
 }
 
 } // namespace rock_hero::common::core
