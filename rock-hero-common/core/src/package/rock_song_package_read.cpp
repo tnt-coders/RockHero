@@ -129,7 +129,7 @@ namespace
 [[nodiscard]] std::optional<std::filesystem::path> resolveExistingFile(
     const std::filesystem::path& directory, const std::string& relative_path)
 {
-    const std::filesystem::path path{relative_path};
+    const std::filesystem::path path{pathFromUtf8(relative_path)};
     if (!isSafeRelativePath(path))
     {
         return std::nullopt;
@@ -633,7 +633,6 @@ readToneAutomation(const juce::var& arrangement_json, const TempoMap& tempo_map)
         }};
     }
 
-    std::set<std::pair<std::string, std::string>> seen_parameters;
     automation.reserve(static_cast<std::size_t>(automation_json.size()));
     for (const juce::var& entry_json : *automation_json.getArray())
     {
@@ -684,22 +683,15 @@ readToneAutomation(const juce::var& arrangement_json, const TempoMap& tempo_map)
                 });
         }
 
-        if (!isValidToneParameterAutomation(entry, tempo_map))
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                "toneAutomation entry is invalid for plugin: " + entry.plugin_id,
-            }};
-        }
-        if (!seen_parameters.emplace(entry.plugin_id, entry.param_id).second)
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                "toneAutomation repeats a plugin/parameter pair: " + entry.plugin_id + "/" +
-                    entry.param_id,
-            }};
-        }
         automation.push_back(std::move(entry));
+    }
+
+    // The (plugin, parameter) uniqueness and per-entry structural rules are the same the writer
+    // enforces; share one validator so the two ends can never drift apart.
+    if (const auto automation_valid = validateToneAutomationEntries(automation, tempo_map);
+        !automation_valid.has_value())
+    {
+        return std::unexpected{automation_valid.error()};
     }
 
     return automation;
@@ -979,7 +971,7 @@ readToneAutomation(const juce::var& arrangement_json, const TempoMap& tempo_map)
         }
 
         const std::filesystem::path output_path =
-            (workspace_directory / std::filesystem::path{entry_path_name}).lexically_normal();
+            (workspace_directory / pathFromUtf8(entry_path_name)).lexically_normal();
         if (auto extraction_error = extractFileEntry(archive, index, output_path);
             !extraction_error.has_value())
         {

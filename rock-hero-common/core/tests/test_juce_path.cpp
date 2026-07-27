@@ -20,6 +20,29 @@ TEST_CASE("JUCE path helpers roundtrip paths through UTF-8", "[core][juce-path]"
     CHECK(pathFromJuceString(path_text) == path);
 }
 
+// Verifies the std::string<->path UTF-8 helpers round-trip non-ASCII bytes without going through
+// the lossy active code page (the package-I/O path the narrow path constructor corrupted). Bytes
+// are appended programmatically so this source file stays pure ASCII.
+TEST_CASE("UTF-8 path helpers roundtrip package-relative names", "[core][juce-path]")
+{
+    std::string utf8{"audio/Mot"};
+    utf8.push_back(static_cast<char>(0xC3)); // U+00F6 latin small o with diaeresis,
+    utf8.push_back(static_cast<char>(0xB6)); // as its two UTF-8 bytes ("Motorhead").
+    utf8 += "rhead.flac";
+
+    const std::filesystem::path path = pathFromUtf8(utf8);
+    // The path holds the decoded characters, and the generic UTF-8 form reproduces the input.
+    CHECK(utf8FromPath(path) == utf8);
+}
+
+// utf8FromPath always yields forward slashes, the portable spelling ZIP entry names use, even for
+// a path built from native separators.
+TEST_CASE("UTF-8 path form is generic forward-slash", "[core][juce-path]")
+{
+    const std::filesystem::path path = std::filesystem::path{"charts"} / "lead.chart";
+    CHECK(utf8FromPath(path) == "charts/lead.chart");
+}
+
 #if JUCE_WINDOWS
 // Platform-specific test asserting platform behavior (allowed per plan 33's guiding
 // principle): a native wide drive-letter path must survive the UTF-8 bridge unchanged.

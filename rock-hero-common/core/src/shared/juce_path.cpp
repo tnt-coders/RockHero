@@ -52,4 +52,33 @@ std::filesystem::path pathFromJuceFile(const juce::File& file)
     return pathFromJuceString(file.getFullPathName());
 }
 
+// Interprets the caller's bytes as UTF-8 (std::u8string) so the path constructor converts them to
+// the native wide representation on Windows, never through the lossy active code page.
+std::filesystem::path pathFromUtf8(const std::string_view utf8)
+{
+    std::u8string encoded;
+    encoded.reserve(utf8.size());
+    for (const char byte : utf8)
+    {
+        encoded.push_back(static_cast<char8_t>(byte));
+    }
+
+    return std::filesystem::path{encoded};
+}
+
+// generic_u8string() yields forward-slash UTF-8 on every platform; the char8_t-to-char copy hands
+// the bytes to a char API without a reinterpret_cast, mirroring juceStringFromPath.
+std::string utf8FromPath(const std::filesystem::path& path)
+{
+    const std::u8string encoded = path.generic_u8string();
+    std::string utf8;
+    utf8.reserve(encoded.size());
+    for (const char8_t byte : encoded)
+    {
+        utf8.push_back(static_cast<char>(byte));
+    }
+
+    return utf8;
+}
+
 } // namespace rock_hero::common::core

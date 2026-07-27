@@ -76,7 +76,10 @@ constexpr int g_zip_compression_level = 9;
     const std::filesystem::path& workspace_directory, const std::filesystem::path& source_path,
     std::size_t asset_index)
 {
-    const std::string file_name = sanitizeFileName(source_path.filename().string(), asset_index);
+    // utf8FromPath, not filename().string(): the narrow conversion throws on MSVC for a source
+    // filename with characters outside the active code page, escaping this std::expected API.
+    const std::string file_name =
+        sanitizeFileName(utf8FromPath(source_path.filename()), asset_index);
     const std::filesystem::path stem = std::filesystem::path{file_name}.stem();
     const std::filesystem::path extension = std::filesystem::path{file_name}.extension();
 
@@ -567,35 +570,6 @@ struct SongDocumentForSave
     return std::expected<void, SongPackageError>{};
 }
 
-// Validates an arrangement's plugin-parameter automation: per-entry structural rules plus at most
-// one entry per (plugin, parameter) pair. Plugin ids are not resolved against tone documents here;
-// an id without a live plugin is a legal unresolved entry by design.
-[[nodiscard]] std::expected<void, SongPackageError> validateArrangementToneAutomation(
-    const Arrangement& arrangement, const TempoMap& tempo_map)
-{
-    std::set<std::pair<std::string, std::string>> seen_parameters;
-    for (const ToneParameterAutomation& automation : arrangement.tone_automation)
-    {
-        if (!isValidToneParameterAutomation(automation, tempo_map))
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                "toneAutomation entry is invalid for plugin: " + automation.plugin_id,
-            }};
-        }
-        if (!seen_parameters.emplace(automation.plugin_id, automation.param_id).second)
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                "toneAutomation repeats a plugin/parameter pair: " + automation.plugin_id + "/" +
-                    automation.param_id,
-            }};
-        }
-    }
-
-    return std::expected<void, SongPackageError>{};
-}
-
 // Creates the JSON song document that represents the supplied session song.
 [[nodiscard]] std::expected<SongDocumentForSave, SongPackageError> buildSongDocumentForSave(
     const std::filesystem::path& workspace_directory, const Song& song)
@@ -642,7 +616,7 @@ struct SongDocumentForSave
             return std::unexpected{tone_error.error()};
         }
         if (const auto automation_error =
-                validateArrangementToneAutomation(arrangement, song.tempo_map);
+                validateToneAutomationEntries(arrangement.tone_automation, song.tempo_map);
             !automation_error.has_value())
         {
             return std::unexpected{automation_error.error()};
@@ -672,7 +646,7 @@ struct SongDocumentForSave
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidAudioAsset,
                 "audio asset must be FLAC, RockHero's canonical package format: " +
-                    source_path.generic_string(),
+                    utf8FromPath(source_path),
             }};
         }
         if (const auto workspace_path = relativeWorkspacePath(workspace_directory, source_path);
@@ -690,7 +664,7 @@ struct SongDocumentForSave
             relative_audio_path = *imported_path;
         }
 
-        const std::string relative_audio_name = relative_audio_path.generic_string();
+        const std::string relative_audio_name = utf8FromPath(relative_audio_path);
         auto audio_id = audio_ids_by_path.find(relative_audio_name);
         if (audio_id == audio_ids_by_path.end())
         {
@@ -787,6 +761,9 @@ struct SongDocumentForSave
     }
 
     song_document_file << song_document->contents;
+    // Flush the buffered tail before inspecting the stream state: the destructor's implicit flush
+    // would otherwise run after this check, so a failed final write could be reported as success.
+    song_document_file.close();
     if (!song_document_file.good())
     {
         return std::unexpected{SongPackageError{
@@ -822,7 +799,7 @@ struct SongDocumentForSave
         }};
     }
 
-    const std::string entry_name = relative_path.generic_string();
+    const std::string entry_name = utf8FromPath(relative_path);
     archive_builder.addFile(
         juceFileFromPath(file_path),
         g_zip_compression_level,

@@ -148,6 +148,39 @@ TEST_CASE("Package description peeks fields from the archive", "[core][package-d
     }
 }
 
+// Verifies non-ASCII metadata survives the peek: song.json is UTF-8, so the description must
+// decode it as UTF-8 rather than through the ASCII juce::String constructor (which mangled bytes
+// above 127 and asserted in debug). The non-ASCII bytes are injected programmatically so this
+// source file stays pure ASCII.
+TEST_CASE("Package description decodes non-ASCII metadata as UTF-8", "[core][package-description]")
+{
+    // "Motorhead" with U+00F6 (o with diaeresis) as its two UTF-8 bytes 0xC3 0xB6.
+    std::string artist{"Mot"};
+    artist.push_back(static_cast<char>(0xC3));
+    artist.push_back(static_cast<char>(0xB6));
+    artist += "rhead";
+
+    const std::string document = std::string{R"({
+  "formatVersion": 1,
+  "metadata": { "title": "Ace of Spades", "artist": ")"} +
+                                 artist + R"(", "album": "Aces", "year": 1980 },
+  "audioAssets": [ { "id": "main", "path": "audio/backing.flac" } ],
+  "arrangements": [
+    { "id": ")" + g_arrangement_id +
+                                 R"(", "part": "Lead", "audio": "main", "chart": ")" + g_chart_ref +
+                                 R"(" }
+  ]
+})";
+    const TemporaryPackageDirectory directory;
+    const std::filesystem::path archive =
+        buildArchive(directory, document, fixtureChartDocument(), true);
+
+    const auto description = readRockSongPackageDescription(archive);
+
+    REQUIRE(description.has_value());
+    CHECK(description->metadata.artist == artist);
+}
+
 // Verifies a corrupt chart entry degrades to a warning, never a hard failure.
 TEST_CASE("Package description warns on a corrupt chart", "[core][package-description]")
 {

@@ -25,7 +25,7 @@ namespace
 [[nodiscard]] std::optional<std::string> readArchiveEntryText(
     juce::ZipFile& archive, const std::string& entry_name)
 {
-    const int entry_index = archive.getIndexOfFileName(juce::String{entry_name.c_str()});
+    const int entry_index = archive.getIndexOfFileName(juce::String::fromUTF8(entry_name.c_str()));
     if (entry_index < 0)
     {
         return std::nullopt;
@@ -42,7 +42,7 @@ namespace
 // True when the archive contains the exact entry name.
 [[nodiscard]] bool archiveContainsEntry(juce::ZipFile& archive, const std::string& entry_name)
 {
-    return archive.getIndexOfFileName(juce::String{entry_name.c_str()}) >= 0;
+    return archive.getIndexOfFileName(juce::String::fromUTF8(entry_name.c_str())) >= 0;
 }
 
 // Peeks one arrangement entry leniently: structural damage becomes a warning and a partial
@@ -138,7 +138,7 @@ std::expected<PackageDescription, SongPackageError> readRockSongPackageDescripti
         }};
     }
 
-    auto parsed_document = Json::parseDocument(juce::String{song_document_text->c_str()});
+    auto parsed_document = Json::parseUtf8Document(*song_document_text);
     if (!parsed_document.has_value())
     {
         return std::unexpected{SongPackageError{

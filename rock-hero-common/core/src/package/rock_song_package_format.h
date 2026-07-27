@@ -10,9 +10,11 @@
 #include <optional>
 #include <rock_hero/common/core/package/song_package_error.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/common/core/tone/tone_automation.h>
 #include <rock_hero/common/core/tone/tone_track.h>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace rock_hero::common::core
 {
@@ -92,5 +94,19 @@ write resolve documents against different directories.
 */
 [[nodiscard]] std::expected<void, SongPackageError> validateToneTrack(
     const ToneTrack& tone_track, const TempoMap& tempo_map);
+
+/*!
+\brief Validates an arrangement's plugin-parameter automation, shared by package read and write.
+
+Applies the per-entry structural rules (isValidToneParameterAutomation) and requires at most one
+entry per (plugin, parameter) pair. Plugin ids are not resolved against tone documents; an id
+without a live plugin is a legal unresolved entry by design.
+
+\param entries Parsed or about-to-be-persisted automation entries.
+\param tempo_map Tempo map the automation points must address.
+\return Empty success, or the format violation to report.
+*/
+[[nodiscard]] std::expected<void, SongPackageError> validateToneAutomationEntries(
+    const std::vector<ToneParameterAutomation>& entries, const TempoMap& tempo_map);
 
 } // namespace rock_hero::common::core

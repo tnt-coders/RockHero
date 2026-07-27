@@ -7,6 +7,8 @@
 
 #include <filesystem>
 #include <juce_core/juce_core.h>
+#include <string>
+#include <string_view>
 
 namespace rock_hero::common::core
 {
@@ -42,5 +44,31 @@ losslessly on every platform (Windows wide paths included).
 \return Standard filesystem path for the same native path.
 */
 [[nodiscard]] std::filesystem::path pathFromJuceFile(const juce::File& file);
+
+/*!
+\brief Builds a filesystem path from UTF-8 bytes.
+
+The reverse of utf8FromPath, and the correct alternative to the narrow `std::filesystem::path`
+constructor for package-supplied text: that constructor decodes bytes through the lossy active
+code page on Windows, mojibake-ing non-ASCII names, whereas this interprets the bytes as UTF-8 on
+every platform (converting to the native wide representation on Windows).
+
+\param utf8 UTF-8 path text (a ZIP entry name or a package-relative reference).
+\return Filesystem path holding the same characters.
+*/
+[[nodiscard]] std::filesystem::path pathFromUtf8(std::string_view utf8);
+
+/*!
+\brief Converts a filesystem path into portable, forward-slash UTF-8 text.
+
+Yields the generic (forward-slash) spelling as UTF-8, the form ZIP entry names and package-relative
+references use. Unlike `std::filesystem::path::generic_string()`, it never narrows through the
+Windows active code page (which loses non-ASCII characters and can throw for unrepresentable ones);
+it converts through UTF-8 on every platform.
+
+\param path Path to convert.
+\return Generic-form UTF-8 text for the path.
+*/
+[[nodiscard]] std::string utf8FromPath(const std::filesystem::path& path);
 
 } // namespace rock_hero::common::core

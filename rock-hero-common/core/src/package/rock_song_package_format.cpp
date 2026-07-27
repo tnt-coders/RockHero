@@ -9,8 +9,10 @@
 #include <expected>
 #include <filesystem>
 #include <rock_hero/common/core/tone/tone_track_rules.h>
+#include <set>
 #include <string>
 #include <system_error>
+#include <utility>
 
 namespace rock_hero::common::core
 {
@@ -237,6 +239,32 @@ std::expected<void, SongPackageError> validateToneTrack(
             SongPackageErrorCode::InvalidArrangement,
             structural.error().message,
         }};
+    }
+
+    return std::expected<void, SongPackageError>{};
+}
+
+std::expected<void, SongPackageError> validateToneAutomationEntries(
+    const std::vector<ToneParameterAutomation>& entries, const TempoMap& tempo_map)
+{
+    std::set<std::pair<std::string, std::string>> seen_parameters;
+    for (const ToneParameterAutomation& automation : entries)
+    {
+        if (!isValidToneParameterAutomation(automation, tempo_map))
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                "toneAutomation entry is invalid for plugin: " + automation.plugin_id,
+            }};
+        }
+        if (!seen_parameters.emplace(automation.plugin_id, automation.param_id).second)
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                "toneAutomation repeats a plugin/parameter pair: " + automation.plugin_id + "/" +
+                    automation.param_id,
+            }};
+        }
     }
 
     return std::expected<void, SongPackageError>{};
