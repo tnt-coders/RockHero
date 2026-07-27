@@ -2115,7 +2115,8 @@ void HighwayRenderer::Impl::draw(
         // Head anchor: an approaching head rides its onset toward the board; a sounding head
         // pins at the hit line (anchor = now, the arpeggio boxes' display-time treatment) and
         // travels with its slide, bend, and hand window in sync with the consumed tail; a
-        // finished head scrolls off from the hold end, where the passed fade begins. The hold
+        // finished head fades out in place at the hit line — consumed, never passing through
+        // the board — over the passed fade that runs from the hold end. The hold
         // end is the sustain end — or, for a sustainless strum under a hand-shape span, the
         // span end (the span reads as the chord's hold even though no tail is drawn, and the
         // pin persists while repeat boxes restate the chord underneath), released early when
@@ -2369,7 +2370,10 @@ void HighwayRenderer::Impl::draw(
         {
             continue;
         }
-        const double z = time_to_z(head_seconds);
+        // Consumed at the line: a passed head keeps the hit-line station while its fade runs.
+        // head_seconds itself stays clamped at the hold end so slide, bend, taper, and
+        // hand-window sampling hold the note's final state instead of extrapolating past it.
+        const double z = time_to_z(std::max(head_seconds, now_seconds));
 
         // Marker quads composite over the head base exactly like the reference's CPU-composited
         // per-status textures (alpha "over" is associative), so the atlas cells draw directly.
