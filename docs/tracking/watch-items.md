@@ -149,18 +149,6 @@ imported `chart.shapes`. **Trigger**: §5's slice 3 builds member-tail adjustmen
 learns the same span-sibling exemption, since §5 says member tails may legally ring past
 sibling onsets inside a shared span.
 
-### Marker dissolution seeks the paused transport — trigger: anything follows the paused transport
-
-The two-state marker (settlement §9a, 2026-07-18) implements "the cursor takes the caret's
-place" on Ctrl+click / double-click / marquee as a paused transport seek, keeping the passive
-invariant (marker time ≡ transport position) with zero position plumbing. Harmless today — the
-paused transport drives only the cursor line. **Trigger**: any surface starts following the
-paused transport position (plan 44's 3D preview frame, a revival of plan 51's parked
-cursor-locked posture display): a marquee would visibly jump that surface. **Remedy**: either
-accept the jump as the position honestly moving, or split the dissolution rest from the
-transport (give ChartCursor its own stored time) — a contained refactor of the marker's
-passive state recorded here so it is a decision, not a surprise (2026-07-18 fold-in audit).
-
 ## Editor 3D preview
 
 ### JUCE peer-recreation paths are unreachable today — trigger: any path recreates the peer
@@ -311,6 +299,16 @@ Recorded 2026-07-15 alongside the JUCE→`std::filesystem::path` conversion fix 
 ## Retired
 
 Items whose trigger fired and were handled. Kept for auditability.
+
+- **Marker dissolution seeks the paused transport** (was: trigger "anything follows the paused
+  transport") — **trigger FIRED, resolved 2026-07-27.** Plan 44's 3D preview is now a real
+  follower of paused time (`preview_surface.cpp` renderFrame → PreviewTimeModel), so the trigger
+  condition holds. Decided the **accept** branch: the preview shows the armed caret first and
+  falls back to the transport position only while passive, and marker dissolution is an in-place
+  seek — `dissolveChartCaretInPlace` seeks the transport to the caret's own time — so the paused
+  target moves continuously and the preview's exponential glide absorbs any residual step. No
+  visible jump; no ChartCursor split needed. If plan 51's parked cursor-locked posture display is
+  ever revived without caret-following, re-open the question then.
 
 - **bgfx handle ownership at scale** (was: trigger plan 25 Phase 3) — **resolved 2026-07-11.**
   Phase 3/4 multiplied live handles (programs, uniforms, note/inlay/fingering textures, transient
