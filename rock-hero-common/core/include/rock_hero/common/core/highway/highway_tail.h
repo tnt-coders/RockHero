@@ -16,6 +16,15 @@ namespace rock_hero::common::core
 /*! \brief Vibrato wobble period in seconds (the reference's sin(t_ms * pi / 80) sine). */
 inline constexpr double g_highway_vibrato_period_seconds = 0.160;
 
+/*!
+\brief Vibrato wobble depth in semitones of bend lift.
+
+A finger vibrato modulates pitch by roughly a quarter- to half-step; drawing the wobble at the
+unit factor's full swing (±1 semitone of lift) reads as a whammy dive, not a vibrato. Callers
+multiply this into the wobble factor when converting it to bend-lift semitones.
+*/
+inline constexpr double g_highway_vibrato_depth_semitones = 0.35;
+
 /*! \brief Tremolo wobble period in seconds (the reference's 60 ms triangle wave). */
 inline constexpr double g_highway_tremolo_period_seconds = 0.060;
 
@@ -58,9 +67,12 @@ and end exactly on the string line.
 /*!
 \brief Evaluates a note's bend curve at an absolute time.
 
-Piecewise-linear through the bend points (the reference's interpolation): before the first
-point the curve ramps from zero at the onset — unless the first point sits at the onset itself
-(a prebend), which anchors the start value; after the last point the final value holds.
+Smoothstep-eased between consecutive bend points (replacing the reference's piecewise-linear
+interpolation, whose corners at every control point read as kinks a real bending finger never
+produces): each segment passes exactly through its endpoints with a flat tangent there, so the
+curve is corner-free at every control point without overshooting. Before the first point the
+curve eases from zero at the onset — unless the first point sits at the onset itself (a
+prebend), which anchors the start value; after the last point the final value holds.
 
 \param bend Bend curve points in ascending time order.
 \param onset_seconds The note's onset time (the zero anchor for the pre-first-point ramp).

@@ -2154,8 +2154,8 @@ void HighwayRenderer::Impl::draw(
                 common::core::highwayBendSemitonesAt(note.bend, note.start_seconds, seconds);
             if (note.vibrato)
             {
-                semitones +=
-                    taper * common::core::highwayVibratoWobble(seconds - note.start_seconds);
+                semitones += taper * common::core::g_highway_vibrato_depth_semitones *
+                             common::core::highwayVibratoWobble(seconds - note.start_seconds);
             }
             return lane_y + (bend_direction * metrics.bend_lift_per_half_step * semitones);
         };

@@ -52,7 +52,10 @@ double highwayBendSemitonesAt(
                 return point.semitones;
             }
             const double mix = std::clamp((seconds - previous_seconds) / span, 0.0, 1.0);
-            return previous_semitones + ((point.semitones - previous_semitones) * mix);
+            // Smoothstep: flat tangents at both segment ends keep the curve corner-free at
+            // every control point (and monotone within the segment, so no overshoot).
+            const double eased = mix * mix * (3.0 - (2.0 * mix));
+            return previous_semitones + ((point.semitones - previous_semitones) * eased);
         }
         previous_seconds = point.seconds;
         previous_semitones = point.semitones;

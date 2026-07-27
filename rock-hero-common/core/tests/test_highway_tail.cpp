@@ -38,8 +38,9 @@ TEST_CASE("Highway tail taper anchors both ends", "[core][highway][tail]")
     CHECK(highwayTailTaper(2.0, 0.1) == Catch::Approx(0.0));
 }
 
-// Bend evaluation is piecewise linear and hits every control point exactly; the ramp anchors at
-// the onset unless the first point is a prebend at the onset itself.
+// Bend evaluation is smoothstep-eased between control points and hits every control point
+// exactly (segment midpoints match the linear value by smoothstep symmetry); the ramp anchors
+// at the onset unless the first point is a prebend at the onset itself.
 TEST_CASE("Highway bend curve hits its control points exactly", "[core][highway][tail]")
 {
     const std::vector<HighwayBendPointView> bend{
@@ -52,6 +53,11 @@ TEST_CASE("Highway bend curve hits its control points exactly", "[core][highway]
     CHECK(highwayBendSemitonesAt(bend, 10.0, 11.0) == Catch::Approx(2.0));
     CHECK(highwayBendSemitonesAt(bend, 10.0, 11.5) == Catch::Approx(1.5));
     CHECK(highwayBendSemitonesAt(bend, 10.0, 12.0) == Catch::Approx(1.0));
+    // Quarter points ease below/above the linear value (smoothstep(0.25) = 0.15625): the curve
+    // leaves each control point flat instead of at the linear slope, so no corner is drawn.
+    CHECK(highwayBendSemitonesAt(bend, 10.0, 10.25) == Catch::Approx(2.0 * 0.15625));
+    CHECK(highwayBendSemitonesAt(bend, 10.0, 10.75) == Catch::Approx(2.0 * (1.0 - 0.15625)));
+    CHECK(highwayBendSemitonesAt(bend, 10.0, 11.25) == Catch::Approx(2.0 - 0.15625));
     // After the last point the final value holds.
     CHECK(highwayBendSemitonesAt(bend, 10.0, 20.0) == Catch::Approx(1.0));
     // An empty curve is a flat zero.
