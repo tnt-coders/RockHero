@@ -246,6 +246,28 @@ folds into the baseline. (Closed out of `docs/plans/in-progress/` on 2026-07-08 
   change while the transport is idle (`tracktion_AutomatableParameter.cpp:1439-1441`). Unlikely
   (meter params are not the ones users automate) but adjacent to this subsystem.
 
+## Note detection / gameplay feedback
+
+### No early rough-pitch check on provisional hits — trigger: low-register confirm feels laggy
+
+Per-gem feedback is two-staged by design: the onset event (p95 ≤ 15 ms, plan 22 budget) pins the
+head and fires the provisional treatment, and pitch confirmation upgrades it (plan 25:
+provisional → subdued spark, confirmed → full burst). Confirmation is physics-bound to ~2–3
+fundamental periods, so the upgrade lags the spark by ~1 frame on mid/high notes but 50–115 ms
+(3–7 frames at 60 fps) in the low registers (E2 → B0 rows of plan 22's signed latency budget).
+Deliberately not mitigated at v1 — the stagger is likely imperceptible, and the plans are
+measurement-first. **Trigger**: plan 23 latency measurements plus plan 25 Phase 5 playtesting
+show the provisional→confirmed visual upgrade feels laggy on low-register notes. **Remedy**: an
+early hypothesis-verification check (recorded 2026-07-26): query the already-selected whitened-STFT
++ Klapuri harmonic-summation salience path at the first hop or two after the onset with the
+*expected* chart pitch as the single candidate — verification of a known hypothesis, not blind
+estimation, so it costs microseconds on the existing FFT front-end — and emit the result as
+low-confidence early pitch evidence into plan 24's Armed→Provisional hook ("disambiguated by
+early pitch evidence when present"), which already consumes exactly that. Physics caveat baked
+into the design: with ~15 ms of post-onset signal a low-register check discriminates only the
+pitch *neighborhood* (gross wrong-note, wrong-octave-region), never adjacent frets — it may
+accelerate the upgrade, never replace confirmation.
+
 ## Input bindings
 
 ### Editor and game binding systems stay parallel — trigger: the editor wants non-keyboard input
