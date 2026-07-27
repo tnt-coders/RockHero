@@ -36,6 +36,7 @@ add_executable(
     test_key_chord_text.cpp
     test_plugin_browser_window.cpp
     test_plugin_window_shortcut_sync.cpp
+    test_preview_time_model.cpp
     test_signal_chain_block_layout.cpp
     test_tab_view.cpp
     test_tone_track_view.cpp

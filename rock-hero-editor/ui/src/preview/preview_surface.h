@@ -5,12 +5,13 @@
 
 #pragma once
 
+#include "preview/preview_time_model.h"
+
 #include <chrono>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
 #include <rock_hero/common/audio/clock/i_playback_clock.h>
-#include <rock_hero/common/audio/clock/playback_clock_extrapolator.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
 #include <rock_hero/common/ui/highway/highway_renderer.h>
@@ -95,6 +96,11 @@ private:
     // this is the only reliable signal to recompute the physical child rect and backbuffer.
     void nativeScaleFactorChanged(double new_scale_factor) override;
 
+    // Brings up (or retries) the shaders and renderer against the live device without ever
+    // re-initializing bgfx; returns whether the renderer is now live. Failure leaves the device
+    // untouched so a later open can retry.
+    bool bringUpRenderer();
+
     // Renders one frame: clock sample, highway draw, present.
     void renderFrame();
 
@@ -123,10 +129,6 @@ private:
     // (the marker rule) and falls back to the transport position while passive.
     std::optional<double> m_caret_seconds;
 
-    // The paused glide's displayed time, settling toward the marker-rule target each frame;
-    // empty forces a snap (first frame, and resumes after a hidden gap must not slew).
-    std::optional<double> m_displayed_seconds;
-
     // Applied to the renderer on the next frame after a state swap.
     bool m_state_dirty{false};
 
@@ -134,7 +136,8 @@ private:
     // maybe_unused for the same non-Windows reason as m_child_window.
     [[maybe_unused]] bool m_reported_lost_child{false};
 
-    common::audio::PlaybackClockExtrapolator m_extrapolator;
+    // Playing/paused displayed-time policy (extrapolation + paused glide); see PreviewTimeModel.
+    PreviewTimeModel m_time_model;
 
     // Previous tick's timestamp for camera-smoothing frame deltas; zero on the first frame.
     std::chrono::nanoseconds m_previous_tick{0};

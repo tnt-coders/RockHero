@@ -2,7 +2,6 @@
 
 #include "preview/preview_resources.h"
 
-#include <cmath>
 #include <expected>
 #include <rock_hero/common/audio/clock/playback_clock_snapshot.h>
 #include <rock_hero/common/core/shared/logger.h>
@@ -21,13 +20,6 @@ namespace rock_hero::editor::ui
 
 namespace
 {
-
-// Paused navigation glides: the displayed time settles exponentially toward the marker-rule
-// target with this time constant (~95% settled after three constants), so a caret step reads
-// as motion down the highway rather than a cut. Frame-rate independent via 1 - exp(-dt / tau);
-// within the snap tolerance the glide pins to the target so it provably terminates.
-constexpr double g_paused_glide_time_constant_seconds = 0.06;
-constexpr double g_paused_glide_snap_seconds = 1.0e-3;
 
 #if JUCE_WINDOWS
 
@@ -57,6 +49,12 @@ LRESULT CALLBACK previewChildWindowProc(HWND hwnd, UINT message, WPARAM w_param,
         window_class.cbSize = sizeof(WNDCLASSEXW);
         window_class.lpfnWndProc = previewChildWindowProc;
         window_class.hInstance = GetModuleHandleW(nullptr);
+        // The child covers the whole client area and receives every WM_SETCURSOR (JUCE's peer
+        // never sees the mouse over it), so without a class cursor DefWindowProc leaves whatever
+        // shape was last set — e.g. the resize arrows from the window border — stuck over the 3D
+        // view. A standard arrow keeps the pointer correct. LoadCursor (not the W suffix) pairs
+        // with the ANSI IDC_ARROW resource macro; the cursor handle itself is encoding-agnostic.
+        window_class.hCursor = LoadCursor(nullptr, IDC_ARROW);
         window_class.lpszClassName = L"RockHeroPreviewSurface";
         RegisterClassExW(&window_class);
         return L"RockHeroPreviewSurface";
@@ -104,9 +102,15 @@ void PreviewSurface::attach()
         // Resume: the window may have been resized or moved across monitors while hidden, and
         // the clock (and the paused glide) must snap rather than slew across the hidden gap.
         updateChildBounds();
-        m_extrapolator.reset();
-        m_displayed_seconds.reset();
+        m_time_model.resetForSnap();
         m_previous_tick = std::chrono::nanoseconds{0};
+        // Retry a renderer that failed to come up on an earlier open (a stale or partial shader
+        // deploy since repaired). This never re-initializes bgfx — the device stays alive across
+        // the failure precisely so init happens exactly once per process — so it is always safe.
+        if (!m_renderer.has_value())
+        {
+            bringUpRenderer();
+        }
         if (m_vblank == nullptr)
         {
             m_vblank = std::make_unique<juce::VBlankAttachment>(this, [this] { renderFrame(); });
@@ -155,28 +159,45 @@ void PreviewSurface::attach()
     }
     m_device.emplace(std::move(*device));
 
+    // A renderer bring-up failure (a stale or partial shader deploy) must NOT tear the device
+    // down: detach() runs bgfx::shutdown(), and bgfx cannot be re-initialized in-process, so the
+    // next open would crash on the renderFrame-before-init assert (see the class doc). Keep the
+    // device and child alive instead — the preview shows the black fallback and a later open
+    // retries the renderer through the resume path above.
+    bringUpRenderer();
+
+    m_time_model.resetForSnap();
+    m_previous_tick = std::chrono::nanoseconds{0};
+    m_reported_lost_child = false;
+    m_vblank = std::make_unique<juce::VBlankAttachment>(this, [this] { renderFrame(); });
+#endif
+}
+
+// Loads the highway shaders and creates the renderer against the live device. On failure it logs
+// and leaves the renderer empty (renderFrame then presents nothing and the black fallback shows)
+// without touching the device, so the caller can retry on a later open without re-initializing
+// bgfx. Returns whether the renderer is now live.
+bool PreviewSurface::bringUpRenderer()
+{
+#if JUCE_WINDOWS
     std::optional<common::ui::HighwayShaderSet> shaders = loadPreviewHighwayShaders();
     if (!shaders.has_value())
     {
         RH_LOG_ERROR("editor.preview", "preview shaders unavailable; preview disabled");
-        detach();
-        return;
+        return false;
     }
     std::expected<common::ui::HighwayRenderer, common::ui::HighwayRendererError> renderer =
         common::ui::HighwayRenderer::create(*shaders, loadPreviewHighwayTextures());
     if (!renderer.has_value())
     {
         RH_LOG_ERROR("editor.preview", "{}", renderer.error().message);
-        detach();
-        return;
+        return false;
     }
     m_renderer.emplace(std::move(*renderer));
     m_state_dirty = m_state != nullptr;
-
-    m_extrapolator.reset();
-    m_previous_tick = std::chrono::nanoseconds{0};
-    m_reported_lost_child = false;
-    m_vblank = std::make_unique<juce::VBlankAttachment>(this, [this] { renderFrame(); });
+    return true;
+#else
+    return false;
 #endif
 }
 
@@ -318,38 +339,16 @@ void PreviewSurface::renderFrame()
                                   : static_cast<double>((now - m_previous_tick).count()) / 1.0e9;
     m_previous_tick = now;
 
-    // Song time: the clock port plus extrapolation while playing (plan 12's policy — raw
-    // transport reads shimmer on a moving field); the marker rule while paused — the armed
-    // caret is THE paused position (the 2026-07-18 marker model), with the exact transport
-    // position as the passive fallback so paused seeks always land even if the clock publisher
-    // is idle. Paused time glides toward its target (see the glide constants); playing pins the
-    // glide state to the played time so a pause resumes seamlessly from the stop point.
+    // Song time follows the marker rule while paused — the armed caret is THE paused position (the
+    // 2026-07-18 marker model), with the exact transport position as the passive fallback so paused
+    // seeks always land even if the clock publisher is idle. The transport is read only when paused
+    // and unarmed, so the port call stays off the playing path. PreviewTimeModel owns the
+    // playing/paused policy (extrapolation and the paused glide).
     const common::audio::PlaybackClockSnapshot snapshot = m_playback_clock.snapshot();
-    double song_seconds = 0.0;
-    if (snapshot.playing)
-    {
-        song_seconds = m_extrapolator.advance(snapshot, now).seconds;
-        m_displayed_seconds = song_seconds;
-    }
-    else
-    {
-        m_extrapolator.reset();
-        const double target_seconds = m_caret_seconds.value_or(m_transport.position().seconds);
-        if (!m_displayed_seconds.has_value())
-        {
-            m_displayed_seconds = target_seconds;
-        }
-        else
-        {
-            const double mix = 1.0 - std::exp(-dt_seconds / g_paused_glide_time_constant_seconds);
-            *m_displayed_seconds += (target_seconds - *m_displayed_seconds) * mix;
-            if (std::abs(target_seconds - *m_displayed_seconds) < g_paused_glide_snap_seconds)
-            {
-                m_displayed_seconds = target_seconds;
-            }
-        }
-        song_seconds = *m_displayed_seconds;
-    }
+    const double paused_target_seconds =
+        snapshot.playing ? 0.0 : m_caret_seconds.value_or(m_transport.position().seconds);
+    const double song_seconds =
+        m_time_model.advance(snapshot, paused_target_seconds, now, dt_seconds);
 
     m_renderer->draw(song_seconds, dt_seconds, m_device->width(), m_device->height());
     m_device->submitFrame();

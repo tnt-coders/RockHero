@@ -48,6 +48,8 @@ target_sources(
             src/preview/preview_resources.h
             src/preview/preview_surface.cpp
             src/preview/preview_surface.h
+            src/preview/preview_time_model.cpp
+            src/preview/preview_time_model.h
             src/preview/preview_window.cpp
             src/preview/preview_window.h
             src/shared/audio_level_meter.cpp
