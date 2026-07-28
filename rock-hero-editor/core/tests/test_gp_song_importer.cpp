@@ -1277,6 +1277,130 @@ TEST_CASE("Guitar Pro import places grace notes against their principal", "[core
     }
 }
 
+// A grace ornaments through any technique, not only slides: the grace beat's notes flow through
+// the same technique mapping as every note, and hammer/pull classification reads the previous
+// fret on the string — which the grace supplies, since it sounds (and is processed) before its
+// principal. Each fixture's pre-grace note sits on the OTHER side of the principal, so a wrong
+// classification source would flip the expected attack.
+TEST_CASE("Guitar Pro import maps grace-note hammer-ons and pull-offs", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+
+    SECTION("a grace below the principal hammers on")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat principal = noteBeat(Fraction{1, 4}, 7);
+        principal.notes[0].hopo_destination = true;
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(Fraction{1, 4}, 9),
+                     graceBeat(GpGracePlacement::BeforeBeat, 5),
+                     principal}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 3);
+        CHECK(chart.notes[1].fret == 5);
+        CHECK(chart.notes[1].attack == common::core::NoteAttack::Pick);
+        // The principal rises from the grace's fret 5 (not the earlier fret 9, which would read
+        // as a pull-off), so the destination is a hammer-on.
+        CHECK(chart.notes[2].fret == 7);
+        CHECK(chart.notes[2].attack == common::core::NoteAttack::Hammer);
+    }
+
+    SECTION("a grace above the principal pulls off")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat principal = noteBeat(Fraction{1, 4}, 8);
+        principal.notes[0].hopo_destination = true;
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(Fraction{1, 4}, 5),
+                     graceBeat(GpGracePlacement::BeforeBeat, 10),
+                     principal}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 3);
+        CHECK(chart.notes[1].fret == 10);
+        // The principal falls from the grace's fret 10 (not the earlier fret 5, which would
+        // read as a hammer-on), so the destination is a pull-off.
+        CHECK(chart.notes[2].fret == 8);
+        CHECK(chart.notes[2].attack == common::core::NoteAttack::Pull);
+    }
+}
+
+// Tap-only onsets are transparent to span derivation (user rule 2026-07-28): a chord held under
+// two-hand tapping keeps its span ringing through the taps, and the arrival rule renders the
+// covered span as a held arpeggio; a chord whose ring ends before the taps is unaffected.
+TEST_CASE("Guitar Pro import rings chord spans through tap-only onsets", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+
+    // Two-string chord against a second voice: a beat of rest, then two tapped eighths that
+    // sound inside the chord's notated ring.
+    const auto make_score = [&syncs](const Fraction chord_duration) {
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat chord;
+        chord.duration_whole = chord_duration;
+        chord.notes = {
+            GpNote{.string = 0, .fret = 3, .harmonic_type = ""},
+            GpNote{.string = 1, .fret = 5, .harmonic_type = ""},
+        };
+        GpBeat rest;
+        rest.duration_whole = Fraction{1, 4};
+        GpBeat tap_one = noteBeat(Fraction{1, 8}, 12, 5);
+        tap_one.notes[0].tapped = true;
+        GpBeat tap_two = noteBeat(Fraction{1, 8}, 14, 5);
+        tap_two.notes[0].tapped = true;
+        score.tracks[0].bars.push_back(GpBar{.voices = {{chord}, {rest, tap_one, tap_two}}});
+        return score;
+    };
+
+    SECTION("a held chord's span covers the taps and reads as an arpeggio")
+    {
+        const auto built = buildGpSong(make_score(Fraction{1, 2}));
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 4);
+        // The half-note chord rings strictly past the taps' notated beats — a deliberate
+        // cross-voice hold (rule 1) — so its tails survive under the tapping.
+        CHECK(chart.notes[0].sustain == Fraction{2});
+        CHECK(chart.notes[2].attack == common::core::NoteAttack::Tap);
+        // One span from the strum through its notated ring: the taps neither close nor trim it,
+        // and the covered span arrives as a held arpeggio.
+        REQUIRE(chart.shapes.size() == 1);
+        CHECK(chart.shapes[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(chart.shapes[0].sustain == Fraction{2});
+        CHECK(common::core::chartShapeArrivesAsArpeggio(chart, chart.shapes[0], built->tempo_map));
+    }
+
+    SECTION("a short-ringing chord's span still ends before the taps")
+    {
+        const auto built = buildGpSong(make_score(Fraction{1, 4}));
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        // The quarter chord's ring ends at the first tap's onset, so the span keeps its own
+        // notated duration, the taps land outside it, and the box stays a strummed box.
+        REQUIRE(chart.shapes.size() == 1);
+        CHECK(chart.shapes[0].sustain == Fraction{1});
+        CHECK_FALSE(
+            common::core::chartShapeArrivesAsArpeggio(chart, chart.shapes[0], built->tempo_map));
+    }
+}
+
 // The gpif spells grace placement as the GraceNotes element's text ("OnBeat" for Ctrl+Shift+G
 // graces, "BeforeBeat" for plain ones); both spellings must arrive with their timing semantics.
 // The fixture's eighth beat becomes the grace, so the beats after it close up by its duration.

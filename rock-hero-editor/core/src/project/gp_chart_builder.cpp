@@ -789,7 +789,9 @@ void normalizeImportedSustains(
 // collections are empty), so any onset striking two or more strings becomes a chord posture,
 // deduplicated into the template table, and consecutive onsets holding the same posture merge
 // into one shape span covering the strums' notated (pre-trim) durations — the grouping the tab
-// renders as a chord box over repeated strums. ANY articulation difference is a new chord (user
+// renders as a chord box over repeated strums. Tap-only onsets are transparent to the whole
+// derivation (user rule 2026-07-28): taps are the tapping hand, so they neither form postures
+// nor close held spans, letting a ringing chord's span cover the taps above it. ANY articulation difference is a new chord (user
 // rule 2026-07-21): span continuity compares each string's whole note with only its position and
 // duration neutralized, so attack (hammer/pull/tap/slap/pop), muting, harmonics, vibrato,
 // tremolo, accent, bends, and slides — and any technique added to ChartNote later — all split
@@ -873,9 +875,11 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& g
         Fraction notated_end = built[index].end_global_beat;
         std::vector<StringArticulation> articulation(string_count);
         std::size_t struck = 0;
+        bool all_tapped = true;
         while (onset_end < built.size() && built[onset_end].global_beat == built[index].global_beat)
         {
             const ChartNote& note = built[onset_end].note;
+            all_tapped = all_tapped && note.attack == NoteAttack::Tap;
             if (const auto string_index = static_cast<std::size_t>(note.string - 1);
                 string_index < string_count)
             {
@@ -891,7 +895,16 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& g
             }
             ++onset_end;
         }
-        if (struck >= 2)
+        if (all_tapped)
+        {
+            // Tap-only onsets are transparent to span derivation (user rule 2026-07-28): the
+            // taps belong to the tapping hand, not the fretting posture, so they neither form a
+            // chord posture nor end a held one. A chord whose notated ring extends under the
+            // taps keeps its span, which the projections' arrival rule then renders as a held
+            // arpeggio — the corpus's held-shape-under-tapping case. A short-ringing chord is
+            // unaffected: its span still ends at its own notated duration, before the taps.
+        }
+        else if (struck >= 2)
         {
             // Ring-through strings join the posture (they never count as struck): the held
             // note's articulation folds in so span merging still compares whole notes.
