@@ -70,12 +70,14 @@ constexpr double g_window_light_falloff = 0.55;
 // gentler than the old full-length plateau even at this depth).
 constexpr double g_window_morph_dim = 0.95;
 // Tapping-hand light envelope (right-hand-tap-lighting plan): each tap onset lights its own
-// tapped fret lanes along the timeline, rising over the approach side of the tap and decaying
-// after it, so the light dips between consecutive taps exactly as the finger lifts (user rule
+// tapped fret lanes along the timeline, rising over the approach side of the tap, holding
+// through sustained contact (morphing with pitched glides), and decaying after the fingers
+// release, so the light dips between consecutive taps exactly as the finger lifts (user rule
 // 2026-07-28 — deliberately per-onset, never merged into runs). Rise leads longer than decay
-// for read-ahead; both eyeball-tuned like the window light's constants.
-constexpr double g_tap_light_rise_seconds = 0.35;
-constexpr double g_tap_light_decay_seconds = 0.2;
+// for read-ahead; tightened on sight 2026-07-28 (0.35/0.2 read as too much light around each
+// note).
+constexpr double g_tap_light_rise_seconds = 0.18;
+constexpr double g_tap_light_decay_seconds = 0.1;
 // The tap light leans the lit lane tint toward the FHP orange (the tap floor numbers' color)
 // so the tapping hand's light reads apart from the fretting hand's window at a glance.
 constexpr double g_tap_light_warm_mix = 0.3;
@@ -1352,9 +1354,10 @@ void HighwayRenderer::Impl::draw(
     }
 
     // --- Tapping-hand light: one patch per tap onset over its own tapped fret lanes, alpha
-    // rising toward the tap along the approach side and decaying after it (the
-    // right-hand-tap-lighting plan). Patches are deliberately per-onset, never merged into
-    // runs: the dip between consecutive taps mirrors the finger lifting (user rule
+    // rising toward the tap along the approach side, holding through the derived path (which
+    // morphs with pitched glides and sustained contact), and decaying after the fingers
+    // release (the right-hand-tap-lighting plan). Patches are deliberately per-onset, never
+    // merged into runs: the dip between consecutive taps mirrors the finger lifting (user rule
     // 2026-07-28). Consecutive same-lane patches simply alpha-compose where their envelopes
     // overlap, which shallows the dip toward continuous light only at densities where the
     // hand genuinely never leaves the board. Reuses the window light's per-fragment soft x
@@ -1367,92 +1370,169 @@ void HighwayRenderer::Impl::draw(
         std::vector<PosColorUvVertex> vertices;
         std::vector<std::uint16_t> indices;
         const double spill = g_window_light_falloff / 2.0;
+        // One strip segment between two instants, each end carrying its own alpha and
+        // fractional fret extent (the soft x edges interpolate across the quad exactly like
+        // the window light's slices), clipped to the visible span with endpoint values
+        // re-interpolated so a patch never floats past a board edge.
+        const auto emit_segment = [&](double time_a,
+                                      double alpha_a,
+                                      double low_a,
+                                      double high_a,
+                                      double time_b,
+                                      double alpha_b,
+                                      double low_b,
+                                      double high_b) {
+            if (time_b <= time_a || time_b <= span_start_seconds || time_a >= span_end_seconds)
+            {
+                return;
+            }
+            const auto lerp = [](const double a, const double b, const double w) {
+                return a + ((b - a) * w);
+            };
+            if (time_a < span_start_seconds)
+            {
+                const double w = (span_start_seconds - time_a) / (time_b - time_a);
+                alpha_a = lerp(alpha_a, alpha_b, w);
+                low_a = lerp(low_a, low_b, w);
+                high_a = lerp(high_a, high_b, w);
+                time_a = span_start_seconds;
+            }
+            if (time_b > span_end_seconds)
+            {
+                const double w = (span_end_seconds - time_a) / (time_b - time_a);
+                alpha_b = lerp(alpha_a, alpha_b, w);
+                low_b = lerp(low_a, low_b, w);
+                high_b = lerp(high_a, high_b, w);
+                time_b = span_end_seconds;
+            }
+            const double za = time_to_z(time_a);
+            const double zb = time_to_z(time_b);
+            const auto patch_edges = [&](const double low, const double high) {
+                const double edge0 = common::core::highwayFretLineX(low - 1.0, metrics, mirrored);
+                const double edge1 = common::core::highwayFretLineX(high, metrics, mirrored);
+                return std::pair{std::min(edge0, edge1), std::max(edge0, edge1)};
+            };
+            const auto [low_x_a, high_x_a] = patch_edges(low_a, high_a);
+            const auto [low_x_b, high_x_b] = patch_edges(low_b, high_b);
+            const int lane_first =
+                std::max(1, static_cast<int>(std::floor(std::min(low_a, low_b))));
+            const int lane_last =
+                std::min(g_face_fret_count, static_cast<int>(std::ceil(std::max(high_a, high_b))));
+            for (int fret = lane_first; fret <= lane_last; ++fret)
+            {
+                const double lane_low = common::core::highwayFretLineX(fret - 1, metrics, mirrored);
+                const double lane_high = common::core::highwayFretLineX(fret, metrics, mirrored);
+                const auto [lane_x0, lane_x1] = std::minmax(lane_low, lane_high);
+                // Warm the hue only: the mix target takes the lane's own alpha so the tap
+                // light keeps the window light's base opacity (mixArgb blends all four
+                // channels, and the FHP orange is opaque).
+                const ArgbColor base =
+                    isDottedFret(fret) ? g_lit_lane_dotted_color : g_lit_lane_color;
+                const ArgbColor lane_color = mixArgb(
+                    base,
+                    (base & 0xFF000000U) | (g_fret_number_fhp_color & 0x00FFFFFFU),
+                    g_tap_light_warm_mix);
+                const auto vertex = [&](const double x,
+                                        const double z,
+                                        const std::uint32_t tint,
+                                        const double low_x,
+                                        const double high_x) {
+                    return makeUvVertex(
+                        x,
+                        0.008,
+                        z,
+                        tint,
+                        static_cast<float>((x - low_x) + spill),
+                        static_cast<float>((high_x - x) + spill));
+                };
+                const std::uint32_t tint_a = packAbgr(lane_color, alpha_a);
+                const std::uint32_t tint_b = packAbgr(lane_color, alpha_b);
+                pushQuad(
+                    vertices,
+                    indices,
+                    vertex(lane_x0, za, tint_a, low_x_a, high_x_a),
+                    vertex(lane_x1, za, tint_a, low_x_a, high_x_a),
+                    vertex(lane_x1, zb, tint_b, low_x_b, high_x_b),
+                    vertex(lane_x0, zb, tint_b, low_x_b, high_x_b));
+            }
+        };
         for (const common::core::HighwayTapOnsetView& tap : state.tap_onsets)
         {
-            if (tap.seconds + g_tap_light_decay_seconds < span_start_seconds)
+            const common::core::HighwayTapLightStation& front = tap.path.front();
+            const common::core::HighwayTapLightStation& back = tap.path.back();
+            if (back.seconds + g_tap_light_decay_seconds < span_start_seconds)
             {
                 continue;
             }
-            if (tap.seconds - g_tap_light_rise_seconds > span_end_seconds)
+            if (front.seconds - g_tap_light_rise_seconds > span_end_seconds)
             {
                 break; // onsets ascend, so nothing later reaches the visible span
             }
-            const double patch_low =
-                common::core::highwayFretLineX(tap.fret_low - 1, metrics, mirrored);
-            const double patch_high =
-                common::core::highwayFretLineX(tap.fret_high, metrics, mirrored);
-            const double low_x = std::min(patch_low, patch_high);
-            const double high_x = std::max(patch_low, patch_high);
-            // Envelope stations along the timeline: silent at the rise start, full at the tap,
-            // silent again after the decay — each segment clipped to the board's visible span
-            // with its endpoint alpha interpolated, so a patch never floats past a board edge.
-            const std::array<std::pair<double, double>, 3> stations{
-                std::pair{tap.seconds - g_tap_light_rise_seconds, 0.0},
-                std::pair{tap.seconds, 1.0},
-                std::pair{tap.seconds + g_tap_light_decay_seconds, 0.0},
-            };
-            for (std::size_t segment = 0; segment + 1 < stations.size(); ++segment)
+            emit_segment(
+                front.seconds - g_tap_light_rise_seconds,
+                0.0,
+                front.fret_low,
+                front.fret_high,
+                front.seconds,
+                1.0,
+                front.fret_low,
+                front.fret_high);
+            // The hold morphs along the path; gliding segments subdivide with the notes' own
+            // slide ease so the light travels with the tapped glide instead of cutting straight
+            // across it.
+            for (std::size_t station = 0; station + 1 < tap.path.size(); ++station)
             {
-                double time_a = stations[segment].first;
-                double alpha_a = stations[segment].second;
-                double time_b = stations[segment + 1].first;
-                double alpha_b = stations[segment + 1].second;
-                if (time_b <= span_start_seconds || time_a >= span_end_seconds)
+                const common::core::HighwayTapLightStation& a = tap.path[station];
+                const common::core::HighwayTapLightStation& b = tap.path[station + 1];
+                const bool gliding = std::is_neq(a.fret_low <=> b.fret_low) ||
+                                     std::is_neq(a.fret_high <=> b.fret_high);
+                if (!gliding)
                 {
+                    emit_segment(
+                        a.seconds,
+                        1.0,
+                        a.fret_low,
+                        a.fret_high,
+                        b.seconds,
+                        1.0,
+                        b.fret_low,
+                        b.fret_high);
                     continue;
                 }
-                const auto alpha_at = [&](const double seconds) {
-                    return alpha_a + ((alpha_b - alpha_a) * (seconds - time_a) / (time_b - time_a));
-                };
-                if (time_a < span_start_seconds)
+                constexpr int slices = 6;
+                double previous_seconds = a.seconds;
+                double previous_low = a.fret_low;
+                double previous_high = a.fret_high;
+                for (int slice = 1; slice <= slices; ++slice)
                 {
-                    alpha_a = alpha_at(span_start_seconds);
-                    time_a = span_start_seconds;
-                }
-                if (time_b > span_end_seconds)
-                {
-                    alpha_b = alpha_at(span_end_seconds);
-                    time_b = span_end_seconds;
-                }
-                const double za = time_to_z(time_a);
-                const double zb = time_to_z(time_b);
-                for (int fret = tap.fret_low; fret <= tap.fret_high; ++fret)
-                {
-                    const double lane_low =
-                        common::core::highwayFretLineX(fret - 1, metrics, mirrored);
-                    const double lane_high =
-                        common::core::highwayFretLineX(fret, metrics, mirrored);
-                    const auto [lane_x0, lane_x1] = std::minmax(lane_low, lane_high);
-                    // Warm the hue only: the mix target takes the lane's own alpha so the tap
-                    // light keeps the window light's base opacity (mixArgb blends all four
-                    // channels, and the FHP orange is opaque).
-                    const ArgbColor base =
-                        isDottedFret(fret) ? g_lit_lane_dotted_color : g_lit_lane_color;
-                    const ArgbColor lane_color = mixArgb(
-                        base,
-                        (base & 0xFF000000U) | (g_fret_number_fhp_color & 0x00FFFFFFU),
-                        g_tap_light_warm_mix);
-                    const auto vertex =
-                        [&](const double x, const double z, const std::uint32_t tint) {
-                            return makeUvVertex(
-                                x,
-                                0.008,
-                                z,
-                                tint,
-                                static_cast<float>((x - low_x) + spill),
-                                static_cast<float>((high_x - x) + spill));
-                        };
-                    const std::uint32_t tint_a = packAbgr(lane_color, alpha_a);
-                    const std::uint32_t tint_b = packAbgr(lane_color, alpha_b);
-                    pushQuad(
-                        vertices,
-                        indices,
-                        vertex(lane_x0, za, tint_a),
-                        vertex(lane_x1, za, tint_a),
-                        vertex(lane_x1, zb, tint_b),
-                        vertex(lane_x0, zb, tint_b));
+                    const double progress = static_cast<double>(slice) / slices;
+                    const double seconds = a.seconds + ((b.seconds - a.seconds) * progress);
+                    const double weight = common::core::highwaySlideEaseWeight(progress, false);
+                    const double low = a.fret_low + ((b.fret_low - a.fret_low) * weight);
+                    const double high = a.fret_high + ((b.fret_high - a.fret_high) * weight);
+                    emit_segment(
+                        previous_seconds,
+                        1.0,
+                        previous_low,
+                        previous_high,
+                        seconds,
+                        1.0,
+                        low,
+                        high);
+                    previous_seconds = seconds;
+                    previous_low = low;
+                    previous_high = high;
                 }
             }
+            emit_segment(
+                back.seconds,
+                1.0,
+                back.fret_low,
+                back.fret_high,
+                back.seconds + g_tap_light_decay_seconds,
+                0.0,
+                back.fret_low,
+                back.fret_high);
         }
         submitBatch(vertices, indices, posColorUvLayout(), window_light_program.get(), nullptr);
     }

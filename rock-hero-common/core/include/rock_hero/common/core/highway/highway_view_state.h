@@ -207,20 +207,53 @@ struct HighwayShapeView
     friend bool operator==(const HighwayShapeView& lhs, const HighwayShapeView& rhs) = default;
 };
 
+/*! \brief One station along a tapping-hand light path: the tapped fret extent at an instant. */
+struct HighwayTapLightStation
+{
+    /*! \brief Absolute position of this station. */
+    double seconds{0.0};
+
+    /*! \brief Lowest tapped fret at this instant; fractional mid-glide. */
+    double fret_low{0.0};
+
+    /*! \brief Highest tapped fret at this instant; fractional mid-glide. */
+    double fret_high{0.0};
+
+    /*!
+    \brief Compares two stations by their stored fields.
+    \param lhs Left-hand station.
+    \param rhs Right-hand station.
+    \return True when both stations store equal values.
+    */
+    friend constexpr bool operator==(
+        const HighwayTapLightStation& lhs, const HighwayTapLightStation& rhs) noexcept = default;
+};
+
 /*! \brief One tapping-hand onset (a lone tap or a tapped chord) derived from the notes. */
 struct HighwayTapOnsetView
 {
     /*! \brief Absolute onset position shared by the simultaneous taps. */
     double seconds{0.0};
 
-    /*! \brief Lowest tapped fret at this onset. */
+    /*! \brief Lowest tapped fret at the onset. */
     int fret_low{0};
 
-    /*! \brief Highest tapped fret at this onset. */
+    /*! \brief Highest tapped fret at the onset. */
     int fret_high{0};
 
     /*! \brief Number of simultaneous taps; two or more render the tapped chord box. */
     int count{0};
+
+    /*!
+    \brief Light path from the onset through any pitched glides to the fingers' release.
+
+    The first station sits at the onset with the onset extent; later stations land on the taps'
+    pitched slide waypoints (the light morphs with the glide) and on the hold end (sustained
+    contact keeps the light on through the sustain). Unpitched trail-offs contribute nothing —
+    pressure is already releasing, so the light decays from the last pitched station instead.
+    Never empty; a sustainless tap has exactly one station.
+    */
+    std::vector<HighwayTapLightStation> path;
 
     /*!
     \brief Compares two tap-onset views by their stored fields.
@@ -228,7 +261,7 @@ struct HighwayTapOnsetView
     \param rhs Right-hand view.
     \return True when both views store equal values.
     */
-    friend constexpr bool operator==(
+    friend bool operator==(
         const HighwayTapOnsetView& lhs, const HighwayTapOnsetView& rhs) noexcept = default;
 };
 
@@ -440,19 +473,66 @@ inline constexpr double g_highway_onset_match_epsilon = 1.0e-4;
 \brief Derives the tapping-hand onsets: one entry per onset group containing tapped notes.
 
 Right-hand presentation is derived, never authored (the right-hand-tap-lighting plan): each
-entry carries the fret extent and count of the taps struck together at that onset, feeding the
-per-tap light envelopes and, for two or more simultaneous taps, the tapped chord box. Non-tap
-notes sharing the onset contribute nothing — the taps are the other hand. A fretless tap cannot
-be played (tapping frets the string by definition), so fret-zero notes are skipped and a
-malformed chart can never place a light off the board.
+entry carries the fret extent and count of the taps struck together at that onset — feeding,
+for two or more simultaneous taps, the tapped chord box — plus the light path the per-tap
+envelope follows: from the onset through any pitched slide glides (the light morphs with the
+slide) to the fingers' release, which is the sustain end for held contact or the last pitched
+station when an unpitched trail-off is already releasing pressure. Non-tap notes sharing the
+onset contribute nothing — the taps are the other hand. A fretless tap cannot be played
+(tapping frets the string by definition), so fret-zero notes are skipped and a malformed chart
+can never place a light off the board.
 
 \param notes Seconds-resolved notes sorted by start time.
-\return Tap onsets in ascending time order.
+\return Tap onsets in ascending time order, each with at least one path station.
 */
 [[nodiscard]] inline std::vector<HighwayTapOnsetView> makeHighwayTapOnsets(
     const std::vector<HighwayNoteView>& notes)
 {
+    // A member's tapped fret at an instant: its own fret before any glide, linear between its
+    // pitched waypoints (the renderer eases within each path segment), and the last pitched
+    // fret afterwards. Unpitched trail-offs never move the light.
+    const auto member_fret_at = [](const HighwayNoteView& note, const double seconds) {
+        double previous_seconds = note.start_seconds;
+        double previous_fret = note.fret;
+        for (const HighwaySlideView& waypoint : note.slides)
+        {
+            if (waypoint.unpitched || waypoint.fret <= 0)
+            {
+                continue;
+            }
+            if (seconds <= waypoint.seconds)
+            {
+                const double span = waypoint.seconds - previous_seconds;
+                const double weight =
+                    span > 0.0 ? std::clamp((seconds - previous_seconds) / span, 0.0, 1.0) : 1.0;
+                return previous_fret + ((waypoint.fret - previous_fret) * weight);
+            }
+            previous_seconds = waypoint.seconds;
+            previous_fret = waypoint.fret;
+        }
+        return previous_fret;
+    };
+    // When a member's fingers stop holding a pitch: the last pitched waypoint when an unpitched
+    // trail-off follows (the release is already underway), otherwise the sustain end.
+    const auto member_release_at = [](const HighwayNoteView& note) {
+        if (!note.slides.empty() && note.slides.back().unpitched)
+        {
+            double last_pitched = note.start_seconds;
+            for (const HighwaySlideView& waypoint : note.slides)
+            {
+                if (!waypoint.unpitched && waypoint.fret > 0)
+                {
+                    last_pitched = waypoint.seconds;
+                }
+            }
+            return last_pitched;
+        }
+        return std::max(note.end_seconds, note.start_seconds);
+    };
+
     std::vector<HighwayTapOnsetView> onsets;
+    std::vector<const HighwayNoteView*> taps;
+    std::vector<double> station_times;
     for (std::size_t index = 0; index < notes.size();)
     {
         const double onset = notes[index].start_seconds;
@@ -463,6 +543,7 @@ malformed chart can never place a light off the board.
             ++group_end;
         }
         HighwayTapOnsetView view{.seconds = onset};
+        taps.clear();
         for (std::size_t member = index; member < group_end; ++member)
         {
             const HighwayNoteView& note = notes[member];
@@ -473,10 +554,50 @@ malformed chart can never place a light off the board.
             view.fret_low = view.count == 0 ? note.fret : std::min(view.fret_low, note.fret);
             view.fret_high = std::max(view.fret_high, note.fret);
             ++view.count;
+            taps.push_back(&note);
         }
-        if (view.count > 0)
+        if (!taps.empty())
         {
-            onsets.push_back(view);
+            // Path stations: the onset, every pitched waypoint, and the hold end, deduplicated;
+            // the extent at each station spans every member's fret at that instant.
+            double hold_end = onset;
+            station_times.clear();
+            station_times.push_back(onset);
+            for (const HighwayNoteView* const tap : taps)
+            {
+                hold_end = std::max(hold_end, member_release_at(*tap));
+                for (const HighwaySlideView& waypoint : tap->slides)
+                {
+                    if (!waypoint.unpitched && waypoint.fret > 0)
+                    {
+                        station_times.push_back(waypoint.seconds);
+                    }
+                }
+            }
+            station_times.push_back(hold_end);
+            std::ranges::sort(station_times);
+            for (const double seconds : station_times)
+            {
+                if (!view.path.empty() &&
+                    seconds - view.path.back().seconds < g_highway_onset_match_epsilon)
+                {
+                    continue;
+                }
+                const double first_fret = member_fret_at(*taps.front(), seconds);
+                HighwayTapLightStation station{
+                    .seconds = seconds,
+                    .fret_low = first_fret,
+                    .fret_high = first_fret,
+                };
+                for (std::size_t tap = 1; tap < taps.size(); ++tap)
+                {
+                    const double fret = member_fret_at(*taps[tap], seconds);
+                    station.fret_low = std::min(station.fret_low, fret);
+                    station.fret_high = std::max(station.fret_high, fret);
+                }
+                view.path.push_back(station);
+            }
+            onsets.push_back(std::move(view));
         }
         index = group_end;
     }

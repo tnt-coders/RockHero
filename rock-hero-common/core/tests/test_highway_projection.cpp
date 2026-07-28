@@ -472,13 +472,96 @@ TEST_CASE("Highway tap onsets derive from tapped notes only", "[core][highway]")
     REQUIRE(onsets.size() == 3);
     CHECK(
         onsets[0] ==
-        HighwayTapOnsetView{.seconds = 1.0, .fret_low = 12, .fret_high = 12, .count = 1});
+        HighwayTapOnsetView{
+            .seconds = 1.0,
+            .fret_low = 12,
+            .fret_high = 12,
+            .count = 1,
+            .path = {HighwayTapLightStation{.seconds = 1.0, .fret_low = 12.0, .fret_high = 12.0}},
+        });
     CHECK(
         onsets[1] ==
-        HighwayTapOnsetView{.seconds = 2.0, .fret_low = 14, .fret_high = 14, .count = 1});
+        HighwayTapOnsetView{
+            .seconds = 2.0,
+            .fret_low = 14,
+            .fret_high = 14,
+            .count = 1,
+            .path = {HighwayTapLightStation{.seconds = 2.0, .fret_low = 14.0, .fret_high = 14.0}},
+        });
     CHECK(
         onsets[2] ==
-        HighwayTapOnsetView{.seconds = 3.0, .fret_low = 12, .fret_high = 17, .count = 3});
+        HighwayTapOnsetView{
+            .seconds = 3.0,
+            .fret_low = 12,
+            .fret_high = 17,
+            .count = 3,
+            .path = {HighwayTapLightStation{.seconds = 3.0, .fret_low = 12.0, .fret_high = 17.0}},
+        });
+}
+
+// A tap's light path follows sustained contact and pitched glides: a held tap keeps its light on
+// through the sustain, a tapped slide adds a station per pitched waypoint so the light morphs
+// with the glide, and an unpitched trail-off releases the light from the last pitched station.
+TEST_CASE("Highway tap onsets carry the light path through glides", "[core][highway]")
+{
+    std::vector<HighwayNoteView> notes;
+
+    // Held tap: sounding from 1.0 to 2.0 at fret 12, no glide.
+    HighwayNoteView held;
+    held.start_seconds = 1.0;
+    held.end_seconds = 2.0;
+    held.fret = 12;
+    held.attack = NoteAttack::Tap;
+    notes.push_back(held);
+
+    // Tapped slide: fret 12 at 3.0 gliding to fret 15 at 4.0 (the sustain end).
+    HighwayNoteView sliding;
+    sliding.start_seconds = 3.0;
+    sliding.end_seconds = 4.0;
+    sliding.fret = 12;
+    sliding.attack = NoteAttack::Tap;
+    sliding.slides = {HighwaySlideView{.seconds = 4.0, .fret = 15, .unpitched = false}};
+    notes.push_back(sliding);
+
+    // Tapped slide with an unpitched trail-off: the pitched glide ends at 6.0; the trail to 6.5
+    // is already releasing pressure, so the light must not follow it.
+    HighwayNoteView trailing;
+    trailing.start_seconds = 5.0;
+    trailing.end_seconds = 6.5;
+    trailing.fret = 10;
+    trailing.attack = NoteAttack::Tap;
+    trailing.slides = {
+        HighwaySlideView{.seconds = 6.0, .fret = 13, .unpitched = false},
+        HighwaySlideView{.seconds = 6.5, .fret = 8, .unpitched = true},
+    };
+    notes.push_back(trailing);
+
+    const std::vector<HighwayTapOnsetView> onsets = makeHighwayTapOnsets(notes);
+    REQUIRE(onsets.size() == 3);
+
+    REQUIRE(onsets[0].path.size() == 2);
+    CHECK(
+        onsets[0].path[0] ==
+        HighwayTapLightStation{.seconds = 1.0, .fret_low = 12.0, .fret_high = 12.0});
+    CHECK(
+        onsets[0].path[1] ==
+        HighwayTapLightStation{.seconds = 2.0, .fret_low = 12.0, .fret_high = 12.0});
+
+    REQUIRE(onsets[1].path.size() == 2);
+    CHECK(
+        onsets[1].path[0] ==
+        HighwayTapLightStation{.seconds = 3.0, .fret_low = 12.0, .fret_high = 12.0});
+    CHECK(
+        onsets[1].path[1] ==
+        HighwayTapLightStation{.seconds = 4.0, .fret_low = 15.0, .fret_high = 15.0});
+
+    REQUIRE(onsets[2].path.size() == 2);
+    CHECK(
+        onsets[2].path[0] ==
+        HighwayTapLightStation{.seconds = 5.0, .fret_low = 10.0, .fret_high = 10.0});
+    CHECK(
+        onsets[2].path[1] ==
+        HighwayTapLightStation{.seconds = 6.0, .fret_low = 13.0, .fret_high = 13.0});
 }
 
 } // namespace rock_hero::common::core
