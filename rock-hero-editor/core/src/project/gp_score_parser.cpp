@@ -514,7 +514,15 @@ std::expected<GpScore, SongImportError> parseGpScore(const std::string& gpif_xml
                         return std::unexpected{std::move(duration.error())};
                     }
                     beat.duration_whole = *duration;
-                    beat.grace = beat_element.getChildByName("GraceNotes") != nullptr;
+                    // gpif spells the placement as the element's text: "OnBeat" for Ctrl+Shift+G
+                    // graces, "BeforeBeat" for plain ones. Unknown spellings fall back to
+                    // before-beat, Guitar Pro's default grace placement.
+                    if (beat_element.getChildByName("GraceNotes") != nullptr)
+                    {
+                        beat.grace = childText(beat_element, "GraceNotes") == "OnBeat"
+                                         ? GpGracePlacement::OnBeat
+                                         : GpGracePlacement::BeforeBeat;
+                    }
                     beat.tremolo = beat_element.getChildByName("Tremolo") != nullptr;
                     beat.whammy = beat_element.getChildByName("Whammy") != nullptr ||
                                   beat_element.getChildByName("WhammyExtend") != nullptr;

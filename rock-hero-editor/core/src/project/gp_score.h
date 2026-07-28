@@ -10,6 +10,7 @@ the parser rejects scores that would need them.
 
 #pragma once
 
+#include <cstdint>
 #include <optional>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <string>
@@ -118,14 +119,27 @@ struct GpNote
     std::optional<GpBend> bend{};
 };
 
+/*! \brief Placement of a grace-note beat relative to the principal beat that follows it. */
+enum class GpGracePlacement : std::uint8_t
+{
+    /*! \brief Not a grace beat. */
+    None,
+
+    /*! \brief Grace sounds ahead of the principal beat's position. */
+    BeforeBeat,
+
+    /*! \brief Grace sounds on the principal beat's position, delaying the principal. */
+    OnBeat
+};
+
 /*! \brief One beat (a rhythm slot) within a voice: simultaneous notes or a rest. */
 struct GpBeat
 {
     /*! \brief Duration as a fraction of a whole note, after dots and tuplets. */
     common::core::Fraction duration_whole{1, 4};
 
-    /*! \brief True for grace-note beats, which take no time from the bar. */
-    bool grace{false};
+    /*! \brief Grace placement of the beat; grace beats take no time from the bar. */
+    GpGracePlacement grace{GpGracePlacement::None};
 
     /*! \brief True when the beat is tremolo picked. */
     bool tremolo{false};

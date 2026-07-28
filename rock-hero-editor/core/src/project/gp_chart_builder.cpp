@@ -6,7 +6,10 @@
 #include <cmath>
 #include <compare>
 #include <cstddef>
+#include <cstdint>
+#include <functional>
 #include <map>
+#include <numeric>
 #include <optional>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
@@ -32,24 +35,28 @@ using common::core::NoteHarmonic;
 using common::core::NoteMute;
 using common::core::SlideWaypoint;
 
-// The chart's Fraction is a value type without arithmetic; the builder's rationals stay small
-// (beat offsets and sustains), so plain cross-multiplication stays inside int range.
+// Fraction offsets and sustains accumulate across the whole song (global-beat positions with
+// fine tuplet denominators), so these delegate to Fraction's own int64-safe operators rather
+// than repeating the cross-multiplication in int, where a long score can overflow before the
+// normalizing constructor reduces it.
 [[nodiscard]] constexpr Fraction addFractions(Fraction lhs, Fraction rhs) noexcept
 {
-    return Fraction{
-        lhs.numerator * rhs.denominator + rhs.numerator * lhs.denominator,
-        lhs.denominator * rhs.denominator
-    };
+    return lhs + rhs;
 }
 
 [[nodiscard]] constexpr Fraction subtractFractions(Fraction lhs, Fraction rhs) noexcept
 {
-    return addFractions(lhs, Fraction{-rhs.numerator, rhs.denominator});
+    return lhs - rhs;
 }
 
+// Fraction has no operator*, so multiply here — reducing the int64 products before narrowing,
+// exactly as Fraction::operator+ does, so an over-INT_MAX intermediate never truncates.
 [[nodiscard]] constexpr Fraction multiplyFractions(Fraction lhs, Fraction rhs) noexcept
 {
-    return Fraction{lhs.numerator * rhs.numerator, lhs.denominator * rhs.denominator};
+    const std::int64_t numerator = static_cast<std::int64_t>(lhs.numerator) * rhs.numerator;
+    const std::int64_t denominator = static_cast<std::int64_t>(lhs.denominator) * rhs.denominator;
+    const std::int64_t divisor = std::gcd(numerator, denominator);
+    return Fraction{static_cast<int>(numerator / divisor), static_cast<int>(denominator / divisor)};
 }
 
 // One note event on the global rational beat axis, before tie merging.
@@ -363,25 +370,84 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
     return "Lead";
 }
 
-// Collects the timed note events of one track across bars and voices, skipping grace beats.
+// Splits a global-beat-axis position back into measure/beat/offset grid fields. Grace leads can
+// cross a bar line backward (a grace before a downbeat sounds in the previous bar), so the
+// measure is looked up from the position rather than taken from the principal's bar.
+[[nodiscard]] GridPosition gridPositionForGlobalBeat(const MeasureGrid& grid, const Fraction global)
+{
+    const auto after = std::ranges::upper_bound(
+        grid.first_global_beat, global, std::ranges::less{}, [](const int beats) {
+            return Fraction{beats};
+        });
+    const std::size_t measure_index =
+        after == grid.first_global_beat.begin()
+            ? 0
+            : static_cast<std::size_t>(std::distance(grid.first_global_beat.begin(), after)) - 1;
+    const Fraction in_measure =
+        subtractFractions(global, Fraction{grid.first_global_beat[measure_index]});
+    const int whole_beats = in_measure.numerator / in_measure.denominator;
+    return GridPosition{
+        .measure = static_cast<int>(measure_index) + 1,
+        .beat = whole_beats + 1,
+        .offset = subtractFractions(in_measure, Fraction{whole_beats}),
+    };
+}
+
+// Collects the timed note events of one track across bars and voices. Grace beats take no time
+// from the bar; each run attaches to the next sounding beat in its voice (the principal). A
+// before-beat grace sounds a thirty-second-note lead ahead of the principal; an on-beat grace
+// sounds on the principal's position and delays the principal notes on its strings by the same
+// lead (Guitar Pro's two grace placements). A lead shrinks to half the available gap when the
+// neighboring onset sits closer than the full leads, and graces with no room at all are dropped.
 [[nodiscard]] std::vector<NoteEvent> collectEvents(
     const GpTrack& track, const MeasureGrid& grid, std::vector<std::string>& notes)
 {
     std::vector<NoteEvent> events;
     int overfull = 0;
+    int dropped_graces = 0;
+
+    const auto emit_note = [&events, &grid](
+                               const GpNote& source,
+                               const bool tremolo,
+                               const Fraction global,
+                               const Fraction duration) {
+        const GridPosition position = gridPositionForGlobalBeat(grid, global);
+        NoteEvent event;
+        event.measure = position.measure;
+        event.beat = position.beat;
+        event.offset = position.offset;
+        event.duration_beats = duration;
+        event.global_beat = global;
+        event.source = source;
+        event.tremolo = tremolo;
+        events.push_back(std::move(event));
+    };
+
+    // Grace runs and conflict neighbors persist across bar lines within a voice, keyed by the
+    // voice's index in its bar.
+    std::map<std::size_t, std::vector<const GpBeat*>> pending_graces_per_voice;
+    std::map<std::size_t, Fraction> last_onset_per_voice;
     for (std::size_t bar_index = 0; bar_index < track.bars.size(); ++bar_index)
     {
         const auto measure_index = std::min(bar_index, grid.beats_per_measure.size() - 1);
         const int beats_in_bar = grid.beats_per_measure[measure_index];
         const int denominator = grid.denominator[measure_index];
+        // A thirty-second note in this measure's meter, on the signature-beat axis.
+        const Fraction full_lead{denominator, 32};
 
-        for (const std::vector<GpBeat>& voice : track.bars[bar_index].voices)
+        for (std::size_t voice_index = 0; voice_index < track.bars[bar_index].voices.size();
+             ++voice_index)
         {
+            std::vector<const GpBeat*>& pending = pending_graces_per_voice[voice_index];
             Fraction position_beats{};
-            for (const GpBeat& beat : voice)
+            for (const GpBeat& beat : track.bars[bar_index].voices[voice_index])
             {
-                if (beat.grace)
+                if (beat.grace != GpGracePlacement::None)
                 {
+                    if (!beat.notes.empty())
+                    {
+                        pending.push_back(&beat);
+                    }
                     continue;
                 }
 
@@ -391,36 +457,136 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
                 position_beats = addFractions(position_beats, duration_beats);
                 if (beat.notes.empty())
                 {
+                    // A rest cannot host a grace run: graces ornament a sounding principal.
+                    dropped_graces += static_cast<int>(pending.size());
+                    pending.clear();
                     continue;
                 }
                 if (onset >= Fraction{beats_in_bar})
                 {
                     ++overfull;
+                    dropped_graces += static_cast<int>(pending.size());
+                    pending.clear();
                     continue;
                 }
 
-                // Split the in-bar beat position into the whole beat and its sub-beat offset.
-                const int whole_beats = onset.numerator / onset.denominator;
-                const Fraction offset = subtractFractions(onset, Fraction{whole_beats});
+                const Fraction principal_global =
+                    addFractions(Fraction{grid.first_global_beat[measure_index]}, onset);
+                Fraction principal_shift{};
+                std::vector<int> shifted_strings;
+                if (!pending.empty())
+                {
+                    const auto is_on_beat = [](const GpBeat* grace) {
+                        return grace->grace == GpGracePlacement::OnBeat;
+                    };
+                    const int on_count =
+                        static_cast<int>(std::ranges::count_if(pending, is_on_beat));
+                    const int before_count = static_cast<int>(pending.size()) - on_count;
+
+                    // Before-beat run: leads stack backward from the principal. The gap floor is
+                    // the voice's previous sounding onset, or the song start when none exists.
+                    if (before_count > 0)
+                    {
+                        const auto last = last_onset_per_voice.find(voice_index);
+                        const Fraction floor =
+                            last != last_onset_per_voice.end() ? last->second : Fraction{0};
+                        const Fraction gap = subtractFractions(principal_global, floor);
+                        Fraction lead = full_lead;
+                        if (multiplyFractions(Fraction{before_count}, lead) >= gap)
+                        {
+                            lead = Fraction{gap.numerator, gap.denominator * 2 * before_count};
+                        }
+                        if (lead.numerator <= 0)
+                        {
+                            dropped_graces += before_count;
+                        }
+                        else
+                        {
+                            int remaining = before_count;
+                            for (const GpBeat* grace : pending)
+                            {
+                                if (is_on_beat(grace))
+                                {
+                                    continue;
+                                }
+                                const Fraction back = multiplyFractions(Fraction{remaining}, lead);
+                                const Fraction global = subtractFractions(principal_global, back);
+                                for (const GpNote& grace_note : grace->notes)
+                                {
+                                    emit_note(grace_note, grace->tremolo, global, lead);
+                                }
+                                --remaining;
+                            }
+                        }
+                    }
+
+                    // On-beat run: graces sound on the principal's position and the principal
+                    // notes on their strings land one lead later per grace, ends unchanged.
+                    if (on_count > 0)
+                    {
+                        Fraction lead = full_lead;
+                        if (multiplyFractions(Fraction{on_count}, lead) >= duration_beats)
+                        {
+                            lead = Fraction{
+                                duration_beats.numerator, duration_beats.denominator * 2 * on_count
+                            };
+                        }
+                        if (lead.numerator <= 0)
+                        {
+                            dropped_graces += on_count;
+                        }
+                        else
+                        {
+                            int slot = 0;
+                            for (const GpBeat* grace : pending)
+                            {
+                                if (!is_on_beat(grace))
+                                {
+                                    continue;
+                                }
+                                const Fraction forward = multiplyFractions(Fraction{slot}, lead);
+                                const Fraction global = addFractions(principal_global, forward);
+                                for (const GpNote& grace_note : grace->notes)
+                                {
+                                    emit_note(grace_note, grace->tremolo, global, lead);
+                                    shifted_strings.push_back(grace_note.string);
+                                }
+                                ++slot;
+                            }
+                            principal_shift = multiplyFractions(Fraction{on_count}, lead);
+                        }
+                    }
+                    pending.clear();
+                }
+
                 for (const GpNote& source : beat.notes)
                 {
-                    NoteEvent event;
-                    event.measure = static_cast<int>(bar_index) + 1;
-                    event.beat = whole_beats + 1;
-                    event.offset = offset;
-                    event.duration_beats = duration_beats;
-                    event.global_beat = addFractions(
-                        Fraction{grid.first_global_beat[measure_index] + whole_beats}, offset);
-                    event.source = source;
-                    event.tremolo = beat.tremolo;
-                    events.push_back(std::move(event));
+                    const bool shifted = std::ranges::contains(shifted_strings, source.string);
+                    emit_note(
+                        source,
+                        beat.tremolo,
+                        shifted ? addFractions(principal_global, principal_shift)
+                                : principal_global,
+                        shifted ? subtractFractions(duration_beats, principal_shift)
+                                : duration_beats);
                 }
+                last_onset_per_voice[voice_index] = addFractions(principal_global, principal_shift);
             }
         }
+    }
+    for (const auto& entry : pending_graces_per_voice)
+    {
+        // A grace run at the end of a track has no principal to attach to.
+        dropped_graces += static_cast<int>(entry.second.size());
     }
     if (overfull > 0)
     {
         notes.push_back(std::to_string(overfull) + " beats overflowed their bar and were dropped");
+    }
+    if (dropped_graces > 0)
+    {
+        notes.push_back(
+            std::to_string(dropped_graces) + " grace-note beats had no room and were dropped");
     }
 
     std::ranges::stable_sort(events, [](const NoteEvent& lhs, const NoteEvent& rhs) {
@@ -881,6 +1047,136 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& g
     return positions;
 }
 
+// Resolves bare slide-in flags (16 from below, 32 from above) into ordinary slides — no new
+// notation (user rule 2026-07-27): the note's head moves onto the lead at the derived start
+// fret, an ordinary pitched waypoint glides to the notated fret at the notated position, and
+// the landing keeps no head of its own, exactly like a legato junction. Guitar Pro gives the
+// gesture no start fret, so the fret-hand positions supply it: the slide is the hand traveling
+// into the placement that arrives at the note, departing from the same finger slot in the
+// preceding placement — start = landing fret + (preceding anchor − landing anchor). A grace
+// note sliding into its principal is the explicit-fret notation and never reaches here: it
+// resolves through the ordinary slide chain. When the hand does not move at the note, or the
+// placement delta contradicts the flag's direction, the flag wins with a two-fret start in its
+// direction. Runs after fret-hand generation — by construction the derived start fret lies
+// inside the preceding placement, so moved heads never perturb the window walk, and the
+// placement at the notated position sits exactly on the glide's landing waypoint — and before
+// the sustain policy, so the transformed note is a slide when the trim rules run: a slide-in
+// into a held landing keeps its hold like any notated slide (user rule 2026-07-28). The lead
+// is the shared minimum-sustain-distance margin, halved when the previous onset on the string
+// sits closer.
+void resolveSlideIns(
+    std::vector<BuiltNote>& built, const std::vector<common::core::FretHandPosition>& placements,
+    const MeasureGrid& grid, std::vector<std::string>& notes)
+{
+    int unplaceable = 0;
+    bool moved = false;
+    for (std::size_t index = 0; index < built.size(); ++index)
+    {
+        BuiltNote& entry = built[index];
+        if ((entry.slide_flags & (16 | 32)) == 0)
+        {
+            continue;
+        }
+        ChartNote& note = entry.note;
+        const bool from_below = (entry.slide_flags & 16) != 0;
+        if (note.fret < 1)
+        {
+            // An open string cannot be slid into.
+            ++unplaceable;
+            continue;
+        }
+
+        int start = from_below ? note.fret - 2 : note.fret + 2;
+        const auto after = std::ranges::upper_bound(
+            placements,
+            note.position,
+            std::ranges::less{},
+            &common::core::FretHandPosition::position);
+        if (after != placements.begin())
+        {
+            const auto landing = after - 1;
+            if (landing != placements.begin() && landing->position == note.position)
+            {
+                const int delta = (landing - 1)->fret - landing->fret;
+                if (delta != 0 && (delta < 0) == from_below)
+                {
+                    start = note.fret + delta;
+                }
+            }
+        }
+        start = std::clamp(start, 1, common::core::g_max_fret);
+        if (start == note.fret)
+        {
+            // Sliding into fret 1 from below (or the last fret from above): no start exists.
+            ++unplaceable;
+            continue;
+        }
+
+        const auto measure_index = static_cast<std::size_t>(note.position.measure - 1);
+        Fraction lead = common::core::minimumSustainDistanceBeats(
+            grid.denominator[std::min(measure_index, grid.denominator.size() - 1)]);
+        // The song start bounds the lead when no earlier onset on the string does.
+        Fraction gap = entry.global_beat;
+        for (std::size_t previous = index; previous-- > 0;)
+        {
+            if (built[previous].gp_string == entry.gp_string)
+            {
+                gap = subtractFractions(entry.global_beat, built[previous].global_beat);
+                break;
+            }
+        }
+        if (lead >= gap)
+        {
+            lead = Fraction{gap.numerator, gap.denominator * 2};
+        }
+        if (lead.numerator <= 0)
+        {
+            ++unplaceable;
+            continue;
+        }
+
+        // The head moves back onto the lead; every payload offset is onset-relative and
+        // shifts with it, and the notated fret becomes the first glide waypoint. The sustain
+        // end stays where the notated note ended.
+        for (BendPoint& point : note.bend)
+        {
+            point.offset = addFractions(point.offset, lead);
+        }
+        for (SlideWaypoint& waypoint : note.slides)
+        {
+            waypoint.offset = addFractions(waypoint.offset, lead);
+        }
+        if (note.slide_out.has_value())
+        {
+            note.slide_out->offset = addFractions(note.slide_out->offset, lead);
+        }
+        note.slides.insert(note.slides.begin(), SlideWaypoint{.offset = lead, .fret = note.fret});
+        note.fret = start;
+        note.sustain = addFractions(note.sustain, lead);
+        entry.global_beat = subtractFractions(entry.global_beat, lead);
+        note.position = gridPositionForGlobalBeat(grid, entry.global_beat);
+        moved = true;
+    }
+    if (moved)
+    {
+        // A moved head can pass a neighboring onset on another string; the note stream stays
+        // sorted by (position, string) for the chart invariant.
+        std::ranges::stable_sort(built, [](const BuiltNote& lhs, const BuiltNote& rhs) {
+            if (lhs.global_beat != rhs.global_beat)
+            {
+                return lhs.global_beat < rhs.global_beat;
+            }
+            return lhs.note.string < rhs.note.string;
+        });
+    }
+    if (unplaceable > 0)
+    {
+        notes.push_back(
+            std::to_string(unplaceable) +
+            " slide-ins had no representable start and were left plain");
+    }
+}
+
 // Builds one track's chart: tie merging, technique mapping, bends, slide resolution, sustain
 // normalization, and fret-hand position generation. The tempo map places mid-sustain
 // slide-waypoint positions on the musical grid.
@@ -901,7 +1197,6 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& g
     std::map<int, std::size_t> open_note_per_string;
     std::map<int, int> previous_fret_per_string;
     int dropped_duplicates = 0;
-    int slide_in_count = 0;
 
     for (const NoteEvent& event : events)
     {
@@ -1162,11 +1457,6 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& g
             }
             note.slide_out = common::core::SlideOut{.offset = window, .fret = target};
         }
-
-        if ((entry.slide_flags & (16 | 32)) != 0)
-        {
-            ++slide_in_count;
-        }
     }
 
     // Legato landings are no longer onsets; drop them before sustain normalization, chord
@@ -1190,15 +1480,23 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& g
         notes.push_back(
             std::to_string(dropped_duplicates) + " duplicate simultaneous notes were dropped");
     }
-    if (slide_in_count > 0)
+
+    // The generator reads onsets and waypoint positions only — never sustains — so it can run
+    // before the sustain policy. Slide-in resolution needs the placements and must transform
+    // its notes into ordinary slides before normalization decides which tails a technique
+    // protects: a slide-in into a held landing keeps its hold (user rule 2026-07-28), trimmed
+    // like any tail but never dropped as effect-free.
+    chart.fret_hand_positions = generateFretHandPositions(built, tempo_map);
+    if (!chart.fret_hand_positions.empty())
     {
         notes.push_back(
-            std::to_string(slide_in_count) + " slide-ins have no chart equivalent and were kept "
-                                             "as plain notes");
+            "generated " + std::to_string(chart.fret_hand_positions.size()) +
+            " fret-hand positions (simple window walk; verify)");
     }
+    resolveSlideIns(built, chart.fret_hand_positions, grid, notes);
 
-    // Runs after slide resolution so slide-extended tails carry their payloads into the trim's
-    // payload floor.
+    // Runs after slide and slide-in resolution so slide-extended tails carry their payloads
+    // into the trim's payload floor.
     normalizeImportedSustains(built, grid, notes);
 
     // Shapes read the notated (pre-trim) note ends, so this runs on the built entries before
@@ -1212,19 +1510,9 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& g
     }
 
     chart.notes.reserve(built.size());
-    // Generated before the notes move out of `built`: the generator needs each note's global
-    // beat to place mid-sustain slide-waypoint coverage.
-    chart.fret_hand_positions = generateFretHandPositions(built, tempo_map);
-
     for (BuiltNote& entry : built)
     {
         chart.notes.push_back(std::move(entry.note));
-    }
-    if (!chart.fret_hand_positions.empty())
-    {
-        notes.push_back(
-            "generated " + std::to_string(chart.fret_hand_positions.size()) +
-            " fret-hand positions (simple window walk; verify)");
     }
 
     return chart;
@@ -1265,7 +1553,6 @@ std::expected<GpBuiltSong, SongImportError> buildGpSong(const GpScore& score)
     }
 
     int whammy_beats = 0;
-    int grace_beats = 0;
     for (const GpTrack& track : score.tracks)
     {
         for (const GpBar& bar : track.bars)
@@ -1275,7 +1562,6 @@ std::expected<GpBuiltSong, SongImportError> buildGpSong(const GpScore& score)
                 for (const GpBeat& beat : voice)
                 {
                     whammy_beats += beat.whammy ? 1 : 0;
-                    grace_beats += beat.grace ? 1 : 0;
                 }
             }
         }
@@ -1285,10 +1571,6 @@ std::expected<GpBuiltSong, SongImportError> buildGpSong(const GpScore& score)
         song.notes.push_back(
             std::to_string(whammy_beats) +
             " whammy-bar beats were imported without their bar dives");
-    }
-    if (grace_beats > 0)
-    {
-        song.notes.push_back(std::to_string(grace_beats) + " grace-note beats were dropped");
     }
 
     bool seen_non_bass = false;

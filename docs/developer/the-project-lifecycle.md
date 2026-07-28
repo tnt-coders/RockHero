@@ -199,6 +199,40 @@ through the trim rules):
     note's onset. The tab draws no slide line across a hold segment — the linked continuation
     head at the waypoint renders it as a note tied to itself, and the glide's diagonal leaves
     from there.
+16. **A bare slide-in imports as an ordinary slide.** Guitar Pro's slide-in flags (from below /
+    from above) name no start fret, and no new notation exists for the gesture (user rule
+    2026-07-28): the note's head moves onto a lead — the minimum-sustain-distance margin,
+    halved when the previous onset on the string sits closer — at a derived start fret, and an
+    ordinary pitched waypoint glides to the notated fret at the notated position, which keeps
+    no head of its own, exactly like a legato junction. The fret-hand positions supply the
+    start: the head departs from the same window slot in the preceding placement (notated fret
+    plus the anchor delta into the arriving placement); the flag's stated direction wins over a
+    contradicting delta, and a still hand falls back to two frets out in the flag's direction
+    (user rules 2026-07-27). An open-string landing, a start that would leave the neck (into
+    fret 1 from below), or a landing with no room for any lead stays a plain note with a
+    conversion note. Resolution runs after fret-hand generation, so the derived start sits
+    inside the preceding placement by construction and a placement at the notated position
+    lands exactly on the glide's waypoint — and before the sustain policy, so the transformed
+    note is a slide when the trim rules run: a slide-in into a held landing keeps its hold
+    like any notated slide, trimmed like every tail but never dropped as effect-free (user
+    rule 2026-07-28). A grace note sliding into its principal already carries its explicit
+    start fret and resolves through the ordinary slide chain instead.
+
+**Grace beats** (placed during event collection, before tie merging and every rule above):
+
+17. **A grace beat takes no bar time and attaches to the next sounding beat in its voice.** A
+    before-beat grace (GP's plain grace) sounds a thirty-second-note lead ahead of its
+    principal — crossing the bar line backward when the principal sits on a downbeat; an
+    on-beat grace (Ctrl+Shift+G) sounds on the principal's own position and delays the
+    principal notes on the grace's strings by the same lead, with their notated ends unchanged
+    (user rules 2026-07-27). Runs of grace beats stack lead by lead, and grace notes keep
+    their techniques — the classic hammer or slide into the principal resolves through the
+    ordinary paths once the grace is a real note.
+18. **Leads shrink rather than collide.** When the full leads do not fit — the voice's previous
+    sounding onset closer than a before-beat run's leads, or an on-beat run no shorter than the
+    principal's duration — the lead shrinks to half the available gap. A grace with no room at
+    all (nothing sounds before a principal at the song start) or no principal to attach to (a
+    rest follows, or the track ends) is dropped with a conversion note.
 
 Every generated track logs a conversion note ("simple window walk; verify", "derived N chord
 spans") so the guesses stay observable in the import log.

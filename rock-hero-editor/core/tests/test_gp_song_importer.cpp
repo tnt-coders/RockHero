@@ -1028,6 +1028,353 @@ TEST_CASE("Guitar Pro import trims reaching tails and holds crossing rings", "[c
     }
 }
 
+namespace
+{
+
+// One single-note beat on the given zero-based string for the grace and slide-in tests below.
+[[nodiscard]] GpBeat noteBeat(
+    const Fraction duration, const int fret, const int string = 0, const int slide_flags = 0)
+{
+    GpBeat beat;
+    beat.duration_whole = duration;
+    beat.notes = {
+        GpNote{.string = string, .fret = fret, .slide_flags = slide_flags, .harmonic_type = ""}
+    };
+    return beat;
+}
+
+// The same beat marked as a grace with the given placement.
+[[nodiscard]] GpBeat graceBeat(const GpGracePlacement placement, const int fret)
+{
+    GpBeat beat = noteBeat(Fraction{1, 32}, fret);
+    beat.grace = placement;
+    return beat;
+}
+
+} // namespace
+
+// Grace beats take no bar time; the import places them against their principal (user rules
+// 2026-07-27): a before-beat grace sounds a thirty-second-note lead ahead of the principal, an
+// on-beat grace sounds on the principal's position and delays the principal by the same lead.
+// The lead halves when the neighboring onset sits closer than the full lead, and a grace with
+// no room at all is dropped.
+TEST_CASE("Guitar Pro import places grace notes against their principal", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+
+    SECTION("a before-beat grace sounds a thirty-second before the principal")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(Fraction{1, 4}, 5),
+                     graceBeat(GpGracePlacement::BeforeBeat, 7),
+                     noteBeat(Fraction{1, 4}, 8)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 3);
+        CHECK(chart.notes[1].fret == 7);
+        CHECK(chart.notes[1].position.measure == 1);
+        CHECK(chart.notes[1].position.beat == 1);
+        CHECK(chart.notes[1].position.offset == Fraction{7, 8});
+        CHECK(chart.notes[2].fret == 8);
+        CHECK(chart.notes[2].position.beat == 2);
+        CHECK(chart.notes[2].position.offset == Fraction{});
+    }
+
+    SECTION("an on-beat grace takes the beat and delays the principal")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {graceBeat(GpGracePlacement::OnBeat, 7),
+                     noteBeat(Fraction{1, 4}, 8),
+                     noteBeat(Fraction{1, 4}, 5)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 3);
+        CHECK(chart.notes[0].fret == 7);
+        CHECK(chart.notes[0].position.beat == 1);
+        CHECK(chart.notes[0].position.offset == Fraction{});
+        CHECK(chart.notes[1].fret == 8);
+        CHECK(chart.notes[1].position.beat == 1);
+        CHECK(chart.notes[1].position.offset == Fraction{1, 8});
+        CHECK(chart.notes[2].position.beat == 2);
+    }
+
+    SECTION("a before-beat grace crosses the bar line backward")
+    {
+        GpScore score = makeLinearScore(2, syncs);
+        score.tracks[0].bars.push_back(GpBar{.voices = {{noteBeat(Fraction{1}, 5)}}});
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {graceBeat(GpGracePlacement::BeforeBeat, 7), noteBeat(Fraction{1, 4}, 8)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 3);
+        CHECK(chart.notes[1].fret == 7);
+        CHECK(chart.notes[1].position.measure == 1);
+        CHECK(chart.notes[1].position.beat == 4);
+        CHECK(chart.notes[1].position.offset == Fraction{7, 8});
+        CHECK(chart.notes[2].position.measure == 2);
+        CHECK(chart.notes[2].position.beat == 1);
+    }
+
+    SECTION("a crowded lead halves against the previous onset")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(Fraction{1, 32}, 5),
+                     graceBeat(GpGracePlacement::BeforeBeat, 7),
+                     noteBeat(Fraction{1, 4}, 8)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 3);
+        CHECK(chart.notes[1].fret == 7);
+        CHECK(chart.notes[1].position.offset == Fraction{1, 16});
+    }
+
+    SECTION("a grace before the song's first onset has no room and is dropped")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {graceBeat(GpGracePlacement::BeforeBeat, 7), noteBeat(Fraction{1, 4}, 8)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 1);
+        CHECK(anyNoteContains(built->notes, "grace-note beats had no room"));
+    }
+}
+
+// The gpif spells grace placement as the GraceNotes element's text ("OnBeat" for Ctrl+Shift+G
+// graces, "BeforeBeat" for plain ones); both spellings must arrive with their timing semantics.
+// The fixture's eighth beat becomes the grace, so the beats after it close up by its duration.
+TEST_CASE("Guitar Pro import reads gpif grace placements", "[core][gp-import]")
+{
+    const std::filesystem::path scratch =
+        std::filesystem::temp_directory_path() / "rh_gp_grace_test";
+    std::error_code cleanup_error;
+    std::filesystem::remove_all(scratch, cleanup_error);
+    const std::filesystem::path workspace = scratch / "song";
+    std::filesystem::create_directories(workspace);
+
+    SECTION("OnBeat takes the beat and delays the principal")
+    {
+        const std::string gpif = fixtureWithReplacement(
+            R"(<Beat id="1"><Rhythm ref="1"/><Notes>1</Notes></Beat>)",
+            R"(<Beat id="1"><Rhythm ref="1"/><GraceNotes>OnBeat</GraceNotes>)"
+            R"(<Notes>1</Notes></Beat>)");
+        const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
+        GpSongImporter importer;
+        const auto song = importer.importSong(archive, workspace);
+        REQUIRE(song.has_value());
+        const common::core::Chart& chart = requiredChart(song->arrangements.front());
+        REQUIRE(chart.notes.size() == 5);
+        CHECK(chart.notes[1].fret == 5);
+        CHECK(chart.notes[1].position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(chart.notes[2].fret == 7);
+        CHECK(
+            chart.notes[2].position ==
+            GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 8}});
+    }
+
+    SECTION("BeforeBeat leads the principal")
+    {
+        const std::string gpif = fixtureWithReplacement(
+            R"(<Beat id="1"><Rhythm ref="1"/><Notes>1</Notes></Beat>)",
+            R"(<Beat id="1"><Rhythm ref="1"/><GraceNotes>BeforeBeat</GraceNotes>)"
+            R"(<Notes>1</Notes></Beat>)");
+        const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
+        GpSongImporter importer;
+        const auto song = importer.importSong(archive, workspace);
+        REQUIRE(song.has_value());
+        const common::core::Chart& chart = requiredChart(song->arrangements.front());
+        REQUIRE(chart.notes.size() == 5);
+        CHECK(chart.notes[1].fret == 5);
+        CHECK(
+            chart.notes[1].position ==
+            GridPosition{.measure = 1, .beat = 1, .offset = Fraction{7, 8}});
+        CHECK(chart.notes[2].fret == 7);
+        CHECK(chart.notes[2].position == GridPosition{.measure = 1, .beat = 2});
+    }
+}
+
+// A bare slide-in imports as an ordinary slide — no new notation: the head moves onto the lead
+// at a derived start fret and glides to the notated fret, whose position keeps no head of its
+// own. Guitar Pro gives the gesture no start fret, so the fret-hand positions supply it: the
+// head departs from the same window slot in the preceding placement. The flag's stated
+// direction wins over a contradicting placement delta, a still hand falls back to two frets
+// out in the flag's direction, and an open-string landing stays plain. A grace note sliding
+// into its principal carries the explicit start fret instead and resolves through the
+// ordinary slide chain.
+TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+
+    SECTION("a hand move consistent with the flag supplies the start fret")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{noteBeat(Fraction{1, 4}, 3), noteBeat(Fraction{1, 4}, 8, 0, 16)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        // The window walk moves the anchor minimally (3 to 5), so the head departs two frets
+        // below the notated fret: 8 + (3 - 5), a quarter-beat lead ahead, gliding to 8 at the
+        // notated position. The sustain end stays at the notated end.
+        CHECK(chart.notes[1].fret == 6);
+        CHECK(chart.notes[1].position.beat == 1);
+        CHECK(chart.notes[1].position.offset == Fraction{3, 4});
+        REQUIRE(chart.notes[1].slides.size() == 1);
+        CHECK(chart.notes[1].slides[0].offset == Fraction{1, 4});
+        CHECK(chart.notes[1].slides[0].fret == 8);
+        CHECK(chart.notes[1].sustain == Fraction{5, 4});
+    }
+
+    SECTION("a slide-in into a held landing keeps the hold")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(Fraction{1, 4}, 3),
+                     noteBeat(Fraction{1, 8}, 8, 0, 16),
+                     noteBeat(Fraction{1, 8}, 5)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 3);
+        // The transform runs before the sustain policy, so the half-beat landing hold
+        // survives the effect-free drop (the note is a slide now) and trims only against the
+        // next onset like any tail: head at 0.75 beats, glide at +1/4, tail to 1.25 (a
+        // quarter before the fret-5 onset at 1.5 beats).
+        CHECK(chart.notes[1].fret == 6);
+        CHECK(chart.notes[1].position.offset == Fraction{3, 4});
+        REQUIRE(chart.notes[1].slides.size() == 1);
+        CHECK(chart.notes[1].slides[0].offset == Fraction{1, 4});
+        CHECK(chart.notes[1].slides[0].fret == 8);
+        CHECK(chart.notes[1].sustain == Fraction{1, 2});
+    }
+
+    SECTION("a still hand falls back to two frets in the flag's direction")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{noteBeat(Fraction{1, 4}, 5), noteBeat(Fraction{1, 4}, 5, 0, 16)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[1].fret == 3);
+        REQUIRE(chart.notes[1].slides.size() == 1);
+        CHECK(chart.notes[1].slides[0].fret == 5);
+    }
+
+    SECTION("a from-above flag rides a downward hand move")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{noteBeat(Fraction{1, 4}, 8), noteBeat(Fraction{1, 4}, 3, 0, 32)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        // The anchor walks from 8 down to 3, so the head departs the full delta above: 3 + 5.
+        CHECK(chart.notes[1].fret == 8);
+        REQUIRE(chart.notes[1].slides.size() == 1);
+        CHECK(chart.notes[1].slides[0].fret == 3);
+    }
+
+    SECTION("the flag's direction wins over a contradicting hand move")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{noteBeat(Fraction{1, 4}, 8), noteBeat(Fraction{1, 4}, 3, 0, 16)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[1].fret == 1);
+        REQUIRE(chart.notes[1].slides.size() == 1);
+        CHECK(chart.notes[1].slides[0].fret == 3);
+    }
+
+    SECTION("an open-string landing stays plain")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{noteBeat(Fraction{1, 4}, 5), noteBeat(Fraction{1, 4}, 0, 0, 16)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[1].fret == 0);
+        CHECK(chart.notes[1].slides.empty());
+        CHECK(anyNoteContains(built->notes, "slide-ins had no representable start"));
+    }
+
+    SECTION("a grace slide into its principal keeps the explicit start fret")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat grace = graceBeat(GpGracePlacement::BeforeBeat, 5);
+        grace.notes[0].slide_flags = 1;
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{noteBeat(Fraction{1, 4}, 3), grace, noteBeat(Fraction{1, 4}, 7)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 3);
+        // The grace note itself glides to the principal's fret; the principal keeps its own
+        // head and fret untouched.
+        CHECK(chart.notes[1].fret == 5);
+        REQUIRE_FALSE(chart.notes[1].slides.empty());
+        CHECK(chart.notes[1].slides.back().fret == 7);
+        CHECK(chart.notes[2].fret == 7);
+        CHECK(chart.notes[2].slides.empty());
+    }
+}
+
 // A song whose audio sync points stop early leaves most bars to constant-tempo extrapolation, so
 // the build records a drift warning naming the covered range.
 // Guitar Pro's positive backing-track frame padding is silence before the audio (the first
