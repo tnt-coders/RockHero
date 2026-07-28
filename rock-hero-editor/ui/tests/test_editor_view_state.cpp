@@ -590,4 +590,45 @@ TEST_CASE("EditorView projects audio device menu button state", "[ui][editor-vie
     CHECK(audio_button.getText() == "[48kHz 24bit: 2/2ch 128spls ~4.5/7.5ms ASIO]");
 }
 
+// Verifies the transport-strip selection-count chip appears from two selected chart notes up,
+// reporting the selection size, and hides below that threshold: typing acts on the whole
+// selection, so its size must stay visible even when the highlighted notes scroll off-screen.
+TEST_CASE("EditorView projects the selection-count chip", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    const auto& selection_count_chip =
+        findRequiredDescendant<juce::Label>(view, "chart_selection_count_display");
+
+    // The default state carries no chart selection, so the chip stays hidden.
+    view.setState(core::EditorViewState{});
+    CHECK_FALSE(selection_count_chip.isVisible());
+
+    // A single selected note is still below the two-note threshold.
+    core::EditorViewState state = makeLoadedEditorState(20.0);
+    state.chart_edit.selected_notes = {0};
+    view.setState(state);
+    CHECK_FALSE(selection_count_chip.isVisible());
+
+    // Two selected notes reveal the chip with the "N notes" count.
+    state.chart_edit.selected_notes = {0, 1};
+    view.setState(state);
+    CHECK(selection_count_chip.isVisible());
+    CHECK(selection_count_chip.getText() == "2 notes");
+
+    // The count is derived from the selection size, not a fixed label.
+    state.chart_edit.selected_notes = {0, 1, 2};
+    view.setState(state);
+    CHECK(selection_count_chip.isVisible());
+    CHECK(selection_count_chip.getText() == "3 notes");
+
+    // Dropping back below the threshold hides the chip again.
+    state.chart_edit.selected_notes = {0};
+    view.setState(state);
+    CHECK_FALSE(selection_count_chip.isVisible());
+}
+
 } // namespace rock_hero::editor::ui

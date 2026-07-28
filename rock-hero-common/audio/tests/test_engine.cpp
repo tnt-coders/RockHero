@@ -515,6 +515,35 @@ private:
         R"(manufacturer="Rock Hero Tests"/>)");
 }
 
+// Writes a valid single-plugin tone document (with its required on-disk state sidecar) and returns
+// its package-relative reference. The document parses, so loadLiveRig sets up an in-flight
+// operation with total_plugins == 1 and yields through the paint fence before the first plugin
+// step. The plugin points at a file no machine has, but the cancellation/teardown tests hold the
+// load at that first yield and never reach the step that would resolve it.
+[[nodiscard]] std::string writeSingleMissingPluginToneDocument(
+    const std::filesystem::path& song_directory)
+{
+    const std::string tone_ref = "tones/a1b2c3d4-e5f6-4789-8a9b-0c1d2e3f4a5b/tone.json";
+    PluginRecord record;
+    record.id = "record-0";
+    record.identity.format_name = "VST3";
+    record.identity.name = "Suspended Load Plugin";
+    record.identity.original_file_or_identifier = "Z:/missing/RockHeroMissing.vst3";
+    const std::filesystem::path state_ref =
+        generatedPluginStatePath(toneDocumentStateDirectory(std::filesystem::path{tone_ref}), 0);
+    record.tracktion_state_ref = state_ref.generic_string();
+    REQUIRE(writeTextFile(
+                song_directory / state_ref,
+                "<PLUGIN type=\"vst\" name=\"placeholder\"/>",
+                LiveRigErrorCode::CouldNotWritePluginState)
+                .has_value());
+
+    ToneDocument document;
+    document.chain.push_back(std::move(record));
+    REQUIRE(writeToneDocument(song_directory / tone_ref, document).has_value());
+    return tone_ref;
+}
+
 } // namespace
 
 // Verifies normal app launches are not consumed as scanner child processes.
@@ -1840,6 +1869,97 @@ TEST_CASE("Engine live rig lists every missing plugin", "[audio][engine][integra
     CHECK(loaded->error().code == LiveRigErrorCode::MissingPlugins);
     CHECK(loaded->error().message.find("Missing One") != std::string::npos);
     CHECK(loaded->error().message.find("Missing Two") != std::string::npos);
+}
+
+// Verifies clearLiveRig() cancels a live-rig load suspended between cooperative steps: the stranded
+// continuation becomes a safe no-op once m_load_op is gone, the superseded load's callback never
+// fires, and the engine stays usable afterward. A yield callback that stores the continuation
+// instead of running it holds the load mid-flight so the clear lands while it is still in progress.
+TEST_CASE("Engine live rig clear cancels a suspended load", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    const TemporarySongDirectory song_directory;
+    ILiveRig& live_rig = harness.engine;
+    const std::string tone_ref = writeSingleMissingPluginToneDocument(song_directory.path());
+
+    // A load carrying one plugin yields through the paint fence before any plugin step; capturing
+    // that continuation instead of running it leaves the load suspended with m_load_op still set.
+    std::function<void()> suspended_step;
+    bool result_delivered = false;
+    live_rig.loadLiveRig(
+        LiveRigLoadRequest{
+            .song_directory = song_directory.path(),
+            .tone_document_refs = {tone_ref},
+            .audible_tone_ref = tone_ref,
+            .progress_callback = {},
+            .yield_callback =
+                [&suspended_step](std::function<void()> next) { suspended_step = std::move(next); },
+        },
+        [&result_delivered](auto /*value*/) { result_delivered = true; });
+
+    // The load is genuinely in flight: it captured a continuation and has not finished.
+    REQUIRE(suspended_step != nullptr);
+    CHECK_FALSE(result_delivered);
+
+    // Clearing supersedes the in-flight load, dropping its callback without ever firing it.
+    const auto cleared = live_rig.clearLiveRig();
+    CHECK(cleared.has_value());
+
+    // Resuming the stranded step must be a safe no-op now that m_load_op is gone: no crash, and the
+    // superseded load's callback still never fires.
+    suspended_step();
+    CHECK_FALSE(result_delivered);
+
+    // The engine remains usable after the cancellation: a fresh empty load completes normally.
+    std::optional<std::expected<LiveRigLoadResult, LiveRigError>> reload;
+    live_rig.loadLiveRig(
+        LiveRigLoadRequest{}, [&reload](auto value) { reload = std::move(value); });
+    REQUIRE(reload.has_value());
+    if (reload.has_value())
+    {
+        CHECK(reload->has_value());
+    }
+}
+
+// Verifies destroying the Engine while a live-rig load is suspended between cooperative steps stays
+// safe when the stranded continuation later runs: ~Engine expires the alive token before tearing
+// down the in-flight load, so the continuation's load_alive.expired() guard early-outs instead of
+// dereferencing the destroyed Impl through its captured raw pointer. This is the alive-token
+// guard's whole purpose, and the torn-down load's callback must stay unfired.
+TEST_CASE(
+    "Engine live rig load suspended across teardown resumes safely", "[audio][engine][integration]")
+{
+    const TemporarySongDirectory song_directory;
+    const std::string tone_ref = writeSingleMissingPluginToneDocument(song_directory.path());
+
+    std::function<void()> suspended_step;
+    bool result_delivered = false;
+    {
+        EngineTestHarness harness;
+        ILiveRig& live_rig = harness.engine;
+        live_rig.loadLiveRig(
+            LiveRigLoadRequest{
+                .song_directory = song_directory.path(),
+                .tone_document_refs = {tone_ref},
+                .audible_tone_ref = tone_ref,
+                .progress_callback = {},
+                .yield_callback =
+                    [&suspended_step](std::function<void()> next) {
+                        suspended_step = std::move(next);
+                    },
+            },
+            [&result_delivered](auto /*value*/) { result_delivered = true; });
+
+        // The load parked on the paint fence with its continuation captured, before any result.
+        REQUIRE(suspended_step != nullptr);
+        CHECK_FALSE(result_delivered);
+    }
+
+    // The Engine (and its Impl) is gone. The captured continuation still holds a raw Engine
+    // pointer, but ~Engine reset the alive token before tearing down the load, so resuming it must
+    // early-out safely rather than touching freed state, and the torn-down callback stays unfired.
+    suspended_step();
+    CHECK_FALSE(result_delivered);
 }
 
 // Verifies the incremental empty-branch add registers a switchable, capturable branch without a

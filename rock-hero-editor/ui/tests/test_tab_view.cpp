@@ -334,6 +334,61 @@ TEST_CASE("TabView renders the empty-slot caret square", "[ui][tab-view]")
     }
 }
 
+// The lane pushes the armed caret square's paused-column cut-out span to the track viewport: a
+// present y span while a caret is armed, an empty one when it clears, a republish when the row
+// layout moves, and a dedup on a change that leaves the span identical.
+TEST_CASE("TabView publishes and dedups the caret mask", "[ui][tab-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    TabView view{};
+    view.setBounds(0, 0, 200, 120);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{20.0},
+        });
+    view.setState(makeTabState(), 0);
+
+    // Record every mask handed to the sink so both the pushes and the suppressed no-ops show up.
+    std::vector<std::optional<juce::Range<float>>> pushes;
+    view.setCaretMaskCallback(
+        [&](std::optional<juce::Range<float>> mask) { pushes.push_back(mask); });
+
+    // Installing the sink with no caret armed seeds nothing: the empty mask already matches the
+    // viewport's default ungapped column, so the dedup suppresses a redundant push.
+    CHECK(pushes.empty());
+    CHECK_FALSE(view.caretMaskYRange().has_value());
+
+    // Arming the caret on a slot pushes a present, non-empty cut-out span for the paused column.
+    view.setEditState(
+        core::ChartEditViewState{
+            .caret = core::ChartCaretViewState{.seconds = 12.5, .string = 3},
+        });
+    REQUIRE(pushes.size() == 1);
+    REQUIRE(pushes.back().has_value());
+    CHECK(pushes.back()->getLength() > 0.0f);
+
+    // A horizontal zoom leaves the caret's row unchanged, so its row-fixed y span is identical and
+    // the republish dedups instead of handing the viewport a redundant span.
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{10.0},
+        });
+    CHECK(pushes.size() == 1);
+
+    // Resizing the row moves the string lanes the square rides, so the mask republishes; the dedup
+    // only lets a genuinely changed span through, so the extra push proves the span moved.
+    view.setBounds(0, 0, 200, 240);
+    REQUIRE(pushes.size() == 2);
+    CHECK(pushes.back().has_value());
+
+    // Clearing the caret pushes an empty mask so the viewport restores the ungapped column.
+    view.setEditState(core::ChartEditViewState{});
+    REQUIRE(pushes.size() == 3);
+    CHECK_FALSE(pushes.back().has_value());
+}
+
 // A null projection draws nothing and never dereferences missing chart data.
 TEST_CASE("TabView draws nothing without a chart", "[ui][tab-view]")
 {

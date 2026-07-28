@@ -6,12 +6,16 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <juce_core/juce_core.h>
+#include <memory>
 #include <rock_hero/common/core/chart/chart_document.h>
+#include <rock_hero/common/core/package/archive_io.h>
 #include <rock_hero/common/core/package/package_id.h>
 #include <rock_hero/common/core/package/rock_song_package.h>
 #include <rock_hero/common/core/song/audio_normalization.h>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -212,6 +216,37 @@ void writePackageDirectoryWithTempoMap(
                 }
             ]
         })");
+}
+
+// Writes a ZIP archive at archive_path whose entries carry the exact (name, contents) pairs
+// supplied. It drives juce::ZipFile::Builder directly rather than the package writer because the
+// writer only ever emits normalized, workspace-relative names; the extractor's safety guards can
+// only be exercised with hand-crafted entry names the writer would never produce (duplicate
+// normalized names, workspace-escaping paths).
+void writeCraftedArchive(
+    const std::filesystem::path& archive_path,
+    const std::vector<std::pair<std::string, std::string>>& entries)
+{
+    juce::ZipFile::Builder builder;
+    for (const auto& [entry_name, contents] : entries)
+    {
+        // The builder takes ownership of the released stream, and MemoryInputStream copies the
+        // block, so nothing depends on contents outliving this call. Level 0 stores the entry
+        // uncompressed.
+        auto stream = std::make_unique<juce::MemoryInputStream>(
+            juce::MemoryBlock{contents.data(), contents.size()}, true);
+        builder.addEntry(
+            stream.release(), 0, juce::String::fromUTF8(entry_name.c_str()), juce::Time{});
+    }
+
+    juce::MemoryOutputStream archive_stream;
+    REQUIRE(builder.writeToStream(archive_stream, nullptr));
+
+    std::ofstream file{archive_path, std::ios::binary};
+    REQUIRE(file.is_open());
+    file.write(
+        static_cast<const char*>(archive_stream.getData()),
+        static_cast<std::streamsize>(archive_stream.getDataSize()));
 }
 
 } // namespace
@@ -1456,6 +1491,58 @@ TEST_CASE(
     const auto written = writeRockSongPackageDirectory(package_directory, song);
     REQUIRE_FALSE(written.has_value());
     CHECK(written.error().code == SongPackageErrorCode::InvalidSongDocument);
+}
+
+// Verifies the extractor rejects an archive whose entries collide under case-insensitive
+// normalization. Two entries differing only in case ("audio/Backing.flac" and
+// "audio/backing.flac") extract to the same file on a case-insensitive filesystem, so the guard
+// stops the second from silently overwriting the first.
+TEST_CASE(
+    "Rock song package extract rejects duplicate normalized entries", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path archive_path = temporary_directory.path() / "duplicate.rock";
+    writeCraftedArchive(
+        archive_path,
+        {
+            {"audio/Backing.flac", "first"},
+            {"audio/backing.flac", "second"},
+        });
+
+    const std::filesystem::path workspace_directory = temporary_directory.path() / "workspace";
+    const auto extracted = extractArchiveToWorkspace(archive_path, workspace_directory);
+
+    REQUIRE_FALSE(extracted.has_value());
+    CHECK(extracted.error().code == ArchiveErrorCode::UnsafeEntry);
+    CHECK(extracted.error().message.find("duplicate") != std::string::npos);
+}
+
+// Verifies the extractor rejects a zip-slip entry whose name escapes the workspace directory
+// ("../escape.flac"), and that no file is written outside the workspace. This exercises the same
+// guard and error the symlink branch reports: extraction bails on the first unsafe entry with
+// ArchiveErrorCode::UnsafeEntry. The isSymbolicLink sub-branch of that guard is not covered here
+// because juce::ZipFile only reports isSymbolicLink for a real on-disk symlink source, which the
+// Builder cannot synthesize and which requires elevated privileges to create on Windows; the
+// path-escape vector covers the guard's observable behavior.
+TEST_CASE(
+    "Rock song package extract rejects workspace-escaping entries", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path archive_path = temporary_directory.path() / "escape.rock";
+    writeCraftedArchive(
+        archive_path,
+        {
+            {"../escape.flac", "escaped"},
+        });
+
+    const std::filesystem::path workspace_directory = temporary_directory.path() / "workspace";
+    const auto extracted = extractArchiveToWorkspace(archive_path, workspace_directory);
+
+    REQUIRE_FALSE(extracted.has_value());
+    CHECK(extracted.error().code == ArchiveErrorCode::UnsafeEntry);
+    CHECK(extracted.error().message.find("unsafe") != std::string::npos);
+    // The escaping entry would have landed in the workspace's parent; the guard must prevent it.
+    CHECK_FALSE(std::filesystem::exists(temporary_directory.path() / "escape.flac"));
 }
 
 } // namespace rock_hero::common::core

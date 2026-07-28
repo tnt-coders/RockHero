@@ -21,6 +21,7 @@ add_executable(
     test_busy_operation_workflow.cpp
     test_busy_operation_state.cpp
     test_chart_editing.cpp
+    test_chart_edits.cpp
     test_chart_hit_testing.cpp
     test_deferred_project_action_state.cpp
     test_editor_action_availability.cpp

@@ -1028,6 +1028,73 @@ TEST_CASE("Guitar Pro import trims reaching tails and holds crossing rings", "[c
     }
 }
 
+// A bend notated on a tie continuation belongs to the merged origin note, not a new onset: the
+// continuation carries no head, so its bend curve rebases onto the open origin — every point
+// shifted by the onset gap (continuation onset minus origin onset) and appended only while the
+// offset keeps climbing, so the merged curve stays strictly ascending. The standing bend tests
+// only bend a standalone note, and the tie chains only carry vibrato; this covers the
+// tie-continuation bend fold in buildChart.
+TEST_CASE("Guitar Pro import folds a tied continuation's bend onto the origin", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+
+    // A fret-5 quarter tied into a fret-5 quarter continuation that bends a whole step (0 to 100%
+    // over its own one-beat sustain). The continuation onset sits one beat after the origin, so
+    // its bend points at 0, 1/2, and 1 beat rebase to 1, 3/2, and 2 beats on the merged note.
+    GpBeat origin;
+    origin.duration_whole = Fraction{1, 4};
+    origin.notes = {GpNote{
+        .string = 1, .fret = 5, .tie_origin = true, .tie_destination = false, .harmonic_type = ""
+    }};
+    GpBeat continuation;
+    continuation.duration_whole = Fraction{1, 4};
+    continuation.notes = {GpNote{
+        .string = 1,
+        .fret = 5,
+        .tie_origin = false,
+        .tie_destination = true,
+        .harmonic_type = "",
+        .bend = GpBend{
+            .origin_value = 0.0,
+            .middle_value = 50.0,
+            .destination_value = 100.0,
+            .origin_offset = 0.0,
+            .middle_offset1 = 50.0,
+            .middle_offset2 = 50.0,
+            .destination_offset = 100.0,
+        }
+    }};
+
+    GpScore score = makeLinearScore(1, syncs);
+    score.tracks[0].bars.push_back(GpBar{.voices = {{origin, continuation}}});
+
+    const auto built = buildGpSong(score);
+    REQUIRE(built.has_value());
+    const common::core::Chart& chart = built->arrangements.front().chart;
+
+    // The continuation merges away, leaving one fret-5 note ringing across both beats.
+    REQUIRE(chart.notes.size() == 1);
+    const common::core::ChartNote& merged = chart.notes[0];
+    CHECK(merged.position == GridPosition{.measure = 1, .beat = 1});
+    CHECK(merged.string == 2);
+    CHECK(merged.fret == 5);
+    CHECK(merged.sustain == Fraction{2});
+
+    // The folded curve: every continuation point offset by the one-beat onset gap, semitones
+    // intact, offsets strictly ascending.
+    REQUIRE(merged.bend.size() == 3);
+    CHECK(merged.bend[0].offset == Fraction{1});
+    CHECK(merged.bend[0].semitones == Catch::Approx(0.0));
+    CHECK(merged.bend[1].offset == Fraction{3, 2});
+    CHECK(merged.bend[1].semitones == Catch::Approx(1.0));
+    CHECK(merged.bend[2].offset == Fraction{2});
+    CHECK(merged.bend[2].semitones == Catch::Approx(2.0));
+    CHECK(merged.bend[0].offset < merged.bend[1].offset);
+    CHECK(merged.bend[1].offset < merged.bend[2].offset);
+}
+
 namespace
 {
 
