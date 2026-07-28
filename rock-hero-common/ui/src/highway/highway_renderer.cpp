@@ -1232,6 +1232,69 @@ void HighwayRenderer::Impl::draw(
             }
         }
 
+        // The tapping hand's contribution to the bright tier (user catch 2026-07-28: the
+        // left window's coverage brightened its ribbons to full while the tap lanes stayed at
+        // the mid tier): each tap active at NOW brightens its lines by its own light envelope
+        // — rising on approach, full through the hold, fading over the decay — over the path
+        // extent at now (eased mid-glide with the same curve the light travels). Coverage
+        // softens across one fret past the extent's bounding lines, and lines take the max
+        // over taps, so hand overlap deduplicates itself exactly like the other tiers.
+        std::array<double, g_face_fret_count + 1> tap_coverage{};
+        for (const common::core::HighwayTapOnsetView& tap : state.tap_onsets)
+        {
+            const common::core::HighwayTapLightStation& front = tap.path.front();
+            const common::core::HighwayTapLightStation& back = tap.path.back();
+            if (front.seconds - g_tap_light_rise_seconds > now_seconds)
+            {
+                break; // onsets ascend, so nothing later is active yet
+            }
+            if (back.seconds + g_tap_light_decay_seconds < now_seconds)
+            {
+                continue;
+            }
+            double envelope = 1.0;
+            double low = front.fret_low;
+            double high = front.fret_high;
+            if (now_seconds < front.seconds)
+            {
+                envelope = (now_seconds - (front.seconds - g_tap_light_rise_seconds)) /
+                           g_tap_light_rise_seconds;
+            }
+            else if (now_seconds > back.seconds)
+            {
+                envelope = 1.0 - ((now_seconds - back.seconds) / g_tap_light_decay_seconds);
+                low = back.fret_low;
+                high = back.fret_high;
+            }
+            else
+            {
+                for (std::size_t station = 0; station + 1 < tap.path.size(); ++station)
+                {
+                    const common::core::HighwayTapLightStation& a = tap.path[station];
+                    const common::core::HighwayTapLightStation& b = tap.path[station + 1];
+                    if (now_seconds > b.seconds)
+                    {
+                        continue;
+                    }
+                    const double span = b.seconds - a.seconds;
+                    const double progress =
+                        span > 0.0 ? std::clamp((now_seconds - a.seconds) / span, 0.0, 1.0) : 1.0;
+                    const double weight = common::core::highwaySlideEaseWeight(progress, false);
+                    low = a.fret_low + ((b.fret_low - a.fret_low) * weight);
+                    high = a.fret_high + ((b.fret_high - a.fret_high) * weight);
+                    break;
+                }
+            }
+            for (int line = 0; line <= g_face_fret_count; ++line)
+            {
+                const double inside =
+                    std::min(static_cast<double>(line) - (low - 1.0), high - line);
+                const double line_coverage = std::clamp(1.0 + inside, 0.0, 1.0) * envelope;
+                double& slot = tap_coverage.at(static_cast<std::size_t>(line));
+                slot = std::max(slot, line_coverage);
+            }
+        }
+
         bgfx::setUniform(fade_params.get(), fade_uniform.data());
         std::vector<PosColorVertex> vertices;
         std::vector<std::uint16_t> indices;
@@ -1243,10 +1306,13 @@ void HighwayRenderer::Impl::draw(
             // non-current tier to full brightness by how deeply the current eased window
             // contains it, so the brightened band hands off line-by-line in lockstep with the
             // border crossing the hit line. Lines stay straight and fixed; only alpha animates.
+            // Whichever hand covers a line more deeply wins it (max-combine).
             const double base_alpha =
                 in_visible_window.at(static_cast<std::size_t>(line)) ? 0.375 : 0.125;
-            const double coverage = common::core::highwayHandWindowLineCoverage(
-                current_window, static_cast<double>(line));
+            const double coverage = std::max(
+                common::core::highwayHandWindowLineCoverage(
+                    current_window, static_cast<double>(line)),
+                tap_coverage.at(static_cast<std::size_t>(line)));
             const double alpha = base_alpha + ((1.0 - base_alpha) * coverage);
             const double x = common::core::highwayFretLineX(line, metrics, mirrored);
             pushFloorQuad(
