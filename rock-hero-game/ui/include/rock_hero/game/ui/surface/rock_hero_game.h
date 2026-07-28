@@ -119,13 +119,10 @@ private:
     // private window/device/content types.
     struct Impl;
 
-    // Content and collaborators the composition root holds until onInit consumes them into Impl.
-    bool m_dev_mode{false};
-    bool m_lefty{false};
-    std::optional<std::filesystem::path> m_dev_package;
-    std::filesystem::path m_session_workspace_directory;
-    core::GameplaySession* m_gameplay_session{nullptr};
-    std::optional<core::LibraryIndex> m_library;
+    // The run options and injected collaborators, held until onInit consumes them into Impl. The
+    // public Config stays flat rather than nesting the private Game::Config, so this public header
+    // never depends on the private content type; onInit is the one adapter between the two shapes.
+    Config m_config;
 
     std::unique_ptr<Impl> m_impl;
 };

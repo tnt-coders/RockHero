@@ -6,6 +6,7 @@
 #pragma once
 
 #include <filesystem>
+#include <optional>
 #include <rock_hero/game/core/library/i_library_directory_lister.h>
 #include <rock_hero/game/core/library/library_scan_plan.h>
 #include <vector>
@@ -26,9 +27,10 @@ public:
     /*!
     \brief Enumerates the `.rock` package files reachable under one scan root.
     \param scan_root Directory to enumerate package files under.
-    \return File-identity facts for each `.rock` file found; empty when none or on an IO error.
+    \return File-identity facts for each `.rock` file found (empty when none), or nullopt when the
+            root is absent or unreadable.
     */
-    [[nodiscard]] std::vector<PackageFileFacts> listPackages(
+    [[nodiscard]] std::optional<std::vector<PackageFileFacts>> listPackages(
         const std::filesystem::path& scan_root) override;
 };
 

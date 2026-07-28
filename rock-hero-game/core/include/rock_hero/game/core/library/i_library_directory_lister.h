@@ -6,6 +6,7 @@
 #pragma once
 
 #include <filesystem>
+#include <optional>
 #include <rock_hero/game/core/library/library_scan_plan.h>
 #include <vector>
 
@@ -28,13 +29,16 @@ public:
     /*!
     \brief Lists the package files directly reachable under one scan root.
 
-    An unreadable or absent root yields an empty list rather than a failure, so one bad root never
-    aborts a scan that spans several roots.
+    Distinguishes a readable-but-empty root (an empty list) from an unreadable or absent one
+    (nullopt). The scan engine carries an unreadable root's prior entries forward unchanged rather
+    than dropping and re-adding them when the root returns; either way one bad root never aborts a
+    scan that spans several roots.
 
     \param scan_root Directory to enumerate package files under.
-    \return File-identity facts for each package found; empty when the root has none or is unreadable.
+    \return File-identity facts for each package found (empty when the root has none), or nullopt
+            when the root is absent or cannot be read.
     */
-    [[nodiscard]] virtual std::vector<PackageFileFacts> listPackages(
+    [[nodiscard]] virtual std::optional<std::vector<PackageFileFacts>> listPackages(
         const std::filesystem::path& scan_root) = 0;
 
 protected:

@@ -753,6 +753,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     };
     std::optional<ChartFretEntry> m_chart_fret_entry{};
 
+    // Monotonic millisecond clock for the fret-entry coalescing window (\ref onChartFretDigitTyped),
+    // injected via Services so the window is testable without real elapsed time; resolved to the
+    // wall clock in the constructor when the service is unset.
+    std::function<std::uint32_t()> m_now_milliseconds;
+
     // The paused-position marker's passive state: the plain paused cursor. The transport
     // position IS the position (dissolutions seek so this always holds), so only the string
     // the next arming lands on is remembered here.

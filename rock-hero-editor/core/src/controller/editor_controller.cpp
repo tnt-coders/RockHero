@@ -1245,6 +1245,13 @@ EditorController::Impl::Impl(
     , m_task_runner(services.task_runner)
     , m_transport_listener(transport, *this)
 {
+    // Resolve the fret-entry coalescing clock: an injected source (tests) or the real wall clock.
+    // Core stays off the wall clock behind an injectable seam (Time Must Be a Dependency).
+    m_now_milliseconds =
+        services.now_milliseconds
+            ? std::move(services.now_milliseconds)
+            : std::function<std::uint32_t()>{[] { return juce::Time::getMillisecondCounter(); }};
+
     const std::weak_ptr<bool> alive{m_alive};
     m_plugin_host.setPluginWindowCommandObserver(
         common::audio::PluginWindowCommandObserver{
@@ -2880,7 +2887,7 @@ void EditorController::Impl::onChartFretDigitTyped(int digit)
         return;
     }
 
-    const std::uint32_t now_ms = juce::Time::getMillisecondCounter();
+    const std::uint32_t now_ms = m_now_milliseconds();
     if (m_chart_fret_entry.has_value() && widenChartFretEntry(digit, now_ms))
     {
         return;

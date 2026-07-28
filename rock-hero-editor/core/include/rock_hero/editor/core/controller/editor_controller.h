@@ -156,6 +156,15 @@ public:
         persists its workflow bit and applies no source switch or engine adoption.
         */
         EditorAudioConfigStore* editor_audio_config_store{nullptr};
+
+        /*!
+        \brief Monotonic millisecond clock used to coalesce multi-digit fret entry.
+
+        Empty in production, where the controller falls back to the real wall clock. Tests inject a
+        controllable source so the multi-digit coalescing window is exercised without real elapsed
+        time — see "Time Must Be a Dependency" in docs/design/architectural-principles.md.
+        */
+        std::function<std::uint32_t()> now_milliseconds{};
     };
 
     /*!

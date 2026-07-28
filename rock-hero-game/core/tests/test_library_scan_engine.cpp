@@ -11,6 +11,7 @@
 #include <rock_hero/game/core/library/i_library_package_describer.h>
 #include <rock_hero/game/core/library/library_entry_projection.h>
 #include <rock_hero/game/core/library/library_scan_engine.h>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -24,18 +25,23 @@ namespace
 class FakeDirectoryLister final : public ILibraryDirectoryLister
 {
 public:
-    [[nodiscard]] std::vector<PackageFileFacts> listPackages(
+    [[nodiscard]] std::optional<std::vector<PackageFileFacts>> listPackages(
         const std::filesystem::path& scan_root) override
     {
         listed_roots.push_back(scan_root);
+        if (unreadable_roots.contains(scan_root))
+        {
+            return std::nullopt;
+        }
         if (const auto found = files_by_root.find(scan_root); found != files_by_root.end())
         {
             return found->second;
         }
-        return {};
+        return std::vector<PackageFileFacts>{};
     }
 
     std::map<std::filesystem::path, std::vector<PackageFileFacts>> files_by_root;
+    std::set<std::filesystem::path> unreadable_roots;
     std::vector<std::filesystem::path> listed_roots;
 };
 
@@ -269,6 +275,41 @@ TEST_CASE("Scan engine applies a mixed plan into the final index", "[core][libra
 
     // Only the added and rescanned packages were described; reuse and remove never open an archive.
     CHECK(describer.described_paths.size() == 3);
+}
+
+// An unreadable scan root (offline share, permission denied) is distinguished from an empty one:
+// the engine carries the root's prior entries forward as Reuse rather than Removing them, so a
+// transiently offline root does not churn its library entries. A genuinely empty readable root
+// still removes the vanished package.
+TEST_CASE("Scan engine keeps prior entries under an unreadable root", "[core][library]")
+{
+    FakeDirectoryLister lister;
+    FakePackageDescriber describer;
+    FakeAlbumArtGenerator album_art_generator;
+
+    LibraryIndex prior;
+    prior.entries.push_back(priorEntry("C:/Songs/offline.rock", 10, 20, "Offline Song"));
+    lister.unreadable_roots.insert("C:/Songs");
+
+    LibraryScanEngine engine{lister, describer, album_art_generator};
+    const std::vector<std::filesystem::path> roots = {"C:/Songs"};
+    engine.begin(std::move(prior), roots);
+    const common::core::CancellationToken token;
+    runToCompletion(engine, token);
+
+    const LibraryEntry* const kept = findEntry(engine.index(), "C:/Songs/offline.rock");
+    REQUIRE(kept != nullptr);
+    CHECK(kept->metadata.title == "Offline Song"); // reused whole, never re-described or removed
+    CHECK(describer.described_paths.empty());      // an unreadable root opens no archives
+
+    // Contrast: a readable-but-empty root removes the entry, since the package genuinely vanished.
+    FakeDirectoryLister empty_lister;
+    LibraryIndex prior_empty;
+    prior_empty.entries.push_back(priorEntry("C:/Songs/offline.rock", 10, 20, "Offline Song"));
+    LibraryScanEngine empty_engine{empty_lister, describer, album_art_generator};
+    empty_engine.begin(std::move(prior_empty), roots);
+    runToCompletion(empty_engine, token);
+    CHECK(findEntry(empty_engine.index(), "C:/Songs/offline.rock") == nullptr);
 }
 
 // Verifies cancellation stops the scan promptly and leaves a loadable, partial index, and that

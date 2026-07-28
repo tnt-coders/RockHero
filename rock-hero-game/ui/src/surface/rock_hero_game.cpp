@@ -85,12 +85,7 @@ struct RockHeroGame::Impl
 
 RockHeroGame::RockHeroGame(Config config)
     : SDL3Application(config.frame_limit)
-    , m_dev_mode(config.dev_mode)
-    , m_lefty(config.lefty)
-    , m_dev_package(std::move(config.dev_package))
-    , m_session_workspace_directory(std::move(config.session_workspace_directory))
-    , m_gameplay_session(config.gameplay_session)
-    , m_library(std::move(config.library))
+    , m_config(std::move(config))
 {}
 
 RockHeroGame::~RockHeroGame() = default;
@@ -116,7 +111,7 @@ std::optional<int> RockHeroGame::onInit()
                 .width = initial_size.width,
                 .height = initial_size.height,
                 .vsync = true,
-                .debug = m_dev_mode,
+                .debug = m_config.dev_mode,
             });
     if (!device.has_value())
     {
@@ -184,12 +179,12 @@ std::optional<int> RockHeroGame::onInit()
         std::move(*resources),
         std::move(*renderer),
         Game::Config{
-            .dev_mode = m_dev_mode,
-            .lefty = m_lefty,
-            .dev_package = std::move(m_dev_package),
-            .session_workspace_directory = std::move(m_session_workspace_directory),
-            .gameplay_session = m_gameplay_session,
-            .library = std::move(m_library),
+            .dev_mode = m_config.dev_mode,
+            .lefty = m_config.lefty,
+            .dev_package = std::move(m_config.dev_package),
+            .session_workspace_directory = std::move(m_config.session_workspace_directory),
+            .gameplay_session = m_config.gameplay_session,
+            .library = std::move(m_config.library),
         });
     return std::nullopt;
 }

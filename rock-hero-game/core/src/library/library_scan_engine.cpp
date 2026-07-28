@@ -9,6 +9,22 @@
 namespace rock_hero::game::core
 {
 
+namespace
+{
+
+// True when a package path lies within a scan root, so an unreadable root's prior entries can be
+// identified and carried forward. Purely lexical (no filesystem access): a normalized relative
+// path that does not start with ".." means the package sits under the root.
+[[nodiscard]] bool isUnderScanRoot(
+    const std::filesystem::path& package_path, const std::filesystem::path& scan_root)
+{
+    const std::filesystem::path relative =
+        package_path.lexically_normal().lexically_relative(scan_root.lexically_normal());
+    return !relative.empty() && *relative.begin() != "..";
+}
+
+} // namespace
+
 LibraryScanEngine::LibraryScanEngine(
     ILibraryDirectoryLister& lister, ILibraryPackageDescriber& describer,
     IAlbumArtGenerator& album_art_generator)
@@ -20,15 +36,34 @@ LibraryScanEngine::LibraryScanEngine(
 void LibraryScanEngine::begin(
     LibraryIndex prior_index, const std::span<const std::filesystem::path> scan_roots)
 {
-    // List every root; a bad root returns an empty list, so the scan spans the readable ones.
+    // List every root. A readable root (even an empty one) contributes its current facts; an
+    // unreadable root (nullopt) instead carries its prior entries forward unchanged, so a
+    // transiently offline share Reuses its packages next scan rather than Removing and re-Adding
+    // them when it returns.
     std::vector<PackageFileFacts> current_files;
     for (const std::filesystem::path& scan_root : scan_roots)
     {
-        std::vector<PackageFileFacts> root_files = m_lister.listPackages(scan_root);
-        current_files.insert(
-            current_files.end(),
-            std::make_move_iterator(root_files.begin()),
-            std::make_move_iterator(root_files.end()));
+        std::optional<std::vector<PackageFileFacts>> root_files = m_lister.listPackages(scan_root);
+        if (root_files.has_value())
+        {
+            current_files.insert(
+                current_files.end(),
+                std::make_move_iterator(root_files->begin()),
+                std::make_move_iterator(root_files->end()));
+            continue;
+        }
+        for (const LibraryEntry& entry : prior_index.entries)
+        {
+            if (isUnderScanRoot(entry.package_path, scan_root))
+            {
+                current_files.push_back(
+                    PackageFileFacts{
+                        .path = entry.package_path,
+                        .file_size_bytes = entry.file_size_bytes,
+                        .modification_time_milliseconds = entry.modification_time_milliseconds,
+                    });
+            }
+        }
     }
 
     m_facts_by_path.clear();
