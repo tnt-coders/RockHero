@@ -131,7 +131,10 @@ corpus-derived algorithm — the metrics and the source study behind these rules
    anywhere and neither place nor move the window. A *tapped* note is likewise not a coverage
    event: two-hand taps sit far above the fretting hand (a median seven frets in the corpus), so
    the window tracks the fretted / left-hand notes and any held chord shape while the tap floats
-   above it. The 3D-highway camera frames such a tap on its own — it scans the notes, not only the
+   above it. Only Guitar Pro's *Tapped* (two-hand) articulation becomes a chart tap; a
+   *LeftHandTapped* note is the fretting hand hammering the note from nowhere and imports as a
+   hammer-on — no separate notation (user rule 2026-07-28) — so every tap rule in this policy
+   refers to two-hand taps only, and left-hand taps anchor the window like any fretted note. The 3D-highway camera frames such a tap on its own — it scans the notes, not only the
    hand windows — so the tap stays on screen even though the window light stays low on the left
    hand. (A held chord under tapping renders as an arpeggio, rule 12.)
 7. **The hand re-anchors at phrase boundaries.** At a section start, or after a rest of at least

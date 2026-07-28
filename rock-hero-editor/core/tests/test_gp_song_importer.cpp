@@ -410,6 +410,52 @@ TEST_CASE("Guitar Pro import keeps the hand still through unpitched slides", "[c
     std::filesystem::remove_all(scratch, cleanup_error);
 }
 
+// Guitar Pro's two tap articulations are different hands and must import differently (user rule
+// 2026-07-28): "Tapped" (two-hand tapping) becomes the chart's Tap attack, while
+// "LeftHandTapped" — the fretting hand hammering the note from nowhere — imports as a plain
+// hammer-on, so it anchors the fret hand and closes chord spans like any fretted note.
+TEST_CASE("Guitar Pro import maps the two tap articulations by hand", "[core][gp-import]")
+{
+    const std::filesystem::path scratch =
+        std::filesystem::temp_directory_path() / "rh_gp_tap_articulation_test";
+    std::error_code cleanup_error;
+    std::filesystem::remove_all(scratch, cleanup_error);
+    const std::filesystem::path workspace = scratch / "song";
+    std::filesystem::create_directories(workspace);
+
+    const auto import_with_property = [&](const std::string& property) {
+        const std::string gpif = fixtureWithReplacement(
+            "<Property name=\"Fret\"><Fret>7</Fret></Property>",
+            "<Property name=\"Fret\"><Fret>7</Fret></Property>" + property);
+        const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
+        GpSongImporter importer;
+        return importer.importSong(archive, workspace);
+    };
+
+    SECTION("a left-hand tap imports as a hammer-on")
+    {
+        const auto song =
+            import_with_property("<Property name=\"LeftHandTapped\"><Enable/></Property>");
+        REQUIRE(song.has_value());
+        const common::core::Chart& chart = requiredChart(song->arrangements.front());
+        REQUIRE(chart.notes.size() >= 3);
+        CHECK(chart.notes[2].fret == 7);
+        CHECK(chart.notes[2].attack == common::core::NoteAttack::Hammer);
+    }
+
+    SECTION("a two-hand tap imports as a tap")
+    {
+        const auto song = import_with_property("<Property name=\"Tapped\"><Enable/></Property>");
+        REQUIRE(song.has_value());
+        const common::core::Chart& chart = requiredChart(song->arrangements.front());
+        REQUIRE(chart.notes.size() >= 3);
+        CHECK(chart.notes[2].fret == 7);
+        CHECK(chart.notes[2].attack == common::core::NoteAttack::Tap);
+    }
+
+    std::filesystem::remove_all(scratch, cleanup_error);
+}
+
 // A pitched glide drags the hand by its own fret delta even when the target already fits the
 // window (normalization policy rule 9): with the landing lowered to fret 6, the five-to-six
 // slide's target sits inside the opening 3-6 window, yet the +1 delta still moves the window to

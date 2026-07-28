@@ -91,8 +91,11 @@ struct GpNote
     /*! \brief True when this note is the destination of a hammer-on or pull-off. */
     bool hopo_destination{false};
 
-    /*! \brief True for two-hand or left-hand tapped onsets. */
+    /*! \brief True for two-hand (right-hand) tapped onsets. */
     bool tapped{false};
+
+    /*! \brief True for left-hand tapped onsets; imports as a hammer-on, not a tap. */
+    bool left_hand_tapped{false};
 
     /*! \brief True for palm-muted notes. */
     bool palm_mute{false};

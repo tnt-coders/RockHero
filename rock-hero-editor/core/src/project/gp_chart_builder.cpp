@@ -1364,6 +1364,16 @@ void resolveSlideIns(
         {
             note.attack = NoteAttack::Tap;
         }
+        else if (source.left_hand_tapped)
+        {
+            // A left-hand tap is the fretting hand hammering the note from nowhere (no pick
+            // stroke), which the hammer-on states accurately — no separate notation (user rule
+            // 2026-07-28). Always a hammer, never a pull: nothing is released to sound it. The
+            // Hammer attack also gives the right downstream behavior automatically — the note
+            // anchors the fret hand, closes chord spans, and never floats above the window,
+            // all of which are Tap-attack special cases.
+            note.attack = NoteAttack::Hammer;
+        }
         else if (source.hopo_destination)
         {
             const auto previous = previous_fret_per_string.find(source.string);

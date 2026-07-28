@@ -209,8 +209,11 @@ constexpr double g_sync_frame_rate{44100.0};
     }
 
     note.hopo_destination = findProperty(note_element, "HopoDestination") != nullptr;
-    note.tapped = findProperty(note_element, "Tapped") != nullptr ||
-                  findProperty(note_element, "LeftHandTapped") != nullptr;
+    // Guitar Pro's two tap articulations are different hands: "Tapped" is the picking hand
+    // reaching over (two-hand tapping), "LeftHandTapped" is the fretting hand sounding the note
+    // without a pick stroke. The builder maps them differently, so they stay separate facts.
+    note.tapped = findProperty(note_element, "Tapped") != nullptr;
+    note.left_hand_tapped = findProperty(note_element, "LeftHandTapped") != nullptr;
     note.palm_mute = findProperty(note_element, "PalmMuted") != nullptr;
     note.full_mute = findProperty(note_element, "Muted") != nullptr;
     note.vibrato = note_element.getChildByName("Vibrato") != nullptr;
