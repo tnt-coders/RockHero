@@ -115,7 +115,7 @@ points are `{position: <grid token>, value: <normalized number>, shape}` (`shape
 derived caches.
 
 *Design in flux: `toneAutomation` (and its interaction with `toneChanges`) belongs to the active
-automation plan (`docs/plans/in-progress/tone-parameter-automation-plan.md`).*
+automation plan (`docs/plans/completed/tone-parameter-automation-plan.md`).*
 
 # Chart document — `charts/<uuid>.chart.json`
 

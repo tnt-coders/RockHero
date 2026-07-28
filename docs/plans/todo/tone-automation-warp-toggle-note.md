@@ -7,7 +7,7 @@ to show the current design does not paint us into a corner.
 
 Tone parameter automation stores musical positions (`measure:beat+fraction`) as the persisted
 truth in `song.json`, and rebuilds Tracktion's seconds curve as a derived cache (see
-`docs/plans/in-progress/tone-parameter-automation-plan.md`, storage decision C2). Warping the grid
+`docs/plans/completed/tone-parameter-automation-plan.md`, storage decision C2). Warping the grid
 (moving tempo anchors) therefore moves automation with the grid — "follow" behavior — because
 musical positions resolve through the edited tempo map.
 

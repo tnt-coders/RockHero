@@ -20,18 +20,6 @@ item retired as resolved — see *Retired*).
 
 ## Render stack (game loop + bgfx)
 
-### GameShell is a composition point in game/ui — trigger FIRED: plan 21 started 2026-07-11
-
-`GameShell::run` constructs concrete adapters, chooses the backend, composes the resources root,
-and owns the frame loop — several of architectural-principles.md § "UI Modules" move-to-app
-triggers at once. Plan 20 Phase 1 sanctioned the placement at its original size, but the shell
-has since grown by accretion (plan 20 Phase 4 diagnostics wiring, plan 25 Phase 4 texture-set
-loading). **DECIDED 2026-07-11 (user): inject composed dependencies from `app/`** — main.cpp
-composes the engine/session/renderer/resources and GameShell receives injected ports, owning
-only the frame loop and input wiring, per architectural-principles.md's move-to-app rule. The
-mechanical restructuring lands with plan 21 Phase 6 (the first phase that touches the shell);
-retire this entry when that phase completes.
-
 ### NSIS and the empty resource directories — trigger: next installer inspection
 
 `install(DIRECTORY DESTINATION ...)` creates empty `resources/{fonts,sfx,textures}` under
@@ -299,6 +287,13 @@ Recorded 2026-07-15 alongside the JUCE→`std::filesystem::path` conversion fix 
 ## Retired
 
 Items whose trigger fired and were handled. Kept for auditability.
+
+- **GameShell is a composition point in game/ui** (was: trigger "plan 21 started 2026-07-11") —
+  **RESOLVED 2026-07-12.** Plan 49 (`docs/plans/roadmap/49-game-app-architecture-symmetry.md`)
+  deleted the hollow `GameShell` and split it into `RockHeroGame` (composition root owning
+  window/device/resources), `Game` (content object), and an `SDL3Application` loop base;
+  composition and dependency injection now live in `main()` (`rock-hero-game/app/main.cpp`),
+  exactly the decided move-to-app remedy. `GameShell` no longer exists in code.
 
 - **Marker dissolution seeks the paused transport** (was: trigger "anything follows the paused
   transport") — **trigger FIRED, resolved 2026-07-27.** Plan 44's 3D preview is now a real

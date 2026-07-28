@@ -1,5 +1,10 @@
 # Tone Parameter Automation Plan
 
+Status: **COMPLETE — moved to completed/ 2026-07-27.** All slices shipped (tone-automation model,
+Tracktion rebuild adapter, editor edits/lanes, and package read/write round-trip); the two named
+out-of-plan follow-ups are tracked separately and are not this plan's scope. Original status line
+below is retained for history.
+
 Status: **active, decisive** — 2026-07-07. A formal `juce-tracktion-expert` source review is complete;
 its load-bearing findings are inlined below with `file:line` citations and are treated as settled.
 This plan is written to be executed by Opus without further design discovery: every open question

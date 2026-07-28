@@ -64,7 +64,3 @@ entry when it's done — git history is the record.
 - Evaluate per-(project, arrangement) resume-marker records: the marker settings family is
   per-project today, so switching arrangements loses your spot in the previous one. Additive
   key-shape change in `EditorSettings` whenever it itches in practice.
-- Editor 3D preview (plan 44): while paused the preview renders the frame at the transport
-  position, so an arrowed-away armed caret shows a stale frame exactly while editing. Consider
-  following the marker's time while paused (consistent with marker-centered zoom); decide when
-  plan 44's preview is next touched.

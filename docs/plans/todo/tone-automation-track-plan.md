@@ -1,6 +1,6 @@
 # Tone Automation Track Plan
 
-Status: **SUPERSEDED 2026-07-07** by `docs/plans/in-progress/tone-parameter-automation-plan.md`, the active,
+Status: **SUPERSEDED 2026-07-07** by `docs/plans/completed/tone-parameter-automation-plan.md`, the active,
 decisive plan (formal juce-tracktion-expert review complete). This document is kept only as the
 older UX sketch; do not execute from it — the newer plan resolves its open questions and commits to
 an editable-lane design keyed to the shipped item-1 tone model.

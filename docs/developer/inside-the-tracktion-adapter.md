@@ -54,7 +54,7 @@ Three units keep hosted plugins honest:
   from it.
 
 *Design in flux: tone parameter automation is under active development
-(`docs/plans/in-progress/tone-parameter-automation-plan.md`) — treat `tone_automation_curve`'s
+(`docs/plans/completed/tone-parameter-automation-plan.md`) — treat `tone_automation_curve`'s
 surface as moving.*
 
 # Device and framework glue

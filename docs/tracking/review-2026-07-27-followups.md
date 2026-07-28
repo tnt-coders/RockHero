@@ -48,24 +48,28 @@ Workflow({ scriptPath: "<session>/workflows/scripts/rockhero-deep-review-wf_c685
 (Run ID `wf_c6854afd-05a`; same session only. If the session is gone, the finder titles below are
 the work list to re-derive from.)
 
-## Documentation sync — NOT DONE (all 5 auditors died)
+## Documentation sync — DONE (re-run 2026-07-27 as a lean 5-auditor pass)
 
-The doc-sync half of the request was not completed. These still need a pass, verifying every
-concrete claim against current code and editing stale ones:
+The doc-sync audit was re-run scoped (5 self-verifying auditors, no verify fan-out) and completed
+(~370k tokens, 0 dead). It found 9 stale claims and 12 gaps; the confirmed ones were applied:
 
-- `docs/design/architecture.md` — module lists, threading/timing chain, render-stack section;
-  check whether the 3D highway / editor-preview render architecture is reflected.
-- `docs/design/architectural-principles.md`, `coding-conventions.md`, `documentation-conventions.md`
-  — do the named patterns still match code organization; spot-check newest headers for drift.
-- `docs/developer/` — area tours (esp. the **3D highway tour**, after heavy recent iteration:
-  span holds, consumed heads, FHP window motion, arpeggio boxes, vibrato/bend changes), pattern
-  catalog, and the procedural checklists' "silent steps" lists. The recent
-  `PreviewTimeModel` extraction and the `pathFromUtf8`/`utf8FromPath` helpers are new touchpoints
-  the guide may need to name.
-- `docs/plans/` lifecycle hygiene and `docs/tracking/backlog.md` currency.
+- `architecture.md` — expanded the editor UI list, added shipped game-core subsystems + diagram
+  nodes, and noted the preview's `PreviewTimeModel` / once-per-process bgfx bring-up. **Rejected
+  one false positive**: the audit claimed `IAudioDeviceSettings` no longer exists, but it does
+  (in `audio_device_settings.h`), so that text was left unchanged.
+- `docs/developer/` — corrected the `makeHighwayViewState` signature (missing `sections`),
+  documented `PreviewTimeModel` and the retry-safe bring-up in the highway tour, and added the
+  shared-validator rule (`validateToneAutomationEntries`) to the package-format checklist.
+- `architectural-principles.md` — broadened the multi-TU handler-TU exemplar list.
+- Plans/tracking — moved the completed tone-automation plan to `completed/` (updated 5 refs),
+  refreshed the roadmap plan-25/plan-44 status lines, retired the GameShell watch item, and
+  deleted the resolved editor-preview backlog bullet.
 
-`watch-items.md` was partially synced this session (marker-dissolution retired); the rest of the
-registry was not re-verified.
+`architectural-principles.md`/`coding-conventions.md`/`documentation-conventions.md` had **no
+confirmed factual staleness** (the auditor spot-checked the newest headers and found no drift).
+The full auditor coverage notes are in the workflow output; a few low-value gaps (e.g. listing
+`string_colors/`+`render/` folders in the common/ui exemplar set) were judged not worth a doc
+edit.
 
 ## Unverified code findings (finder output; verification was cut off)
 

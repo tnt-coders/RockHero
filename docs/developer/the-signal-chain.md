@@ -103,7 +103,7 @@ the header (document name + dirty marker), swaps the button strip to New/Open/Sa
 relaxes the audio-ready gate so the gain controls work without a project.
 
 *Design in flux: tone parameter automation is under active development
-(`docs/plans/in-progress/tone-parameter-automation-plan.md`) — the automation-related fields that
+(`docs/plans/completed/tone-parameter-automation-plan.md`) — the automation-related fields that
 ride along with chain edits (e.g. `PluginRemoveEdit::removed_automation`) may still move.*
 
 # Extending the signal chain — silent steps

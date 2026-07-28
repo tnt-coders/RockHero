@@ -245,7 +245,8 @@ A deliberately unified coordination object (a root facade, an engine implementin
 may define its member functions across multiple translation units when its surface slices along a
 stable axis such as feature or port. This is a file-layout relief valve, not an object split.
 Proven in this repository by the editor controller's per-feature translation units
-(`input_calibration_handlers.cpp`, `signal_chain_handlers.cpp`, `project_handlers.cpp`) and the
+(for example `input_calibration_handlers.cpp`, `signal_chain_handlers.cpp`, `project_handlers.cpp`,
+`audio_device_handlers.cpp`, `tone_handlers.cpp`, `tone_designer_handlers.cpp`) and the
 audio engine's per-port translation units (`engine_transport.cpp` through
 `engine_device_config.cpp`).
 
