@@ -391,6 +391,11 @@ TEST_CASE("Guitar Pro import keeps the hand still through unpitched slides", "[c
     const auto* const slide_out = common::core::slideOutOrNull(chart.notes[1]);
     REQUIRE(slide_out != nullptr);
     CHECK(slide_out->fret == 1);
+    // The trail-off is not a protected payload (rule 2 carve-out, user rule 2026-07-28): its
+    // notated half-beat end trims back with the sustain to the minimum-sustain-distance margin
+    // before the fret-7 onset.
+    CHECK(slide_out->offset == Fraction{1, 4});
+    CHECK(chart.notes[1].sustain == Fraction{1, 4});
 
     // Were the trail-off treated as a pitched glide, its fret-1 target would drag a hand position
     // down mid-sustain; instead it never repositions the hand (no fret-1 position), and the

@@ -101,7 +101,11 @@ sustains):
    restrike — the box continues while the tails keep the minimum gap.
 2. **Never clip a technique payload.** Trimming stops at the note's last bend point or slide
    waypoint, so a slide always reaches its target note and a bend keeps its full curve, even
-   when that leaves the tail closer than the margin (exact adjacency is legal).
+   when that leaves the tail closer than the margin (exact adjacency is legal). The unpitched
+   slide-out is *not* protected (user rule 2026-07-28): its end is gesture geometry derived
+   from the notated duration, not a musical event, so it trims back with the tail and respects
+   the margin — flooring only where the trimmed end would stop being strictly positive and
+   strictly after the last waypoint, where it keeps its end (the protected-adjacency fallback).
 3. **Drop short effect-free tails.** After trimming, a note that carries no sustain technique
    (bend, slide, vibrato, tremolo) and whose tail is now shorter than one beat loses the tail
    entirely. Order matters: a chugged riff of notated one-beat notes trims to 3/4 and then
@@ -191,7 +195,8 @@ through the trim rules):
     glide-end waypoint (one at exactly the sustain end) without the linked continuation glyph;
     the re-picked landing's own head renders after it. Unpitched slide-outs are the separate
     `slideOut` payload, which owns its end offset and gestured fret — no landing note exists,
-    so there is nothing to desync from.
+    so there is nothing to desync from — though the sustain trim pulls that end back to the
+    margin like any tail (rule 2).
 14. **A legato slide is the same note continuing.** The landing is not re-picked, so it never
     becomes a note: it folds into the origin as a pitched waypoint at the junction — the
     sustain extends through the landing's notated end, the landing's sustain techniques

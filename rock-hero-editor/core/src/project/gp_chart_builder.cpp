@@ -689,10 +689,26 @@ void normalizeImportedSustains(
                     {
                         target = note.slides.back().offset;
                     }
-                    // A slide-out floors the trim at its own end like any payload.
+                    // The unpitched slide-out is NOT a protected payload (user rule 2026-07-28):
+                    // its end is gesture geometry derived from the notated duration, not a
+                    // musical event, so it trims back with the tail to respect the margin. The
+                    // trimmed end must stay strictly positive and strictly after the last
+                    // waypoint (the model's ascending-payload invariant); a crowding that would
+                    // crush it keeps its end instead — the protected-adjacency fallback the
+                    // other rules use.
                     if (note.slide_out.has_value() && target < note.slide_out->offset)
                     {
-                        target = note.slide_out->offset;
+                        const bool crushed =
+                            target.numerator <= 0 ||
+                            (!note.slides.empty() && target <= note.slides.back().offset);
+                        if (crushed)
+                        {
+                            target = note.slide_out->offset;
+                        }
+                        else
+                        {
+                            note.slide_out->offset = target;
+                        }
                     }
                     if (target < note.sustain)
                     {

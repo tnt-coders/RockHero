@@ -2484,17 +2484,15 @@ void HighwayRenderer::Impl::draw(
                 packAbgr(g_beat_bar_color, 0.0));
         };
 
-        // A slide waypoint's board furniture: a glow post and fret-span line at its own slot and
-        // time — the intermediate targets the hand glides through. No note head: the slide is one
-        // sounded note, so only its picked head is drawn (user rule 2026-07-28). Waypoints stay on
-        // the note's string, so they share its lane and color. The fret number rides the board
-        // floor with the scrolling numbers, pushed in that pass below.
-        const auto push_waypoint_marker = [&](const int wp_fret,
-                                              const double wp_seconds,
-                                              const double dim) {
+        // A pitched slide waypoint's board furniture: a glow post and fret-span line at its own
+        // slot and time — the intermediate targets the hand glides through. No note head: the
+        // slide is one sounded note, so only its picked head is drawn (user rule 2026-07-28).
+        // Waypoints stay on the note's string, so they share its lane and color. The fret number
+        // rides the board floor with the scrolling numbers, pushed in that pass below.
+        const auto push_waypoint_marker = [&](const int wp_fret, const double wp_seconds) {
             const double wp_x = common::core::highwayNoteCenterX(wp_fret, metrics, mirrored);
             const double wp_z = time_to_z(wp_seconds);
-            const double floor_alpha = fade * dim * g_shadow_post_floor_alpha;
+            const double floor_alpha = fade * g_shadow_post_floor_alpha;
             const std::uint32_t floor_edge = packAbgr(base_color, floor_alpha);
             const std::uint32_t clear = packAbgr(base_color, 0.0);
             pushRibbonSegment(
@@ -2531,7 +2529,7 @@ void HighwayRenderer::Impl::draw(
                 0.02,
                 wp_z - g_attack_line_half_length,
                 wp_z + g_attack_line_half_length,
-                packAbgr(g_chord_box_color, g_attack_line_alpha * fade * dim));
+                packAbgr(g_chord_box_color, g_attack_line_alpha * fade));
         };
 
         if (note.fret == 0)
@@ -2844,17 +2842,15 @@ void HighwayRenderer::Impl::draw(
             }
         }
 
-        // Each pitched slide waypoint gets its own post and line; an unpitched slide-out marker
-        // trails off with its dimmed alpha like the tail does. Waypoint and tapped-note fret
-        // numbers ride the board floor with the scrolling numbers, pushed in that pass below.
+        // Each pitched slide waypoint gets its own post and line; an unpitched slide-out
+        // is a pressure release with no target to mark, so it gets no board furniture — only the
+        // rail's own dimming trail. Waypoint and tapped-note fret numbers ride the board floor
+        // with the scrolling numbers, pushed in that pass below.
         for (const common::core::HighwaySlideView& waypoint : note.slides)
         {
-            if (waypoint.fret > 0)
+            if (!waypoint.unpitched && waypoint.fret > 0)
             {
-                push_waypoint_marker(
-                    waypoint.fret,
-                    waypoint.seconds,
-                    waypoint.unpitched ? g_unpitched_slide_end_alpha : 1.0);
+                push_waypoint_marker(waypoint.fret, waypoint.seconds);
             }
         }
     }
