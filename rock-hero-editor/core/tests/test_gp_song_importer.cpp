@@ -1445,6 +1445,65 @@ TEST_CASE("Guitar Pro import rings chord spans through tap-only onsets", "[core]
         CHECK_FALSE(
             common::core::chartShapeArrivesAsArpeggio(chart, chart.shapes[0], built->tempo_map));
     }
+
+    SECTION("a left-hand note under simultaneous right-hand taps derives no chord")
+    {
+        // The two-hand-tapping staple (a real-score regression): a left-hand tap struck
+        // together with two right-hand taps. The taps are invisible to span derivation, so the
+        // onset counts one non-tap member — an ordinary single onset, no chord posture — and
+        // the dense run that follows cannot crowd a derived span into zero length.
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat mixed;
+        mixed.duration_whole = Fraction{1, 32};
+        mixed.notes = {
+            GpNote{.string = 2, .fret = 9, .harmonic_type = ""},
+            GpNote{.string = 4, .fret = 12, .harmonic_type = ""},
+            GpNote{.string = 5, .fret = 14, .harmonic_type = ""},
+        };
+        mixed.notes[0].left_hand_tapped = true;
+        mixed.notes[1].tapped = true;
+        mixed.notes[2].tapped = true;
+        GpBeat follow = noteBeat(Fraction{1, 32}, 11, 2);
+        follow.notes[0].hopo_destination = true;
+        score.tracks[0].bars.push_back(GpBar{.voices = {{mixed, follow}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 4);
+        CHECK(chart.notes[0].attack == common::core::NoteAttack::Hammer);
+        CHECK(chart.notes[1].attack == common::core::NoteAttack::Tap);
+        CHECK(chart.notes[2].attack == common::core::NoteAttack::Tap);
+        CHECK(chart.notes[3].attack == common::core::NoteAttack::Hammer);
+        CHECK(chart.shapes.empty());
+    }
+}
+
+// A dense run can close a span exactly at its notated end, inside the margin: the crowded close
+// falls back to exact adjacency (the earlier of the notated ring and the closing onset) so the
+// span keeps positive length instead of collapsing to zero and failing chart validation.
+TEST_CASE("Guitar Pro import keeps crowded chord spans at positive length", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+
+    GpScore score = makeLinearScore(1, syncs);
+    GpBeat chord;
+    chord.duration_whole = Fraction{1, 32};
+    chord.notes = {
+        GpNote{.string = 0, .fret = 3, .harmonic_type = ""},
+        GpNote{.string = 1, .fret = 5, .harmonic_type = ""},
+    };
+    score.tracks[0].bars.push_back(GpBar{.voices = {{chord, noteBeat(Fraction{1, 32}, 7)}}});
+
+    const auto built = buildGpSong(score);
+    REQUIRE(built.has_value());
+    const common::core::Chart& chart = built->arrangements.front().chart;
+    // The closing onset lands exactly on the 1/8-beat chord's notated end, closer than the
+    // margin: the span ends there, exact-adjacent, rather than collapsing to zero.
+    REQUIRE(chart.shapes.size() == 1);
+    CHECK(chart.shapes[0].sustain == Fraction{1, 8});
 }
 
 // The gpif spells grace placement as the GraceNotes element's text ("OnBeat" for Ctrl+Shift+G

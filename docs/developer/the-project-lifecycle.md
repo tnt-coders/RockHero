@@ -159,8 +159,9 @@ handshape or diagram data, so the tab's chord boxes are derived):
 10. **Two or more strings struck together form a chord.** The onset's posture — the fret held
     on each struck string, open strings included — becomes a reusable template, deduplicated
     across the chart. Derived templates are unnamed and carry no fingering (the name chip only
-    renders for named shapes). Tap-only onsets are excepted: taps belong to the tapping hand,
-    not the fretting posture, so even a multi-string tapped onset derives no chord (rule 11).
+    renders for named shapes). Tap-attack notes are excepted: taps belong to the tapping hand,
+    not the fretting posture, so they never join a posture — even a multi-string tapped onset
+    derives no chord, and a mixed onset is judged by its non-tap members alone (rule 11).
 11. **Repeated strums of one articulation share one span.** Consecutive onsets whose strings
     are played *identically in every way except duration* — same frets, attack (hammer, pull,
     tap, slap, pop), muting, harmonics, vibrato, tremolo, accent, bends, and slides; the
@@ -171,11 +172,14 @@ handshape or diagram data, so the tab's chord boxes are derived):
     articulation difference on any string ends the span — a muted or hammered chord is its own
     chord with its own box, even on the frets of the chord before it, while frets-identical
     chords share one deduplicated template (the hand posture is identical; techniques render on
-    the notes). Tap-only onsets are transparent (user rule 2026-07-28): they neither form
-    postures nor end a held span, so a chord whose notated ring extends under the taps keeps
-    its span — which rule 12 then renders as a held arpeggio — while a short-ringing chord's
-    span still ends at its own notated duration, before the taps. An isolated strum gets a
-    span of its own notated duration.
+    the notes). Tap-attack notes are invisible to span derivation (user rule 2026-07-28): they
+    join no posture, extend no ring, and never open or close a span, so a tap-only onset is
+    fully transparent — a chord whose notated ring extends under the taps keeps its span, which
+    rule 12 then renders as a held arpeggio, while a short-ringing chord's span still ends at
+    its own notated duration, before the taps — and a mixed onset (a fretting-hand note struck
+    under simultaneous right-hand taps, the two-hand-tapping staple) counts only its non-tap
+    members: one left-hand note is an ordinary single onset, two or more are a chord. An
+    isolated strum gets a span of its own notated duration.
 12. **A fully-strummed span is a chord box; a ring-through span or a held chord under tapping is
     an arpeggio.** A note still ringing through a chord's onset (tie-held from before, not
     re-struck) joins the derived posture on its string, and the projections' shared arrival rule
@@ -196,7 +200,9 @@ handshape or diagram data, so the tab's chord boxes are derived):
     the same rule sustains follow, so consecutive shapes keep the same visible gap as
     everything else instead of butting exactly (user rule 2026-07-23, superseding the
     clamp-to-the-onset form). The trim floors at the span's last strum, so the box always
-    reaches its final restrike even when events crowd closer than the margin.
+    reaches its final restrike even when events crowd closer than the margin; a span that
+    would still lose all length (a single short strum crowded inside the margin) falls back to
+    exact adjacency, ending at the earlier of its notated ring and the closing onset.
 
 **Slide semantics** (resolved before the sustain policy runs, so merged tails still pass
 through the trim rules):

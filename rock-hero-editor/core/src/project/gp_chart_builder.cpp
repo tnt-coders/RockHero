@@ -847,10 +847,13 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& g
             {
                 end = std::max(*closing_limit, open->last_strum_beat);
             }
-            if (!(open->start_beat < end) && closing_beat.has_value() &&
-                *closing_beat < open->end_beat)
+            if (!(open->start_beat < end) && closing_beat.has_value())
             {
-                end = *closing_beat;
+                // Exact adjacency: the crowded span ends at the earlier of its notated ring and
+                // the closing onset — both sit strictly after the span start, so the span keeps
+                // positive length even when the closer lands exactly on the notated end (a
+                // dense run of short strums).
+                end = std::min(open->end_beat, *closing_beat);
             }
             chart.shapes.push_back(
                 ChartShape{
@@ -872,37 +875,41 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& g
     while (index < built.size())
     {
         std::size_t onset_end = index;
-        Fraction notated_end = built[index].end_global_beat;
+        Fraction notated_end{};
         std::vector<StringArticulation> articulation(string_count);
         std::size_t struck = 0;
-        bool all_tapped = true;
         while (onset_end < built.size() && built[onset_end].global_beat == built[index].global_beat)
         {
             const ChartNote& note = built[onset_end].note;
-            all_tapped = all_tapped && note.attack == NoteAttack::Tap;
-            if (const auto string_index = static_cast<std::size_t>(note.string - 1);
-                string_index < string_count)
+            // Tap-attack notes are invisible to span derivation (user rule 2026-07-28): the
+            // taps belong to the tapping hand, not the fretting posture, so they join no
+            // posture and extend no ring, and a mixed onset — a fretting-hand note struck
+            // under simultaneous right-hand taps — is judged by its non-tap members alone.
+            if (note.attack != NoteAttack::Tap)
             {
-                ChartNote key = note;
-                key.position = GridPosition{};
-                key.sustain = Fraction{};
-                articulation[string_index] = std::move(key);
-                ++struck;
-            }
-            if (notated_end < built[onset_end].end_global_beat)
-            {
-                notated_end = built[onset_end].end_global_beat;
+                if (const auto string_index = static_cast<std::size_t>(note.string - 1);
+                    string_index < string_count)
+                {
+                    ChartNote key = note;
+                    key.position = GridPosition{};
+                    key.sustain = Fraction{};
+                    articulation[string_index] = std::move(key);
+                    ++struck;
+                }
+                if (notated_end < built[onset_end].end_global_beat)
+                {
+                    notated_end = built[onset_end].end_global_beat;
+                }
             }
             ++onset_end;
         }
-        if (all_tapped)
+        if (struck == 0)
         {
-            // Tap-only onsets are transparent to span derivation (user rule 2026-07-28): the
-            // taps belong to the tapping hand, not the fretting posture, so they neither form a
-            // chord posture nor end a held one. A chord whose notated ring extends under the
-            // taps keeps its span, which the projections' arrival rule then renders as a held
-            // arpeggio — the corpus's held-shape-under-tapping case. A short-ringing chord is
-            // unaffected: its span still ends at its own notated duration, before the taps.
+            // Tap-only onsets are transparent: they neither form a chord posture nor end a held
+            // one. A chord whose notated ring extends under the taps keeps its span, which the
+            // projections' arrival rule then renders as a held arpeggio — the corpus's
+            // held-shape-under-tapping case. A short-ringing chord is unaffected: its span
+            // still ends at its own notated duration, before the taps.
         }
         else if (struck >= 2)
         {
@@ -966,12 +973,13 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& g
             // Any intervening non-chord onset ends the held posture.
             close_span(margin_limit(built[index]), built[index].global_beat);
         }
-        // This onset's notes become the ring candidates for later onsets (updated after use:
-        // a note starting at an onset is struck there, not ringing through it).
+        // This onset's non-tap notes become the ring candidates for later onsets (updated after
+        // use: a note starting at an onset is struck there, not ringing through it). Taps stay
+        // invisible here too — a ringing tap never folds into a later posture.
         for (std::size_t member = index; member < onset_end; ++member)
         {
             if (const auto string_index = static_cast<std::size_t>(built[member].note.string - 1);
-                string_index < string_count)
+                string_index < string_count && built[member].note.attack != NoteAttack::Tap)
             {
                 ringing[string_index] = &built[member];
             }
