@@ -378,6 +378,33 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
     chart.notes[0].sustain = Fraction{1, 2};
     CHECK_FALSE(chartShapeArrivesAsArpeggio(chart, strum_under_ring, tempo_map));
 
+    // A tapped note sounding within the span turns that box into a held arpeggio: the fretting
+    // hand holds the shape while the right hand taps above it (held-chord-under-tap, 2026-07-28).
+    Chart tapped_over_hold = chart; // the box state above (the ring ended before the strum)
+    tapped_over_hold.notes.push_back(
+        ChartNote{
+            .position = GridPosition{.measure = 2, .beat = 2, .offset = Fraction{1, 2}},
+            .string = 4,
+            .fret = 15,
+            .attack = NoteAttack::Tap,
+            .bend = {},
+            .slides = {},
+        });
+    CHECK(chartShapeArrivesAsArpeggio(tapped_over_hold, strum_under_ring, tempo_map));
+
+    // A tap OUTSIDE the span (after it ends) leaves the box a box.
+    Chart tapped_after = chart;
+    tapped_after.notes.push_back(
+        ChartNote{
+            .position = GridPosition{.measure = 2, .beat = 3, .offset = Fraction{1, 2}},
+            .string = 4,
+            .fret = 15,
+            .attack = NoteAttack::Tap,
+            .bend = {},
+            .slides = {},
+        });
+    CHECK_FALSE(chartShapeArrivesAsArpeggio(tapped_after, strum_under_ring, tempo_map));
+
     // A ringing note on a string outside the posture never flips the box: sustained content
     // under an unrelated chord is ordinary.
     chart.notes[0].sustain = Fraction{2};

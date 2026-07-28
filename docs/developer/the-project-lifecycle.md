@@ -150,16 +150,19 @@ handshape or diagram data, so the tab's chord boxes are derived):
     chord with its own box, even on the frets of the chord before it, while frets-identical
     chords share one deduplicated template (the hand posture is identical; techniques render on
     the notes). An isolated strum gets a span of its own notated duration.
-12. **A fully-strummed span is a chord box; a ring-through span is an arpeggio.** A note still
-    ringing through a chord's onset (tie-held from before, not re-struck) joins the derived
-    posture on its string, and the projections' shared arrival rule renders any span with a
-    posture string *still ringing at the span start without an onset there* as an arpeggio: a
-    strum under held content is picking around it, not a full strum (user rule 2026-07-22 —
-    both the chord under a held single note and the re-strum whose tied members keep ringing
-    are arpeggios, so a tied passage with a hand move splits into two arpeggio shapes). A
-    posture string that is merely silent at the start (a partial strum of the shape) keeps the
-    chord box; no other arpeggio grouping is derived (broken-chord grouping waits for the
-    corpus-informed pass).
+12. **A fully-strummed span is a chord box; a ring-through span or a held chord under tapping is
+    an arpeggio.** A note still ringing through a chord's onset (tie-held from before, not
+    re-struck) joins the derived posture on its string, and the projections' shared arrival rule
+    renders any span with a posture string *still ringing at the span start without an onset
+    there* as an arpeggio: a strum under held content is picking around it, not a full strum
+    (user rule 2026-07-22 — both the chord under a held single note and the re-strum whose tied
+    members keep ringing are arpeggios, so a tied passage with a hand move splits into two
+    arpeggio shapes). A **tapped note sounding anywhere within the span** also flips a box to a
+    held arpeggio (user rule 2026-07-28): the fretting hand holds the shape while the right hand
+    taps above it, so the notation shows the chord is sustained through the tapping. A posture
+    string that is merely silent at the start (a partial strum of the shape) keeps the chord box;
+    no other arpeggio grouping is derived (broken-chord grouping waits for the corpus-informed
+    pass).
 12a. **A closed span keeps the minimum sustain distance, like every other element.** Tie
     merging can stretch a strum's ring past the next event, but the shape's box never follows
     it: when a new posture (or a non-chord onset) closes a span, the closed span's end trims to

@@ -79,11 +79,13 @@ cannot drift between chart and song documents.
 \brief Reports whether a shape span arrives as an arpeggio rather than a strummed chord box.
 
 The arrival rule shared by the highway and tab projections: a span is an arpeggio when fewer
-than two notes strike at its start, or when a posture string is still ringing there without
-being re-struck (an earlier note's sustain crosses the span start on a template string with no
-onset at it) — a strum under held content is picking around it, not a full strum, so the shape
-renders as brackets around individual notes rather than one strummed box. A posture string
-that is merely silent at the start (a partial strum of the shape) does not make an arpeggio.
+than two notes strike at its start, when a posture string is still ringing there without being
+re-struck (an earlier note's sustain crosses the span start on a template string with no onset
+at it), or when a tapped note sounds anywhere within the span — a strum under held content is
+picking around it, and a held chord under two-hand tapping is sustained through the taps, not a
+full strum, so the shape renders as brackets around individual notes rather than one strummed
+box. A posture string that is merely silent at the start (a partial strum of the shape) does not
+make an arpeggio.
 
 \param chart Chart holding the sorted note stream and template table.
 \param shape Shape span to classify.
