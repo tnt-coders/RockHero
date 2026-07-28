@@ -3302,21 +3302,43 @@ void HighwayRenderer::Impl::draw(
             push_target_number(fhp.fret, fhp.seconds);
         }
 
-        // Tapped notes and pitched slide-waypoint targets borrow the hand-position-arrival
-        // treatment: a tap lands far outside the hand window where the dotted-fret numbers dim,
-        // and a slide's intermediate targets have no anchor of their own. Unpitched trail-offs
-        // get no number (user rule 2026-07-28) — their end fret is a gesture, not a target.
-        // Notes ascend by onset and a waypoint never precedes its note's onset, so a note past
-        // span_end can contribute nothing visible.
+        // Tap numbers label POSITIONS, not notes (user rule 2026-07-28 — per-note numbers
+        // over-labeled dense runs): one number per tap onset, at its low fret like a
+        // hand-position arrival, and only when it tells the player something new — the first
+        // tap after the lighting lapsed, or a move to a different extent. A repeat inside a
+        // lit run (the previous release plus the ribbon decay still bridging this rise — the
+        // same bridge the lane edges show) is already established and stays unlabeled, as do
+        // chord upper members and tapped-slide waypoints: the light carries them.
+        const common::core::HighwayTapOnsetView* previous_tap = nullptr;
+        for (const common::core::HighwayTapOnsetView& tap : state.tap_onsets)
+        {
+            const bool repeat_in_lit_run =
+                previous_tap != nullptr && previous_tap->fret_low == tap.fret_low &&
+                previous_tap->fret_high == tap.fret_high &&
+                previous_tap->path.back().seconds + g_tap_ribbon_decay_seconds >=
+                    tap.seconds - tap.ramp_seconds;
+            if (!repeat_in_lit_run)
+            {
+                push_target_number(tap.fret_low, tap.seconds);
+            }
+            previous_tap = &tap;
+        }
+
+        // Pitched slide-waypoint targets borrow the hand-position-arrival treatment: a
+        // fretting-hand slide's intermediate targets have no anchor of their own. Tapped
+        // slides are excluded — their morphing light already shows the glide — and unpitched
+        // trail-offs get no number (user rule 2026-07-28): their end fret is a gesture, not a
+        // target. Notes ascend by onset and a waypoint never precedes its note's onset, so a
+        // note past span_end can contribute nothing visible.
         for (const common::core::HighwayNoteView& note : state.notes)
         {
             if (note.start_seconds > span_end_seconds)
             {
                 break;
             }
-            if (note.attack == common::core::NoteAttack::Tap && note.fret > 0)
+            if (note.attack == common::core::NoteAttack::Tap)
             {
-                push_target_number(note.fret, note.start_seconds);
+                continue;
             }
             for (const common::core::HighwaySlideView& waypoint : note.slides)
             {
