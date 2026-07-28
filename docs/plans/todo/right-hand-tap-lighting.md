@@ -8,8 +8,16 @@ boxes now count only non-tap members. First-sight refinements (user, 2026-07-28)
 carries a light *path* — onset through pitched glide waypoints to the fingers' release — so the
 light holds through sustained contact and morphs with tapped slides (unpitched trail-offs
 release from the last pitched station), and the envelope tightened (rise 0.35 → 0.18, decay
-0.2 → 0.1 — the original read as too much light around each note). The open questions below
-remain open.
+0.2 → 0.1 — the original read as too much light around each note). The rise then dropped its
+wall-clock constant entirely (user rule 2026-07-28, consistency with the left hand): each tap
+onset carries a projection-derived `ramp_seconds` from the fret-hand placements' own arrival
+rule — the minimum-sustain-distance margin at the onset's meter, clamped so the rise never
+reaches backward past the previous tap onset's release. Only the arrival *timing* is shared:
+the light still rises from zero and vanishes after the decay, because the tapping hand is
+discrete by design — there is no previous position to morph from. Lane-border ribbons and
+board-face fret lines also treat tap paths as windows (visible tier, activation horizon, and
+envelope brightening at now), per-line max-combined so hand overlap self-deduplicates. The
+open questions below remain open.
 
 ## Problem
 

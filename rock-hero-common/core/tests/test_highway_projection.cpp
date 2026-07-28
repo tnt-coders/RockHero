@@ -468,7 +468,8 @@ TEST_CASE("Highway tap onsets derive from tapped notes only", "[core][highway]")
     add_note(3.00005, 17, NoteAttack::Tap);
     add_note(4.0, 9, NoteAttack::Hammer); // Left-hand tap imports as Hammer: no entry.
 
-    const std::vector<HighwayTapOnsetView> onsets = makeHighwayTapOnsets(notes);
+    const std::vector<HighwayTapOnsetView> onsets =
+        makeHighwayTapOnsets(notes, std::vector<double>(notes.size(), 0.0));
     REQUIRE(onsets.size() == 3);
     CHECK(
         onsets[0] ==
@@ -536,7 +537,8 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
     };
     notes.push_back(trailing);
 
-    const std::vector<HighwayTapOnsetView> onsets = makeHighwayTapOnsets(notes);
+    const std::vector<HighwayTapOnsetView> onsets =
+        makeHighwayTapOnsets(notes, std::vector<double>(notes.size(), 0.0));
     REQUIRE(onsets.size() == 3);
 
     REQUIRE(onsets[0].path.size() == 2);
@@ -562,6 +564,35 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
     CHECK(
         onsets[2].path[1] ==
         HighwayTapLightStation{.seconds = 6.0, .fret_low = 13.0, .fret_high = 13.0});
+}
+
+// The light-rise ramp mirrors the fret-hand arrival rule: an onset takes its widest member's
+// margin rise, and crowding clamps the rise so it never reaches backward past the previous tap
+// onset's release — a dense run keeps its per-tap dips.
+TEST_CASE("Highway tap onsets clamp light ramps against the previous release", "[core][highway]")
+{
+    std::vector<HighwayNoteView> notes;
+    const auto add_tap = [&notes](double start, double end, int fret) {
+        HighwayNoteView note;
+        note.start_seconds = start;
+        note.end_seconds = end;
+        note.fret = fret;
+        note.attack = NoteAttack::Tap;
+        notes.push_back(std::move(note));
+    };
+    add_tap(1.0, 1.0, 12); // Roomy: keeps its full margin rise.
+    add_tap(1.0, 1.0, 15); // Chord mate with a wider margin: the onset takes it.
+    add_tap(1.2, 1.2, 14); // Crowded: only 0.2s of room after the previous release.
+    add_tap(3.0, 3.5, 12); // Held tap whose release bounds the next rise.
+    add_tap(3.6, 3.6, 15); // Rise clamps to 0.1s — the gap after the hold, not the onset gap.
+
+    const std::vector<double> rises{0.2, 0.25, 0.25, 0.25, 0.25};
+    const std::vector<HighwayTapOnsetView> onsets = makeHighwayTapOnsets(notes, rises);
+    REQUIRE(onsets.size() == 4);
+    CHECK(onsets[0].ramp_seconds == Catch::Approx(0.25));
+    CHECK(onsets[1].ramp_seconds == Catch::Approx(0.2));
+    CHECK(onsets[2].ramp_seconds == Catch::Approx(0.25));
+    CHECK(onsets[3].ramp_seconds == Catch::Approx(0.1));
 }
 
 } // namespace rock_hero::common::core

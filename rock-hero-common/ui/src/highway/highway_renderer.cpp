@@ -73,10 +73,10 @@ constexpr double g_window_morph_dim = 0.95;
 // tapped fret lanes along the timeline, rising over the approach side of the tap, holding
 // through sustained contact (morphing with pitched glides), and decaying after the fingers
 // release, so the light dips between consecutive taps exactly as the finger lifts (user rule
-// 2026-07-28 — deliberately per-onset, never merged into runs). Rise leads longer than decay
-// for read-ahead; tightened on sight 2026-07-28 (0.35/0.2 read as too much light around each
-// note).
-constexpr double g_tap_light_rise_seconds = 0.18;
+// 2026-07-28 — deliberately per-onset, never merged into runs). The rise duration is each
+// onset's projection-derived ramp_seconds — the fret-hand placements' own margin-based arrival
+// rule (user rule 2026-07-28, replacing a fixed wall-clock rise that read inconsistently) —
+// while the decay stays a short visual constant: the release is a gesture, not an arrival.
 constexpr double g_tap_light_decay_seconds = 0.1;
 // The tap light leans the lit lane tint toward the FHP orange (the tap floor numbers' color)
 // so the tapping hand's light reads apart from the fretting hand's window at a glance.
@@ -1244,11 +1244,10 @@ void HighwayRenderer::Impl::draw(
         {
             const common::core::HighwayTapLightStation& front = tap.path.front();
             const common::core::HighwayTapLightStation& back = tap.path.back();
-            if (front.seconds - g_tap_light_rise_seconds > now_seconds)
-            {
-                break; // onsets ascend, so nothing later is active yet
-            }
-            if (back.seconds + g_tap_light_decay_seconds < now_seconds)
+            // Ramps vary per onset, so this cannot early-break on ascending onsets; the
+            // per-tap skip is a cheap POD compare.
+            if (front.seconds - tap.ramp_seconds > now_seconds ||
+                back.seconds + g_tap_light_decay_seconds < now_seconds)
             {
                 continue;
             }
@@ -1257,8 +1256,7 @@ void HighwayRenderer::Impl::draw(
             double high = front.fret_high;
             if (now_seconds < front.seconds)
             {
-                envelope = (now_seconds - (front.seconds - g_tap_light_rise_seconds)) /
-                           g_tap_light_rise_seconds;
+                envelope = (now_seconds - (front.seconds - tap.ramp_seconds)) / tap.ramp_seconds;
             }
             else if (now_seconds > back.seconds)
             {
@@ -1555,16 +1553,15 @@ void HighwayRenderer::Impl::draw(
         {
             const common::core::HighwayTapLightStation& front = tap.path.front();
             const common::core::HighwayTapLightStation& back = tap.path.back();
-            if (back.seconds + g_tap_light_decay_seconds < span_start_seconds)
+            // Ramps vary per onset, so ascending onsets give no early break: each tap skips
+            // with two cheap POD compares instead.
+            if (back.seconds + g_tap_light_decay_seconds < span_start_seconds ||
+                front.seconds - tap.ramp_seconds > span_end_seconds)
             {
                 continue;
             }
-            if (front.seconds - g_tap_light_rise_seconds > span_end_seconds)
-            {
-                break; // onsets ascend, so nothing later reaches the visible span
-            }
             emit_segment(
-                front.seconds - g_tap_light_rise_seconds,
+                front.seconds - tap.ramp_seconds,
                 0.0,
                 front.fret_low,
                 front.fret_high,

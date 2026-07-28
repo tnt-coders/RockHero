@@ -256,6 +256,16 @@ struct HighwayTapOnsetView
     std::vector<HighwayTapLightStation> path;
 
     /*!
+    \brief Duration of the light's rise ending at \ref seconds.
+
+    Derived at projection time with the fret-hand placements' own arrival rule (user rule
+    2026-07-28, replacing a fixed wall-clock rise): the minimum-sustain-distance margin at the
+    onset's meter, shortened when the previous tap onset's release crowds closer than the
+    margin so envelopes never reach backward through an earlier hold.
+    */
+    double ramp_seconds{0.0};
+
+    /*!
     \brief Compares two tap-onset views by their stored fields.
     \param lhs Left-hand view.
     \param rhs Right-hand view.
@@ -482,11 +492,18 @@ onset contribute nothing — the taps are the other hand. A fretless tap cannot 
 (tapping frets the string by definition), so fret-zero notes are skipped and a malformed chart
 can never place a light off the board.
 
+Each onset also carries a light-rise ramp, derived with the fret-hand placements' own arrival
+rule: the caller supplies each note's margin-based rise duration (the minimum-sustain-distance
+margin at the note's meter, resolved to seconds — zero for non-tap notes), the onset takes the
+widest member's, and crowding clamps the rise so it never reaches backward past the previous
+tap onset's release.
+
 \param notes Seconds-resolved notes sorted by start time.
+\param note_rise_seconds Per-note margin rise duration in seconds, sized and ordered like notes.
 \return Tap onsets in ascending time order, each with at least one path station.
 */
 [[nodiscard]] inline std::vector<HighwayTapOnsetView> makeHighwayTapOnsets(
-    const std::vector<HighwayNoteView>& notes)
+    const std::vector<HighwayNoteView>& notes, const std::vector<double>& note_rise_seconds)
 {
     // A member's tapped fret at an instant: its own fret before any glide, linear between its
     // pitched waypoints (the renderer eases within each path segment), and the last pitched
@@ -554,6 +571,9 @@ can never place a light off the board.
             view.fret_low = view.count == 0 ? note.fret : std::min(view.fret_low, note.fret);
             view.fret_high = std::max(view.fret_high, note.fret);
             ++view.count;
+            view.ramp_seconds = std::max(
+                view.ramp_seconds,
+                member < note_rise_seconds.size() ? note_rise_seconds[member] : 0.0);
             taps.push_back(&note);
         }
         if (!taps.empty())
@@ -596,6 +616,15 @@ can never place a light off the board.
                     station.fret_high = std::max(station.fret_high, fret);
                 }
                 view.path.push_back(station);
+            }
+            // Crowding clamp, mirroring the fret-hand ramps: the rise never reaches backward
+            // past the previous tap onset's release, so a dense run keeps its per-tap dips.
+            if (!onsets.empty())
+            {
+                view.ramp_seconds = std::clamp(
+                    view.ramp_seconds,
+                    0.0,
+                    std::max(0.0, onset - onsets.back().path.back().seconds));
             }
             onsets.push_back(std::move(view));
         }

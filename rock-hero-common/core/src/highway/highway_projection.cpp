@@ -47,6 +47,10 @@ HighwayViewState makeHighwayViewState(
     // Sustain ends and intra-note payload offsets can jump past later onsets, so those use the
     // plain resolver instead of a second cursor.
     TempoMap::ForwardBeatTimeCursor onset_cursor{tempo_map};
+    // Per-note tap light-rise durations, resolved through the same margin-morph rule the
+    // fret-hand ramps use below; zero for non-tap notes. Feeds makeHighwayTapOnsets.
+    std::vector<double> tap_rise_seconds;
+    tap_rise_seconds.reserve(chart.notes.size());
     // Pitched glide arrivals feed the hand window's slide-locked ramps: the generator places an
     // FHP exactly on a waypoint's advanced grid position, so an exact-position match here ties
     // that placement's ramp to the glide segment (unpitched slide-outs never move the window and
@@ -111,10 +115,23 @@ HighwayViewState makeHighwayViewState(
                     .unpitched = true,
                 });
         }
+        double rise_seconds = 0.0;
+        if (note.attack == NoteAttack::Tap)
+        {
+            // The tap light's rise uses the fret-hand placements' own arrival rule (user rule
+            // 2026-07-28): the minimum-sustain-distance margin at the onset's meter.
+            const TimeSignatureChange signature = tempo_map.timeSignatureAt(note.position.measure);
+            const Fraction margin = minimumSustainDistanceBeats(signature.denominator);
+            const GridPosition rise_start = advanceGridPosition(
+                tempo_map, note.position, Fraction{-margin.numerator, margin.denominator});
+            rise_seconds = view.start_seconds - tempo_map.secondsAtGlobalBeatPosition(
+                                                    globalBeatPosition(tempo_map, rise_start));
+        }
+        tap_rise_seconds.push_back(rise_seconds);
         state.notes.push_back(std::move(view));
     }
     // Tapping-hand onsets derive purely from the resolved notes (right-hand tap lighting).
-    state.tap_onsets = makeHighwayTapOnsets(state.notes);
+    state.tap_onsets = makeHighwayTapOnsets(state.notes, tap_rise_seconds);
 
     state.shapes.reserve(chart.shapes.size());
     for (const ChartShape& shape : chart.shapes)
