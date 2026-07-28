@@ -1202,6 +1202,35 @@ void HighwayRenderer::Impl::draw(
                 }
             }
         }
+        // Right-hand windows join the visible tier (user rule 2026-07-28): lines the tapping
+        // hand's light path crosses on screen brighten like any visible window's. The tier is
+        // a per-line array, so overlap with the fretting hand's windows deduplicates itself,
+        // and the path union already carries any tapped-slide morph — the eased-coverage
+        // machinery stays exclusive to the current fretting-hand window's hit-line crossfade.
+        for (const common::core::HighwayTapOnsetView& tap : state.tap_onsets)
+        {
+            if (tap.path.front().seconds > span_end_seconds)
+            {
+                break; // onsets ascend, so nothing later is on screen
+            }
+            if (tap.path.back().seconds + g_tap_light_decay_seconds < span_start_seconds)
+            {
+                continue;
+            }
+            double low = tap.path.front().fret_low;
+            double high = tap.path.front().fret_high;
+            for (const common::core::HighwayTapLightStation& station : tap.path)
+            {
+                low = std::min(low, station.fret_low);
+                high = std::max(high, station.fret_high);
+            }
+            const int first_line = std::max(0, static_cast<int>(std::floor(low)) - 1);
+            const int last_line = std::min(g_face_fret_count, static_cast<int>(std::ceil(high)));
+            for (int line = first_line; line <= last_line; ++line)
+            {
+                in_visible_window.at(static_cast<std::size_t>(line)) = true;
+            }
+        }
 
         bgfx::setUniform(fade_params.get(), fade_uniform.data());
         std::vector<PosColorVertex> vertices;
@@ -3275,6 +3304,34 @@ void HighwayRenderer::Impl::draw(
                 {
                     active.at(static_cast<std::size_t>(line)) = 1.0;
                 }
+            }
+        }
+        // Right-hand windows activate their lines under the same horizon (user rule
+        // 2026-07-28): the lines the tapping hand's light path crosses light up while the tap
+        // is held or arriving soon. Per-line array, so overlap with the fretting hand's
+        // windows deduplicates itself; the path union carries any tapped-slide morph.
+        for (const common::core::HighwayTapOnsetView& tap : state.tap_onsets)
+        {
+            if (tap.path.front().seconds > now_seconds + g_fret_active_horizon_seconds)
+            {
+                break; // onsets ascend, so nothing later reaches the horizon
+            }
+            if (tap.path.back().seconds + g_tap_light_decay_seconds < now_seconds)
+            {
+                continue;
+            }
+            double low = tap.path.front().fret_low;
+            double high = tap.path.front().fret_high;
+            for (const common::core::HighwayTapLightStation& station : tap.path)
+            {
+                low = std::min(low, station.fret_low);
+                high = std::max(high, station.fret_high);
+            }
+            const int first_line = std::max(0, static_cast<int>(std::floor(low)) - 1);
+            const int last_line = std::min(g_face_fret_count, static_cast<int>(std::ceil(high)));
+            for (int line = first_line; line <= last_line; ++line)
+            {
+                active.at(static_cast<std::size_t>(line)) = 1.0;
             }
         }
 
