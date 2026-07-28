@@ -134,7 +134,9 @@ corpus-derived algorithm — the metrics and the source study behind these rules
    above it. Only Guitar Pro's *Tapped* (two-hand) articulation becomes a chart tap; a
    *LeftHandTapped* note is the fretting hand hammering the note from nowhere and imports as a
    hammer-on — no separate notation (user rule 2026-07-28) — so every tap rule in this policy
-   refers to two-hand taps only, and left-hand taps anchor the window like any fretted note. The 3D-highway camera frames such a tap on its own — it scans the notes, not only the
+   refers to two-hand taps only, and left-hand taps anchor the window like any fretted note. A
+   note carrying both marks imports as the left-hand tap: left-hand is the specialization, the
+   generic tap mark adds nothing to it (user rule 2026-07-28). The 3D-highway camera frames such a tap on its own — it scans the notes, not only the
    hand windows — so the tap stays on screen even though the window light stays low on the left
    hand. (A held chord under tapping renders as an arpeggio, rule 12.)
 7. **The hand re-anchors at phrase boundaries.** At a section start, or after a rest of at least

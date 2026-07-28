@@ -453,6 +453,20 @@ TEST_CASE("Guitar Pro import maps the two tap articulations by hand", "[core][gp
         CHECK(chart.notes[2].attack == common::core::NoteAttack::Tap);
     }
 
+    SECTION("a note carrying both marks imports as the left-hand tap")
+    {
+        // Left-hand is the specialization; the generic tap mark adds nothing to it (user rule
+        // 2026-07-28).
+        const auto song = import_with_property(
+            "<Property name=\"Tapped\"><Enable/></Property>"
+            "<Property name=\"LeftHandTapped\"><Enable/></Property>");
+        REQUIRE(song.has_value());
+        const common::core::Chart& chart = requiredChart(song->arrangements.front());
+        REQUIRE(chart.notes.size() >= 3);
+        CHECK(chart.notes[2].fret == 7);
+        CHECK(chart.notes[2].attack == common::core::NoteAttack::Hammer);
+    }
+
     std::filesystem::remove_all(scratch, cleanup_error);
 }
 
