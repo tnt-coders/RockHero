@@ -113,6 +113,27 @@ struct Fraction
     }
 
     /*!
+    \brief Multiplies two rationals exactly.
+    \param lhs Left-hand rational.
+    \param rhs Right-hand rational.
+    \return Reduced exact product.
+    */
+    friend constexpr Fraction operator*(const Fraction& lhs, const Fraction& rhs) noexcept
+    {
+        // Same 64-bit-intermediates-then-reduce stance as operator+: the unreduced products can
+        // leave int range on global-beat terms even when the reduced result is tiny.
+        const std::int64_t numerator_product =
+            static_cast<std::int64_t>(lhs.numerator) * rhs.numerator;
+        const std::int64_t denominator_product =
+            static_cast<std::int64_t>(lhs.denominator) * rhs.denominator;
+        const std::int64_t divisor = std::gcd(numerator_product, denominator_product);
+        return Fraction{
+            static_cast<int>(numerator_product / divisor),
+            static_cast<int>(denominator_product / divisor)
+        };
+    }
+
+    /*!
     \brief Orders two rationals by value using cross-multiplication.
     \param lhs Left-hand rational.
     \param rhs Right-hand rational.

@@ -25,12 +25,6 @@ using common::core::Fraction;
     };
 }
 
-// The chart's Fraction is a value type without arithmetic; rhythm math stays in tiny rationals.
-[[nodiscard]] constexpr Fraction multiplyFractions(Fraction lhs, Fraction rhs) noexcept
-{
-    return Fraction{lhs.numerator * rhs.numerator, lhs.denominator * rhs.denominator};
-}
-
 // Guitar Pro stores sync-point frame offsets at a fixed 44.1kHz frame rate regardless of the
 // embedded asset's actual sample rate (verified against corpus files whose assets are 48kHz:
 // only 44100 reproduces the sync points' own ModifiedTempo).
@@ -175,7 +169,7 @@ constexpr double g_sync_frame_rate{44100.0};
         const int dots = dot->getIntAttribute("count", 0);
         // One dot multiplies by 3/2, two by 7/4: (2^(n+1) - 1) / 2^n.
         const int numerator = (1 << (dots + 1)) - 1;
-        duration = multiplyFractions(duration, Fraction{numerator, 1 << dots});
+        duration = duration * Fraction{numerator, 1 << dots};
     }
 
     if (const juce::XmlElement* const tuplet = rhythm.getChildByName("PrimaryTuplet");
@@ -187,7 +181,7 @@ constexpr double g_sync_frame_rate{44100.0};
         {
             return invalidScore("invalid tuplet on rhythm");
         }
-        duration = multiplyFractions(duration, Fraction{den, num});
+        duration = duration * Fraction{den, num};
     }
 
     return duration;

@@ -159,23 +159,30 @@ HighwayCameraTarget makeHighwayCameraTarget(
     const bool mirrored = state.options.mirrored;
 
     // The hand window active at now (the last placement at or before it) plus every window
-    // arriving inside the scan horizon define the fret-line range the camera frames.
+    // arriving inside the scan horizon define the fret-line range the camera frames. Placements
+    // ascend, so the scan jumps straight to the active one instead of rewalking the consumed
+    // prefix every frame.
     int low_line = 0;
     int high_line = static_cast<int>(metrics.camera_reference_span);
     bool any_window = false;
     const double horizon = now_seconds + metrics.focus_scan_seconds;
-    for (const HighwayFhpView& fhp : state.fret_hand_positions)
+    const auto after_now = std::ranges::upper_bound(
+        state.fret_hand_positions, now_seconds, std::ranges::less{}, &HighwayFhpView::seconds);
+    const auto scan_begin =
+        after_now == state.fret_hand_positions.begin() ? after_now : after_now - 1;
+    for (auto it = scan_begin; it != state.fret_hand_positions.end(); ++it)
     {
+        const HighwayFhpView& fhp = *it;
         if (fhp.seconds > horizon)
         {
             break;
         }
         const int window_low = fhp.fret - 1;
         const int window_high = fhp.fret + fhp.width - 1;
-        if (fhp.seconds < now_seconds || !any_window)
+        if (!any_window)
         {
-            // Placements ascend, so each one still at or before now supersedes the previous
-            // active window; the first in-horizon placement also replaces the no-hand fallback.
+            // The active placement (or, with none yet, the first in-horizon placement) replaces
+            // the no-hand fallback.
             low_line = window_low;
             high_line = window_high;
             any_window = true;
@@ -193,7 +200,10 @@ HighwayCameraTarget makeHighwayCameraTarget(
     // charters place anchors). The window light stays on the left hand, but the camera still has to
     // frame the tap, so any fretted note visible in the scan window widens the range as if the
     // hand reached it. Open strings never reframe (played from anywhere, like the hand window they
-    // do not constrain), and consumed notes behind the hit line no longer matter.
+    // do not constrain), and consumed notes behind the hit line no longer matter. The consumed
+    // prefix is skipped by value, not jumped over: a bound needs the sustain prefix-max table (an
+    // early note can still be ringing), which lives with the renderer — a linear walk over these
+    // PODs is far below that plumbing's cost until charts grow orders of magnitude.
     for (const HighwayNoteView& note : state.notes)
     {
         if (note.start_seconds > horizon)

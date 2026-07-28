@@ -2417,44 +2417,46 @@ void HighwayRenderer::Impl::draw(
         // reference skips shadows for chord notes).
         const bool in_chord = group.count >= 2;
 
-        // Note shadow: a glow post — the sustain tails' three-band ribbon stood upright at a
-        // user-tuned fraction of the tail width, rising from the board toward the note's lane
-        // center and dissolving to nothing at the fade-end fraction of that height; the note
-        // art overlays the post's top, so every lane down to the bottom one carries a post
-        // scaled to its own height. Fretted single notes only; a single-note open bar builds
-        // mitered L posts from the same cross-section in its own branch below.
+        // Glow post: the sustain tails' three-band ribbon stood upright at a user-tuned
+        // fraction of the tail width, rising from the board toward the note's lane center and
+        // dissolving to nothing at the fade-end fraction of that height. One geometry serves
+        // both users — the note shadow at the onset (the note art overlays the post's top, so
+        // every lane down to the bottom one carries a post scaled to its own height) and the
+        // pitched slide-waypoint markers at their own slots and times — so a shape or banding
+        // tweak can never desync them.
         const double post_half_width = metrics.tail_half_width * 0.375;
         const double post_top_y = head_y * g_shadow_post_fade_end_fraction;
         const double post_floor_alpha = fade * head_slide.alpha * g_shadow_post_floor_alpha;
-        const auto push_shadow_post = [&](const double center_x) {
-            const std::uint32_t floor_edge = packAbgr(base_color, post_floor_alpha);
-            const std::uint32_t clear = packAbgr(base_color, 0.0);
-            const RibbonEnd floor_end{
-                .x_offset = 0.0,
-                .y = 0.0,
-                .z = z,
-                .edge_abgr = floor_edge,
-                .inner_abgr = packAbgr(base_color, g_tail_inner_alpha * post_floor_alpha),
-                .outer_abgr = floor_edge,
+        const auto push_glow_post =
+            [&](const double center_x, const double post_z, const double floor_alpha) {
+                const std::uint32_t floor_edge = packAbgr(base_color, floor_alpha);
+                const std::uint32_t clear = packAbgr(base_color, 0.0);
+                const RibbonEnd floor_end{
+                    .x_offset = 0.0,
+                    .y = 0.0,
+                    .z = post_z,
+                    .edge_abgr = floor_edge,
+                    .inner_abgr = packAbgr(base_color, g_tail_inner_alpha * floor_alpha),
+                    .outer_abgr = floor_edge,
+                };
+                const RibbonEnd head_end{
+                    .x_offset = 0.0,
+                    .y = post_top_y,
+                    .z = post_z,
+                    .edge_abgr = clear,
+                    .inner_abgr = clear,
+                    .outer_abgr = clear,
+                };
+                pushRibbonSegment(
+                    shadow_vertices,
+                    shadow_indices,
+                    center_x - post_half_width,
+                    center_x - (post_half_width / 2.0),
+                    center_x + (post_half_width / 2.0),
+                    center_x + post_half_width,
+                    floor_end,
+                    head_end);
             };
-            const RibbonEnd head_end{
-                .x_offset = 0.0,
-                .y = post_top_y,
-                .z = z,
-                .edge_abgr = clear,
-                .inner_abgr = clear,
-                .outer_abgr = clear,
-            };
-            pushRibbonSegment(
-                shadow_vertices,
-                shadow_indices,
-                center_x - post_half_width,
-                center_x - (post_half_width / 2.0),
-                center_x + (post_half_width / 2.0),
-                center_x + post_half_width,
-                floor_end,
-                head_end);
-        };
 
         // Fret-span line: a floor line under this single note, spanning the fret slots it
         // occupies — the measure lines' exact treatment (sharp teal attack on the landing z,
@@ -2487,37 +2489,13 @@ void HighwayRenderer::Impl::draw(
         // A pitched slide waypoint's board furniture: a glow post and fret-span line at its own
         // slot and time — the intermediate targets the hand glides through. No note head: the
         // slide is one sounded note, so only its picked head is drawn (user rule 2026-07-28).
-        // Waypoints stay on the note's string, so they share its lane and color. The fret number
-        // rides the board floor with the scrolling numbers, pushed in that pass below.
+        // Waypoints stay on the note's string, so they share its lane and color; the post skips
+        // the head's slide-dim (a waypoint has no sliding head above it). The fret number rides
+        // the board floor with the scrolling numbers, pushed in that pass below.
         const auto push_waypoint_marker = [&](const int wp_fret, const double wp_seconds) {
             const double wp_x = common::core::highwayNoteCenterX(wp_fret, metrics, mirrored);
             const double wp_z = time_to_z(wp_seconds);
-            const double floor_alpha = fade * g_shadow_post_floor_alpha;
-            const std::uint32_t floor_edge = packAbgr(base_color, floor_alpha);
-            const std::uint32_t clear = packAbgr(base_color, 0.0);
-            pushRibbonSegment(
-                shadow_vertices,
-                shadow_indices,
-                wp_x - post_half_width,
-                wp_x - (post_half_width / 2.0),
-                wp_x + (post_half_width / 2.0),
-                wp_x + post_half_width,
-                RibbonEnd{
-                    .x_offset = 0.0,
-                    .y = 0.0,
-                    .z = wp_z,
-                    .edge_abgr = floor_edge,
-                    .inner_abgr = packAbgr(base_color, g_tail_inner_alpha * floor_alpha),
-                    .outer_abgr = floor_edge,
-                },
-                RibbonEnd{
-                    .x_offset = 0.0,
-                    .y = post_top_y,
-                    .z = wp_z,
-                    .edge_abgr = clear,
-                    .inner_abgr = clear,
-                    .outer_abgr = clear,
-                });
+            push_glow_post(wp_x, wp_z, fade * g_shadow_post_floor_alpha);
             const double slot_low = common::core::highwayFretLineX(wp_fret - 1, metrics, mirrored);
             const double slot_high = common::core::highwayFretLineX(wp_fret, metrics, mirrored);
             const auto [span_x0, span_x1] = std::minmax(slot_low, slot_high);
@@ -2703,7 +2681,7 @@ void HighwayRenderer::Impl::draw(
             const double slot_high_x = common::core::highwayFretLineX(note.fret, metrics, mirrored);
             const auto [span_x0, span_x1] = std::minmax(slot_low_x, slot_high_x);
             push_span_line(span_x0, span_x1);
-            push_shadow_post(x);
+            push_glow_post(x, z, post_floor_alpha);
         }
 
         // Anticipation ring: scales down onto the landing spot over the last half second
@@ -2844,11 +2822,16 @@ void HighwayRenderer::Impl::draw(
 
         // Each pitched slide waypoint gets its own post and line; an unpitched slide-out
         // is a pressure release with no target to mark, so it gets no board furniture — only the
-        // rail's own dimming trail. Waypoint and tapped-note fret numbers ride the board floor
-        // with the scrolling numbers, pushed in that pass below.
+        // rail's own dimming trail. A waypoint carries its own time, which can sit well past its
+        // note's onset, so each marker culls to the same upcoming window as its floor fret
+        // number below: past span_end it would float beyond the board's far edge, and behind the
+        // hit line it would stand at full alpha after its number vanished. Waypoint and
+        // tapped-note fret numbers ride the board floor with the scrolling numbers, pushed in
+        // that pass below.
         for (const common::core::HighwaySlideView& waypoint : note.slides)
         {
-            if (!waypoint.unpitched && waypoint.fret > 0)
+            if (!waypoint.unpitched && waypoint.fret > 0 && waypoint.seconds > now_seconds &&
+                waypoint.seconds <= span_end_seconds)
             {
                 push_waypoint_marker(waypoint.fret, waypoint.seconds);
             }
@@ -2952,40 +2935,45 @@ void HighwayRenderer::Impl::draw(
             }
         }
 
+        // An upcoming floor target — a hand-position arrival, a tapped note, or a pitched slide
+        // waypoint — gets the same orange number at its fret slot, fading in on approach. One
+        // push owns the window gate and the argument bundle so the borrowed treatments can
+        // never drift apart.
+        const auto push_target_number = [&](const int fret, const double seconds) {
+            if (seconds <= now_seconds || seconds > span_end_seconds)
+            {
+                return;
+            }
+            push_number(fret, time_to_z(seconds), g_fret_number_fhp_color, true, 1.0);
+        };
+
         // Upcoming hand-position arrivals, in the FHP orange.
         for (const common::core::HighwayFhpView& fhp : state.fret_hand_positions)
         {
-            if (fhp.seconds <= now_seconds || fhp.seconds > span_end_seconds)
-            {
-                continue;
-            }
-            push_number(fhp.fret, time_to_z(fhp.seconds), g_fret_number_fhp_color, true, 1.0);
+            push_target_number(fhp.fret, fhp.seconds);
         }
 
         // Tapped notes and pitched slide-waypoint targets borrow the hand-position-arrival
-        // treatment (same orange, same floor slot, same fade): a tap lands far outside the hand
-        // window where the dotted-fret numbers dim, and a slide's intermediate targets have no
-        // anchor of their own. Unpitched trail-offs keep their post but get no number (user rule
-        // 2026-07-28) — their end fret is a gesture, not a target.
+        // treatment: a tap lands far outside the hand window where the dotted-fret numbers dim,
+        // and a slide's intermediate targets have no anchor of their own. Unpitched trail-offs
+        // get no number (user rule 2026-07-28) — their end fret is a gesture, not a target.
+        // Notes ascend by onset and a waypoint never precedes its note's onset, so a note past
+        // span_end can contribute nothing visible.
         for (const common::core::HighwayNoteView& note : state.notes)
         {
-            if (note.attack == common::core::NoteAttack::Tap && note.fret > 0 &&
-                note.start_seconds > now_seconds && note.start_seconds <= span_end_seconds)
+            if (note.start_seconds > span_end_seconds)
             {
-                push_number(
-                    note.fret, time_to_z(note.start_seconds), g_fret_number_fhp_color, true, 1.0);
+                break;
+            }
+            if (note.attack == common::core::NoteAttack::Tap && note.fret > 0)
+            {
+                push_target_number(note.fret, note.start_seconds);
             }
             for (const common::core::HighwaySlideView& waypoint : note.slides)
             {
-                if (!waypoint.unpitched && waypoint.fret > 0 && waypoint.seconds > now_seconds &&
-                    waypoint.seconds <= span_end_seconds)
+                if (!waypoint.unpitched && waypoint.fret > 0)
                 {
-                    push_number(
-                        waypoint.fret,
-                        time_to_z(waypoint.seconds),
-                        g_fret_number_fhp_color,
-                        true,
-                        1.0);
+                    push_target_number(waypoint.fret, waypoint.seconds);
                 }
             }
         }

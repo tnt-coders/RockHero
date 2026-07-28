@@ -175,7 +175,7 @@ constexpr const char* g_fixture_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
 
 // Finds the generated fret-hand position at an exact grid position, or null. The slide tests use
 // this to assert the slide-driven hand move rather than the whole generated track, whose shape is
-// the FHP generator's own concern (currently an A/B toggle in gp_chart_builder.cpp).
+// the phrase-aware generator's own concern (generateFretHandPositions in gp_chart_builder.cpp).
 [[nodiscard]] const common::core::FretHandPosition* fretHandPositionAt(
     const common::core::Chart& chart, const common::core::GridPosition& position)
 {
@@ -295,9 +295,9 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
 
     // The generated fret-hand track opens on the fret-3 palm mute, then the five-to-seven shift
     // glide drags the anchor up by its own +2 delta to a fret-5 window at the pitched waypoint
-    // (rule 9), keeping the fretting finger on its slot. (The full track shape is the FHP
-    // generator's own concern — an A/B toggle in gp_chart_builder.cpp — so this asserts the
-    // slide-driven move, not the whole sequence.)
+    // (rule 9), keeping the fretting finger on its slot. (The full track shape is the
+    // phrase-aware generator's own concern, so this asserts the slide-driven move, not the
+    // whole sequence.)
     CHECK(chart.fret_hand_positions.front().fret == 3);
     const common::core::FretHandPosition* const shift_glide =
         fretHandPositionAt(chart, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 4}});
@@ -1115,9 +1115,10 @@ namespace
 }
 
 // The same beat marked as a grace with the given placement.
-[[nodiscard]] GpBeat graceBeat(const GpGracePlacement placement, const int fret)
+[[nodiscard]] GpBeat graceBeat(
+    const GpGracePlacement placement, const int fret, const int string = 0)
 {
-    GpBeat beat = noteBeat(Fraction{1, 32}, fret);
+    GpBeat beat = noteBeat(Fraction{1, 32}, fret, string);
     beat.grace = placement;
     return beat;
 }
@@ -1158,6 +1159,36 @@ TEST_CASE("Guitar Pro import places grace notes against their principal", "[core
         CHECK(chart.notes[2].fret == 8);
         CHECK(chart.notes[2].position.beat == 2);
         CHECK(chart.notes[2].position.offset == Fraction{});
+        // The grace lead sounds inside the fret-5 note's notated tail, but a fabricated onset
+        // cannot make that ring a deliberate hold: the tail trims against the grace's sounding
+        // beat and then drops as effect-free, exactly as it would without the ornament.
+        CHECK(chart.notes[0].sustain == Fraction{});
+    }
+
+    SECTION("a hold notated across voices stays a hold with a grace inside it")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(Fraction{1, 2}, 3)},
+                    {noteBeat(Fraction{1, 4}, 5, 1),
+                     graceBeat(GpGracePlacement::BeforeBeat, 7, 1),
+                     noteBeat(Fraction{1, 4}, 8, 1)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 4);
+        // The half note rings strictly past the second voice's NOTATED beat-2 onset, so the
+        // deliberate cross-voice hold survives even though the grace's fabricated onset sounds
+        // earlier inside it; the fret-5 quarter under the same grace trims and drops as usual.
+        CHECK(chart.notes[0].fret == 3);
+        CHECK(chart.notes[0].sustain == Fraction{2});
+        CHECK(chart.notes[1].fret == 5);
+        CHECK(chart.notes[1].sustain == Fraction{});
     }
 
     SECTION("an on-beat grace takes the beat and delays the principal")
@@ -1333,6 +1364,10 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         CHECK(chart.notes[1].slides[0].offset == Fraction{1, 4});
         CHECK(chart.notes[1].slides[0].fret == 8);
         CHECK(chart.notes[1].sustain == Fraction{5, 4});
+        // The moved head sounds inside the fret-3 note's notated tail, but a fabricated onset
+        // cannot make that ring a deliberate hold: the tail trims against the head's sounding
+        // beat (same string — the old ring overlapped the ramp) and drops as effect-free.
+        CHECK(chart.notes[0].sustain == Fraction{});
     }
 
     SECTION("a slide-in into a held landing keeps the hold")
@@ -1361,6 +1396,9 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         CHECK(chart.notes[1].slides[0].offset == Fraction{1, 4});
         CHECK(chart.notes[1].slides[0].fret == 8);
         CHECK(chart.notes[1].sustain == Fraction{1, 2});
+        // The fret-3 tail trims against the moved head's sounding beat rather than ringing
+        // through it as a fabricated hold.
+        CHECK(chart.notes[0].sustain == Fraction{});
     }
 
     SECTION("a still hand falls back to two frets in the flag's direction")
@@ -1446,11 +1484,9 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
     }
 }
 
-// The phrase-aware fret-hand generator (the current A/B default in gp_chart_builder.cpp) tracks
-// the LEFT hand: a tapped note floats above the window instead of dragging the anchor up to it,
-// matching how authored charts anchor two-hand tapping (the source corpus puts taps a median seven
-// frets above the anchor). Tied to the phrase-aware generator; if the greedy walk wins the A/B
-// review, this test and that generator are removed together.
+// The phrase-aware fret-hand generator tracks the LEFT hand: a tapped note floats above the
+// window instead of dragging the anchor up to it, matching how authored charts anchor two-hand
+// tapping (the source corpus puts taps a median seven frets above the anchor).
 TEST_CASE("Guitar Pro import anchors the hand below tapped notes", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{

@@ -66,11 +66,13 @@ TEST_CASE("Highway camera frames taps above the hand window", "[core][highway][c
     HighwayViewState state = makeStateWithFhps({
         HighwayFhpView{.seconds = 0.0, .fret = 5, .width = 4}, // hand window fret lines 4..8
     });
-    // A tapped note at fret 15 arriving inside the scan horizon, with no hand position covering it.
-    state.notes.push_back(HighwayNoteView{.start_seconds = 1.5, .end_seconds = 1.5, .fret = 15});
-    // A note already consumed behind the hit line, and an open string, must not reframe.
+    // Notes ascend by onset (the view-state contract the scan's horizon break relies on): a
+    // note already consumed behind the hit line and an open string must not reframe, while the
+    // tapped note at fret 15 arriving inside the scan horizon — with no hand position covering
+    // it — must.
     state.notes.push_back(HighwayNoteView{.start_seconds = 0.0, .end_seconds = 0.1, .fret = 20});
     state.notes.push_back(HighwayNoteView{.start_seconds = 1.4, .end_seconds = 1.4, .fret = 0});
+    state.notes.push_back(HighwayNoteView{.start_seconds = 1.5, .end_seconds = 1.5, .fret = 15});
 
     const HighwayCameraTarget target = makeHighwayCameraTarget(state, 1.0, metrics);
     // The range widens from the hand window (lines 4..8) up to the tap's fret line 15: span 11.

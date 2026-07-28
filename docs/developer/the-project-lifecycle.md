@@ -91,11 +91,17 @@ sustains):
    duration verb clamps to — before the next onset on *any* string. The margin bounds sustain
    *tails* only, never note onsets (renamed from "minimum note distance", 2026-07-23): a run of
    32nds imports every onset as notated, with tails trimmed toward zero and then dropped by the
-   rule below, so dense passages render as plain heads. Notes struck together (chord members)
-   never bind each other. One hold is exempt (user rule 2026-07-22): a tail ringing
-   *strictly past* the next onset — merged from a tie or notated across voices — is a deliberate
-   hold, exempt from this trim and the drop rule below; that ring is what the arpeggio arrival
-   rule reads. A tail that merely *reaches* the next onset trims like any other, ties included.
+   rule below, so dense passages render as plain heads. Binding follows the *notated* timeline:
+   events sharing a notated beat — chord members, and a strum's own grace-shifted notes — never
+   bind each other, even when grace leads stagger their sounding onsets. One hold is exempt
+   (user rule 2026-07-22): a tail ringing *strictly past* the next binding onset — merged from
+   a tie or notated across voices — is a deliberate hold, exempt from this trim and the drop
+   rule below; that ring is what the arpeggio arrival rule reads. The exemption also reads the
+   notated timeline (2026-07-28): an importer-fabricated early onset — a grace lead or a moved
+   slide-in head — binds the tail at its *sounding* beat, but a ring past it is deliberate only
+   if it also passes the beat the source actually *notated*, since the charter never wrote an
+   onset at the fabricated position. A tail that merely *reaches* the next binding onset trims
+   like any other, ties included.
    Repeated chords trim too: their held-to-the-restrike reading lives in the merged shape span
    (rule 11), which derives from the notated pre-trim durations and already runs through every
    restrike — the box continues while the tails keep the minimum gap.
@@ -250,7 +256,7 @@ through the trim rules):
     all (nothing sounds before a principal at the song start) or no principal to attach to (a
     rest follows, or the track ends) is dropped with a conversion note.
 
-Every generated track logs a conversion note ("simple window walk; verify", "derived N chord
+Every generated track logs a conversion note ("phrase-aware; verify", "derived N chord
 spans") so the guesses stay observable in the import log.
 
 # Startup restore

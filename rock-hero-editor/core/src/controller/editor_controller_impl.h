@@ -753,7 +753,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     };
     std::optional<ChartFretEntry> m_chart_fret_entry{};
 
-    // Monotonic millisecond clock for the fret-entry coalescing window (\ref onChartFretDigitTyped),
+    // Monotonic millisecond clock for the fret-entry coalescing window (onChartFretDigitTyped),
     // injected via Services so the window is testable without real elapsed time; resolved to the
     // wall clock in the constructor when the service is unset.
     std::function<std::uint32_t()> m_now_milliseconds;

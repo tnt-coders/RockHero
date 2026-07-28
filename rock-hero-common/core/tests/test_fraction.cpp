@@ -45,6 +45,24 @@ TEST_CASE("Fraction adds and subtracts exactly", "[core][fraction]")
     CHECK(sum.denominator == 2);
 }
 
+// Verifies multiplication stays exact, normalizes its result, and survives unreduced
+// intermediate products past int range (the global-beat terms GP import multiplies).
+TEST_CASE("Fraction multiplies exactly", "[core][fraction]")
+{
+    CHECK(Fraction{1, 2} * Fraction{2, 3} == Fraction{1, 3});
+    CHECK(Fraction{3} * Fraction{1, 32} == Fraction{3, 32});
+    CHECK(Fraction{-1, 4} * Fraction{2, 5} == Fraction{-1, 10});
+    CHECK(Fraction{5, 12} * Fraction{} == Fraction{});
+
+    // The unreduced numerator product (50000 * 50001) exceeds int range; the 64-bit
+    // intermediates keep the reduced result exact.
+    CHECK(Fraction{50000, 3} * Fraction{50001, 50000} == Fraction{16667});
+
+    const Fraction product = Fraction{2, 3} * Fraction{3, 4};
+    CHECK(product.numerator == 1);
+    CHECK(product.denominator == 2);
+}
+
 // Verifies ordering compares by value, not by stored fields.
 TEST_CASE("Fraction orders by value", "[core][fraction]")
 {

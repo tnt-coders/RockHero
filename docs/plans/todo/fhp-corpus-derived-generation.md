@@ -55,9 +55,9 @@ can grow the set through the existing converter pipeline.
    divergences.
 
 Until then, `generateFretHandPositions` stays the single authority and its conversion note
-("simple window walk; verify") keeps the guess observable in the import log.
+("phrase-aware; verify") keeps the guess observable in the import log.
 
-## Progress — 2026-07-28 (extraction + analysis done; phrase-aware candidate behind an A/B toggle)
+## Progress — 2026-07-28 (extraction + analysis done; phrase-aware generator shipped as sole)
 
 The extraction and analysis this plan sketches are done, against a much larger corpus than the 39
 `.rock` packages: **1306 acquired-ODLC archives → 4100 instrumental arrangements, 2.98M notes,
