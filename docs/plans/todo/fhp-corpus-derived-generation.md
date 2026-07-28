@@ -89,5 +89,12 @@ Because the fret-hand track no longer reaches the taps, the 3D-highway camera
 camera out as if the window reached it while the hand-window light stays on the left hand (this
 also fixes authored `.rock` charts, whose anchors already exclude taps).
 
-Still open for a follow-up: held-chord-under-tap should render as a held arpeggio shape (user
-decision 2026-07-28), and the deliberate ~16% readability shifts are not yet modeled.
+Shipped alongside the generator (2026-07-28): held-chord-under-tap renders as a held arpeggio
+(`chartShapeArrivesAsArpeggio`, a tapped note inside a shape span flips the box); tapped notes show
+their fret number beneath the head on the 3D highway (they land far above the scrolling floor
+numbers); and each pitched slide waypoint gets its own glow post, fret-span line, and fret number at
+its own slot and time, with no extra note head (the slide is one sounded note).
+
+Still open for a follow-up: the deliberate ~16% readability shifts (charter re-anchored though the
+old window still covered) are not yet modeled — the generator makes only forced and phrase-boundary
+moves.
