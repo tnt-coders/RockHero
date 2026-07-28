@@ -2064,31 +2064,6 @@ void HighwayRenderer::Impl::draw(
         head_vertices.clear();
         head_indices.clear();
     };
-    // Fret-number labels drawn after every note batch (so they read over the notes): tapped-note
-    // and slide-waypoint numbers. Accumulated here and submitted with the scrolling floor numbers.
-    std::vector<PosColorUvVertex> label_vertices;
-    std::vector<std::uint16_t> label_indices;
-    const auto push_fret_label = [&](const int label_fret,
-                                     const double center_x,
-                                     const double top_y,
-                                     const double label_z,
-                                     const std::uint32_t color) {
-        constexpr double glyph_height = 0.5;
-        const std::string label = std::to_string(label_fret);
-        const double text_width = glyph_height * 0.62 * static_cast<double>(label.size());
-        // top_y is the line just above the number; it hangs beneath (baseline = top_y - height).
-        (void)pushGlyphText(
-            label_vertices,
-            label_indices,
-            atlases.glyph_layout,
-            label,
-            center_x - (text_width / 2.0),
-            top_y - glyph_height,
-            label_z,
-            glyph_height,
-            color);
-    };
-
     std::size_t batched_group = chord_groups.size();
     // Lane-dominant bracket submission at NOTE granularity (user rule 2026-07-24, twice
     // refined: groups can hold lanes on both sides of a glyph, so group-level slotting let a
@@ -2510,9 +2485,10 @@ void HighwayRenderer::Impl::draw(
         };
 
         // A slide waypoint's board furniture: a glow post and fret-span line at its own slot and
-        // time, plus its fret number beneath — the intermediate targets the hand glides through.
-        // No note head: the slide is one sounded note, so only its picked head is drawn (user rule
-        // 2026-07-28). Waypoints stay on the note's string, so they share its lane and color.
+        // time — the intermediate targets the hand glides through. No note head: the slide is one
+        // sounded note, so only its picked head is drawn (user rule 2026-07-28). Waypoints stay on
+        // the note's string, so they share its lane and color. The fret number rides the board
+        // floor with the scrolling numbers, pushed in that pass below.
         const auto push_waypoint_marker = [&](const int wp_fret,
                                               const double wp_seconds,
                                               const double dim) {
@@ -2556,12 +2532,6 @@ void HighwayRenderer::Impl::draw(
                 wp_z - g_attack_line_half_length,
                 wp_z + g_attack_line_half_length,
                 packAbgr(g_chord_box_color, g_attack_line_alpha * fade * dim));
-            push_fret_label(
-                wp_fret,
-                wp_x,
-                head_y - head_half_h - 0.08,
-                wp_z,
-                packAbgr(g_fret_number_active_color, fade * dim));
         };
 
         if (note.fret == 0)
@@ -2874,21 +2844,9 @@ void HighwayRenderer::Impl::draw(
             }
         }
 
-        // Tapped notes show their fret number beneath the head: a tap lands far outside the hand
-        // window, where the scrolling floor numbers do not reach, so the tapping hand needs the
-        // fret marked on the note itself.
-        if (note.attack == common::core::NoteAttack::Tap)
-        {
-            push_fret_label(
-                note.fret,
-                x,
-                head_y - head_half_h - 0.08,
-                z,
-                packAbgr(g_fret_number_active_color, fade));
-        }
-
-        // Each pitched slide waypoint gets its own post, line, and fret number; an unpitched
-        // slide-out marker trails off with its dimmed alpha like the tail does.
+        // Each pitched slide waypoint gets its own post and line; an unpitched slide-out marker
+        // trails off with its dimmed alpha like the tail does. Waypoint and tapped-note fret
+        // numbers ride the board floor with the scrolling numbers, pushed in that pass below.
         for (const common::core::HighwaySlideView& waypoint : note.slides)
         {
             if (waypoint.fret > 0)
@@ -3008,6 +2966,34 @@ void HighwayRenderer::Impl::draw(
             push_number(fhp.fret, time_to_z(fhp.seconds), g_fret_number_fhp_color, true, 1.0);
         }
 
+        // Tapped notes and pitched slide-waypoint targets borrow the hand-position-arrival
+        // treatment (same orange, same floor slot, same fade): a tap lands far outside the hand
+        // window where the dotted-fret numbers dim, and a slide's intermediate targets have no
+        // anchor of their own. Unpitched trail-offs keep their post but get no number (user rule
+        // 2026-07-28) — their end fret is a gesture, not a target.
+        for (const common::core::HighwayNoteView& note : state.notes)
+        {
+            if (note.attack == common::core::NoteAttack::Tap && note.fret > 0 &&
+                note.start_seconds > now_seconds && note.start_seconds <= span_end_seconds)
+            {
+                push_number(
+                    note.fret, time_to_z(note.start_seconds), g_fret_number_fhp_color, true, 1.0);
+            }
+            for (const common::core::HighwaySlideView& waypoint : note.slides)
+            {
+                if (!waypoint.unpitched && waypoint.fret > 0 && waypoint.seconds > now_seconds &&
+                    waypoint.seconds <= span_end_seconds)
+                {
+                    push_number(
+                        waypoint.fret,
+                        time_to_z(waypoint.seconds),
+                        g_fret_number_fhp_color,
+                        true,
+                        1.0);
+                }
+            }
+        }
+
         // The current hand's numbers pinned at the hit line. Coverage fade (signed 2026-07-23):
         // every glyph stays at its own lane's fixed position and animates opacity only, fading
         // out as the sweeping border leaves its lane and in as the border reaches it.
@@ -3022,10 +3008,6 @@ void HighwayRenderer::Impl::draw(
 
         const bgfx::TextureHandle glyph_texture = atlases.glyphs.get();
         submitBatch(vertices, indices, posColorUvLayout(), glyph_program.get(), &glyph_texture);
-        // Tapped-note and slide-waypoint fret numbers, accumulated across the note loop, read over
-        // the notes just like the scrolling floor numbers and are occluded by the board face.
-        submitBatch(
-            label_vertices, label_indices, posColorUvLayout(), glyph_program.get(), &glyph_texture);
     }
 
     // --- Board face: dynamic fret lines with the reference's three states (inactive, active

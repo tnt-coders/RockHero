@@ -90,10 +90,12 @@ camera out as if the window reached it while the hand-window light stays on the 
 also fixes authored `.rock` charts, whose anchors already exclude taps).
 
 Shipped alongside the generator (2026-07-28): held-chord-under-tap renders as a held arpeggio
-(`chartShapeArrivesAsArpeggio`, a tapped note inside a shape span flips the box); tapped notes show
-their fret number beneath the head on the 3D highway (they land far above the scrolling floor
-numbers); and each pitched slide waypoint gets its own glow post, fret-span line, and fret number at
-its own slot and time, with no extra note head (the slide is one sounded note).
+(`chartShapeArrivesAsArpeggio`, a tapped note inside a shape span flips the box); each pitched
+slide waypoint gets its own glow post and fret-span line at its own slot and time, with no extra
+note head (the slide is one sounded note); and tapped notes and pitched slide waypoints get orange
+fret numbers riding the board floor with the scrolling numbers (the standard hand-position-arrival
+treatment — a tap lands where the dotted-fret numbers dim, and a slide's intermediate targets have
+no anchor of their own). Unpitched trail-offs keep their dimmed post but get no number.
 
 Still open for a follow-up: the deliberate ~16% readability shifts (charter re-anchored though the
 old window still covered) are not yet modeled — the generator makes only forced and phrase-boundary
