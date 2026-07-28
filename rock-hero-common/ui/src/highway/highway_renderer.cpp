@@ -78,6 +78,10 @@ constexpr double g_window_morph_dim = 0.95;
 // rule (user rule 2026-07-28, replacing a fixed wall-clock rise that read inconsistently) —
 // while the decay stays a short visual constant: the release is a gesture, not an arrival.
 constexpr double g_tap_light_decay_seconds = 0.1;
+// The lane-border ribbons release much more slowly than the floor light (user rule 2026-07-28:
+// per-tap ribbon flashing read as jarring in tap sections): the light pulses with each strike
+// while the brightened edges bridge the gaps of a dense run, fading only once the run ends.
+constexpr double g_tap_ribbon_decay_seconds = 0.45;
 // The tap light leans the lit lane tint toward the FHP orange (the tap floor numbers' color)
 // so the tapping hand's light reads apart from the fretting hand's window at a glance.
 constexpr double g_tap_light_warm_mix = 0.3;
@@ -1245,9 +1249,9 @@ void HighwayRenderer::Impl::draw(
             const common::core::HighwayTapLightStation& front = tap.path.front();
             const common::core::HighwayTapLightStation& back = tap.path.back();
             // Ramps vary per onset, so this cannot early-break on ascending onsets; the
-            // per-tap skip is a cheap POD compare.
+            // per-tap skip is a cheap POD compare. The ribbons use their own slower decay.
             if (front.seconds - tap.ramp_seconds > now_seconds ||
-                back.seconds + g_tap_light_decay_seconds < now_seconds)
+                back.seconds + g_tap_ribbon_decay_seconds < now_seconds)
             {
                 continue;
             }
@@ -1260,7 +1264,7 @@ void HighwayRenderer::Impl::draw(
             }
             else if (now_seconds > back.seconds)
             {
-                envelope = 1.0 - ((now_seconds - back.seconds) / g_tap_light_decay_seconds);
+                envelope = 1.0 - ((now_seconds - back.seconds) / g_tap_ribbon_decay_seconds);
                 low = back.fret_low;
                 high = back.fret_high;
             }
