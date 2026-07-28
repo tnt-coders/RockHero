@@ -76,13 +76,13 @@ local-only and never enters git. Key findings:
   anchor up to the tap. 7.3% of taps have a held chord (a sustained hand-shape) underneath.
 - Baseline greedy vs authored: **exact anchor-fret agreement 58.8%, within-1 90.6%**.
 
-A corpus-derived **phrase-aware generator** was implemented as a candidate: exclude taps from
-coverage, re-anchor low at section + rest (>= 0.8s) boundaries, move minimally within a segment.
-Ported back to the corpus it scores **exact 72.5%, within-1 89.4% at the authored churn (13.2)** —
-meeting this plan's acceptance bar (beats agreement without exceeding churn). It ships behind a
-**temporary A/B switch** (`usePhraseAwareFhp()` in `gp_chart_builder.cpp`, default on) so the two
-placements can be compared in the editor; the loser and the switch are deleted once one is chosen,
-and the spec in `docs/developer/the-project-lifecycle.md` is re-aligned to the winner.
+A corpus-derived **phrase-aware generator** was implemented: exclude taps from coverage, re-anchor
+low at section + rest (>= 0.8s) boundaries, move minimally within a segment. Ported back to the
+corpus it scores **exact 72.5%, within-1 89.4% at the authored churn (13.2)** — meeting this plan's
+acceptance bar (beats agreement without exceeding churn). It shipped first behind a temporary A/B
+switch for editor comparison; the review picked it, so **the greedy walk and the switch were
+removed 2026-07-28** and this is now the sole `generateFretHandPositions`, with the spec re-aligned
+in "GP chart normalization policy" (rules 5–9) in `docs/developer/the-project-lifecycle.md`.
 
 Because the fret-hand track no longer reaches the taps, the 3D-highway camera
 (`makeHighwayCameraTarget`) now also frames any fretted note in its scan window, so a tap zooms the
