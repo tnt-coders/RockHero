@@ -196,18 +196,22 @@ struct HighwayMetrics
 };
 
 /*!
-\brief Returns the world X of a fret line.
+\brief Returns the world X of a fret-line coordinate.
 
-Fret 0 (the nut) sits at x = 0. With the equal-width default each fret adds first_fret_distance;
-a taper multiplier below 1.0 shrinks successive frets geometrically. The lefty mirror reflects
-the fret axis through the nut, as pure math the renderer never sees.
+Fret 0 (the nut) sits at x = 0. At the equal-width default each fret line adds
+first_fret_distance linearly; a taper multiplier below 1.0 shrinks successive frets
+geometrically (the continuous geometric series). Integer coordinates are the fixed fret lines;
+fractional values sit between them — used by the sliding hand window, whose edges travel between
+the fixed lines. The lefty mirror reflects the fret axis through the nut, as pure math the
+renderer never sees. Integer call sites convert to double and get the identical value.
 
-\param fret Zero-based fret line (0 is the nut).
+\param fret Fret-line coordinate; fractional values sit between the integer lines.
 \param metrics World-space constants.
 \param mirrored True to reflect the fret axis for left-handed display.
-\return World X of the fret line.
+\return World X of the fret-line coordinate.
 */
-[[nodiscard]] inline double highwayFretLineX(int fret, const HighwayMetrics& metrics, bool mirrored)
+[[nodiscard]] inline double highwayFretLineX(
+    double fret, const HighwayMetrics& metrics, bool mirrored)
 {
     const double multiplier = metrics.fret_length_multiplier;
     double x = 0.0;
@@ -216,41 +220,11 @@ the fret axis through the nut, as pure math the renderer never sees.
     // satisfied that the exactness is intended.
     if (std::is_eq(multiplier <=> 1.0))
     {
-        x = static_cast<double>(fret) * metrics.first_fret_distance;
-    }
-    else
-    {
-        // Geometric series: widths d, d*m, d*m^2, ... summed up to the requested fret line.
-        x = metrics.first_fret_distance * (1.0 - std::pow(multiplier, fret)) / (1.0 - multiplier);
-    }
-    return mirrored ? -x : x;
-}
-
-/*!
-\brief Returns the world X of a fractional fret-line coordinate.
-
-The continuous extension of the integer overload — linear per fret at the equal-width default,
-the geometric series' continuous form under a taper — matching it exactly at integer inputs.
-Used by the sliding hand window, whose edges travel between the fixed fret lines.
-
-\param fret Fret-line coordinate; fractional values sit between the integer lines.
-\param metrics World-space constants.
-\param mirrored True to reflect the fret axis for left-handed display.
-\return World X of the fractional line coordinate.
-*/
-[[nodiscard]] inline double highwayFretLineX(
-    double fret, const HighwayMetrics& metrics, bool mirrored)
-{
-    const double multiplier = metrics.fret_length_multiplier;
-    double x = 0.0;
-    // Exact comparison for the same reason as the integer overload: only exactly 1.0 may take
-    // the linear branch.
-    if (std::is_eq(multiplier <=> 1.0))
-    {
         x = fret * metrics.first_fret_distance;
     }
     else
     {
+        // Geometric series: widths d, d*m, d*m^2, ... summed up to the requested fret line.
         x = metrics.first_fret_distance * (1.0 - std::pow(multiplier, fret)) / (1.0 - multiplier);
     }
     return mirrored ? -x : x;

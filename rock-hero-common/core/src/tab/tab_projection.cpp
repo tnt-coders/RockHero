@@ -10,18 +10,6 @@
 namespace rock_hero::common::core
 {
 
-namespace
-{
-
-// Converts a chart grid position onto the tempo map's fractional global beat axis.
-[[nodiscard]] double globalBeatPosition(const TempoMap& tempo_map, const GridPosition& position)
-{
-    return static_cast<double>(tempo_map.globalBeatIndex(position.measure, position.beat)) +
-           position.offset.toDouble();
-}
-
-} // namespace
-
 TabViewState makeTabViewState(const Arrangement& arrangement, const TempoMap& tempo_map)
 {
     TabViewState state;

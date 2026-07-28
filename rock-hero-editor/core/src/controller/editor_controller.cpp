@@ -1780,9 +1780,10 @@ void EditorController::Impl::armChartCaret(common::core::GridPosition position, 
 }
 
 // Plants a note at an empty slot, makes it the selection, and arms the caret on it — the mouse
-// form of the Insert verb (§9b) behind Alt+click neutral-create. planInsertNote refuses an
-// occupied slot, so an Alt+click onto a note is a silent no-op. The insert is one undo entry; a
-// following retype (the note lands selected) is its own — "place, then correct the value".
+// form of the Insert verb (§9b) behind Alt+click neutral-create. The caller guarantees the slot
+// is empty (planInsertNote would otherwise REPLACE the occupant with this fret-0 note). The
+// insert is one undo entry; a following retype (the note lands selected) is its own — "place,
+// then correct the value".
 void EditorController::Impl::insertChartNoteAt(
     common::core::GridPosition position, int string, int fret)
 {
@@ -2286,12 +2287,15 @@ void EditorController::Impl::onChartPointerUp(const ChartPointerEvent& event)
     }
 
     // Empty release: Alt plants a fret-0 note here and selects it for an immediate retype (the
-    // neutral-create verb's mouse form, §9b — the chart sibling of the lane's on-curve Alt+click);
-    // a plain release arms the caret at the snapped slot — with play-from-the-marker this IS the
-    // seek, the selection clearing via the caret's re-derivation.
+    // neutral-create verb's mouse form, §9b — the chart sibling of the lane's on-curve Alt+click),
+    // but only on an EMPTY slot: planInsertNote replaces an occupant, so an Alt+click onto an
+    // existing note would clobber it to fret 0. On an occupied slot Alt falls through to arming
+    // the caret (selecting that note), matching the insert ghost's occupancy gate — no lying
+    // affordance (§7). A plain release always arms the caret at the snapped slot — with
+    // play-from-the-marker this IS the seek, the selection clearing via the caret's re-derivation.
     if (const auto placement = chartPlacementAt(event); placement.has_value())
     {
-        if (gesture.modifiers.alt)
+        if (gesture.modifiers.alt && !chartSlotOccupied(placement->first, placement->second))
         {
             insertChartNoteAt(placement->first, placement->second, 0);
         }
@@ -3426,6 +3430,15 @@ void EditorController::Impl::applyUndoTransitionBehindBusy(
         if (!m_busy.isCurrentToken(token))
         {
             abortUndoTransition(pending, EditorUndoFailureCode::PreflightRejected);
+            return;
+        }
+
+        // The token guard above only catches a token CHANGE. A same-token reset could clear the
+        // pending transition during the presentation yield, and applying a transition the history
+        // no longer holds would work a released edit — so re-check the history itself.
+        if (!m_undo_history.hasPendingTransition())
+        {
+            updateView();
             return;
         }
 

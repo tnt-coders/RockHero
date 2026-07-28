@@ -41,6 +41,24 @@ of a beat in x/4, half a beat in x/8.
 }
 
 /*!
+\brief Converts a grid position onto the tempo map's fractional global-beat axis.
+
+The whole-beat index of the position's (measure, beat) plus its sub-beat offset. This is the one
+GridPosition-to-beat contract the 2D tab and 3D highway projections both resolve seconds through,
+so defining it once keeps their timing from silently diverging.
+
+\param tempo_map Tempo map supplying the global-beat index.
+\param position Grid position to convert.
+\return The position on the fractional global-beat axis.
+*/
+[[nodiscard]] inline double globalBeatPosition(
+    const TempoMap& tempo_map, const GridPosition& position)
+{
+    return static_cast<double>(tempo_map.globalBeatIndex(position.measure, position.beat)) +
+           position.offset.toDouble();
+}
+
+/*!
 \brief Advances a grid position by an exact number of beats.
 
 Whole beats carry across beat and measure boundaries through the tempo map's time-signature

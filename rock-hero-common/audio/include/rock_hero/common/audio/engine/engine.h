@@ -399,11 +399,6 @@ public:
         const LiveRigCaptureRequest& request) override;
 
     /*!
-    \brief Writes a fresh empty tone document into the song workspace.
-    \param song_directory Native song workspace directory that owns package-relative tone files.
-    \return The new tone's package-relative document reference, or a typed failure.
-    */
-    /*!
     \brief Appends an empty passthrough branch for a tone to the loaded multi-tone rack.
     \param tone_document_ref Tone the new branch represents.
     \return Empty success, or a typed failure when no rig is loaded or wiring fails.
@@ -411,6 +406,11 @@ public:
     [[nodiscard]] std::expected<void, LiveRigError> addEmptyToneBranch(
         const std::string& tone_document_ref) override;
 
+    /*!
+    \brief Writes a fresh empty tone document into the song workspace.
+    \param song_directory Native song workspace directory that owns package-relative tone files.
+    \return The new tone's package-relative document reference, or a typed failure.
+    */
     [[nodiscard]] std::expected<std::string, LiveRigError> mintEmptyTone(
         const std::filesystem::path& song_directory) override;
 

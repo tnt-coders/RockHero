@@ -90,8 +90,8 @@ struct [[nodiscard]] RenderDeviceError
 /*! \brief Everything \ref RenderDevice::create needs to bring bgfx up. */
 struct RenderDeviceConfig
 {
-    /*! \brief Backend to initialize. */
-    RenderBackend backend = RenderBackend::Direct3D11;
+    /*! \brief Backend to initialize; the platform default unless a caller overrides it. */
+    RenderBackend backend = defaultRenderBackend();
 
     /*! \brief Native window handle to render into; null only for the Noop backend. */
     void* native_window_handle = nullptr;

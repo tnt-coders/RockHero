@@ -212,7 +212,7 @@ std::expected<void, GameSettingsError> GameSettings::setProfileDisplayName(
         }};
     }
 
-    m_properties.setValue(g_profile_display_name_key, juce::String{display_name.c_str()});
+    m_properties.setValue(g_profile_display_name_key, juce::String::fromUTF8(display_name.c_str()));
     return saveIfNeeded(m_properties, "Could not save profile display name.");
 }
 

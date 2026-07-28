@@ -21,6 +21,9 @@ namespace rock_hero::common::audio
 [[nodiscard]] std::string normalizedPathKey(const std::filesystem::path& path)
 {
     std::string key = pathToUtf8String(path.lexically_normal());
+    // Windows filesystems are case-insensitive, so path keys must case-fold to dedupe paths that
+    // differ only in case; POSIX is case-sensitive, where folding would wrongly merge distinct
+    // files — so no OS-agnostic form exists and the guard is confined to this one seam.
 #if defined(_WIN32)
     std::ranges::transform(key, key.begin(), [](const unsigned char character) {
         return static_cast<char>(std::tolower(character));

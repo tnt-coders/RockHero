@@ -97,6 +97,40 @@ constexpr int g_right_pin{2};
            addStereoConnection(rack, upstream, downstream);
 }
 
+// Removes a just-created rack from the persistent edit unless the build commits. Tracktion's
+// addNewRack inserts the rack into the edit immediately, so any failure mid-assembly would
+// otherwise orphan a half-built rack in the persistent graph; the caller adopts the rack only on
+// success, so aborted teardown never reaches it.
+class RackRemovalGuard
+{
+public:
+    RackRemovalGuard(tracktion::Edit& edit, tracktion::RackType::Ptr rack) noexcept
+        : m_edit{edit}
+        , m_rack{std::move(rack)}
+    {}
+    RackRemovalGuard(const RackRemovalGuard&) = delete;
+    RackRemovalGuard& operator=(const RackRemovalGuard&) = delete;
+    RackRemovalGuard(RackRemovalGuard&&) = delete;
+    RackRemovalGuard& operator=(RackRemovalGuard&&) = delete;
+
+    ~RackRemovalGuard()
+    {
+        if (m_rack != nullptr)
+        {
+            m_edit.getRackList().removeRackType(m_rack);
+        }
+    }
+
+    void commit() noexcept
+    {
+        m_rack = nullptr;
+    }
+
+private:
+    tracktion::Edit& m_edit;
+    tracktion::RackType::Ptr m_rack;
+};
+
 } // namespace
 
 std::expected<ToneRack, LiveRigError> buildToneRack(
@@ -111,6 +145,9 @@ std::expected<ToneRack, LiveRigError> buildToneRack(
         }};
     }
     rack_type->rackName = "Rock Hero Tones";
+    // Any failure below leaves the rack orphaned in the edit; the guard removes it unless the
+    // fully-wired rack reaches the commit just before the successful return.
+    RackRemovalGuard rack_guard{edit, rack_type};
 
     ToneRack tone_rack{.rack_type = rack_type, .branches = {}};
     tone_rack.branches.reserve(requests.size());
@@ -186,6 +223,7 @@ std::expected<ToneRack, LiveRigError> buildToneRack(
             });
     }
 
+    rack_guard.commit();
     return tone_rack;
 }
 

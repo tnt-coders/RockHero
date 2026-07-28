@@ -832,6 +832,11 @@ struct HighwayRenderer::Impl
     // Fretboard skin (one cell per fret); invalid when the asset is missing (plain board).
     UniqueBgfxHandle<bgfx::TextureHandle> inlay_texture;
 
+    // Decoded inlay dimensions, for the half-texel UV inset that keeps interior fret cells from
+    // bleeding into each other under minification.
+    int inlay_texture_width{0};
+    int inlay_texture_height{0};
+
     // Fingering panel texture (barre shapes + finger names); invalid skips the panel.
     UniqueBgfxHandle<bgfx::TextureHandle> fingering_texture;
 
@@ -958,8 +963,12 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
         "u_window_light_params", bgfx::UniformType::Vec4)};
 
     impl->atlases = makeHighwayAtlases(textures.note_atlas_png);
-    impl->inlay_texture = uploadPngTexture(textures.inlay_atlas_png);
-    impl->fingering_texture = uploadPngTexture(textures.fingering_png);
+    UploadedTexture inlay = uploadPngTexture(textures.inlay_atlas_png);
+    impl->inlay_texture_width = inlay.width;
+    impl->inlay_texture_height = inlay.height;
+    impl->inlay_texture = std::move(inlay.handle);
+    UploadedTexture fingering = uploadPngTexture(textures.fingering_png);
+    impl->fingering_texture = std::move(fingering.handle);
     if (!impl->atlases.reference_cells || !impl->inlay_texture.isValid() ||
         !impl->fingering_texture.isValid())
     {
@@ -3004,6 +3013,15 @@ void HighwayRenderer::Impl::draw(
         std::vector<std::uint16_t> indices;
         constexpr int g_inlay_columns = 8;
         constexpr int g_inlay_rows = 4;
+        // Half-texel inset so a cell samples strictly inside its own texels; the inlay PNG is not
+        // square, so u and v inset by different amounts. Zero dimensions (decode failed) fall back
+        // to no inset.
+        const float half_texel_u =
+            inlay_texture_width > 0 ? 0.5F / static_cast<float>(inlay_texture_width) : 0.0F;
+        const float half_texel_v =
+            inlay_texture_height > 0 ? 0.5F / static_cast<float>(inlay_texture_height) : 0.0F;
+        const float cell_u = 1.0F / g_inlay_columns;
+        const float cell_v = 1.0F / g_inlay_rows;
         for (int fret = 1; fret <= g_face_fret_count; ++fret)
         {
             const int cell = fret - 1;
@@ -3011,10 +3029,10 @@ void HighwayRenderer::Impl::draw(
             // float expressions on purpose.
             const int cell_column = cell % g_inlay_columns;
             const int cell_row = cell / g_inlay_columns;
-            const float u0 = static_cast<float>(cell_column) / g_inlay_columns;
-            const float v0 = static_cast<float>(cell_row) / g_inlay_rows;
-            const float u1 = u0 + (1.0F / g_inlay_columns);
-            const float v1 = v0 + (1.0F / g_inlay_rows);
+            const float u0 = (static_cast<float>(cell_column) * cell_u) + half_texel_u;
+            const float v0 = (static_cast<float>(cell_row) * cell_v) + half_texel_v;
+            const float u1 = (static_cast<float>(cell_column + 1) * cell_u) - half_texel_u;
+            const float v1 = (static_cast<float>(cell_row + 1) * cell_v) - half_texel_v;
             const double low_x = common::core::highwayFretLineX(fret - 1, metrics, mirrored);
             const double high_x = common::core::highwayFretLineX(fret, metrics, mirrored);
             const auto [x0, x1] = std::minmax(low_x, high_x);

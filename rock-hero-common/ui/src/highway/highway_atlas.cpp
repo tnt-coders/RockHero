@@ -123,7 +123,7 @@ std::optional<int> highwayGlyphCellIndex(const char character) noexcept
     return character - g_first_glyph;
 }
 
-UniqueBgfxHandle<bgfx::TextureHandle> uploadPngTexture(const std::span<const std::byte> png_bytes)
+UploadedTexture uploadPngTexture(const std::span<const std::byte> png_bytes)
 {
     if (png_bytes.empty())
     {
@@ -137,7 +137,11 @@ UniqueBgfxHandle<bgfx::TextureHandle> uploadPngTexture(const std::span<const std
     }
     // Normalize to ARGB so RGB-only PNGs (the reference note atlas) gain the opaque alpha the
     // BGRA8 upload expects.
-    return uploadAtlas(decoded.convertedToFormat(juce::Image::ARGB));
+    return UploadedTexture{
+        .handle = uploadAtlas(decoded.convertedToFormat(juce::Image::ARGB)),
+        .width = decoded.getWidth(),
+        .height = decoded.getHeight(),
+    };
 }
 
 HighwayAtlases makeHighwayAtlases(const std::span<const std::byte> note_atlas_png)

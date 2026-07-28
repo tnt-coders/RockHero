@@ -318,6 +318,11 @@ private:
     // and yields before beginning the next plugin step.
     void executePluginStep();
 
+    // Records the current plugin as missing and yields to the next step, shared by the two
+    // missing-plugin branches of executePluginStep (uninstalled, or present but failing to load).
+    void skipMissingPluginAndContinue(
+        const std::string& display_name, const std::string& tone_document_ref);
+
     // Assembles the multi-tone rack from the loaded chains, places its instance on the track,
     // applies the audible tone, and delivers the audible tone's chain to the caller.
     void finalizeLiveRigLoad();

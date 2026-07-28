@@ -1657,12 +1657,18 @@ std::optional<EditorController::Impl::LanePointPlan> EditorController::Impl::pla
     {
         return std::nullopt;
     }
-    plan.value = toneAutomationCurveValueAt(
-        plan.points,
-        session().song().tempo_map,
-        caret.position,
+    // Snap the on-curve landing to a real discrete state so every creation path (keyboard Insert,
+    // mouse Alt-insert, create-and-nudge) plants a legal value on a stepped parameter; snapping is
+    // a no-op for continuous parameters.
+    plan.value = snappedLaneValue(
+        toneAutomationCurveValueAt(
+            plan.points,
+            session().song().tempo_map,
+            caret.position,
+            plan.is_discrete,
+            fallback.value_or(0.0F)),
         plan.is_discrete,
-        fallback.value_or(0.0F));
+        plan.discrete_value_count);
     return plan;
 }
 
@@ -1693,6 +1699,14 @@ void EditorController::Impl::plantLanePoint(
             .param_id = row.param_id,
             .position = position,
         });
+    // Re-point the armed caret to the planted slot so a nudged create keeps the marker on its new
+    // point — the marker rides created points as it does moved ones (moveSelectedAutomationPoint /
+    // moveChartSelection). plantLanePoint only runs from a lane-armed caret, so the marker holds a
+    // caret; preserving its string and lane, only the position moves.
+    if (auto* const caret = std::get_if<ChartCaret>(&m_chart_marker))
+    {
+        caret->position = position;
+    }
     updateView();
 }
 

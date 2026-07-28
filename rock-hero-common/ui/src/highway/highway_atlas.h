@@ -154,12 +154,30 @@ via the shell's declaration order).
 [[nodiscard]] HighwayAtlases makeHighwayAtlases(std::span<const std::byte> note_atlas_png);
 
 /*!
+\brief An uploaded texture paired with the pixel dimensions it decoded at.
+
+Callers that address the texture by sub-cell (an atlas grid) need the dimensions to inset UVs by
+a half texel, which stops neighboring cells bleeding into each other under minification.
+*/
+struct UploadedTexture
+{
+    /*! \brief The uploaded texture, or an invalid handle when decoding failed. */
+    UniqueBgfxHandle<bgfx::TextureHandle> handle;
+
+    /*! \brief Decoded width in texels; zero when decoding failed. */
+    int width{0};
+
+    /*! \brief Decoded height in texels; zero when decoding failed. */
+    int height{0};
+};
+
+/*!
 \brief Decodes a PNG and uploads it as an immutable BGRA8 bgfx texture.
 
 \param png_bytes PNG file contents.
-\return The uploaded texture, or an invalid handle when decoding fails.
+\return The uploaded texture and its decoded dimensions, or an invalid handle with zero
+        dimensions when decoding fails.
 */
-[[nodiscard]] UniqueBgfxHandle<bgfx::TextureHandle> uploadPngTexture(
-    std::span<const std::byte> png_bytes);
+[[nodiscard]] UploadedTexture uploadPngTexture(std::span<const std::byte> png_bytes);
 
 } // namespace rock_hero::common::ui
