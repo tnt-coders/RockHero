@@ -2064,6 +2064,31 @@ void HighwayRenderer::Impl::draw(
         head_vertices.clear();
         head_indices.clear();
     };
+    // Fret-number labels drawn after every note batch (so they read over the notes): tapped-note
+    // and slide-waypoint numbers. Accumulated here and submitted with the scrolling floor numbers.
+    std::vector<PosColorUvVertex> label_vertices;
+    std::vector<std::uint16_t> label_indices;
+    const auto push_fret_label = [&](const int label_fret,
+                                     const double center_x,
+                                     const double top_y,
+                                     const double label_z,
+                                     const std::uint32_t color) {
+        constexpr double glyph_height = 0.5;
+        const std::string label = std::to_string(label_fret);
+        const double text_width = glyph_height * 0.62 * static_cast<double>(label.size());
+        // top_y is the line just above the number; it hangs beneath (baseline = top_y - height).
+        (void)pushGlyphText(
+            label_vertices,
+            label_indices,
+            atlases.glyph_layout,
+            label,
+            center_x - (text_width / 2.0),
+            top_y - glyph_height,
+            label_z,
+            glyph_height,
+            color);
+    };
+
     std::size_t batched_group = chord_groups.size();
     // Lane-dominant bracket submission at NOTE granularity (user rule 2026-07-24, twice
     // refined: groups can hold lanes on both sides of a glyph, so group-level slotting let a
@@ -2484,6 +2509,61 @@ void HighwayRenderer::Impl::draw(
                 packAbgr(g_beat_bar_color, 0.0));
         };
 
+        // A slide waypoint's board furniture: a glow post and fret-span line at its own slot and
+        // time, plus its fret number beneath — the intermediate targets the hand glides through.
+        // No note head: the slide is one sounded note, so only its picked head is drawn (user rule
+        // 2026-07-28). Waypoints stay on the note's string, so they share its lane and color.
+        const auto push_waypoint_marker = [&](const int wp_fret,
+                                              const double wp_seconds,
+                                              const double dim) {
+            const double wp_x = common::core::highwayNoteCenterX(wp_fret, metrics, mirrored);
+            const double wp_z = time_to_z(wp_seconds);
+            const double floor_alpha = fade * dim * g_shadow_post_floor_alpha;
+            const std::uint32_t floor_edge = packAbgr(base_color, floor_alpha);
+            const std::uint32_t clear = packAbgr(base_color, 0.0);
+            pushRibbonSegment(
+                shadow_vertices,
+                shadow_indices,
+                wp_x - post_half_width,
+                wp_x - (post_half_width / 2.0),
+                wp_x + (post_half_width / 2.0),
+                wp_x + post_half_width,
+                RibbonEnd{
+                    .x_offset = 0.0,
+                    .y = 0.0,
+                    .z = wp_z,
+                    .edge_abgr = floor_edge,
+                    .inner_abgr = packAbgr(base_color, g_tail_inner_alpha * floor_alpha),
+                    .outer_abgr = floor_edge,
+                },
+                RibbonEnd{
+                    .x_offset = 0.0,
+                    .y = post_top_y,
+                    .z = wp_z,
+                    .edge_abgr = clear,
+                    .inner_abgr = clear,
+                    .outer_abgr = clear,
+                });
+            const double slot_low = common::core::highwayFretLineX(wp_fret - 1, metrics, mirrored);
+            const double slot_high = common::core::highwayFretLineX(wp_fret, metrics, mirrored);
+            const auto [span_x0, span_x1] = std::minmax(slot_low, slot_high);
+            pushFloorQuad(
+                shadow_vertices,
+                shadow_indices,
+                span_x0,
+                span_x1,
+                0.02,
+                wp_z - g_attack_line_half_length,
+                wp_z + g_attack_line_half_length,
+                packAbgr(g_chord_box_color, g_attack_line_alpha * fade * dim));
+            push_fret_label(
+                wp_fret,
+                wp_x,
+                head_y - head_half_h - 0.08,
+                wp_z,
+                packAbgr(g_fret_number_active_color, fade * dim));
+        };
+
         if (note.fret == 0)
         {
             // Open string: the reference's thin rounded bar spanning the active hand window, in
@@ -2793,6 +2873,32 @@ void HighwayRenderer::Impl::draw(
                 push_marker(x, head_y, z, 1.0, 0.0, g_head_cell_pull_off, tint);
             }
         }
+
+        // Tapped notes show their fret number beneath the head: a tap lands far outside the hand
+        // window, where the scrolling floor numbers do not reach, so the tapping hand needs the
+        // fret marked on the note itself.
+        if (note.attack == common::core::NoteAttack::Tap)
+        {
+            push_fret_label(
+                note.fret,
+                x,
+                head_y - head_half_h - 0.08,
+                z,
+                packAbgr(g_fret_number_active_color, fade));
+        }
+
+        // Each pitched slide waypoint gets its own post, line, and fret number; an unpitched
+        // slide-out marker trails off with its dimmed alpha like the tail does.
+        for (const common::core::HighwaySlideView& waypoint : note.slides)
+        {
+            if (waypoint.fret > 0)
+            {
+                push_waypoint_marker(
+                    waypoint.fret,
+                    waypoint.seconds,
+                    waypoint.unpitched ? g_unpitched_slide_end_alpha : 1.0);
+            }
+        }
     }
 
     flush_note_batches();
@@ -2916,6 +3022,10 @@ void HighwayRenderer::Impl::draw(
 
         const bgfx::TextureHandle glyph_texture = atlases.glyphs.get();
         submitBatch(vertices, indices, posColorUvLayout(), glyph_program.get(), &glyph_texture);
+        // Tapped-note and slide-waypoint fret numbers, accumulated across the note loop, read over
+        // the notes just like the scrolling floor numbers and are occluded by the board face.
+        submitBatch(
+            label_vertices, label_indices, posColorUvLayout(), glyph_program.get(), &glyph_texture);
     }
 
     // --- Board face: dynamic fret lines with the reference's three states (inactive, active
