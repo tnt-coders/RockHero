@@ -245,13 +245,14 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     REQUIRE(chart.notes.size() == 5);
 
     // Quarter palm mute on the low string. Its notated one-beat tail trims to 3/4 against the
-    // next onset one beat later (minimum-sustain-distance margin 1/4 in 4/4) and then drops as a
-    // sub-beat effect-free sustain — the import sustain policy.
+    // next onset one beat later (minimum-sustain-distance margin 1/4 in 4/4) and KEEPS that
+    // trimmed tail: the drop rule reads the notated length, and a full beat notated is a
+    // deliberate sustain (user rule 2026-07-28).
     CHECK(chart.notes[0].position == GridPosition{.measure = 1, .beat = 1});
     CHECK(chart.notes[0].string == 1);
     CHECK(chart.notes[0].fret == 3);
     CHECK(chart.notes[0].mute == common::core::NoteMute::Palm);
-    CHECK(chart.notes[0].sustain == Fraction{});
+    CHECK(chart.notes[0].sustain == Fraction{3, 4});
 
     // Hammer-on destination that shift-slides into the next note: an ordinary pitched waypoint
     // glides to the fret-7 landing, ending the minimum sustain distance (1/16 whole note — a
@@ -1221,8 +1222,8 @@ TEST_CASE("Guitar Pro import places grace notes against their principal", "[core
         CHECK(chart.notes[2].position.offset == Fraction{});
         // The grace lead sounds inside the fret-5 note's notated tail, but a fabricated onset
         // cannot make that ring a deliberate hold: the tail trims against the grace's sounding
-        // beat and then drops as effect-free, exactly as it would without the ornament.
-        CHECK(chart.notes[0].sustain == Fraction{});
+        // beat (7/8 minus the 1/4 margin) and, notated a full beat, keeps the trimmed tail.
+        CHECK(chart.notes[0].sustain == Fraction{5, 8});
     }
 
     SECTION("a hold notated across voices stays a hold with a grace inside it")
@@ -1244,11 +1245,12 @@ TEST_CASE("Guitar Pro import places grace notes against their principal", "[core
         REQUIRE(chart.notes.size() == 4);
         // The half note rings strictly past the second voice's NOTATED beat-2 onset, so the
         // deliberate cross-voice hold survives even though the grace's fabricated onset sounds
-        // earlier inside it; the fret-5 quarter under the same grace trims and drops as usual.
+        // earlier inside it; the fret-5 quarter under the same grace trims against the grace's
+        // sounding beat and, notated a full beat, keeps the trimmed tail.
         CHECK(chart.notes[0].fret == 3);
         CHECK(chart.notes[0].sustain == Fraction{2});
         CHECK(chart.notes[1].fret == 5);
-        CHECK(chart.notes[1].sustain == Fraction{});
+        CHECK(chart.notes[1].sustain == Fraction{5, 8});
     }
 
     SECTION("an on-beat grace takes the beat and delays the principal")
@@ -1609,8 +1611,9 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         CHECK(chart.notes[1].sustain == Fraction{5, 4});
         // The moved head sounds inside the fret-3 note's notated tail, but a fabricated onset
         // cannot make that ring a deliberate hold: the tail trims against the head's sounding
-        // beat (same string — the old ring overlapped the ramp) and drops as effect-free.
-        CHECK(chart.notes[0].sustain == Fraction{});
+        // beat at 3/4 (same string — the old ring overlapped the ramp) and, notated a full
+        // beat, keeps the trimmed tail.
+        CHECK(chart.notes[0].sustain == Fraction{1, 2});
     }
 
     SECTION("a slide-in into a held landing keeps the hold")
@@ -1640,8 +1643,8 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         CHECK(chart.notes[1].slides[0].fret == 8);
         CHECK(chart.notes[1].sustain == Fraction{1, 2});
         // The fret-3 tail trims against the moved head's sounding beat rather than ringing
-        // through it as a fabricated hold.
-        CHECK(chart.notes[0].sustain == Fraction{});
+        // through it as a fabricated hold, and — notated a full beat — keeps the trimmed tail.
+        CHECK(chart.notes[0].sustain == Fraction{1, 2});
     }
 
     SECTION("a still hand falls back to two frets in the flag's direction")

@@ -658,9 +658,12 @@ struct BuiltNote
 //    derived from the notated pre-trim ends and already runs through every restrike.
 // 2. Trimming never clips a bend or slide payload: the tail floors at the last payload offset,
 //    so a slide still reaches its target note (exact adjacency stays legal per 40-Q2-B).
-// 3. After trimming, a note with no sustain-carried technique whose tail is shorter than one
-//    beat loses the tail entirely: Guitar Pro gives every note its full notated duration, and a
-//    sub-beat effect-free tail reads as noise in a chart rather than as a deliberate sustain.
+// 3. A note with no sustain-carried technique NOTATED shorter than one beat loses its tail
+//    entirely after trimming: Guitar Pro gives every note its full notated duration, and a
+//    sub-beat effect-free ring reads as noise in a chart rather than as a deliberate sustain.
+//    The comparison reads the notated length, not the trimmed one (user rule 2026-07-28): a
+//    note held a full beat or longer in the source keeps its tail even though the margin
+//    leaves it slightly shorter than the beat.
 //
 // The rules are import normalization only — the editor never rewrites spacing the user authored.
 void normalizeImportedSustains(
@@ -682,6 +685,10 @@ void normalizeImportedSustains(
         for (std::size_t index = group_begin; index < group_end; ++index)
         {
             ChartNote& note = built[index].note;
+            // The drop rule reads the NOTATED length, captured before the trim (user rule
+            // 2026-07-28): a note held a full beat or longer in the source keeps its trimmed
+            // tail even though the margin leaves it slightly shorter than the beat.
+            const Fraction notated_sustain = note.sustain;
             // The next binding onset (rule 1): the first later event whose NOTATED beat differs
             // from this note's — notationally simultaneous events (chord members, a strum's own
             // grace-shifted notes) never bind. The tail keeps the margin before the binding
@@ -764,7 +771,7 @@ void normalizeImportedSustains(
                 }
             }
             if (note.sustain.numerator > 0 && !hasSustainTechnique(note) &&
-                note.sustain < Fraction{1})
+                notated_sustain < Fraction{1})
             {
                 note.sustain = Fraction{};
                 ++dropped;

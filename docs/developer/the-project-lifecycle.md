@@ -112,11 +112,14 @@ sustains):
    from the notated duration, not a musical event, so it trims back with the tail and respects
    the margin — flooring only where the trimmed end would stop being strictly positive and
    strictly after the last waypoint, where it keeps its end (the protected-adjacency fallback).
-3. **Drop short effect-free tails.** After trimming, a note that carries no sustain technique
-   (bend, slide, vibrato, tremolo) and whose tail is now shorter than one beat loses the tail
-   entirely. Order matters: a chugged riff of notated one-beat notes trims to 3/4 and then
-   drops, yielding plain notes. Vibrato and tremolo protect a tail from *dropping* but not from
-   *trimming* — in dense passages such a tail can shrink to nothing.
+3. **Drop short effect-free tails.** A note that carries no sustain technique (bend, slide,
+   vibrato, tremolo) and is *notated* shorter than one beat loses its tail entirely after
+   trimming. The comparison reads the notated length, not the trimmed one (user rule
+   2026-07-28, superseding the post-trim comparison): a note held a full beat or longer in the
+   source keeps its trimmed tail even though the margin leaves it slightly shorter than the
+   beat — a chugged riff of notated one-beat notes now keeps its 3/4 tails, while a run of
+   shorter notes still renders as plain heads. Vibrato and tremolo protect a tail from
+   *dropping* but not from *trimming* — in dense passages such a tail can shrink to nothing.
 4. **"One beat" is one signature beat** — a quarter note in x/4, an eighth in x/8 — matching the
    chart model's own sustain unit.
 
