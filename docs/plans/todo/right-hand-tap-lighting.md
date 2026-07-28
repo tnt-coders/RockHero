@@ -1,8 +1,10 @@
 # Right-Hand Tap Lighting and Tapped Chord Boxes
 
-Status: deferred plan, designed 2026-07-28 (user + assistant design discussion), not started.
-Re-verify the projection and renderer entry points named below against the current code before
-implementing.
+Status: SHIPPED 2026-07-28 (same day as the design). `HighwayTapOnsetView` +
+`makeHighwayTapOnsets` in `highway_view_state.h` (filled by `makeHighwayViewState`, tested in
+`test_highway_projection.cpp`); the tapping-hand light pass and tapped chord boxes in
+`highway_renderer.cpp` (envelope/tint constants `g_tap_light_*`, eyeball-tunable). Plain chord
+boxes now count only non-tap members. The open questions below remain open.
 
 ## Problem
 

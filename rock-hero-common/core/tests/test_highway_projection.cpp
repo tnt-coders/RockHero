@@ -444,4 +444,41 @@ TEST_CASE("Highway display hold ends span-extend sustainless strums", "[core][hi
     CHECK(prefix_max[7] == Catch::Approx(8.0));
 }
 
+// Tapping-hand onsets (right-hand-tap-lighting plan): one derived entry per onset group that
+// contains tapped notes, carrying the taps' fret extent and count. Non-tap notes sharing the
+// onset contribute nothing, tap-free onsets derive no entry, and simultaneity follows the
+// shared onset epsilon.
+TEST_CASE("Highway tap onsets derive from tapped notes only", "[core][highway]")
+{
+    std::vector<HighwayNoteView> notes;
+    const auto add_note = [&notes](double start, int fret, NoteAttack attack = NoteAttack::Pick) {
+        HighwayNoteView note;
+        note.start_seconds = start;
+        note.end_seconds = start;
+        note.fret = fret;
+        note.attack = attack;
+        notes.push_back(std::move(note));
+    };
+    add_note(0.0, 3);                   // Plain fretted onset: no entry.
+    add_note(1.0, 12, NoteAttack::Tap); // Lone tap.
+    add_note(2.0, 5); // Fretted note under a simultaneous tap: only the tap counts.
+    add_note(2.0, 14, NoteAttack::Tap);
+    add_note(3.0, 15, NoteAttack::Tap); // Tapped chord within the onset epsilon.
+    add_note(3.00005, 12, NoteAttack::Tap);
+    add_note(3.00005, 17, NoteAttack::Tap);
+    add_note(4.0, 9, NoteAttack::Hammer); // Left-hand tap imports as Hammer: no entry.
+
+    const std::vector<HighwayTapOnsetView> onsets = makeHighwayTapOnsets(notes);
+    REQUIRE(onsets.size() == 3);
+    CHECK(
+        onsets[0] ==
+        HighwayTapOnsetView{.seconds = 1.0, .fret_low = 12, .fret_high = 12, .count = 1});
+    CHECK(
+        onsets[1] ==
+        HighwayTapOnsetView{.seconds = 2.0, .fret_low = 14, .fret_high = 14, .count = 1});
+    CHECK(
+        onsets[2] ==
+        HighwayTapOnsetView{.seconds = 3.0, .fret_low = 12, .fret_high = 17, .count = 3});
+}
+
 } // namespace rock_hero::common::core

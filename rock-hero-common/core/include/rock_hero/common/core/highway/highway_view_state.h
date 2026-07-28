@@ -207,6 +207,31 @@ struct HighwayShapeView
     friend bool operator==(const HighwayShapeView& lhs, const HighwayShapeView& rhs) = default;
 };
 
+/*! \brief One tapping-hand onset (a lone tap or a tapped chord) derived from the notes. */
+struct HighwayTapOnsetView
+{
+    /*! \brief Absolute onset position shared by the simultaneous taps. */
+    double seconds{0.0};
+
+    /*! \brief Lowest tapped fret at this onset. */
+    int fret_low{0};
+
+    /*! \brief Highest tapped fret at this onset. */
+    int fret_high{0};
+
+    /*! \brief Number of simultaneous taps; two or more render the tapped chord box. */
+    int count{0};
+
+    /*!
+    \brief Compares two tap-onset views by their stored fields.
+    \param lhs Left-hand view.
+    \param rhs Right-hand view.
+    \return True when both views store equal values.
+    */
+    friend constexpr bool operator==(
+        const HighwayTapOnsetView& lhs, const HighwayTapOnsetView& rhs) noexcept = default;
+};
+
 /*! \brief One fret-hand position marker resolved to a timeline second. */
 struct HighwayFhpView
 {
@@ -297,6 +322,14 @@ struct HighwayViewState
 
     /*! \brief Hand-posture spans in ascending start order. */
     std::vector<HighwayShapeView> shapes;
+
+    /*!
+    \brief Tapping-hand onsets in ascending order, derived from the notes' Tap attacks.
+
+    Right-hand presentation is derived, never authored (the right-hand-tap-lighting plan): these
+    feed the per-tap light envelopes and the tapped chord boxes, and carry no user-editable data.
+    */
+    std::vector<HighwayTapOnsetView> tap_onsets;
 
     /*! \brief Fret-hand position markers in ascending order. */
     std::vector<HighwayFhpView> fret_hand_positions;
@@ -402,6 +435,53 @@ land a rounding epsilon apart; without this tolerance a chord sitting exactly on
 start or end would intermittently fall outside the span.
 */
 inline constexpr double g_highway_onset_match_epsilon = 1.0e-4;
+
+/*!
+\brief Derives the tapping-hand onsets: one entry per onset group containing tapped notes.
+
+Right-hand presentation is derived, never authored (the right-hand-tap-lighting plan): each
+entry carries the fret extent and count of the taps struck together at that onset, feeding the
+per-tap light envelopes and, for two or more simultaneous taps, the tapped chord box. Non-tap
+notes sharing the onset contribute nothing — the taps are the other hand. A fretless tap cannot
+be played (tapping frets the string by definition), so fret-zero notes are skipped and a
+malformed chart can never place a light off the board.
+
+\param notes Seconds-resolved notes sorted by start time.
+\return Tap onsets in ascending time order.
+*/
+[[nodiscard]] inline std::vector<HighwayTapOnsetView> makeHighwayTapOnsets(
+    const std::vector<HighwayNoteView>& notes)
+{
+    std::vector<HighwayTapOnsetView> onsets;
+    for (std::size_t index = 0; index < notes.size();)
+    {
+        const double onset = notes[index].start_seconds;
+        std::size_t group_end = index + 1;
+        while (group_end < notes.size() &&
+               std::abs(notes[group_end].start_seconds - onset) < g_highway_onset_match_epsilon)
+        {
+            ++group_end;
+        }
+        HighwayTapOnsetView view{.seconds = onset};
+        for (std::size_t member = index; member < group_end; ++member)
+        {
+            const HighwayNoteView& note = notes[member];
+            if (note.attack != NoteAttack::Tap || note.fret <= 0)
+            {
+                continue;
+            }
+            view.fret_low = view.count == 0 ? note.fret : std::min(view.fret_low, note.fret);
+            view.fret_high = std::max(view.fret_high, note.fret);
+            ++view.count;
+        }
+        if (view.count > 0)
+        {
+            onsets.push_back(view);
+        }
+        index = group_end;
+    }
+    return onsets;
+}
 
 /*!
 \brief Resolves each note's display hold end: the sustain end, span-extended for chord strums.

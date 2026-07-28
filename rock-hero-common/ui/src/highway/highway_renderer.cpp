@@ -69,6 +69,16 @@ constexpr double g_window_light_falloff = 0.55;
 // (tuned on sight 0.6 -> 0.85 -> 0.95, 2026-07-23; the sin-squared bell keeps the overall feel
 // gentler than the old full-length plateau even at this depth).
 constexpr double g_window_morph_dim = 0.95;
+// Tapping-hand light envelope (right-hand-tap-lighting plan): each tap onset lights its own
+// tapped fret lanes along the timeline, rising over the approach side of the tap and decaying
+// after it, so the light dips between consecutive taps exactly as the finger lifts (user rule
+// 2026-07-28 — deliberately per-onset, never merged into runs). Rise leads longer than decay
+// for read-ahead; both eyeball-tuned like the window light's constants.
+constexpr double g_tap_light_rise_seconds = 0.35;
+constexpr double g_tap_light_decay_seconds = 0.2;
+// The tap light leans the lit lane tint toward the FHP orange (the tap floor numbers' color)
+// so the tapping hand's light reads apart from the fretting hand's window at a glance.
+constexpr double g_tap_light_warm_mix = 0.3;
 constexpr ArgbColor g_lane_border_color = 0x0007928F; // per-fret runway ribbons (alpha varies)
 constexpr ArgbColor g_fret_inactive_color = 0xFF202020;
 constexpr ArgbColor g_fret_active_color = 0xFFC0C0C0;
@@ -1341,6 +1351,112 @@ void HighwayRenderer::Impl::draw(
         submitBatch(vertices, indices, posColorUvLayout(), window_light_program.get(), nullptr);
     }
 
+    // --- Tapping-hand light: one patch per tap onset over its own tapped fret lanes, alpha
+    // rising toward the tap along the approach side and decaying after it (the
+    // right-hand-tap-lighting plan). Patches are deliberately per-onset, never merged into
+    // runs: the dip between consecutive taps mirrors the finger lifting (user rule
+    // 2026-07-28). Consecutive same-lane patches simply alpha-compose where their envelopes
+    // overlap, which shallows the dip toward continuous light only at densities where the
+    // hand genuinely never leaves the board. Reuses the window light's per-fragment soft x
+    // edges; the tint leans toward the FHP orange so the two hands' lights read apart. ---
+    {
+        const std::array<float, 4> light_params{
+            static_cast<float>(g_window_light_falloff), 0.0F, 0.0F, 0.0F
+        };
+        bgfx::setUniform(window_light_params.get(), light_params.data());
+        std::vector<PosColorUvVertex> vertices;
+        std::vector<std::uint16_t> indices;
+        const double spill = g_window_light_falloff / 2.0;
+        for (const common::core::HighwayTapOnsetView& tap : state.tap_onsets)
+        {
+            if (tap.seconds + g_tap_light_decay_seconds < span_start_seconds)
+            {
+                continue;
+            }
+            if (tap.seconds - g_tap_light_rise_seconds > span_end_seconds)
+            {
+                break; // onsets ascend, so nothing later reaches the visible span
+            }
+            const double patch_low =
+                common::core::highwayFretLineX(tap.fret_low - 1, metrics, mirrored);
+            const double patch_high =
+                common::core::highwayFretLineX(tap.fret_high, metrics, mirrored);
+            const double low_x = std::min(patch_low, patch_high);
+            const double high_x = std::max(patch_low, patch_high);
+            // Envelope stations along the timeline: silent at the rise start, full at the tap,
+            // silent again after the decay — each segment clipped to the board's visible span
+            // with its endpoint alpha interpolated, so a patch never floats past a board edge.
+            const std::array<std::pair<double, double>, 3> stations{
+                std::pair{tap.seconds - g_tap_light_rise_seconds, 0.0},
+                std::pair{tap.seconds, 1.0},
+                std::pair{tap.seconds + g_tap_light_decay_seconds, 0.0},
+            };
+            for (std::size_t segment = 0; segment + 1 < stations.size(); ++segment)
+            {
+                double time_a = stations[segment].first;
+                double alpha_a = stations[segment].second;
+                double time_b = stations[segment + 1].first;
+                double alpha_b = stations[segment + 1].second;
+                if (time_b <= span_start_seconds || time_a >= span_end_seconds)
+                {
+                    continue;
+                }
+                const auto alpha_at = [&](const double seconds) {
+                    return alpha_a + ((alpha_b - alpha_a) * (seconds - time_a) / (time_b - time_a));
+                };
+                if (time_a < span_start_seconds)
+                {
+                    alpha_a = alpha_at(span_start_seconds);
+                    time_a = span_start_seconds;
+                }
+                if (time_b > span_end_seconds)
+                {
+                    alpha_b = alpha_at(span_end_seconds);
+                    time_b = span_end_seconds;
+                }
+                const double za = time_to_z(time_a);
+                const double zb = time_to_z(time_b);
+                for (int fret = tap.fret_low; fret <= tap.fret_high; ++fret)
+                {
+                    const double lane_low =
+                        common::core::highwayFretLineX(fret - 1, metrics, mirrored);
+                    const double lane_high =
+                        common::core::highwayFretLineX(fret, metrics, mirrored);
+                    const auto [lane_x0, lane_x1] = std::minmax(lane_low, lane_high);
+                    // Warm the hue only: the mix target takes the lane's own alpha so the tap
+                    // light keeps the window light's base opacity (mixArgb blends all four
+                    // channels, and the FHP orange is opaque).
+                    const ArgbColor base =
+                        isDottedFret(fret) ? g_lit_lane_dotted_color : g_lit_lane_color;
+                    const ArgbColor lane_color = mixArgb(
+                        base,
+                        (base & 0xFF000000U) | (g_fret_number_fhp_color & 0x00FFFFFFU),
+                        g_tap_light_warm_mix);
+                    const auto vertex =
+                        [&](const double x, const double z, const std::uint32_t tint) {
+                            return makeUvVertex(
+                                x,
+                                0.008,
+                                z,
+                                tint,
+                                static_cast<float>((x - low_x) + spill),
+                                static_cast<float>((high_x - x) + spill));
+                        };
+                    const std::uint32_t tint_a = packAbgr(lane_color, alpha_a);
+                    const std::uint32_t tint_b = packAbgr(lane_color, alpha_b);
+                    pushQuad(
+                        vertices,
+                        indices,
+                        vertex(lane_x0, za, tint_a),
+                        vertex(lane_x1, za, tint_a),
+                        vertex(lane_x1, zb, tint_b),
+                        vertex(lane_x0, zb, tint_b));
+                }
+            }
+        }
+        submitBatch(vertices, indices, posColorUvLayout(), window_light_program.get(), nullptr);
+    }
+
     // --- Beat and measure bars: the reference's gradient wings in its deep blue, clipped to
     // each beat's hand window. Measures get a sharp teal attack line on the downbeat with a
     // brief blue fade trailing into the measure; plain beats are two wings meeting at the
@@ -1540,6 +1656,10 @@ void HighwayRenderer::Impl::draw(
         double start_seconds;
         std::size_t first;
         std::size_t count;
+        // Members that are not tapped: only these decide the PLAIN chord box (user rule
+        // 2026-07-28 — taps are the other hand; a fretted note under a simultaneous tap is a
+        // single note, and a tapped dyad gets the tapped box from the tap onsets instead).
+        std::size_t non_tap_count;
         bool any_accent;
         common::core::NoteMute common_mute;
         // True when every note is fully muted (a dead chug restating the preceding chord hides
@@ -1569,6 +1689,7 @@ void HighwayRenderer::Impl::draw(
             .start_seconds = state.notes[index].start_seconds,
             .first = index,
             .count = group_end - index,
+            .non_tap_count = 0,
             .any_accent = false,
             .common_mute = state.notes[index].mute,
             .all_full_muted = true,
@@ -1580,6 +1701,10 @@ void HighwayRenderer::Impl::draw(
         for (std::size_t member = index; member < group_end; ++member)
         {
             const common::core::HighwayNoteView& note = state.notes[member];
+            if (note.attack != common::core::NoteAttack::Tap)
+            {
+                ++group.non_tap_count;
+            }
             group.any_accent = group.any_accent || note.accent;
             if (note.mute != group.common_mute)
             {
@@ -1883,6 +2008,9 @@ void HighwayRenderer::Impl::draw(
             bool any_accent;
             common::core::NoteMute mute;
             const common::core::HighwayShapeView* arpeggio_shape;
+            // A tapped chord box spans the taps' own fret extent instead of the fretting
+            // hand's window (right-hand-tap-lighting plan); null for left-hand boxes.
+            const common::core::HighwayTapOnsetView* tap;
         };
         std::vector<BoxDraw> boxes;
         for (const common::core::HighwayShapeView& shape : state.shapes)
@@ -1902,11 +2030,14 @@ void HighwayRenderer::Impl::draw(
                     .any_accent = false,
                     .mute = common::core::NoteMute::None,
                     .arpeggio_shape = &shape,
+                    .tap = nullptr,
                 });
         }
         for (const ChordGroup& group : chord_groups)
         {
-            if (group.count < 2 || group.start_seconds < now_seconds ||
+            // Only non-tap members earn the plain (fretting-hand) box: a fretted note under a
+            // simultaneous tap is a single note, and tapped chords get their own box below.
+            if (group.non_tap_count < 2 || group.start_seconds < now_seconds ||
                 group.start_seconds > span_end_seconds)
             {
                 continue;
@@ -1924,10 +2055,31 @@ void HighwayRenderer::Impl::draw(
                 BoxDraw{
                     .start_seconds = group.start_seconds,
                     .box_only = group.box_only,
-                    .with_top = group.count > 2,
+                    .with_top = group.non_tap_count > 2,
                     .any_accent = group.any_accent,
                     .mute = group.common_mute,
                     .arpeggio_shape = nullptr,
+                    .tap = nullptr,
+                });
+        }
+        // Tapped chord boxes (right-hand-tap-lighting plan): two or more taps struck together
+        // get their own box on the taps' fret extent — the tapping hand's counterpart of the
+        // strummed box. Derived per onset; no repeat-box chain (taps are percussive).
+        for (const common::core::HighwayTapOnsetView& tap : state.tap_onsets)
+        {
+            if (tap.count < 2 || tap.seconds < now_seconds || tap.seconds > span_end_seconds)
+            {
+                continue;
+            }
+            boxes.push_back(
+                BoxDraw{
+                    .start_seconds = tap.seconds,
+                    .box_only = false,
+                    .with_top = tap.count > 2,
+                    .any_accent = false,
+                    .mute = common::core::NoteMute::None,
+                    .arpeggio_shape = nullptr,
+                    .tap = &tap,
                 });
         }
         std::ranges::sort(boxes, [](const BoxDraw& lhs, const BoxDraw& rhs) {
@@ -1936,6 +2088,28 @@ void HighwayRenderer::Impl::draw(
 
         for (const BoxDraw& box : boxes)
         {
+            const double z = std::max(0.0, time_to_z(box.start_seconds));
+            if (box.tap != nullptr)
+            {
+                // A tapped box spans the taps' own fret slots — their derived right-hand
+                // window — not the fretting hand's.
+                const double tap_low =
+                    common::core::highwayFretLineX(box.tap->fret_low - 1, metrics, mirrored);
+                const double tap_high =
+                    common::core::highwayFretLineX(box.tap->fret_high, metrics, mirrored);
+                pushChordBoxPanel(
+                    box_vertices,
+                    box_indices,
+                    std::min(tap_low, tap_high),
+                    std::max(tap_low, tap_high),
+                    z,
+                    full_height_y1,
+                    box.box_only,
+                    box.with_top,
+                    box.any_accent,
+                    box.mute);
+                continue;
+            }
             // Display-time window (user catch 2026-07-23): an approaching box takes the window
             // at its own onset instant, and a box riding the hit line re-evaluates per frame, so
             // a held arpeggio slides along with the chord sliding under it instead of staying
@@ -1944,7 +2118,6 @@ void HighwayRenderer::Impl::draw(
             const common::core::HighwayHandWindow window =
                 common::core::highwayHandWindowAt(state.fret_hand_positions, window_seconds);
             const auto [x0, x1] = handWindowXAt(state, window_seconds, metrics, mirrored);
-            const double z = std::max(0.0, time_to_z(box.start_seconds));
             pushChordBoxPanel(
                 box_vertices,
                 box_indices,

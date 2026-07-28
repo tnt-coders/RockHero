@@ -113,6 +113,8 @@ HighwayViewState makeHighwayViewState(
         }
         state.notes.push_back(std::move(view));
     }
+    // Tapping-hand onsets derive purely from the resolved notes (right-hand tap lighting).
+    state.tap_onsets = makeHighwayTapOnsets(state.notes);
 
     state.shapes.reserve(chart.shapes.size());
     for (const ChartShape& shape : chart.shapes)
