@@ -56,6 +56,32 @@ TEST_CASE("Highway camera targets the scanned hand window", "[core][highway][cam
     CHECK(fallback.span == Catch::Approx(metrics.camera_reference_span));
 }
 
+// A fretted note outside the hand window — a two-hand tap floats far above the fretting hand,
+// which no longer anchors it — must still be framed: the camera span widens up to the tap even
+// though the hand window (and its light) stays low. Open strings and consumed notes never reframe.
+TEST_CASE("Highway camera frames taps above the hand window", "[core][highway][camera]")
+{
+    const HighwayMetrics metrics{};
+
+    HighwayViewState state = makeStateWithFhps({
+        HighwayFhpView{.seconds = 0.0, .fret = 5, .width = 4}, // hand window fret lines 4..8
+    });
+    // A tapped note at fret 15 arriving inside the scan horizon, with no hand position covering it.
+    state.notes.push_back(HighwayNoteView{.start_seconds = 1.5, .end_seconds = 1.5, .fret = 15});
+    // A note already consumed behind the hit line, and an open string, must not reframe.
+    state.notes.push_back(HighwayNoteView{.start_seconds = 0.0, .end_seconds = 0.1, .fret = 20});
+    state.notes.push_back(HighwayNoteView{.start_seconds = 1.4, .end_seconds = 1.4, .fret = 0});
+
+    const HighwayCameraTarget target = makeHighwayCameraTarget(state, 1.0, metrics);
+    // The range widens from the hand window (lines 4..8) up to the tap's fret line 15: span 11.
+    CHECK(target.span == Catch::Approx(11.0));
+
+    // The same hand window with no tap frames only itself (lines 4..8 = span 4).
+    const HighwayCameraTarget windowed = makeHighwayCameraTarget(
+        makeStateWithFhps({HighwayFhpView{.seconds = 0.0, .fret = 5, .width = 4}}), 1.0, metrics);
+    CHECK(windowed.span == Catch::Approx(4.0));
+}
+
 // Smoothing is frame-rate independent (two half steps equal one full step), converges toward a
 // fixed target, and the first advance snaps.
 TEST_CASE("Highway camera smoothing is frame-rate independent", "[core][highway][camera]")

@@ -56,3 +56,38 @@ can grow the set through the existing converter pipeline.
 
 Until then, `generateFretHandPositions` stays the single authority and its conversion note
 ("simple window walk; verify") keeps the guess observable in the import log.
+
+## Progress — 2026-07-28 (extraction + analysis done; phrase-aware candidate behind an A/B toggle)
+
+The extraction and analysis this plan sketches are done, against a much larger corpus than the 39
+`.rock` packages: **1306 acquired-ODLC archives → 4100 instrumental arrangements, 2.98M notes,
+393,822 authored anchors**, extracted to source arrangement chart and paired note-stream ↔ authored anchor.
+The extraction pipeline and the derived findings live in the local scratchpad only — the corpus is
+local-only and never enters git. Key findings:
+
+- The authored anchor window always covers its notes; width is 4 for 98% of anchors (5–6 only for
+  stretches), so the shipped width rule is already right.
+- Only **~35% of authored anchor moves are forced** (a note leaves the window). **~65% are
+  musical**: ~24% at section starts, ~25% after a rest/breath, ~16% deliberate readability shifts.
+  The greedy walk makes only the forced moves, so it under-churns (9.3 vs 13.2 authored anchors per
+  100 notes) and misses phrase repositioning.
+- **Two-hand taps sit a median seven frets above the anchor** (tap − anchor peaks at +7). The
+  anchor tracks the fretting/left hand; the tap floats above. The greedy walk wrongly drags the
+  anchor up to the tap. 7.3% of taps have a held chord (a sustained hand-shape) underneath.
+- Baseline greedy vs authored: **exact anchor-fret agreement 58.8%, within-1 90.6%**.
+
+A corpus-derived **phrase-aware generator** was implemented as a candidate: exclude taps from
+coverage, re-anchor low at section + rest (>= 0.8s) boundaries, move minimally within a segment.
+Ported back to the corpus it scores **exact 72.5%, within-1 89.4% at the authored churn (13.2)** —
+meeting this plan's acceptance bar (beats agreement without exceeding churn). It ships behind a
+**temporary A/B switch** (`usePhraseAwareFhp()` in `gp_chart_builder.cpp`, default on) so the two
+placements can be compared in the editor; the loser and the switch are deleted once one is chosen,
+and the spec in `docs/developer/the-project-lifecycle.md` is re-aligned to the winner.
+
+Because the fret-hand track no longer reaches the taps, the 3D-highway camera
+(`makeHighwayCameraTarget`) now also frames any fretted note in its scan window, so a tap zooms the
+camera out as if the window reached it while the hand-window light stays on the left hand (this
+also fixes authored `.rock` charts, whose anchors already exclude taps).
+
+Still open for a follow-up: held-chord-under-tap should render as a held arpeggio shape (user
+decision 2026-07-28), and the deliberate ~16% readability shifts are not yet modeled.

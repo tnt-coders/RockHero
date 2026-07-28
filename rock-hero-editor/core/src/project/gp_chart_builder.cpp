@@ -1047,6 +1047,183 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& g
     return positions;
 }
 
+// A silence long enough to read as a phrase break: the hand re-anchors across it. 0.8s is the
+// corpus sweet spot (source 4100-arrangement study, 2026-07-28) — it holds the authored move rate
+// (~13.2 anchors per 100 notes) while lifting exact anchor-fret agreement from 59% to 72%.
+constexpr double g_fhp_phrase_rest_seconds = 0.8;
+
+// ===========================================================================================
+// TEMPORARY A/B FRET-HAND-POSITION GENERATOR (2026-07-28) — see usePhraseAwareFhp() below.
+//
+// Corpus-derived replacement candidate for generateFretHandPositions, from the source study in
+// docs/plans/todo/fhp-corpus-derived-generation.md (4100 authored arrangements, 2.98M notes).
+// Two evidence-based changes over the greedy walk:
+//   1. A TAPPED note is NOT a coverage event. Two-hand taps sit a median seven frets above the
+//      fretting hand (tap - anchor peaks at +7), so the anchor tracks the fretted / left-hand
+//      notes and any held chord shape, and the tap floats above the window instead of dragging
+//      the anchor up to it — which the greedy walk does wrongly.
+//   2. The hand RE-ANCHORS at musical boundaries — section starts and rests >= 0.8s — biased to
+//      the phrase's floor fret, not only when a note falls outside the window. Only ~35% of
+//      authored anchor moves are forced; ~65% are section/rest/readability driven, which the
+//      greedy walk cannot make, so it under-moves (9.3 vs 13.2 authored anchors/100 notes).
+// Within a segment it still moves minimally when forced and drags with pitched slides, exactly
+// like the greedy walk. Measured against the corpus this lifts exact anchor-fret agreement from
+// 58.8% to 72.5% at the authored churn (within-1 89.4% vs 90.6%).
+//
+// This is a TEMPORARY A/B pair. Once the better placement is chosen in the editor, DELETE the
+// losing generator and the usePhraseAwareFhp() seam, and re-align the "GP chart normalization
+// policy" spec in docs/developer/the-project-lifecycle.md.
+// ===========================================================================================
+[[nodiscard]] std::vector<common::core::FretHandPosition> generatePhraseAwareFretHandPositions(
+    const std::vector<BuiltNote>& built, const common::core::TempoMap& tempo_map,
+    const std::vector<Fraction>& phrase_boundary_beats)
+{
+    struct CoverageEvent
+    {
+        Fraction global_beat{};
+        GridPosition position;
+        int min_fret{0};
+        int max_fret{0};
+        int shift{0};
+    };
+    std::vector<CoverageEvent> events;
+    std::size_t index = 0;
+    while (index < built.size())
+    {
+        CoverageEvent onset{
+            .global_beat = built[index].global_beat,
+            .position = built[index].note.position,
+        };
+        std::size_t onset_end = index;
+        while (onset_end < built.size() && built[onset_end].global_beat == built[index].global_beat)
+        {
+            const ChartNote& note = built[onset_end].note;
+            // Tap exclusion: a tapped note floats above the window and never anchors the hand.
+            if (note.attack != NoteAttack::Tap)
+            {
+                if (note.fret > 0)
+                {
+                    onset.min_fret =
+                        onset.min_fret == 0 ? note.fret : std::min(onset.min_fret, note.fret);
+                    onset.max_fret = std::max(onset.max_fret, note.fret);
+                }
+                int slide_source = note.fret;
+                for (const SlideWaypoint& waypoint : note.slides)
+                {
+                    if (waypoint.fret <= 0)
+                    {
+                        continue;
+                    }
+                    events.push_back(
+                        CoverageEvent{
+                            .global_beat =
+                                addFractions(built[onset_end].global_beat, waypoint.offset),
+                            .position = common::core::advanceGridPosition(
+                                tempo_map, note.position, waypoint.offset),
+                            .min_fret = waypoint.fret,
+                            .max_fret = waypoint.fret,
+                            .shift = slide_source > 0 ? waypoint.fret - slide_source : 0,
+                        });
+                    slide_source = waypoint.fret;
+                }
+            }
+            ++onset_end;
+        }
+        if (onset.min_fret > 0)
+        {
+            events.push_back(onset);
+        }
+        index = onset_end;
+    }
+
+    std::ranges::stable_sort(events, [](const CoverageEvent& lhs, const CoverageEvent& rhs) {
+        return lhs.global_beat < rhs.global_beat;
+    });
+    std::vector<CoverageEvent> merged;
+    for (const CoverageEvent& event : events)
+    {
+        if (!merged.empty() && merged.back().global_beat == event.global_beat)
+        {
+            merged.back().min_fret = std::min(merged.back().min_fret, event.min_fret);
+            merged.back().max_fret = std::max(merged.back().max_fret, event.max_fret);
+            if (merged.back().shift == 0)
+            {
+                merged.back().shift = event.shift;
+            }
+        }
+        else
+        {
+            merged.push_back(event);
+        }
+    }
+
+    std::vector<common::core::FretHandPosition> positions;
+    int anchor = 0;
+    int width = 4;
+    bool have_anchor = false;
+    double previous_seconds = 0.0;
+    Fraction previous_beat{};
+    std::size_t phrase_index = 0;
+    for (const CoverageEvent& event : merged)
+    {
+        const double seconds = tempo_map.secondsAtGlobalBeatPosition(event.global_beat.toDouble());
+        // A new segment begins at the first event, across a long rest, or at a section start that
+        // falls strictly after the previous event.
+        bool boundary = !have_anchor ||
+                        (have_anchor && seconds - previous_seconds >= g_fhp_phrase_rest_seconds);
+        while (phrase_index < phrase_boundary_beats.size() &&
+               phrase_boundary_beats[phrase_index] <= previous_beat)
+        {
+            ++phrase_index;
+        }
+        if (have_anchor && phrase_index < phrase_boundary_beats.size() &&
+            phrase_boundary_beats[phrase_index] <= event.global_beat)
+        {
+            boundary = true;
+        }
+        previous_seconds = seconds;
+        previous_beat = event.global_beat;
+
+        const bool reanchor = boundary || !have_anchor;
+        const bool covered = have_anchor && !reanchor && event.min_fret >= anchor &&
+                             event.max_fret <= anchor + width - 1;
+        if (event.shift == 0 && covered)
+        {
+            continue;
+        }
+        const int next_width = std::max(4, event.max_fret - event.min_fret + 1);
+        const int lowest_anchor = std::max(1, event.max_fret - next_width + 1);
+        // At a boundary the hand re-places biased to the phrase's floor (the lowest fretted note);
+        // otherwise it drags from the current anchor by the slide delta and clamps into range.
+        const int next_anchor =
+            reanchor ? std::clamp(event.min_fret, lowest_anchor, event.min_fret)
+                     : std::clamp(anchor + event.shift, lowest_anchor, event.min_fret);
+        if (have_anchor && next_anchor == anchor && next_width == width)
+        {
+            continue; // re-anchoring landed on the same window; nothing visible changed
+        }
+        positions.push_back(
+            common::core::FretHandPosition{
+                .position = event.position,
+                .fret = next_anchor,
+                .width = next_width,
+            });
+        anchor = next_anchor;
+        width = next_width;
+        have_anchor = true;
+    }
+    return positions;
+}
+
+// TEMPORARY A/B switch — true selects the corpus-derived phrase-aware generator, false the
+// original greedy window walk. A function (not a constexpr) so the untaken branch stays a real
+// call site and neither generator warns as unused. Flip the return to compare in the editor;
+// delete the loser and this seam once the review picks one (see the block above).
+[[nodiscard]] bool usePhraseAwareFhp() noexcept
+{
+    return true;
+}
+
 // Resolves bare slide-in flags (16 from below, 32 from above) into ordinary slides — no new
 // notation (user rule 2026-07-27): the note's head moves onto the lead at the derived start
 // fret, an ordinary pitched waypoint glides to the notated fret at the notated position, and
@@ -1182,7 +1359,7 @@ void resolveSlideIns(
 // slide-waypoint positions on the musical grid.
 [[nodiscard]] Chart buildChart(
     const GpTrack& track, const MeasureGrid& grid, const common::core::TempoMap& tempo_map,
-    std::vector<std::string>& notes)
+    const std::vector<Fraction>& phrase_boundary_beats, std::vector<std::string>& notes)
 {
     Chart chart;
     for (const int midi : track.tuning_midi)
@@ -1486,7 +1663,10 @@ void resolveSlideIns(
     // its notes into ordinary slides before normalization decides which tails a technique
     // protects: a slide-in into a held landing keeps its hold (user rule 2026-07-28), trimmed
     // like any tail but never dropped as effect-free.
-    chart.fret_hand_positions = generateFretHandPositions(built, tempo_map);
+    chart.fret_hand_positions =
+        usePhraseAwareFhp()
+            ? generatePhraseAwareFretHandPositions(built, tempo_map, phrase_boundary_beats)
+            : generateFretHandPositions(built, tempo_map);
     if (!chart.fret_hand_positions.empty())
     {
         notes.push_back(
@@ -1539,7 +1719,10 @@ std::expected<GpBuiltSong, SongImportError> buildGpSong(const GpScore& score)
     song.tempo_map = buildTempoMap(score, grid, song.notes);
 
     // Section markers live on the master bars shared by every track, so they build once at the
-    // song level rather than being duplicated into each track's chart.
+    // song level rather than being duplicated into each track's chart. Their global-beat positions
+    // double as phrase boundaries for the phrase-aware fret-hand generator (ascending by
+    // construction, since master bars are in order).
+    std::vector<Fraction> phrase_boundary_beats;
     for (std::size_t measure = 0; measure < score.master_bars.size(); ++measure)
     {
         if (!score.master_bars[measure].section.empty())
@@ -1549,6 +1732,7 @@ std::expected<GpBuiltSong, SongImportError> buildGpSong(const GpScore& score)
                     .position = GridPosition{.measure = static_cast<int>(measure) + 1, .beat = 1},
                     .name = score.master_bars[measure].section,
                 });
+            phrase_boundary_beats.push_back(Fraction{grid.first_global_beat[measure]});
         }
     }
 
@@ -1583,7 +1767,8 @@ std::expected<GpBuiltSong, SongImportError> buildGpSong(const GpScore& score)
         {
             seen_non_bass = true;
         }
-        arrangement.chart = buildChart(track, grid, song.tempo_map, song.notes);
+        arrangement.chart =
+            buildChart(track, grid, song.tempo_map, phrase_boundary_beats, song.notes);
 
         if (auto validation = common::core::validateChartRules(arrangement.chart, song.tempo_map);
             !validation.has_value())

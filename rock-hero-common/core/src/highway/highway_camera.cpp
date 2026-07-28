@@ -188,6 +188,26 @@ HighwayCameraTarget makeHighwayCameraTarget(
         }
     }
 
+    // A fretted note can sit outside the hand window: a two-hand tap floats far above the fretting
+    // hand, which no longer anchors it (taps are excluded from the fret-hand track, matching how
+    // charters place anchors). The window light stays on the left hand, but the camera still has to
+    // frame the tap, so any fretted note visible in the scan window widens the range as if the
+    // hand reached it. Open strings never reframe (played from anywhere, like the hand window they
+    // do not constrain), and consumed notes behind the hit line no longer matter.
+    for (const HighwayNoteView& note : state.notes)
+    {
+        if (note.start_seconds > horizon)
+        {
+            break; // notes ascend by onset, so nothing later is in the scan window
+        }
+        if (note.fret <= 0 || note.end_seconds < now_seconds)
+        {
+            continue;
+        }
+        low_line = std::min(low_line, note.fret - 1);
+        high_line = std::max(high_line, note.fret);
+    }
+
     const double middle_x = (highwayFretLineX(low_line, metrics, mirrored) +
                              highwayFretLineX(high_line, metrics, mirrored)) /
                             2.0;

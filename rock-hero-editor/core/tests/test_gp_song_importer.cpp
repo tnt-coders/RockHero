@@ -173,6 +173,30 @@ constexpr const char* g_fixture_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
     return g_missing_chart;
 }
 
+// Finds the generated fret-hand position at an exact grid position, or null. The slide tests use
+// this to assert the slide-driven hand move rather than the whole generated track, whose shape is
+// the FHP generator's own concern (currently an A/B toggle in gp_chart_builder.cpp).
+[[nodiscard]] const common::core::FretHandPosition* fretHandPositionAt(
+    const common::core::Chart& chart, const common::core::GridPosition& position)
+{
+    for (const common::core::FretHandPosition& fhp : chart.fret_hand_positions)
+    {
+        if (fhp.position == position)
+        {
+            return &fhp;
+        }
+    }
+    return nullptr;
+}
+
+// True when any generated fret-hand position sits at the given fret.
+[[nodiscard]] bool hasFretHandPositionAtFret(const common::core::Chart& chart, const int fret)
+{
+    return std::ranges::any_of(
+        chart.fret_hand_positions,
+        [fret](const common::core::FretHandPosition& fhp) { return fhp.fret == fret; });
+}
+
 } // namespace
 
 TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-import]")
@@ -269,29 +293,17 @@ TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-imp
     CHECK(chart.templates.empty());
     CHECK(chart.shapes.empty());
 
-    // The generated fret-hand track: fret 3 opens a 3-6 window; the five-to-seven shift glide
-    // drags the anchor by its own +2 delta to a 5-8 window at the pitched waypoint, the margin
-    // before the landing onset (rule 9), keeping the fretting finger on its window slot; fret
-    // 2 shifts minimally down to 2-5, and the final fret-3 bend note fits without another
-    // move.
-    REQUIRE(chart.fret_hand_positions.size() == 3);
-    CHECK(
-        chart.fret_hand_positions[0] ==
-        common::core::FretHandPosition{
-            .position = GridPosition{.measure = 1, .beat = 1}, .fret = 3, .width = 4
-        });
-    CHECK(
-        chart.fret_hand_positions[1] ==
-        common::core::FretHandPosition{
-            .position = GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 4}},
-            .fret = 5,
-            .width = 4
-        });
-    CHECK(
-        chart.fret_hand_positions[2] ==
-        common::core::FretHandPosition{
-            .position = GridPosition{.measure = 1, .beat = 3}, .fret = 2, .width = 4
-        });
+    // The generated fret-hand track opens on the fret-3 palm mute, then the five-to-seven shift
+    // glide drags the anchor up by its own +2 delta to a fret-5 window at the pitched waypoint
+    // (rule 9), keeping the fretting finger on its slot. (The full track shape is the FHP
+    // generator's own concern — an A/B toggle in gp_chart_builder.cpp — so this asserts the
+    // slide-driven move, not the whole sequence.)
+    CHECK(chart.fret_hand_positions.front().fret == 3);
+    const common::core::FretHandPosition* const shift_glide =
+        fretHandPositionAt(chart, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 4}});
+    REQUIRE(shift_glide != nullptr);
+    CHECK(shift_glide->fret == 5);
+    CHECK(shift_glide->width == 4);
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }
@@ -338,18 +350,14 @@ TEST_CASE("Guitar Pro import merges legato slide landings into the origin", "[co
     CHECK(origin.slides[0].fret == 7);
     CHECK_FALSE(origin.slide_out.has_value());
 
-    // With no landing onset, hand movement at fret 7 comes from the pitched waypoint alone:
-    // the glide drags the window up by its own +2 delta at the waypoint's mid-sustain position
-    // (normalization policy rule 9), yielding the same three-position track the shift-slide
-    // fixture produces.
-    REQUIRE(chart.fret_hand_positions.size() == 3);
-    CHECK(
-        chart.fret_hand_positions[1] ==
-        common::core::FretHandPosition{
-            .position = GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}},
-            .fret = 5,
-            .width = 4
-        });
+    // With no landing onset, hand movement at fret 7 comes from the pitched waypoint alone: the
+    // glide drags the window up by its own +2 delta at the waypoint's mid-sustain position
+    // (rule 9), landing a fret-5 window there.
+    const common::core::FretHandPosition* const legato_glide =
+        fretHandPositionAt(chart, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
+    REQUIRE(legato_glide != nullptr);
+    CHECK(legato_glide->fret == 5);
+    CHECK(legato_glide->width == 4);
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }
@@ -384,19 +392,15 @@ TEST_CASE("Guitar Pro import keeps the hand still through unpitched slides", "[c
     REQUIRE(slide_out != nullptr);
     CHECK(slide_out->fret == 1);
 
-    // Were the trail-off treated as a pitched glide, its fret-1 target would drag the window
-    // down mid-sustain; instead the track is the plain onset walk, with the fret-7 landing
-    // shifting the window minimally to 4-7.
-    REQUIRE(chart.fret_hand_positions.size() == 3);
-    CHECK(chart.fret_hand_positions[0].fret == 3);
-    CHECK(
-        chart.fret_hand_positions[1] ==
-        common::core::FretHandPosition{
-            .position = GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}},
-            .fret = 4,
-            .width = 4
-        });
-    CHECK(chart.fret_hand_positions[2].fret == 2);
+    // Were the trail-off treated as a pitched glide, its fret-1 target would drag a hand position
+    // down mid-sustain; instead it never repositions the hand (no fret-1 position), and the
+    // fret-7 landing shifts the window minimally to a fret-4 window at its onset.
+    CHECK(chart.fret_hand_positions.front().fret == 3);
+    CHECK_FALSE(hasFretHandPositionAtFret(chart, 1));
+    const common::core::FretHandPosition* const landing =
+        fretHandPositionAt(chart, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
+    REQUIRE(landing != nullptr);
+    CHECK(landing->fret == 4);
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }
@@ -432,17 +436,12 @@ TEST_CASE(
     CHECK(chart.notes[1].slides[0].fret == 6);
 
     // Minimal-shift coverage alone would leave the window at 3-6 through the glide; the slide
-    // delta moves it anyway, at the waypoint's mid-sustain position.
-    REQUIRE(chart.fret_hand_positions.size() == 3);
-    CHECK(chart.fret_hand_positions[0].fret == 3);
-    CHECK(
-        chart.fret_hand_positions[1] ==
-        common::core::FretHandPosition{
-            .position = GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 4}},
-            .fret = 4,
-            .width = 4
-        });
-    CHECK(chart.fret_hand_positions[2].fret == 2);
+    // delta moves it anyway, to a fret-4 window at the waypoint's mid-sustain position.
+    CHECK(chart.fret_hand_positions.front().fret == 3);
+    const common::core::FretHandPosition* const in_window_glide =
+        fretHandPositionAt(chart, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 4}});
+    REQUIRE(in_window_glide != nullptr);
+    CHECK(in_window_glide->fret == 4);
 
     std::filesystem::remove_all(scratch, cleanup_error);
 }
@@ -1439,6 +1438,38 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         CHECK(chart.notes[1].slides.back().fret == 7);
         CHECK(chart.notes[2].fret == 7);
         CHECK(chart.notes[2].slides.empty());
+    }
+}
+
+// The phrase-aware fret-hand generator (the current A/B default in gp_chart_builder.cpp) tracks
+// the LEFT hand: a tapped note floats above the window instead of dragging the anchor up to it,
+// matching how authored charts anchor two-hand tapping (the source corpus puts taps a median seven
+// frets above the anchor). Tied to the phrase-aware generator; if the greedy walk wins the A/B
+// review, this test and that generator are removed together.
+TEST_CASE("Guitar Pro import anchors the hand below tapped notes", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+
+    GpScore score = makeLinearScore(1, syncs);
+    GpBeat fretted = noteBeat(Fraction{1, 4}, 3);
+    GpBeat tap = noteBeat(Fraction{1, 4}, 15);
+    tap.notes[0].tapped = true;
+    GpBeat low = noteBeat(Fraction{1, 4}, 5);
+    score.tracks[0].bars.push_back(GpBar{.voices = {{fretted, tap, low}}});
+
+    const auto built = buildGpSong(score);
+    REQUIRE(built.has_value());
+    const common::core::Chart& chart = built->arrangements.front().chart;
+
+    // The tapped fret-15 note never anchors the hand: every generated position stays down where
+    // the fretted notes (3 and 5) are, none up in the tap's region — the greedy walk would have
+    // dragged the window all the way to fret 15.
+    REQUIRE_FALSE(chart.fret_hand_positions.empty());
+    for (const common::core::FretHandPosition& fhp : chart.fret_hand_positions)
+    {
+        CHECK(fhp.fret <= 5);
     }
 }
 
