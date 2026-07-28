@@ -38,6 +38,7 @@ Each layer has one job, and the boundaries are the reason the sharing works:
    ```cpp
    HighwayViewState makeHighwayViewState(const Arrangement& arrangement,
                                          const TempoMap& tempo_map,
+                                         const std::vector<SongSection>& sections,
                                          HighwayDisplayOptions options);
    ```
 
@@ -101,7 +102,19 @@ The lifecycle is the part worth understanding before touching it: **bgfx cannot 
 in the same process after shutdown**, so the device is created once on first open and deliberately
 survives window hides. Closing the preview only suspends the vblank ticks (`suspend()`); real
 teardown happens once, at destruction, in strict order — vblank, renderer (GPU handles), device
-(`bgfx::shutdown`), child window.
+(`bgfx::shutdown`), child window. The corollary bites the failure path: a renderer bring-up
+failure (a stale or partial shader deploy) must **not** tear the device down, or the next open
+re-enters bring-up and hits the `renderFrame`-before-`init` assert bgfx cannot survive. So
+`bringUpRenderer()` keeps the device and child window alive on failure — the preview shows the
+black fallback — and retries only the renderer on a later open, which never re-initializes bgfx.
+
+Per-frame song time comes from `PreviewTimeModel`
+(`rock-hero-editor/ui/src/preview/preview_time_model.{h,cpp}`), a small headless, injected-time
+policy `PreviewSurface` owns: plan-12 extrapolation while playing, an exponential glide toward the
+marker target (armed caret, else transport position) while paused, with a snap on first frame and
+on resume after a hidden gap. It is extracted from the vblank callback precisely so that timing
+policy is unit-tested (`test_preview_time_model.cpp`) rather than welded to the GPU frame path;
+edit preview timing there, not in `renderFrame`.
 
 State reaches the preview the same way the game gets it: editor core runs the *same*
 `makeHighwayViewState` projection (memoized per displayed arrangement in `editor_controller.cpp`)

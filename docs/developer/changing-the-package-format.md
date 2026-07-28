@@ -56,7 +56,11 @@ struct consumers. That is where compiler help ends; everything serialization-sha
 3. **Normalize it.** Save is publish: invariants normalize rather than reject
    (tone rules live in `core/src/tone/tone_track_normalize.cpp` and `tone_track_rules.cpp`; song
    and arrangement invariants in `core/src/song/`). A field without normalization rules is a
-   field whose illegal states get persisted.
+   field whose illegal states get persisted. Where a *structural* rule must hold on both ends,
+   put it in one shared validator in `rock_song_package_format.{h,cpp}` and call it from the
+   writer and the reader — that is what `validateTempoMap`, `validateToneTrack`, and
+   `validateToneAutomationEntries` do. A rule taught to only one path is exactly the drift this
+   checklist exists to prevent.
 4. **Version policy.** Decide whether old packages remain readable. There is no
    backward-compatibility obligation at this stage of the project — formats just change — but the
    *decision* must be deliberate, and the gate lives only in `song_document_json.cpp` (reader)
