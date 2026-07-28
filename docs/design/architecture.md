@@ -391,6 +391,8 @@ coupled to author in separate tools.
 
 Loads a `Song` and starts a playback session. Displays the note highway and scoring UX. Owns scoring logic — evaluates note hit/miss events against audio-derived timing. Treats the `Song` model as read-only during gameplay.
 
+Shipped game-side subsystems (in `rock-hero-game/core`) that this section's high-level framing predates: a **`GameplaySession`** orchestration state machine (Idle → Loading → PreparingRig → Ready → Playing → Paused → Finished/Failed) composed over the full audio port set; **scoring** primitives (`timing_window`, `score_math`, `scoring_ruleset`, `note_verdict`); the **detection event contract** for plan 22 (`OnsetEvent`, `PitchFrame`, `PitchConfirmation`, `PolyphonicSalience` in input-stream sample time — the vocabulary has landed even though the analysis thread that produces it has not); a **song library** (scan engine, index store, package describer, album art) with a **song-select menu**; plus the frame clock, diagnostics, and game settings. The pitch-detection and note-matching pipeline itself remains future work (plan 22/24).
+
 ---
 
 # Architecture Diagram
@@ -413,16 +415,18 @@ flowchart TB
     subgraph game["rock-hero"]
         direction TB
         game_window["`**Game Window** (SDL3 + bgfx)
-        3D note highway · score display
-        hit feedback/effects · fretboard view`"]
+        3D note highway · song-select menu
+        dev diagnostics overlay
+        (score UX / hit effects: planned)`"]
         game_audio["`**common/audio** (Tracktion Engine)
         backing audio lane · guitar FX lane
         transport + automation`"]
         game_core["`**common/core**
         Song / Arrangement + scoring logic`"]
         gameplay["`**Gameplay Systems**
-        pitch detection · note matching
-        latency calibration`"]
+        session · scoring · song library
+        detection contract (plan 22)
+        (pitch detection: planned)`"]
         game_window --> game_audio
         game_audio ~~~ game_core
         game_core ~~~ gameplay
@@ -537,9 +541,16 @@ Built with JUCE components — the same framework Waveform (the DAW built on Tra
 The editor (`rock-hero-editor`) consists of:
 
 - **Waveform display**: `juce::AudioThumbnail` showing the backing track with a playhead overlay.
+- **2D tab / chart view**: The grid-native tablature editing surface for authoring notes, sustains,
+  and hand-shape spans (`ui/src/tab`).
 - **Signal chain panel**: Bottom control area for loaded plugins, add/remove/reorder controls,
   and future routing edits.
+- **Tone track and tone-automation lanes**: The per-song tone timeline and its breakpoint
+  parameter-automation lanes (`ui/src/tone`).
 - **Automation area**: Shares the waveform's horizontal time axis and zoom/scroll state. Breakpoint envelopes control plugin parameters over the song's duration.
+- **3D highway preview**: An embedded bgfx-in-JUCE view of the shared note highway (see Game View).
+- **Input calibration, keybind configuration, and audio-device setup**: Supporting configuration
+  surfaces (`ui/src/input_calibration`, `ui/src/keybinds`, `ui/src/audio_device`).
 - **Transport controls**: Play, stop, seek.
 
 The waveform and automation area share a single zoom/scroll controller. Coordinate conversion from
@@ -573,7 +584,12 @@ JUCEApplication instance, WM_QUIT handling belongs to the game shell.
 
 The editor's 3D preview renders through bgfx into a native child window hosted inside a JUCE
 window (spike-proven), consuming the same headless highway scene model from
-`rock-hero-common/core`; bgfx never enters common's dependency surface.
+`rock-hero-common/core`; bgfx never enters common's dependency surface. Its per-frame song time
+comes from a headless `PreviewTimeModel` (plan-12 extrapolation while playing, an exponential
+glide toward the marker target while paused). Because bgfx cannot be re-initialized in-process
+after `shutdown()`, the preview initializes the device exactly once per editor process: a renderer
+bring-up failure keeps the device alive and retries the renderer on a later open rather than
+tearing bgfx down.
 
 ---
 
