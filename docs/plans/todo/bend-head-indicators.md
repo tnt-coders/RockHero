@@ -26,10 +26,10 @@ fallback, the same degradation policy as every other head cell. The sustain tail
 slope shading
 (`g_tail_slope_shade_*` in `highway_renderer.cpp`): per-vertex brightness follows the
 centerline's pitch slope — climbs brighten toward white, releases darken — so bend strength
-reads from the tail itself even at screen center, source-style. OPEN QUESTION (user, fifth pass):
-single chevron always vs. a stack showing the max bend over the duration — recommendation is
-single (stacks were already rejected as clutter, a max-stack misleads mid-compound-bend, and
-the tail now carries the amount).
+reads from the tail itself even at screen center, source-style. DECIDED (user, 2026-07-29):
+a single chevron always — stacks were already rejected as clutter, a max-stack misleads
+mid-compound-bend, and the tail carries the amount. Explicitly open to revisiting later if
+playtesting wants amount-at-a-glance on the head.
 
 Sixth pass on sight (2026-07-28): the chevron was re-baked flatter and wider (slope ~0.35 vs
 ~0.6, vertically centered in cell 11; fallback painter matched, and its miter-normal bug —
