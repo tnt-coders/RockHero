@@ -92,12 +92,14 @@ also fixes authored `.rock` charts, whose anchors already exclude taps).
 Shipped alongside the generator (2026-07-28): held-chord-under-tap renders as a held arpeggio
 (`chartShapeArrivesAsArpeggio`, a tapped note inside a shape span flips the box); each pitched
 slide waypoint gets its own glow post and fret-span line at its own slot and time, with no extra
-note head (the slide is one sounded note); and tapped notes and pitched slide waypoints get orange
-fret numbers riding the board floor with the scrolling numbers (the standard hand-position-arrival
-treatment — a tap lands where the dotted-fret numbers dim, and a slide's intermediate targets have
-no anchor of their own). Unpitched trail-offs get no board furniture at all — no post, line, or
-number, only the rail's own dimming — and their end offset now trims back with the sustain to the
-minimum-sustain-distance margin like any tail (normalization rule 2 carve-out).
+note head (the slide is one sounded note). Floor fret numbers settled on ONE rule (iterated to
+this by the user, 2026-07-28): an orange number marks a hand position being established — a
+fret-hand-placement arrival, or a new tap position (see the right-hand-tap-lighting plan) — and
+nothing else. Slide waypoints push no numbers of their own: a glide that moves the window
+carries a placement at its target (rule 9), which supplies the number, while tapped glides are
+carried by their morphing light. Unpitched trail-offs get no board furniture at all — no post,
+line, or number, only the rail's own dimming — and their end offset now trims back with the
+sustain to the minimum-sustain-distance margin like any tail (normalization rule 2 carve-out).
 
 Still open for a follow-up: the deliberate ~16% readability shifts (charter re-anchored though the
 old window still covered) are not yet modeled — the generator makes only forced and phrase-boundary

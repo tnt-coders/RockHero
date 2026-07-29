@@ -3324,30 +3324,13 @@ void HighwayRenderer::Impl::draw(
             previous_tap = &tap;
         }
 
-        // Pitched slide-waypoint targets borrow the hand-position-arrival treatment: a
-        // fretting-hand slide's intermediate targets have no anchor of their own. Tapped
-        // slides are excluded — their morphing light already shows the glide — and unpitched
-        // trail-offs get no number (user rule 2026-07-28): their end fret is a gesture, not a
-        // target. Notes ascend by onset and a waypoint never precedes its note's onset, so a
-        // note past span_end can contribute nothing visible.
-        for (const common::core::HighwayNoteView& note : state.notes)
-        {
-            if (note.start_seconds > span_end_seconds)
-            {
-                break;
-            }
-            if (note.attack == common::core::NoteAttack::Tap)
-            {
-                continue;
-            }
-            for (const common::core::HighwaySlideView& waypoint : note.slides)
-            {
-                if (!waypoint.unpitched && waypoint.fret > 0)
-                {
-                    push_target_number(waypoint.fret, waypoint.seconds);
-                }
-            }
-        }
+        // Slide waypoints deliberately push no numbers of their own (user rule 2026-07-28,
+        // completing the one-rule model: an orange number marks a hand position being
+        // established, nothing else). A fretting-hand glide that moves the window carries a
+        // hand-position placement at its target (normalization rule 9), so its number arrives
+        // through the placement loop above; tapped glides are carried by their morphing light.
+        // The waypoint glow posts and fret-span lines remain — they are target furniture, not
+        // labels.
 
         // The current hand's numbers pinned at the hit line. Coverage fade (signed 2026-07-23):
         // every glyph stays at its own lane's fixed position and animates opacity only, fading
