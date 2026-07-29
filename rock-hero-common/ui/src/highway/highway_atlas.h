@@ -73,6 +73,15 @@ character outside the range have no cell (callers advance the pen without drawin
 */
 [[nodiscard]] std::optional<int> highwayGlyphCellIndex(char character) noexcept;
 
+/*!
+\brief Glyph-atlas cell of the "½" figure, past the ASCII range.
+
+Bend amounts display quarter-tone curls as a real half figure (the atlas rasterizes from a
+font, so the glyph costs nothing); it has no character mapping — callers address the cell
+directly.
+*/
+inline constexpr int g_glyph_cell_half = 94;
+
 /*! \brief The highway's runtime-built atlases and their layouts. */
 struct HighwayAtlases
 {
@@ -149,13 +158,10 @@ inline constexpr int g_head_cell_pop = 15;
 // The appended fifth row: runtime-rasterized cells composed under the reference asset (and
 // into the fallback), so they exist in BOTH atlas paths and are never gated by reference_cells.
 // Procedural first per the bend-head-indicators plan; may be re-authored into the PNG if the
-// procedural look does not hold up.
+// procedural look does not hold up. Cells 17-19 are free.
 
-/*! \brief Full bend chevron: one per whole semitone of the head's announced bend. */
-inline constexpr int g_head_cell_bend_full = 16;
-
-/*! \brief Half-size bend chevron announcing a quarter-tone curl (half a semitone). */
-inline constexpr int g_head_cell_bend_quarter = 17;
+/*! \brief Bend marker: the curved arrow announcing a bent note on its head. */
+inline constexpr int g_head_cell_bend = 16;
 
 /*!
 \brief Builds the highway atlases and uploads them as immutable bgfx textures.

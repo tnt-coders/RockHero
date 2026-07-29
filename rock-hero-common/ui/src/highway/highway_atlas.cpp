@@ -14,7 +14,7 @@ namespace
 {
 
 // Fallback head atlas: the same 4x5 grid shape as the composed reference atlas, so the
-// runtime-rasterized cells (the standard head, the bend chevrons) sit at identical indices in
+// runtime-rasterized cells (the standard head, the bend marker) sit at identical indices in
 // both paths.
 constexpr int g_head_cell_size = 128;
 constexpr int g_head_grid_columns = 4;
@@ -82,49 +82,51 @@ void paintStandardHead(juce::Graphics& graphics, const juce::Rectangle<float> ce
         highlight_size);
 }
 
-// Paints one bend chevron into its cell in the channel scheme: a `^` stroke reading mostly
-// white (high G) with a slight string tint (low R), shape carried by B as the alpha mask. The
-// quarter variant draws the same stroke at half scale about the cell center — the visually
-// distinct half-size chevron a quarter-tone curl earns.
-void paintBendChevron(juce::Graphics& graphics, const juce::Rectangle<float> cell, bool quarter)
+// Paints the bend marker into its fifth-row cell in the channel scheme: a curved arrow — an
+// arc swooping right then up into an arrowhead, the source-game notation's "bend away from
+// here" gesture — reading mostly white (high G) with a slight string tint (low R), shape
+// carried by B as the alpha mask (the source-game composition and the fallback share this, so
+// the cell index agrees in both paths).
+void paintBendSymbolRow(juce::Graphics& graphics)
 {
-    const float scale = quarter ? 0.5F : 1.0F;
-    const juce::Rectangle<float> box =
-        cell.withSizeKeepingCentre(cell.getWidth() * scale, cell.getHeight() * scale);
-
-    juce::Path chevron;
-    chevron.startNewSubPath(
-        box.getX() + (box.getWidth() * 0.20F), box.getY() + (box.getHeight() * 0.72F));
-    chevron.lineTo(box.getCentreX(), box.getY() + (box.getHeight() * 0.28F));
-    chevron.lineTo(
-        box.getRight() - (box.getWidth() * 0.20F), box.getY() + (box.getHeight() * 0.72F));
+    const int column = g_head_cell_bend % g_head_grid_columns;
+    const int row = g_head_cell_bend / g_head_grid_columns;
+    const juce::Rectangle<float> cell{
+        static_cast<float>(column * g_head_cell_size),
+        static_cast<float>(row * g_head_cell_size),
+        static_cast<float>(g_head_cell_size),
+        static_cast<float>(g_head_cell_size),
+    };
+    const juce::Rectangle<float> box = cell.reduced(cell.getWidth() * 0.16F);
 
     graphics.setColour(juce::Colour::fromRGBA(70, 225, 255, 255));
+
+    // The swoop: flat exit at the bottom-left curving up toward the arrowhead.
+    juce::Path swoop;
+    swoop.startNewSubPath(box.getX(), box.getBottom() - (box.getHeight() * 0.10F));
+    swoop.quadraticTo(
+        box.getRight() - (box.getWidth() * 0.22F),
+        box.getBottom() - (box.getHeight() * 0.16F),
+        box.getRight() - (box.getWidth() * 0.28F),
+        box.getY() + (box.getHeight() * 0.34F));
     graphics.strokePath(
-        chevron,
+        swoop,
         juce::PathStrokeType{
-            box.getWidth() * 0.18F,
-            juce::PathStrokeType::mitered,
+            box.getWidth() * 0.16F,
+            juce::PathStrokeType::curved,
             juce::PathStrokeType::rounded,
         });
-}
 
-// Paints the two chevron cells of the appended fifth row (shared by the source-game composition
-// and the fallback, so the indices agree in both paths).
-void paintChevronRow(juce::Graphics& graphics)
-{
-    const auto cell_rect = [](const int index) {
-        const int column = index % g_head_grid_columns;
-        const int row = index / g_head_grid_columns;
-        return juce::Rectangle<float>{
-            static_cast<float>(column * g_head_cell_size),
-            static_cast<float>(row * g_head_cell_size),
-            static_cast<float>(g_head_cell_size),
-            static_cast<float>(g_head_cell_size),
-        };
-    };
-    paintBendChevron(graphics, cell_rect(g_head_cell_bend_full), false);
-    paintBendChevron(graphics, cell_rect(g_head_cell_bend_quarter), true);
+    // The arrowhead pointing up, at the swoop's tip.
+    juce::Path arrowhead;
+    arrowhead.addTriangle(
+        box.getRight() - (box.getWidth() * 0.52F),
+        box.getY() + (box.getHeight() * 0.34F),
+        box.getRight() - (box.getWidth() * 0.04F),
+        box.getY() + (box.getHeight() * 0.34F),
+        box.getRight() - (box.getWidth() * 0.28F),
+        box.getY());
+    graphics.fillPath(arrowhead);
 }
 
 } // namespace
@@ -234,7 +236,7 @@ HighwayAtlases makeHighwayAtlases(const std::span<const std::byte> note_atlas_pn
                 graphics.drawImageAt(decoded.convertedToFormat(juce::Image::ARGB), 0, 0);
                 const float scale = static_cast<float>(cell) / static_cast<float>(g_head_cell_size);
                 graphics.addTransform(juce::AffineTransform::scale(scale));
-                paintChevronRow(graphics);
+                paintBendSymbolRow(graphics);
             }
             atlases.heads = uploadAtlas(composed);
             atlases.head_layout = HighwayAtlasLayout{
@@ -269,7 +271,7 @@ HighwayAtlases makeHighwayAtlases(const std::span<const std::byte> note_atlas_pn
             0.0F, 0.0F, static_cast<float>(g_head_cell_size), static_cast<float>(g_head_cell_size)
         };
         paintStandardHead(graphics, cell_rect);
-        paintChevronRow(graphics);
+        paintBendSymbolRow(graphics);
 
         atlases.heads = uploadAtlas(image);
     }
@@ -303,6 +305,15 @@ HighwayAtlases makeHighwayAtlases(const std::span<const std::byte> note_atlas_pn
                 g_glyph_cell_size,
                 juce::Justification::centred);
         }
+        // The "½" figure past the ASCII cells: bend amounts display quarter-tone curls as a
+        // real half figure (U+00BD), addressed by g_glyph_cell_half rather than a character.
+        graphics.drawText(
+            juce::String::charToString(static_cast<juce::juce_wchar>(0x00BD)),
+            (g_glyph_cell_half % columns) * g_glyph_cell_size,
+            (g_glyph_cell_half / columns) * g_glyph_cell_size,
+            g_glyph_cell_size,
+            g_glyph_cell_size,
+            juce::Justification::centred);
 
         atlases.glyphs = uploadAtlas(image);
     }

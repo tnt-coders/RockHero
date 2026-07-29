@@ -1769,6 +1769,11 @@ void HighwayRenderer::Impl::draw(
     std::vector<std::uint16_t> open_indices;
     std::vector<PosColorUvVertex> head_vertices;
     std::vector<std::uint16_t> head_indices;
+    // Bend amount figures (white glyph text at heads and tail stage points) accumulate across
+    // the whole note pass and submit with the scrolling numbers, so they read over every note
+    // and stay occluded by the board face like the other glyph content.
+    std::vector<PosColorUvVertex> bend_label_vertices;
+    std::vector<std::uint16_t> bend_label_indices;
 
     std::vector<std::size_t> visible;
     visible.reserve(last_note - first_note);
@@ -3169,63 +3174,116 @@ void HighwayRenderer::Impl::draw(
             }
         }
 
-        // Bend chevrons (bend-head-indicators plan, revised on sight 2026-07-28): the head
-        // announces the curve's FIRST target — what the player must bend to the moment the
-        // note arrives (a prebend's first point sits at the onset, so it reads "bend before
-        // you pick") — and every later bend point whose snapped amount CHANGES the target
-        // announces its own smaller stack on the tail at its point, so a compound bend reads
-        // stage by stage where each stage happens. Stacks grow outward along the drawn
-        // bend-lift direction (v-mirrored on inverted lanes so the arrows point where the
-        // curve goes), ride the head/tail anchors, fade and tint with the note, and are NOT
-        // gated on reference_cells: the chevron cells are runtime-rasterized into both atlas
-        // paths.
+        // Bend notation (bend-head-indicators plan, redesigned on sight 2026-07-28 after the
+        // chevron stacks read as clutter): the head carries ONE curved-arrow bend marker
+        // (presence — the reference's own head-symbol approach) with a small white amount
+        // figure beside it announcing the curve's FIRST target, what the player must bend to
+        // the moment the note arrives (a prebend's first point sits at the onset, so it reads
+        // "bend before you pick"). Every later bend point whose snapped amount CHANGES the
+        // target gets its own smaller figure on the tail at its point, so a compound bend
+        // reads stage by stage even at screen center where the tail's lift is foreshortened.
+        // Figures sit outward along the drawn bend-lift direction, ride the note anchors, and
+        // fade with the head; they are white on purpose — orange numbers mean hand positions,
+        // and bend amounts are a different channel. The marker cell is runtime-rasterized
+        // into both atlas paths, so nothing here gates on reference_cells.
         if (!note.bend.empty())
         {
-            const auto push_chevron_stack = [&](const double center_x,
-                                                const double edge_y,
-                                                const double stack_z,
-                                                const double half,
-                                                const common::core::HighwayBendChevrons& stack) {
-                double center_y = edge_y + (bend_direction * half * 0.9);
-                const auto push_chevron = [&](const int cell) {
-                    const std::array<float, 4> rect = atlases.head_layout.cellRect(cell);
-                    // The glyph points upward in the cell; a downward stack mirrors v so the
-                    // chevron points along the drawn curve.
-                    const float v0 = bend_direction < 0.0 ? rect[1] : rect[3];
-                    const float v1 = bend_direction < 0.0 ? rect[3] : rect[1];
-                    pushQuad(
-                        head_vertices,
-                        head_indices,
-                        makeUvVertex(center_x - half, center_y - half, stack_z, tint, rect[0], v0),
-                        makeUvVertex(center_x + half, center_y - half, stack_z, tint, rect[2], v0),
-                        makeUvVertex(center_x + half, center_y + half, stack_z, tint, rect[2], v1),
-                        makeUvVertex(center_x - half, center_y + half, stack_z, tint, rect[0], v1));
-                    center_y += bend_direction * half * 1.3;
-                };
-                for (int chevron = 0; chevron < stack.full; ++chevron)
+            const std::uint32_t figure_tint = packAbgr(0xFFFFFFFFU, fade);
+            const auto push_bend_amount = [&](const double center_x,
+                                              const double center_y,
+                                              const double figure_z,
+                                              const double glyph_height,
+                                              const int half_steps) {
+                // Text layout of a half-step count: whole semitones as a digit, an odd step
+                // as the half figure. The chart itself stores plain semitone doubles; this
+                // split exists only here.
+                std::array<int, 2> cells{};
+                std::size_t count = 0;
+                if (half_steps / 2 > 0)
                 {
-                    push_chevron(g_head_cell_bend_full);
+                    const std::optional<int> digit =
+                        highwayGlyphCellIndex(static_cast<char>('0' + (half_steps / 2)));
+                    if (digit.has_value())
+                    {
+                        cells.at(count) = *digit;
+                        ++count;
+                    }
                 }
-                if (stack.quarter)
+                if (half_steps % 2 != 0)
                 {
-                    push_chevron(g_head_cell_bend_quarter);
+                    cells.at(count) = g_glyph_cell_half;
+                    ++count;
+                }
+                if (count == 0)
+                {
+                    return;
+                }
+                // pushGlyphText's metrics (glyph-height quads on a 0.62-height advance), laid
+                // out here from cell indices because the half figure has no character.
+                const double advance = glyph_height * 0.62;
+                const double total_width =
+                    (advance * static_cast<double>(count - 1)) + glyph_height;
+                double pen_x = center_x - (total_width / 2.0);
+                for (std::size_t figure = 0; figure < count; ++figure)
+                {
+                    const std::array<float, 4> rect =
+                        atlases.glyph_layout.cellRect(cells.at(figure));
+                    pushQuad(
+                        bend_label_vertices,
+                        bend_label_indices,
+                        makeUvVertex(
+                            pen_x,
+                            center_y - (glyph_height / 2.0),
+                            figure_z,
+                            figure_tint,
+                            rect[0],
+                            rect[3]),
+                        makeUvVertex(
+                            pen_x + glyph_height,
+                            center_y - (glyph_height / 2.0),
+                            figure_z,
+                            figure_tint,
+                            rect[2],
+                            rect[3]),
+                        makeUvVertex(
+                            pen_x + glyph_height,
+                            center_y + (glyph_height / 2.0),
+                            figure_z,
+                            figure_tint,
+                            rect[2],
+                            rect[1]),
+                        makeUvVertex(
+                            pen_x,
+                            center_y + (glyph_height / 2.0),
+                            figure_z,
+                            figure_tint,
+                            rect[0],
+                            rect[1]));
+                    pen_x += advance;
                 }
             };
 
-            const common::core::HighwayBendChevrons first =
-                common::core::highwayBendChevronCounts(note.bend.front().semitones);
-            push_chevron_stack(
-                x, head_y + (bend_direction * head_half_h), z, head_half_h * 0.5, first);
+            // The head: presence marker composited like the other technique overlays, first
+            // target figure just beyond the head along the curve's direction.
+            push_marker(x, head_y, z, 1.0, 0.0, g_head_cell_bend, tint);
+            const int first =
+                common::core::highwayBendDisplayHalfSteps(note.bend.front().semitones);
+            const double figure_height = head_half_h * 0.8;
+            push_bend_amount(
+                x,
+                head_y + (bend_direction * (head_half_h + (figure_height * 0.7))),
+                z,
+                figure_height,
+                first);
 
             // Later target changes annotate the tail at their own point, just past the lifted
             // curve. A release to zero draws nothing (the curve shows the descent) but still
             // resets the tracker, so a re-bend after a release re-announces its target.
-            common::core::HighwayBendChevrons previous = first;
+            int previous = first;
             for (std::size_t point = 1; point < note.bend.size(); ++point)
             {
                 const common::core::HighwayBendPointView& bend_point = note.bend[point];
-                const common::core::HighwayBendChevrons stage =
-                    common::core::highwayBendChevronCounts(bend_point.semitones);
+                const int stage = common::core::highwayBendDisplayHalfSteps(bend_point.semitones);
                 if (stage == previous)
                 {
                     continue;
@@ -3235,11 +3293,11 @@ void HighwayRenderer::Impl::draw(
                 {
                     continue;
                 }
-                push_chevron_stack(
+                push_bend_amount(
                     x,
-                    note_y_at(bend_point.seconds, 1.0),
+                    note_y_at(bend_point.seconds, 1.0) + (bend_direction * figure_height * 0.8),
                     time_to_z(bend_point.seconds),
-                    head_half_h * 0.35,
+                    figure_height * 0.75,
                     stage);
             }
         }
@@ -3435,6 +3493,13 @@ void HighwayRenderer::Impl::draw(
 
         const bgfx::TextureHandle glyph_texture = atlases.glyphs.get();
         submitBatch(vertices, indices, posColorUvLayout(), glyph_program.get(), &glyph_texture);
+        // Bend amount figures accumulated across the note pass (see the note loop).
+        submitBatch(
+            bend_label_vertices,
+            bend_label_indices,
+            posColorUvLayout(),
+            glyph_program.get(),
+            &glyph_texture);
     }
 
     // --- Board face: dynamic fret lines with the reference's three states (inactive, active

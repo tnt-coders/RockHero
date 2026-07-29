@@ -72,24 +72,24 @@ TEST_CASE("Highway bend curve hits its control points exactly", "[core][highway]
     CHECK(highwayBendSemitonesAt(prebend, 10.0, 11.0) == Catch::Approx(1.0));
 }
 
-// Bend chevron counts announce one target amount: one full chevron per whole semitone plus a
-// half-size chevron for a quarter-tone curl, snapped to the nearest half semitone so slightly
-// off hand-edited values land on the honest bucket. Callers apply this to the curve's first
-// point for the head and to each later target change along the tail.
-TEST_CASE("Highway bend chevron counts snap a target to half semitones", "[core][highway][tail]")
+// Bend display amounts snap one target to half-semitone steps so slightly off hand-edited
+// values land on the honest bucket; the digit/half split is pure text layout at the call
+// site. Callers apply this to the curve's first point for the head and to each later target
+// change along the tail.
+TEST_CASE("Highway bend display amounts snap to half semitones", "[core][highway][tail]")
 {
-    CHECK(highwayBendChevronCounts(0.0) == HighwayBendChevrons{});
-    CHECK(highwayBendChevronCounts(0.5) == HighwayBendChevrons{.full = 0, .quarter = true});
-    CHECK(highwayBendChevronCounts(1.0) == HighwayBendChevrons{.full = 1, .quarter = false});
-    CHECK(highwayBendChevronCounts(1.5) == HighwayBendChevrons{.full = 1, .quarter = true});
-    CHECK(highwayBendChevronCounts(2.0) == HighwayBendChevrons{.full = 2, .quarter = false});
-    CHECK(highwayBendChevronCounts(3.0) == HighwayBendChevrons{.full = 3, .quarter = false});
+    CHECK(highwayBendDisplayHalfSteps(0.0) == 0);
+    CHECK(highwayBendDisplayHalfSteps(0.5) == 1);
+    CHECK(highwayBendDisplayHalfSteps(1.0) == 2);
+    CHECK(highwayBendDisplayHalfSteps(1.5) == 3);
+    CHECK(highwayBendDisplayHalfSteps(2.0) == 4);
+    CHECK(highwayBendDisplayHalfSteps(3.0) == 6);
 
     // Near-half values snap to the nearest half-semitone bucket; sub-quarter noise shows
     // nothing, and a release-below-zero target can never go negative.
-    CHECK(highwayBendChevronCounts(0.4) == HighwayBendChevrons{.full = 0, .quarter = true});
-    CHECK(highwayBendChevronCounts(0.2) == HighwayBendChevrons{});
-    CHECK(highwayBendChevronCounts(-1.0) == HighwayBendChevrons{});
+    CHECK(highwayBendDisplayHalfSteps(0.4) == 1);
+    CHECK(highwayBendDisplayHalfSteps(0.2) == 0);
+    CHECK(highwayBendDisplayHalfSteps(-1.0) == 0);
 }
 
 // Bends on the upper half of the displayed stack invert so the curve stays inside the board;
