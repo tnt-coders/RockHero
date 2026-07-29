@@ -94,11 +94,11 @@ constexpr double g_tail_slope_shade_depth = 0.5;
 // Bend chevron station, in head half-heights from the head center along the drawn bend-lift
 // direction (above the note for an upward curve, below on bend-inverted lanes). Derived from
 // the atlas pixels, not the quad: the head art fills only the middle ~34% of its cell and the
-// glyph band is cell-centered, so bare geometric touch is at 0.469 half-heights — this sits
-// deliberately inside that so the chevron's legs anchor ON the note's top edge with the apex
-// rising clear, the source-game notation's overlap (judged on a composite sheet, user
-// 2026-07-29).
-constexpr double g_bend_marker_offset_heads = 0.33;
+// glyph band is cell-centered, so this sits deliberately inside bare touch — the chevron's
+// legs anchor ON the note's top edge with the apex rising clear, the source-game notation's
+// overlap (judged on a composite sheet, user 2026-07-29, re-tuned for the taller bolder
+// glyph the same day).
+constexpr double g_bend_marker_offset_heads = 0.38;
 // The tap light leans the lit lane tint toward the FHP orange (the tap floor numbers' color)
 // so the tapping hand's light reads apart from the fretting hand's window at a glance.
 constexpr double g_tap_light_warm_mix = 0.3;
@@ -2431,6 +2431,47 @@ void HighwayRenderer::Impl::draw(
         head_indices.clear();
     };
     std::size_t batched_group = chord_groups.size();
+
+    // Bend chevrons layer above EVERY head of their onset group (user rule 2026-07-29): a
+    // chord's notes push lane-ascending into one batch, so an inline marker from a lower lane
+    // would be overdrawn by a higher groupmate's head. Chevrons therefore collect here during
+    // the group and append to the head batch at the group boundary — last in the group's
+    // painter order, still under nearer groups' flushes.
+    struct PendingBendMarker
+    {
+        double x{0.0};
+        double y{0.0};
+        double z{0.0};
+        double direction{1.0};
+        double half_w{0.0};
+        double half_h{0.0};
+        std::uint32_t tint{0};
+    };
+    std::vector<PendingBendMarker> pending_bend_markers;
+    const auto emit_pending_bend_markers = [&] {
+        const std::array<float, 4> rect = atlases.head_layout.cellRect(g_head_cell_bend);
+        for (const PendingBendMarker& marker : pending_bend_markers)
+        {
+            const auto corner =
+                [&](const double dx, const double dy, const float u, const float v) {
+                    return makeUvVertex(
+                        marker.x + (dx * marker.direction),
+                        marker.y + (dy * marker.direction),
+                        marker.z,
+                        marker.tint,
+                        u,
+                        v);
+                };
+            pushQuad(
+                head_vertices,
+                head_indices,
+                corner(-marker.half_w, -marker.half_h, rect[0], rect[3]),
+                corner(marker.half_w, -marker.half_h, rect[2], rect[3]),
+                corner(marker.half_w, marker.half_h, rect[2], rect[1]),
+                corner(-marker.half_w, marker.half_h, rect[0], rect[1]));
+        }
+        pending_bend_markers.clear();
+    };
     // Lane-dominant bracket submission at NOTE granularity (user rule 2026-07-24, twice
     // refined: groups can hold lanes on both sides of a glyph, so group-level slotting let a
     // low open tail ride its higher groupmate over the notation). A bracket glyph stays
@@ -2478,6 +2519,10 @@ void HighwayRenderer::Impl::draw(
         }
         if (group_index != batched_group)
         {
+            // Group boundary: the finished group's chevrons append last, over all its heads.
+            // (The mid-group bracket flush deliberately skips this — chevrons keep pending and
+            // ride a later batch, which still draws above the earlier one.)
+            emit_pending_bend_markers();
             flush_note_batches();
             batched_group = group_index;
         }
@@ -3252,14 +3297,16 @@ void HighwayRenderer::Impl::draw(
         // reference_cells.
         if (!note.bend.empty())
         {
-            push_marker(
-                x,
-                head_y + (bend_direction * g_bend_marker_offset_heads * head_half_h),
-                z,
-                bend_direction,
-                0.0,
-                g_head_cell_bend,
-                tint);
+            pending_bend_markers.push_back(
+                PendingBendMarker{
+                    .x = x,
+                    .y = head_y + (bend_direction * g_bend_marker_offset_heads * head_half_h),
+                    .z = z,
+                    .direction = bend_direction,
+                    .half_w = head_half_w,
+                    .half_h = head_half_h,
+                    .tint = tint,
+                });
         }
 
         // Each pitched slide waypoint gets its own post and line; an unpitched slide-out
@@ -3280,6 +3327,7 @@ void HighwayRenderer::Impl::draw(
         }
     }
 
+    emit_pending_bend_markers();
     flush_note_batches();
     // Drain the never-triggered bracket glyphs: nothing above their lanes overlapped them, so
     // they read over everything below.

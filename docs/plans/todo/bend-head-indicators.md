@@ -39,7 +39,13 @@ half-heights above the note, below on inverted lanes, still flipping with the cu
 1.3 → 0.33 across the seventh pass (measured from the atlas pixels: the head art fills only
 the middle ~34% of its cell, so bare touch is 0.469; 0.33 anchors the chevron's legs ON the
 note's top edge with the apex rising clear, matching the source-game notation's overlap —
-judged on a composite sheet, user 2026-07-29). The
+judged on a composite sheet, user 2026-07-29). Eighth pass (2026-07-29): the glyph was
+rebaked a tad taller and thicker (apex 0.445 / legs 0.555, body 0.085 / core 0.036 — bolder
+toward the source-game notation's weight; fallback painter matched), the overlap offset
+re-tuned to 0.38 for the taller band, and chevrons now LAYER above every head of their onset
+group: they collect during the group and append to the head batch at the group boundary, so a
+chord's lower-lane chevron can no longer be overdrawn by a higher groupmate's head (the
+mid-group bracket flush deliberately leaves them pending — a later batch still draws above). The
 "hard corners" in bent tails were adaptive-sampling starvation, not the curve math: sample
 count was measured from the straight flat lane span, which ignores the bend's vertical lift
 (and a slide's lateral travel), so mostly-vertical tails got a handful of samples — now

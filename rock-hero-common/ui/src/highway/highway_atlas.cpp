@@ -96,11 +96,12 @@ void paintBendSymbolCell(juce::Graphics& graphics)
     const juce::Point<float> origin{
         static_cast<float>(column) * size, static_cast<float>(row) * size
     };
-    // Squat proportions matching the authored cell, vertically centered in the cell so the
-    // marker quad's 180-degree inverted-lane flip keeps the glyph on its offset station.
-    const juce::Point<float> apex = origin + juce::Point<float>{0.5F * size, 0.467F * size};
-    const juce::Point<float> left = origin + juce::Point<float>{0.3125F * size, 0.533F * size};
-    const juce::Point<float> right = origin + juce::Point<float>{0.6875F * size, 0.533F * size};
+    // Proportions matching the authored cell (2026-07-29: a tad taller and thicker than the
+    // first bake), vertically centered in the cell so the marker quad's 180-degree
+    // inverted-lane flip keeps the glyph on its offset station.
+    const juce::Point<float> apex = origin + juce::Point<float>{0.5F * size, 0.445F * size};
+    const juce::Point<float> left = origin + juce::Point<float>{0.3125F * size, 0.555F * size};
+    const juce::Point<float> right = origin + juce::Point<float>{0.6875F * size, 0.555F * size};
 
     // Solves p0 + t*d0 == p1 + u*d1 for the miter points.
     const auto intersect = [](const juce::Point<float> p0,
@@ -139,9 +140,9 @@ void paintBendSymbolCell(juce::Graphics& graphics)
     };
 
     graphics.setColour(juce::Colour::fromRGBA(255, 40, 255, 255));
-    graphics.fillPath(outline(0.063F * size));
+    graphics.fillPath(outline(0.085F * size));
     graphics.setColour(juce::Colour::fromRGBA(200, 235, 255, 255));
-    graphics.fillPath(outline(0.0264F * size));
+    graphics.fillPath(outline(0.036F * size));
 }
 
 } // namespace
