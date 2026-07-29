@@ -100,11 +100,16 @@ struct HighwayCameraPose
 /*!
 \brief Scans upcoming fret-hand positions and derives the camera's instantaneous targets.
 
-Reproduces the reference behavior: the hand window active at `now` plus every window arriving
-within the scan horizon define a min/max fret-line range; the focus is that range's world middle
-blended a fixed fraction toward a whole-neck position, and the range width is the span driving
-the out-zoom. A chart with no hand positions falls back to the reference four-fret window at the
-nut. The state's mirror flag reflects the focus (and the whole-neck blend point) as pure math.
+The hand window active at `now` (before the first arrival, the first placement's window, which
+already holds during the opening scroll) plus every window arriving within the scan horizon
+define a min/max fret-line range; the focus is that range's world middle blended a fixed
+fraction toward a whole-neck position, and the range width is the span driving the out-zoom.
+An upcoming window's pull on the range eases in smoothly from zero at the scan horizon to full
+by the settle lead (HighwayMetrics::focus_scan_full_seconds), so the target is continuous in
+time and the shift starts gently, long before the arriving notes are visible — as do fretted
+notes outside the hand window (floating taps). A chart with no hand positions falls back to
+the reference four-fret window at the nut. The state's mirror flag reflects the focus (and the
+whole-neck blend point) as pure math.
 
 \param state Seconds-resolved highway content (its display options supply the mirror flag).
 \param now_seconds Current playback time.

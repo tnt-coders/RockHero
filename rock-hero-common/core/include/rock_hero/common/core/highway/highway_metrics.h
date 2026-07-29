@@ -101,8 +101,26 @@ struct HighwayMetrics
     /*! \brief Fret span that uses the base camera position (Charter's 4-fret hand). */
     double camera_reference_span{4.0};
 
-    /*! \brief How far ahead of now the fret-focus scan looks, in seconds. */
-    double focus_scan_seconds{3.0};
+    /*!
+    \brief How far ahead of now the fret-focus scan looks, in seconds.
+
+    Also the outer edge of the approach ease: an upcoming window's influence on the framed
+    range starts at zero here and grows smoothly as the window approaches (user direction
+    2026-07-29 — the previous hard 3.0 s horizon stepped the focus target the instant a
+    placement crossed it, which read as a fast, jarring shift). Well past the visible highway
+    on purpose, so the shift begins long before the arriving notes are on screen.
+    */
+    double focus_scan_seconds{6.0};
+
+    /*!
+    \brief Lead time at which an approaching window reaches full framing influence, in seconds.
+
+    The approach ease runs a smoothstep between \ref focus_scan_seconds and this lead, so the
+    camera finishes its shift/zoom just before the arriving placement's notes enter the
+    visibility window. A value at or above \ref focus_scan_seconds degrades to the hard
+    horizon.
+    */
+    double focus_scan_full_seconds{2.0};
 
     /*! \brief Blend of the focus target toward a fixed whole-neck weighted position. */
     double focus_whole_neck_blend{0.1};

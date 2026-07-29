@@ -70,6 +70,34 @@ TEST_CASE("Highway camera targets the scanned hand window", "[core][highway][cam
     CHECK(opening.span == Catch::Approx(4.0));
 }
 
+// An approaching window's pull on the framed range eases in with a smoothstep instead of
+// stepping at the horizon (user direction 2026-07-29): zero effect at the scan horizon, half
+// its pull midway through the ease, fully framed by the settle lead — so the shift/zoom starts
+// gently, long before the arriving notes are visible.
+TEST_CASE("Highway camera eases an approaching window in", "[core][highway][camera]")
+{
+    const HighwayMetrics metrics{};
+
+    const auto target_at = [&](const double lead) {
+        return makeHighwayCameraTarget(
+            makeStateWithFhps({
+                HighwayFhpView{.seconds = 0.0, .fret = 5, .width = 4},
+                HighwayFhpView{.seconds = lead, .fret = 9, .width = 4},
+            }),
+            0.0,
+            metrics);
+    };
+
+    // At the horizon the upcoming window has no influence yet: the active window's span holds.
+    CHECK(target_at(metrics.focus_scan_seconds).span == Catch::Approx(4.0));
+    // Midway through the ease, smoothstep gives weight 0.5: the high edge sits halfway from
+    // the active window's line 8 toward the upcoming window's line 12, so the span is 6.
+    const double mid_lead = (metrics.focus_scan_seconds + metrics.focus_scan_full_seconds) / 2.0;
+    CHECK(target_at(mid_lead).span == Catch::Approx(6.0));
+    // By the settle lead the upcoming window is fully framed: lines 4..12, span 8.
+    CHECK(target_at(metrics.focus_scan_full_seconds).span == Catch::Approx(8.0));
+}
+
 // A fretted note outside the hand window — a two-hand tap floats far above the fretting hand,
 // which no longer anchors it — must still be framed: the camera span widens up to the tap even
 // though the hand window (and its light) stays low. Open strings and consumed notes never reframe.

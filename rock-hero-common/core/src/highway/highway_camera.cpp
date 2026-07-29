@@ -164,8 +164,8 @@ HighwayCameraTarget makeHighwayCameraTarget(
     // during the opening scroll (matching highwayHandWindowAt), so the camera frames it even
     // when it sits beyond the horizon. Placements ascend, so the scan jumps straight to the
     // active one instead of rewalking the consumed prefix every frame.
-    int low_line = 0;
-    int high_line = static_cast<int>(metrics.camera_reference_span);
+    double low_line = 0.0;
+    double high_line = metrics.camera_reference_span;
     const double horizon = now_seconds + metrics.focus_scan_seconds;
     const auto after_now = std::ranges::upper_bound(
         state.fret_hand_positions, now_seconds, std::ranges::less{}, &HighwayFhpView::seconds);
@@ -173,9 +173,29 @@ HighwayCameraTarget makeHighwayCameraTarget(
     {
         const auto active =
             after_now == state.fret_hand_positions.begin() ? after_now : after_now - 1;
-        low_line = active->fret - 1;
-        high_line = active->fret + active->width - 1;
+        low_line = static_cast<double>(active->fret - 1);
+        high_line = static_cast<double>(active->fret + active->width - 1);
     }
+
+    // Approach ease (user direction 2026-07-29): an upcoming window's pull on the framed range
+    // grows smoothly from zero at the scan horizon to full by focus_scan_full_seconds of lead,
+    // so the shift/zoom starts long before the arriving notes are visible and never steps. The
+    // smoothstep's flat ends keep the target's velocity continuous at both boundaries. Each
+    // demand blends from the active window's edges (order-independent across upcoming windows);
+    // a degenerate ease span falls back to the hard horizon.
+    const double ease_span = metrics.focus_scan_seconds - metrics.focus_scan_full_seconds;
+    const auto approach_weight = [&](const double start_seconds) {
+        const double lead = start_seconds - now_seconds;
+        if (ease_span <= 0.0)
+        {
+            return lead <= metrics.focus_scan_seconds ? 1.0 : 0.0;
+        }
+        const double progress =
+            std::clamp((metrics.focus_scan_seconds - lead) / ease_span, 0.0, 1.0);
+        return progress * progress * (3.0 - (2.0 * progress));
+    };
+    const double base_low = low_line;
+    const double base_high = high_line;
     for (auto it = after_now; it != state.fret_hand_positions.end(); ++it)
     {
         const HighwayFhpView& fhp = *it;
@@ -183,9 +203,12 @@ HighwayCameraTarget makeHighwayCameraTarget(
         {
             break;
         }
-        // Upcoming placements inside the horizon widen the framed range.
-        low_line = std::min(low_line, fhp.fret - 1);
-        high_line = std::max(high_line, fhp.fret + fhp.width - 1);
+        const double weight = approach_weight(fhp.seconds);
+        low_line = std::min(
+            low_line, base_low + ((static_cast<double>(fhp.fret - 1) - base_low) * weight));
+        high_line = std::max(
+            high_line,
+            base_high + ((static_cast<double>(fhp.fret + fhp.width - 1) - base_high) * weight));
     }
 
     // A fretted note can sit outside the hand window: a two-hand tap floats far above the fretting
@@ -207,8 +230,13 @@ HighwayCameraTarget makeHighwayCameraTarget(
         {
             continue;
         }
-        low_line = std::min(low_line, note.fret - 1);
-        high_line = std::max(high_line, note.fret);
+        // The same approach ease as the windows, so a far-off tap pulls the frame open
+        // gradually instead of stepping it at the horizon.
+        const double weight = approach_weight(note.start_seconds);
+        low_line = std::min(
+            low_line, base_low + ((static_cast<double>(note.fret - 1) - base_low) * weight));
+        high_line = std::max(
+            high_line, base_high + ((static_cast<double>(note.fret) - base_high) * weight));
     }
 
     const double middle_x = (highwayFretLineX(low_line, metrics, mirrored) +
@@ -219,7 +247,7 @@ HighwayCameraTarget makeHighwayCameraTarget(
 
     return HighwayCameraTarget{
         .focus_x = middle_x + ((whole_neck_x - middle_x) * metrics.focus_whole_neck_blend) + offset,
-        .span = static_cast<double>(high_line - low_line),
+        .span = high_line - low_line,
     };
 }
 
