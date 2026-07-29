@@ -1,8 +1,10 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <limits>
 #include <numbers>
 #include <rock_hero/common/core/highway/highway_camera.h>
+#include <vector>
 
 namespace rock_hero::common::core
 {
@@ -166,7 +168,6 @@ HighwayCameraTarget makeHighwayCameraTarget(
     // active one instead of rewalking the consumed prefix every frame.
     double low_line = 0.0;
     double high_line = metrics.camera_reference_span;
-    const double horizon = now_seconds + metrics.focus_scan_seconds;
     const auto after_now = std::ranges::upper_bound(
         state.fret_hand_positions, now_seconds, std::ranges::less{}, &HighwayFhpView::seconds);
     if (!state.fret_hand_positions.empty())
@@ -177,38 +178,42 @@ HighwayCameraTarget makeHighwayCameraTarget(
         high_line = static_cast<double>(active->fret + active->width - 1);
     }
 
-    // Approach ease (user direction 2026-07-29): an upcoming window's pull on the framed range
-    // grows smoothly from zero at the scan horizon to full by focus_scan_full_seconds of lead,
-    // so the shift/zoom starts long before the arriving notes are visible and never steps. The
-    // smoothstep's flat ends keep the target's velocity continuous at both boundaries. Each
-    // demand blends from the active window's edges (order-independent across upcoming windows);
-    // a degenerate ease span falls back to the hard horizon.
-    const double ease_span = metrics.focus_scan_seconds - metrics.focus_scan_full_seconds;
-    const auto approach_weight = [&](const double start_seconds) {
-        const double lead = start_seconds - now_seconds;
-        if (ease_span <= 0.0)
-        {
-            return lead <= metrics.focus_scan_seconds ? 1.0 : 0.0;
-        }
-        const double progress =
-            std::clamp((metrics.focus_scan_seconds - lead) / ease_span, 0.0, 1.0);
-        return progress * progress * (3.0 - (2.0 * progress));
-    };
-    const double base_low = low_line;
-    const double base_high = high_line;
-    for (auto it = after_now; it != state.fret_hand_positions.end(); ++it)
+    // The scan window is quantized to the derived camera framing segments (user direction
+    // 2026-07-29, matching the reference's documented framing rule): everything defined during
+    // the current segment and the next one is framed, consumed or not, so the target holds
+    // perfectly still for whole segments and steps only at their boundaries — the HighwayCamera
+    // spring is the single mechanism turning those steps into motion, and each step lands a
+    // full segment before the hand needs to be in place. Without segment data (no beats: an
+    // empty or synthetic chart) the window falls back to a fixed seconds look-ahead from now.
+    const std::vector<double>& segments = state.camera_segment_starts;
+    const bool segment_scoped = !segments.empty();
+    double window_start = now_seconds;
+    double horizon = now_seconds + metrics.focus_scan_seconds;
+    if (segment_scoped)
+    {
+        const auto next_index = static_cast<std::size_t>(
+            std::ranges::upper_bound(segments, now_seconds) - segments.begin());
+        window_start =
+            next_index == 0 ? -std::numeric_limits<double>::infinity() : segments[next_index - 1];
+        horizon = next_index + 1 < segments.size() ? segments[next_index + 1]
+                                                   : std::numeric_limits<double>::infinity();
+    }
+
+    const auto scan_begin = segment_scoped ? std::ranges::lower_bound(
+                                                 state.fret_hand_positions,
+                                                 window_start,
+                                                 std::ranges::less{},
+                                                 &HighwayFhpView::seconds)
+                                           : after_now;
+    for (auto it = scan_begin; it != state.fret_hand_positions.end(); ++it)
     {
         const HighwayFhpView& fhp = *it;
-        if (fhp.seconds > horizon)
+        if (fhp.seconds >= horizon)
         {
             break;
         }
-        const double weight = approach_weight(fhp.seconds);
-        low_line = std::min(
-            low_line, base_low + ((static_cast<double>(fhp.fret - 1) - base_low) * weight));
-        high_line = std::max(
-            high_line,
-            base_high + ((static_cast<double>(fhp.fret + fhp.width - 1) - base_high) * weight));
+        low_line = std::min(low_line, static_cast<double>(fhp.fret - 1));
+        high_line = std::max(high_line, static_cast<double>(fhp.fret + fhp.width - 1));
     }
 
     // A fretted note can sit outside the hand window: a two-hand tap floats far above the fretting
@@ -220,23 +225,27 @@ HighwayCameraTarget makeHighwayCameraTarget(
     // prefix is skipped by value, not jumped over: a bound needs the sustain prefix-max table (an
     // early note can still be ringing), which lives with the renderer — a linear walk over these
     // PODs is far below that plumbing's cost until charts grow orders of magnitude.
-    for (const HighwayNoteView& note : state.notes)
+    const auto note_begin =
+        segment_scoped
+            ? std::ranges::lower_bound(
+                  state.notes, window_start, std::ranges::less{}, &HighwayNoteView::start_seconds)
+            : state.notes.begin();
+    for (auto it = note_begin; it != state.notes.end(); ++it)
     {
-        if (note.start_seconds > horizon)
+        const HighwayNoteView& note = *it;
+        if (note.start_seconds >= horizon)
         {
             break; // notes ascend by onset, so nothing later is in the scan window
         }
-        if (note.fret <= 0 || note.end_seconds < now_seconds)
+        // Segment-scoped, a note framed for its segment stays framed after it is consumed (the
+        // target rests); the seconds fallback drops consumed notes since nothing bounds its
+        // window's past edge.
+        if (note.fret <= 0 || (!segment_scoped && note.end_seconds < now_seconds))
         {
             continue;
         }
-        // The same approach ease as the windows, so a far-off tap pulls the frame open
-        // gradually instead of stepping it at the horizon.
-        const double weight = approach_weight(note.start_seconds);
-        low_line = std::min(
-            low_line, base_low + ((static_cast<double>(note.fret - 1) - base_low) * weight));
-        high_line = std::max(
-            high_line, base_high + ((static_cast<double>(note.fret) - base_high) * weight));
+        low_line = std::min(low_line, static_cast<double>(note.fret - 1));
+        high_line = std::max(high_line, static_cast<double>(note.fret));
     }
 
     const double middle_x = (highwayFretLineX(low_line, metrics, mirrored) +
@@ -251,7 +260,13 @@ HighwayCameraTarget makeHighwayCameraTarget(
     };
 }
 
-// Frame-rate-independent exponential smoothing; the first advance snaps.
+// Critically damped spring (user direction 2026-07-29, the single smoothing mechanism after a
+// session of layered eases and filters fought each other; it replaces the reference's
+// first-order exponential, whose velocity jumped whenever the target stepped — a shift onset
+// read as a sudden snap): acceleration peaks the instant the target steps and decays from
+// there, velocity is carried as state so retargets never snap, and the landing is soft with no
+// overshoot. The update is the exact closed-form solution of x'' = w^2 (target - x) - 2 w x'
+// over the frame, so it is exactly frame-rate independent; the first advance snaps at rest.
 void HighwayCamera::advance(
     const HighwayCameraTarget& target, double dt_seconds, const HighwayMetrics& metrics)
 {
@@ -260,13 +275,23 @@ void HighwayCamera::advance(
         m_initialized = true;
         m_focus_x = target.focus_x;
         m_span = target.span;
+        m_focus_x_velocity = 0.0;
+        m_span_velocity = 0.0;
         return;
     }
 
-    const double mix =
-        1.0 - std::pow(1.0 - metrics.focus_smoothing_per_second, std::max(dt_seconds, 0.0));
-    m_focus_x += (target.focus_x - m_focus_x) * mix;
-    m_span += (target.span - m_span) * mix;
+    const double dt = std::max(dt_seconds, 0.0);
+    const double omega = metrics.focus_spring_per_second;
+    const double decay = std::exp(-omega * dt);
+    const auto follow = [&](double& value, double& velocity, const double toward) {
+        // Closed form for the repeated pole: offset(t) = (o0 + (v0 + w o0) t) e^{-w t}.
+        const double offset = value - toward;
+        const double coupled = velocity + (omega * offset);
+        value = toward + ((offset + (coupled * dt)) * decay);
+        velocity = (velocity - (omega * coupled * dt)) * decay;
+    };
+    follow(m_focus_x, m_focus_x_velocity, target.focus_x);
+    follow(m_span, m_span_velocity, target.span);
 }
 
 void HighwayCamera::reset() noexcept
@@ -274,6 +299,8 @@ void HighwayCamera::reset() noexcept
     m_initialized = false;
     m_focus_x = 0.0;
     m_span = 4.0;
+    m_focus_x_velocity = 0.0;
+    m_span_velocity = 0.0;
 }
 
 // Height and pull-back derive from the smoothed span around the reference hand width.

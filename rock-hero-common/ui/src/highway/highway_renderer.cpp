@@ -1111,7 +1111,7 @@ void HighwayRenderer::Impl::draw(
         return;
     }
 
-    // Camera: instantaneous targets from the chart, smoothed frame-rate independently.
+    // Camera: stepped targets from the upcoming chart, turned into motion by the spring.
     const common::core::HighwayCameraTarget target =
         common::core::makeHighwayCameraTarget(state, now_seconds, metrics);
     camera.advance(target, dt_seconds, metrics);
@@ -1164,8 +1164,11 @@ void HighwayRenderer::Impl::draw(
 
     // Settled hand windows visible this frame: each placement owns the time range from its
     // arrival up to the next placement's ramp start (the transition itself is drawn as a
-    // sampled sweep below, so settled spans shrink by the following ramp). A chart with no
-    // placements gets the reference nut window.
+    // sampled sweep below, so settled spans shrink by the following ramp). The first
+    // placement's window already holds before its arrival (the pre-held opening, matching
+    // highwayHandWindowAt), so its span extends back to the span start even when the arrival
+    // itself is far past the horizon. A chart with no placements gets the reference nut
+    // window.
     struct HandWindow
     {
         double start_seconds;
@@ -1177,36 +1180,30 @@ void HighwayRenderer::Impl::draw(
     for (std::size_t index = 0; index < state.fret_hand_positions.size(); ++index)
     {
         const common::core::HighwayFhpView& fhp = state.fret_hand_positions[index];
+        const double window_start = index == 0 ? span_start_seconds : fhp.seconds;
         const double window_end = index + 1 < state.fret_hand_positions.size()
                                       ? state.fret_hand_positions[index + 1].seconds -
                                             state.fret_hand_positions[index + 1].ramp_seconds
                                       : span_end_seconds;
-        if (window_end <= span_start_seconds || fhp.seconds >= span_end_seconds ||
-            window_end <= fhp.seconds)
+        if (window_end <= span_start_seconds || window_start >= span_end_seconds ||
+            window_end <= window_start)
         {
             continue;
         }
         hand_windows.push_back(
             HandWindow{
-                .start_seconds = std::max(fhp.seconds, span_start_seconds),
+                .start_seconds = std::max(window_start, span_start_seconds),
                 .end_seconds = std::min(window_end, span_end_seconds),
                 .fret = fhp.fret,
                 .width = fhp.width,
             });
     }
-    // Before the first placement (or on a chart without any) the reference nut window applies,
-    // up to the first placement's ramp start.
-    const double first_ramp_start_seconds =
-        state.fret_hand_positions.empty() ? span_end_seconds
-                                          : state.fret_hand_positions.front().seconds -
-                                                state.fret_hand_positions.front().ramp_seconds;
-    if (first_ramp_start_seconds > span_start_seconds)
+    if (state.fret_hand_positions.empty())
     {
-        hand_windows.insert(
-            hand_windows.begin(),
+        hand_windows.push_back(
             HandWindow{
                 .start_seconds = span_start_seconds,
-                .end_seconds = std::min(first_ramp_start_seconds, span_end_seconds),
+                .end_seconds = span_end_seconds,
                 .fret = 1,
                 .width = 4,
             });

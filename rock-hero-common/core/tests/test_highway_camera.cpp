@@ -26,17 +26,18 @@ namespace
 
 } // namespace
 
-// Focus targeting: the active hand window plus upcoming windows inside the scan horizon define
-// the framed fret-line range; the focus is its world middle blended toward the whole-neck spot.
+// Focus targeting: the active hand window plus upcoming windows inside the scan horizon
+// (focus_scan_seconds) define the framed fret-line range; the focus is its world middle blended
+// toward the whole-neck spot.
 TEST_CASE("Highway camera targets the scanned hand window", "[core][highway][camera]")
 {
     const HighwayMetrics metrics{};
 
     // Active window at fret 5 width 4 (lines 4..8); an upcoming window at fret 9 width 4
-    // (lines 8..12) inside the horizon widens the range to lines 4..12.
+    // (lines 8..12) inside the scan horizon widens the range to lines 4..12.
     const HighwayViewState state = makeStateWithFhps({
         HighwayFhpView{.seconds = 0.0, .fret = 5, .width = 4},
-        HighwayFhpView{.seconds = 2.0, .fret = 9, .width = 4},
+        HighwayFhpView{.seconds = 1.5, .fret = 9, .width = 4},
         HighwayFhpView{.seconds = 60.0, .fret = 1, .width = 4}, // beyond the horizon: ignored
     });
 
@@ -70,11 +71,48 @@ TEST_CASE("Highway camera targets the scanned hand window", "[core][highway][cam
     CHECK(opening.span == Catch::Approx(4.0));
 }
 
-// An approaching window's pull on the framed range eases in with a smoothstep instead of
-// stepping at the horizon (user direction 2026-07-29): zero effect at the scan horizon, half
-// its pull midway through the ease, fully framed by the settle lead — so the shift/zoom starts
-// gently, long before the arriving notes are visible.
-TEST_CASE("Highway camera eases an approaching window in", "[core][highway][camera]")
+// With camera framing segments the scan window is quantized: everything defined during the
+// current segment and the next is framed — consumed or not — so the target holds perfectly
+// still for whole segments and steps only at their boundaries (user direction 2026-07-29,
+// matching the reference's documented rule).
+TEST_CASE("Highway camera frames the current and next segment", "[core][highway][camera]")
+{
+    const HighwayMetrics metrics{};
+
+    HighwayViewState state = makeStateWithFhps({
+        HighwayFhpView{.seconds = 0.5, .fret = 5, .width = 4},   // segment 0: lines 4..8
+        HighwayFhpView{.seconds = 8.5, .fret = 9, .width = 4},   // segment 1: lines 8..12
+        HighwayFhpView{.seconds = 16.5, .fret = 14, .width = 4}, // segment 2: lines 13..17
+    });
+    state.camera_segment_starts = {0.0, 8.0, 16.0, 24.0};
+    const auto target_at = [&](const double now) {
+        return makeHighwayCameraTarget(state, now, metrics);
+    };
+
+    // Inside segment 0 the frame covers segments 0 and 1 (lines 4..12); segment 2's positions
+    // do not pull yet, and the target holds perfectly still for the whole segment — including
+    // after the fret-5 window is the consumed past (rest is the point).
+    CHECK(target_at(1.0).span == Catch::Approx(8.0));
+    CHECK(target_at(7.9).span == Catch::Approx(8.0));
+    CHECK(target_at(7.9).focus_x == Catch::Approx(target_at(1.0).focus_x));
+
+    // Crossing into segment 1 steps the window once: frames segments 1 and 2. Until the fret-9
+    // placement arrives the active fret-5 window still holds the base (lines 4..17); after it
+    // arrives the frame is lines 8..17.
+    CHECK(target_at(8.1).span == Catch::Approx(13.0));
+    CHECK(target_at(9.0).span == Catch::Approx(9.0));
+
+    // A fretted note framed for its segment stays framed after it is consumed (no per-note
+    // narrowing churn): a tap at fret 20 early in segment 0 keeps the frame open to line 20
+    // through the segment even though it stopped ringing long ago.
+    state.notes.push_back(HighwayNoteView{.start_seconds = 0.6, .end_seconds = 0.7, .fret = 20});
+    CHECK(target_at(7.9).span == Catch::Approx(16.0));
+}
+
+// The target deliberately steps (user direction 2026-07-29, after target-side eases were tried
+// and rejected): without segment data the scan falls back to a fixed seconds window — a window
+// has no pull while beyond the horizon and pulls fully the instant it enters.
+TEST_CASE("Highway camera target steps at the scan horizon", "[core][highway][camera]")
 {
     const HighwayMetrics metrics{};
 
@@ -88,14 +126,9 @@ TEST_CASE("Highway camera eases an approaching window in", "[core][highway][came
             metrics);
     };
 
-    // At the horizon the upcoming window has no influence yet: the active window's span holds.
-    CHECK(target_at(metrics.focus_scan_seconds).span == Catch::Approx(4.0));
-    // Midway through the ease, smoothstep gives weight 0.5: the high edge sits halfway from
-    // the active window's line 8 toward the upcoming window's line 12, so the span is 6.
-    const double mid_lead = (metrics.focus_scan_seconds + metrics.focus_scan_full_seconds) / 2.0;
-    CHECK(target_at(mid_lead).span == Catch::Approx(6.0));
-    // By the settle lead the upcoming window is fully framed: lines 4..12, span 8.
-    CHECK(target_at(metrics.focus_scan_full_seconds).span == Catch::Approx(8.0));
+    // Beyond the scan horizon (focus_scan_seconds, 3.0): no influence. Inside it: full framing.
+    CHECK(target_at(metrics.focus_scan_seconds + 0.1).span == Catch::Approx(4.0));
+    CHECK(target_at(metrics.focus_scan_seconds - 0.1).span == Catch::Approx(8.0));
 }
 
 // A fretted note outside the hand window — a two-hand tap floats far above the fretting hand,
@@ -110,8 +143,7 @@ TEST_CASE("Highway camera frames taps above the hand window", "[core][highway][c
     });
     // Notes ascend by onset (the view-state contract the scan's horizon break relies on): a
     // note already consumed behind the hit line and an open string must not reframe, while the
-    // tapped note at fret 15 arriving inside the scan horizon — with no hand position covering
-    // it — must.
+    // tapped note at fret 15 inside the scan ahead — with no hand position covering it — must.
     state.notes.push_back(HighwayNoteView{.start_seconds = 0.0, .end_seconds = 0.1, .fret = 20});
     state.notes.push_back(HighwayNoteView{.start_seconds = 1.4, .end_seconds = 1.4, .fret = 0});
     state.notes.push_back(HighwayNoteView{.start_seconds = 1.5, .end_seconds = 1.5, .fret = 15});
@@ -126,9 +158,10 @@ TEST_CASE("Highway camera frames taps above the hand window", "[core][highway][c
     CHECK(windowed.span == Catch::Approx(4.0));
 }
 
-// Smoothing is frame-rate independent (two half steps equal one full step), converges toward a
-// fixed target, and the first advance snaps.
-TEST_CASE("Highway camera smoothing is frame-rate independent", "[core][highway][camera]")
+// The spring's smoothing is frame-rate independent (two half steps equal one full step; it is
+// the exact closed-form solution over the frame), converges toward a fixed target, the first
+// advance snaps, and the pose derives height/pull-back from the smoothed span.
+TEST_CASE("Highway camera spring is frame-rate independent", "[core][highway][camera]")
 {
     const HighwayMetrics metrics{};
     const HighwayCameraTarget start{.focus_x = 0.0, .span = 4.0};
@@ -146,8 +179,8 @@ TEST_CASE("Highway camera smoothing is frame-rate independent", "[core][highway]
     CHECK(whole_step.pose(metrics).x == Catch::Approx(half_steps.pose(metrics).x));
     CHECK(whole_step.pose(metrics).y == Catch::Approx(half_steps.pose(metrics).y));
 
-    // Convergence: after several seconds the camera is essentially at the target, and the pose
-    // derives height/pull-back from the smoothed span.
+    // Convergence: after several seconds the camera rests at the target, and the pose derives
+    // height/pull-back from the smoothed span.
     HighwayCamera converged;
     converged.advance(start, 0.0, metrics);
     for (int frame = 0; frame < 600; ++frame)
@@ -155,13 +188,63 @@ TEST_CASE("Highway camera smoothing is frame-rate independent", "[core][highway]
         converged.advance(target, 1.0 / 60.0, metrics);
     }
     const HighwayCameraPose pose = converged.pose(metrics);
-    CHECK(pose.x == Catch::Approx(10.0).margin(1.0e-6));
+    CHECK(pose.x == Catch::Approx(10.0).margin(1.0e-3));
     CHECK(
         pose.y ==
-        Catch::Approx(metrics.camera_y_base + (4.0 * metrics.camera_span_gain)).margin(1.0e-6));
+        Catch::Approx(metrics.camera_y_base + (4.0 * metrics.camera_span_gain)).margin(1.0e-3));
     CHECK(
         pose.z ==
-        Catch::Approx(metrics.camera_z_base - (4.0 * metrics.camera_span_gain)).margin(1.0e-6));
+        Catch::Approx(metrics.camera_z_base - (4.0 * metrics.camera_span_gain)).margin(1.0e-3));
+}
+
+// The critically damped spring starts every shift without a velocity jump (motion out of rest
+// builds up quadratically, where a first-order exponential covered a fixed fraction of the
+// distance on the very first frame), never flips direction instantly on a target reversal, and
+// settles before an entering window reaches the hit line.
+TEST_CASE("Highway camera spring accelerates and settles smoothly", "[core][highway][camera]")
+{
+    const HighwayMetrics metrics{};
+    const HighwayCameraTarget start{.focus_x = 0.0, .span = 4.0};
+    const HighwayCameraTarget forward{.focus_x = 10.0, .span = 4.0};
+    const HighwayCameraTarget backward{.focus_x = -10.0, .span = 4.0};
+    const double dt = 1.0 / 60.0;
+
+    HighwayCamera camera;
+    camera.advance(start, 0.0, metrics);
+
+    // From rest the first frame's travel is bounded by the spring's quadratic departure
+    // (distance x omega^2 x dt^2 / 2); the old exponential moved ~0.1 world units here.
+    camera.advance(forward, dt, metrics);
+    const double first_step = camera.pose(metrics).x;
+    CHECK(first_step > 0.0);
+    CHECK(
+        first_step <
+        10.0 * metrics.focus_spring_per_second * metrics.focus_spring_per_second * dt * dt / 2.0);
+
+    // Build up forward momentum, then reverse the target: the very next frame still moves
+    // forward — the carried velocity decays smoothly instead of snapping to the new direction.
+    for (int frame = 0; frame < 10; ++frame)
+    {
+        camera.advance(forward, dt, metrics);
+    }
+    const double before_reversal = camera.pose(metrics).x;
+    camera.advance(backward, dt, metrics);
+    CHECK(camera.pose(metrics).x > before_reversal);
+
+    // Settles before arrival: a segment boundary announces its positions at least one framing
+    // segment (two measures, ~4 s at 120 BPM) before the hand must be in place; by then the
+    // spring has essentially landed — ~98 percent of the step covered, monotone the whole way
+    // (critically damped never crosses the target from rest).
+    HighwayCamera entering;
+    entering.advance(start, 0.0, metrics);
+    double previous = 0.0;
+    for (int frame = 0; frame < 240; ++frame) // one two-measure segment at 120 BPM
+    {
+        entering.advance(forward, dt, metrics);
+        CHECK(entering.pose(metrics).x >= previous); // monotone: no overshoot, no wobble
+        previous = entering.pose(metrics).x;
+    }
+    CHECK(entering.pose(metrics).x == Catch::Approx(10.0).margin(0.2));
 }
 
 // The verticality invariant holds exactly at the zero-rotation configuration: with pitch and

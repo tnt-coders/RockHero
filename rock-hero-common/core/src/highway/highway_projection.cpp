@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <map>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/chart/grid_arithmetic.h>
@@ -10,6 +11,17 @@
 
 namespace rock_hero::common::core
 {
+
+namespace
+{
+
+// Measures per derived camera framing segment for measures that contain notes. The source
+// ecosystem's a standard automatic difficulty generator documents 2-4 for its automatic difficulty generation; 4
+// keeps the camera's framing target at rest the longest, 2 gives a tighter, livelier frame
+// (user tuning 2026-07-29: 4-measure segments read too static).
+constexpr int g_camera_segment_measures = 2;
+
+} // namespace
 
 HighwayViewState makeHighwayViewState(
     const Arrangement& arrangement, const TempoMap& tempo_map,
@@ -232,6 +244,58 @@ HighwayViewState makeHighwayViewState(
                 .seconds = beat_cursor.secondsAt(static_cast<double>(index)),
                 .measure_downbeat = tempo_map.beatAtGlobalIndex(index).second == 1,
             });
+    }
+
+    // Camera framing segments (user direction 2026-07-29): the camera's framing window is
+    // quantized to these derived boundaries so its target steps only here and rests in between
+    // — the cadence that defines the source-game camera feel. The derivation mirrors what the source
+    // ecosystem's a standard automatic difficulty generator documents for automatic difficulty generation: runs of
+    // measures containing note onsets split into g_camera_segment_measures-sized groups aligned
+    // to downbeats, a run of empty measures collapses into one segment however long (rests are
+    // the camera's travel time, not framing churn), and a section start forces a new segment.
+    std::vector<double> measure_starts;
+    for (const HighwayBeatView& beat : state.beats)
+    {
+        if (beat.measure_downbeat)
+        {
+            measure_starts.push_back(beat.seconds);
+        }
+    }
+    std::size_t note_cursor = 0;
+    std::size_t section_cursor = 0;
+    int measures_in_segment = 0;
+    bool run_empty = false;
+    for (std::size_t measure = 0; measure < measure_starts.size(); ++measure)
+    {
+        const double measure_start = measure_starts[measure];
+        const double measure_end = measure + 1 < measure_starts.size()
+                                       ? measure_starts[measure + 1]
+                                       : std::numeric_limits<double>::infinity();
+        while (note_cursor < state.notes.size() &&
+               state.notes[note_cursor].start_seconds < measure_start)
+        {
+            ++note_cursor;
+        }
+        const bool empty = note_cursor >= state.notes.size() ||
+                           state.notes[note_cursor].start_seconds >= measure_end;
+        // A section starting since the previous downbeat (mid-measure starts snap forward to
+        // this one) restarts the grouping.
+        bool section_cut = false;
+        while (section_cursor < state.sections.size() &&
+               state.sections[section_cursor].seconds <=
+                   measure_start + g_highway_onset_match_epsilon)
+        {
+            section_cut = true;
+            ++section_cursor;
+        }
+        if (measure == 0 || section_cut || empty != run_empty ||
+            (!empty && measures_in_segment >= g_camera_segment_measures))
+        {
+            state.camera_segment_starts.push_back(measure_start);
+            measures_in_segment = 0;
+        }
+        run_empty = empty;
+        ++measures_in_segment;
     }
 
     return state;
