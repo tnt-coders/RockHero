@@ -252,8 +252,10 @@ through the trim rules):
     no head of its own, exactly like a legato junction. The fret-hand positions supply the
     start: the head departs from the same window slot in the preceding placement (notated fret
     plus the anchor delta into the arriving placement); the flag's stated direction wins over a
-    contradicting delta, and a still hand falls back to two frets out in the flag's direction
-    (user rules 2026-07-27). An open-string landing, a start that would leave the neck (into
+    contradicting delta, a still hand falls back to two frets out in the flag's direction
+    (user rules 2026-07-27), and an agreeing one-fret delta widens to the same two-fret
+    minimum — the travel never shrinks below what reads as a slide (user rule 2026-07-29).
+    An open-string landing, a start that would leave the neck (into
     fret 1 from below), or a landing with no room for any lead stays a plain note with a
     conversion note. The ramp is **window-neutral** (user rule 2026-07-28): a slide-in is an
     importer-fabricated approach, so the target's natural window must not move because of it.

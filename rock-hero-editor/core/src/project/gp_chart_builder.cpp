@@ -1183,7 +1183,10 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
 // note sliding into its principal is the explicit-fret notation and never reaches here: it
 // resolves through the ordinary slide chain. When the hand does not move at the note, or the
 // placement delta contradicts the flag's direction, the flag wins with a two-fret start in its
-// direction. Runs after fret-hand generation and INSERTS each ramp's own placements into the
+// direction, and an agreeing one-fret delta widens to the same two-fret minimum (user rule
+// 2026-07-29) — the travel never shrinks below what reads as a slide, though the low-neck
+// clamp can still shorten a start that would fall off the nut. Runs after fret-hand
+// generation and INSERTS each ramp's own placements into the
 // track (user rule 2026-07-28): a slide-in is an importer-fabricated approach, so the target's
 // natural window must not move because of it — the head gets a placement whose anchor derives
 // backward from the target's (anchor minus the ramp delta, keeping the head on the target's
@@ -1232,7 +1235,10 @@ void resolveSlideIns(
                 const int delta = (landing - 1)->fret - landing->fret;
                 if (delta != 0 && (delta < 0) == from_below)
                 {
-                    start = note.fret + delta;
+                    // FHP-derived travel, widened to the same two-fret minimum as the default
+                    // (user rule 2026-07-29): a one-fret hand move must not shrink the
+                    // approach below what reads as a slide.
+                    start = note.fret + (from_below ? std::min(delta, -2) : std::max(delta, 2));
                 }
             }
         }

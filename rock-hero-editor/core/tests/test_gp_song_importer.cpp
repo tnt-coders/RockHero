@@ -1580,7 +1580,8 @@ TEST_CASE("Guitar Pro import reads gpif grace placements", "[core][gp-import]")
 // own. Guitar Pro gives the gesture no start fret, so the fret-hand positions supply it: the
 // head departs from the same window slot in the preceding placement. The flag's stated
 // direction wins over a contradicting placement delta, a still hand falls back to two frets
-// out in the flag's direction, and an open-string landing stays plain. A grace note sliding
+// out in the flag's direction, an agreeing one-fret hand move widens to the same two-fret
+// minimum, and an open-string landing stays plain. A grace note sliding
 // into its principal carries the explicit start fret instead and resolves through the
 // ordinary slide chain.
 TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[core][gp-import]")
@@ -1614,6 +1615,24 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         // beat at 3/4 (same string — the old ring overlapped the ramp) and, notated a full
         // beat, keeps the trimmed tail.
         CHECK(chart.notes[0].sustain == Fraction{1, 2});
+    }
+
+    SECTION("a one-fret hand move widens to the two-fret minimum")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{noteBeat(Fraction{1, 4}, 3), noteBeat(Fraction{1, 4}, 7, 0, 16)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        // The window walk moves the anchor minimally (3 to 4, since the width-4 window reaches
+        // fret 7 from there) — a one-fret delta — but the approach never travels less than two
+        // frets (user rule 2026-07-29): the head departs at 5, not 6.
+        CHECK(chart.notes[1].fret == 5);
+        REQUIRE(chart.notes[1].slides.size() == 1);
+        CHECK(chart.notes[1].slides[0].fret == 7);
     }
 
     SECTION("a slide-in into a held landing keeps the hold")
