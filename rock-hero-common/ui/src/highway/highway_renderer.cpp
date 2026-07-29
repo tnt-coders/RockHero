@@ -88,8 +88,16 @@ constexpr double g_tap_ribbon_decay_seconds = 0.45;
 // lift is foreshortened at center screen. Slope is normalized by the lane's bend-lift
 // direction so a climbing PITCH always brightens regardless of which way the lane draws it.
 // Gain scales world dy/dz into [-1, 1]; depth is the full brighten/darken mix at saturation.
-constexpr double g_tail_slope_shade_gain = 6.0;
+constexpr double g_tail_slope_shade_gain = 4.8;
 constexpr double g_tail_slope_shade_depth = 0.5;
+// Tent-smoothing half-window for the shade, in seconds of tail time. The raw per-sample shade
+// tracks the instantaneous derivative, which crosses tanh's linear region within a sample or
+// two on a real bend — the shade snapped between base and saturated over a couple of segments,
+// and foreshortening at screen center compressed that snap into a hard band that read as a
+// sharp point on a smooth curve (user report 2026-07-29). Smoothing over a fixed TIME window
+// guarantees the fade-in/out spans the same stretch of tail whatever the sample density or
+// viewing angle. Kept under half the vibrato period (0.160s) so the shimmer survives.
+constexpr double g_tail_slope_shade_smooth_seconds = 0.05;
 
 // Bend chevron station, in head half-heights from the head center along the drawn bend-lift
 // direction (above the note for an upward curve, below on bend-inverted lanes). Derived from
@@ -2790,7 +2798,7 @@ void HighwayRenderer::Impl::draw(
                 // pipeline, no shader involved. tanh saturation, not a hard clamp: the clamp's
                 // knee drew a visible hard-edged brightness band where a steep climb maxed
                 // out, while tanh rolls off smoothly at the same sensitivity.
-                std::vector<ArgbColor> shaded(samples.size(), style.tail);
+                std::vector<double> lifts(samples.size(), 0.0);
                 for (std::size_t sample = 0; sample < samples.size(); ++sample)
                 {
                     const std::size_t before = sample > 0 ? sample - 1 : sample;
@@ -2802,8 +2810,47 @@ void HighwayRenderer::Impl::draw(
                     }
                     const double pitch_slope =
                         bend_direction * (samples[after].y - samples[before].y) / dz;
-                    const double lift =
+                    lifts[sample] =
                         g_tail_slope_shade_depth * std::tanh(pitch_slope * g_tail_slope_shade_gain);
+                }
+                // Tent-smooth the shade over a fixed time window (z is linear in time, so the
+                // window converts once): the brightness fades in and out across the same
+                // stretch of tail regardless of sample density or foreshortening, instead of
+                // snapping where the derivative crosses tanh's knee.
+                const double shade_window_z = std::abs(
+                    time_to_z(now_seconds + g_tail_slope_shade_smooth_seconds) -
+                    time_to_z(now_seconds));
+                std::vector<ArgbColor> shaded(samples.size(), style.tail);
+                for (std::size_t sample = 0; sample < samples.size(); ++sample)
+                {
+                    double lift = lifts[sample];
+                    if (shade_window_z > 0.0)
+                    {
+                        // Samples are time-ordered and z is monotone in time, so the window
+                        // walk outward from the sample stops at the first miss on each side.
+                        double total = lifts[sample];
+                        double total_weight = 1.0;
+                        const auto accumulate = [&](const std::size_t other) {
+                            const double distance = std::abs(samples[other].z - samples[sample].z);
+                            if (distance >= shade_window_z)
+                            {
+                                return false;
+                            }
+                            const double weight = 1.0 - (distance / shade_window_z);
+                            total += lifts[other] * weight;
+                            total_weight += weight;
+                            return true;
+                        };
+                        for (std::size_t other = sample; other-- > 0 && accumulate(other);)
+                        {
+                        }
+                        for (std::size_t other = sample + 1;
+                             other < samples.size() && accumulate(other);
+                             ++other)
+                        {
+                        }
+                        lift = total / total_weight;
+                    }
                     shaded[sample] =
                         lift >= 0.0
                             ? mixArgb(style.tail, (style.tail & 0xFF000000U) | 0x00FFFFFFU, lift)

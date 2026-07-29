@@ -45,7 +45,16 @@ toward the source-game notation's weight; fallback painter matched), the overlap
 re-tuned to 0.38 for the taller band, and chevrons now LAYER above every head of their onset
 group: they collect during the group and append to the head batch at the group boundary, so a
 chord's lower-lane chevron can no longer be overdrawn by a higher groupmate's head (the
-mid-group bracket flush deliberately leaves them pending — a later batch still draws above). The
+mid-group bracket flush deliberately leaves them pending — a later batch still draws above).
+
+Ninth pass (2026-07-29): the slope shade faded in and out too suddenly — the raw per-sample
+derivative crosses tanh's knee within a sample or two, and screen-center foreshortening
+compressed that snap into a hard band that read as a sharp point on a smooth curve. The
+per-sample shade lift is now tent-smoothed over a fixed ±0.05s time window
+(`g_tail_slope_shade_smooth_seconds`; z is linear in time so the window converts once per
+tail), guaranteeing the fade spans the same stretch of tail whatever the sample density or
+viewing angle, while staying under half the 0.160s vibrato period so the shimmer survives;
+gain re-tuned 6.0 → 4.8 to compensate the pitch-true lift increase. The
 "hard corners" in bent tails were adaptive-sampling starvation, not the curve math: sample
 count was measured from the straight flat lane span, which ignores the bend's vertical lift
 (and a slide's lateral travel), so mostly-vertical tails got a handful of samples — now
