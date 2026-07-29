@@ -96,9 +96,11 @@ void paintBendSymbolCell(juce::Graphics& graphics)
     const juce::Point<float> origin{
         static_cast<float>(column) * size, static_cast<float>(row) * size
     };
-    const juce::Point<float> apex = origin + juce::Point<float>{0.5F * size, 0.38F * size};
-    const juce::Point<float> left = origin + juce::Point<float>{0.22F * size, 0.58F * size};
-    const juce::Point<float> right = origin + juce::Point<float>{0.78F * size, 0.58F * size};
+    // 0.6 scale about the cell center, matching the authored cell's judged in-game size
+    // (2026-07-28: the full-cell footprint read far too large over the head).
+    const juce::Point<float> apex = origin + juce::Point<float>{0.5F * size, 0.42F * size};
+    const juce::Point<float> left = origin + juce::Point<float>{0.332F * size, 0.54F * size};
+    const juce::Point<float> right = origin + juce::Point<float>{0.668F * size, 0.54F * size};
 
     // Solves p0 + t*d0 == p1 + u*d1 for the miter points.
     const auto intersect = [](const juce::Point<float> p0,
@@ -136,9 +138,9 @@ void paintBendSymbolCell(juce::Graphics& graphics)
     };
 
     graphics.setColour(juce::Colour::fromRGBA(255, 40, 255, 255));
-    graphics.fillPath(outline(0.105F * size));
+    graphics.fillPath(outline(0.063F * size));
     graphics.setColour(juce::Colour::fromRGBA(200, 235, 255, 255));
-    graphics.fillPath(outline(0.044F * size));
+    graphics.fillPath(outline(0.0264F * size));
 }
 
 } // namespace

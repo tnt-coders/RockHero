@@ -83,23 +83,6 @@ prebend), which anchors the start value; after the last point the final value ho
     std::span<const HighwayBendPointView> bend, double onset_seconds, double seconds) noexcept;
 
 /*!
-\brief Snaps one bend target to its displayable amount in half-semitone steps.
-
-The amount snaps to the nearest half semitone, the quantum both the GP importer (quarter-tone
-bend units) and the chart vocabulary produce, so slightly-off hand-edited values bucket to the
-nearest honest figure. A bend point carries a plain semitone double in the chart — there is no
-special half-step notation anywhere in the data; the split into a digit and a "½" suffix is
-pure text layout (steps / 2 whole semitones, an odd step appends the half). The head displays
-the curve's FIRST point (what the player must bend to as the note arrives — a prebend needs no
-special case, its first point simply sits at the onset), and each later point whose snapped
-step count changes the target displays its own figure on the tail.
-
-\param semitones Bend target amount in semitones.
-\return Half-semitone steps of the target; zero when it never rises past a quarter tone.
-*/
-[[nodiscard]] int highwayBendDisplayHalfSteps(double semitones) noexcept;
-
-/*!
 \brief Returns whether a note's bend lift points downward on a displayed lane.
 
 Bends on the upper half of the displayed string stack curve downward so the curve stays inside

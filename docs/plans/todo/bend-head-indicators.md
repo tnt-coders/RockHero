@@ -1,19 +1,18 @@
 # Bend-Amount Chevrons on Note Heads
 
-Status: **SHIPPED 2026-07-28**, three passes on sight the same day: chevron *stacks* were
-rejected as clutter (symbol count scaled with the amount), then head amount *figures* were
-rejected as unreadable at speed. The shipped notation: **presence** — ONE `^` chevron marker
-on the head (the source-game notation's own bend cue; the atlas's
-formerly empty cell 11, present in both atlas paths, never gated on `reference_cells`),
-rotated to point along the drawn bend-lift direction; **amount and
-stages** — pure geometry: a dashed white target rail at each held target's exact lift height
-(`bend_lift_per_half_step` × the snapped semitones) spans the stretch of tail that holds it,
-so the curve visibly climbs to meet its rail, a compound bend reads as a staircase of rails,
-and screen-center foreshortening no longer matters because the rail IS the reference line.
-Amounts snap to the nearest half semitone (`highwayBendDisplayHalfSteps` in
-`highway_tail.{h,cpp}`, tested — a plain half-step count in the GP importer's quarter-tone
-quantum; the chart stores plain semitone doubles with no special notation, user check
-2026-07-28). `HighwayAtlasLayout` is rectangular-grid generalized (tested).
+Status: **SHIPPED 2026-07-28**, five passes on sight the same day: chevron *stacks* were
+rejected as clutter (symbol count scaled with the amount), head amount *figures* were rejected
+as unreadable at speed, and the dashed *target rails* were removed as redundant furniture once
+the tail itself carried the amount (fifth pass). The shipped notation: **presence** — ONE `^`
+chevron marker on the head (the source-game notation's own bend cue;
+the atlas's formerly empty cell 11, present in both atlas paths, never gated on
+`reference_cells`), rotated to point along the drawn bend-lift direction, sized at 0.6 of the
+cell after the full-cell footprint read far too large over the head; **amount and stages** —
+the tail's own geometry: physical lift height (`bend_lift_per_half_step` × semitones) plus
+slope shading, the source-game notation's approach. The chart stores plain semitone doubles with
+no special notation (user check 2026-07-28); the half-step display snapper built for figures
+and rails was deleted with them. `HighwayAtlasLayout` is rectangular-grid generalized
+(tested).
 
 Fourth pass, same day: the procedural chevron did not hold up next to Charter's authored
 cells, so the glyph was authored offline (PIL harness compositing candidates with the exact
@@ -27,9 +26,11 @@ fallback, the same degradation policy as every other head cell. The sustain tail
 slope shading
 (`g_tail_slope_shade_*` in `highway_renderer.cpp`): per-vertex brightness follows the
 centerline's pitch slope — climbs brighten toward white, releases darken — so bend strength
-reads from the tail itself even at screen center, source-style, with the dashed rails still
-marking exact targets. REMAINING: judge the rail dash geometry/brightness (`g_bend_rail_*`)
-and the slope-shade gain/depth in the preview.
+reads from the tail itself even at screen center, source-style. OPEN QUESTION (user, fifth pass):
+single chevron always vs. a stack showing the max bend over the duration — recommendation is
+single (stacks were already rejected as clutter, a max-stack misleads mid-compound-bend, and
+the tail now carries the amount). REMAINING: judge the 0.6 chevron size and the slope-shade
+gain/depth in the preview.
 
 ## Goal
 

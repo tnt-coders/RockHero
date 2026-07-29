@@ -72,26 +72,6 @@ TEST_CASE("Highway bend curve hits its control points exactly", "[core][highway]
     CHECK(highwayBendSemitonesAt(prebend, 10.0, 11.0) == Catch::Approx(1.0));
 }
 
-// Bend display amounts snap one target to half-semitone steps so slightly off hand-edited
-// values land on the honest bucket; the digit/half split is pure text layout at the call
-// site. Callers apply this to the curve's first point for the head and to each later target
-// change along the tail.
-TEST_CASE("Highway bend display amounts snap to half semitones", "[core][highway][tail]")
-{
-    CHECK(highwayBendDisplayHalfSteps(0.0) == 0);
-    CHECK(highwayBendDisplayHalfSteps(0.5) == 1);
-    CHECK(highwayBendDisplayHalfSteps(1.0) == 2);
-    CHECK(highwayBendDisplayHalfSteps(1.5) == 3);
-    CHECK(highwayBendDisplayHalfSteps(2.0) == 4);
-    CHECK(highwayBendDisplayHalfSteps(3.0) == 6);
-
-    // Near-half values snap to the nearest half-semitone bucket; sub-quarter noise shows
-    // nothing, and a release-below-zero target can never go negative.
-    CHECK(highwayBendDisplayHalfSteps(0.4) == 1);
-    CHECK(highwayBendDisplayHalfSteps(0.2) == 0);
-    CHECK(highwayBendDisplayHalfSteps(-1.0) == 0);
-}
-
 // Bends on the upper half of the displayed stack invert so the curve stays inside the board;
 // the middle lane of an odd stack keeps the upward default.
 TEST_CASE("Highway bend inversion splits the displayed stack", "[core][highway][tail]")

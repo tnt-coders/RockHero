@@ -63,13 +63,6 @@ double highwayBendSemitonesAt(
     return bend.back().semitones;
 }
 
-int highwayBendDisplayHalfSteps(const double semitones) noexcept
-{
-    // lround keeps hand-edited near-half values on the honest bucket; a release below zero
-    // clamps to no figure.
-    return static_cast<int>(std::max(0L, std::lround(semitones * 2.0)));
-}
-
 bool highwayBendInverted(const int displayed_lane, const int string_count) noexcept
 {
     // Strictly-upper-half lanes invert; the middle lane of an odd stack lifts upward.

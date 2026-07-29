@@ -82,12 +82,6 @@ constexpr double g_tap_light_decay_seconds = 0.1;
 // per-tap ribbon flashing read as jarring in tap sections): the light pulses with each strike
 // while the brightened edges bridge the gaps of a dense run, fading only once the run ends.
 constexpr double g_tap_ribbon_decay_seconds = 0.45;
-// Bend target rails (bend-head-indicators plan): dash geometry and brightness of the dashed
-// guide drawn at each held bend target's exact lift height — the amount reads as geometry the
-// curve visibly climbs to meet, not as a symbol.
-constexpr double g_bend_rail_dash_z = 0.55;
-constexpr double g_bend_rail_gap_z = 0.4;
-constexpr double g_bend_rail_alpha = 0.4;
 // Sustain slope shading (user direction 2026-07-28): the modulated tail's centerline slope
 // modulates its brightness like a surface tilting under a fixed light, so a bend's climb,
 // hold, and release — and a vibrato's wobble — read from shading alone even where screen-space
@@ -3209,63 +3203,17 @@ void HighwayRenderer::Impl::draw(
             }
         }
 
-        // Bend notation (bend-head-indicators plan, third pass on sight 2026-07-28: chevron
-        // stacks read as clutter, then amount figures did not read at speed): the head carries
-        // ONE chevron marker — the source-game notation's own bend cue
-        // — rotated to point along the drawn bend-lift direction. Amount and stages are pure
-        // GEOMETRY: a dashed target rail at each held target's exact lift height spans the
-        // stretch of the tail that holds it, so the curve visibly climbs to meet its rail
-        // (and a compound bend reads as a staircase) even at screen center where lift is
-        // foreshortened. Rails ride the note batch and fade with the note; the marker cell is
-        // runtime-rasterized into both atlas paths, so nothing here gates on reference_cells.
+        // Bend notation (bend-head-indicators plan, fourth pass on sight 2026-07-28: chevron
+        // stacks read as clutter, amount figures did not read at speed, and target rails were
+        // redundant furniture once the tail itself carried the amount): the head carries ONE
+        // chevron marker — the source-game notation's own bend cue —
+        // rotated to point along the drawn bend-lift direction, announcing only that a bend is
+        // coming. Amount and stages are the tail's own geometry: physical lift height plus
+        // slope shading, the source-game notation's approach. The marker cell exists in both
+        // atlas paths, so nothing here gates on reference_cells.
         if (!note.bend.empty())
         {
             push_marker(x, head_y, z, bend_direction, 0.0, g_head_cell_bend, tint);
-        }
-        if (!note.bend.empty() && note.fret > 0)
-        {
-            const double rail_x = common::core::highwayNoteCenterX(note.fret, metrics, mirrored);
-            const double rail_half = metrics.tail_half_width * 1.5;
-            const std::uint32_t rail_color = packAbgr(0xFFFFFFFFU, g_bend_rail_alpha * fade);
-            for (std::size_t point = 0; point < note.bend.size();)
-            {
-                // One rail per run of points holding the same snapped target; the last run
-                // holds through the sustain end (the curve holds its final value).
-                const int steps =
-                    common::core::highwayBendDisplayHalfSteps(note.bend[point].semitones);
-                std::size_t run_end = point + 1;
-                while (run_end < note.bend.size() && common::core::highwayBendDisplayHalfSteps(
-                                                         note.bend[run_end].semitones) == steps)
-                {
-                    ++run_end;
-                }
-                const double run_from = std::max(note.bend[point].seconds, now_seconds);
-                const double run_to = std::min(
-                    run_end < note.bend.size() ? note.bend[run_end].seconds : note.end_seconds,
-                    span_end_seconds);
-                point = run_end;
-                if (steps <= 0 || run_to <= run_from)
-                {
-                    continue;
-                }
-                const double rail_y = lane_y + (bend_direction * metrics.bend_lift_per_half_step *
-                                                (static_cast<double>(steps) / 2.0));
-                const double z_from = time_to_z(run_from);
-                const double z_to = time_to_z(run_to);
-                for (double dash = z_from; dash < z_to;
-                     dash += g_bend_rail_dash_z + g_bend_rail_gap_z)
-                {
-                    pushFloorQuad(
-                        rail_vertices,
-                        rail_indices,
-                        rail_x - rail_half,
-                        rail_x + rail_half,
-                        rail_y,
-                        dash,
-                        std::min(dash + g_bend_rail_dash_z, z_to),
-                        rail_color);
-                }
-            }
         }
 
         // Each pitched slide waypoint gets its own post and line; an unpitched slide-out
