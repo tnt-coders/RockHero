@@ -38,9 +38,10 @@ TEST_CASE("Highway tail taper anchors both ends", "[core][highway][tail]")
     CHECK(highwayTailTaper(2.0, 0.1) == Catch::Approx(0.0));
 }
 
-// Bend evaluation is smoothstep-eased between control points and hits every control point
-// exactly (segment midpoints match the linear value by smoothstep symmetry); the ramp anchors
-// at the onset unless the first point is a prebend at the onset itself.
+// Bend evaluation is monotone-cubic (Fritsch–Carlson tangents) through the control points and
+// hits every control point exactly. At a direction reversal both tangents are flat, so each
+// segment reduces to exactly smoothstep there; the ramp anchors at the onset unless the first
+// point is a prebend at the onset itself.
 TEST_CASE("Highway bend curve hits its control points exactly", "[core][highway][tail]")
 {
     const std::vector<HighwayBendPointView> bend{
@@ -53,8 +54,8 @@ TEST_CASE("Highway bend curve hits its control points exactly", "[core][highway]
     CHECK(highwayBendSemitonesAt(bend, 10.0, 11.0) == Catch::Approx(2.0));
     CHECK(highwayBendSemitonesAt(bend, 10.0, 11.5) == Catch::Approx(1.5));
     CHECK(highwayBendSemitonesAt(bend, 10.0, 12.0) == Catch::Approx(1.0));
-    // Quarter points ease below/above the linear value (smoothstep(0.25) = 0.15625): the curve
-    // leaves each control point flat instead of at the linear slope, so no corner is drawn.
+    // The peak at 11.0 is a reversal, so both segments keep flat tangents there and match
+    // smoothstep exactly (smoothstep(0.25) = 0.15625): the peak is turned at rest, cornerless.
     CHECK(highwayBendSemitonesAt(bend, 10.0, 10.25) == Catch::Approx(2.0 * 0.15625));
     CHECK(highwayBendSemitonesAt(bend, 10.0, 10.75) == Catch::Approx(2.0 * (1.0 - 0.15625)));
     CHECK(highwayBendSemitonesAt(bend, 10.0, 11.25) == Catch::Approx(2.0 - 0.15625));
@@ -70,6 +71,46 @@ TEST_CASE("Highway bend curve hits its control points exactly", "[core][highway]
     };
     CHECK(highwayBendSemitonesAt(prebend, 10.0, 10.0) == Catch::Approx(1.0));
     CHECK(highwayBendSemitonesAt(prebend, 10.0, 11.0) == Catch::Approx(1.0));
+}
+
+// A multi-stage bend that keeps rising flows THROUGH its intermediate control point with
+// nonzero velocity (no flat shelf mid-rise — the terracing that read rigid and mechanical,
+// user report 2026-07-28), stays monotone with no overshoot, and holds plateaus exactly flat.
+TEST_CASE("Highway bend curve flows through same-direction points", "[core][highway][tail]")
+{
+    // Uniform two-stage rise 0 -> 1 -> 2: the Fritsch–Carlson tangent at the middle point is
+    // the secant slope 1, giving Hermite values 0.375 / 1.625 at the segment midpoints (the
+    // flat-shelf smoothstep would give 0.5 / 1.5 with a dead stop at 11.0).
+    const std::vector<HighwayBendPointView> rise{
+        HighwayBendPointView{.seconds = 11.0, .semitones = 1.0},
+        HighwayBendPointView{.seconds = 12.0, .semitones = 2.0},
+    };
+    CHECK(highwayBendSemitonesAt(rise, 10.0, 10.5) == Catch::Approx(0.375));
+    CHECK(highwayBendSemitonesAt(rise, 10.0, 11.0) == Catch::Approx(1.0));
+    CHECK(highwayBendSemitonesAt(rise, 10.0, 11.5) == Catch::Approx(1.625));
+    // Nonzero velocity through the middle point: the curve keeps climbing across it.
+    const double just_before = highwayBendSemitonesAt(rise, 10.0, 11.0 - 0.01);
+    const double just_after = highwayBendSemitonesAt(rise, 10.0, 11.0 + 0.01);
+    CHECK(just_after - just_before > 0.015);
+    // Monotone, and never past a control value.
+    double previous = 0.0;
+    for (int step = 0; step <= 40; ++step)
+    {
+        const double value = highwayBendSemitonesAt(rise, 10.0, 10.0 + (2.0 * step / 40.0));
+        CHECK(value >= previous - 1.0e-12);
+        CHECK(value <= 2.0 + 1.0e-12);
+        previous = value;
+    }
+
+    // A GP-style plateau between two rises stays exactly flat inside the plateau.
+    const std::vector<HighwayBendPointView> plateau{
+        HighwayBendPointView{.seconds = 11.0, .semitones = 1.0},
+        HighwayBendPointView{.seconds = 11.5, .semitones = 1.0},
+        HighwayBendPointView{.seconds = 12.5, .semitones = 2.0},
+    };
+    CHECK(highwayBendSemitonesAt(plateau, 10.0, 11.1) == Catch::Approx(1.0));
+    CHECK(highwayBendSemitonesAt(plateau, 10.0, 11.25) == Catch::Approx(1.0));
+    CHECK(highwayBendSemitonesAt(plateau, 10.0, 11.4) == Catch::Approx(1.0));
 }
 
 // Bends on the upper half of the displayed stack invert so the curve stays inside the board;

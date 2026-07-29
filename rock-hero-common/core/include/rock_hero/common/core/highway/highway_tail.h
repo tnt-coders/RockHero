@@ -67,12 +67,16 @@ and end exactly on the string line.
 /*!
 \brief Evaluates a note's bend curve at an absolute time.
 
-Smoothstep-eased between consecutive bend points (replacing the reference's piecewise-linear
-interpolation, whose corners at every control point read as kinks a real bending finger never
-produces): each segment passes exactly through its endpoints with a flat tangent there, so the
-curve is corner-free at every control point without overshooting. Before the first point the
-curve eases from zero at the onset — unless the first point sits at the onset itself (a
-prebend), which anchors the start value; after the last point the final value holds.
+Monotone cubic Hermite interpolation with Fritsch–Carlson tangents (the standard
+shape-preserving interpolant) through the control points: where consecutive segments move in
+the same direction the curve flows THROUGH the control point with continuous nonzero velocity
+— the way a real bending finger passes an intermediate target — instead of easing to a flat
+shelf at every point (the previous per-segment smoothstep, whose terraced look read rigid and
+mechanical on multi-stage bends, user report 2026-07-28). Plateaus and direction reversals
+still get an exactly flat tangent, and the Fritsch–Carlson limits guarantee no overshoot past
+any control value. The curve starts and settles at rest: zero tangent at the first point
+(easing from zero at the onset — unless the first point sits at the onset itself, a prebend,
+which anchors the start value) and at the last point, whose value then holds.
 
 \param bend Bend curve points in ascending time order.
 \param onset_seconds The note's onset time (the zero anchor for the pre-first-point ramp).

@@ -38,29 +38,74 @@ double highwayBendSemitonesAt(
         return 0.0;
     }
 
-    // Segment start: the onset at zero semitones, unless the first point IS the onset (prebend).
-    double previous_seconds = onset_seconds;
-    double previous_semitones =
-        bend.front().seconds <= onset_seconds ? bend.front().semitones : 0.0;
-    for (const HighwayBendPointView& point : bend)
+    // The control polyline is the bend points with a virtual onset point at zero semitones in
+    // front — unless the first point IS the onset (prebend), which anchors the start value.
+    const bool prebend = bend.front().seconds <= onset_seconds;
+    const std::size_t count = bend.size() + (prebend ? 0 : 1);
+    const auto point_seconds = [&](const std::size_t index) {
+        return (!prebend && index == 0) ? onset_seconds : bend[index - (prebend ? 0 : 1)].seconds;
+    };
+    const auto point_semitones = [&](const std::size_t index) {
+        return (!prebend && index == 0) ? 0.0 : bend[index - (prebend ? 0 : 1)].semitones;
+    };
+    if (seconds <= point_seconds(0))
     {
-        if (seconds <= point.seconds)
-        {
-            const double span = point.seconds - previous_seconds;
-            if (span <= 0.0)
-            {
-                return point.semitones;
-            }
-            const double mix = std::clamp((seconds - previous_seconds) / span, 0.0, 1.0);
-            // Smoothstep: flat tangents at both segment ends keep the curve corner-free at
-            // every control point (and monotone within the segment, so no overshoot).
-            const double eased = mix * mix * (3.0 - (2.0 * mix));
-            return previous_semitones + ((point.semitones - previous_semitones) * eased);
-        }
-        previous_seconds = point.seconds;
-        previous_semitones = point.semitones;
+        return point_semitones(0);
     }
-    return bend.back().semitones;
+    if (seconds >= point_seconds(count - 1))
+    {
+        return point_semitones(count - 1);
+    }
+
+    // Secant slope of the segment starting at `index`; the curve is flat (at rest) before the
+    // first point and after the last, so out-of-range segments report zero slope — which the
+    // Fritsch–Carlson rule below turns into zero endpoint tangents for free.
+    const auto secant = [&](const std::size_t index) {
+        if (index + 1 >= count)
+        {
+            return 0.0;
+        }
+        const double span = point_seconds(index + 1) - point_seconds(index);
+        return span > 0.0 ? (point_semitones(index + 1) - point_semitones(index)) / span : 0.0;
+    };
+    // Fritsch–Carlson tangent at a control point: zero when the neighboring secants disagree
+    // in direction or either is flat (plateaus stay exactly flat, reversals turn at rest), else
+    // the span-weighted harmonic mean — which keeps the tangent inside the monotonicity region,
+    // so the cubic can never overshoot a control value.
+    const auto tangent = [&](const std::size_t index) {
+        const double before = index > 0 ? secant(index - 1) : 0.0;
+        const double after = secant(index);
+        if (before * after <= 0.0)
+        {
+            return 0.0;
+        }
+        const double span_before =
+            index > 0 ? point_seconds(index) - point_seconds(index - 1) : 0.0;
+        const double span_after =
+            index + 1 < count ? point_seconds(index + 1) - point_seconds(index) : 0.0;
+        return 3.0 * (span_before + span_after) /
+               ((((2.0 * span_after) + span_before) / before) +
+                ((span_after + (2.0 * span_before)) / after));
+    };
+
+    std::size_t segment = 0;
+    while (segment + 2 < count && seconds > point_seconds(segment + 1))
+    {
+        ++segment;
+    }
+    const double span = point_seconds(segment + 1) - point_seconds(segment);
+    if (span <= 0.0)
+    {
+        return point_semitones(segment + 1);
+    }
+    const double mix = std::clamp((seconds - point_seconds(segment)) / span, 0.0, 1.0);
+    // Cubic Hermite basis over the segment with the Fritsch–Carlson endpoint tangents.
+    const double mix2 = mix * mix;
+    const double mix3 = mix2 * mix;
+    return (point_semitones(segment) * ((2.0 * mix3) - (3.0 * mix2) + 1.0)) +
+           (tangent(segment) * span * (mix3 - (2.0 * mix2) + mix)) +
+           (point_semitones(segment + 1) * ((-2.0 * mix3) + (3.0 * mix2))) +
+           (tangent(segment + 1) * span * (mix3 - mix2));
 }
 
 bool highwayBendInverted(const int displayed_lane, const int string_count) noexcept

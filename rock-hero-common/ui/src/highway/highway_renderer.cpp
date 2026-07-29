@@ -90,6 +90,12 @@ constexpr double g_tap_ribbon_decay_seconds = 0.45;
 // Gain scales world dy/dz into [-1, 1]; depth is the full brighten/darken mix at saturation.
 constexpr double g_tail_slope_shade_gain = 6.0;
 constexpr double g_tail_slope_shade_depth = 0.5;
+
+// Bend chevron station, in head half-heights from the head center along the drawn bend-lift
+// direction (above the note for an upward curve, below on bend-inverted lanes). The glyph band
+// sits centered in its cell, so at this offset its near edge touches the head art the way the
+// source-game notation's chevron touches the note (user 2026-07-28) instead of floating clear.
+constexpr double g_bend_marker_offset_heads = 0.95;
 // The tap light leans the lit lane tint toward the FHP orange (the tap floor numbers' color)
 // so the tapping hand's light reads apart from the fretting hand's window at a glance.
 constexpr double g_tap_light_warm_mix = 0.3;
@@ -2650,8 +2656,35 @@ void HighwayRenderer::Impl::draw(
             }
             else if (band_valid)
             {
-                const double pixels = projected_pixels(
-                    base_x, lane_y, time_to_z(tail_from), base_x, lane_y, time_to_z(tail_to));
+                // Sample density comes from the projected arc length of the modulated
+                // centerline (a coarse probe polyline), not the straight lane span: a bend's
+                // vertical lift or a slide's lateral travel can dominate a tail's on-screen
+                // length, and the flat measure starved exactly those tails of samples, so
+                // their smooth curves rendered as chunky polylines with visible corners.
+                constexpr std::size_t g_arc_probe_segments = 16;
+                double pixels = 0.0;
+                double probe_x = 0.0;
+                double probe_y = 0.0;
+                double probe_z = 0.0;
+                for (std::size_t probe = 0; probe <= g_arc_probe_segments; ++probe)
+                {
+                    const double mix =
+                        static_cast<double>(probe) / static_cast<double>(g_arc_probe_segments);
+                    const double seconds = tail_from + ((tail_to - tail_from) * mix);
+                    const double taper = common::core::highwayTailTaper(
+                        (seconds - note.start_seconds) / duration,
+                        common::core::g_highway_tail_taper_fraction);
+                    const double arc_x = base_x + slide_state_at(note, base_x, seconds).x_offset;
+                    const double arc_y = note_y_at(seconds, taper);
+                    const double arc_z = time_to_z(seconds);
+                    if (probe > 0)
+                    {
+                        pixels += projected_pixels(probe_x, probe_y, probe_z, arc_x, arc_y, arc_z);
+                    }
+                    probe_x = arc_x;
+                    probe_y = arc_y;
+                    probe_z = arc_z;
+                }
                 const std::size_t uniform_count = common::core::highwayTailSampleCount(
                     pixels, g_tail_pixels_per_sample, g_tail_sample_cap);
                 std::vector<double> sample_times = common::core::makeHighwayTailSampleTimes(
@@ -2706,7 +2739,9 @@ void HighwayRenderer::Impl::draw(
                 // Per-sample slope shading (central differences over the centerline): a
                 // climbing pitch brightens toward white, a release darkens, flat holds stay
                 // at the base tint — cheap per-vertex lighting through the existing color
-                // pipeline, no shader involved.
+                // pipeline, no shader involved. tanh saturation, not a hard clamp: the clamp's
+                // knee drew a visible hard-edged brightness band where a steep climb maxed
+                // out, while tanh rolls off smoothly at the same sensitivity.
                 std::vector<ArgbColor> shaded(samples.size(), style.tail);
                 for (std::size_t sample = 0; sample < samples.size(); ++sample)
                 {
@@ -2720,8 +2755,7 @@ void HighwayRenderer::Impl::draw(
                     const double pitch_slope =
                         bend_direction * (samples[after].y - samples[before].y) / dz;
                     const double lift =
-                        g_tail_slope_shade_depth *
-                        std::clamp(pitch_slope * g_tail_slope_shade_gain, -1.0, 1.0);
+                        g_tail_slope_shade_depth * std::tanh(pitch_slope * g_tail_slope_shade_gain);
                     shaded[sample] =
                         lift >= 0.0
                             ? mixArgb(style.tail, (style.tail & 0xFF000000U) | 0x00FFFFFFU, lift)
@@ -3207,13 +3241,22 @@ void HighwayRenderer::Impl::draw(
         // stacks read as clutter, amount figures did not read at speed, and target rails were
         // redundant furniture once the tail itself carried the amount): the head carries ONE
         // chevron marker — the source-game notation's own bend cue —
-        // rotated to point along the drawn bend-lift direction, announcing only that a bend is
-        // coming. Amount and stages are the tail's own geometry: physical lift height plus
-        // slope shading, the source-game notation's approach. The marker cell exists in both
-        // atlas paths, so nothing here gates on reference_cells.
+        // announcing only that a bend is coming. It rides the bend-lift side of the head
+        // (above the note for an upward curve, below on bend-inverted lanes) and its 180-degree
+        // flip keeps it pointing where the drawn curve goes. Amount and stages are the tail's
+        // own geometry: physical lift height plus slope shading, the source-game notation's
+        // approach. The marker cell exists in both atlas paths, so nothing here gates on
+        // reference_cells.
         if (!note.bend.empty())
         {
-            push_marker(x, head_y, z, bend_direction, 0.0, g_head_cell_bend, tint);
+            push_marker(
+                x,
+                head_y + (bend_direction * g_bend_marker_offset_heads * head_half_h),
+                z,
+                bend_direction,
+                0.0,
+                g_head_cell_bend,
+                tint);
         }
 
         // Each pitched slide waypoint gets its own post and line; an unpitched slide-out

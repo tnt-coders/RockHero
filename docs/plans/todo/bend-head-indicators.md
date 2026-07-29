@@ -29,8 +29,36 @@ centerline's pitch slope — climbs brighten toward white, releases darken — s
 reads from the tail itself even at screen center, source-style. OPEN QUESTION (user, fifth pass):
 single chevron always vs. a stack showing the max bend over the duration — recommendation is
 single (stacks were already rejected as clutter, a max-stack misleads mid-compound-bend, and
-the tail now carries the amount). REMAINING: judge the 0.6 chevron size and the slope-shade
-gain/depth in the preview.
+the tail now carries the amount).
+
+Sixth pass on sight (2026-07-28): the chevron was re-baked flatter and wider (slope ~0.35 vs
+~0.6, vertically centered in cell 11; fallback painter matched, and its miter-normal bug —
+lower-side n2 collapsing the apex into a flat top, latent under the always-present asset —
+fixed), and it moved off the head to the bend-lift side (`g_bend_marker_offset_heads` head
+half-heights above the note, below on inverted lanes, still flipping with the curve; lowered
+1.3 → 0.95 on the seventh pass so the glyph touches the head art like the reference
+notation's chevron, user 2026-07-28). The
+"hard corners" in bent tails were adaptive-sampling starvation, not the curve math: sample
+count was measured from the straight flat lane span, which ignores the bend's vertical lift
+(and a slide's lateral travel), so mostly-vertical tails got a handful of samples — now
+measured as projected arc length over a 16-segment probe of the modulated centerline. The
+slope-shade clamp's hard saturation knee was replaced with tanh.
+
+Seventh pass (2026-07-28, user report on the Periphery m118–119 chained bends: "rigid and
+choppy... not intense enough... realistic to the actual pitch"): the GP import was audited
+against the file and is faithful (value/50 → semitones, so 100 = whole step; plateau points
+kept; offsets percent-of-sustain), so both fixes were display-side. (1) `highwayBendSemitonesAt`
+moved from per-segment smoothstep to monotone cubic Hermite with Fritsch–Carlson tangents
+(SciPy-PCHIP-style): same-direction control points now pass with continuous nonzero velocity
+instead of easing to a flat shelf at every point — the terracing that read rigid — while
+plateaus stay exactly flat, reversals turn at rest, and the FC limits forbid overshoot; at a
+reversal both tangents are flat so the old smoothstep values (and tests) still hold there.
+(2) `bend_lift_per_half_step` 0.28 → 0.35 = exactly one string-lane gap per semitone, the
+pitch-true reading in the board's own vertical unit (a whole-step bend visibly crosses two
+lanes; source's own convention quantizes bend targets to lane positions per the notation guides).
+Vibrato depth is authored in semitones and rides the same scale deliberately. REMAINING: judge
+the flatter glyph, the off-head offset, the fluid curve and pitch-true lift, and the
+slope-shade gain/depth in the preview.
 
 ## Goal
 

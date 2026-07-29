@@ -83,11 +83,11 @@ void paintStandardHead(juce::Graphics& graphics, const juce::Rectangle<float> ce
 }
 
 // Fallback paint of the bend marker cell: the shipped PNG carries the authored chevron in
-// cell 11 (baked from the offline design harness, judged against the tap arrow's footprint on
-// 2026-07-28), so this runs only when the asset is missing. Same geometry — squared
-// butt-capped legs, sharp mitered apex, tap-arrow proportions — layered as a tinted body
-// around a white core in the channel scheme, without the authored halo (the fallback degrades
-// the art, never the game).
+// cell 11 (baked from the offline design harness), so this runs only when the asset is
+// missing. Same geometry — squared butt-capped legs, sharp mitered apex, squat flattened
+// proportions (2026-07-28 sixth pass on sight) — layered as a tinted body around a white core
+// in the channel scheme, without the authored halo (the fallback degrades the art, never the
+// game).
 void paintBendSymbolCell(juce::Graphics& graphics)
 {
     const int column = g_head_cell_bend % g_head_grid_columns;
@@ -96,11 +96,11 @@ void paintBendSymbolCell(juce::Graphics& graphics)
     const juce::Point<float> origin{
         static_cast<float>(column) * size, static_cast<float>(row) * size
     };
-    // 0.6 scale about the cell center, matching the authored cell's judged in-game size
-    // (2026-07-28: the full-cell footprint read far too large over the head).
-    const juce::Point<float> apex = origin + juce::Point<float>{0.5F * size, 0.42F * size};
-    const juce::Point<float> left = origin + juce::Point<float>{0.332F * size, 0.54F * size};
-    const juce::Point<float> right = origin + juce::Point<float>{0.668F * size, 0.54F * size};
+    // Squat proportions matching the authored cell, vertically centered in the cell so the
+    // marker quad's 180-degree inverted-lane flip keeps the glyph on its offset station.
+    const juce::Point<float> apex = origin + juce::Point<float>{0.5F * size, 0.467F * size};
+    const juce::Point<float> left = origin + juce::Point<float>{0.3125F * size, 0.533F * size};
+    const juce::Point<float> right = origin + juce::Point<float>{0.6875F * size, 0.533F * size};
 
     // Solves p0 + t*d0 == p1 + u*d1 for the miter points.
     const auto intersect = [](const juce::Point<float> p0,
@@ -119,9 +119,10 @@ void paintBendSymbolCell(juce::Graphics& graphics)
         const auto unit = [](juce::Point<float> v) { return v / v.getDistanceFromOrigin(); };
         const juce::Point<float> dir1 = unit(apex - left);
         const juce::Point<float> dir2 = unit(right - apex);
-        // Outer normals point up (negative y) so the miter grows past the apex tip.
+        // Outer normals point up (negative y) so the miter grows past the apex tip: dir1 runs
+        // up-right and dir2 down-right, so their upward perpendiculars rotate opposite ways.
         const juce::Point<float> n1{dir1.y, -dir1.x};
-        const juce::Point<float> n2{-dir2.y, dir2.x};
+        const juce::Point<float> n2{dir2.y, -dir2.x};
         const juce::Point<float> apex_outer =
             intersect(left + (n1 * h), dir1, apex + (n2 * h), dir2);
         const juce::Point<float> apex_inner =

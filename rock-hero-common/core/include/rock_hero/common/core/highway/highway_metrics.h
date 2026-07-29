@@ -78,8 +78,16 @@ struct HighwayMetrics
     /*! \brief Sustain tail half-width (one third of the note head half-width). */
     double tail_half_width{0.16};
 
-    /*! \brief Tail lift per bent half-step (Charter stringDistance x 0.8). */
-    double bend_lift_per_half_step{0.28};
+    /*!
+    \brief Tail lift per bent half-step: exactly one string-lane gap per semitone.
+
+    Pitch-true in the board's own vertical unit (user direction 2026-07-28): a bent tail
+    reaches the lane N gaps away when the pitch is N semitones up, so the lift reads as pitch
+    the same way lane position does — a whole-step bend visibly crosses two lanes. Supersedes
+    Charter's stringDistance x 0.8. Vibrato depth is authored in semitones and rides the same
+    scale on purpose.
+    */
+    double bend_lift_per_half_step{0.35};
 
     /*! \brief Camera height above the board at the reference fret span. */
     double camera_y_base{5.0};
