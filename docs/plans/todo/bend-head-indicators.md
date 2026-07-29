@@ -73,9 +73,10 @@ reversal both tangents are flat so the old smoothstep values (and tests) still h
 (2) `bend_lift_per_half_step` 0.28 → 0.35 = exactly one string-lane gap per semitone, the
 pitch-true reading in the board's own vertical unit (a whole-step bend visibly crosses two
 lanes; source's own convention quantizes bend targets to lane positions per the notation guides).
-Vibrato depth is authored in semitones and rides the same scale deliberately. REMAINING: judge
-the flatter glyph, the off-head offset, the fluid curve and pitch-true lift, and the
-slope-shade gain/depth in the preview.
+Vibrato depth is authored in semitones and rides the same scale deliberately. The glyph
+weight/proportions, head overlap, chord layering, fluid curve, pitch-true lift, and smoothed
+slope shading were all judged in the preview across the eighth/ninth passes (user sign-off
+2026-07-29: "looks much better").
 
 ## Goal
 
