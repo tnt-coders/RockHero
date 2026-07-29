@@ -1660,6 +1660,20 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         CHECK(chart.notes[1].fret == 3);
         REQUIRE(chart.notes[1].slides.size() == 1);
         CHECK(chart.notes[1].slides[0].fret == 5);
+
+        // Window-neutral ramp (user rule 2026-07-28): the head's placement derives backward
+        // from the target's natural window — anchor 5 minus the +2 ramp delta, keeping the
+        // head on the target's slot — and the target keeps its unmodified window, pinned by a
+        // placement landing exactly on the glide's waypoint.
+        REQUIRE(chart.fret_hand_positions.size() == 3);
+        CHECK(chart.fret_hand_positions[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(chart.fret_hand_positions[0].fret == 5);
+        CHECK(
+            chart.fret_hand_positions[1].position ==
+            GridPosition{.measure = 1, .beat = 1, .offset = Fraction{3, 4}});
+        CHECK(chart.fret_hand_positions[1].fret == 3);
+        CHECK(chart.fret_hand_positions[2].position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(chart.fret_hand_positions[2].fret == 5);
     }
 
     SECTION("a from-above flag rides a downward hand move")

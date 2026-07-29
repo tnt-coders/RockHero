@@ -1173,19 +1173,25 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
 // note sliding into its principal is the explicit-fret notation and never reaches here: it
 // resolves through the ordinary slide chain. When the hand does not move at the note, or the
 // placement delta contradicts the flag's direction, the flag wins with a two-fret start in its
-// direction. Runs after fret-hand generation — by construction the derived start fret lies
-// inside the preceding placement, so moved heads never perturb the window walk, and the
-// placement at the notated position sits exactly on the glide's landing waypoint — and before
+// direction. Runs after fret-hand generation and INSERTS each ramp's own placements into the
+// track (user rule 2026-07-28): a slide-in is an importer-fabricated approach, so the target's
+// natural window must not move because of it — the head gets a placement whose anchor derives
+// backward from the target's (anchor minus the ramp delta, keeping the head on the target's
+// slot), and a placement at the notated position pins the unmodified target window, landing
+// exactly on the glide's waypoint so the window rides the ramp. Resolution also runs before
 // the sustain policy, so the transformed note is a slide when the trim rules run: a slide-in
 // into a held landing keeps its hold like any notated slide (user rule 2026-07-28). The lead
 // is the shared minimum-sustain-distance margin, halved when the previous onset on the string
 // sits closer.
 void resolveSlideIns(
-    std::vector<BuiltNote>& built, const std::vector<common::core::FretHandPosition>& placements,
+    std::vector<BuiltNote>& built, std::vector<common::core::FretHandPosition>& placements,
     const MeasureGrid& grid, std::vector<std::string>& notes)
 {
     int unplaceable = 0;
     bool moved = false;
+    // Applied after the loop so every start fret derives from the pristine natural track — an
+    // inserted ramp placement must never feed a later slide-in's slot math.
+    std::vector<common::core::FretHandPosition> ramp_placements;
     for (std::size_t index = 0; index < built.size(); ++index)
     {
         BuiltNote& entry = built[index];
@@ -1248,6 +1254,8 @@ void resolveSlideIns(
         // The head moves back onto the lead; every payload offset is onset-relative and
         // shifts with it, and the notated fret becomes the first glide waypoint. The sustain
         // end stays where the notated note ended.
+        const int notated_fret = note.fret;
+        const GridPosition notated_position = note.position;
         for (BendPoint& point : note.bend)
         {
             point.offset = point.offset + lead;
@@ -1266,6 +1274,58 @@ void resolveSlideIns(
         entry.global_beat = entry.global_beat - lead;
         note.position = gridPositionForGlobalBeat(grid, entry.global_beat);
         moved = true;
+
+        // Window-neutral ramp placements (user rule 2026-07-28): the target's natural window
+        // must not move because a fabricated ramp approaches it. The head's placement anchors
+        // backward from the target's window by the ramp delta — keeping the head on the
+        // target's slot, clamped so it still covers the start on the neck — and a placement at
+        // the notated position pins the unmodified target window on the glide's waypoint.
+        const auto after_target = std::ranges::upper_bound(
+            placements,
+            notated_position,
+            std::ranges::less{},
+            &common::core::FretHandPosition::position);
+        if (after_target != placements.begin())
+        {
+            const auto active = after_target - 1;
+            const int delta = notated_fret - start;
+            const int head_anchor =
+                std::clamp(active->fret - delta, std::max(1, start - active->width + 1), start);
+            ramp_placements.push_back(
+                common::core::FretHandPosition{
+                    .position = note.position,
+                    .fret = head_anchor,
+                    .width = active->width,
+                });
+            if (!(active->position == notated_position))
+            {
+                ramp_placements.push_back(
+                    common::core::FretHandPosition{
+                        .position = notated_position,
+                        .fret = active->fret,
+                        .width = active->width,
+                    });
+            }
+        }
+    }
+    // Merge the ramp placements into the track, keeping positions unique and ascending. On the
+    // vanishingly rare exact collision (another string's glide waypoint placed at the same
+    // instant), the fabricated ramp defines the window at its own instant.
+    for (const common::core::FretHandPosition& ramp : ramp_placements)
+    {
+        const auto at = std::ranges::lower_bound(
+            placements,
+            ramp.position,
+            std::ranges::less{},
+            &common::core::FretHandPosition::position);
+        if (at != placements.end() && at->position == ramp.position)
+        {
+            *at = ramp;
+        }
+        else
+        {
+            placements.insert(at, ramp);
+        }
     }
     if (moved)
     {
@@ -1596,14 +1656,23 @@ void resolveSlideIns(
     // its notes into ordinary slides before normalization decides which tails a technique
     // protects: a slide-in into a held landing keeps its hold (user rule 2026-07-28), trimmed
     // like any tail but never dropped as effect-free.
+    //
+    // The generator runs on the natural stream — slide-ins still plain notes at their notated
+    // positions — and the resolver then inserts each ramp's placements itself (user rule
+    // 2026-07-28): a slide-in is an importer-fabricated approach, so the target's own window
+    // must not move because of it; the head's window derives BACKWARD from the target's
+    // (anchor minus the ramp delta, same slot), and the window rides the glide into the
+    // unmodified target. Regenerating after resolution was tried and rejected: rule 9 dragged
+    // the target's window by the fabricated delta, which read as the hand landing in the
+    // wrong place.
     chart.fret_hand_positions = generateFretHandPositions(built, tempo_map, phrase_boundary_beats);
+    resolveSlideIns(built, chart.fret_hand_positions, grid, notes);
     if (!chart.fret_hand_positions.empty())
     {
         notes.push_back(
             "generated " + std::to_string(chart.fret_hand_positions.size()) +
             " fret-hand positions (phrase-aware; verify)");
     }
-    resolveSlideIns(built, chart.fret_hand_positions, grid, notes);
 
     // Runs after slide and slide-in resolution so slide-extended tails carry their payloads
     // into the trim's payload floor.

@@ -251,13 +251,20 @@ through the trim rules):
     contradicting delta, and a still hand falls back to two frets out in the flag's direction
     (user rules 2026-07-27). An open-string landing, a start that would leave the neck (into
     fret 1 from below), or a landing with no room for any lead stays a plain note with a
-    conversion note. Resolution runs after fret-hand generation, so the derived start sits
-    inside the preceding placement by construction and a placement at the notated position
-    lands exactly on the glide's waypoint — and before the sustain policy, so the transformed
-    note is a slide when the trim rules run: a slide-in into a held landing keeps its hold
-    like any notated slide, trimmed like every tail but never dropped as effect-free (user
-    rule 2026-07-28). A grace note sliding into its principal already carries its explicit
-    start fret and resolves through the ordinary slide chain instead.
+    conversion note. The ramp is **window-neutral** (user rule 2026-07-28): a slide-in is an
+    importer-fabricated approach, so the target's natural window must not move because of it.
+    Generation runs once, on the natural stream, and the resolver inserts each ramp's own
+    placements: the head's anchor derives *backward* from the target's window (anchor minus
+    the ramp delta, keeping the head on the target's slot, clamped onto the neck), and a
+    placement at the notated position pins the unmodified target window exactly on the glide's
+    waypoint so the window rides the ramp in and lands where the hand would have been anyway.
+    (Regenerating the track after resolution was tried and rejected the same day: rule 9
+    dragged the target's window by the fabricated delta, which read as the hand landing in the
+    wrong place.) Resolution still runs before the sustain policy, so the transformed note is
+    a slide when the trim rules run: a slide-in into a held landing keeps its hold like any
+    notated slide, trimmed like every tail but never dropped as effect-free (user rule
+    2026-07-28). A grace note sliding into its principal already carries its explicit start
+    fret and resolves through the ordinary slide chain instead.
 
 **Grace beats** (placed during event collection, before tie merging and every rule above):
 
