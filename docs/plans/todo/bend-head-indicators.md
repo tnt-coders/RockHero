@@ -36,8 +36,10 @@ Sixth pass on sight (2026-07-28): the chevron was re-baked flatter and wider (sl
 lower-side n2 collapsing the apex into a flat top, latent under the always-present asset —
 fixed), and it moved off the head to the bend-lift side (`g_bend_marker_offset_heads` head
 half-heights above the note, below on inverted lanes, still flipping with the curve; lowered
-1.3 → 0.95 on the seventh pass so the glyph touches the head art like the reference
-notation's chevron, user 2026-07-28). The
+1.3 → 0.33 across the seventh pass (measured from the atlas pixels: the head art fills only
+the middle ~34% of its cell, so bare touch is 0.469; 0.33 anchors the chevron's legs ON the
+note's top edge with the apex rising clear, matching the source-game notation's overlap —
+judged on a composite sheet, user 2026-07-29). The
 "hard corners" in bent tails were adaptive-sampling starvation, not the curve math: sample
 count was measured from the straight flat lane span, which ignores the bend's vertical lift
 (and a slide's lateral travel), so mostly-vertical tails got a handful of samples — now

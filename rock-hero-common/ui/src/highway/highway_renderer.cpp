@@ -92,10 +92,13 @@ constexpr double g_tail_slope_shade_gain = 6.0;
 constexpr double g_tail_slope_shade_depth = 0.5;
 
 // Bend chevron station, in head half-heights from the head center along the drawn bend-lift
-// direction (above the note for an upward curve, below on bend-inverted lanes). The glyph band
-// sits centered in its cell, so at this offset its near edge touches the head art the way the
-// source-game notation's chevron touches the note (user 2026-07-28) instead of floating clear.
-constexpr double g_bend_marker_offset_heads = 0.95;
+// direction (above the note for an upward curve, below on bend-inverted lanes). Derived from
+// the atlas pixels, not the quad: the head art fills only the middle ~34% of its cell and the
+// glyph band is cell-centered, so bare geometric touch is at 0.469 half-heights — this sits
+// deliberately inside that so the chevron's legs anchor ON the note's top edge with the apex
+// rising clear, the source-game notation's overlap (judged on a composite sheet, user
+// 2026-07-29).
+constexpr double g_bend_marker_offset_heads = 0.33;
 // The tap light leans the lit lane tint toward the FHP orange (the tap floor numbers' color)
 // so the tapping hand's light reads apart from the fretting hand's window at a glance.
 constexpr double g_tap_light_warm_mix = 0.3;
