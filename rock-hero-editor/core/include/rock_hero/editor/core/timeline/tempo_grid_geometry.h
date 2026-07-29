@@ -20,13 +20,22 @@ namespace rock_hero::editor::core
 inline constexpr int g_max_tempo_grid_note_value_term = 128;
 
 /*!
+\brief The editor's default grid note value: the sixteenth-note grid.
+
+The single source for every owner of a grid note value (the default-constructed Fraction of 0/1
+is a degenerate step, so owners must initialize explicitly) and the fallback whenever a stored or
+supplied value is invalid, so rendering and snapping can never diverge.
+*/
+inline constexpr common::core::Fraction g_default_tempo_grid_note_value{1, 16};
+
+/*!
 \brief Reports whether a fraction is usable as the grid note value.
 
 The grid's authoritative unit is a note value expressed as a fraction of a whole note (1/8 means
 eighth notes in every meter). A valid note value is a positive fraction whose numerator and
 denominator each fall in [1, g_max_tempo_grid_note_value_term]. The default-constructed Fraction
 value of 0/1 is invalid, so every owner of a grid note value must initialize it explicitly; the
-editor default is the quarter-note grid Fraction{1, 4}.
+editor default is g_default_tempo_grid_note_value.
 
 \param note_value Grid step expressed as a fraction of a whole note.
 \return True when the note value can drive grid generation and snapping.
@@ -90,7 +99,7 @@ and label identity.
 
 \param tempo_map Song tempo map supplying signatures, the beat grid, and absolute beat times.
 \param grid_note_value Grid step as a fraction of a whole note; an invalid value falls back to
-       the quarter-note grid so rendering and snapping can never diverge.
+       the default grid so rendering and snapping can never diverge.
 \param visible_timeline Timeline range represented by the full drawing width.
 \param width Full drawing width in pixels.
 \param visible_x_begin Inclusive left pixel of the visible span, in drawing-width coordinates.
@@ -116,7 +125,7 @@ result may lie outside any particular visible range; callers bound the seek them
 
 \param tempo_map Song tempo map supplying signatures, the beat grid, and absolute beat times.
 \param grid_note_value Grid step as a fraction of a whole note; an invalid value falls back to
-       the quarter-note grid so rendering and snapping can never diverge.
+       the default grid so rendering and snapping can never diverge.
 \param target Timeline position to snap.
 \return Timeline position of the nearest tempo-grid line.
 */
@@ -134,7 +143,7 @@ rather than an approximation in some fixed fine grid.
 
 \param tempo_map Song tempo map supplying signatures, the beat grid, and absolute beat times.
 \param grid_note_value Grid step as a fraction of a whole note; an invalid value falls back to
-       the quarter-note grid so rendering and snapping can never diverge.
+       the default grid so rendering and snapping can never diverge.
 \param target Timeline position to snap.
 \return Exact musical position of the nearest tempo-grid line.
 */

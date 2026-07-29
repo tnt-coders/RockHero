@@ -140,7 +140,7 @@ TEST_CASE("GridSpacingSelector steps the preset ladder", "[ui][grid-spacing]")
     CHECK(listener.chosen_count == count_before_ends);
 }
 
-// Verifies the default grid displays as 1/4 and entries forward the raw note value unchanged:
+// Verifies the default grid displays as 1/16 and entries forward the raw note value unchanged:
 // the note value is the product-wide grid unit, so the view performs no conversion.
 TEST_CASE("EditorView grid selector forwards note values", "[ui][editor-view]")
 {
@@ -154,12 +154,12 @@ TEST_CASE("EditorView grid selector forwards note values", "[ui][editor-view]")
     view.setState(makeLoadedEditorState(4.0));
 
     auto& box = findRequiredDescendant<juce::ComboBox>(view, "grid_note_value_box");
-    CHECK(box.getText() == juce::String{"1/4"});
+    CHECK(box.getText() == juce::String{"1/16"});
 
-    box.setText("1/16", juce::sendNotificationSync);
+    box.setText("1/8", juce::sendNotificationSync);
 
     CHECK(controller.grid_note_value_change_count == 1);
-    CHECK(controller.last_grid_note_value == std::optional{common::core::Fraction{1, 16}});
+    CHECK(controller.last_grid_note_value == std::optional{common::core::Fraction{1, 8}});
 }
 
 // Verifies a note value pushed through view state is displayed verbatim.

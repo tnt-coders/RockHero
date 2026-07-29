@@ -660,20 +660,25 @@ double TrackViewport::viewportCenterTimeSeconds() const noexcept
     return m_timeline_range.start.seconds + normalized_x * duration;
 }
 
-// Repositions the viewport so the supplied timeline time remains near the center.
+// Repositions the viewport so the supplied timeline time remains near the center. Centers on
+// the shared cursor mapping — the same x the cursor line is drawn at — so a centered cursor
+// lands within rounding of mid-view at any zoom, instead of drifting by the [0, width - 1]
+// versus [0, width] mapping skew.
 void TrackViewport::centerViewportOnTime(double time_seconds)
 {
-    const double duration = timelineDurationSeconds();
-    if (duration <= 0.0 || m_content.getWidth() <= 0)
+    if (timelineDurationSeconds() <= 0.0 || m_content.getWidth() <= 0)
     {
         return;
     }
 
-    const double normalized_time =
-        std::clamp((time_seconds - m_timeline_range.start.seconds) / duration, 0.0, 1.0);
-    const double center_x = normalized_time * static_cast<double>(m_content.getWidth());
-    const int next_x = static_cast<int>(
-        std::round(center_x - static_cast<double>(m_viewport.getViewWidth()) / 2.0));
+    const std::optional<float> center_x = cursorXForTimelinePosition(
+        common::core::TimePosition{time_seconds}, m_timeline_range, m_content.getWidth());
+    if (!center_x.has_value())
+    {
+        return;
+    }
+    const int next_x = static_cast<int>(std::round(
+        static_cast<double>(*center_x) - static_cast<double>(m_viewport.getViewWidth()) / 2.0));
     setViewportLeft(next_x);
 }
 

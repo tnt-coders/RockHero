@@ -58,6 +58,7 @@ definitions, no state added just to make a translation-unit split work.
 #include <rock_hero/editor/core/project/project.h>
 #include <rock_hero/editor/core/settings/i_editor_settings.h>
 #include <rock_hero/editor/core/tasks/i_editor_task_runner.h>
+#include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -690,10 +691,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Current output gain shown by the signal-chain panel and persisted in tone documents.
     double m_output_gain_db{0.0};
 
-    // Timeline grid step as a note value (fraction of a whole note), initialized to the
-    // quarter-note default because the Fraction default of 0/1 is a degenerate step. Restored
-    // per project from app-local settings on open and reset to the default on close.
-    common::core::Fraction m_grid_note_value{1, 4};
+    // Timeline grid step as a note value (fraction of a whole note), initialized to the editor
+    // default because the Fraction default of 0/1 is a degenerate step. Restored per project
+    // from app-local settings on open and reset to the default on close.
+    common::core::Fraction m_grid_note_value{g_default_tempo_grid_note_value};
 
     // Horizontal timeline scale last reported by the view, persisted per project as app-local
     // resume state. Zero means no zoom has been reported or restored (view default applies).

@@ -56,6 +56,9 @@ namespace
     song.arrangements.front().chart = makeTestChart();
     project_services.next_song = std::move(song);
     controller.onOpenRequested(std::filesystem::path{"loaded.rhp"});
+    // Every scenario in this file states its times in quarter-note grid steps (0.5s at the
+    // default 120 BPM 4/4), so pin that grid explicitly instead of riding the editor default.
+    controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 4});
     return controller.session().currentArrangement() != nullptr;
 }
 

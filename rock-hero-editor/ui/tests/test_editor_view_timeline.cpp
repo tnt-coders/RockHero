@@ -465,8 +465,8 @@ TEST_CASE("EditorView position readout lands on measure starts", "[ui][editor-vi
     CHECK(position_display.getText() == "2.1.00 / 0:03:650");
 }
 
-// Verifies the default zoom maps ten seconds of timeline to the canonical width.
-TEST_CASE("EditorView default zoom maps ten seconds", "[ui][editor-view]")
+// Verifies the default zoom maps four seconds of timeline to the canonical width.
+TEST_CASE("EditorView default zoom maps four seconds", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -484,10 +484,10 @@ TEST_CASE("EditorView default zoom maps ten seconds", "[ui][editor-view]")
     auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
     CHECK(
         track_content.getBounds() ==
-        juce::Rectangle<int>{0, 0, 2528, defaultUsableTrackViewportHeight(viewport)});
+        juce::Rectangle<int>{0, 0, 6320, defaultUsableTrackViewportHeight(viewport)});
     CHECK(
         arrangement_view.getBounds() ==
-        juce::Rectangle<int>{0, 0, 2528, defaultTrackHeight(viewport)});
+        juce::Rectangle<int>{0, 0, 6320, defaultTrackHeight(viewport)});
     CHECK(cursor_overlay.getBounds() == track_content.getLocalBounds());
     CHECK(viewport.getViewWidth() <= track_viewport.getWidth());
     CHECK(viewport.getViewHeight() < track_content.getHeight());
@@ -782,7 +782,7 @@ TEST_CASE("EditorView wheel zoom centers visible cursor", "[ui][editor-view]")
     auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
     auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
     transport.current_position = common::core::TimePosition{10.0};
-    viewport.setViewPosition(400, 0);
+    viewport.setViewPosition(2800, 0);
     const auto initial_cursor_x = cursorXForTimelinePosition(
         transport.current_position, state.visible_timeline, track_content.getWidth());
     REQUIRE(initial_cursor_x.has_value());

@@ -14,6 +14,7 @@
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/editor/core/controller/i_editor_controller.h>
+#include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <vector>
 
 namespace rock_hero::editor::ui
@@ -168,7 +169,7 @@ private:
 
     // Grid step as a fraction of a whole note, initialized to the quarter-note default because the
     // Fraction default of 0/1 is a degenerate step.
-    common::core::Fraction m_grid_note_value{1, 4};
+    common::core::Fraction m_grid_note_value{core::g_default_tempo_grid_note_value};
 
     // Last subpixel cursor x coordinate drawn by the overlay, if a cursor is currently mappable.
     std::optional<float> m_cursor_x{};

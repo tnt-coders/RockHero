@@ -26,11 +26,11 @@ double secondsAtColumn(common::core::TimeRange visible_timeline, double width_sp
 }
 
 // Keeps rendering and snapping on the same grid even when a caller passes a corrupt note value:
-// both public entry points degrade to the quarter-note grid rather than diverging or going blank.
+// both public entry points degrade to the default grid rather than diverging or going blank.
 [[nodiscard]] common::core::Fraction normalizedGridNoteValue(
     common::core::Fraction note_value) noexcept
 {
-    return isValidTempoGridNoteValue(note_value) ? note_value : common::core::Fraction{1, 4};
+    return isValidTempoGridNoteValue(note_value) ? note_value : g_default_tempo_grid_note_value;
 }
 
 // Forward walker over the measure-anchored note-value grid. Within a measure with signature

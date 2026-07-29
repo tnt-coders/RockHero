@@ -23,6 +23,7 @@
 #include <rock_hero/editor/core/signal_chain/signal_chain_view_state.h>
 #include <rock_hero/editor/core/timeline/arrangement_view_state.h>
 #include <rock_hero/editor/core/timeline/section_view_state.h>
+#include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <rock_hero/editor/core/tone/tone_automation_view_state.h>
 #include <rock_hero/editor/core/tone/tone_track_view_state.h>
 #include <rock_hero/editor/core/tone_designer/tone_designer_view_state.h>
@@ -597,10 +598,10 @@ struct EditorViewState
     /*!
     \brief Grid step as a fraction of a whole note, shared by the track grid, ruler, and snapping.
 
-    A 1/8 grid means eighth notes in every meter. Initialized to the quarter-note default because
-    the Fraction default of 0/1 is a degenerate step.
+    A 1/8 grid means eighth notes in every meter. Initialized to the editor default because the
+    Fraction default of 0/1 is a degenerate step.
     */
-    common::core::Fraction grid_note_value{1, 4};
+    common::core::Fraction grid_note_value{g_default_tempo_grid_note_value};
 
     /*!
     \brief Horizontal timeline scale to restore on a fresh project load.

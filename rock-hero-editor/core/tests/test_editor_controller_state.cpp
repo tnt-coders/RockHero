@@ -1,6 +1,7 @@
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/editor/core/settings/editor_settings.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
+#include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <string_view>
 #include <system_error>
 
@@ -80,7 +81,7 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK(empty_state.audio_device_status_text == "[audio device closed]");
     CHECK_FALSE(empty_state.audio_device_failure_prompt.has_value());
     CHECK(empty_state.visible_timeline == common::core::TimeRange{});
-    CHECK(empty_state.grid_note_value == common::core::Fraction{1, 4});
+    CHECK(empty_state.grid_note_value == g_default_tempo_grid_note_value);
     CHECK_FALSE(empty_state.arrangement.hasAudio());
     CHECK(empty_state.signal_chain.insert_plugin_enabled == false);
     CHECK(empty_state.signal_chain.remove_plugins_enabled == false);
@@ -601,11 +602,11 @@ TEST_CASE("EditorController ignores invalid grid note values", "[core][editor-co
 
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
-    CHECK(state->grid_note_value == common::core::Fraction{1, 4});
+    CHECK(state->grid_note_value == g_default_tempo_grid_note_value);
 }
 
 // Reopening a project restores its stored grid note value from app-local settings. The stored
-// value deliberately differs from the quarter-note default so a silent fallback cannot pass.
+// value deliberately differs from the editor default so a silent fallback cannot pass.
 TEST_CASE(
     "EditorController restores the project grid note value on open", "[core][editor-controller]")
 {
@@ -636,7 +637,7 @@ TEST_CASE(
     CHECK(state->grid_note_value == common::core::Fraction{1, 16});
 }
 
-// Closing a project resets the grid to the quarter-note default for the next project.
+// Closing a project resets the grid to the editor default for the next project.
 TEST_CASE("EditorController resets the grid note value on close", "[core][editor-controller]")
 {
     FakeTransport transport;
@@ -660,10 +661,10 @@ TEST_CASE("EditorController resets the grid note value on close", "[core][editor
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
     CHECK(state->project_loaded == false);
-    CHECK(state->grid_note_value == common::core::Fraction{1, 4});
+    CHECK(state->grid_note_value == g_default_tempo_grid_note_value);
 }
 
-// Importing over an open project resets the grid to the quarter-note default, because a fresh
+// Importing over an open project resets the grid to the editor default, because a fresh
 // import has no per-project record to restore.
 TEST_CASE("EditorController resets the grid note value on import", "[core][editor-controller]")
 {
@@ -690,7 +691,7 @@ TEST_CASE("EditorController resets the grid note value on import", "[core][edito
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
     CHECK(state->project_loaded == true);
-    CHECK(state->grid_note_value == common::core::Fraction{1, 4});
+    CHECK(state->grid_note_value == g_default_tempo_grid_note_value);
 }
 
 // Save As is the first moment an imported project has a path, so it persists the active grid

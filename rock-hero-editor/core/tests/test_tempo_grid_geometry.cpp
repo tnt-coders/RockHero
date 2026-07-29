@@ -291,15 +291,14 @@ TEST_CASE("Visible tempo grid supports steps larger than one beat", "[core][temp
         common::core::TimePosition{1.5});
 }
 
-// Verifies a corrupt note value degrades to the quarter-note grid instead of blanking the
-// timeline.
-TEST_CASE("Visible tempo grid falls back to quarter notes for invalid values", "[core][tempo-grid]")
+// Verifies a corrupt note value degrades to the default grid instead of blanking the timeline.
+TEST_CASE("Visible tempo grid falls back to the default for invalid values", "[core][tempo-grid]")
 {
     const common::core::TempoMap map = makeUniform44Map(1, 4.0);
 
     const std::vector<TempoGridLine> default_grid_lines = visibleTempoGridLines(
         map,
-        g_quarter_note_grid,
+        g_default_tempo_grid_note_value,
         g_one_measure_window,
         g_one_measure_width,
         0,
@@ -387,14 +386,15 @@ TEST_CASE("Nearest tempo grid time snaps to subdivisions", "[core][tempo-grid]")
         common::core::TimePosition{0.5});
 }
 
-// Verifies a corrupt note value snaps on the quarter-note grid, matching the rendering fallback.
-TEST_CASE("Nearest tempo grid time falls back to quarter notes", "[core][tempo-grid]")
+// Verifies a corrupt note value snaps on the default grid, matching the rendering fallback.
+TEST_CASE("Nearest tempo grid time falls back to the default grid", "[core][tempo-grid]")
 {
     const common::core::TempoMap map = makeUniform44Map(1, 4.0);
 
     CHECK(
         nearestTempoGridTime(map, common::core::Fraction{}, common::core::TimePosition{0.74}) ==
-        common::core::TimePosition{1.0});
+        nearestTempoGridTime(
+            map, g_default_tempo_grid_note_value, common::core::TimePosition{0.74}));
 }
 
 // Verifies the note-value bounds accept every supported grid and reject the degenerate default

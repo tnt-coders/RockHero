@@ -16,6 +16,7 @@
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/common/core/tone/tone_track.h>
+#include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <rock_hero/editor/core/tone/tone_track_view_state.h>
 #include <string>
 
@@ -321,7 +322,7 @@ private:
     common::core::TimeRange m_visible_timeline{};
 
     // Grid step edge drags snap to, shared with the ruler and grid rendering.
-    common::core::Fraction m_grid_note_value{1, 4};
+    common::core::Fraction m_grid_note_value{core::g_default_tempo_grid_note_value};
 
     // Content x of the visible viewport's left edge; region labels pin here as the row scrolls.
     int m_visible_content_left{0};

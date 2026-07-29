@@ -7,6 +7,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <rock_hero/common/core/timeline/fraction.h>
+#include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 
 namespace rock_hero::editor::ui
 {
@@ -100,7 +101,7 @@ private:
     Listener& m_listener;
 
     // Note value currently applied by the owner; the display reverts here on invalid entry.
-    common::core::Fraction m_note_value{1, 4};
+    common::core::Fraction m_note_value{core::g_default_tempo_grid_note_value};
 
     // Static "Grid" caption drawn left of the combo box.
     juce::Label m_caption;

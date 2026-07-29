@@ -30,6 +30,7 @@ viewport lays the component out, so the cursor overlay and content height stay a
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/common/core/tone/tone_automation.h>
+#include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <rock_hero/editor/core/tone/tone_automation_pointer.h>
 #include <rock_hero/editor/core/tone/tone_automation_view_state.h>
 #include <string>
@@ -545,7 +546,7 @@ private:
     int m_visible_content_left{0};
 
     // Grid step for snapped placement, shared with the ruler and grid rendering.
-    common::core::Fraction m_grid_note_value{1, 4};
+    common::core::Fraction m_grid_note_value{core::g_default_tempo_grid_note_value};
 
     // Automation lanes for the selected tone.
     core::ToneAutomationViewState m_state{};

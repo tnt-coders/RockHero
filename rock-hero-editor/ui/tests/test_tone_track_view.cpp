@@ -219,6 +219,9 @@ struct ToneTrackHarness
                 .start = common::core::TimePosition{0.0},
                 .end = common::core::TimePosition{8.0},
             });
+        // Scenario positions in this file are stated in quarter-note grid slots, so pin that
+        // grid explicitly instead of riding the editor default.
+        view.setGridNoteValue(common::core::Fraction{1, 4});
         view.setState(makeState());
     }
 };

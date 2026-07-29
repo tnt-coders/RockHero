@@ -435,7 +435,7 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
         m_session.reset();
         m_signal_chain.clear();
         m_output_gain_db = 0.0;
-        m_grid_note_value = common::core::Fraction{1, 4};
+        m_grid_note_value = g_default_tempo_grid_note_value;
         m_timeline_zoom_pixels_per_second = 0.0;
         clearSelection();
         m_open_automation_lanes.clear();
@@ -454,9 +454,9 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
     m_project_file.clear();
     m_save_requires_destination = true;
     // A fresh import has no per-project grid note-value record to restore (no project path yet), so
-    // the grid resets to the quarter-note default instead of inheriting the replaced project's
+    // the grid resets to the default instead of inheriting the replaced project's
     // spacing.
-    m_grid_note_value = common::core::Fraction{1, 4};
+    m_grid_note_value = g_default_tempo_grid_note_value;
     m_timeline_zoom_pixels_per_second = 0.0;
     clearSelection();
     m_open_automation_lanes.clear();
@@ -886,7 +886,7 @@ bool EditorController::Impl::closeProject(bool reenter_tone_designer)
         m_save_requires_destination = false;
         m_has_untracked_unsaved_changes = false;
         m_session_faulted = false;
-        m_grid_note_value = common::core::Fraction{1, 4};
+        m_grid_note_value = g_default_tempo_grid_note_value;
         m_timeline_zoom_pixels_per_second = 0.0;
         clearSelection();
         m_open_automation_lanes.clear();
@@ -906,7 +906,7 @@ bool EditorController::Impl::closeProject(bool reenter_tone_designer)
     m_save_requires_destination = false;
     m_has_untracked_unsaved_changes = false;
     m_session_faulted = false;
-    m_grid_note_value = common::core::Fraction{1, 4};
+    m_grid_note_value = g_default_tempo_grid_note_value;
     m_timeline_zoom_pixels_per_second = 0.0;
     clearSelection();
     m_open_automation_lanes.clear();
@@ -1462,7 +1462,7 @@ common::core::Fraction EditorController::Impl::gridNoteValueForOpenedProject(
         return *saved_note_value;
     }
 
-    return common::core::Fraction{1, 4};
+    return g_default_tempo_grid_note_value;
 }
 
 // Chooses the timeline zoom restored for a project open from app-local editor settings, falling

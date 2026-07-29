@@ -199,10 +199,10 @@ TEST_CASE("EditorView keeps zoomed cursor width on larger viewport", "[ui][edito
     CHECK(signal_chain_panel.getBounds() == juce::Rectangle<int>{8, 732, 1584, 260});
     CHECK(
         track_content.getBounds() ==
-        juce::Rectangle<int>{0, 0, 2528, defaultUsableTrackViewportHeight(viewport)});
+        juce::Rectangle<int>{0, 0, 6320, defaultUsableTrackViewportHeight(viewport)});
     CHECK(
         arrangement_view.getBounds() ==
-        juce::Rectangle<int>{0, 0, 2528, defaultTrackHeight(viewport)});
+        juce::Rectangle<int>{0, 0, 6320, defaultTrackHeight(viewport)});
     CHECK(cursor_overlay.getBounds() == track_content.getLocalBounds());
 }
 

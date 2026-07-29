@@ -124,6 +124,9 @@ struct AutomationEditor
         project_services.next_song = std::move(song);
         controller.attachView(view);
         controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+        // Every scenario in this file states its placements in quarter-note grid slots, so pin
+        // that grid explicitly instead of riding the editor default.
+        controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 4});
         controller.onToneRegionSelected(g_region);
     }
 

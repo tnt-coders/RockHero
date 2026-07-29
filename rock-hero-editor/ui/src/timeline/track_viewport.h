@@ -438,7 +438,7 @@ private:
     // implementation file) so the zoom default can be a default member initializer.
     static constexpr int g_track_canvas_width{1264};
     static constexpr double g_default_pixels_per_second{
-        static_cast<double>(g_track_canvas_width) / 10.0
+        static_cast<double>(g_track_canvas_width) / 4.0
     };
     static constexpr double g_max_pixels_per_second{static_cast<double>(g_track_canvas_width)};
 
@@ -490,7 +490,7 @@ private:
 
     // Grid step as a fraction of a whole note, initialized to the quarter-note default because the
     // Fraction default of 0/1 is a degenerate step.
-    common::core::Fraction m_grid_note_value{1, 4};
+    common::core::Fraction m_grid_note_value{core::g_default_tempo_grid_note_value};
 
     // Horizontal content span covered by the last shared grid scan, used to skip scroll-driven
     // rescans when the visible span did not move.
