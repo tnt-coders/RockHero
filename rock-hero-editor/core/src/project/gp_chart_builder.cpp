@@ -1160,6 +1160,16 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
         width = next_width;
         have_anchor = true;
     }
+
+    // An opening run of notes that anchor nothing (open strings, taps) must not pin the hand at
+    // the nut-reference window (user rule 2026-07-28): the song's starting position is wherever
+    // the first anchoring note puts the hand, so the first placement retimes back to the chart's
+    // first note and the window is already settled there when the song begins.
+    if (!positions.empty() && !built.empty() &&
+        built.front().note.position < positions.front().position)
+    {
+        positions.front().position = built.front().note.position;
+    }
     return positions;
 }
 

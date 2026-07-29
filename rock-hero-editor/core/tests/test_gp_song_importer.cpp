@@ -1774,6 +1774,30 @@ TEST_CASE("Guitar Pro import anchors the hand below tapped notes", "[core][gp-im
     }
 }
 
+// An opening open-string note anchors nothing, so it must not pin the hand at the nut-reference
+// window (user rule 2026-07-28): the first placement comes from the first fretted note and
+// retimes back to the chart's first note, so the window is already settled there at song start.
+TEST_CASE(
+    "Guitar Pro import bases the opening position on the first fretted note", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+
+    GpScore score = makeLinearScore(1, syncs);
+    const GpBeat open = noteBeat(Fraction{1, 4}, 0);
+    const GpBeat fretted = noteBeat(Fraction{1, 4}, 7);
+    score.tracks[0].bars.push_back(GpBar{.voices = {{open, fretted}}});
+
+    const auto built = buildGpSong(score);
+    REQUIRE(built.has_value());
+    const common::core::Chart& chart = built->arrangements.front().chart;
+
+    REQUIRE_FALSE(chart.fret_hand_positions.empty());
+    CHECK(chart.fret_hand_positions.front().position == GridPosition{.measure = 1, .beat = 1});
+    CHECK(chart.fret_hand_positions.front().fret == 7);
+}
+
 // A song whose audio sync points stop early leaves most bars to constant-tempo extrapolation, so
 // the build records a drift warning naming the covered range.
 // Guitar Pro's positive backing-track frame padding is silence before the audio (the first

@@ -146,7 +146,11 @@ corpus-derived algorithm — the metrics and the source study behind these rules
    0.8 seconds, the window re-places fresh — biased low to the phrase's floor fret (its lowest
    fretted note) — even when the previous window still covered the upcoming notes. Most authored
    anchor moves happen at these musical boundaries, not at the first misfit, so the greedy
-   first-misfit walk this replaced under-moved.
+   first-misfit walk this replaced under-moved. An opening run of notes that anchor nothing
+   (open strings, taps) must not pin the hand at the nut-reference window (user rule
+   2026-07-28): the first placement's window comes from the first anchoring note but retimes
+   back to the chart's first note, so the hand is already settled where the song needs it when
+   play begins.
 8. **Within a phrase, moves are minimal.** When an onset's fretted notes fall outside the current
    window mid-phrase, the anchor moves the shortest distance that covers them — it never jumps
    further than needed. Slides are the exception (rule 9).
