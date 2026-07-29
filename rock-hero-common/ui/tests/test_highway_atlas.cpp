@@ -9,15 +9,24 @@ namespace rock_hero::common::ui
 
 TEST_CASE("Highway atlas layout reports its grid capacity", "[ui][highway]")
 {
-    const HighwayAtlasLayout layout{.texture_size = 512, .cell_size = 51};
+    const HighwayAtlasLayout layout{.texture_width = 512, .texture_height = 512, .cell_size = 51};
 
     CHECK(layout.columns() == 10);
+    CHECK(layout.rows() == 10);
     CHECK(layout.capacity() == 100);
+
+    // Rectangular grids (the composed head atlas's appended chevron row) count rows by height.
+    const HighwayAtlasLayout composed{
+        .texture_width = 512, .texture_height = 640, .cell_size = 128
+    };
+    CHECK(composed.columns() == 4);
+    CHECK(composed.rows() == 5);
+    CHECK(composed.capacity() == 20);
 }
 
 TEST_CASE("Highway atlas cells tile the texture with a half-texel inset", "[ui][highway]")
 {
-    const HighwayAtlasLayout layout{.texture_size = 256, .cell_size = 128};
+    const HighwayAtlasLayout layout{.texture_width = 256, .texture_height = 256, .cell_size = 128};
     const float half_texel = 0.5F / 256.0F;
 
     const auto first = layout.cellRect(0);
@@ -32,11 +41,22 @@ TEST_CASE("Highway atlas cells tile the texture with a half-texel inset", "[ui][
     CHECK_THAT(last[1], Catch::Matchers::WithinAbs(0.5F + half_texel, 1e-7));
     CHECK_THAT(last[2], Catch::Matchers::WithinAbs(1.0F - half_texel, 1e-7));
     CHECK_THAT(last[3], Catch::Matchers::WithinAbs(1.0F - half_texel, 1e-7));
+
+    // A rectangular grid insets u by width and v by height, and the appended row's first cell
+    // (the bend chevron at index 16 of a 4x5 grid) sits at the bottom-left.
+    const HighwayAtlasLayout composed{
+        .texture_width = 512, .texture_height = 640, .cell_size = 128
+    };
+    const auto chevron = composed.cellRect(16);
+    CHECK_THAT(chevron[0], Catch::Matchers::WithinAbs(0.5F / 512.0F, 1e-7));
+    CHECK_THAT(chevron[1], Catch::Matchers::WithinAbs(0.8F + (0.5F / 640.0F), 1e-7));
+    CHECK_THAT(chevron[2], Catch::Matchers::WithinAbs(0.25F - (0.5F / 512.0F), 1e-7));
+    CHECK_THAT(chevron[3], Catch::Matchers::WithinAbs(1.0F - (0.5F / 640.0F), 1e-7));
 }
 
 TEST_CASE("Highway atlas layout clamps out-of-range cells", "[ui][highway]")
 {
-    const HighwayAtlasLayout layout{.texture_size = 256, .cell_size = 128};
+    const HighwayAtlasLayout layout{.texture_width = 256, .texture_height = 256, .cell_size = 128};
 
     CHECK(layout.cellRect(99) == layout.cellRect(3));
     CHECK(layout.cellRect(-5) == layout.cellRect(0));

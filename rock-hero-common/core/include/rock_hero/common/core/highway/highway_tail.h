@@ -82,6 +82,42 @@ prebend), which anchors the start value; after the last point the final value ho
 [[nodiscard]] double highwayBendSemitonesAt(
     std::span<const HighwayBendPointView> bend, double onset_seconds, double seconds) noexcept;
 
+/*! \brief Chevron counts a bent note's head announces before it arrives. */
+struct HighwayBendChevrons
+{
+    /*! \brief Full chevrons: one per whole semitone of the curve's maximum bend. */
+    int full{0};
+
+    /*! \brief True when the maximum carries a quarter-tone curl (a trailing half semitone). */
+    bool quarter{false};
+
+    /*!
+    \brief Compares two chevron counts by their stored fields.
+    \param lhs Left-hand counts.
+    \param rhs Right-hand counts.
+    \return True when both store equal values.
+    */
+    friend constexpr bool operator==(
+        const HighwayBendChevrons& lhs, const HighwayBendChevrons& rhs) noexcept = default;
+};
+
+/*!
+\brief Returns the chevron counts announcing one bend target amount.
+
+One full chevron per whole semitone, plus a distinct half-size chevron for a quarter-tone curl
+(half a semitone) — the chart carries 0.5-semitone curls as first-class data the reference
+notation cannot express. The amount snaps to the nearest half semitone, the quantum both the GP
+importer (quarter-tone bend units) and the chart vocabulary produce, so slightly-off
+hand-edited values bucket to the nearest honest indicator. The head applies this to the curve's
+FIRST point (what the player must bend to as the note arrives — a prebend needs no special
+case, its first point simply sits at the onset), and each later point whose snapped amount
+changes the target announces its own stack on the tail.
+
+\param semitones Bend target amount in semitones.
+\return Chevron counts; zero when the amount never rises past a quarter tone.
+*/
+[[nodiscard]] HighwayBendChevrons highwayBendChevronCounts(double semitones) noexcept;
+
 /*!
 \brief Returns whether a note's bend lift points downward on a displayed lane.
 

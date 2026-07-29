@@ -63,6 +63,21 @@ double highwayBendSemitonesAt(
     return bend.back().semitones;
 }
 
+HighwayBendChevrons highwayBendChevronCounts(const double semitones) noexcept
+{
+    // Snap to half-semitone steps: full chevrons are whole semitones, the odd step is the
+    // quarter-tone curl. lround keeps hand-edited near-half values on the honest bucket.
+    const long steps = std::lround(semitones * 2.0);
+    if (steps <= 0)
+    {
+        return {};
+    }
+    return HighwayBendChevrons{
+        .full = static_cast<int>(steps / 2),
+        .quarter = (steps % 2) != 0,
+    };
+}
+
 bool highwayBendInverted(const int displayed_lane, const int string_count) noexcept
 {
     // Strictly-upper-half lanes invert; the middle lane of an odd stack lifts upward.

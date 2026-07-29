@@ -17,23 +17,32 @@ namespace rock_hero::common::ui
 {
 
 /*!
-\brief Pure grid layout of equal square cells inside a square atlas texture.
+\brief Pure grid layout of equal square cells inside a rectangular atlas texture.
 
 Kept free of any rasterization or bgfx state so the arithmetic is unit-testable headlessly.
 */
 struct HighwayAtlasLayout
 {
-    /*! \brief Atlas texture edge length in texels. */
-    int texture_size{0};
+    /*! \brief Atlas texture width in texels. */
+    int texture_width{0};
+
+    /*! \brief Atlas texture height in texels. */
+    int texture_height{0};
 
     /*! \brief Cell edge length in texels. */
     int cell_size{0};
 
     /*!
-    \brief Number of cells per row (and per column — the atlas is square).
+    \brief Number of cells per row.
     \return Cells per row; zero when the layout is empty.
     */
     [[nodiscard]] int columns() const noexcept;
+
+    /*!
+    \brief Number of cell rows.
+    \return Cell rows; zero when the layout is empty.
+    */
+    [[nodiscard]] int rows() const noexcept;
 
     /*!
     \brief Total number of cells the layout holds.
@@ -137,13 +146,25 @@ inline constexpr int g_head_cell_slap = 14;
 /*! \brief Pop (bass) marker. */
 inline constexpr int g_head_cell_pop = 15;
 
+// The appended fifth row: runtime-rasterized cells composed under the reference asset (and
+// into the fallback), so they exist in BOTH atlas paths and are never gated by reference_cells.
+// Procedural first per the bend-head-indicators plan; may be re-authored into the PNG if the
+// procedural look does not hold up.
+
+/*! \brief Full bend chevron: one per whole semitone of the head's announced bend. */
+inline constexpr int g_head_cell_bend_full = 16;
+
+/*! \brief Half-size bend chevron announcing a quarter-tone curl (half a semitone). */
+inline constexpr int g_head_cell_bend_quarter = 17;
+
 /*!
 \brief Builds the highway atlases and uploads them as immutable bgfx textures.
 
 The head atlas decodes the supplied reference PNG (Charter's 4x4 channel-scheme atlas) when
-bytes are given and they decode; otherwise a single-cell procedural head is rasterized with JUCE
-as a fallback so a missing asset degrades the art, never the game. The glyph atlas is always
-runtime-rasterized.
+bytes are given and they decode, composing it into a five-row grid whose appended row carries
+the runtime-rasterized bend-chevron cells; otherwise a procedural head is rasterized with JUCE
+into the same grid shape as a fallback (with the chevron cells at the same indices) so a
+missing asset degrades the art, never the game. The glyph atlas is always runtime-rasterized.
 
 Must be called after bgfx initialization and the results destroyed before shutdown (structural
 via the shell's declaration order).

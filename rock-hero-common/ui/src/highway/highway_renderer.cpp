@@ -3169,6 +3169,81 @@ void HighwayRenderer::Impl::draw(
             }
         }
 
+        // Bend chevrons (bend-head-indicators plan, revised on sight 2026-07-28): the head
+        // announces the curve's FIRST target — what the player must bend to the moment the
+        // note arrives (a prebend's first point sits at the onset, so it reads "bend before
+        // you pick") — and every later bend point whose snapped amount CHANGES the target
+        // announces its own smaller stack on the tail at its point, so a compound bend reads
+        // stage by stage where each stage happens. Stacks grow outward along the drawn
+        // bend-lift direction (v-mirrored on inverted lanes so the arrows point where the
+        // curve goes), ride the head/tail anchors, fade and tint with the note, and are NOT
+        // gated on reference_cells: the chevron cells are runtime-rasterized into both atlas
+        // paths.
+        if (!note.bend.empty())
+        {
+            const auto push_chevron_stack = [&](const double center_x,
+                                                const double edge_y,
+                                                const double stack_z,
+                                                const double half,
+                                                const common::core::HighwayBendChevrons& stack) {
+                double center_y = edge_y + (bend_direction * half * 0.9);
+                const auto push_chevron = [&](const int cell) {
+                    const std::array<float, 4> rect = atlases.head_layout.cellRect(cell);
+                    // The glyph points upward in the cell; a downward stack mirrors v so the
+                    // chevron points along the drawn curve.
+                    const float v0 = bend_direction < 0.0 ? rect[1] : rect[3];
+                    const float v1 = bend_direction < 0.0 ? rect[3] : rect[1];
+                    pushQuad(
+                        head_vertices,
+                        head_indices,
+                        makeUvVertex(center_x - half, center_y - half, stack_z, tint, rect[0], v0),
+                        makeUvVertex(center_x + half, center_y - half, stack_z, tint, rect[2], v0),
+                        makeUvVertex(center_x + half, center_y + half, stack_z, tint, rect[2], v1),
+                        makeUvVertex(center_x - half, center_y + half, stack_z, tint, rect[0], v1));
+                    center_y += bend_direction * half * 1.3;
+                };
+                for (int chevron = 0; chevron < stack.full; ++chevron)
+                {
+                    push_chevron(g_head_cell_bend_full);
+                }
+                if (stack.quarter)
+                {
+                    push_chevron(g_head_cell_bend_quarter);
+                }
+            };
+
+            const common::core::HighwayBendChevrons first =
+                common::core::highwayBendChevronCounts(note.bend.front().semitones);
+            push_chevron_stack(
+                x, head_y + (bend_direction * head_half_h), z, head_half_h * 0.5, first);
+
+            // Later target changes annotate the tail at their own point, just past the lifted
+            // curve. A release to zero draws nothing (the curve shows the descent) but still
+            // resets the tracker, so a re-bend after a release re-announces its target.
+            common::core::HighwayBendChevrons previous = first;
+            for (std::size_t point = 1; point < note.bend.size(); ++point)
+            {
+                const common::core::HighwayBendPointView& bend_point = note.bend[point];
+                const common::core::HighwayBendChevrons stage =
+                    common::core::highwayBendChevronCounts(bend_point.semitones);
+                if (stage == previous)
+                {
+                    continue;
+                }
+                previous = stage;
+                if (bend_point.seconds <= now_seconds || bend_point.seconds > span_end_seconds)
+                {
+                    continue;
+                }
+                push_chevron_stack(
+                    x,
+                    note_y_at(bend_point.seconds, 1.0),
+                    time_to_z(bend_point.seconds),
+                    head_half_h * 0.35,
+                    stage);
+            }
+        }
+
         // Each pitched slide waypoint gets its own post and line; an unpitched slide-out
         // is a pressure release with no target to mark, so it gets no board furniture — only the
         // rail's own dimming trail. A waypoint carries its own time, which can sit well past its

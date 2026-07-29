@@ -1,7 +1,20 @@
 # Bend-Amount Chevrons on Note Heads
 
-Status: **Todo** — recorded 2026-07-26 from a visual-review session on the shared 3D highway.
-Re-verify the facts below against the current code before executing (todo plans may go stale).
+Status: **SHIPPED 2026-07-28** with the procedural glyph pass (design point 2's execution
+order): `highwayBendChevronCounts` in `highway_tail.{h,cpp}` (tested), `HighwayAtlasLayout`
+generalized to rectangular grids with the head atlas composed into a 4×5 canvas whose appended
+row carries two runtime-rasterized chevron cells (both the reference and fallback paths, cells
+16/17, never gated on `reference_cells`), and the renderer stacks the chevrons outward along
+the drawn bend-lift direction (v-mirrored on inverted lanes), riding the head anchor with its
+fade and tint. Tolerance settled as snap-to-nearest-half-semitone (the GP importer's
+quarter-tone quantum). **Indicator semantics revised on sight (user, 2026-07-28), superseding
+design point 1's maximum**: the head announces the curve's FIRST target — what the player must
+bend to as the note arrives — and every later bend point whose snapped amount changes the
+target announces its own smaller stack on the tail at its point, so compound bends read stage
+by stage (a release to zero draws nothing but resets the tracker, so a re-bend re-announces).
+REMAINING: the procedural-vs-authored looks decision — judge the procedural chevrons in the
+preview against half, whole, step-and-a-half, quarter, prebend, and compound bends, and
+re-author into the PNG only if they do not hold up.
 
 ## Goal
 

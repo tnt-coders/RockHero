@@ -13,9 +13,12 @@ namespace rock_hero::common::ui
 namespace
 {
 
-// Head atlas: a handful of large cells (one used today, room for technique variants).
-constexpr int g_head_texture_size = 256;
+// Fallback head atlas: the same 4x5 grid shape as the composed reference atlas, so the
+// runtime-rasterized cells (the standard head, the bend chevrons) sit at identical indices in
+// both paths.
 constexpr int g_head_cell_size = 128;
+constexpr int g_head_grid_columns = 4;
+constexpr int g_head_grid_rows = 5;
 
 // Glyph atlas: printable ASCII '!'..'~' (94 glyphs) in a 10x10 grid.
 constexpr int g_glyph_texture_size = 512;
@@ -79,22 +82,72 @@ void paintStandardHead(juce::Graphics& graphics, const juce::Rectangle<float> ce
         highlight_size);
 }
 
+// Paints one bend chevron into its cell in the channel scheme: a `^` stroke reading mostly
+// white (high G) with a slight string tint (low R), shape carried by B as the alpha mask. The
+// quarter variant draws the same stroke at half scale about the cell center — the visually
+// distinct half-size chevron a quarter-tone curl earns.
+void paintBendChevron(juce::Graphics& graphics, const juce::Rectangle<float> cell, bool quarter)
+{
+    const float scale = quarter ? 0.5F : 1.0F;
+    const juce::Rectangle<float> box =
+        cell.withSizeKeepingCentre(cell.getWidth() * scale, cell.getHeight() * scale);
+
+    juce::Path chevron;
+    chevron.startNewSubPath(
+        box.getX() + (box.getWidth() * 0.20F), box.getY() + (box.getHeight() * 0.72F));
+    chevron.lineTo(box.getCentreX(), box.getY() + (box.getHeight() * 0.28F));
+    chevron.lineTo(
+        box.getRight() - (box.getWidth() * 0.20F), box.getY() + (box.getHeight() * 0.72F));
+
+    graphics.setColour(juce::Colour::fromRGBA(70, 225, 255, 255));
+    graphics.strokePath(
+        chevron,
+        juce::PathStrokeType{
+            box.getWidth() * 0.18F,
+            juce::PathStrokeType::mitered,
+            juce::PathStrokeType::rounded,
+        });
+}
+
+// Paints the two chevron cells of the appended fifth row (shared by the source-game composition
+// and the fallback, so the indices agree in both paths).
+void paintChevronRow(juce::Graphics& graphics)
+{
+    const auto cell_rect = [](const int index) {
+        const int column = index % g_head_grid_columns;
+        const int row = index / g_head_grid_columns;
+        return juce::Rectangle<float>{
+            static_cast<float>(column * g_head_cell_size),
+            static_cast<float>(row * g_head_cell_size),
+            static_cast<float>(g_head_cell_size),
+            static_cast<float>(g_head_cell_size),
+        };
+    };
+    paintBendChevron(graphics, cell_rect(g_head_cell_bend_full), false);
+    paintBendChevron(graphics, cell_rect(g_head_cell_bend_quarter), true);
+}
+
 } // namespace
 
 int HighwayAtlasLayout::columns() const noexcept
 {
-    return cell_size > 0 ? texture_size / cell_size : 0;
+    return cell_size > 0 ? texture_width / cell_size : 0;
+}
+
+int HighwayAtlasLayout::rows() const noexcept
+{
+    return cell_size > 0 ? texture_height / cell_size : 0;
 }
 
 int HighwayAtlasLayout::capacity() const noexcept
 {
-    return columns() * columns();
+    return columns() * rows();
 }
 
 std::array<float, 4> HighwayAtlasLayout::cellRect(const int index) const noexcept
 {
     const int cells_per_row = columns();
-    if (cells_per_row <= 0)
+    if (cells_per_row <= 0 || rows() <= 0)
     {
         return {0.0F, 0.0F, 0.0F, 0.0F};
     }
@@ -103,14 +156,14 @@ std::array<float, 4> HighwayAtlasLayout::cellRect(const int index) const noexcep
     const int column = clamped % cells_per_row;
     const int row = clamped / cells_per_row;
 
-    const auto size = static_cast<float>(texture_size);
-    const float half_texel = 0.5F / size;
+    const auto width = static_cast<float>(texture_width);
+    const auto height = static_cast<float>(texture_height);
     const auto cell = static_cast<float>(cell_size);
     return {
-        ((static_cast<float>(column) * cell) / size) + half_texel,
-        ((static_cast<float>(row) * cell) / size) + half_texel,
-        ((static_cast<float>(column + 1) * cell) / size) - half_texel,
-        ((static_cast<float>(row + 1) * cell) / size) - half_texel,
+        ((static_cast<float>(column) * cell) / width) + (0.5F / width),
+        ((static_cast<float>(row) * cell) / height) + (0.5F / height),
+        ((static_cast<float>(column + 1) * cell) / width) - (0.5F / width),
+        ((static_cast<float>(row + 1) * cell) / height) - (0.5F / height),
     };
 }
 
@@ -147,35 +200,65 @@ UploadedTexture uploadPngTexture(const std::span<const std::byte> png_bytes)
 HighwayAtlases makeHighwayAtlases(const std::span<const std::byte> note_atlas_png)
 {
     HighwayAtlases atlases;
-    atlases.glyph_layout =
-        HighwayAtlasLayout{.texture_size = g_glyph_texture_size, .cell_size = g_glyph_cell_size};
+    atlases.glyph_layout = HighwayAtlasLayout{
+        .texture_width = g_glyph_texture_size,
+        .texture_height = g_glyph_texture_size,
+        .cell_size = g_glyph_cell_size,
+    };
 
-    // Head atlas: the reference 4x4 channel-scheme asset when it decodes, else the single-cell
-    // procedural fallback — a missing asset degrades the art, never the game.
+    // Head atlas: the reference 4x4 channel-scheme asset when it decodes, composed into a
+    // five-row canvas whose appended row carries the runtime-rasterized bend-chevron cells;
+    // else the procedural fallback in the same grid shape (same indices) — a missing asset
+    // degrades the art, never the game.
     if (!note_atlas_png.empty())
     {
         juce::MemoryInputStream stream{note_atlas_png.data(), note_atlas_png.size(), false};
         const juce::Image decoded = juce::PNGImageFormat{}.decodeImage(stream);
         if (!decoded.isNull() && decoded.getWidth() >= 4)
         {
-            atlases.heads = uploadAtlas(decoded.convertedToFormat(juce::Image::ARGB));
+            const int cell = decoded.getWidth() / 4;
+            const juce::Image composed{
+                juce::Image::ARGB,
+                decoded.getWidth(),
+                cell * g_head_grid_rows,
+                true,
+                juce::SoftwareImageType{}
+            };
+            {
+                juce::Graphics graphics{composed};
+                // Opaque black base (A=0xFF, channels zero) so untouched texels contribute
+                // nothing (B = 0 masks them out) while staying premultiplication-proof; the
+                // reference rows draw over it and the chevron row scales with the asset's
+                // cell size.
+                graphics.fillAll(juce::Colour::fromRGBA(0, 0, 0, 255));
+                graphics.drawImageAt(decoded.convertedToFormat(juce::Image::ARGB), 0, 0);
+                const float scale = static_cast<float>(cell) / static_cast<float>(g_head_cell_size);
+                graphics.addTransform(juce::AffineTransform::scale(scale));
+                paintChevronRow(graphics);
+            }
+            atlases.heads = uploadAtlas(composed);
             atlases.head_layout = HighwayAtlasLayout{
-                .texture_size = decoded.getWidth(), .cell_size = decoded.getWidth() / 4
+                .texture_width = decoded.getWidth(),
+                .texture_height = cell * g_head_grid_rows,
+                .cell_size = cell,
             };
             atlases.reference_cells = atlases.heads.isValid();
         }
     }
     if (!atlases.reference_cells)
     {
-        atlases.head_layout =
-            HighwayAtlasLayout{.texture_size = g_head_texture_size, .cell_size = g_head_cell_size};
+        atlases.head_layout = HighwayAtlasLayout{
+            .texture_width = g_head_cell_size * g_head_grid_columns,
+            .texture_height = g_head_cell_size * g_head_grid_rows,
+            .cell_size = g_head_cell_size,
+        };
 
         // Opaque black base (A=0xFF, channels zero) so untouched texels contribute nothing
         // (B = 0 masks them out) while staying premultiplication-proof.
         const juce::Image image{
             juce::Image::ARGB,
-            g_head_texture_size,
-            g_head_texture_size,
+            atlases.head_layout.texture_width,
+            atlases.head_layout.texture_height,
             true,
             juce::SoftwareImageType{}
         };
@@ -186,6 +269,7 @@ HighwayAtlases makeHighwayAtlases(const std::span<const std::byte> note_atlas_pn
             0.0F, 0.0F, static_cast<float>(g_head_cell_size), static_cast<float>(g_head_cell_size)
         };
         paintStandardHead(graphics, cell_rect);
+        paintChevronRow(graphics);
 
         atlases.heads = uploadAtlas(image);
     }
