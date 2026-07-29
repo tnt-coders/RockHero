@@ -88,6 +88,14 @@ constexpr double g_tap_ribbon_decay_seconds = 0.45;
 constexpr double g_bend_rail_dash_z = 0.55;
 constexpr double g_bend_rail_gap_z = 0.4;
 constexpr double g_bend_rail_alpha = 0.4;
+// Sustain slope shading (user direction 2026-07-28): the modulated tail's centerline slope
+// modulates its brightness like a surface tilting under a fixed light, so a bend's climb,
+// hold, and release — and a vibrato's wobble — read from shading alone even where screen-space
+// lift is foreshortened at center screen. Slope is normalized by the lane's bend-lift
+// direction so a climbing PITCH always brightens regardless of which way the lane draws it.
+// Gain scales world dy/dz into [-1, 1]; depth is the full brighten/darken mix at saturation.
+constexpr double g_tail_slope_shade_gain = 6.0;
+constexpr double g_tail_slope_shade_depth = 0.5;
 // The tap light leans the lit lane tint toward the FHP orange (the tap floor numbers' color)
 // so the tapping hand's light reads apart from the fretting hand's window at a glance.
 constexpr double g_tap_light_warm_mix = 0.3;
@@ -2701,10 +2709,36 @@ void HighwayRenderer::Impl::draw(
                             .alpha = slide.alpha * tip_alpha(seconds),
                         });
                 }
+                // Per-sample slope shading (central differences over the centerline): a
+                // climbing pitch brightens toward white, a release darkens, flat holds stay
+                // at the base tint — cheap per-vertex lighting through the existing color
+                // pipeline, no shader involved.
+                std::vector<ArgbColor> shaded(samples.size(), style.tail);
+                for (std::size_t sample = 0; sample < samples.size(); ++sample)
+                {
+                    const std::size_t before = sample > 0 ? sample - 1 : sample;
+                    const std::size_t after = sample + 1 < samples.size() ? sample + 1 : sample;
+                    const double dz = samples[after].z - samples[before].z;
+                    if (dz <= 0.0)
+                    {
+                        continue;
+                    }
+                    const double pitch_slope =
+                        bend_direction * (samples[after].y - samples[before].y) / dz;
+                    const double lift =
+                        g_tail_slope_shade_depth *
+                        std::clamp(pitch_slope * g_tail_slope_shade_gain, -1.0, 1.0);
+                    shaded[sample] =
+                        lift >= 0.0
+                            ? mixArgb(style.tail, (style.tail & 0xFF000000U) | 0x00FFFFFFU, lift)
+                            : mixArgb(style.tail, style.tail & 0xFF000000U, -lift);
+                }
                 for (std::size_t sample = 1; sample < samples.size(); ++sample)
                 {
                     const TailSample& a = samples[sample - 1];
                     const TailSample& b = samples[sample];
+                    const ArgbColor tail_a = shaded[sample - 1];
+                    const ArgbColor tail_b = shaded[sample];
                     pushRibbonSegment(
                         rail_vertices,
                         rail_indices,
@@ -2714,17 +2748,17 @@ void HighwayRenderer::Impl::draw(
                             .x_offset = a.x_offset,
                             .y = a.y,
                             .z = a.z,
-                            .edge_abgr = packAbgr(style.tail, a.alpha),
-                            .inner_abgr = packAbgr(style.tail, g_tail_inner_alpha * a.alpha),
-                            .outer_abgr = packAbgr(style.tail, note.fret > 0 ? a.alpha : 0.0),
+                            .edge_abgr = packAbgr(tail_a, a.alpha),
+                            .inner_abgr = packAbgr(tail_a, g_tail_inner_alpha * a.alpha),
+                            .outer_abgr = packAbgr(tail_a, note.fret > 0 ? a.alpha : 0.0),
                         },
                         RibbonEnd{
                             .x_offset = b.x_offset,
                             .y = b.y,
                             .z = b.z,
-                            .edge_abgr = packAbgr(style.tail, b.alpha),
-                            .inner_abgr = packAbgr(style.tail, g_tail_inner_alpha * b.alpha),
-                            .outer_abgr = packAbgr(style.tail, note.fret > 0 ? b.alpha : 0.0),
+                            .edge_abgr = packAbgr(tail_b, b.alpha),
+                            .inner_abgr = packAbgr(tail_b, g_tail_inner_alpha * b.alpha),
+                            .outer_abgr = packAbgr(tail_b, note.fret > 0 ? b.alpha : 0.0),
                         });
                 }
             }

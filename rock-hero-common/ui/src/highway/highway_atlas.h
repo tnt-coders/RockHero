@@ -105,7 +105,8 @@ inline constexpr int g_head_cell_standard = 0;
 inline constexpr int g_head_cell_anticipation = 1;
 
 // The rest of the reference atlas's 4x4 cell vocabulary (row-major indices; reference_cells
-// gates every use). Cell 11 is empty in the reference asset.
+// gates every use except the bend marker, which the procedural fallback also rasterizes so it
+// exists in BOTH atlas paths).
 
 /*! \brief Technique note head: the base head variant under left-hand technique markers. */
 inline constexpr int g_head_cell_tech = 2;
@@ -134,6 +135,13 @@ inline constexpr int g_head_cell_full_mute = 9;
 /*! \brief Accent marker. */
 inline constexpr int g_head_cell_accent = 10;
 
+/*!
+\brief Bend marker: the chevron announcing a bent note on its head, authored into the
+reference asset's formerly empty cell (judged 2026-07-28) and runtime-rasterized into the
+procedural fallback — never gated by reference_cells.
+*/
+inline constexpr int g_head_cell_bend = 11;
+
 /*! \brief Natural-harmonic head marker. */
 inline constexpr int g_head_cell_harmonic = 12;
 
@@ -146,22 +154,14 @@ inline constexpr int g_head_cell_slap = 14;
 /*! \brief Pop (bass) marker. */
 inline constexpr int g_head_cell_pop = 15;
 
-// The appended fifth row: runtime-rasterized cells composed under the reference asset (and
-// into the fallback), so they exist in BOTH atlas paths and are never gated by reference_cells.
-// Procedural first per the bend-head-indicators plan; may be re-authored into the PNG if the
-// procedural look does not hold up. Cells 17-19 are free.
-
-/*! \brief Bend marker: the curved arrow announcing a bent note on its head. */
-inline constexpr int g_head_cell_bend = 16;
-
 /*!
 \brief Builds the highway atlases and uploads them as immutable bgfx textures.
 
-The head atlas decodes the supplied reference PNG (Charter's 4x4 channel-scheme atlas) when
-bytes are given and they decode, composing it into a five-row grid whose appended row carries
-the runtime-rasterized bend-chevron cells; otherwise a procedural head is rasterized with JUCE
-into the same grid shape as a fallback (with the chevron cells at the same indices) so a
-missing asset degrades the art, never the game. The glyph atlas is always runtime-rasterized.
+The head atlas uploads the supplied reference PNG (the Charter-derived 4x4 channel-scheme
+atlas, with the authored bend chevron in its formerly empty cell) verbatim when bytes are
+given and they decode; with no decodable asset a procedural head is rasterized with JUCE into
+the same grid shape (chevron cell included) so a missing asset degrades the art, never the
+game. The glyph atlas is always runtime-rasterized.
 
 Must be called after bgfx initialization and the results destroyed before shutdown (structural
 via the shell's declaration order).

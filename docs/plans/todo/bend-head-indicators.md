@@ -3,9 +3,9 @@
 Status: **SHIPPED 2026-07-28**, three passes on sight the same day: chevron *stacks* were
 rejected as clutter (symbol count scaled with the amount), then head amount *figures* were
 rejected as unreadable at speed. The shipped notation: **presence** — ONE `^` chevron marker
-on the head (the source-game notation's own bend cue; cell 16 of the
-atlas's appended fifth row, runtime-rasterized into both atlas paths, never gated on
-`reference_cells`), rotated to point along the drawn bend-lift direction; **amount and
+on the head (the source-game notation's own bend cue; the atlas's
+formerly empty cell 11, present in both atlas paths, never gated on `reference_cells`),
+rotated to point along the drawn bend-lift direction; **amount and
 stages** — pure geometry: a dashed white target rail at each held target's exact lift height
 (`bend_lift_per_half_step` × the snapped semitones) spans the stretch of tail that holds it,
 so the curve visibly climbs to meet its rail, a compound bend reads as a staircase of rails,
@@ -13,10 +13,23 @@ and screen-center foreshortening no longer matters because the rail IS the refer
 Amounts snap to the nearest half semitone (`highwayBendDisplayHalfSteps` in
 `highway_tail.{h,cpp}`, tested — a plain half-step count in the GP importer's quarter-tone
 quantum; the chart stores plain semitone doubles with no special notation, user check
-2026-07-28). `HighwayAtlasLayout` is rectangular-grid generalized (tested). REMAINING: judge
-the procedural chevron cell and the rail dash geometry/brightness (`g_bend_rail_*`) in the
-preview; author the chevron into the Charter-style PNG only if the procedural one does not
-hold up.
+2026-07-28). `HighwayAtlasLayout` is rectangular-grid generalized (tested).
+
+Fourth pass, same day: the procedural chevron did not hold up next to Charter's authored
+cells, so the glyph was authored offline (PIL harness compositing candidates with the exact
+`fs_texture_tint` math; user judged contact sheets interactively: candidate A, squished to
+the tap arrow's footprint, squared butt-capped leg ends like the pop symbol, sharp mitered
+tip) and baked into `notes.png`'s formerly empty cell 11 (the atlas stays 256×256 — the plan's
+grown-grid step existed for a two-cell design and was retired with it; user question
+2026-07-28). The reference asset uploads verbatim — no composition step, no legacy
+accommodation (user rule) — and the procedural chevron survives only in the no-asset
+fallback, the same degradation policy as every other head cell. The sustain tail also gained
+slope shading
+(`g_tail_slope_shade_*` in `highway_renderer.cpp`): per-vertex brightness follows the
+centerline's pitch slope — climbs brighten toward white, releases darken — so bend strength
+reads from the tail itself even at screen center, source-style, with the dashed rails still
+marking exact targets. REMAINING: judge the rail dash geometry/brightness (`g_bend_rail_*`)
+and the slope-shade gain/depth in the preview.
 
 ## Goal
 

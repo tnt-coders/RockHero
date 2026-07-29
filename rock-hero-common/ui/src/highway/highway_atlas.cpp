@@ -13,12 +13,12 @@ namespace rock_hero::common::ui
 namespace
 {
 
-// Fallback head atlas: the same 4x5 grid shape as the composed reference atlas, so the
+// Fallback head atlas: the same 4x4 grid shape as the reference atlas, so the
 // runtime-rasterized cells (the standard head, the bend marker) sit at identical indices in
 // both paths.
 constexpr int g_head_cell_size = 128;
 constexpr int g_head_grid_columns = 4;
-constexpr int g_head_grid_rows = 5;
+constexpr int g_head_grid_rows = 4;
 
 // Glyph atlas: printable ASCII '!'..'~' (94 glyphs) in a 10x10 grid.
 constexpr int g_glyph_texture_size = 512;
@@ -82,36 +82,63 @@ void paintStandardHead(juce::Graphics& graphics, const juce::Rectangle<float> ce
         highlight_size);
 }
 
-// Paints the bend marker into its fifth-row cell in the channel scheme: a single `^` chevron
-// — the source-game notation's own bend cue — reading mostly white
-// (high G) with a slight string tint (low R), shape carried by B as the alpha mask (the
-// source-game composition and the fallback share this, so the cell index agrees in both paths).
-// The renderer rotates the cell to point along the drawn bend-lift direction.
-void paintBendSymbolRow(juce::Graphics& graphics)
+// Fallback paint of the bend marker cell: the shipped PNG carries the authored chevron in
+// cell 11 (baked from the offline design harness, judged against the tap arrow's footprint on
+// 2026-07-28), so this runs only when the asset is missing. Same geometry — squared
+// butt-capped legs, sharp mitered apex, tap-arrow proportions — layered as a tinted body
+// around a white core in the channel scheme, without the authored halo (the fallback degrades
+// the art, never the game).
+void paintBendSymbolCell(juce::Graphics& graphics)
 {
     const int column = g_head_cell_bend % g_head_grid_columns;
     const int row = g_head_cell_bend / g_head_grid_columns;
-    const juce::Rectangle<float> cell{
-        static_cast<float>(column * g_head_cell_size),
-        static_cast<float>(row * g_head_cell_size),
-        static_cast<float>(g_head_cell_size),
-        static_cast<float>(g_head_cell_size),
+    const auto size = static_cast<float>(g_head_cell_size);
+    const juce::Point<float> origin{
+        static_cast<float>(column) * size, static_cast<float>(row) * size
     };
-    const juce::Rectangle<float> box = cell.reduced(cell.getWidth() * 0.22F);
+    const juce::Point<float> apex = origin + juce::Point<float>{0.5F * size, 0.38F * size};
+    const juce::Point<float> left = origin + juce::Point<float>{0.22F * size, 0.58F * size};
+    const juce::Point<float> right = origin + juce::Point<float>{0.78F * size, 0.58F * size};
 
-    juce::Path chevron;
-    chevron.startNewSubPath(box.getX(), box.getBottom() - (box.getHeight() * 0.22F));
-    chevron.lineTo(box.getCentreX(), box.getY() + (box.getHeight() * 0.18F));
-    chevron.lineTo(box.getRight(), box.getBottom() - (box.getHeight() * 0.22F));
+    // Solves p0 + t*d0 == p1 + u*d1 for the miter points.
+    const auto intersect = [](const juce::Point<float> p0,
+                              const juce::Point<float>
+                                  d0,
+                              const juce::Point<float>
+                                  p1,
+                              const juce::Point<float>
+                                  d1) {
+        const float det = (d1.x * d0.y) - (d0.x * d1.y);
+        const float t = (((p1.x - p0.x) * -d1.y) + (d1.x * (p1.y - p0.y))) / det;
+        return p0 + (d0 * t);
+    };
+    const auto outline = [&](const float width) {
+        const float h = width / 2.0F;
+        const auto unit = [](juce::Point<float> v) { return v / v.getDistanceFromOrigin(); };
+        const juce::Point<float> dir1 = unit(apex - left);
+        const juce::Point<float> dir2 = unit(right - apex);
+        // Outer normals point up (negative y) so the miter grows past the apex tip.
+        const juce::Point<float> n1{dir1.y, -dir1.x};
+        const juce::Point<float> n2{-dir2.y, dir2.x};
+        const juce::Point<float> apex_outer =
+            intersect(left + (n1 * h), dir1, apex + (n2 * h), dir2);
+        const juce::Point<float> apex_inner =
+            intersect(left - (n1 * h), dir1, apex - (n2 * h), dir2);
+        juce::Path path;
+        path.startNewSubPath(left + (n1 * h));
+        path.lineTo(apex_outer);
+        path.lineTo(right + (n2 * h));
+        path.lineTo(right - (n2 * h));
+        path.lineTo(apex_inner);
+        path.lineTo(left - (n1 * h));
+        path.closeSubPath();
+        return path;
+    };
 
-    graphics.setColour(juce::Colour::fromRGBA(70, 225, 255, 255));
-    graphics.strokePath(
-        chevron,
-        juce::PathStrokeType{
-            box.getWidth() * 0.18F,
-            juce::PathStrokeType::mitered,
-            juce::PathStrokeType::rounded,
-        });
+    graphics.setColour(juce::Colour::fromRGBA(255, 40, 255, 255));
+    graphics.fillPath(outline(0.105F * size));
+    graphics.setColour(juce::Colour::fromRGBA(200, 235, 255, 255));
+    graphics.fillPath(outline(0.044F * size));
 }
 
 } // namespace
@@ -193,41 +220,23 @@ HighwayAtlases makeHighwayAtlases(const std::span<const std::byte> note_atlas_pn
         .cell_size = g_glyph_cell_size,
     };
 
-    // Head atlas: the reference 4x4 channel-scheme asset when it decodes, composed into a
-    // five-row canvas whose appended row carries the runtime-rasterized bend-chevron cells;
-    // else the procedural fallback in the same grid shape (same indices) — a missing asset
-    // degrades the art, never the game.
+    // Head atlas: the reference 4x4 channel-scheme asset (the authored bend chevron lives in
+    // its formerly empty cell 11) uploads verbatim when it decodes; else the procedural
+    // fallback in the same grid shape (same indices) — a missing asset degrades the art,
+    // never the game.
     if (!note_atlas_png.empty())
     {
         juce::MemoryInputStream stream{note_atlas_png.data(), note_atlas_png.size(), false};
         const juce::Image decoded = juce::PNGImageFormat{}.decodeImage(stream);
         if (!decoded.isNull() && decoded.getWidth() >= 4)
         {
-            const int cell = decoded.getWidth() / 4;
-            const juce::Image composed{
-                juce::Image::ARGB,
-                decoded.getWidth(),
-                cell * g_head_grid_rows,
-                true,
-                juce::SoftwareImageType{}
-            };
-            {
-                juce::Graphics graphics{composed};
-                // Opaque black base (A=0xFF, channels zero) so untouched texels contribute
-                // nothing (B = 0 masks them out) while staying premultiplication-proof; the
-                // reference rows draw over it and the chevron row scales with the asset's
-                // cell size.
-                graphics.fillAll(juce::Colour::fromRGBA(0, 0, 0, 255));
-                graphics.drawImageAt(decoded.convertedToFormat(juce::Image::ARGB), 0, 0);
-                const float scale = static_cast<float>(cell) / static_cast<float>(g_head_cell_size);
-                graphics.addTransform(juce::AffineTransform::scale(scale));
-                paintBendSymbolRow(graphics);
-            }
-            atlases.heads = uploadAtlas(composed);
+            // Normalize to ARGB so an RGB-only PNG gains the opaque alpha the BGRA8 upload
+            // expects.
+            atlases.heads = uploadAtlas(decoded.convertedToFormat(juce::Image::ARGB));
             atlases.head_layout = HighwayAtlasLayout{
                 .texture_width = decoded.getWidth(),
-                .texture_height = cell * g_head_grid_rows,
-                .cell_size = cell,
+                .texture_height = decoded.getHeight(),
+                .cell_size = decoded.getWidth() / 4,
             };
             atlases.reference_cells = atlases.heads.isValid();
         }
@@ -256,7 +265,7 @@ HighwayAtlases makeHighwayAtlases(const std::span<const std::byte> note_atlas_pn
             0.0F, 0.0F, static_cast<float>(g_head_cell_size), static_cast<float>(g_head_cell_size)
         };
         paintStandardHead(graphics, cell_rect);
-        paintBendSymbolRow(graphics);
+        paintBendSymbolCell(graphics);
 
         atlases.heads = uploadAtlas(image);
     }

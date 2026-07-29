@@ -42,8 +42,8 @@ TEST_CASE("Highway atlas cells tile the texture with a half-texel inset", "[ui][
     CHECK_THAT(last[2], Catch::Matchers::WithinAbs(1.0F - half_texel, 1e-7));
     CHECK_THAT(last[3], Catch::Matchers::WithinAbs(1.0F - half_texel, 1e-7));
 
-    // A rectangular grid insets u by width and v by height, and the appended row's first cell
-    // (the bend chevron at index 16 of a 4x5 grid) sits at the bottom-left.
+    // A rectangular grid insets u by width and v by height, and the last row's first cell
+    // (index 16 of a 4x5 grid) sits at the bottom-left.
     const HighwayAtlasLayout composed{
         .texture_width = 512, .texture_height = 640, .cell_size = 128
     };
