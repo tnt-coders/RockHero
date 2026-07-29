@@ -3305,21 +3305,35 @@ void HighwayRenderer::Impl::draw(
         // Tap numbers label POSITIONS, not notes (user rule 2026-07-28 — per-note numbers
         // over-labeled dense runs): one number per tap onset, at its low fret like a
         // hand-position arrival, and only when it tells the player something new — the first
-        // tap after the lighting lapsed, or a move to a different extent. A repeat inside a
-        // lit run (the previous release plus the ribbon decay still bridging this rise — the
-        // same bridge the lane edges show) is already established and stays unlabeled, as do
-        // chord upper members and tapped-slide waypoints: the light carries them.
+        // tap after the lighting lapsed, or a move away from the position the previous tap's
+        // path LANDED in. A repeat inside a lit run (the previous release plus the ribbon
+        // decay still bridging this rise — the same bridge the lane edges show) is already
+        // established and stays unlabeled, as are chord upper members. A tapped glide then
+        // establishes each landing as its own new position (user rule 2026-07-28, matching the
+        // placements a fretting-hand glide carries at its targets): every path station that
+        // changes the extent gets an arrival number of its own.
         const common::core::HighwayTapOnsetView* previous_tap = nullptr;
         for (const common::core::HighwayTapOnsetView& tap : state.tap_onsets)
         {
             const bool repeat_in_lit_run =
-                previous_tap != nullptr && previous_tap->fret_low == tap.fret_low &&
-                previous_tap->fret_high == tap.fret_high &&
+                previous_tap != nullptr &&
+                std::lround(previous_tap->path.back().fret_low) == tap.fret_low &&
+                std::lround(previous_tap->path.back().fret_high) == tap.fret_high &&
                 previous_tap->path.back().seconds + g_tap_ribbon_decay_seconds >=
                     tap.seconds - tap.ramp_seconds;
             if (!repeat_in_lit_run)
             {
                 push_target_number(tap.fret_low, tap.seconds);
+            }
+            for (std::size_t station = 1; station < tap.path.size(); ++station)
+            {
+                const common::core::HighwayTapLightStation& a = tap.path[station - 1];
+                const common::core::HighwayTapLightStation& b = tap.path[station];
+                if (std::is_neq(a.fret_low <=> b.fret_low) ||
+                    std::is_neq(a.fret_high <=> b.fret_high))
+                {
+                    push_target_number(static_cast<int>(std::lround(b.fret_low)), b.seconds);
+                }
             }
             previous_tap = &tap;
         }
@@ -3327,10 +3341,10 @@ void HighwayRenderer::Impl::draw(
         // Slide waypoints deliberately push no numbers of their own (user rule 2026-07-28,
         // completing the one-rule model: an orange number marks a hand position being
         // established, nothing else). A fretting-hand glide that moves the window carries a
-        // hand-position placement at its target (normalization rule 9), so its number arrives
-        // through the placement loop above; tapped glides are carried by their morphing light.
-        // The waypoint glow posts and fret-span lines remain — they are target furniture, not
-        // labels.
+        // hand-position placement at its target (normalization rule 9), and a tapped glide's
+        // landings are labeled through the path-station loop above — both hands' glides earn
+        // their numbers as POSITIONS, never as waypoints. The waypoint glow posts and
+        // fret-span lines remain — they are target furniture, not labels.
 
         // The current hand's numbers pinned at the hit line. Coverage fade (signed 2026-07-23):
         // every glyph stays at its own lane's fixed position and animates opacity only, fading
