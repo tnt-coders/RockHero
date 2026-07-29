@@ -73,15 +73,6 @@ character outside the range have no cell (callers advance the pen without drawin
 */
 [[nodiscard]] std::optional<int> highwayGlyphCellIndex(char character) noexcept;
 
-/*!
-\brief Glyph-atlas cell of the "½" figure, past the ASCII range.
-
-Bend amounts display quarter-tone curls as a real half figure (the atlas rasterizes from a
-font, so the glyph costs nothing); it has no character mapping — callers address the cell
-directly.
-*/
-inline constexpr int g_glyph_cell_half = 94;
-
 /*! \brief The highway's runtime-built atlases and their layouts. */
 struct HighwayAtlases
 {

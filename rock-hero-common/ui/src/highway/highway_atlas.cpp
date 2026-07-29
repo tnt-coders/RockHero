@@ -82,11 +82,11 @@ void paintStandardHead(juce::Graphics& graphics, const juce::Rectangle<float> ce
         highlight_size);
 }
 
-// Paints the bend marker into its fifth-row cell in the channel scheme: a curved arrow — an
-// arc swooping right then up into an arrowhead, the source-game notation's "bend away from
-// here" gesture — reading mostly white (high G) with a slight string tint (low R), shape
-// carried by B as the alpha mask (the source-game composition and the fallback share this, so
-// the cell index agrees in both paths).
+// Paints the bend marker into its fifth-row cell in the channel scheme: a single `^` chevron
+// — the source-game notation's own bend cue — reading mostly white
+// (high G) with a slight string tint (low R), shape carried by B as the alpha mask (the
+// source-game composition and the fallback share this, so the cell index agrees in both paths).
+// The renderer rotates the cell to point along the drawn bend-lift direction.
 void paintBendSymbolRow(juce::Graphics& graphics)
 {
     const int column = g_head_cell_bend % g_head_grid_columns;
@@ -97,36 +97,21 @@ void paintBendSymbolRow(juce::Graphics& graphics)
         static_cast<float>(g_head_cell_size),
         static_cast<float>(g_head_cell_size),
     };
-    const juce::Rectangle<float> box = cell.reduced(cell.getWidth() * 0.16F);
+    const juce::Rectangle<float> box = cell.reduced(cell.getWidth() * 0.22F);
+
+    juce::Path chevron;
+    chevron.startNewSubPath(box.getX(), box.getBottom() - (box.getHeight() * 0.22F));
+    chevron.lineTo(box.getCentreX(), box.getY() + (box.getHeight() * 0.18F));
+    chevron.lineTo(box.getRight(), box.getBottom() - (box.getHeight() * 0.22F));
 
     graphics.setColour(juce::Colour::fromRGBA(70, 225, 255, 255));
-
-    // The swoop: flat exit at the bottom-left curving up toward the arrowhead.
-    juce::Path swoop;
-    swoop.startNewSubPath(box.getX(), box.getBottom() - (box.getHeight() * 0.10F));
-    swoop.quadraticTo(
-        box.getRight() - (box.getWidth() * 0.22F),
-        box.getBottom() - (box.getHeight() * 0.16F),
-        box.getRight() - (box.getWidth() * 0.28F),
-        box.getY() + (box.getHeight() * 0.34F));
     graphics.strokePath(
-        swoop,
+        chevron,
         juce::PathStrokeType{
-            box.getWidth() * 0.16F,
-            juce::PathStrokeType::curved,
+            box.getWidth() * 0.18F,
+            juce::PathStrokeType::mitered,
             juce::PathStrokeType::rounded,
         });
-
-    // The arrowhead pointing up, at the swoop's tip.
-    juce::Path arrowhead;
-    arrowhead.addTriangle(
-        box.getRight() - (box.getWidth() * 0.52F),
-        box.getY() + (box.getHeight() * 0.34F),
-        box.getRight() - (box.getWidth() * 0.04F),
-        box.getY() + (box.getHeight() * 0.34F),
-        box.getRight() - (box.getWidth() * 0.28F),
-        box.getY());
-    graphics.fillPath(arrowhead);
 }
 
 } // namespace
@@ -305,16 +290,6 @@ HighwayAtlases makeHighwayAtlases(const std::span<const std::byte> note_atlas_pn
                 g_glyph_cell_size,
                 juce::Justification::centred);
         }
-        // The "½" figure past the ASCII cells: bend amounts display quarter-tone curls as a
-        // real half figure (U+00BD), addressed by g_glyph_cell_half rather than a character.
-        graphics.drawText(
-            juce::String::charToString(static_cast<juce::juce_wchar>(0x00BD)),
-            (g_glyph_cell_half % columns) * g_glyph_cell_size,
-            (g_glyph_cell_half / columns) * g_glyph_cell_size,
-            g_glyph_cell_size,
-            g_glyph_cell_size,
-            juce::Justification::centred);
-
         atlases.glyphs = uploadAtlas(image);
     }
 

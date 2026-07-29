@@ -82,6 +82,12 @@ constexpr double g_tap_light_decay_seconds = 0.1;
 // per-tap ribbon flashing read as jarring in tap sections): the light pulses with each strike
 // while the brightened edges bridge the gaps of a dense run, fading only once the run ends.
 constexpr double g_tap_ribbon_decay_seconds = 0.45;
+// Bend target rails (bend-head-indicators plan): dash geometry and brightness of the dashed
+// guide drawn at each held bend target's exact lift height — the amount reads as geometry the
+// curve visibly climbs to meet, not as a symbol.
+constexpr double g_bend_rail_dash_z = 0.55;
+constexpr double g_bend_rail_gap_z = 0.4;
+constexpr double g_bend_rail_alpha = 0.4;
 // The tap light leans the lit lane tint toward the FHP orange (the tap floor numbers' color)
 // so the tapping hand's light reads apart from the fretting hand's window at a glance.
 constexpr double g_tap_light_warm_mix = 0.3;
@@ -1769,11 +1775,6 @@ void HighwayRenderer::Impl::draw(
     std::vector<std::uint16_t> open_indices;
     std::vector<PosColorUvVertex> head_vertices;
     std::vector<std::uint16_t> head_indices;
-    // Bend amount figures (white glyph text at heads and tail stage points) accumulate across
-    // the whole note pass and submit with the scrolling numbers, so they read over every note
-    // and stay occluded by the board face like the other glyph content.
-    std::vector<PosColorUvVertex> bend_label_vertices;
-    std::vector<std::uint16_t> bend_label_indices;
 
     std::vector<std::size_t> visible;
     visible.reserve(last_note - first_note);
@@ -3174,131 +3175,62 @@ void HighwayRenderer::Impl::draw(
             }
         }
 
-        // Bend notation (bend-head-indicators plan, redesigned on sight 2026-07-28 after the
-        // chevron stacks read as clutter): the head carries ONE curved-arrow bend marker
-        // (presence — the reference's own head-symbol approach) with a small white amount
-        // figure beside it announcing the curve's FIRST target, what the player must bend to
-        // the moment the note arrives (a prebend's first point sits at the onset, so it reads
-        // "bend before you pick"). Every later bend point whose snapped amount CHANGES the
-        // target gets its own smaller figure on the tail at its point, so a compound bend
-        // reads stage by stage even at screen center where the tail's lift is foreshortened.
-        // Figures sit outward along the drawn bend-lift direction, ride the note anchors, and
-        // fade with the head; they are white on purpose — orange numbers mean hand positions,
-        // and bend amounts are a different channel. The marker cell is runtime-rasterized
-        // into both atlas paths, so nothing here gates on reference_cells.
+        // Bend notation (bend-head-indicators plan, third pass on sight 2026-07-28: chevron
+        // stacks read as clutter, then amount figures did not read at speed): the head carries
+        // ONE chevron marker — the source-game notation's own bend cue
+        // — rotated to point along the drawn bend-lift direction. Amount and stages are pure
+        // GEOMETRY: a dashed target rail at each held target's exact lift height spans the
+        // stretch of the tail that holds it, so the curve visibly climbs to meet its rail
+        // (and a compound bend reads as a staircase) even at screen center where lift is
+        // foreshortened. Rails ride the note batch and fade with the note; the marker cell is
+        // runtime-rasterized into both atlas paths, so nothing here gates on reference_cells.
         if (!note.bend.empty())
         {
-            const std::uint32_t figure_tint = packAbgr(0xFFFFFFFFU, fade);
-            const auto push_bend_amount = [&](const double center_x,
-                                              const double center_y,
-                                              const double figure_z,
-                                              const double glyph_height,
-                                              const int half_steps) {
-                // Text layout of a half-step count: whole semitones as a digit, an odd step
-                // as the half figure. The chart itself stores plain semitone doubles; this
-                // split exists only here.
-                std::array<int, 2> cells{};
-                std::size_t count = 0;
-                if (half_steps / 2 > 0)
-                {
-                    const std::optional<int> digit =
-                        highwayGlyphCellIndex(static_cast<char>('0' + (half_steps / 2)));
-                    if (digit.has_value())
-                    {
-                        cells.at(count) = *digit;
-                        ++count;
-                    }
-                }
-                if (half_steps % 2 != 0)
-                {
-                    cells.at(count) = g_glyph_cell_half;
-                    ++count;
-                }
-                if (count == 0)
-                {
-                    return;
-                }
-                // pushGlyphText's metrics (glyph-height quads on a 0.62-height advance), laid
-                // out here from cell indices because the half figure has no character.
-                const double advance = glyph_height * 0.62;
-                const double total_width =
-                    (advance * static_cast<double>(count - 1)) + glyph_height;
-                double pen_x = center_x - (total_width / 2.0);
-                for (std::size_t figure = 0; figure < count; ++figure)
-                {
-                    const std::array<float, 4> rect =
-                        atlases.glyph_layout.cellRect(cells.at(figure));
-                    pushQuad(
-                        bend_label_vertices,
-                        bend_label_indices,
-                        makeUvVertex(
-                            pen_x,
-                            center_y - (glyph_height / 2.0),
-                            figure_z,
-                            figure_tint,
-                            rect[0],
-                            rect[3]),
-                        makeUvVertex(
-                            pen_x + glyph_height,
-                            center_y - (glyph_height / 2.0),
-                            figure_z,
-                            figure_tint,
-                            rect[2],
-                            rect[3]),
-                        makeUvVertex(
-                            pen_x + glyph_height,
-                            center_y + (glyph_height / 2.0),
-                            figure_z,
-                            figure_tint,
-                            rect[2],
-                            rect[1]),
-                        makeUvVertex(
-                            pen_x,
-                            center_y + (glyph_height / 2.0),
-                            figure_z,
-                            figure_tint,
-                            rect[0],
-                            rect[1]));
-                    pen_x += advance;
-                }
-            };
-
-            // The head: presence marker composited like the other technique overlays, first
-            // target figure just beyond the head along the curve's direction.
-            push_marker(x, head_y, z, 1.0, 0.0, g_head_cell_bend, tint);
-            const int first =
-                common::core::highwayBendDisplayHalfSteps(note.bend.front().semitones);
-            const double figure_height = head_half_h * 0.8;
-            push_bend_amount(
-                x,
-                head_y + (bend_direction * (head_half_h + (figure_height * 0.7))),
-                z,
-                figure_height,
-                first);
-
-            // Later target changes annotate the tail at their own point, just past the lifted
-            // curve. A release to zero draws nothing (the curve shows the descent) but still
-            // resets the tracker, so a re-bend after a release re-announces its target.
-            int previous = first;
-            for (std::size_t point = 1; point < note.bend.size(); ++point)
+            push_marker(x, head_y, z, bend_direction, 0.0, g_head_cell_bend, tint);
+        }
+        if (!note.bend.empty() && note.fret > 0)
+        {
+            const double rail_x = common::core::highwayNoteCenterX(note.fret, metrics, mirrored);
+            const double rail_half = metrics.tail_half_width * 1.5;
+            const std::uint32_t rail_color = packAbgr(0xFFFFFFFFU, g_bend_rail_alpha * fade);
+            for (std::size_t point = 0; point < note.bend.size();)
             {
-                const common::core::HighwayBendPointView& bend_point = note.bend[point];
-                const int stage = common::core::highwayBendDisplayHalfSteps(bend_point.semitones);
-                if (stage == previous)
+                // One rail per run of points holding the same snapped target; the last run
+                // holds through the sustain end (the curve holds its final value).
+                const int steps =
+                    common::core::highwayBendDisplayHalfSteps(note.bend[point].semitones);
+                std::size_t run_end = point + 1;
+                while (run_end < note.bend.size() && common::core::highwayBendDisplayHalfSteps(
+                                                         note.bend[run_end].semitones) == steps)
+                {
+                    ++run_end;
+                }
+                const double run_from = std::max(note.bend[point].seconds, now_seconds);
+                const double run_to = std::min(
+                    run_end < note.bend.size() ? note.bend[run_end].seconds : note.end_seconds,
+                    span_end_seconds);
+                point = run_end;
+                if (steps <= 0 || run_to <= run_from)
                 {
                     continue;
                 }
-                previous = stage;
-                if (bend_point.seconds <= now_seconds || bend_point.seconds > span_end_seconds)
+                const double rail_y = lane_y + (bend_direction * metrics.bend_lift_per_half_step *
+                                                (static_cast<double>(steps) / 2.0));
+                const double z_from = time_to_z(run_from);
+                const double z_to = time_to_z(run_to);
+                for (double dash = z_from; dash < z_to;
+                     dash += g_bend_rail_dash_z + g_bend_rail_gap_z)
                 {
-                    continue;
+                    pushFloorQuad(
+                        rail_vertices,
+                        rail_indices,
+                        rail_x - rail_half,
+                        rail_x + rail_half,
+                        rail_y,
+                        dash,
+                        std::min(dash + g_bend_rail_dash_z, z_to),
+                        rail_color);
                 }
-                push_bend_amount(
-                    x,
-                    note_y_at(bend_point.seconds, 1.0) + (bend_direction * figure_height * 0.8),
-                    time_to_z(bend_point.seconds),
-                    figure_height * 0.75,
-                    stage);
             }
         }
 
@@ -3493,13 +3425,6 @@ void HighwayRenderer::Impl::draw(
 
         const bgfx::TextureHandle glyph_texture = atlases.glyphs.get();
         submitBatch(vertices, indices, posColorUvLayout(), glyph_program.get(), &glyph_texture);
-        // Bend amount figures accumulated across the note pass (see the note loop).
-        submitBatch(
-            bend_label_vertices,
-            bend_label_indices,
-            posColorUvLayout(),
-            glyph_program.get(),
-            &glyph_texture);
     }
 
     // --- Board face: dynamic fret lines with the reference's three states (inactive, active

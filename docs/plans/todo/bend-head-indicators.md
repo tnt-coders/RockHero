@@ -1,25 +1,22 @@
 # Bend-Amount Chevrons on Note Heads
 
-Status: **SHIPPED 2026-07-28**, twice revised on sight the same day. Chevron *stacks* were
-built first and rejected by the user as clutter (the symbol count scaled with the amount).
-The shipped notation splits the three channels: **presence** — one curved-arrow bend marker on
-the head (cell 16 of the atlas's appended fifth row, runtime-rasterized into both atlas
-paths, never gated on `reference_cells`; the reference's own head-symbol approach);
-**amount** — a small white glyph figure beside the head announcing the curve's FIRST target
-("1", "½", "1½"… — the glyph atlas gained a real ½ cell, `g_glyph_cell_half`, since it
-rasterizes from a font), deliberately not orange because orange numbers mean hand positions;
-**stages** — each later bend point whose snapped amount changes the target gets its own
-smaller figure on the tail at its point, fixing compound-bend readability at screen center
-where the tail's lift is foreshortened (a release to zero draws nothing but resets the
-tracker, so a re-bend re-announces). Amounts snap to the nearest half semitone
-(`highwayBendDisplayHalfSteps` in `highway_tail.{h,cpp}`, tested — a plain half-step count in
-the GP importer's quarter-tone quantum; the digit/½ split is text layout only, and the chart
-stores plain semitone doubles with no special notation, user check 2026-07-28).
-`HighwayAtlasLayout` is rectangular-grid generalized (tested). REMAINING: judge the
-procedural curved-arrow marker in the preview (user judging one procedural pass before
-deciding whether to author it into the Charter-style PNG); a possible follow-up if
-center-screen lift perception still reads weak is a faint dashed target rail at each stage's
-height across its segment.
+Status: **SHIPPED 2026-07-28**, three passes on sight the same day: chevron *stacks* were
+rejected as clutter (symbol count scaled with the amount), then head amount *figures* were
+rejected as unreadable at speed. The shipped notation: **presence** — ONE `^` chevron marker
+on the head (the source-game notation's own bend cue; cell 16 of the
+atlas's appended fifth row, runtime-rasterized into both atlas paths, never gated on
+`reference_cells`), rotated to point along the drawn bend-lift direction; **amount and
+stages** — pure geometry: a dashed white target rail at each held target's exact lift height
+(`bend_lift_per_half_step` × the snapped semitones) spans the stretch of tail that holds it,
+so the curve visibly climbs to meet its rail, a compound bend reads as a staircase of rails,
+and screen-center foreshortening no longer matters because the rail IS the reference line.
+Amounts snap to the nearest half semitone (`highwayBendDisplayHalfSteps` in
+`highway_tail.{h,cpp}`, tested — a plain half-step count in the GP importer's quarter-tone
+quantum; the chart stores plain semitone doubles with no special notation, user check
+2026-07-28). `HighwayAtlasLayout` is rectangular-grid generalized (tested). REMAINING: judge
+the procedural chevron cell and the rail dash geometry/brightness (`g_bend_rail_*`) in the
+preview; author the chevron into the Charter-style PNG only if the procedural one does not
+hold up.
 
 ## Goal
 
