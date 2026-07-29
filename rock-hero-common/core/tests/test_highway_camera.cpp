@@ -54,6 +54,20 @@ TEST_CASE("Highway camera targets the scanned hand window", "[core][highway][cam
     const HighwayCameraTarget fallback =
         makeHighwayCameraTarget(makeStateWithFhps({}), 0.0, metrics);
     CHECK(fallback.span == Catch::Approx(metrics.camera_reference_span));
+
+    // Before the first arrival the first placement's window already holds (the opening scroll
+    // shows where the hand belongs), so the camera frames it even beyond the scan horizon.
+    const HighwayCameraTarget opening = makeHighwayCameraTarget(
+        makeStateWithFhps({HighwayFhpView{.seconds = 60.0, .fret = 9, .width = 4}}), 0.0, metrics);
+    const double opening_middle =
+        (highwayFretLineX(8, metrics, false) + highwayFretLineX(12, metrics, false)) / 2.0;
+    CHECK(
+        opening.focus_x ==
+        Catch::Approx(
+            opening_middle +
+            ((metrics.focus_whole_neck_x - opening_middle) * metrics.focus_whole_neck_blend) +
+            metrics.focus_x_offset));
+    CHECK(opening.span == Catch::Approx(4.0));
 }
 
 // A fretted note outside the hand window — a two-hand tap floats far above the fretting hand,

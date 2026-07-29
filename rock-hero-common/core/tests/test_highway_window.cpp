@@ -31,9 +31,10 @@ namespace
 
 } // namespace
 
-// Outside every ramp the window is a step function of the arrivals: the nut window before the
-// first placement, each settled window from its (inclusive) arrival on, and a zero ramp steps
-// exactly at its arrival instant.
+// Outside every ramp the window is a step function of the arrivals: the first placement's
+// window already holds before its arrival (the opening scroll shows where the hand belongs), each
+// settled window from its (inclusive) arrival on, and a zero ramp steps exactly at its arrival
+// instant. The nut window applies only to chartless boards.
 TEST_CASE("Hand window holds settled extents outside ramps", "[core][highway][window]")
 {
     const std::vector<HighwayFhpView> placements = makePlacements();
@@ -41,7 +42,7 @@ TEST_CASE("Hand window holds settled extents outside ramps", "[core][highway][wi
     CHECK(highwayHandWindowAt({}, 5.0) == HighwayHandWindow{.low_line = 0.0, .high_line = 4.0});
     CHECK(
         highwayHandWindowAt(placements, 1.9) ==
-        HighwayHandWindow{.low_line = 0.0, .high_line = 4.0});
+        HighwayHandWindow{.low_line = 2.0, .high_line = 6.0});
     CHECK(
         highwayHandWindowAt(placements, 2.0) ==
         HighwayHandWindow{.low_line = 2.0, .high_line = 6.0});
@@ -74,13 +75,14 @@ TEST_CASE("Hand window eases both edges through a ramp", "[core][highway][window
     CHECK(mid.low_line == Catch::Approx(2.0 + (5.0 * weight)));
     CHECK(mid.high_line == Catch::Approx(6.0 + (7.0 * weight)));
 
-    // The first placement ramps from the nut window when it carries a ramp of its own.
-    const std::vector<HighwayFhpView> from_nut{
+    // The first placement never sweeps in from the nut window: its own window pre-holds, so a
+    // ramp on the first placement degenerates to no motion.
+    const std::vector<HighwayFhpView> opening{
         HighwayFhpView{.seconds = 1.0, .fret = 5, .width = 4, .ramp_seconds = 1.0},
     };
-    const HighwayHandWindow nut_mid = highwayHandWindowAt(from_nut, 0.5);
-    CHECK(nut_mid.low_line == Catch::Approx(4.0 * weight));
-    CHECK(nut_mid.high_line == Catch::Approx(4.0 + (4.0 * weight)));
+    const HighwayHandWindow opening_mid = highwayHandWindowAt(opening, 0.5);
+    CHECK(opening_mid.low_line == Catch::Approx(4.0));
+    CHECK(opening_mid.high_line == Catch::Approx(8.0));
 }
 
 // Coverage is the shared hit-line signal: full one lane inside either edge, zero one lane

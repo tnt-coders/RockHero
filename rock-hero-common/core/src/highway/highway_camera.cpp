@@ -158,41 +158,34 @@ HighwayCameraTarget makeHighwayCameraTarget(
 {
     const bool mirrored = state.options.mirrored;
 
-    // The hand window active at now (the last placement at or before it) plus every window
-    // arriving inside the scan horizon define the fret-line range the camera frames. Placements
-    // ascend, so the scan jumps straight to the active one instead of rewalking the consumed
-    // prefix every frame.
+    // The hand window active at now plus every window arriving inside the scan horizon define
+    // the fret-line range the camera frames. The active placement is the last at or before now
+    // or — before the first arrival — the first placement itself, whose window already holds
+    // during the opening scroll (matching highwayHandWindowAt), so the camera frames it even
+    // when it sits beyond the horizon. Placements ascend, so the scan jumps straight to the
+    // active one instead of rewalking the consumed prefix every frame.
     int low_line = 0;
     int high_line = static_cast<int>(metrics.camera_reference_span);
-    bool any_window = false;
     const double horizon = now_seconds + metrics.focus_scan_seconds;
     const auto after_now = std::ranges::upper_bound(
         state.fret_hand_positions, now_seconds, std::ranges::less{}, &HighwayFhpView::seconds);
-    const auto scan_begin =
-        after_now == state.fret_hand_positions.begin() ? after_now : after_now - 1;
-    for (auto it = scan_begin; it != state.fret_hand_positions.end(); ++it)
+    if (!state.fret_hand_positions.empty())
+    {
+        const auto active =
+            after_now == state.fret_hand_positions.begin() ? after_now : after_now - 1;
+        low_line = active->fret - 1;
+        high_line = active->fret + active->width - 1;
+    }
+    for (auto it = after_now; it != state.fret_hand_positions.end(); ++it)
     {
         const HighwayFhpView& fhp = *it;
         if (fhp.seconds > horizon)
         {
             break;
         }
-        const int window_low = fhp.fret - 1;
-        const int window_high = fhp.fret + fhp.width - 1;
-        if (!any_window)
-        {
-            // The active placement (or, with none yet, the first in-horizon placement) replaces
-            // the no-hand fallback.
-            low_line = window_low;
-            high_line = window_high;
-            any_window = true;
-        }
-        else
-        {
-            // Upcoming placements inside the horizon widen the framed range.
-            low_line = std::min(low_line, window_low);
-            high_line = std::max(high_line, window_high);
-        }
+        // Upcoming placements inside the horizon widen the framed range.
+        low_line = std::min(low_line, fhp.fret - 1);
+        high_line = std::max(high_line, fhp.fret + fhp.width - 1);
     }
 
     // A fretted note can sit outside the hand window: a two-hand tap floats far above the fretting

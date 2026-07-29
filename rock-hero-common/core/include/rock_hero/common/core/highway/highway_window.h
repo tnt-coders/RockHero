@@ -54,9 +54,11 @@ struct HighwayHandWindow
 Placements are step values whose approaches ramp: inside a placement's
 [seconds - ramp_seconds, seconds] span both edges ease from the previous settled window toward
 the arriving one with the pitched slide curve, so the window travels in lockstep with a gliding
-note and morphs smoothly for ordinary moves. Outside every ramp the settled window holds, the
-reference nut window (lines 0 to 4) applies before the first placement, and arrivals are
-inclusive: at exactly \p seconds the placement has arrived.
+note and morphs smoothly for ordinary moves. Outside every ramp the settled window holds, and
+arrivals are inclusive: at exactly \p seconds the placement has arrived. The first placement's
+settled window already holds from the start of time — the opening scroll shows where the hand
+belongs before the first note arrives — and the reference nut window (lines 0 to 4) applies
+only when there are no placements at all.
 
 \param fret_hand_positions Placements in ascending arrival order (HighwayViewState order).
 \param seconds Absolute time to evaluate at.

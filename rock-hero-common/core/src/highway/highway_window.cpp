@@ -30,16 +30,20 @@ namespace
 HighwayHandWindow highwayHandWindowAt(
     const std::vector<HighwayFhpView>& fret_hand_positions, const double seconds) noexcept
 {
-    // The reference nut window before any placement (and for chartless boards).
-    HighwayHandWindow previous{.low_line = 0.0, .high_line = 4.0};
+    // The reference nut window applies only to chartless boards. With placements, the first
+    // one's window already holds before its arrival (user, 2026-07-29): the song's opening
+    // scroll shows where the hand belongs before the first note reaches the hit line, and the
+    // first "ramp" degenerates to no motion, which also zeroes the light's motion dim.
+    if (fret_hand_positions.empty())
+    {
+        return HighwayHandWindow{.low_line = 0.0, .high_line = 4.0};
+    }
     const auto next = std::ranges::upper_bound(
         fret_hand_positions, seconds, std::ranges::less{}, [](const HighwayFhpView& fhp) {
             return fhp.seconds;
         });
-    if (next != fret_hand_positions.begin())
-    {
-        previous = settledWindow(*std::prev(next));
-    }
+    const HighwayHandWindow previous =
+        settledWindow(next == fret_hand_positions.begin() ? *next : *std::prev(next));
     if (next == fret_hand_positions.end() || next->ramp_seconds <= 0.0 ||
         seconds < next->seconds - next->ramp_seconds)
     {
