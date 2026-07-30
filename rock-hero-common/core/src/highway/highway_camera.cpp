@@ -260,16 +260,16 @@ HighwayCameraTarget makeHighwayCameraTarget(
     };
 }
 
-// Third-order critically damped smoother (user direction 2026-07-29, the single smoothing
-// mechanism after a session of layered eases and filters fought each other). A second-order
-// spring made velocity continuous but left acceleration discontinuous — from rest it starts
-// with a's peak value, x''(0) = -d w^2, so every zone-boundary step began with an instant kick
-// that read as a jolt. Carrying acceleration as state too (three equal real poles at -w) makes
-// the response C^2: from rest the motion eases in from zero acceleration, cubic in time
-// (displacement ~ d w^3 t^3 / 6), and eases back out with no overshoot. The error relaxes as
-// e(t) = (c0 + c1 t + c2 t^2) e^{-w t}, and the update below is that exact closed-form solution
-// over the frame, so smoothing is exactly frame-rate independent; the first advance snaps at
-// rest.
+// Third-order critically damped smoother (user direction 2026-07-29). A second-order spring
+// left acceleration discontinuous — from rest a step began with the peak acceleration
+// x''(0) = -d w^2, an instant kick that read as a jolt. Carrying acceleration as state too
+// (three coincident real poles at -w) makes the response C^2: from rest the motion eases in
+// from zero acceleration, cubic in time (displacement ~ d w^3 t^3 / 6), and lands with no
+// overshoot. Three equal poles is the maximally smooth arrangement at a given speed — spreading
+// them apart only sharpens the onset — and the maximally smooth, slow hover is what read most
+// correct. The error relaxes as e(t) = (c0 + c1 t + c2 t^2) e^{-w t}, and the update below is
+// that exact closed-form solution over the frame, so smoothing is exactly frame-rate
+// independent; the first advance snaps at rest.
 void HighwayCamera::advance(
     const HighwayCameraTarget& target, double dt_seconds, const HighwayMetrics& metrics)
 {

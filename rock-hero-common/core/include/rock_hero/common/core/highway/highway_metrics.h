@@ -114,22 +114,20 @@ struct HighwayMetrics
     double focus_scan_seconds{3.0};
 
     /*!
-    \brief Rate (the triple pole) of the camera's third-order critically damped smoother, per
-    second.
+    \brief Rate of the camera's third-order critically damped smoother, per second.
 
-    The one smoothing constant of the camera (user direction 2026-07-29, after a session of
-    layered target eases and follow filters fought each other): the framing target steps the
-    instant content enters the scan window, and this smoother is the only thing between that
-    stepped target and the camera. Third-order critically damped, so a step eases in from zero
-    acceleration and lands softly with no overshoot; it settles visually in roughly 8.4 / value
-    seconds. A second-order spring at this rate started every step with an instant acceleration
-    kick that read as a jolt (user report 2026-07-29); carrying acceleration as state removes
-    that, and with the onset smoothed the rate is set back to 2.0 (the earlier 1.75/1.5 were
-    softened to hide the jolt the third pole now eliminates). Each step is announced at least
-    one framing zone before its positions arrive, which comfortably covers the ~4.2 s visual
-    settle at moderate tempos.
+    The single smoothing constant of the camera (user direction 2026-07-29). The framing target
+    steps the instant a zone boundary shifts the scan window, and this smoother is the only
+    thing between that stepped target and the camera: three coincident real poles at this rate,
+    so the motion carries position, velocity, and acceleration as state and stays C^2 across
+    every step — it eases in from zero acceleration (no jolt) and lands with no overshoot. Three
+    equal poles is the maximally smooth arrangement at a given speed (spreading them apart only
+    sharpens the onset); a session of tuning landed on that maximally smooth, slow hover as the
+    most correct feel, matching the source-game camera's described "slow hover chasing the hand".
+    It settles visually in roughly 8 / value seconds — a deliberately languid drift that trails
+    the action slightly on the busiest charts, accepted for the calmer feel everywhere else.
     */
-    double focus_spring_per_second{2.0};
+    double focus_spring_per_second{1.3};
 
     /*! \brief Blend of the focus target toward a fixed whole-neck weighted position. */
     double focus_whole_neck_blend{0.1};

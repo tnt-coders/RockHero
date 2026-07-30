@@ -131,16 +131,15 @@ state's mirror flag reflects the focus (and the whole-neck blend point) as pure 
 \brief Third-order critically damped smoother following the stepped framing targets.
 
 One instance per rendering consumer; no internal synchronization. The one smoothing mechanism
-of the camera: when the target steps (a framing-zone boundary shifting the scan window), the
-smoother carries position, velocity AND acceleration as state, all three continuous across the
-step, so the motion eases into the shift from zero acceleration and eases back out — C^2, with
-no velocity jump and no acceleration jump. A second-order spring left acceleration
-discontinuous, so each step began with an instant kick that read as a jolt (user direction
-2026-07-29); the third pole removes it. No overshoot (three equal real poles), settling in
-roughly 8.4 / HighwayMetrics::focus_spring_per_second seconds — well before the positions that
-triggered the shift reach the hit line, after which the camera rests until the next boundary.
-Each advance applies the exact closed-form solution over the frame, so smoothing is exactly
-frame-rate independent: two half steps equal one full step.
+of the camera: three coincident real poles at HighwayMetrics::focus_spring_per_second, so the
+motion carries position, velocity, and acceleration as state — all continuous across a
+zone-boundary target step. It eases into the shift from zero acceleration (no jolt) and lands
+without overshoot (real poles, no zeros → monotone). A second-order spring left acceleration
+discontinuous, so each step began with an instant kick that read as a jolt; the third pole
+removes it. Three equal poles is the maximally smooth arrangement at a given speed — spreading
+them apart only sharpens the onset — and that maximally smooth, slow hover is the settled feel
+(user direction 2026-07-29). Each advance applies the exact closed-form solution over the
+frame, so smoothing is exactly frame-rate independent: two half steps equal one full step.
 */
 class HighwayCamera
 {
