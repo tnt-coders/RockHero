@@ -3547,9 +3547,21 @@ void HighwayRenderer::Impl::draw(
         submitBatch(vertices, indices, posColorUvLayout(), glyph_program.get(), &glyph_texture);
     }
 
+    // --- String lines (retained), under the fret lines and nut, on the z = 0 plane. The board
+    // paints in submission order (sequential view, depth test only), so the strings go down first
+    // and the fret lines and nut below draw over them. ---
+    if (face_index_count > 0 && face_vertices.isValid() && face_indices.isValid())
+    {
+        bgfx::setVertexBuffer(0, face_vertices.get());
+        bgfx::setIndexBuffer(face_indices.get(), 0, face_index_count);
+        bgfx::setState(g_blended_state);
+        bgfx::submit(g_board_view, color_program.get());
+    }
+
     // --- Board face: dynamic fret lines with Charter's three states (inactive, active
     // within current and upcoming hand windows, and the sqrt-decay hit-flash that thickens up
-    // to 4x — a large part of the alive feel), drawn over passing content. Fret lines run from
+    // to 4x — a large part of the alive feel), drawn over the string lines and passing content.
+    // Fret lines run from
     // face_bottom_y to face_top_y (the string grid alone — the gap below the grid base belongs
     // to the chord boxes' bottom bars), both defined above the chord-box pass. ---
     {
@@ -3651,15 +3663,6 @@ void HighwayRenderer::Impl::draw(
                 packAbgr(color));
         }
         submitBatch(vertices, indices, posColorLayout(), color_program.get(), nullptr);
-    }
-
-    // --- String lines (retained) over the fret lines. ---
-    if (face_index_count > 0 && face_vertices.isValid() && face_indices.isValid())
-    {
-        bgfx::setVertexBuffer(0, face_vertices.get());
-        bgfx::setIndexBuffer(face_indices.get(), 0, face_index_count);
-        bgfx::setState(g_blended_state);
-        bgfx::submit(g_board_view, color_program.get());
     }
 
     // --- Fretboard skin: one textured cell per fret from the reference inlay atlas (8x4 grid),
