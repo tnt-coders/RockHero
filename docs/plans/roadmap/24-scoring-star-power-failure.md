@@ -243,7 +243,7 @@ Decisions **established as normative by this plan** (restate when citing this pl
   streaks: the strength threshold is tuned against plan 23's noise-floor fixtures before the
   penalty is trusted, and `PitchStep` onsets never qualify (legato is not strumming). The whole
   behavior is deliberately **one ruleset flag** (`overstrum_breaks_streak`) so it can be walked
-  back to source-style no-penalty play with a version bump and zero state-machine changes. Every
+  back to no-penalty play with a version bump and zero state-machine changes. Every
   unmatched onset (qualifying or not) is counted in the score record so the walk-back decision —
   either direction — is made from recorded evidence.
 - **All tunables are ruleset-versioned**: hit windows, ladder thresholds, meter constants, star
@@ -446,7 +446,7 @@ happened in both plans' status lines).
 **Testing**: pure unit tests for every transition (including revoke-and-rematch, deadline-lapse,
 ledger correction cascades); deterministic replay tests over serialized DetectionEvent streams
 per docs/plans/roadmap/23-detection-verification-harness.md (hand-authored fixture streams checked in;
-never the commercial-content corpora). This is the replayable simulation layer of
+never the source corpora). This is the replayable simulation layer of
 docs/design/architectural-principles.md made real.
 **Exit criteria**: replaying a fixture stream twice yields byte-identical verdict sequences; all
 matrix rows have at least one test.

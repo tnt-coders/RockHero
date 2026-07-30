@@ -28,7 +28,7 @@ honest and making casual tampering detectable. Every phase below is sized to tha
 - Account infrastructure with passwords/email recovery flows (identity stays lightweight; see
   open question Q2).
 - Content distribution: the server never stores or transmits chart content, package files, or
-  audio. Converted commercial corpus content never leaves the player's machine — the server sees
+  audio. Converted source corpus content never leaves the player's machine — the server sees
   only the semantic chart-identity hash, display metadata strings, and the score record.
 - Replay-video or DetectionEvent-stream sharing between players (the score record is uploaded;
   raw event streams stay local).
@@ -138,7 +138,7 @@ Verified against code on 2026-07-06, refactor @ 3c7febe0.
   `modifierClass` whose runs are never intermixed with them, matching plan 27's per-fail-mode
   personal bests. Boards segregate or flag modifier classes rather than pretending all runs are
   equal.
-- Corpus strategy: the 39-package .rock corpus and 101-file GP corpus are converted commercial
+- Corpus strategy: the 39-package .rock corpus and 101-file GP corpus are converted source
   content, local-only, never committed or shipped
   (docs/plans/roadmap/23-detection-verification-harness.md); this plan extends the same rule to the
   network — chart content and audio never leave the client.
@@ -153,7 +153,7 @@ all block Phase 1.
 - **Q1 — Hosting.** Options: (A) budget VPS (~$4–7/mo, datacenter availability, full control,
   trivial AGPL source hosting, you patch it); (B) serverless/managed free tier ($0 at friends
   scale, minimal ops, free tiers can change or vanish, some lock-in); (C) home self-host ($0
-  rent, residential availability — the exact problem the a prior self-hosted leaderboard service
+  rent, residential availability — the exact problem a prior self-hosted leaderboard service
   (github.com/tnt-coders/rock-buddy-app) hit: boards vanish when the host machine or home
   connection is down). **Recommendation: A**, with B as the fallback if recurring cost must be
   zero; C is rejected on the availability record. Cost table refreshed in Phase 0b.
@@ -211,7 +211,7 @@ plan-date indicative — re-verify at gate close), then resolve Q1–Q6 with the
 |---|---|---|---|---|---|
 | Budget VPS | Hetzner CX-class, DigitalOcean/Vultr basic | ~4–7 USD | Datacenter-grade | OS patching, backups, TLS | Fixed cost; full control; AGPL source link trivially hosted alongside |
 | Serverless / free tier | Cloudflare Workers + D1, Supabase free tier, Fly.io | ~0 at friends scale | High (managed) | Minimal | Free tiers mutate/expire; some lock-in; Supabase bundles auth + Postgres |
-| Home self-host | Spare machine + dynamic DNS | 0 rent | Residential-grade | Port-forwarding, uptime babysitting | Prior art: the a prior self-hosted leaderboard service (github.com/tnt-coders/rock-buddy-app) — its home-hosting availability problem is the thing to avoid |
+| Home self-host | Spare machine + dynamic DNS | 0 rent | Residential-grade | Port-forwarding, uptime babysitting | Prior art: a prior self-hosted leaderboard service (github.com/tnt-coders/rock-buddy-app) — its home-hosting availability problem is the thing to avoid |
 
 Also in 0b: the AGPL analysis for the chosen Q3 stance, and the drafted (not applied)
 docs/design/architecture.md § Licensing amendment for user confirmation.

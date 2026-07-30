@@ -4,12 +4,12 @@ Status: **SHIPPED 2026-07-28**, five passes on sight the same day: chevron *stac
 rejected as clutter (symbol count scaled with the amount), head amount *figures* were rejected
 as unreadable at speed, and the dashed *target rails* were removed as redundant furniture once
 the tail itself carried the amount (fifth pass). The shipped notation: **presence** — ONE `^`
-chevron marker on the head (the source-game notation's own bend cue;
+chevron marker on the head (the standard caret bend cue;
 the atlas's formerly empty cell 11, present in both atlas paths, never gated on
 `reference_cells`), rotated to point along the drawn bend-lift direction, sized at 0.6 of the
 cell after the full-cell footprint read far too large over the head; **amount and stages** —
 the tail's own geometry: physical lift height (`bend_lift_per_half_step` × semitones) plus
-slope shading, the source-game notation's approach. The chart stores plain semitone doubles with
+slope shading. The chart stores plain semitone doubles with
 no special notation (user check 2026-07-28); the half-step display snapper built for figures
 and rails was deleted with them. `HighwayAtlasLayout` is rectangular-grid generalized
 (tested).
@@ -20,13 +20,13 @@ cells, so the glyph was authored offline (PIL harness compositing candidates wit
 the tap arrow's footprint, squared butt-capped leg ends like the pop symbol, sharp mitered
 tip) and baked into `notes.png`'s formerly empty cell 11 (the atlas stays 256×256 — the plan's
 grown-grid step existed for a two-cell design and was retired with it; user question
-2026-07-28). The reference asset uploads verbatim — no composition step, no legacy
+2026-07-28). The authored asset uploads verbatim — no composition step, no legacy
 accommodation (user rule) — and the procedural chevron survives only in the no-asset
 fallback, the same degradation policy as every other head cell. The sustain tail also gained
 slope shading
 (`g_tail_slope_shade_*` in `highway_renderer.cpp`): per-vertex brightness follows the
 centerline's pitch slope — climbs brighten toward white, releases darken — so bend strength
-reads from the tail itself even at screen center, source-style. DECIDED (user, 2026-07-29):
+reads from the tail itself even at screen center. DECIDED (user, 2026-07-29):
 a single chevron always — stacks were already rejected as clutter, a max-stack misleads
 mid-compound-bend, and the tail carries the amount. Explicitly open to revisiting later if
 playtesting wants amount-at-a-glance on the head.
@@ -38,10 +38,10 @@ fixed), and it moved off the head to the bend-lift side (`g_bend_marker_offset_h
 half-heights above the note, below on inverted lanes, still flipping with the curve; lowered
 1.3 → 0.33 across the seventh pass (measured from the atlas pixels: the head art fills only
 the middle ~34% of its cell, so bare touch is 0.469; 0.33 anchors the chevron's legs ON the
-note's top edge with the apex rising clear, matching the source-game notation's overlap —
+note's top edge with the apex rising clear, matching the intended overlap —
 judged on a composite sheet, user 2026-07-29). Eighth pass (2026-07-29): the glyph was
 rebaked a tad taller and thicker (apex 0.445 / legs 0.555, body 0.085 / core 0.036 — bolder
-toward the source-game notation's weight; fallback painter matched), the overlap offset
+toward a heavier line weight; fallback painter matched), the overlap offset
 re-tuned to 0.38 for the taller band, and chevrons now LAYER above every head of their onset
 group: they collect during the group and append to the head batch at the group boundary, so a
 chord's lower-lane chevron can no longer be overdrawn by a higher groupmate's head (the
@@ -72,7 +72,7 @@ plateaus stay exactly flat, reversals turn at rest, and the FC limits forbid ove
 reversal both tangents are flat so the old smoothstep values (and tests) still hold there.
 (2) `bend_lift_per_half_step` 0.28 → 0.35 = exactly one string-lane gap per semitone, the
 pitch-true reading in the board's own vertical unit (a whole-step bend visibly crosses two
-lanes; source's own convention quantizes bend targets to lane positions per the notation guides).
+lanes; the source game's own convention quantizes bend targets to lane positions per the notation guides).
 Vibrato depth is authored in semitones and rides the same scale deliberately. The glyph
 weight/proportions, head overlap, chord layering, fluid curve, pitch-true lift, and smoothed
 slope shading were all judged in the preview across the eighth/ninth passes (user sign-off
@@ -80,12 +80,12 @@ slope shading were all judged in the preview across the eighth/ninth passes (use
 
 ## Goal
 
-A bent note's head announces how far to bend before the note arrives, in the style of source (the
-source game): one `^` chevron per half step (1 semitone of bend), stacked
+A bent note's head announces how far to bend before the note arrives, in a conventional bend
+notation: one `^` chevron per half step (1 semitone of bend), stacked
 vertically — one for a half-step bend, two for a whole step, three for a step and a half.
-RockHero goes one better than source: the chart vocabulary carries 0.5-semitone quarter-tone curls
+RockHero goes further: the chart vocabulary carries 0.5-semitone quarter-tone curls
 as first-class data
-(`rock-hero-common/core/include/rock_hero/common/core/chart/chart.h:115`), and source has no honest
+(`rock-hero-common/core/include/rock_hero/common/core/chart/chart.h:115`), and conventional bend notation has no honest
 way to draw them — we render a visually distinct half-size chevron for the quarter-step
 component, so a curl reads differently from a full half-step bend.
 

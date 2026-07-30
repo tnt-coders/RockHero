@@ -106,6 +106,8 @@ composes in the app and injects into `Editor`). `GameShell` is deleted.
 
 ## Constraints
 
+- `color`-spelling convention; no
+  namespace aliases; no NOLINT; `std::expected` for recoverable errors.
 - Layering: composition/adapter construction stays in `app/`; game/core stays SDL-free (the SDL
   keycode bindings stay at the `game/ui` composition boundary, as today at `game_shell.cpp:418`).
 - Build only through `.agents/rockhero-build.ps1`; keep the smoke-run `frame_limit` hook working;

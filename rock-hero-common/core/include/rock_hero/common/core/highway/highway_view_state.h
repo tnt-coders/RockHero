@@ -388,13 +388,12 @@ struct HighwayViewState
 
     Derived structure for the camera's framing window only — deliberately not musical phrases
     (the notation has none) and carrying no notation meaning. The projection groups measures the
-    way a a standard automatic difficulty generator from the source-game ecosystem documents its automatic
-    phrases (source
-    research 2026-07-29): runs of measures containing note onsets split into fixed-size groups
+    way a standard automatic phrase generator does (source research 2026-07-29): runs of
+    measures containing note onsets split into fixed-size groups
     aligned to downbeats, runs of empty measures collapse into a single zone however long, and
     section starts force a new zone. The camera frames the current zone plus the next one, so
     its framing target steps only at these boundaries — the resting cadence that defines the
-    source-game camera feel. Empty when the chart has no beats; the camera then falls back to a
+    source game's camera feel. Empty when the chart has no beats; the camera then falls back to a
     fixed seconds window.
     */
     std::vector<double> camera_zone_starts;

@@ -33,7 +33,7 @@ estimates the most readable positions from the notes alone.
 
 ## Ground truth available
 
-The `.rock` source corpus (39 packages, 135 charts, converted from source source charts) carries
+The `.rock` source corpus (39 packages, 135 charts, converted source charts) carries
 **authored** fret-hand positions produced by professional charters — a labeled dataset pairing
 note streams with expert anchor decisions, already in our own chart model. More converted charts
 can grow the set through the existing converter pipeline.
@@ -60,8 +60,8 @@ Until then, `generateFretHandPositions` stays the single authority and its conve
 ## Progress — 2026-07-28 (extraction + analysis done; phrase-aware generator shipped as sole)
 
 The extraction and analysis this plan sketches are done, against a much larger corpus than the 39
-`.rock` packages: **1306 acquired-ODLC archives → 4100 instrumental arrangements, 2.98M notes,
-393,822 authored anchors**, extracted to source arrangement chart and paired note-stream ↔ authored anchor.
+`.rock` packages: **1306 acquired source-chart archives → 4100 instrumental arrangements, 2.98M notes,
+393,822 authored anchors**, extracted to source arrangement charts and paired note-stream ↔ authored anchor.
 The extraction pipeline and the derived findings live in the local scratchpad only — the corpus is
 local-only and never enters git. Key findings:
 

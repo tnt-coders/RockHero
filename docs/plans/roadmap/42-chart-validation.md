@@ -38,7 +38,7 @@ advisory content layer above it.
   `.agents/README.md`) — never raw cmake/ctest/ninja. Intermediate phases run only the checks
   their changes warrant; the final acceptance phase is the sanctioned bundle as separate
   invocations.
-- **Corpus is local-only**: the 39-package .rock corpus is converted commercial content — used
+- **Corpus is local-only**: the 39-package .rock corpus is converted source content — used
   for local calibration only, never committed, never wired into CI
   (docs/plans/roadmap/23-detection-verification-harness.md corpus strategy; docs/plans/roadmap/00-roadmap.md).
 - **Headless and automated-testable**: lint code is pure domain logic; narrow `juce_core`
@@ -161,7 +161,7 @@ Verified against code on 2026-07-06, refactor @ 13e82fb0.
   next onset on the same string: (a) structural reject at read; (b) truncate on load
   (normalizer); (c) lint Warning only. Endpoint-equals-next-onset is legal adjacency (linked
   slide runs) and is never flagged. **Recommendation: (c)** — existing packages must keep
-  loading; source charts conversions carry millisecond link gaps and repair belongs to plan 10's
+  loading; source-chart conversions carry millisecond link gaps and repair belongs to plan 10's
   ladder if calibration shows real overlap volume. Phase 5 reports the corpus frequency before
   the severity is frozen.
 - **Q2 — Corpus harness form.** (a) env-gated Catch2 corpus suite inside
@@ -298,9 +298,9 @@ Assumes Q2 outcome (a); adjust mechanically if the user picks (b) or (c).
   `readRockSongPackage` each, run `lintSong`, and emit a per-rule frequency table plus the worst
   offenders per rule (package, arrangement, position) to stdout and to a report file beside the
   corpus. CI never sets the variable; the suite stays green without it.
-- Calibration meaning: the corpus is converted source charts and quality community-authored charts — professionally
-  playable content. Any rule firing broadly across it is miscalibrated (threshold wrong or the
-  technique is legal), and source charts frequency is the evidence for Q1's severity answer
+- Calibration meaning: the corpus is converted source charts of varying, professionally-authored
+  note density. Any rule firing broadly across it is miscalibrated (threshold wrong or the
+  technique is legal), and source-content frequency is the evidence for Q1's severity answer
   and the `impossible_span` threshold numbers.
 - Files/modules: one test file; CMake test source list.
 - Testing: the harness IS the test; plus one unit test that the suite skips cleanly when the

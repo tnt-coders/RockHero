@@ -161,7 +161,7 @@ In this shape, a measure's position is derived from its first beat. That avoids 
 - Meter validation is local: `beats.size()` should match the measure's numerator.
 - There is no separate measure-start cross-reference to keep synchronized.
 - Per-beat tempo changes are still exact because every beat still carries an absolute timestamp.
-- The shape is well suited to imported source-style `beat marker` data, where measure markers and beat
+- The shape is well suited to imported beat-marker data, where measure markers and beat
   timestamps are already interleaved.
 
 ### Weaknesses
@@ -206,7 +206,7 @@ entry represents one denominator-unit grid beat.
 
 ## Pisces Example
 
-The existing `Jinjer - Pisces.rhp` XML starts with this `beat marker` sequence in one arrangement:
+The existing `Jinjer - Pisces.rhp` XML starts with this beat-marker sequence in one arrangement:
 
 ```text
 0.000  measure 0

@@ -37,10 +37,10 @@ constexpr bgfx::ViewId g_background_view = 0;
 constexpr bgfx::ViewId g_board_view = 1;
 constexpr bgfx::ViewId g_overlay_view = 2;
 
-// Backdrop clear color behind the whole scene (0xRRGGBBAA); the reference clears to black.
+// Backdrop clear color behind the whole scene (0xRRGGBBAA); cleared to black.
 constexpr std::uint32_t g_backdrop_color = 0x000000ff;
 
-// source-game board-furniture colors (0xAARRGGBB), source-verified 2026-07-11.
+// Board-furniture colors (0xAARRGGBB), source-verified 2026-07-11.
 constexpr ArgbColor g_beat_bar_color = 0xFF0F3B5E; // beat and measure bars alike
 
 // Measure downbeats (and the per-note fret-span lines, which reuse the shape) draw a sharp
@@ -103,7 +103,7 @@ constexpr double g_tail_slope_shade_smooth_seconds = 0.05;
 // direction (above the note for an upward curve, below on bend-inverted lanes). Derived from
 // the atlas pixels, not the quad: the head art fills only the middle ~34% of its cell and the
 // glyph band is cell-centered, so this sits deliberately inside bare touch — the chevron's
-// legs anchor ON the note's top edge with the apex rising clear, the source-game notation's
+// legs anchor ON the note's top edge with the apex rising clear, the bend cue's
 // overlap (judged on a composite sheet, user 2026-07-29, re-tuned for the taller bolder
 // glyph the same day).
 constexpr double g_bend_marker_offset_heads = 0.38;
@@ -115,7 +115,7 @@ constexpr ArgbColor g_fret_inactive_color = 0xFF202020;
 constexpr ArgbColor g_fret_active_color = 0xFFC0C0C0;
 constexpr ArgbColor g_fret_highlight_color = 0xFFFFA000;
 
-// Scrolling fret-number colors (source-game PREVIEW_3D palette): a bright blue for a dotted fret
+// Scrolling fret-number colors (Charter's PREVIEW_3D palette): a bright blue for a dotted fret
 // inside the current hand range, the lane-border teal at half alpha elsewhere, and the FHP
 // orange for hand-position arrivals and the current hand's numbers at the hit line.
 constexpr ArgbColor g_fret_number_active_color = 0xFF87DDF6;
@@ -126,10 +126,10 @@ constexpr ArgbColor g_fret_number_fhp_color = 0xFFFFA821;
 constexpr double g_fret_active_horizon_seconds = 0.5;
 constexpr double g_fret_flash_seconds = 0.1;
 
-// Anticipation ring window before a note lands (reference: 500 ms).
+// Anticipation ring window before a note lands (500 ms).
 constexpr double g_anticipation_seconds = 0.5;
 
-// Board content draws painter-ordered with alpha throughout (the reference's model), so one
+// Board content draws painter-ordered with alpha throughout (a painter's-algorithm model), so one
 // blended, depth-test-only state word covers the whole board view. No cull bits on purpose:
 // content is camera-facing and the lefty mirror reflects world X, which would invert winding.
 constexpr std::uint64_t g_blended_state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A |
@@ -148,7 +148,7 @@ constexpr std::uint64_t g_premultiplied_state =
     BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A | BGFX_STATE_DEPTH_TEST_LESS |
     BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE, BGFX_STATE_BLEND_INV_SRC_ALPHA) | BGFX_STATE_MSAA;
 
-// How many fret slots the board face draws; charts cap at g_max_fret but the reference draws a
+// How many fret slots the board face draws; charts cap at g_max_fret but the board draws a
 // fixed neck.
 constexpr int g_face_fret_count = 24;
 
@@ -156,8 +156,8 @@ constexpr int g_face_fret_count = 24;
 constexpr double g_passed_fade_seconds = 0.15;
 
 // Rolling-flip flat lead: single-note heads land flat this many seconds before the hit line.
-// The reference flips fast and late (a 500 ms roll landing flat 100 ms out, its only
-// source-verifiable timing — the flip has no documented tie to the original game's internal
+// The source game flips fast and late (a 500 ms roll landing flat 100 ms out, its only
+// source-verifiable timing — the flip has no documented tie to any internal
 // constants); our flip instead spans the whole approach (user request 2026-07-22), and the
 // slower final degrees need a longer flat stretch to read as finished before the board face
 // (user-tuned).
@@ -168,7 +168,7 @@ constexpr double g_flip_flat_lead_seconds = 0.25;
 // with highwayDisplayHoldEnds, whose span-held notes drive the visible range.
 constexpr double g_onset_match_epsilon = common::core::g_highway_onset_match_epsilon;
 
-// Open-note bar cross-section (reference OpenNoteModel): a thin hexagonal prism spanning the
+// Open-note bar cross-section (Charter's OpenNoteModel): a thin hexagonal prism spanning the
 // hand window, half-thickness 0.04 at the ends bulging to 0.05 at the center station, squashed
 // to a tenth of that in Z. An earlier flat slab at tail width read over 3x too tall.
 constexpr double g_open_note_end_half_thickness = 0.04;
@@ -180,8 +180,8 @@ constexpr int g_open_note_segments = 6;
 // point at the hand-window rails instead of stopping flat (user direction).
 constexpr double g_open_note_end_fade_length = 0.5;
 
-// Sustain tails are three-band ribbons in the reference: solid edge strips around an inner band
-// the reference draws at 192/255 alpha. Ours is deliberately more translucent so notes stay
+// Sustain tails are three-band ribbons in Charter: solid edge strips around an inner band
+// Charter draws at 192/255 alpha. Ours is deliberately more translucent so notes stay
 // readable through a tail's core (user-tuned). Fretted tails split the tail width
 // quarter/half/quarter; open tails span the hand window inset by a margin, with edge bands of
 // the same width.
@@ -210,18 +210,18 @@ constexpr double g_shadow_post_fade_end_fraction = 0.75;
 constexpr double g_open_post_foot_length = 0.5;
 
 // Adaptive tail sampling for technique-modulated rails: one centerline sample per this many
-// projected screen pixels, hard-capped (the reference's per-millisecond-tessellation fix).
+// projected screen pixels, hard-capped (Charter's per-millisecond-tessellation fix).
 constexpr double g_tail_pixels_per_sample = 4.0;
 constexpr std::size_t g_tail_sample_cap = 256;
 
 // Unpitched slides release pressure, so their rail dims toward this alpha across the glide.
 constexpr double g_unpitched_slide_end_alpha = 0.25;
 
-// Chord-box palette and geometry (reference values): a translucent teal panel per strummed
+// Chord-box palette and geometry (Charter's values): a translucent teal panel per strummed
 // chord, with corner holders, gradient frame bars, and mute-cross variants.
 constexpr ArgbColor g_chord_box_color = 0xFF00D2D5;
 constexpr ArgbColor g_chord_box_dark_color = 0xFF003C3D;
-// The palm cross uses the reference's dark palm-mute color (its drawer reads the light
+// The palm cross uses Charter's dark palm-mute color (its drawer reads the light
 // full-mute color instead — an evident slip given the unused dark constant; the light/dark
 // split is the intended reading, confirmed by the user).
 constexpr ArgbColor g_chord_full_mute_cross_color = 0xFF80D8FF;
@@ -231,7 +231,7 @@ constexpr ArgbColor g_chord_name_color = 0xFFE0E0E0;
 // the floor (y = 0) and fills the gap below the string grid exactly (see that field's doc).
 constexpr double g_chord_box_frame_thickness = 0.075;
 
-// Hand-shape span rails on the floor: arpeggio spans in the reference purple, held shapes in
+// Hand-shape span rails on the floor: arpeggio spans in Charter's purple, held shapes in
 // the lane-border teal; a solid core with fade-out wings (fret thickness x3 and x9).
 constexpr ArgbColor g_arpeggio_color = 0xFFC040FF;
 constexpr double g_shape_rail_core_half_width = 0.075;
@@ -355,7 +355,7 @@ struct PosColorUvVertex
     return result;
 }
 
-// Reference inlay-dot pattern: fret % 12 in {0, 3, 5, 7, 9} carries a marker.
+// Inlay-dot pattern: fret % 12 in {0, 3, 5, 7, 9} carries a marker.
 [[nodiscard]] bool isDottedFret(const int fret)
 {
     const int cycle = ((fret % 12) + 12) % 12;
@@ -494,7 +494,7 @@ struct RibbonEnd
 };
 
 // One three-band ribbon segment between two endpoints: edge strips [x0,x1] and [x2,x3] around a
-// translucent core [x1,x2] (the reference's tail cross-section), with per-end stations, offsets,
+// translucent core [x1,x2] (Charter's tail cross-section), with per-end stations, offsets,
 // and colors so a run can bend, fade, and change width along its length, and per-corner outer
 // colors so the edge strips can fade across their width. Sustain tails chain these along the
 // board; a note glow post stands a single segment upright on the face plane; an open tail's band
@@ -532,7 +532,7 @@ void pushRibbonSegment(
     pushRibbonSegment(vertices, indices, stations, stations, a, b);
 }
 
-// Floor quad with per-end colors: the reference's beat-bar gradient wings.
+// Floor quad with per-end colors: Charter's beat-bar gradient wings.
 void pushFloorQuadGradient(
     std::vector<PosColorVertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
     const double x1, const double y, const double z0, const double z1,
@@ -547,13 +547,13 @@ void pushFloorQuadGradient(
         makeVertex(x0, y, z1, abgr_at_z1));
 }
 
-// The reference open-note bar: a hexagonal prism along X across [x0, x1], with the center
+// Charter's open-note bar: a hexagonal prism along X across [x0, x1], with the center
 // station slightly thicker than the ends and the ring squashed nearly flat in Z. Flat-colored
-// and unlit, its silhouette reads as the reference's thin rounded bar from every board-view
+// and unlit, its silhouette reads as Charter's thin rounded bar from every board-view
 // angle. The end stations are fully transparent, fading in over g_open_note_end_fade_length, so
 // the bar tapers visually to a point at each end (which also makes end caps pointless — the
 // silhouette dissolves before it could show a flat end). The thickness scale draws the
-// reference's accent halo (the same bar at triple cross-section).
+// Charter's accent halo (the same bar at triple cross-section).
 void pushOpenNoteBar(
     std::vector<PosColorVertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
     const double x1, const double lane_y, const double z, const ArgbColor argb, const double alpha,
@@ -684,7 +684,7 @@ void pushChordBoxPanel(
     const std::uint32_t dark_faint = packAbgr(g_chord_box_dark_color, 32.0 / 255.0);
     const std::uint32_t box_clear = packAbgr(g_chord_box_color, 0.0);
 
-    // Corner-holder fan outlines (reference ChordBoxHolderModel): a teal L behind a dark L, at
+    // Corner-holder fan outlines (Charter's ChordBoxHolderModel): a teal L behind a dark L, at
     // each bottom corner. Local coordinates; the right corner mirrors in X.
     constexpr std::array<std::array<double, 2>, 6> holder_background{
         {{-0.01, -0.01}, {1.01, -0.01}, {1.01, 0.11}, {0.11, 0.11}, {0.11, 1.11}, {-0.01, 1.01}}
@@ -736,7 +736,7 @@ void pushChordBoxPanel(
     }
 
     // Frame: bottom bar always; accent chevrons, full sides with a top bar, or short fading
-    // sides (the reference's three variants).
+    // sides (Charter's three variants).
     push_bar(y0);
     if (any_accent)
     {
@@ -894,7 +894,7 @@ struct HighwayRenderer::Impl
     common::core::HighwayMetrics metrics;
     common::core::HighwayCamera camera;
 
-    // Player scroll speed; a free setting later (25-Q3), the reference default until then.
+    // Player scroll speed; a free setting later (25-Q3), the default until then.
     double scroll_speed{1.3};
 
     // One warning per process when a transient batch is dropped (budget exceeded is a bug
@@ -1059,7 +1059,7 @@ void HighwayRenderer::drawOverlayRects(
 }
 
 // The retained half of the board face: the per-string colored string lines on the z = 0 plane.
-// Fret lines moved to the dynamic pass (they carry the reference's per-frame active and
+// Fret lines moved to the dynamic pass (they carry Charter's per-frame active and
 // hit-flash states); the fretboard picture itself is the inlay skin texture.
 void HighwayRenderer::Impl::rebuildBoardFace()
 {
@@ -1154,7 +1154,7 @@ void HighwayRenderer::Impl::draw(
     };
 
     // Distance fade for the floor furniture: fully faded near the hit line, opaque toward the
-    // horizon (the reference's fading shader constants: 50 ms to 250 ms).
+    // horizon (Charter's fading shader constants: 50 ms to 250 ms).
     const std::array<float, 4> fade_uniform{
         static_cast<float>(common::core::highwayTimeToZ(0.05, scroll, metrics)),
         static_cast<float>(common::core::highwayTimeToZ(0.25, scroll, metrics)),
@@ -1213,7 +1213,7 @@ void HighwayRenderer::Impl::draw(
     const common::core::HighwayHandWindow current_window =
         common::core::highwayHandWindowAt(state.fret_hand_positions, now_seconds);
 
-    // --- Lane border ribbons: one faded runway strip per fret line (the reference's floor
+    // --- Lane border ribbons: one faded runway strip per fret line (Charter's floor
     // grid). Alpha tiers: bright for the current hand range, mid for any visible window's
     // range, faint elsewhere. ---
     {
@@ -1655,7 +1655,7 @@ void HighwayRenderer::Impl::draw(
         submitBatch(vertices, indices, posColorUvLayout(), window_light_program.get(), nullptr);
     }
 
-    // --- Beat and measure bars: the reference's gradient wings in its deep blue, clipped to
+    // --- Beat and measure bars: Charter's gradient wings in its deep blue, clipped to
     // each beat's hand window. Measures get a sharp teal attack line on the downbeat with a
     // brief blue fade trailing into the measure; plain beats are two wings meeting at the
     // line. ---
@@ -1734,7 +1734,7 @@ void HighwayRenderer::Impl::draw(
                 const auto [b_x0, b_x1] = handWindowXAt(state, times[sample], metrics, mirrored);
                 const double za = std::max(0.0, time_to_z(times[sample - 1]));
                 const double zb = std::max(0.0, time_to_z(times[sample]));
-                // Solid core between fade-out wings, per edge (the reference's cross-section).
+                // Solid core between fade-out wings, per edge (Charter's cross-section).
                 const auto push_band = [&](const double xa_from,
                                            const double xa_to,
                                            const double xb_from,
@@ -1863,7 +1863,7 @@ void HighwayRenderer::Impl::draw(
         // True when every note is fully muted (a dead chug restating the preceding chord hides
         // behind the repeat box, and muted runs never break another chord's repeat chain).
         bool all_full_muted;
-        // Repeat-chord treatment (the reference's visibility rules): the strum renders as a
+        // Repeat-chord treatment (Charter's visibility rules): the strum renders as a
         // half-height box with its mute cross and NO notes.
         bool box_only;
         // Onset of the next note-showing strum, capping this group's span-hold display (see
@@ -1918,7 +1918,7 @@ void HighwayRenderer::Impl::draw(
         index = group_end;
     }
 
-    // Repeat classification (the reference's chord visibility rules): a strum shows only the
+    // Repeat classification (Charter's chord visibility rules): a strum shows only the
     // half-height repeat box when it repeats the hand shape's own posture within the shape span
     // — single notes and dead chugs between strums do not break the chain. Fully-muted strums
     // never show notes; sustained or technique-bearing strums always do.
@@ -1966,7 +1966,7 @@ void HighwayRenderer::Impl::draw(
         {
             // A dead chug earns the X repeat box only when it restates the nearest preceding
             // chord's posture (muted or not); with fresh frets it displays its notes and their
-            // mute crosses like any chord (user rule 2026-07-21 — the reference blanks every
+            // mute crosses like any chord (user rule 2026-07-21 — Charter blanks every
             // dead chug).
             std::size_t cursor = group.first;
             while (cursor > 0)
@@ -1996,8 +1996,8 @@ void HighwayRenderer::Impl::draw(
             }
             continue;
         }
-        // Marked chords always show their notes — unless every note is palm muted, where the
-        // reference's mute short-circuit applies the repeat rule anyway.
+        // Marked chords always show their notes — unless every note is palm muted, where
+        // Charter's mute short-circuit applies the repeat rule anyway.
         if (any_marks && !all_palm_muted)
         {
             continue;
@@ -2107,7 +2107,7 @@ void HighwayRenderer::Impl::draw(
     };
     std::vector<BracketBatch> bracket_batches;
 
-    // --- Chord and arpeggio boxes: the reference's translucent panels at chord onsets, plus an
+    // --- Chord and arpeggio boxes: Charter's translucent panels at chord onsets, plus an
     // arpeggio-styled box (the same panel with the fretboard bracket notation overlaid) at each
     // arpeggio shape's start. Drawn far-to-near BEFORE the notes so nearer content composites
     // over them (the board view is painter-ordered, no depth buffer). An arpeggio start draws
@@ -2222,7 +2222,7 @@ void HighwayRenderer::Impl::draw(
                 BoxDraw{
                     .start_seconds = shape.start_seconds,
                     .box_only = false,
-                    // The reference's chord-box rule (3+ sounding strings get the top bar),
+                    // Charter's chord-box rule (3+ sounding strings get the top bar),
                     // counted from the arpeggio's posture strings.
                     .with_top = shape.strings.size() > 2,
                     .any_accent = false,
@@ -2340,7 +2340,7 @@ void HighwayRenderer::Impl::draw(
     const std::array<float, 4> head_cell = atlases.head_layout.cellRect(g_head_cell_standard);
     const std::array<float, 4> anticipation_cell =
         atlases.head_layout.cellRect(g_head_cell_anticipation);
-    // The reference head is a square quad (0.96 x 0.96 world units), not a lane-squashed one.
+    // Charter's head is a square quad (0.96 x 0.96 world units), not a lane-squashed one.
     const double head_half_w = metrics.note_half_width;
     const double head_half_h = metrics.note_half_width;
 
@@ -2408,7 +2408,7 @@ void HighwayRenderer::Impl::draw(
     // The four per-note batches flush per onset group, far-to-near: the board view is
     // painter-ordered with no depth writes, so one global submit per category would let a
     // distant head or open bar composite over a nearer note's sustain tail (the depth-order
-    // bug this replaces). Within a group the categories keep the reference layering: shadows
+    // bug this replaces). Within a group the categories keep Charter's layering: shadows
     // under rails under open bars under heads.
     const bgfx::TextureHandle heads_texture = atlases.heads.get();
     const auto flush_note_batches = [&] {
@@ -2518,7 +2518,7 @@ void HighwayRenderer::Impl::draw(
         const ChordGroup& group = chord_groups[group_index];
         if (group.box_only)
         {
-            // Repeated and dead strums render as their repeat box alone (source-game visibility):
+            // Repeated and dead strums render as their repeat box alone:
             // no heads, shadows, tails, or anticipation for the group's notes.
             continue;
         }
@@ -2595,7 +2595,7 @@ void HighwayRenderer::Impl::draw(
         const double head_y = note_y_at(head_seconds, head_taper);
 
         // Sustain tail: from the hit line (while sounding) or the onset to the sustain end, as
-        // the reference's three-band ribbon (solid edges around a translucent core). Technique
+        // Charter's three-band ribbon (solid edges around a translucent core). Technique
         // notes modulate the centerline, sampled adaptively in screen space.
         if (note.end_seconds > note.start_seconds && note.end_seconds > now_seconds)
         {
@@ -2612,7 +2612,7 @@ void HighwayRenderer::Impl::draw(
             };
 
             // Band X stations: fretted tails straddle the note center, open tails span the hand
-            // window with the reference's inset (with a degenerate-window guard for tapered
+            // window with Charter's inset (with a degenerate-window guard for tapered
             // necks). An open band's stations follow the sliding window per time, collapsing
             // gracefully when a mid-transition extent gets too narrow for the insets.
             const auto open_band_stations = [&](const double seconds) {
@@ -2893,7 +2893,7 @@ void HighwayRenderer::Impl::draw(
         // hand-window sampling hold the note's final state instead of extrapolating past it.
         const double z = time_to_z(std::max(head_seconds, now_seconds));
 
-        // Marker quads composite over the head base exactly like the reference's CPU-composited
+        // Marker quads composite over the head base exactly like Charter's CPU-composited
         // per-status textures (alpha "over" is associative), so the atlas cells draw directly.
         const auto push_marker = [&](const double center_x,
                                      const double center_y,
@@ -2922,8 +2922,8 @@ void HighwayRenderer::Impl::draw(
                 corner(-head_half_w, head_half_h, rect[0], rect[1]));
         };
 
-        // Chord membership decides the rolling flip, the shadow, and the chord box (the
-        // reference skips shadows for chord notes).
+        // Chord membership decides the rolling flip, the shadow, and the chord box (Charter
+        // skips shadows for chord notes).
         const bool in_chord = group.count >= 2;
 
         // Glow post: the sustain tails' three-band ribbon stood upright at a user-tuned
@@ -3021,7 +3021,7 @@ void HighwayRenderer::Impl::draw(
 
         if (note.fret == 0)
         {
-            // Open string: the reference's thin rounded bar spanning the active hand window, in
+            // Open string: Charter's thin rounded bar spanning the active hand window, in
             // the full note color (the flat tail-width slab it replaces read as a plank). A bar
             // landing mid-transition takes the eased window at its own anchor instant, so a
             // pinned sounding bar follows the sliding window like its ringing tail does.
@@ -3118,7 +3118,7 @@ void HighwayRenderer::Impl::draw(
             pushOpenNoteBar(open_vertices, open_indices, x0, x1, head_y, z, base_color, fade, 1.0);
             if (note.accent)
             {
-                // The reference's accent halo: the same bar at triple thickness, faint.
+                // Charter's accent halo: the same bar at triple thickness, faint.
                 pushOpenNoteBar(
                     open_vertices,
                     open_indices,
@@ -3130,7 +3130,7 @@ void HighwayRenderer::Impl::draw(
                     fade * (96.0 / 255.0),
                     3.0);
             }
-            // Technique markers at the window center (the reference's open-note overlay set).
+            // Technique markers at the window center (Charter's open-note overlay set).
             if (atlases.reference_cells)
             {
                 const double center_x = (x0 + x1) / 2.0;
@@ -3256,7 +3256,7 @@ void HighwayRenderer::Impl::draw(
         const std::uint32_t tint = packAbgr(base_color, fade * head_slide.alpha);
 
         // Head base: the technique variant under left-hand technique markers, else the standard
-        // head (the reference's base-cell selection).
+        // head (Charter's base-cell selection).
         const bool tech_head =
             atlases.reference_cells && (note.mute == common::core::NoteMute::Full ||
                                         note.harmonic == common::core::NoteHarmonic::Natural ||
@@ -3283,8 +3283,8 @@ void HighwayRenderer::Impl::draw(
 
         if (atlases.reference_cells)
         {
-            // Rotating markers ride the rolling flip (the reference bakes these into the head
-            // texture), in the reference's composite order.
+            // Rotating markers ride the rolling flip (Charter bakes these into the head
+            // texture), in Charter's composite order.
             if (note.harmonic == common::core::NoteHarmonic::Natural)
             {
                 push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_harmonic, tint);
@@ -3313,7 +3313,7 @@ void HighwayRenderer::Impl::draw(
             {
                 push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_accent, tint);
             }
-            // Upright markers stay flat through the flip (the reference overlays these after
+            // Upright markers stay flat through the flip (Charter overlays these after
             // the rotated head).
             if (note.mute == common::core::NoteMute::Full)
             {
@@ -3332,12 +3332,12 @@ void HighwayRenderer::Impl::draw(
         // Bend notation (bend-head-indicators plan, fourth pass on sight 2026-07-28: chevron
         // stacks read as clutter, amount figures did not read at speed, and target rails were
         // redundant furniture once the tail itself carried the amount): the head carries ONE
-        // chevron marker — the source-game notation's own bend cue —
+        // chevron marker — a caret-shaped bend cue —
         // announcing only that a bend is coming. It rides the bend-lift side of the head
         // (above the note for an upward curve, below on bend-inverted lanes) and its 180-degree
         // flip keeps it pointing where the drawn curve goes. Amount and stages are the tail's
-        // own geometry: physical lift height plus slope shading, the source-game notation's
-        // approach. The marker cell exists in both atlas paths, so nothing here gates on
+        // own geometry: physical lift height plus slope shading. The marker cell exists in both
+        // atlas paths, so nothing here gates on
         // reference_cells.
         if (!note.bend.empty())
         {
@@ -3389,7 +3389,7 @@ void HighwayRenderer::Impl::draw(
         }
     }
 
-    // --- Scrolling fret numbers: the reference's readability aid. Numbers ride the board floor
+    // --- Scrolling fret numbers: Charter's readability aid. Numbers ride the board floor
     // at each dotted fret on every measure downbeat (bright inside the current hand range, dim
     // elsewhere), mark each upcoming hand-position arrival in orange, and pin the current hand's
     // numbers at the hit line; all fade in as they approach. Drawn after the notes so numbers
@@ -3547,7 +3547,7 @@ void HighwayRenderer::Impl::draw(
         submitBatch(vertices, indices, posColorUvLayout(), glyph_program.get(), &glyph_texture);
     }
 
-    // --- Board face: dynamic fret lines with the reference's three states (inactive, active
+    // --- Board face: dynamic fret lines with Charter's three states (inactive, active
     // within current and upcoming hand windows, and the sqrt-decay hit-flash that thickens up
     // to 4x — a large part of the alive feel), drawn over passing content. Fret lines run from
     // face_bottom_y to face_top_y (the string grid alone — the gap below the grid base belongs
@@ -3607,7 +3607,7 @@ void HighwayRenderer::Impl::draw(
         }
 
         // Hit-flash weights: notes sounding within the last flash window light their fret lines
-        // with a sqrt decay (chart-driven, like the source-game preview).
+        // with a sqrt decay (chart-driven, like Charter's preview).
         std::array<double, g_face_fret_count + 1> flash{};
         for (const std::size_t index : visible)
         {
@@ -3663,7 +3663,7 @@ void HighwayRenderer::Impl::draw(
     }
 
     // --- Fretboard skin: one textured cell per fret from the reference inlay atlas (8x4 grid),
-    // drawn last on the face like the reference (the art is transparent between markers). ---
+    // drawn last on the face like Charter (the art is transparent between markers). ---
     if (inlay_texture.isValid())
     {
         std::vector<PosColorUvVertex> vertices;
@@ -3714,10 +3714,10 @@ void HighwayRenderer::Impl::draw(
     }
 
     // --- Fingering panel and arpeggio brackets for the active hand shape, on the board face
-    // after the skin (the reference's pass order). Suppressed while the current chord is fully
+    // after the skin (Charter's pass order). Suppressed while the current chord is fully
     // muted — dead chugs show no fingering. ---
     {
-        // The active shape: the last one starting within the reference's 20 ms lookahead that
+        // The active shape: the last one starting within Charter's 20 ms lookahead that
         // is still running.
         const common::core::HighwayShapeView* active_shape = nullptr;
         for (const common::core::HighwayShapeView& shape : state.shapes)
@@ -3767,7 +3767,7 @@ void HighwayRenderer::Impl::draw(
                 std::vector<std::uint16_t> indices;
                 const double spot_half = metrics.string_distance / 2.0;
                 const std::uint32_t white = packAbgr(0xFFFFFFFF);
-                // Quarter-grid UV cells with the reference's inset.
+                // Quarter-grid UV cells with Charter's inset.
                 const auto cell_uv = [](const int column, const int row) {
                     return std::array<float, 4>{
                         static_cast<float>((column * 0.25) + 0.001),
@@ -3921,7 +3921,7 @@ void HighwayRenderer::Impl::draw(
                 packAbgr(0xFFFFFFFF, 0.85));
         }
 
-        // Chord names ride the hit line while their shape is active (reference placement: left
+        // Chord names ride the hit line while their shape is active (Charter's placement: left
         // of the hand window, above the top lane), skipped once the shape is about to end.
         const double chord_name_y = face_top_y - (metrics.string_distance * 0.5) + 0.5;
         for (const common::core::HighwayShapeView& shape : state.shapes)

@@ -1,6 +1,6 @@
 ---
 name: corpus-smoke
-description: Local-only smoke check that every package in the local .rock corpus still loads, reporting per-package failures. Strictly local — the corpus is local-only and must never enter git, CI, or any committed file.
+description: Local-only smoke check that every package in the local .rock corpus still loads, reporting per-package failures. Strictly local — the corpus must never enter git, CI, or any committed file.
 ---
 
 # corpus-smoke

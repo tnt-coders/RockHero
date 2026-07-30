@@ -107,7 +107,7 @@ a min/max fret-line range; the focus is that range's world middle blended a fixe
 toward a whole-neck position, and the range width is the span driving the out-zoom.
 
 The target holds perfectly still for whole zones and *steps* only at zone boundaries (user
-direction 2026-07-29, matching the reference's documented framing rule — it fits the current
+direction 2026-07-29, matching the source game's documented framing rule — it fits the current
 plus following group's positions): content framed for its zone stays framed even after it is
 consumed, every position change is announced a full zone before the hand must be in place, and
 HighwayCamera's spring is the single mechanism that turns the boundary steps into motion.
@@ -183,15 +183,15 @@ private:
 };
 
 /*!
-\brief Builds the world-to-clip transform: the source-game camera chain plus the board pin.
+\brief Builds the world-to-clip transform: the camera chain plus the board pin.
 
-The chain reproduces the reference exactly (source-verified 2026-07-11): view translation, the
-small yaw and pitch rotations that give the board its held-guitar-neck reading (the yaw slopes
-the strings ~2-3 degrees and magnifies the body-side neck end; the pitch places the vanishing
-point), Charter's very wide frustum, and finally **the board pin** — the world point (camera
-focus X, board surface, hit line) is projected and the whole picture is translated vertically so
-that point lands at the configured NDC height. The translation is vertical-only: the board
-slides freely left/right as the focus moves while the anchor height never changes.
+The chain reproduces the source game's camera exactly (source-verified 2026-07-11): view
+translation, the small yaw and pitch rotations that give the board its held-guitar-neck reading
+(the yaw slopes the strings ~2-3 degrees and magnifies the body-side neck end; the pitch places
+the vanishing point), Charter's very wide frustum, and finally **the board pin** — the world
+point (camera focus X, board surface, hit line) is projected and the whole picture is translated
+vertically so that point lands at the configured NDC height. The translation is vertical-only:
+the board slides freely left/right as the focus moves while the anchor height never changes.
 
 With both rotation metrics zeroed the chain reduces to the zero-rotation formulation whose exact
 verticality stays regression-tested at that configuration.

@@ -50,7 +50,7 @@ namespace
     return rotation;
 }
 
-// The source-game camera chain: translate -> yaw -> pitch -> wide perspective -> NDC pin.
+// The camera chain: translate -> yaw -> pitch -> wide perspective -> NDC pin.
 //
 // The yaw is Charter's rotY constant and is load-bearing for the look (it slopes the strings
 // like a held guitar neck; source analysis 2026-07-11). Charter's forward pitch (rotX = 0.06)
@@ -179,7 +179,7 @@ HighwayCameraTarget makeHighwayCameraTarget(
     }
 
     // The scan window is quantized to the derived camera framing zones (user direction
-    // 2026-07-29, matching the reference's documented framing rule): everything defined during
+    // 2026-07-29, matching the source game's documented framing rule): everything defined during
     // the current zone and the next one is framed, consumed or not, so the target holds
     // perfectly still for whole zones and steps only at their boundaries — the HighwayCamera
     // spring is the single mechanism turning those steps into motion, and each step lands a

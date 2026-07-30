@@ -12,7 +12,7 @@ from the score's audio sync points, converts every track to a chart (ties merge 
 notes, GP bends/slides/harmonics map onto the format, between-fret harmonics use the `touch`
 field), and copies the embedded backing audio into the workspace; validated against a 101-file
 local corpus (111 arrangements, ~196k notes, zero failures). Remaining from this plan: note
-authoring UI, an source XML importer, and the mid-sustain vibrato spans decided 2026-07-06 (see
+authoring UI, a source-format XML importer, and the mid-sustain vibrato spans decided 2026-07-06 (see
 Forward extensions), which stay future work. The 3D display has its own plan at
 `docs/plans/todo/3d-highway-plan.md`.
 
@@ -95,7 +95,7 @@ Structure and metadata:
   (`docs/plans/todo/arrangement-difficulty-derivation-plan.md`), so the format keeps them first-class
   even though the 2D view may not render fingerings initially.
 - **One true tab per arrangement — no difficulty levels.** Decision 2026-07-05: Charter carries
-  source-style per-difficulty level lists (pared-down variants of each arrangement); RockHero
+  per-difficulty level lists (pared-down variants of each arrangement); RockHero
   deliberately does not. Each arrangement stores a single TRUE tab — what is actually played — and
   difficulty is a per-arrangement **derived rating**
   (`docs/plans/todo/arrangement-difficulty-derivation-plan.md`), never authored. This avoids manually
@@ -127,8 +127,8 @@ Structure and metadata:
   the desired gesture already has merge semantics. Charter keeps link storage sane only with
   three defensive layers (draw-time wrong-link rendering, save-time fixers whose
   `joinSimilarLinkedNotes` deletes technique-free links — converging on merged form — and
-  validators), official source DLC violates its own ≤1 ms link-adjacency invariant, and the source
-  runtime draws no head for link children (one scored onset plus a piecewise tail — the merged
+  validators), source charts routinely violate the ≤1 ms link-adjacency invariant the format
+  assumes, and a link child carries no note head of its own (one scored onset plus a piecewise tail — the merged
   note is already the runtime semantic). When authoring lands, "L" on the selected note merges it
   into its same-string predecessor: same fret → extend the predecessor's sustain and absorb the
   note's techniques as positioned payloads (a zero-sustain technique-carrying note is a pure
@@ -185,7 +185,7 @@ Structure and metadata:
    sustain tail) over the waveform from view state; waveform hide toggle.
 3. **Techniques and chords.** Chord boxes and template names, HOPO/mute/harmonic glyphs, slides,
    bends, vibrato/tremolo; FHP markers.
-4. **Authoring comes later.** Note editing and import (Guitar Pro / source XML) are separate
+4. **Authoring comes later.** Note editing and import (Guitar Pro / source-format XML) are separate
    future plans; the format must not preclude them (Charter's GP import list is the reference for
    what importers need). Difficulty is never authored — only the derived rating.
 
@@ -339,8 +339,9 @@ What each piece encodes, and the edge cases it covers:
 ### Corpus validation (2026-07-06)
 
 The format was pressure-tested against a 39-song source-format corpus (BTBAM epics, Opeth, Yes,
-Dire Straits, Protest The Hero, Funkadelic, Periphery — commercial and community source charts of varying note density),
-fully converted into reference packages under
+Dire Straits, Protest The Hero, Funkadelic, Periphery — commercial and community source charts of
+varying note density),
+fully converted into source packages under
 `Rock Hero Stuff/Chart References/*.rhp`. Each package is openable in the editor today
 (current-format `song.json`, warp-anchor tempo map derived from the source beat markers, converted
 audio, tone regions generated from the source charts' tone changes with empty tone documents ready for
@@ -365,12 +366,12 @@ What ~260k converted notes across the corpus established:
   class); bend offsets ≥ 0 and ≤ sustain; shape `chord` indexes in range; shape sustain > 0;
   template `frets`/`fingers` array length equals the tuning's string count (4 for bass).
 
-Importer findings recorded for the future import plan: source `bendValue.step` is already in
+Importer findings recorded for the future import plan: the source format's `bendValue.step` is already in
 semitones; `linkNext` semantically means "the next note on this string continues" (follow by
-next-onset-within-tolerance, not exact end-time match — source charts has millisecond gaps);
+next-onset-within-tolerance, not exact end-time match — source charts have millisecond gaps);
 source charts contain dangling links and zero-sustain instant slides that need repair on import;
-measure numbering must be renormalized sequentially; the source `ignore` scoring flag is dropped;
-source section name+number pairs collapse to `type`.
+measure numbering must be renormalized sequentially; the source format's `ignore` scoring flag is dropped;
+source-format section name+number pairs collapse to `type`.
 
 GP importer follow-ups recorded 2026-07-06 from a tie-merge fidelity audit: a slide flag on the
 final tied segment is silently lost (tie destinations never reach the slide resolver — queued as

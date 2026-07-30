@@ -181,7 +181,7 @@ a complete, valid chart in the editor — today charts are read-only and enter o
   owns the editor's consumption surface (live feedback, problems display).
 - Song metadata/art editing — `docs/plans/roadmap/43-song-information-and-art.md`.
 - 3D preview — `docs/plans/roadmap/44-editor-3d-preview.md`.
-- Chart importers beyond what exists (GP shipped; source XML import is future work per
+- Chart importers beyond what exists (GP shipped; source-format XML import is future work per
   `docs/plans/in-progress/note-format-and-tablature-plan.md`).
 - New format capabilities beyond the already-decided vibrato spans; whammy and other sketches in
   the note-format plan stay future, routed through `docs/plans/roadmap/10-format-versioning-and-chart-identity.md`.
@@ -201,6 +201,7 @@ Applicable subset of the roadmap constraint block:
   headers like `rock-hero-editor/core/src/tone/tone_region_edits.h` does today; only view-state
   and controller-intent surfaces are public, per `docs/design/architectural-principles.md`
   ("Ports and Adapters", "Library Roots Hold Folders Only").
+- (c) **Charter**: capabilities reference only (BSD 3-Clause) — no blind ports.
 - (d) **Derived over authored**: difficulty is never authored; the editor persists the inputs the
   calculator needs (fingerings, FHPs, techniques) but no rating fields.
 - (f) **Undo**: every edit integrates with the RockHero-owned undo history in editor-core
@@ -262,7 +263,7 @@ headless MVC, views send intents), "Separate State From Side Effects", "Preferre
   provides pure grid-line geometry and snap lookup driven by a note-value Fraction (editor
   default 1/4); `timeline_geometry.h` maps pixels to timeline seconds.
 - **Corpus**: 39 local `.rock` packages with 135 linked charts and a 101-file GP corpus load
-  through the production reader (local-only converted commercial content, never committed).
+  through the production reader (local-only converted source content, never committed).
 
 Verified against code on 2026-07-06, refactor @ 3c7febe0.
 
@@ -616,7 +617,7 @@ pre-commit run --all-files
 
 Acceptance additionally requires a local corpus smoke pass (never CI): open several of the 39
 corpus packages, perform an edit of each phase's kind on a real chart, save, reopen, and confirm
-`validateChartRules` passes and undo history behaves — the corpus is converted commercial
+`validateChartRules` passes and undo history behaves — the corpus is converted source
 content and stays local-only.
 
 ## Rollback/abort notes

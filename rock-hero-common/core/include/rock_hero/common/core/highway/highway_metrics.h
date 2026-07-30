@@ -19,7 +19,7 @@ Starting values reproduce Charter's 3D preview coordinate system (the settled vi
 except where a field's comment records a deliberate user tuning away from it: X is the fret axis
 with fret 0 at x = 0, Y is the string axis with the board surface at y = 0, and Z is the time
 axis with the hit line at z = 0 and future notes at positive Z. Collecting the constants here is
-a deliberate departure from the the source game's scattered magic numbers: tuning the
+a deliberate departure from the source game's scattered magic numbers: tuning the
 highway is edits to this one struct.
 
 Shared by the game highway and the editor 3D preview; render backends consume these through the
@@ -95,7 +95,7 @@ struct HighwayMetrics
     /*! \brief Camera Z behind the hit line at the reference fret span. */
     double camera_z_base{-2.5};
 
-    /*! \brief Extra camera height and pull-back per fret of span beyond the reference. */
+    /*! \brief Extra camera height and pull-back per fret of span beyond the reference span. */
     double camera_span_gain{0.2};
 
     /*! \brief Fret span that uses the base camera position (Charter's 4-fret hand). */
@@ -123,7 +123,7 @@ struct HighwayMetrics
     every step — it eases in from zero acceleration (no jolt) and lands with no overshoot. Three
     equal poles is the maximally smooth arrangement at a given speed (spreading them apart only
     sharpens the onset); a session of tuning landed on that maximally smooth, slow hover as the
-    most correct feel, matching the source-game camera's described "slow hover chasing the hand".
+    most correct feel, matching the source game's described "slow hover chasing the hand".
     It settles visually in roughly 8 / value seconds — a deliberately languid drift that trails
     the action slightly on the busiest charts, accepted for the calmer feel everywhere else.
     */
@@ -160,7 +160,7 @@ struct HighwayMetrics
     double ndc_pin_y{-0.9};
 
     /*!
-    \brief Downward camera pitch in radians; zero on purpose (deliberate source-game divergence).
+    \brief Downward camera pitch in radians; zero on purpose (deliberate divergence from Charter).
 
     Charter ships rotX = 0.06, but that forward tilt skews the whole picture (verticals lean)
     and was rejected by the user on sight (2026-07-11): the wanted angled-neck reading is the
@@ -190,14 +190,14 @@ struct HighwayMetrics
 
     Charter's projection multiplies camera-space X and Y by this base times an aspect-dependent
     screen scale (see makeHighwayWorldToClip); the resulting field of view is very wide
-    (~143 degrees horizontal at 16:9), which is a large part of the source-game composition.
+    (~143 degrees horizontal at 16:9), which is a large part of Charter's composition.
     */
     double frustum_scale_base{2.0 / 3.0};
 
     /*!
     \brief Extra vertical screen-scale lift (Charter's +0.05 on screenScaleY).
 
-    A deliberate source-game fudge: roughly 5 percent more vertical magnification than square
+    A deliberate fudge: roughly 5 percent more vertical magnification than square
     pixels would give, kept for visual parity.
     */
     double frustum_y_lift{0.05};

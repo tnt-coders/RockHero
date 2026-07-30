@@ -153,7 +153,7 @@ adjacency terminal): payloads never reference other notes — not by ID (which w
 nonsensical targets representable) and not by a dedicated terminal shape. A shift-slide glide
 stores the fret it glides toward as ordinary pitch-curve data: chart truth of the gesture
 itself, ending the minimum sustain distance before the re-picked landing rather than pointing at
-it. source-style linkNext identity-fragmentation stays rejected.
+it. linkNext identity-fragmentation stays rejected.
 
 # Tone document — `tones/<uuid>/tone.json`
 

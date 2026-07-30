@@ -35,7 +35,7 @@ Make fixed-cursor smooth scrolling the editor timeline's playback follow, implem
   camera would fix, but not the physiology). The desire that had been driving the fixed-cursor
   preference turned out to be a separate feature: a **cursor-locked chord/arpeggio posture
   display** (span identity + held frets traveling with the playhead for the span's duration —
-  note heads never move; a held note's presence at the cursor is its sustain tail, source-style).
+  note heads never move; a held note's presence at the cursor is its sustain tail).
   That feature is follow-mode-independent, designed but deliberately **not built** (user chose
   to return to a clean baseline first); the design is recorded in this entry for whenever it is
   picked up. The spike (PlaybackFollowStyle, followCursorSmoothly, the View toggle) was deleted

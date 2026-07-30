@@ -72,7 +72,7 @@ struct ScoringRuleset
     \brief Whether a qualifying unmatched onset breaks the committed streak (GH overstrum feel).
 
     Deliberately one flag to walk back: flipping this to false (with a version bump) yields
-    source-style no-penalty play without touching the state machine. An overstrum never marks any
+    no-penalty play without touching the state machine. An overstrum never marks any
     chart note missed and never counts against accuracy — it only resets streak and applies the
     miss-sized meter delta.
     */

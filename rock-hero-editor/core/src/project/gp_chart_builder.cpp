@@ -997,11 +997,11 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& g
 }
 
 // A silence long enough to read as a phrase break: the hand re-anchors across it. 0.8s is the
-// corpus sweet spot (source 4100-arrangement study, 2026-07-28) — it holds the authored move rate
+// corpus sweet spot (4100-arrangement source-corpus study, 2026-07-28) — it holds the authored move rate
 // (~13.2 anchors per 100 notes) while lifting exact anchor-fret agreement from 59% to 72%.
 constexpr double g_fhp_phrase_rest_seconds = 0.8;
 
-// Generates the fret-hand position track, corpus-derived from the source study
+// Generates the fret-hand position track, corpus-derived from the source-corpus study
 // (docs/plans/todo/fhp-corpus-derived-generation.md, 4100 authored arrangements). The hand covers
 // a [fret, fret+width-1] window (width four unless one onset spans wider), open strings never
 // constrain it, and it tracks the LEFT hand. Two rules the earlier greedy walk could not capture:

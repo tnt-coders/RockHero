@@ -13,7 +13,7 @@
 namespace rock_hero::common::core
 {
 
-/*! \brief Vibrato wobble period in seconds (the reference's sin(t_ms * pi / 80) sine). */
+/*! \brief Vibrato wobble period in seconds (the source game's sin(t_ms * pi / 80) sine). */
 inline constexpr double g_highway_vibrato_period_seconds = 0.160;
 
 /*!
@@ -25,13 +25,13 @@ multiply this into the wobble factor when converting it to bend-lift semitones.
 */
 inline constexpr double g_highway_vibrato_depth_semitones = 0.35;
 
-/*! \brief Tremolo wobble period in seconds (the reference's 60 ms triangle wave). */
+/*! \brief Tremolo wobble period in seconds (the source game's 60 ms triangle wave). */
 inline constexpr double g_highway_tremolo_period_seconds = 0.060;
 
 /*!
 \brief Fraction of the tail duration over which wobble amplitude ramps in and out.
 
-The reference modulates at full amplitude to the tail's very ends (its rails start and end off
+The source game modulates at full amplitude to the tail's very ends (its rails start and end off
 the string line); the taper is this project's deliberate fix so rails always anchor on the
 string line.
 */
@@ -40,7 +40,7 @@ inline constexpr double g_highway_tail_taper_fraction = 0.1;
 /*!
 \brief Returns the number of centerline samples a tail needs at a screen-space resolution.
 
-Replaces the reference's per-millisecond tessellation: sampling density follows the tail's
+Replaces the source game's per-millisecond tessellation: sampling density follows the tail's
 projected on-screen length, so a long sustain costs vertices proportional to its visible size,
 never its duration.
 
@@ -90,7 +90,7 @@ which anchors the start value) and at the last point, whose value then holds.
 \brief Returns whether a note's bend lift points downward on a displayed lane.
 
 Bends on the upper half of the displayed string stack curve downward so the curve stays inside
-the board (the reference's outer-string bend inversion, restated in display space so it holds
+the board (the source game's outer-string bend inversion, restated in display space so it holds
 for any string count and stacking order).
 
 \param displayed_lane One-based displayed lane, 1 at the bottom of the stack.
@@ -102,7 +102,7 @@ for any string count and stacking order).
 /*!
 \brief Returns the eased interpolation weight of a slide at a segment progress.
 
-The reference's easing curves: pitched slides accelerate into the target
+The source game's easing curves: pitched slides accelerate into the target
 (sin(progress * pi / 2) cubed); unpitched slides release early (1 - sin((1 - progress) * pi / 2)).
 
 \param progress Position within the slide segment in [0, 1]; values outside clamp.
@@ -114,7 +114,7 @@ The reference's easing curves: pitched slides accelerate into the target
 /*!
 \brief Returns the vibrato wobble at a time from the note onset, as a signed unit factor.
 
-Onset-phased on purpose (the reference phases by absolute time, which desynchronizes repeats);
+Onset-phased on purpose (the source game phases by absolute time, which desynchronizes repeats);
 callers scale by the bend lift distance and the taper envelope.
 
 \param seconds_from_onset Time since the note onset.
@@ -125,7 +125,7 @@ callers scale by the bend lift distance and the taper envelope.
 /*!
 \brief Returns the tremolo wobble at a time from the note onset, as a signed factor.
 
-The reference's triangle wave, onset-phased; callers scale by the tail half-width and the taper
+The source game's triangle wave, onset-phased; callers scale by the tail half-width and the taper
 envelope.
 
 \param seconds_from_onset Time since the note onset.

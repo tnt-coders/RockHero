@@ -6,3 +6,6 @@ CMakeUserPresets.json
 
 # Build files
 build
+# Local-only Claude config + content-guard hook (not shared)
+.claude/settings.local.json
+.claude/hooks/local-content-guard.ps1

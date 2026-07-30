@@ -110,7 +110,7 @@ or a bug traces to the padding-semantics divergence. **Remedy**: design one note
 
 ## 3D highway camera
 
-### Maximally-smooth camera may trail on busy charts — trigger: playtesting shows lag, or a source game comparison diverges
+### Maximally-smooth camera may trail on busy charts — trigger: playtesting shows lag, or a source-game comparison diverges
 
 The highway camera motion settled 2026-07-29 (commit `b7c7e650`) on the *maximally smooth* end of
 its smoother: a single-knob third-order critically-damped filter (three coincident poles at

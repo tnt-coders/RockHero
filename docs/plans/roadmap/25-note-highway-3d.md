@@ -4,8 +4,8 @@
 
 **Phases 0–4 complete** (Phase 4 techniques: 2026-07-11, record at the end of this file; open
 question 2 resolved as recommendation (a) — fingering panels on by default — under the user's
-"use every applicable reference asset now" direction), **plus the 2026-07-11 look-parity pass** (see the Look-parity record at
-the end of this file: source-game camera chain with Charter's rotations and wide frustum,
+"use every applicable Charter asset now" direction), **plus the 2026-07-11 look-parity pass** (see the Look-parity record at
+the end of this file: the camera chain with Charter's rotations and wide frustum,
 Charter's texture assets adopted, board-furniture parity, renderer promoted to
 rock-hero-common/ui and shared with the editor preview). License correction 2026-07-11: Charter
 is **BSD 3-Clause**, not MIT as this plan previously stated; the adopted assets ship with the
@@ -21,7 +21,7 @@ projection (`makeHighwayViewState` — renamed from the sketch's `highwayViewSta
 coding conventions' make-prefix rule for view-state builders), metrics with Charter's constants,
 camera with the exact-verticality invariant and the NDC board pin both under regression tests,
 lefty mirror + string-order invert as pure math, beat/measure list, harmonic `touch`
-pass-through. One constant the source-game analysis never pinned: the vertical field of view
+pass-through. One constant our camera analysis never pinned: the vertical field of view
 (default 90°, the value at which the pinned framing works for the default camera; tuned live at
 Phase 3). Phase 3+ next (render stack lands via plan 20 Phases 1–4).
 Original date: 2026-07-06. Baseline: `refactor @ 3c7febe0`.
@@ -260,7 +260,7 @@ normative):
   work (plans 26/27); a separate string-order-invert option (Charter has one) rides the same
   seam.
 - **String order in 3D: lowest-pitched string on TOP by default** (user decision 2026-07-11,
-  superseding the reference's bottom-anchored default for the game highway). Realized through
+  superseding the conventional bottom-anchored default for the game highway). Realized through
   the shared projection's `invert_string_order` flag at the game's composition point; the 2D tab
   lane keeps standard tab orientation, and plans 26/27 surface the per-player setting.
 - **String colors come from plan 45's shared palette** — single source of truth across editor
@@ -439,7 +439,7 @@ still integrating. Phases 3+ need the render stack in the build.
 
 - Scope: consume plan 24's event stream (hit / miss / early / late, provisional-hit lifecycle,
   timestamps in song time): status-keyed note atlas states, hit particle bursts (one burst per
-  string; chord fallback per the source-game analysis; per-event seeded randomness per defect 5),
+  string; chord fallback per the analysis; per-event seeded randomness per defect 5),
   fret hit-flash triggering, early/late indication at the hit line; parallax background;
   section-label overlay; optional camera shake behind a default-off setting (open question 4);
   debug overlay v2 — hit-window visualization at the hit line and detection-confidence trace
@@ -518,11 +518,11 @@ the session record):
   near plane at **world** z = near instead of camera-relative eye depth, which would have
   near-clipped the hit line itself (world z = 0). Fixed in common/core with a depth-volume
   regression test (hit line and the passed-note region stay inside [0,1); depth monotonic).
-- **Reversed depth (source-game heritage) dropped**: conventional LESS + clear 1.0 — the default
+- **Reversed depth (a source-game inheritance) dropped**: conventional LESS + clear 1.0 — the default
   D3D11 depth buffer is 24-bit fixed point, where reversed-z buys nothing; image identical.
 - **Views**: 0 = background (color+depth clear, parallax matrix), 1 = board (depth-only clear,
   foreground matrix), 2 = overlay (reserved; overlay v1 uses bgfx debug text). All Sequential —
-  the reference's painter-ordered pass list becomes an enforceable contract; blended content
+  Charter's painter-ordered pass list becomes an enforceable contract; blended content
   interleaves in view 1 with a depth-test-only no-z-write state. No cull bits anywhere (mirrored
   mode reflects world X and would invert winding). Clear-bearing views are `touch()`ed (a view
   with zero items skips its clear entirely).
@@ -556,7 +556,7 @@ empty window), lefty and string-order flags verified visually, all suites green.
 
 ## Look-parity record (2026-07-11) — user-directed pass, fresh Charter source analysis
 
-The user judged the Phase 3 skeleton visually far from the reference; a fresh source-level
+The user judged the Phase 3 skeleton visually far from Charter; a fresh source-level
 analysis of Charter's preview3D (two research passes with file:line citations, session record)
 drove this pass. Corrections to this plan's own claims are included below.
 
@@ -565,7 +565,7 @@ drove this pass. Corrections to this plan's own claims are included below.
   adopted texture assets (notes.png note atlas, inlays.png fretboard skin, fingering.png) live
   at rock-hero-common/ui/resources/textures/charter/ beside the required license text and are
   deployed per product.
-- **Defect 7's "same composition" claim was wrong — the source-game rotations are load-bearing.**
+- **Defect 7's "same composition" claim was wrong — Charter's rotations are load-bearing.**
   Charter's rotY = 0.03 makes camera depth vary along a string, sloping the strings ~2–3° and
   magnifying the body-side neck end: the held-guitar-neck look the user asked for. rotX = 0.06
   places the vanishing point. The camera chain now reproduces Charter exactly (translate → yaw →
@@ -600,15 +600,15 @@ and anticipation ring all present at a locked 144 fps; all suites green.
 
 ### Refinement round (2026-07-11, user feedback on the parity pass)
 
-- **Forward pitch removed (deliberate source-game divergence).** The user's "angled neck" meant
+- **Forward pitch removed (deliberate divergence from Charter).** The user's "angled neck" meant
   only the yaw's string slope, not Charter's forward tilt: `camera_pitch_radians` now defaults
   to 0 (kept as a parameter). A yaw-only chain never mixes world Y into clip W or X, so fret
   lines project exactly vertical — the near-vertical bounded-tilt regression was replaced by an
   exact-verticality check at the shipped defaults.
-- **Open notes and sustain tails brought to source-game geometry** (both previously wrong): the
+- **Open notes and sustain tails brought to Charter's geometry** (both previously wrong): the
   open-note bar is Charter's `OpenNoteModel` — a thin hexagonal prism across the hand window
   (half-thickness 0.04 ends / 0.05 middle, Z squashed to a tenth) in the full note color — not
-  a tail-width slab in the 2D fill color; fretted tails are the reference three-band ribbon
+  a tail-width slab in the 2D fill color; fretted tails are Charter's three-band ribbon
   (solid `tail`-color edges a quarter-width each around a 192/255-alpha core, replacing the
   uniform 0.75-alpha quad); open-note sustains span the hand window with Charter's 0.2 inset
   and edge bands instead of a skinny centered rail.
@@ -621,7 +621,7 @@ frets with sloped strings, thin window-spanning open bars, banded tails, smoothe
 ## Phase 4 record (2026-07-11) — techniques
 
 User-directed ("missing chart features — chord boxes, hammer-ons, taps, palm mutes, mutes, etc.;
-use every applicable reference asset now"), executed against a fresh read of the reference
+use every applicable Charter asset now"), executed against a fresh read of Charter's
 drawers (session Charter clone).
 
 - **Scene model**: `HighwayShapeView` gained posture entries (`HighwayShapeStringView`: string,
@@ -629,20 +629,20 @@ drawers (session Charter clone).
   else the phase needed was already in the Phase 1 model.
 - **Pure tail math** (`common/core highway/highway_tail.{h,cpp}`, unit-tested): adaptive sample
   counts from projected screen length (defect 1 fix — one sample per 4 px, capped at 256, vs the
-  reference's per-millisecond tessellation), taper envelope anchoring modulated rails on the
+  source game's per-millisecond tessellation), taper envelope anchoring modulated rails on the
   string line (defect 2 fix), onset-phased vibrato sine (160 ms) and tremolo triangle (60 ms),
   piecewise-linear bend evaluation with prebend anchoring, slide easing curves (pitched
   sin^3 / unpitched early-release), display-space bend inversion (upper displayed half bends
-  downward — restated from the reference's string-index rule so any string count works).
+  downward — restated from Charter's string-index rule so any string count works).
 - **Renderer**: technique-aware heads (tech-head base cell under full mute / natural harmonic /
   hammer / pull; rotating markers for harmonics, palm mute, tap, slap, pop, accent riding the
-  rolling flip exactly like the reference's CPU-composited textures — alpha "over" is
+  rolling flip exactly like Charter's CPU-composited textures — alpha "over" is
   associative, so overlay quads replace the compositing wart; upright overlays for full mute and
-  hammer/pull), open-note technique overlays and the reference's triple-thickness accent halo,
+  hammer/pull), open-note technique overlays and Charter's triple-thickness accent halo,
   harmonic heads at the chart's fractional touch position, modulated three-band tails (bends,
   vibrato, tremolo, multi-waypoint slides with per-segment easing and unpitched dimming to 25%),
   chord boxes at multi-note onsets (corner holders, gradient frame, accent chevrons, short/full
-  sides by chord size, full/palm mute crosses, reference colors), chord names riding the hit
+  sides by chord size, full/palm mute crosses, Charter colors), chord names riding the hit
   line, hand-shape span rails (arpeggio purple / lane teal), fingering panels (barre-aware
   shapes + finger names from fingering.png, suppressed while the current chord is fully muted)
   and arpeggio brackets for the active shape. Chord grouping is a contiguous same-onset prepass
@@ -660,21 +660,21 @@ drawers (session Charter clone).
 
 ### Chord-box correction round (2026-07-11, user feedback)
 
-- **Repeat-chord boxes** (the reference's chord visibility rules, source-decoded from
+- **Repeat-chord boxes** (Charter's chord visibility rules, source-decoded from
   `shouldChordShowNotes` / `chordNotesVisibility`): a strum that repeats the hand shape's own
   posture within the shape span renders as a **half-height box with no notes** — single notes
   and dead chugs between strums do not break the repeat chain, fully-muted strums never show
   notes, and sustained or technique-marked strums always do (an all-palm-muted strum follows
-  the repeat rule despite its marks, the reference's mute short-circuit). The repeat walk runs
+  the repeat rule despite its marks, Charter's mute short-circuit). The repeat walk runs
   over the raw note stream so a predecessor that scrolled out behind the hit line still anchors
   the chain.
 - **Mute crosses**: only on repeat boxes (a full box's notes carry their own markers), as the
-  reference's thin two-stroke outline X sized to the half box — light (0x80D8FF) for full
-  mutes, dark (0x005064) for palm mutes. The palm color is the reference's unused dark
+  Charter's thin two-stroke outline X sized to the half box — light (0x80D8FF) for full
+  mutes, dark (0x005064) for palm mutes. The palm color is Charter's unused dark
   palm-mute constant: its drawer reads the light full-mute color instead, an evident slip the
   user's reading confirmed.
 - **Layering**: boxes now draw far-to-near BEFORE the notes so nearer content composites over
-  them (the reference draws boxes after notes under a depth buffer; this board view is
+  them (Charter draws boxes after notes under a depth buffer; this board view is
   painter-ordered — the only cost is the faint filling no longer tinting its own chord's
   heads, recorded as a deliberate simplification).
 
@@ -696,7 +696,7 @@ review before implementation (correctness-first, one commit per fix):
   section/chord-name anchors all follow. (A full one-string stack lift clearing the rolling
   flip's vertical heads was tried and reverted 2026-07-23: the grid hugging the flat notes
   wins; the far-horizon vertical dip below the floor is accepted.)
-- **Scrolling fret numbers (the readability fix).** Reproduces the reference's
+- **Scrolling fret numbers (the readability fix).** Reproduces Charter's
   `Preview3DBeatsDrawer`: dotted-fret numbers ({3,5,7,9,12,15,17,19,21,24}) ride each measure
   downbeat down the board floor (bright blue inside the hand range, dim teal elsewhere), FHP
   arrivals marked orange, the current hand's numbers pinned at the hit line; fade baked into the

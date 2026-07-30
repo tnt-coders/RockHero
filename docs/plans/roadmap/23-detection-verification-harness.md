@@ -19,7 +19,7 @@ soak runs and demos.
   definitions; this plan builds the machinery that computes, reports, and regression-gates them.
 - Scoring rules, hit windows, or the provisional-hit state machine —
   docs/plans/roadmap/24-scoring-star-power-failure.md.
-- Committing or shipping any converted commercial content. The 39-package .rock corpus and the
+- Committing or shipping any converted source content. The 39-package .rock corpus and the
   101-file GP corpus remain local-only soak assets forever.
 - A general-purpose audio test framework. This harness serves detection verification and scoring
   replay; nothing more.
@@ -40,7 +40,7 @@ soak runs and demos.
 - Plan-normative rules this document establishes:
   - **Scoring consumes events, never audio.** The serialized DetectionEvent stream is the only
     seam between detection and scoring tests. Any scoring test that decodes audio is wrong.
-  - **Corpus firewall.** Converted commercial content (local .rock corpus, GP corpus, DI takes
+  - **Corpus firewall.** Converted source content (local .rock corpus, GP corpus, DI takes
     recorded against those songs) never enters git, CI, or any committed baseline. CI fixtures are
     self-authored, freely-licensed songs plus synthetic chart generators only.
   - **Determinism.** Offline detection runs, autoplay bot output, synthetic renders, and metric
@@ -343,7 +343,7 @@ Phase 6 needs 22's pipeline; Phase 7 needs Phase 6.
   powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -Targets rock_hero_game_audio_tests rock_hero_game_core_tests -RunTouchedTests
   ```
 
-### Phase 7 — Local-only soak: local-only corpus and optional VST renders
+### Phase 7 — Local-only soak: source corpus and optional VST renders
 
 - **Scope**: scale testing on content that never enters git or CI. Catch2 hidden-tag tests
   (`[.local-corpus]`) read `ROCKHERO_CORPUS_DIR`, load every local `.rock` package, and run:

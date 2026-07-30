@@ -178,7 +178,7 @@ Restated with sources; none originate in conversation:
 - **Charter's 3D preview is the visual target, matched very closely**, with exactly seven
   catalogued defect fixes as the only departures — docs/plans/roadmap/25-note-highway-3d.md §7. The
   editor preview inherits this wholesale by consuming the same scene model, camera, and drawers'
-  source-game analysis; it introduces no visual divergences of its own.
+  analysis; it introduces no visual divergences of its own.
 - **The renderer-sharing seam recommendation is option 1** — headless scene model in
   rock-hero-common/core, thin per-product render backends, bgfx never in common
   (docs/plans/roadmap/20-game-architecture-and-render-stack.md Phase 0c; gate pending). This plan's

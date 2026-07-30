@@ -857,7 +857,7 @@ void paintTabLane(
         drawBendLines(g, metrics, style, note, onset_x, center_y, bend_chips);
     }
 
-    // Arpeggio spans draw source-style "( fret )" bracket marks around every posture string at the
+    // Arpeggio spans draw "( fret )" bracket marks around every posture string at the
     // bracket start. Onsets carry no vertical bars — the heads themselves already mark them, so
     // the span rails and these brackets are the only shape furniture (user-directed).
     for (const common::core::TabShapeView& shape : tab.shapes)
