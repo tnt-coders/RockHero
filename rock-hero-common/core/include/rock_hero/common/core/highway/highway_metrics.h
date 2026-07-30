@@ -102,11 +102,11 @@ struct HighwayMetrics
     double camera_reference_span{4.0};
 
     /*!
-    \brief Fallback fret-focus look-ahead in seconds when a chart carries no framing segments.
+    \brief Fallback fret-focus look-ahead in seconds when a chart carries no framing zones.
 
-    The camera's framing window is normally quantized to the derived camera framing segments
-    (HighwayViewState::camera_segment_starts) so the target rests between boundaries; a state
-    without segment data (no beats: empty or synthetic charts) scans a rolling window this far
+    The camera's framing window is normally quantized to the derived camera framing zones
+    (HighwayViewState::camera_zone_starts) so the target rests between boundaries; a state
+    without zone data (no beats: empty or synthetic charts) scans a rolling window this far
     ahead of now instead — about a second beyond the visible highway at the reference scroll
     speed, so a shift still starts before its trigger is visible and the spring still lands
     settled in time.
@@ -114,21 +114,22 @@ struct HighwayMetrics
     double focus_scan_seconds{3.0};
 
     /*!
-    \brief Rate of the critically damped camera spring, per second.
+    \brief Rate (the triple pole) of the camera's third-order critically damped smoother, per
+    second.
 
     The one smoothing constant of the camera (user direction 2026-07-29, after a session of
     layered target eases and follow filters fought each other): the framing target steps the
-    instant content enters the scan window, and this spring is the only thing between that
-    stepped target and the camera. Critically damped, so a step accelerates the camera hardest
-    at the very start with no velocity jump and lands softly with no overshoot; a step settles
-    visually in roughly 5.8 / value seconds. Softened below the rate that would match the
-    reference exponential's peak speed (about 1.9): segment-quantized targets step in whole-hull
-    batches, so the same rate that felt right chasing single positions read abrupt against the
-    larger steps (user tuning 2026-07-29). Each step is announced at least one framing segment
-    before its positions arrive, which comfortably covers the ~3.9 s visual settle at moderate
-    tempos.
+    instant content enters the scan window, and this smoother is the only thing between that
+    stepped target and the camera. Third-order critically damped, so a step eases in from zero
+    acceleration and lands softly with no overshoot; it settles visually in roughly 8.4 / value
+    seconds. A second-order spring at this rate started every step with an instant acceleration
+    kick that read as a jolt (user report 2026-07-29); carrying acceleration as state removes
+    that, and with the onset smoothed the rate is set back to 2.0 (the earlier 1.75/1.5 were
+    softened to hide the jolt the third pole now eliminates). Each step is announced at least
+    one framing zone before its positions arrive, which comfortably covers the ~4.2 s visual
+    settle at moderate tempos.
     */
-    double focus_spring_per_second{1.5};
+    double focus_spring_per_second{2.0};
 
     /*! \brief Blend of the focus target toward a fixed whole-neck weighted position. */
     double focus_whole_neck_blend{0.1};

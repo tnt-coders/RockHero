@@ -98,24 +98,23 @@ struct HighwayCameraPose
 };
 
 /*!
-\brief Scans the current and next camera framing segment and derives the camera's target.
+\brief Scans the current and next camera framing zone and derives the camera's target.
 
 The hand window active at `now` (before the first arrival, the first placement's window, which
 already holds during the opening scroll) plus every hand window and fretted note defined during
-the current camera framing segment and the next one
-(HighwayViewState::camera_segment_starts) define a min/max fret-line range; the focus is that
-range's world middle blended a fixed fraction toward a whole-neck position, and the range width
-is the span driving the out-zoom.
+the current camera framing zone and the next one (HighwayViewState::camera_zone_starts) define
+a min/max fret-line range; the focus is that range's world middle blended a fixed fraction
+toward a whole-neck position, and the range width is the span driving the out-zoom.
 
-The target holds perfectly still for whole segments and *steps* only at segment boundaries
-(user direction 2026-07-29, matching the reference's documented framing rule — it fits the
-current plus following group's positions): content framed for its segment stays framed even
-after it is consumed, every position change is announced a full segment before the hand must be
-in place, and HighwayCamera's spring is the single mechanism that turns the boundary steps into
-motion. Earlier per-FHP rolling windows kept the target in constant per-position churn;
-target-side eases layered on a follow filter fought each other — both were tried and rejected.
-A state with no segment data (no beats: empty or synthetic charts) falls back to a fixed
-seconds window (HighwayMetrics::focus_scan_seconds) with per-position steps.
+The target holds perfectly still for whole zones and *steps* only at zone boundaries (user
+direction 2026-07-29, matching the reference's documented framing rule — it fits the current
+plus following group's positions): content framed for its zone stays framed even after it is
+consumed, every position change is announced a full zone before the hand must be in place, and
+HighwayCamera's spring is the single mechanism that turns the boundary steps into motion.
+Earlier per-FHP rolling windows kept the target in constant per-position churn; target-side
+eases layered on a follow filter fought each other — both were tried and rejected. A state with
+no zone data (no beats: empty or synthetic charts) falls back to a fixed seconds window
+(HighwayMetrics::focus_scan_seconds) with per-position steps.
 
 A chart with no hand positions falls back to the reference four-fret window at the nut. The
 state's mirror flag reflects the focus (and the whole-neck blend point) as pure math.
@@ -129,16 +128,19 @@ state's mirror flag reflects the focus (and the whole-neck blend point) as pure 
     const HighwayViewState& state, double now_seconds, const HighwayMetrics& metrics);
 
 /*!
-\brief Critically damped spring following the stepped framing targets.
+\brief Third-order critically damped smoother following the stepped framing targets.
 
 One instance per rendering consumer; no internal synchronization. The one smoothing mechanism
-of the camera: when the target steps (a framing-segment boundary shifting the scan window), the
-spring accelerates hardest at the very start with no velocity jump — velocity is carried as
-state, so retargets and direction changes never snap — and lands softly with no overshoot,
-settling in roughly 5.8 / HighwayMetrics::focus_spring_per_second seconds: well before the
-positions that triggered the shift reach the hit line, after which the camera rests until the
-next boundary. Each advance applies the spring's exact closed-form solution over the frame, so
-smoothing is exactly frame-rate independent: two half steps equal one full step.
+of the camera: when the target steps (a framing-zone boundary shifting the scan window), the
+smoother carries position, velocity AND acceleration as state, all three continuous across the
+step, so the motion eases into the shift from zero acceleration and eases back out — C^2, with
+no velocity jump and no acceleration jump. A second-order spring left acceleration
+discontinuous, so each step began with an instant kick that read as a jolt (user direction
+2026-07-29); the third pole removes it. No overshoot (three equal real poles), settling in
+roughly 8.4 / HighwayMetrics::focus_spring_per_second seconds — well before the positions that
+triggered the shift reach the hit line, after which the camera rests until the next boundary.
+Each advance applies the exact closed-form solution over the frame, so smoothing is exactly
+frame-rate independent: two half steps equal one full step.
 */
 class HighwayCamera
 {
@@ -155,7 +157,7 @@ public:
     void advance(
         const HighwayCameraTarget& target, double dt_seconds, const HighwayMetrics& metrics);
 
-    /*! \brief Forgets the spring state so the next advance() snaps (at rest) like a first call. */
+    /*! \brief Forgets the smoother state so the next advance() snaps (at rest) like a first call. */
     void reset() noexcept;
 
     /*!
@@ -170,12 +172,15 @@ public:
     [[nodiscard]] HighwayCameraPose pose(const HighwayMetrics& metrics) const;
 
 private:
-    // Spring state; meaningful only after the first advance snapped it to a target at rest.
+    // Smoother state; meaningful only after the first advance snapped it to a target at rest.
+    // Velocity and acceleration are carried per channel so the motion stays C^2 across steps.
     bool m_initialized{false};
     double m_focus_x{0.0};
     double m_span{4.0};
     double m_focus_x_velocity{0.0};
     double m_span_velocity{0.0};
+    double m_focus_x_accel{0.0};
+    double m_span_accel{0.0};
 };
 
 /*!

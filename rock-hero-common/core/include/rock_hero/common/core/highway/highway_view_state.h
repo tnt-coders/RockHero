@@ -384,20 +384,19 @@ struct HighwayViewState
     std::vector<HighwaySectionView> sections;
 
     /*!
-    \brief Camera framing-segment start times in ascending order; each segment runs to the next
-    start.
+    \brief Camera framing-zone start times in ascending order; each zone runs to the next start.
 
     Derived structure for the camera's framing window only — deliberately not musical phrases
     (the notation has none) and carrying no notation meaning. The projection groups measures the
     way the source ecosystem's a standard automatic difficulty generator documents for its automatic phrases (source
     research 2026-07-29): runs of measures containing note onsets split into fixed-size groups
-    aligned to downbeats, runs of empty measures collapse into a single segment however long,
-    and section starts force a new segment. The camera frames the current segment plus the next
-    one, so its framing target steps only at these boundaries — the resting cadence that defines
-    the source-game camera feel. Empty when the chart has no beats; the camera then falls back to
-    a fixed seconds window.
+    aligned to downbeats, runs of empty measures collapse into a single zone however long, and
+    section starts force a new zone. The camera frames the current zone plus the next one, so
+    its framing target steps only at these boundaries — the resting cadence that defines the
+    source-game camera feel. Empty when the chart has no beats; the camera then falls back to a
+    fixed seconds window.
     */
-    std::vector<double> camera_segment_starts;
+    std::vector<double> camera_zone_starts;
 
     /*!
     \brief Compares two view states by their stored fields.

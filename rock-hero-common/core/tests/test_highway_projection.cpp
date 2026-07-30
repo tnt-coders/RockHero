@@ -300,27 +300,27 @@ TEST_CASE("Highway projection resolves the beat grid with downbeats", "[core][hi
     }
 }
 
-// Camera framing segments quantize the camera's scan window: note-bearing measure runs split
-// every two measures aligned to downbeats, empty runs collapse into one segment however long,
-// and a section start forces a new segment (the derivation the source ecosystem's standard
-// difficulty tool documents for its automatic phrases; user direction 2026-07-29).
-TEST_CASE("Highway projection derives camera framing segments", "[core][highway]")
+// Camera framing zones quantize the camera's scan window: note-bearing measure runs split
+// every two measures aligned to downbeats, empty runs collapse into one zone however long, and
+// a section start forces a new zone (the derivation the source ecosystem's a standard automatic difficulty generator
+// documents for its automatic phrases; user direction 2026-07-29).
+TEST_CASE("Highway projection derives camera framing zones", "[core][highway]")
 {
     const TempoMap tempo_map = makeHighwayTempoMap();
 
     // Fixture chart: measure 1 is empty, notes span measures 2-4, the tail is empty, and the
-    // "verse" section starts at measure 2. Expect the empty intro segment, the section cut
-    // (also the empty-to-notes transition) at 2.0 s, the two-measure split at 6.0 s, the
-    // notes-to-empty transition at 8.0 s, and the whole empty tail merged into that segment.
+    // "verse" section starts at measure 2. Expect the empty intro zone, the section cut (also
+    // the empty-to-notes transition) at 2.0 s, the two-measure split at 6.0 s, the
+    // notes-to-empty transition at 8.0 s, and the whole empty tail merged into that zone.
     const HighwayViewState state =
         makeHighwayViewState(makeArrangementWithChart(), tempo_map, makeHighwaySections(), {});
-    REQUIRE(state.camera_segment_starts.size() == 4);
-    CHECK(state.camera_segment_starts[0] == Catch::Approx(0.0));
-    CHECK(state.camera_segment_starts[1] == Catch::Approx(2.0));
-    CHECK(state.camera_segment_starts[2] == Catch::Approx(6.0));
-    CHECK(state.camera_segment_starts[3] == Catch::Approx(8.0));
+    REQUIRE(state.camera_zone_starts.size() == 4);
+    CHECK(state.camera_zone_starts[0] == Catch::Approx(0.0));
+    CHECK(state.camera_zone_starts[1] == Catch::Approx(2.0));
+    CHECK(state.camera_zone_starts[2] == Catch::Approx(6.0));
+    CHECK(state.camera_zone_starts[3] == Catch::Approx(8.0));
 
-    // A continuous run of note-bearing measures (1-6) splits every two measures: segments at
+    // A continuous run of note-bearing measures (1-6) splits every two measures: zones at
     // measures 1, 3, and 5, then the empty-tail transition at measure 7.
     Arrangement dense = makeArrangementWithChart();
     Chart* const chart = chartOrNull(dense);
@@ -340,11 +340,11 @@ TEST_CASE("Highway projection derives camera framing segments", "[core][highway]
             });
     }
     const HighwayViewState dense_state = makeHighwayViewState(dense, tempo_map, {}, {});
-    REQUIRE(dense_state.camera_segment_starts.size() == 4);
-    CHECK(dense_state.camera_segment_starts[0] == Catch::Approx(0.0));
-    CHECK(dense_state.camera_segment_starts[1] == Catch::Approx(4.0));
-    CHECK(dense_state.camera_segment_starts[2] == Catch::Approx(8.0));
-    CHECK(dense_state.camera_segment_starts[3] == Catch::Approx(12.0));
+    REQUIRE(dense_state.camera_zone_starts.size() == 4);
+    CHECK(dense_state.camera_zone_starts[0] == Catch::Approx(0.0));
+    CHECK(dense_state.camera_zone_starts[1] == Catch::Approx(4.0));
+    CHECK(dense_state.camera_zone_starts[2] == Catch::Approx(8.0));
+    CHECK(dense_state.camera_zone_starts[3] == Catch::Approx(12.0));
 }
 
 // Without a chart the projection returns an empty board (beat bars included: no chart, no
@@ -361,7 +361,7 @@ TEST_CASE("Highway projection is empty without a chart", "[core][highway]")
     CHECK(state.shapes.empty());
     CHECK(state.fret_hand_positions.empty());
     CHECK(state.beats.empty());
-    CHECK(state.camera_segment_starts.empty());
+    CHECK(state.camera_zone_starts.empty());
     REQUIRE(state.sections.size() == 1);
     CHECK(state.sections[0].name == "verse");
 }

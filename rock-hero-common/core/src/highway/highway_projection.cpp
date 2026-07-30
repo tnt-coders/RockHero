@@ -15,11 +15,11 @@ namespace rock_hero::common::core
 namespace
 {
 
-// Measures per derived camera framing segment for measures that contain notes. The source
-// ecosystem's a standard automatic difficulty generator documents 2-4 for its automatic difficulty generation; 4
-// keeps the camera's framing target at rest the longest, 2 gives a tighter, livelier frame
-// (user tuning 2026-07-29: 4-measure segments read too static).
-constexpr int g_camera_segment_measures = 2;
+// Measures per derived camera framing zone for measures that contain notes. The source ecosystem's
+// a standard automatic difficulty generator documents 2-4 for its automatic difficulty generation; 4 keeps the
+// camera's framing target at rest the longest, 2 gives a tighter, livelier frame (user tuning
+// 2026-07-29: 4-measure zones read too static).
+constexpr int g_camera_zone_measures = 2;
 
 } // namespace
 
@@ -246,13 +246,13 @@ HighwayViewState makeHighwayViewState(
             });
     }
 
-    // Camera framing segments (user direction 2026-07-29): the camera's framing window is
+    // Camera framing zones (user direction 2026-07-29): the camera's framing window is
     // quantized to these derived boundaries so its target steps only here and rests in between
     // — the cadence that defines the source-game camera feel. The derivation mirrors what the source
     // ecosystem's a standard automatic difficulty generator documents for automatic difficulty generation: runs of
-    // measures containing note onsets split into g_camera_segment_measures-sized groups aligned
-    // to downbeats, a run of empty measures collapses into one segment however long (rests are
-    // the camera's travel time, not framing churn), and a section start forces a new segment.
+    // measures containing note onsets split into g_camera_zone_measures-sized groups aligned to
+    // downbeats, a run of empty measures collapses into one zone however long (rests are the
+    // camera's travel time, not framing churn), and a section start forces a new zone.
     std::vector<double> measure_starts;
     for (const HighwayBeatView& beat : state.beats)
     {
@@ -263,7 +263,7 @@ HighwayViewState makeHighwayViewState(
     }
     std::size_t note_cursor = 0;
     std::size_t section_cursor = 0;
-    int measures_in_segment = 0;
+    int measures_in_zone = 0;
     bool run_empty = false;
     for (std::size_t measure = 0; measure < measure_starts.size(); ++measure)
     {
@@ -289,13 +289,13 @@ HighwayViewState makeHighwayViewState(
             ++section_cursor;
         }
         if (measure == 0 || section_cut || empty != run_empty ||
-            (!empty && measures_in_segment >= g_camera_segment_measures))
+            (!empty && measures_in_zone >= g_camera_zone_measures))
         {
-            state.camera_segment_starts.push_back(measure_start);
-            measures_in_segment = 0;
+            state.camera_zone_starts.push_back(measure_start);
+            measures_in_zone = 0;
         }
         run_empty = empty;
-        ++measures_in_segment;
+        ++measures_in_zone;
     }
 
     return state;
