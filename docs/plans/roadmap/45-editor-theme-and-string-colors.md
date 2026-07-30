@@ -5,7 +5,9 @@ Charter-exact derivation extracted to rock-hero-common/ui with tests; editor re-
 byte-identical output (untouched editor test pins green); stale tab_view.h/editor_theme.h docs
 fixed. As shipped, P1 delivers only the Charter Classic palette DATA plus the derivation math —
 the multi-preset registry is deferred to Phases 2–4 (see collapse note below). 45-Q2 taken as A
-for the shipped tier (gray 8th preserved; chartreuse/indigo enter with the Phase 5 cap raise).
+for the shipped tier (gray 8th preserved; chartreuse/indigo enter with the Phase 5 cap raise);
+Q2 reopened 2026-07-30 for a rendered trial of the full tier (magenta 8th) on the recorded
+physical-frequency evidence — see open question 2.
 Phases 2–3 executable now; Phase 4 after open question 1; Phase 5 decision-gated. Original date
 2026-07-06; baseline `refactor @ 13e82fb0`.
 
@@ -176,7 +178,10 @@ Restated with sources; do not re-litigate:
 5. **The format is string-count-generic with a 10-string target and carries no colors**
    (`docs/plans/in-progress/note-format-and-tablature-plan.md`, "String count, micro-bends, and forward
    extensions", 2026-07-06). The RYB tertiary-tier colors recorded there are input to open
-   question 2.
+   question 2. As of that document's 2026-07-30 addendum, the tier also carries a
+   physical-frequency justification: the standard six rank-match the octave-folded open-string
+   fundamentals, the fold terminates at six strings (B1 lands exactly on B3; everything below
+   low E folds infrared), and lanes 7–10 are therefore an explicit false-color convention.
 6. **The cap raise is coordinated by this plan** (`docs/plans/roadmap/40-chart-editing.md` Non-goals;
    `docs/plans/roadmap/22-note-detection.md` Consumed-by). It is a format/domain gate, not a theme toggle.
 7. **Settings stay per-product**: EditorSettings is editor-specific by design and the game gets
@@ -200,12 +205,19 @@ Mirror all four into `docs/plans/roadmap/00-roadmap.md` Decisions-needed.
    at least one colorblind-safe preset ships.
 2. **Classic preset lanes 8–10.** The recorded decision says 8th magenta 0xffff0090, 9th
    chartreuse 0xffaadc00, 10th indigo 0xff5854ff
-   (`docs/plans/in-progress/note-format-and-tablature-plan.md`), but the shipped, test-pinned 8th is
-   Charter's near-white gray 0xffb6b6b6 and `tab_view.h:45–49` still documents the unshipped
-   tier. Options: (A) keep gray for the 8th (it was finalized visually during the tab slice, per
-   that doc's own "finalized visually" clause) and adopt chartreuse/indigo for 9/10;
-   (B) restore the full RYB tier including magenta for the 8th. **Recommendation: A**, fixing the
-   stale `tab_view.h` doc in Phase 1; switching later is one constant plus one test expectation.
+   (`docs/plans/in-progress/note-format-and-tablature-plan.md`), and that tier now carries the
+   physical-frequency justification recorded there (2026-07-30 addendum): the standard six
+   rank-match the octave-folded open-string fundamentals, the fold terminates at six strings,
+   and lanes 7–10 are an explicit false-color convention — the unique RYB-tertiary ordering
+   keeping all adjacent lanes at least 120 degrees apart, corroborated by a greedy max–min
+   CIELAB sweep. The shipped, test-pinned 8th is Charter's near-white gray 0xffb6b6b6. Options:
+   (A) keep gray for the 8th — also the CIELAB sweep's achromatic pick — with chartreuse/indigo
+   at 9/10 (either order is adjacency-legal behind an achromatic 8th; pick at Phase 5); (B) the
+   full recorded tier with magenta at the 8th. **Direction (2026-07-30): trial B rendered before
+   signing.** Concern recorded that 0xffff0090 may read too hot on the dark board; if the trial
+   confirms it, soften within-family first (value/saturation only — hue family and order are the
+   pattern), and fall back to A only if no magenta variant reads calm. Switching is one constant
+   plus one test expectation either way.
 3. **v1 theme delivery scope.** (A) Built-in presets only (Default Dark ships; more are data);
    (B) file-based user themes at v1. **Recommendation: A**; user-provided theme/palette files are
    the Phase 6 stretch, consistent with "functionality first, polish second"

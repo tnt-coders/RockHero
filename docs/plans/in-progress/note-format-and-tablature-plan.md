@@ -305,6 +305,29 @@ What each piece encodes, and the edge cases it covers:
   G#/A) **indigo** `(88, 84, 255)`. Teal beside the red low E mirrors the original set's
   blue-beside-orange complementarity. Exact RGB values are display configuration, finalized
   visually during the tab-rendering slice; the format carries no colors.
+- **Physical-frequency corroboration and trial direction (2026-07-30).** The standard six are
+  also a rank-perfect image of the open strings' fundamentals octave-folded into visible light
+  (zero-parameter map, A440): sorted by folded frequency — E2 362.4 THz, G3 431.0, A2 483.8,
+  B3 543.0, D3 645.8, E4 724.9 — the assigned colors run in exact rainbow order red, orange,
+  yellow, green, blue, purple, with D/B/e landing in their exact spectral bands (464.2 nm blue,
+  552.1 nm green, 413.6 nm violet). The visible band is one octave wide and E is the pitch class
+  on its seam: both E strings fold to the same position, so the pair takes the two spectrum
+  edges, the lower string taking the lower fold (827.2 nm, just past red into infrared) — the
+  red/purple E pair is the fold seam, not an inconsistency. The map terminates at six strings:
+  B1 folds onto B3 exactly (543.0 THz), F#1 folds to 736.9 nm at the edge of vision, and every
+  string below low E folds sub-visible. Extended-range lanes are literally infrared, so the
+  tertiary tier above is a false-color convention by necessity. It remains justified as the
+  unique ordering of the four viable RYB tertiaries that keeps every adjacent lane pair at least
+  120 degrees apart on the painter's wheel (vermilion and amber excluded: they render inside the
+  red–orange–yellow cluster), independently corroborated by a greedy max–min CIELAB sweep (which
+  reproduces the teal/magenta/indigo families and never selects chartreuse) and by octave
+  kinship (B1's teal contains B3's green as a wheel parent, exactly as high e's purple contains
+  low E's red). C#1's class alone folds visible, at 491.8 nm cyan — the palette's largest
+  untaken gap — seconding the blue-green family. Trial direction: render the full tier (magenta
+  8th) before final sign-off; concern recorded that magenta `(255, 0, 144)` may read too hot on
+  the dark board. If the trial confirms it, soften within-family first (value/saturation only —
+  hue family and order are the pattern), and only then fall back to the achromatic 8th (gray)
+  with chartreuse/indigo at 9/10. Tracked as plan 45 open question 2.
 - **Quarter bends (and finer) are already representable.** Bend pair values are plain numbers in
   semitones; the corpus already contains 0.5 (quarter-tone curls), and 0.25 or any other
   granularity needs no format change. the source format's coarseness is an importer limitation, not a
