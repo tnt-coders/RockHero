@@ -1001,10 +1001,64 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& g
 // (~13.2 anchors per 100 notes) while lifting exact anchor-fret agreement from 59% to 72%.
 constexpr double g_fhp_phrase_rest_seconds = 0.8;
 
+// The fret span of notes still ringing at a slide waypoint that are NOT themselves gliding there
+// — each is a planted finger that pins the hand window's edge on its side. Returns false when no
+// such note exists, so the slide is a genuine whole-hand travel (rule 9 drag) rather than a
+// one-finger reshape (user rule 2026-07-30). Taps float above the hand and open strings never
+// anchor it, so both are excluded. A note that itself slid earlier is held at the fret it has
+// reached; a note with a waypoint at this exact instant is a co-slider (its own event carries it,
+// and a whole chord gliding in lockstep must translate, not reshape), so it is excluded too.
+[[nodiscard]] bool heldHullAtSlideWaypoint(
+    const std::vector<BuiltNote>& built, std::size_t moving_index, const Fraction& instant,
+    int& held_min, int& held_max)
+{
+    bool any = false;
+    for (std::size_t index = 0; index < built.size(); ++index)
+    {
+        if (index == moving_index)
+        {
+            continue;
+        }
+        const BuiltNote& other = built[index];
+        if (!(other.global_beat <= instant && instant < other.end_global_beat))
+        {
+            continue; // not sounding at this instant
+        }
+        if (other.note.attack == NoteAttack::Tap || other.note.fret <= 0)
+        {
+            continue; // taps float above the hand; open strings never anchor it
+        }
+        int fret = other.note.fret;
+        bool co_sliding = false;
+        for (const SlideWaypoint& waypoint : other.note.slides)
+        {
+            const Fraction waypoint_beat = other.global_beat + waypoint.offset;
+            if (waypoint_beat < instant)
+            {
+                fret = waypoint.fret; // already reached this waypoint
+                continue;
+            }
+            // Waypoints are ascending, so nothing past here can precede the instant. A waypoint
+            // landing exactly on it means the note is gliding in lockstep — treat it as moving.
+            co_sliding = waypoint_beat == instant;
+            break;
+        }
+        if (co_sliding || fret <= 0)
+        {
+            continue;
+        }
+        held_min = any ? std::min(held_min, fret) : fret;
+        held_max = any ? std::max(held_max, fret) : fret;
+        any = true;
+    }
+    return any;
+}
+
 // Generates the fret-hand position track, corpus-derived from the source-corpus study
 // (docs/plans/todo/fhp-corpus-derived-generation.md, 4100 authored arrangements). The hand covers
-// a [fret, fret+width-1] window (width four unless one onset spans wider), open strings never
-// constrain it, and it tracks the LEFT hand. Two rules the earlier greedy walk could not capture:
+// a [fret, fret+width-1] window (struck onsets get width four unless one spans wider; a slide
+// reshape follows the exact finger span and may be narrower), open strings never constrain it,
+// and it tracks the LEFT hand. Three rules the earlier greedy walk could not capture:
 //   1. A TAPPED note is not a coverage event. Two-hand taps sit a median seven frets above the
 //      fretting hand, so the anchor stays on the fretted / left-hand notes and any held chord
 //      shape while the tap floats above the window; the highway camera frames the tap separately.
@@ -1012,6 +1066,12 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
 //      rests >= g_fhp_phrase_rest_seconds — biased to the phrase's floor fret, not only when a
 //      note leaves the window (only ~35% of authored moves are forced). Within a segment it moves
 //      minimally when forced and drags with pitched slides.
+//   3. A slide taken while another finger stays PLANTED reshapes the window instead of translating
+//      it (user rule 2026-07-30): the held note pins its edge and the window becomes the exact
+//      sounding hull, so it shrinks when an outer note slides inward, grows when it slides
+//      outward, and holds when the slide is interior. Only a slide with nothing else held moves
+//      the whole hand (rule 9 drag). This reads the built notes' sounding spans — see
+//      heldHullAtSlideWaypoint — so the generator is sustain-aware for held detection (see below).
 // Scored against the corpus this reaches 72.5% exact anchor-fret agreement at the authored move
 // rate. The maintained plain-English spec is "GP chart normalization policy" in
 // docs/developer/the-project-lifecycle.md — tweak behavior there first, then re-align this code.
@@ -1022,7 +1082,10 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
     // One instant the fret hand must cover: the fretted extent of an onset group, or a pitched
     // slide waypoint mid-sustain. A nonzero shift marks a slide waypoint carrying its fret delta
     // from the glide's source, which drags the anchor by that delta (rule 9) instead of being
-    // fit like a struck onset.
+    // fit like a struck onset. A reshape waypoint is a slide taken while another finger stays
+    // planted: [min_fret, max_fret] is then the exact sounding hull (held frets plus the slide
+    // target) and the walk fits it edge-for-edge with no drag and no width floor, so the hand
+    // shrinks, grows, or holds with the slide instead of translating (user rule 2026-07-30).
     struct CoverageEvent
     {
         Fraction global_beat{};
@@ -1030,6 +1093,7 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
         int min_fret{0};
         int max_fret{0};
         int shift{0};
+        bool reshape{false};
     };
     std::vector<CoverageEvent> events;
     std::size_t index = 0;
@@ -1059,15 +1123,38 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
                     {
                         continue;
                     }
-                    events.push_back(
-                        CoverageEvent{
-                            .global_beat = built[onset_end].global_beat + waypoint.offset,
-                            .position = common::core::advanceGridPosition(
-                                tempo_map, note.position, waypoint.offset),
-                            .min_fret = waypoint.fret,
-                            .max_fret = waypoint.fret,
-                            .shift = slide_source > 0 ? waypoint.fret - slide_source : 0,
-                        });
+                    const Fraction waypoint_beat = built[onset_end].global_beat + waypoint.offset;
+                    const GridPosition waypoint_position = common::core::advanceGridPosition(
+                        tempo_map, note.position, waypoint.offset);
+                    int held_min = 0;
+                    int held_max = 0;
+                    if (heldHullAtSlideWaypoint(
+                            built, onset_end, waypoint_beat, held_min, held_max))
+                    {
+                        // A finger stays planted: the window reshapes to the exact sounding hull
+                        // (held frets pin their edge, the slide carries the other) — no drag.
+                        events.push_back(
+                            CoverageEvent{
+                                .global_beat = waypoint_beat,
+                                .position = waypoint_position,
+                                .min_fret = std::min(waypoint.fret, held_min),
+                                .max_fret = std::max(waypoint.fret, held_max),
+                                .shift = 0,
+                                .reshape = true,
+                            });
+                    }
+                    else
+                    {
+                        // Nothing else is held: the whole hand travels with the slide (rule 9).
+                        events.push_back(
+                            CoverageEvent{
+                                .global_beat = waypoint_beat,
+                                .position = waypoint_position,
+                                .min_fret = waypoint.fret,
+                                .max_fret = waypoint.fret,
+                                .shift = slide_source > 0 ? waypoint.fret - slide_source : 0,
+                            });
+                    }
                     slide_source = waypoint.fret;
                 }
             }
@@ -1093,11 +1180,16 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
         {
             merged.back().min_fret = std::min(merged.back().min_fret, event.min_fret);
             merged.back().max_fret = std::max(merged.back().max_fret, event.max_fret);
-            // Coinciding shifts keep the first waypoint's delta (degenerate input; stable sort
-            // preserves emission order, so "first" is well defined).
-            if (merged.back().shift == 0)
+            merged.back().reshape = merged.back().reshape || event.reshape;
+            // Simultaneous slides drag as one hand only while their deltas agree (a whole chord
+            // gliding by the same amount). Disagreeing deltas are a convergence or divergence —
+            // the hand reshapes in place, so the drag is cancelled to 0 rather than adopting one
+            // arbitrary delta.
+            if (event.shift != 0)
             {
-                merged.back().shift = event.shift;
+                merged.back().shift =
+                    (merged.back().shift == 0 || merged.back().shift == event.shift) ? event.shift
+                                                                                     : 0;
             }
         }
         else
@@ -1133,22 +1225,37 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
         previous_beat = event.global_beat;
 
         const bool reanchor = boundary || !have_anchor;
-        const bool covered = have_anchor && !reanchor && event.min_fret >= anchor &&
-                             event.max_fret <= anchor + width - 1;
-        if (event.shift == 0 && covered)
+
+        int next_anchor = 0;
+        int next_width = 0;
+        if (event.reshape && !reanchor)
         {
-            continue;
+            // Hull-exact reshape: a held finger pins its edge and the sliding finger carries the
+            // other, so the window is exactly the sounding span — it shrinks when an outer note
+            // slides inward, grows when it slides outward, and holds when the slide is interior.
+            // No width floor and no drag: the hand deforms with the slide (user rule 2026-07-30).
+            next_anchor = event.min_fret;
+            next_width = event.max_fret - event.min_fret + 1;
         }
-        const int next_width = std::max(4, event.max_fret - event.min_fret + 1);
-        const int lowest_anchor = std::max(1, event.max_fret - next_width + 1);
-        // At a boundary the hand re-places biased to the phrase's floor (the lowest fretted note);
-        // otherwise it drags from the current anchor by the slide delta and clamps into range.
-        const int next_anchor =
-            reanchor ? std::clamp(event.min_fret, lowest_anchor, event.min_fret)
-                     : std::clamp(anchor + event.shift, lowest_anchor, event.min_fret);
+        else
+        {
+            const bool covered = have_anchor && !reanchor && event.min_fret >= anchor &&
+                                 event.max_fret <= anchor + width - 1;
+            if (event.shift == 0 && covered)
+            {
+                continue;
+            }
+            next_width = std::max(4, event.max_fret - event.min_fret + 1);
+            const int lowest_anchor = std::max(1, event.max_fret - next_width + 1);
+            // At a boundary the hand re-places biased to the phrase's floor (the lowest fretted
+            // note); otherwise it drags from the current anchor by the slide delta and clamps.
+            next_anchor = reanchor
+                              ? std::clamp(event.min_fret, lowest_anchor, event.min_fret)
+                              : std::clamp(anchor + event.shift, lowest_anchor, event.min_fret);
+        }
         if (have_anchor && next_anchor == anchor && next_width == width)
         {
-            continue; // re-anchoring landed on the same window; nothing visible changed
+            continue; // landed on the same window; nothing visible changed
         }
         positions.push_back(
             common::core::FretHandPosition{
@@ -1667,11 +1774,14 @@ void resolveSlideIns(
             std::to_string(dropped_duplicates) + " duplicate simultaneous notes were dropped");
     }
 
-    // The generator reads onsets and waypoint positions only — never sustains — so it can run
-    // before the sustain policy. Slide-in resolution needs the placements and must transform
-    // its notes into ordinary slides before normalization decides which tails a technique
-    // protects: a slide-in into a held landing keeps its hold (user rule 2026-07-28), trimmed
-    // like any tail but never dropped as effect-free.
+    // The generator reads onsets, waypoint positions, and — for held-note detection at slide
+    // waypoints — the notated (pre-trim) sounding spans, so it runs before the sustain policy on
+    // purpose: the readability trim is a display concern, but where the fingers are planted is
+    // governed by the notated holds, so pre-trim ends are the correct "still ringing" signal for
+    // a reshape (a trimmed tail must never read as the finger lifting). Slide-in resolution needs
+    // the placements and must transform its notes into ordinary slides before normalization
+    // decides which tails a technique protects: a slide-in into a held landing keeps its hold
+    // (user rule 2026-07-28), trimmed like any tail but never dropped as effect-free.
     //
     // The generator runs on the natural stream — slide-ins still plain notes at their notated
     // positions — and the resolver then inserts each ramp's placements itself (user rule

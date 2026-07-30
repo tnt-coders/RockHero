@@ -512,6 +512,133 @@ TEST_CASE(
     std::filesystem::remove_all(scratch, cleanup_error);
 }
 
+// One 4/4 bar, quarter notes: a two-string chord holds frets 2 and 5, and the lower fret-2 note
+// shift-slides to a beat-2 landing while the fret-5 note keeps ringing. The held 5 is a planted
+// finger that pins the top edge, so at the slide waypoint the hand window reshapes to the exact
+// sounding hull instead of translating (user rule 2026-07-30): a slide inward shrinks the window
+// below the usual four-fret span, a slide outward grows it. At 120 BPM the fret-2 note's shift
+// glide ends the 1/4-beat minimum-sustain margin before the beat-2 landing, so its waypoint sits
+// at beat 1 + 3/4, where the fret-5 quarter note is still sounding.
+constexpr const char* g_held_slide_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
+<GPIF>
+<GPVersion>8.1.4</GPVersion>
+<Score>
+<Title><![CDATA[HeldSlide]]></Title>
+<Artist><![CDATA[Tester]]></Artist>
+<Album><![CDATA[Album]]></Album>
+</Score>
+<MasterTrack>
+<Automations>
+<Automation><Type>Tempo</Type><Bar>0</Bar><Position>0</Position><Value>120 2</Value></Automation>
+</Automations>
+</MasterTrack>
+<BackingTrack><AssetId>0</AssetId></BackingTrack>
+<Assets><Asset id="0"><EmbeddedFilePath>Content/Assets/audio.wav</EmbeddedFilePath></Asset></Assets>
+<Tracks>
+<Track id="0">
+<Name>Guitar</Name>
+<Staves><Staff><Properties>
+<Property name="CapoFret"><Fret>0</Fret></Property>
+<Property name="Tuning"><Pitches>40 45 50 55 59 64</Pitches></Property>
+</Properties></Staff></Staves>
+</Track>
+</Tracks>
+<MasterBars>
+<MasterBar><Time>4/4</Time><Bars>0</Bars></MasterBar>
+</MasterBars>
+<Bars>
+<Bar id="0"><Voices>0 -1 -1 -1</Voices></Bar>
+</Bars>
+<Voices>
+<Voice id="0"><Beats>0 1</Beats></Voice>
+</Voices>
+<Beats>
+<Beat id="0"><Rhythm ref="0"/><Notes>0 1</Notes></Beat>
+<Beat id="1"><Rhythm ref="0"/><Notes>2</Notes></Beat>
+</Beats>
+<Notes>
+<Note id="0"><Properties>
+<Property name="String"><String>0</String></Property>
+<Property name="Fret"><Fret>2</Fret></Property>
+<Property name="Slide"><Flags>1</Flags></Property>
+</Properties></Note>
+<Note id="1"><Properties>
+<Property name="String"><String>1</String></Property>
+<Property name="Fret"><Fret>5</Fret></Property>
+</Properties></Note>
+<Note id="2"><Properties>
+<Property name="String"><String>0</String></Property>
+<Property name="Fret"><Fret>3</Fret></Property>
+</Properties></Note>
+</Notes>
+<Rhythms>
+<Rhythm id="0"><NoteValue>Quarter</NoteValue></Rhythm>
+</Rhythms>
+</GPIF>
+)";
+
+TEST_CASE(
+    "Guitar Pro import reshapes the hand around a held note during a slide", "[core][gp-import]")
+{
+    const std::filesystem::path scratch =
+        std::filesystem::temp_directory_path() / "rh_gp_held_slide_test";
+    std::error_code cleanup_error;
+    std::filesystem::remove_all(scratch, cleanup_error);
+    const std::filesystem::path workspace = scratch / "song";
+    std::filesystem::create_directories(workspace);
+
+    // The slide waypoint sits a 1/4-beat margin before the beat-2 landing, at beat 1 + 3/4.
+    const GridPosition waypoint{.measure = 1, .beat = 1, .offset = Fraction{3, 4}};
+
+    SECTION("a lower note sliding inward under a held top shrinks the window")
+    {
+        const std::filesystem::path archive = writeFixtureArchive(scratch, g_held_slide_gpif);
+        GpSongImporter importer;
+        const auto song = importer.importSong(archive, workspace);
+        REQUIRE(song.has_value());
+        REQUIRE(song->arrangements.size() == 1);
+        const common::core::Chart& chart = requiredChart(song->arrangements.front());
+
+        // The opening hand spans the struck {2,5} chord at the usual four-fret width.
+        REQUIRE_FALSE(chart.fret_hand_positions.empty());
+        CHECK(chart.fret_hand_positions.front().fret == 2);
+        CHECK(chart.fret_hand_positions.front().width == 4);
+
+        // At the waypoint the held 5 pins the top and the sliding 2->3 carries the bottom, so the
+        // window shrinks to the exact hull [3,5] rather than translating up to [3,6].
+        const common::core::FretHandPosition* const reshape = fretHandPositionAt(chart, waypoint);
+        REQUIRE(reshape != nullptr);
+        CHECK(reshape->fret == 3);
+        CHECK(reshape->width == 3);
+    }
+
+    SECTION("a lower note sliding outward under a held top grows the window")
+    {
+        // Drop the landing to fret 1, so the fret-2 note slides down and away from the held 5.
+        std::string grow_gpif = g_held_slide_gpif;
+        const std::string landing = "<Fret>3</Fret>";
+        const std::size_t landing_at = grow_gpif.find(landing);
+        REQUIRE(landing_at != std::string::npos);
+        grow_gpif.replace(landing_at, landing.size(), "<Fret>1</Fret>");
+
+        const std::filesystem::path archive = writeFixtureArchive(scratch, grow_gpif);
+        GpSongImporter importer;
+        const auto song = importer.importSong(archive, workspace);
+        REQUIRE(song.has_value());
+        REQUIRE(song->arrangements.size() == 1);
+        const common::core::Chart& chart = requiredChart(song->arrangements.front());
+
+        // The held 5 still pins the top; the sliding 2->1 carries the bottom outward, so the
+        // window grows to the exact hull [1,5] (width five) instead of dropping the held note.
+        const common::core::FretHandPosition* const reshape = fretHandPositionAt(chart, waypoint);
+        REQUIRE(reshape != nullptr);
+        CHECK(reshape->fret == 1);
+        CHECK(reshape->width == 5);
+    }
+
+    std::filesystem::remove_all(scratch, cleanup_error);
+}
+
 // One bar, quarter notes: a tied fret-6 whose continuation sits inside a chord and shift-slides
 // down, next to a fret-8 chord member shift-sliding down, with the chord's fret-3 member tied
 // through into the landing chord — the Periphery measure-20 shape the tie/slide/arpeggio rules
