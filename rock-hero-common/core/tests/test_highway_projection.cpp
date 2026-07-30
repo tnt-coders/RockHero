@@ -302,8 +302,8 @@ TEST_CASE("Highway projection resolves the beat grid with downbeats", "[core][hi
 
 // Camera framing zones quantize the camera's scan window: note-bearing measure runs split
 // every two measures aligned to downbeats, empty runs collapse into one zone however long, and
-// a section start forces a new zone (the derivation the source ecosystem's a standard automatic difficulty generator
-// documents for its automatic phrases; user direction 2026-07-29).
+// a section start forces a new zone (the derivation a a standard automatic difficulty generator in the
+// source-game ecosystem documents for its automatic phrases; user direction 2026-07-29).
 TEST_CASE("Highway projection derives camera framing zones", "[core][highway]")
 {
     const TempoMap tempo_map = makeHighwayTempoMap();

@@ -15,10 +15,10 @@ namespace rock_hero::common::core
 namespace
 {
 
-// Measures per derived camera framing zone for measures that contain notes. The source ecosystem's
-// a standard automatic difficulty generator documents 2-4 for its automatic difficulty generation; 4 keeps the
-// camera's framing target at rest the longest, 2 gives a tighter, livelier frame (user tuning
-// 2026-07-29: 4-measure zones read too static).
+// Measures per derived camera framing zone for measures that contain notes. A standard
+// difficulty-authoring tool in the source-game ecosystem documents 2-4 for its automatic phrase
+// creation; 4 keeps the camera's framing target at rest the longest, 2 gives a tighter,
+// livelier frame (user tuning 2026-07-29: 4-measure zones read too static).
 constexpr int g_camera_zone_measures = 2;
 
 } // namespace
@@ -248,9 +248,10 @@ HighwayViewState makeHighwayViewState(
 
     // Camera framing zones (user direction 2026-07-29): the camera's framing window is
     // quantized to these derived boundaries so its target steps only here and rests in between
-    // — the cadence that defines the source-game camera feel. The derivation mirrors what the source
-    // ecosystem's a standard automatic difficulty generator documents for automatic difficulty generation: runs of
-    // measures containing note onsets split into g_camera_zone_measures-sized groups aligned to
+    // — the cadence that defines the source-game camera feel. The derivation mirrors what a
+    // a standard automatic difficulty generator in the source-game ecosystem documents for automatic
+    // phrase creation: runs of measures containing note onsets split into
+    // g_camera_zone_measures-sized groups aligned to
     // downbeats, a run of empty measures collapses into one zone however long (rests are the
     // camera's travel time, not framing churn), and a section start forces a new zone.
     std::vector<double> measure_starts;

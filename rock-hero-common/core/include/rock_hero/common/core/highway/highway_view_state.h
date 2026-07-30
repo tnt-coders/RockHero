@@ -388,7 +388,8 @@ struct HighwayViewState
 
     Derived structure for the camera's framing window only — deliberately not musical phrases
     (the notation has none) and carrying no notation meaning. The projection groups measures the
-    way the source ecosystem's a standard automatic difficulty generator documents for its automatic phrases (source
+    way a a standard automatic difficulty generator from the source-game ecosystem documents its automatic
+    phrases (source
     research 2026-07-29): runs of measures containing note onsets split into fixed-size groups
     aligned to downbeats, runs of empty measures collapse into a single zone however long, and
     section starts force a new zone. The camera frames the current zone plus the next one, so

@@ -110,7 +110,7 @@ or a bug traces to the padding-semantics divergence. **Remedy**: design one note
 
 ## 3D highway camera
 
-### Maximally-smooth camera may trail on busy charts — trigger: playtesting shows lag, or an source comparison diverges
+### Maximally-smooth camera may trail on busy charts — trigger: playtesting shows lag, or a source game comparison diverges
 
 The highway camera motion settled 2026-07-29 (commit `b7c7e650`) on the *maximally smooth* end of
 its smoother: a single-knob third-order critically-damped filter (three coincident poles at
@@ -121,16 +121,16 @@ source game does. Two things are accepted-for-now rather than settled: (1) at th
 camera **trails the action slightly on the busiest / fastest, position-dense charts** (it is still
 easing toward zone N's framing when zone N+1 already wants it elsewhere) — documented in the
 `focus_spring_per_second` doc comment as the accepted cost; and (2) whether maximal smoothness
-**actually matches source** is unconfirmed (the user's eye says yes; no frame-by-frame comparison was
-done — see [[source-camera-research]]). **Trigger**: playtesting on a fast, high-travel chart shows the
-camera visibly lagging or framing behind the notes, or a direct side-by-side against source shows the
-motion clearly diverging. **Remedy**: it is one number first — raise `focus_spring_per_second`
-(faster, still jolt-free because the C² onset holds at any rate); if a crisper *body* is wanted
-without losing the gentle onset, the asymmetric split-pole form (a faster onset pole over a slower
-body double-pole) was built and removed this session and can be restored from history; or shorten
-the framing zones via `g_camera_zone_measures` in `highway_projection.cpp` (so the target refreshes
-more often). Separately, source's zoom-out reads "more vertical" than ours (height-vs-pullback balance,
-possibly a span-coupled pitch) — a distinct axis
+**actually matches the source game** is unconfirmed (the user's eye says yes; no frame-by-frame
+comparison was done). **Trigger**: playtesting on a fast, high-travel chart shows the camera
+visibly lagging or framing behind the notes, or a direct side-by-side against the source game
+shows the motion clearly diverging. **Remedy**: it is one number first — raise
+`focus_spring_per_second` (faster, still jolt-free because the C² onset holds at any rate); if a
+crisper *body* is wanted without losing the gentle onset, the asymmetric split-pole form (a faster
+onset pole over a slower body double-pole) was built and removed this session and can be restored
+from history; or shorten the framing zones via `g_camera_zone_measures` in `highway_projection.cpp`
+(so the target refreshes more often). Separately, the source game's zoom-out reads "more
+vertical" than ours (height-vs-pullback balance, possibly a span-coupled pitch) — a distinct axis
 from motion timing, still open.
 
 ## Chart editing (tab lane)
