@@ -108,6 +108,25 @@ display padding into `note.string` at projection time while the tab core pads at
 or a bug traces to the padding-semantics divergence. **Remedy**: design one note-view semantic
 (probably draw-time padding), migrate both projections behind their tests, and retire this item.
 
+### Defaulted `operator==` over floating-point scene fields — trigger: the first comparison of a still-defaulted type
+
+`highway_view_state.h` defaults `operator==` on most of its scene types, and eight of them carry
+`double` (or `std::optional<double>`) fields: `HighwayBendPointView`, `HighwaySlideView`,
+`HighwayNoteView`, `HighwayShapeView`, `HighwayFhpView`, `HighwayBeatView`, `HighwaySectionView`,
+and `HighwayViewState` (which transitively instantiates the rest through its vectors).
+`HighwayDisplayOptions` and `HighwayShapeStringView` hold no floating-point field and are safe.
+
+A defaulted comparison costs nothing until something instantiates it; at that moment GCC and Clang
+raise `-Werror,-Wfloat-equal` *inside the header*, so the break lands on every platform at once and
+points at a line nobody edited. This has already reddened master twice — `HighwayHandWindow`, then
+`HighwayTapLightStation` and `HighwayTapOnsetView` (both 2026-07-24). Converting all eight now
+would churn a widely included header for types nothing compares yet, and each conversion needs a
+per-type judgment about which fields are exact and which need a tolerance. **Trigger**: any code or
+test compares one of the eight (including any comparison of a whole `HighwayViewState`).
+**Remedy**: hand-write that type's `operator==` with `std::is_eq(lhs.field <=> rhs.field)` per the
+exact-float idiom already used by `HighwayHandWindow` and the two tap-light types, ordering cheap
+scalars ahead of container members so an unequal scalar rejects without walking a vector.
+
 ## 3D highway camera
 
 ### Maximally-smooth camera may trail on busy charts — trigger: playtesting shows lag, or a source-game comparison diverges
