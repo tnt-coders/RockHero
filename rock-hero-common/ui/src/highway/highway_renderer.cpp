@@ -3384,10 +3384,35 @@ void HighwayRenderer::Impl::draw(
         // hit line it would stand at full alpha after its number vanished. Waypoint and
         // tapped-note fret numbers ride the board floor with the scrolling numbers, pushed in
         // that pass below.
+        // Stacked chord slides dedup (user rule 2026-07-30): members sliding together land
+        // waypoints on the same fret at the same instant, and their markers would pile up in
+        // one slot — only the member on the lowest displayed lane (nearest the floor, so its
+        // post overlaps nothing above it) draws the shared marker.
+        const auto stacked_below = [&](const common::core::HighwaySlideView& waypoint) {
+            for (std::size_t member = group.first; member < group.first + group.count; ++member)
+            {
+                const common::core::HighwayNoteView& other = state.notes[member];
+                if (member == index ||
+                    common::core::highwayStringLaneY(
+                        other.string, state.string_count, metrics, invert) >= lane_y)
+                {
+                    continue;
+                }
+                for (const common::core::HighwaySlideView& other_waypoint : other.slides)
+                {
+                    if (!other_waypoint.unpitched && other_waypoint.fret == waypoint.fret &&
+                        std::abs(other_waypoint.seconds - waypoint.seconds) < g_onset_match_epsilon)
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        };
         for (const common::core::HighwaySlideView& waypoint : note.slides)
         {
             if (!waypoint.unpitched && waypoint.fret > 0 && waypoint.seconds > now_seconds &&
-                waypoint.seconds <= span_end_seconds)
+                waypoint.seconds <= span_end_seconds && !stacked_below(waypoint))
             {
                 push_waypoint_marker(waypoint.fret, waypoint.seconds);
             }

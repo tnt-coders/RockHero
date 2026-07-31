@@ -267,6 +267,15 @@ doesn't break the overlay composite or the premultiplied inlay state. Remove any
   success feedback, not a ghost re-strike.) Both use the sustain-aware range query so an
   end-of-sustain arrival outlives the passed-note fade, and neither clamps — they are sparse, and
   the per-line max absorbs overlap.
+- **Bend arrival posts — built, then reverted** (2026-07-30, same day). Bend targets briefly got
+  glow posts rising to the tail's bent height; reverted after a look because a single per-slot
+  post cannot represent stacked bends (see the open decision below). The bend-target *glow*
+  stays — it has no height to misrepresent.
+- **Stacked waypoint markers dedup to the lowest lane** (2026-07-30). Chord members sliding
+  together land waypoints on the same fret at the same instant, and their posts piled up in one
+  slot; now only the member on the lowest displayed lane (nearest the floor, overlapping nothing
+  above it) draws the shared marker. This was a pre-existing slide-waypoint bug surfaced by the
+  bend-post experiment.
 - **Retire the old flash machinery** — `g_fret_flash_seconds` and the fret-line colour-mix/
   thickening go; the additive pass owns all strike brightening (the glow gets its own colour
   constant, so `g_fret_highlight_color` retires with the mix).
@@ -282,11 +291,13 @@ doesn't break the overlay composite or the premultiplied inlay state. Remove any
 3. **Tap-light distinctness** — the tapping-hand light is already a warm-leaning blue, so if a
    fretting-hand strike and a tap should read as clearly different cues, the strike may want a
    distinctly whiter-cored or more red/gold orange. A Phase 5 tuning call.
-4. **Bend waypoint posts (proposed follow-up, raised 2026-07-30).** Slide landings already get
-   approach furniture on the floor; bend targets could get their own posts under each waypoint,
-   rising proportional to the bend's semitones at that point — pre-visualizing how far each push
-   goes before it reaches the hit line, the way slide posts pre-visualize landings. Not part of
-   the glow pass (note-furniture geometry); sized as its own small change.
+4. **Bend segment display in 3D (needs real thought).** Each segment of a bend wants a clear
+   place in the 3D view, but per-waypoint posts were tried and reverted: two notes directly one
+   above the other — the same fret on adjacent strings, struck together — commonly bend at
+   *different* strengths (only the upper-lane string bends while the lower holds), and a single
+   post in the shared fret slot cannot represent per-string heights. Whatever the display is, it
+   must be per-string, not per-slot; the tail centerline already curves per string, so the answer
+   may live on or beside the tails rather than on the floor.
 5. **Paused-transport look (follow-up — decide after seeing it land).** The envelope is stateless in
    `since` with a `since >= 0` gate, so parking the cursor exactly on an onset (the snap-to-note
    gesture) shows a static, full-intensity glow while paused; today's flash shows nothing there. A

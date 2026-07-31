@@ -200,6 +200,7 @@ struct HighwayMetrics
     A deliberate fudge: roughly 5 percent more vertical magnification than square
     pixels would give, kept for visual parity.
     */
+    //TODO: try removing this "deliberate fudge"
     double frustum_y_lift{0.05};
 
     /*! \brief Divisor applied to the camera position for the parallax background layer. */
