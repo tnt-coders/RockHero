@@ -14,6 +14,7 @@ add_executable(
     test_fraction.cpp
     test_grid_arithmetic.cpp
     test_highway_camera.cpp
+    test_highway_hit_glow.cpp
     test_highway_projection.cpp
     test_highway_tail.cpp
     test_highway_window.cpp

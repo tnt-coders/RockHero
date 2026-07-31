@@ -1,6 +1,8 @@
 # Fret hit-glow as a real additive light effect
 
-**Status:** in progress — design approved-in-principle, open decisions below to confirm before coding.
+**Status:** in progress — design approved; the 2026-07-30 pre-implementation review's fixes are
+folded in below (submission point, envelope home, release/fade invariant) and implementation is
+under way.
 **Scope:** the editor app's 3D preview (shared highway renderer, so it also lands in the game
 highway). The trigger here is deterministic *note arrival*; a later input-gated game version reuses
 the same light pass unchanged (only the trigger source changes).
@@ -18,7 +20,8 @@ light must:
 3. Read as a **discrete per-note pop** even in the fastest sections, instead of smearing into a
    sustained glow.
 4. Attach to the **right geometry per note type**: single note → its fret lines, chord → the chord
-   box, open string → both edges of the fret-hand-position (FHP) window.
+   box's left and right frets (interior dark), open string → both edges of the fret-hand-position
+   (FHP) window.
 
 ## Why (what's wrong today)
 
@@ -53,19 +56,22 @@ per onset** is the invariant.
 **Colour and intensity (decided):** the light is **orange** (continuous with the existing
 `g_fret_highlight_color`, and complementary to the blue-dominant board — blue FHP window light, teal
 ribbons — so it pops). Being additive and peaking bright, its core naturally whites out on strong
-hits (a white-hot orange flare). A chord uses the **same per-pixel intensity** as a single note — the
-chord box is a much larger lit area, so a strum reads bigger without extra brightness, keeping single
-notes and chords tonally consistent.
+hits (a white-hot orange flare). A chord uses the **same per-pixel intensity** as a single note and
+lights only its box's two edge frets (2026-07-30 direction — the interior panel was built, seen,
+and dropped): a strum reads as the box's frame flashing, tonally consistent with singles.
 
 | Note type | Condition | Glow geometry |
 |---|---|---|
-| Single fretted | `fret > 0`, group `non_tap_count < 2` | Two additive soft strips over the fret lines `{fret-1, fret}` (`highwayFretLineX`), face bottom→top, z=0 |
-| Chord (fretting hand) | group `non_tap_count >= 2` | **One** soft panel over the chord-box span `handWindowXAt(state, max(start,now), …)`, y=0→box top, at the box z — driven once per `ChordGroup`, not per member |
-| Chord (tapped) | `tap.count >= 2` | **One** soft panel over the tapped-box span `highwayFretLineX(fret_low-1 … fret_high)`, per tap onset |
-| Open string | `fret == 0`, group not boxed | Two additive soft strips at the two live FHP-window edges `current_window.low_line` / `.high_line` (`highwayHandWindowAt` at `now`), at their fractional swept X |
+| Single fretted | `fret > 0`, cluster `non_tap_count < 2` | Two additive soft strips over the fret lines `{fret-1, fret}` (`highwayFretLineX`), face bottom→top, z=0 |
+| Chord (fretting hand) | cluster `non_tap_count >= 2` | Two additive soft strips at the chord box's **left and right frets** — the live window edges, shared with the open-string strips; the box interior stays deliberately dark (2026-07-30 direction, replacing an interior panel) |
+| Chord (tapped) | `tap.count >= 2` | Two additive soft strips at the tapped box's edge lines `fret_low - 1` / `fret_high`, per tap onset; interior dark |
+| Open string | `fret == 0`, cluster not boxed | Two additive soft strips at the two live FHP-window edges `current_window.low_line` / `.high_line` (`highwayHandWindowAt` at `now`), at their fractional swept X |
+| Slide landing | pitched waypoint, either hand | Strips at the landing's fret lines `{wp.fret-1, wp.fret}` — a pitched waypoint is a fret arrival like a strike; unpitched trail-offs contribute nothing; no inter-onset clamp (landings are sparse; per-line max absorbs overlap) |
+| Bend target | bend curve point ending a sloped segment | Strips at the planted fret's lines `{fret-1, fret}` — a pitch arrival the game scores hit-or-miss, so the editor's perfect play pops it; flat holds and the onset point are not arrivals |
 
-Edge cases: an all-open strum that forms a boxed group routes to the one box glow (per-member edge
-lights suppressed by the existing `in_chord` guard at `:3038`); a fretted note under a simultaneous
+Edge cases: an all-open strum that forms a boxed cluster routes to the one window-edge glow — the
+glow pass carries its own routing predicates (the note pass's `in_chord` guard at `:3038` governs
+only the open-note span bar and does not apply to the glow); a fretted note under a simultaneous
 tap counts toward the group but not `non_tap_count`, so it lights its own fret lines like a single
 note (matching the box pass). An open string with no FHP yet falls back to the default window
 (lines 0 and 4).
@@ -95,8 +101,12 @@ So the whole effect needs:
    *increasing* luminance regardless of the active-fret baseline — that is exactly the masking fix.
 2. **One new late glow pass** in `draw()` that builds the per-onset soft geometry and submits it via
    the existing `submitBatch(…, window_light_program.get(), nullptr, g_board_view, g_additive_state)`
-   — `submitBatch` already takes a render-state argument, so no signature change. Submitted **after**
-   the fret lines, chord boxes, and note heads so it brightens them.
+   — `submitBatch` already takes a render-state argument, so no signature change. Submitted as the
+   **last board-view pass** — after the glyph text batch that closes `draw()`, not merely after the
+   fret lines: the inlay skin composites premultiplied (`ONE, INV_SRC_ALPHA`; an opaque dot texel
+   multiplies whatever is underneath by ≈0, punching dark dot silhouettes through a glow drawn
+   earlier) and the fingering panel alpha-blends exactly at the hit line, so anything drawn after
+   the glow would dim or hole it. Last-in-view, the light adds over everything it should brighten.
 
 Reuses `window_light_program`, its falloff uniform, `PosColorUvVertex`/`posColorUvLayout`, and the
 per-edge signed-distance UV convention — **no new `.sc` shader, no shader-set member, no CMake
@@ -111,25 +121,35 @@ strips and panels.
 Two independent problems; additive blend alone fixes neither — both are CPU-envelope concerns.
 
 **Peak at the crossing — strict zero pre-glow (decided).** The light is zero before arrival, jumps to
-full intensity on the first frame at/after the crossing, then decays 1→0 over `[0, t_release]`; gate
-on `since >= 0 && since < t_release`, with the decay equal to 1.0 at `since == 0`. There is **no
-pre-crossing attack** — nothing lights before the note lands. Accepted tradeoff: on frames not aligned
-to the exact crossing, the first drawn frame is `since ∈ (0, dt]`, so it renders `decay(since)`
-(~0.9 at 60 fps) rather than a literal 1.0 — the pop can read a hair softer, which is preferred over
-any pre-arrival glow.
+full intensity on the first frame at/after the crossing, then fades 1→0 over `[0, t_release]`; gate
+on `since >= 0 && since < t_release`, with the fade equal to 1.0 at `since == 0`. There is **no
+pre-crossing attack** — nothing lights before the note lands. The fade is a **smoothstep over the
+remaining fraction** (2026-07-30, replacing a front-loaded quadratic that read as a blink): a
+momentary bright hold at the crossing (zero initial slope), an even mid fade, and a soft landing at
+zero — which also makes the first drawn frame after an unaligned crossing render ≈1.0 rather than
+noticeably decayed.
 
 **Discrete per-note in fast sections.** Removing the global `max` array (per-onset emission) fixes
 half of it. For the rest, keep a per-onset attack-then-decay envelope that returns to ~0, and make the
 **release inter-onset-aware**: clamp each onset's release end to `min(start + nominal, next_onset_on_
-same_geometry - guard)`, where "same geometry" means the same fret-line pair / same chord box / same
-open-edge pair. That guarantees a dark trough before the next pop on that geometry *at any tempo*,
+same_geometry - guard)`, where "same geometry" means the same fret-line pair for singles, the same
+tapped-box edges for taps, or the shared window-edge strips (strums and lone opens clamp against
+each other — they relight the same two frets). That guarantees a dark trough before the next pop on
+that geometry *at any tempo*,
 while a lone or spaced note still gets its full decay — implicitly tempo-relative from onset spacing,
 with no BPM read (consistent with the derive-don't-author principle). Resolve overlapping onsets on
 shared geometry by **max, not sum**, so tails can't wash past 1.0 and erase the trough.
 
-**Chords** drive off the group: one `since = now - group.start_seconds`, one envelope, one box pop,
-with the fire predicate (`non_tap_count >= 2`) aligned to the box-draw predicate so glow and box never
-disagree.
+**Chords** drive off the onset cluster: one `since = now - cluster_start`, one envelope, one
+edge-frets pop, with the fire predicate (`non_tap_count >= 2`) aligned to the box-draw predicate so
+glow and box never disagree.
+
+**The glow pass owns its scan window.** Glow tails outlive the passed-note fade (a sustainless note
+leaves the renderer's visible range ~`g_passed_fade_seconds` (0.15 s) after crossing), so the pass
+does not reuse the visible range: it binary-searches `state.notes` for onsets in
+`[now - release, now + clamp_horizon]` and walks onset clusters directly. The release therefore
+tunes freely — it is not bounded by the fade — and the look-ahead lets strikes at the hit line
+clamp against strikes still approaching.
 
 ## Phased implementation
 
@@ -137,13 +157,19 @@ disagree.
 with the comment about the `BLEND_ADD` pitfall; confirm `submitBatch` already accepts the render
 state. Build only.
 
-**Phase 1 — per-onset glow envelope (timing).** Add an `intensity(since, t_release)` helper: 0 for
-`since < 0`, else a fast decay from 1.0 at `since == 0` to 0 at `since == t_release` (sqrt or
-`(1-t)^2`). No pre-crossing attack (strict zero pre-glow). Add tuning constants
-(`g_hit_glow_release_seconds ≈ 0.09`, a trough guard); retire/replace `g_fret_flash_seconds`
-(`:127`). Implement the inter-onset release clamp (next-onset-on-same-geometry) with max resolution.
-Unit-test the envelope shape (1.0 at `since==0`, 0 for `since<0` and at `since==t_release`, monotone
-decay) in the common/ui Catch2 suite.
+**Phase 1 — per-onset glow envelope (timing).** The pure envelope math lives as a new headless unit
+beside the other highway math in common/core (the `highwayHandWindowAt` precedent), because a
+renderer-file-local helper would be unreachable from any test:
+`rock_hero/common/core/highway/highway_hit_glow.h` / `.cpp` with `highwayHitGlowIntensity(since,
+release)` — 0 for `since < 0`, a smoothstep fade from 1.0 at `since == 0` to 0 at `since ==
+release` — and the inter-onset release clamp `highwayHitGlowRelease(nominal, guard, spacing)`
+with a half-spacing floor so ultra-dense charts keep both a pop and a trough. No pre-crossing attack
+(strict zero pre-glow). Add renderer tuning constants (`g_hit_glow_release_seconds ≈ 0.2`, a trough
+guard; the renderer constants are the authoritative current values); retire `g_fret_flash_seconds`
+(`:127`). Overlaps on shared geometry resolve by max.
+Unit-test the envelope shape (1.0 at `since==0`, 0 for `since<0` and at `since==release`, monotone
+decay, the clamp) in the **common/core** Catch2 suite beside `test_highway_window.cpp`. The CMake
+source-list additions for the new TU and test file are part of this phase.
 
 **Phase 2 — single-note additive fret-line light.** Add the late additive pass building soft strips
 over `{fret-1, fret}` with the envelope in vertex alpha and soft edges in texcoords (mirroring the
@@ -154,11 +180,14 @@ pass (`3649-3654`) to just the inactive↔active state colour — drop the orang
 in the additive pass. Build + verify peak-at-arrival on lit and unlit lines and discrete pops on fast
 sixteenths.
 
-**Phase 3 — chord-box additive panel.** In the additive pass, iterate `chord_groups`; for each with
-`non_tap_count >= 2` emit one panel over `handWindowXAt(state, max(start, now), …)`, keyed on
-`group.start_seconds`. Iterate `state.tap_onsets` for tapped chords (`count >= 2`). Suppress fretted
-members of a boxed group from the Phase 2 single path so a strum lights only the box. Verify one box
-pop per strum, no double-light.
+**Phase 3 — chord edge-frets glow.** In the additive pass, a boxed onset cluster
+(`non_tap_count >= 2`) emits the shared window-edge strips (the chord box's left and right frets,
+`handWindowXAt` at `now`), keyed on the cluster onset; the box interior stays dark. (First built as
+one interior panel per the original plan; seen 2026-07-30 and replaced with the edge frets — what,
+if anything, the interior does instead is an open decision.) Tapped chords (`tap.count >= 2`) light
+their box's edge lines `fret_low - 1` / `fret_high`. Suppress fretted members of a boxed cluster
+from the Phase 2 single path so a strum lights only its edges. Verify one edge pop per strum, no
+double-light.
 
 **Phase 4 — open-string FHP-edge light.** For a visible open note (`fret == 0`) whose group is not
 boxed, emit two soft strips at `highwayFretLineX(current_window.low_line/.high_line)`
@@ -174,13 +203,18 @@ doesn't break the overlay composite or the premultiplied inlay state. Remove any
 
 ## Files touched
 
-- `rock-hero-common/ui/src/highway/highway_renderer.cpp` — all functional changes (the additive
-  state constant, the envelope helper + constants, the new late additive glow pass, single-note
+- `rock-hero-common/core/include/rock_hero/common/core/highway/highway_hit_glow.h` +
+  `rock-hero-common/core/src/highway/highway_hit_glow.cpp` — the pure glow envelope and
+  release-clamp math (headless, beside the other highway math).
+- `rock-hero-common/core/tests/test_highway_hit_glow.cpp` — Catch2 coverage for the glow envelope
+  (1.0 at the crossing, zero before it and at the release end, inter-onset release clamp).
+- `rock-hero-common/core/CMakeLists.txt` + `rock-hero-common/core/tests/CMakeLists.txt` — the new
+  TU and test-file source-list lines.
+- `rock-hero-common/ui/src/highway/highway_renderer.cpp` — all rendering changes (the additive
+  state constant, the tuning constants, the new last-in-view additive glow pass, single-note
   routing + the revert of the flash colour-mix/thickening, chord-group and tap-onset box panels,
   open-note FHP-edge strips, removal of the `flash[]` array).
-- `rock-hero-common/ui/tests/test_*.cpp` — Catch2 coverage for the glow envelope (1.0 at the
-  crossing, zero before it and at the release end, inter-onset release clamp).
-- **Not touched** (explicitly avoided): no new `.sc` shader, no shader-set member, no CMake
+- **Not touched** (explicitly avoided): no new `.sc` shader, no shader-set member, no CMake shader
   program-list edit, no shader-enum value, no game/editor shader-loader edits.
 
 ## Risks
@@ -191,8 +225,12 @@ doesn't break the overlay composite or the premultiplied inlay state. Remove any
 - **Discrete pop is an envelope problem**, not solved by additive blend alone — the inter-onset
   release clamp is the robust fallback for the very fastest charts (a 16th at 150 BPM is 0.1 s,
   exactly today's flash length, which is why they fuse).
-- **Submission order** — the additive pass must submit after its targets within the Sequential board
-  view (a single late pass satisfies this).
+- **Submission order** — the additive pass must be the *last* board-view submission: the
+  premultiplied inlay skin, the fingering panel, and the glyph text all land after the fret lines,
+  and any of them drawn after the glow dims or holes it (the inlay's `ONE, INV_SRC_ALPHA` would
+  punch dark dot silhouettes through the light).
+- **Release vs. passed-note fade** — resolved: the glow pass binary-searches its own onset window
+  over `state.notes` instead of reusing the visible range, so the release tunes freely.
 - **`WRITE_A` omission** — confirm nothing downstream (overlay composite, premultiplied inlay) depends
   on the board dest alpha the glow would otherwise leave intact.
 - **Depth interaction is benign only because board content writes no Z** — flag for anyone who later
@@ -202,24 +240,55 @@ doesn't break the overlay composite or the premultiplied inlay state. Remove any
 
 ## Decided
 
-- **Chord glow size** — same per-pixel intensity as a single note; the box's larger area does the
-  work (no per-chord brightness boost).
+- **Chord glow** — only the box's left and right frets glow (the shared window-edge strips, same
+  per-pixel intensity as a single note); the interior panel was built, seen 2026-07-30, and
+  dropped — the box interior stays dark.
+- **Envelope shape** — smoothstep fade over the remaining fraction (momentary hold at the
+  crossing, even mid fade, soft landing); the front-loaded quadratic at 90 ms read as a blink, and
+  0.2 s still felt too brief (release now ~0.35 s — the renderer constants are authoritative).
 - **Colour** — orange (white-hot core on strong hits), for contrast against the blue-dominant board.
 - **Peak timing** — strict zero pre-glow: full at the crossing frame, no pre-arrival attack.
 - **Rendering approach** — additive soft-sprite reusing the `window_light` shader (Approach A);
   dedicated radial glow shader and scene-wide bloom recorded as future options only if art direction
   later wants a true radial silhouette or scene-wide light-bleed.
+- **Decay policy** — the inter-onset-aware clamp (tempo-relative, derived from onset spacing, no
+  BPM read), with a half-spacing floor for ultra-dense charts; a flat wall-clock duration was
+  rejected because it is exactly what fuses today's fast sections.
+- **Envelope home** — the pure envelope/clamp math lives in common/core beside the other highway
+  math, unit-tested in the core suite (a renderer-internal helper is unreachable from any test).
+- **Slide landings and bend targets glow** (2026-07-30). The governing rule: **every scored
+  arrival pops the glow at its geometry** — the game registers these hit-or-miss, and the editor
+  previews perfect play. A pitched slide waypoint is a fret arrival (the finger lands on a new
+  fret, the tail kinks there, the FHP window ramps there) and pops the landing's lines, whichever
+  hand slides; unpitched trail-offs contribute nothing. A bend target is a pitch arrival on the
+  fret the finger stays planted on and pops that same pair — each curve point ending a sloped
+  segment (bend reached, release completed), never flat holds or the onset. (An earlier
+  bends-stay-dark call keyed on "no fret change"; the hit/miss frame superseded it — the pop is
+  success feedback, not a ghost re-strike.) Both use the sustain-aware range query so an
+  end-of-sustain arrival outlives the passed-note fade, and neither clamps — they are sparse, and
+  the per-line max absorbs overlap.
+- **Retire the old flash machinery** — `g_fret_flash_seconds` and the fret-line colour-mix/
+  thickening go; the additive pass owns all strike brightening (the glow gets its own colour
+  constant, so `g_fret_highlight_color` retires with the mix).
 
 ## Open decisions (still to confirm)
 
-1. **Envelope feel** — release ~90 ms is a starting point tuned in Phase 5; and whether a chord box
-   wants a slightly longer tail than a thin single strip.
-2. **Decay policy** — the inter-onset-aware clamp (tempo-relative, derived from onset spacing, no BPM
-   read) vs. a fixed wall-clock duration. The clamp is recommended for fast-section separation and
-   fits the derive-don't-author principle, but adds a little logic — confirm you want it over a flat
-   number.
+1. **Envelope feel** — iterating by eye (90 ms → 200 ms → 350 ms so far; the strip width came in
+   from falloff 0.35 to 0.2 as too wide); the renderer constants are the authoritative current
+   tune. Refine amplitude, release, and falloff on a dense chart in Phase 5.
+2. **Chord-box interior treatment** — the interior gets no glow for now (only the edge frets
+   flash); whether a strum wants something else inside the frame, and what, is open — revisit
+   after the edge-frets look settles.
 3. **Tap-light distinctness** — the tapping-hand light is already a warm-leaning blue, so if a
    fretting-hand strike and a tap should read as clearly different cues, the strike may want a
    distinctly whiter-cored or more red/gold orange. A Phase 5 tuning call.
-4. **Retire vs. keep** `g_fret_flash_seconds` / `g_fret_highlight_color` once the additive pass owns
-   all strike brightening.
+4. **Bend waypoint posts (proposed follow-up, raised 2026-07-30).** Slide landings already get
+   approach furniture on the floor; bend targets could get their own posts under each waypoint,
+   rising proportional to the bend's semitones at that point — pre-visualizing how far each push
+   goes before it reaches the hit line, the way slide posts pre-visualize landings. Not part of
+   the glow pass (note-furniture geometry); sized as its own small change.
+5. **Paused-transport look (follow-up — decide after seeing it land).** The envelope is stateless in
+   `since` with a `since >= 0` gate, so parking the cursor exactly on an onset (the snap-to-note
+   gesture) shows a static, full-intensity glow while paused; today's flash shows nothing there. A
+   static full glow may look odd — live with the stateless behavior first, then decide whether the
+   glow should gate on the transport playing.

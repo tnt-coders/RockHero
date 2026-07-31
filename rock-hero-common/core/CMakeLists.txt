@@ -9,6 +9,7 @@ target_sources(
             src/chart/chart_tokens.cpp
             src/chart/grid_arithmetic.cpp
             src/highway/highway_camera.cpp
+            src/highway/highway_hit_glow.cpp
             src/highway/highway_projection.cpp
             src/highway/highway_tail.cpp
             src/highway/highway_window.cpp

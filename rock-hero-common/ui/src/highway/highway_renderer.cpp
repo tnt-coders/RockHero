@@ -11,6 +11,7 @@
 #include <numbers>
 #include <ranges>
 #include <rock_hero/common/core/highway/highway_camera.h>
+#include <rock_hero/common/core/highway/highway_hit_glow.h>
 #include <rock_hero/common/core/highway/highway_metrics.h>
 #include <rock_hero/common/core/highway/highway_tail.h>
 #include <rock_hero/common/core/highway/highway_view_state.h>
@@ -113,7 +114,6 @@ constexpr double g_tap_light_warm_mix = 0.3;
 constexpr ArgbColor g_lane_border_color = 0x0007928F; // per-fret runway ribbons (alpha varies)
 constexpr ArgbColor g_fret_inactive_color = 0xFF202020;
 constexpr ArgbColor g_fret_active_color = 0xFFC0C0C0;
-constexpr ArgbColor g_fret_highlight_color = 0xFFFFA000;
 
 // Scrolling fret-number colors (Charter's PREVIEW_3D palette): a bright blue for a dotted fret
 // inside the current hand range, the lane-border teal at half alpha elsewhere, and the FHP
@@ -122,9 +122,23 @@ constexpr ArgbColor g_fret_number_active_color = 0xFF87DDF6;
 constexpr ArgbColor g_fret_number_dim_color = 0x8007928F;
 constexpr ArgbColor g_fret_number_fhp_color = 0xFFFFA821;
 
-// Hand-window activity horizon for the active fret state, and the fret hit-flash length.
+// Hand-window activity horizon for the active fret state.
 constexpr double g_fret_active_horizon_seconds = 0.5;
-constexpr double g_fret_flash_seconds = 0.1;
+
+// Strike glow (the additive hit light; fret-hit-light-effect plan): the nominal release and
+// dark-trough guard feeding highwayHitGlowRelease, the light's colour (a hot orange whose
+// blue-channel lift lets a peak white out over already-lit content), the soft-edge falloff, the
+// hot-core half-width of a fret-line strip, and the fade toward the face top that grounds the
+// light at the strings' crossing. The window-light mask reaches 1.0 only falloff / 2 inside an
+// edge, so a strip needs core_half >= falloff / 2 to actually peak at full intensity. The glow
+// pass walks its own onset window over state.notes, so the release tunes freely — it is not
+// bounded by the passed-note fade.
+constexpr double g_hit_glow_release_seconds = 0.35;
+constexpr double g_hit_glow_trough_guard_seconds = 0.03;
+constexpr ArgbColor g_hit_glow_color = 0xFFFFB040;
+constexpr double g_hit_glow_falloff = 0.2;
+constexpr double g_hit_glow_core_half = g_hit_glow_falloff / 2.0;
+constexpr double g_hit_glow_top_fade = 0.35;
 
 // Anticipation ring window before a note lands (500 ms).
 constexpr double g_anticipation_seconds = 0.5;
@@ -135,6 +149,15 @@ constexpr double g_anticipation_seconds = 0.5;
 constexpr std::uint64_t g_blended_state = BGFX_STATE_WRITE_RGB | BGFX_STATE_WRITE_A |
                                           BGFX_STATE_DEPTH_TEST_LESS | BGFX_STATE_BLEND_ALPHA |
                                           BGFX_STATE_MSAA;
+
+// The strike glow adds light on top of whatever it covers instead of repainting it, so a hit
+// pops identically on lit and unlit content. SRC_ALPHA -> ONE, not BGFX_STATE_BLEND_ADD
+// (ONE -> ONE), which would ignore the soft mask carried in alpha and hard-edge the sprite. No
+// WRITE_Z (the board writes no depth) and no WRITE_A (the light must not stomp the destination
+// alpha the overlay composite sees).
+constexpr std::uint64_t g_additive_state =
+    BGFX_STATE_WRITE_RGB | BGFX_STATE_DEPTH_TEST_LESS |
+    BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_SRC_ALPHA, BGFX_STATE_BLEND_ONE) | BGFX_STATE_MSAA;
 
 // Overlay content is screen-space and never depth-tested.
 constexpr std::uint64_t g_overlay_state =
@@ -3618,40 +3641,18 @@ void HighwayRenderer::Impl::draw(
             }
         }
 
-        // Hit-flash weights: notes sounding within the last flash window light their fret lines
-        // with a sqrt decay (chart-driven, like Charter's preview).
-        std::array<double, g_face_fret_count + 1> flash{};
-        for (const std::size_t index : visible)
-        {
-            const common::core::HighwayNoteView& note = state.notes[index];
-            const double since = now_seconds - note.start_seconds;
-            if (since <= 0.0 || since >= g_fret_flash_seconds || note.fret <= 0)
-            {
-                continue;
-            }
-            const double weight = std::sqrt(1.0 - (since / g_fret_flash_seconds));
-            for (const int line : {note.fret - 1, note.fret})
-            {
-                if (line >= 0 && line <= g_face_fret_count)
-                {
-                    flash.at(static_cast<std::size_t>(line)) =
-                        std::max(flash.at(static_cast<std::size_t>(line)), weight);
-                }
-            }
-        }
-
+        // Strike brightening lives wholly in the additive glow pass at the end of the frame;
+        // the lines themselves carry only the inactive/active hand-window state.
         std::vector<PosColorVertex> vertices;
         std::vector<std::uint16_t> indices;
         for (int line = 0; line <= g_face_fret_count; ++line)
         {
             const double x = common::core::highwayFretLineX(line, metrics, mirrored);
-            const double flash_weight = flash.at(static_cast<std::size_t>(line));
-            const ArgbColor state_color = mixArgb(
+            const ArgbColor color = mixArgb(
                 g_fret_inactive_color,
                 g_fret_active_color,
                 active.at(static_cast<std::size_t>(line)));
-            const ArgbColor color = mixArgb(state_color, g_fret_highlight_color, flash_weight);
-            const double half = (line == 0 ? 0.05 : 0.025) * (1.0 + (3.0 * flash_weight));
+            const double half = line == 0 ? 0.05 : 0.025;
             pushFaceQuad(
                 vertices,
                 indices,
@@ -3953,6 +3954,302 @@ void HighwayRenderer::Impl::draw(
         const bgfx::TextureHandle glyph_texture = atlases.glyphs.get();
         submitBatch(
             glyph_vertices, glyph_indices, posColorUvLayout(), glyph_program.get(), &glyph_texture);
+    }
+
+    // --- Strike glow: an additive light that pops the instant a note crosses the fretboard and
+    // reads as a 100%-perfect strike (fret-hit-light-effect plan; deterministic note-arrival
+    // trigger — an input-gated game version swaps only the trigger source). Reuses the window
+    // light's soft-x-edge sprite under the additive blend, so a strike strictly ADDS luminance
+    // and pops identically on lit and unlit content. Deliberately the LAST board-view
+    // submission: the premultiplied inlay skin would punch dark dot silhouettes through a glow
+    // drawn earlier, and the fingering panel and hit-line text would dim it. The envelope is a
+    // stateless function of now - onset, per-onset with an inter-onset release clamp, so fast
+    // sections keep a discrete pop per strike instead of fusing into a shimmer. ---
+    {
+        std::vector<PosColorUvVertex> vertices;
+        std::vector<std::uint16_t> indices;
+        const double spill = g_hit_glow_falloff / 2.0;
+        const double clamp_horizon = g_hit_glow_release_seconds + g_hit_glow_trough_guard_seconds;
+
+        // One soft vertical strip on the face: hot core g_hit_glow_core_half wide, the window
+        // light's soft x edges, and the envelope in vertex alpha fading toward the face top so
+        // the light reads grounded at the strings' crossing (the mask itself is horizontal-only).
+        const auto push_strip = [&](const double center_x, const double envelope) {
+            const std::uint32_t bottom = packAbgr(g_hit_glow_color, envelope);
+            const std::uint32_t top = packAbgr(g_hit_glow_color, envelope * g_hit_glow_top_fade);
+            const auto vertex = [&](const double x, const double y, const std::uint32_t tint) {
+                return makeUvVertex(
+                    x,
+                    y,
+                    0.0,
+                    tint,
+                    static_cast<float>((x - (center_x - g_hit_glow_core_half)) + spill),
+                    static_cast<float>(((center_x + g_hit_glow_core_half) - x) + spill));
+            };
+            const double x0 = center_x - g_hit_glow_core_half - spill;
+            const double x1 = center_x + g_hit_glow_core_half + spill;
+            pushQuad(
+                vertices,
+                indices,
+                vertex(x0, face_bottom_y, bottom),
+                vertex(x1, face_bottom_y, bottom),
+                vertex(x1, face_top_y, top),
+                vertex(x0, face_top_y, top));
+        };
+        // Per-fret-line max envelopes: fretted singles, single taps, and tapped-box edge lines
+        // share these slots, so overlapping strikes on a shared line resolve by max, never
+        // additive stacking.
+        std::array<double, g_face_fret_count + 1> line_glow{};
+        const auto light_line = [&](const int line, const double envelope) {
+            if (line >= 0 && line <= g_face_fret_count)
+            {
+                line_glow.at(static_cast<std::size_t>(line)) =
+                    std::max(line_glow.at(static_cast<std::size_t>(line)), envelope);
+            }
+        };
+        // Strikes that light the two live window-edge frets: lone opens, and strummed chords —
+        // a strum glows only the chord box's left and right frets, the box interior stays
+        // deliberately dark (user direction 2026-07-30; what the interior does instead is an
+        // open decision). Both kinds share the same two strips, so their onsets collect here in
+        // ascending order and each clamps against the next window-edge strike of either kind.
+        std::vector<double> window_edge_onsets;
+
+        // Fretting-hand onset clusters, walked over the glow's own onset window: glow tails
+        // outlive the passed-note fade, so the pass binary-searches state.notes directly
+        // instead of reusing the visible range (which drops a sustainless note
+        // g_passed_fade_seconds after it crosses and would cap every tunable release). The walk
+        // extends one clamp horizon past now so strikes at the hit line clamp against strikes
+        // still approaching. Clusters use the chord boxes' own grouping rule: notes within the
+        // onset epsilon strike together, and only non-tap members count toward the box. Tap
+        // onsets are the other hand and glow from state.tap_onsets below.
+        const auto glow_begin = std::ranges::lower_bound(
+            state.notes,
+            now_seconds - g_hit_glow_release_seconds,
+            std::ranges::less{},
+            [](const common::core::HighwayNoteView& note) { return note.start_seconds; });
+        for (auto index = static_cast<std::size_t>(glow_begin - state.notes.begin());
+             index < state.notes.size();)
+        {
+            const double cluster_start = state.notes[index].start_seconds;
+            if (cluster_start > now_seconds + clamp_horizon)
+            {
+                break;
+            }
+            std::size_t cluster_end = index + 1;
+            while (cluster_end < state.notes.size() &&
+                   std::abs(state.notes[cluster_end].start_seconds - cluster_start) <
+                       g_onset_match_epsilon)
+            {
+                ++cluster_end;
+            }
+            std::size_t non_tap_count = 0;
+            bool any_open = false;
+            for (std::size_t member = index; member < cluster_end; ++member)
+            {
+                const common::core::HighwayNoteView& note = state.notes[member];
+                if (note.attack != common::core::NoteAttack::Tap)
+                {
+                    ++non_tap_count;
+                    any_open = any_open || note.fret == 0;
+                }
+            }
+            const bool boxed = non_tap_count >= 2;
+            if (boxed || any_open)
+            {
+                window_edge_onsets.push_back(cluster_start);
+            }
+            if (!boxed && cluster_start <= now_seconds)
+            {
+                // Fretted singles (including a fretted note under a simultaneous tap): each
+                // lights its own fret lines. A later strike on the same fret clamps the tail
+                // even when it folds into a chord box whose edge frets miss these lines — the
+                // error is a slightly shorter tail, erring toward discreteness.
+                for (std::size_t member = index; member < cluster_end; ++member)
+                {
+                    const common::core::HighwayNoteView& note = state.notes[member];
+                    if (note.attack == common::core::NoteAttack::Tap || note.fret <= 0)
+                    {
+                        continue;
+                    }
+                    double spacing = std::numeric_limits<double>::infinity();
+                    for (std::size_t next = cluster_end; next < state.notes.size(); ++next)
+                    {
+                        const common::core::HighwayNoteView& later = state.notes[next];
+                        if (later.start_seconds - note.start_seconds > clamp_horizon)
+                        {
+                            break;
+                        }
+                        if (later.fret == note.fret)
+                        {
+                            spacing = later.start_seconds - note.start_seconds;
+                            break;
+                        }
+                    }
+                    const double envelope = common::core::highwayHitGlowIntensity(
+                        now_seconds - note.start_seconds,
+                        common::core::highwayHitGlowRelease(
+                            g_hit_glow_release_seconds, g_hit_glow_trough_guard_seconds, spacing));
+                    if (envelope > 0.0)
+                    {
+                        light_line(note.fret - 1, envelope);
+                        light_line(note.fret, envelope);
+                    }
+                }
+            }
+            index = cluster_end;
+        }
+
+        // Window-edge envelope: ascending onsets, each clamped against its successor (open or
+        // strum alike — they relight the same two strips), resolved by max into one shared
+        // intensity.
+        double window_edge_glow = 0.0;
+        for (std::size_t onset = 0; onset < window_edge_onsets.size(); ++onset)
+        {
+            if (window_edge_onsets[onset] > now_seconds)
+            {
+                break;
+            }
+            const double spacing = onset + 1 < window_edge_onsets.size()
+                                       ? window_edge_onsets[onset + 1] - window_edge_onsets[onset]
+                                       : std::numeric_limits<double>::infinity();
+            window_edge_glow = std::max(
+                window_edge_glow,
+                common::core::highwayHitGlowIntensity(
+                    now_seconds - window_edge_onsets[onset],
+                    common::core::highwayHitGlowRelease(
+                        g_hit_glow_release_seconds, g_hit_glow_trough_guard_seconds, spacing)));
+        }
+
+        // Slide landings and bend targets: every scored arrival pops the glow at its geometry
+        // (user frame 2026-07-30 — the game registers these as hit-or-miss, and the editor
+        // previews 100%-perfect play, so each one shows its success feedback). A pitched slide
+        // waypoint is a fret arrival — the finger lands on a new fret, the tail kinks there,
+        // the FHP window ramps there — and pops the landing's lines, whichever hand slides;
+        // unpitched trail-offs are pressure already releasing and contribute nothing (the tap
+        // light's rule). A bend target is a pitch arrival on the fret the finger stays planted
+        // on, so it pops that same line pair: each curve point ending a sloped segment (bend
+        // reached, release completed) is an arrival, while flat holds and the onset point are
+        // not — the strike already covers the onset. No inter-onset clamp: these are sparse,
+        // never the machine-gun case the clamp exists for, and the per-line max absorbs
+        // overlap. The sustain-aware range query covers a long sustain sliding or bending at
+        // its very end, whose onset left the cluster walk's window long ago.
+        const auto [waypoint_first, waypoint_last] = common::core::highwayVisibleNoteRange(
+            state.notes, sustain_prefix_max, now_seconds - g_hit_glow_release_seconds, now_seconds);
+        for (std::size_t index = waypoint_first; index < waypoint_last; ++index)
+        {
+            const common::core::HighwayNoteView& note = state.notes[index];
+            for (const common::core::HighwaySlideView& waypoint : note.slides)
+            {
+                if (waypoint.unpitched || waypoint.fret <= 0)
+                {
+                    continue;
+                }
+                const double envelope = common::core::highwayHitGlowIntensity(
+                    now_seconds - waypoint.seconds, g_hit_glow_release_seconds);
+                if (envelope > 0.0)
+                {
+                    light_line(waypoint.fret - 1, envelope);
+                    light_line(waypoint.fret, envelope);
+                }
+            }
+            for (std::size_t point = 1; note.fret > 0 && point < note.bend.size(); ++point)
+            {
+                const common::core::HighwayBendPointView& segment_from = note.bend[point - 1];
+                const common::core::HighwayBendPointView& arrival = note.bend[point];
+                if (std::is_eq(arrival.semitones <=> segment_from.semitones))
+                {
+                    continue; // a flat hold segment ends in no arrival
+                }
+                const double envelope = common::core::highwayHitGlowIntensity(
+                    now_seconds - arrival.seconds, g_hit_glow_release_seconds);
+                if (envelope > 0.0)
+                {
+                    light_line(note.fret - 1, envelope);
+                    light_line(note.fret, envelope);
+                }
+            }
+        }
+
+        // Tapping-hand onsets: a tapped chord pops the two fret lines at its box's edges (the
+        // interior stays dark like the strummed boxes), a single tap pops its fret lines like a
+        // fretted single. Same-geometry means the same fret extent; partially overlapping
+        // extents are separate lights that max-resolve on any shared line.
+        for (std::size_t tap_index = 0; tap_index < state.tap_onsets.size(); ++tap_index)
+        {
+            const common::core::HighwayTapOnsetView& tap = state.tap_onsets[tap_index];
+            if (tap.seconds > now_seconds)
+            {
+                break; // onsets ascend
+            }
+            const double since = now_seconds - tap.seconds;
+            if (since >= g_hit_glow_release_seconds)
+            {
+                continue;
+            }
+            double spacing = std::numeric_limits<double>::infinity();
+            for (std::size_t next = tap_index + 1; next < state.tap_onsets.size(); ++next)
+            {
+                const common::core::HighwayTapOnsetView& later = state.tap_onsets[next];
+                if (later.seconds - tap.seconds > clamp_horizon)
+                {
+                    break;
+                }
+                if (later.fret_low == tap.fret_low && later.fret_high == tap.fret_high &&
+                    (later.count >= 2) == (tap.count >= 2))
+                {
+                    spacing = later.seconds - tap.seconds;
+                    break;
+                }
+            }
+            const double envelope = common::core::highwayHitGlowIntensity(
+                since,
+                common::core::highwayHitGlowRelease(
+                    g_hit_glow_release_seconds, g_hit_glow_trough_guard_seconds, spacing));
+            if (envelope <= 0.0)
+            {
+                continue;
+            }
+            if (tap.count >= 2)
+            {
+                light_line(tap.fret_low - 1, envelope);
+                light_line(tap.fret_high, envelope);
+            }
+            else
+            {
+                light_line(tap.fret_low - 1, envelope);
+                light_line(tap.fret_low, envelope);
+            }
+        }
+
+        for (int line = 0; line <= g_face_fret_count; ++line)
+        {
+            const double envelope = line_glow.at(static_cast<std::size_t>(line));
+            if (envelope > 0.0)
+            {
+                push_strip(common::core::highwayFretLineX(line, metrics, mirrored), envelope);
+            }
+        }
+        if (window_edge_glow > 0.0)
+        {
+            // Chord-box edges and open strikes follow the live (possibly sliding) window, so a
+            // decay tail travels with the hand exactly like the window light it brightens.
+            const auto [low_x, high_x] = handWindowXAt(state, now_seconds, metrics, mirrored);
+            push_strip(low_x, window_edge_glow);
+            push_strip(high_x, window_edge_glow);
+        }
+
+        const std::array<float, 4> light_params{
+            static_cast<float>(g_hit_glow_falloff), 0.0F, 0.0F, 0.0F
+        };
+        bgfx::setUniform(window_light_params.get(), light_params.data());
+        submitBatch(
+            vertices,
+            indices,
+            posColorUvLayout(),
+            window_light_program.get(),
+            nullptr,
+            g_board_view,
+            g_additive_state);
     }
 }
 
