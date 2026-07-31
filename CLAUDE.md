@@ -49,12 +49,31 @@ the code you are already touching, do that. A clean design that needs a source-l
 determinate reason to edit CMake; the "don't reconfigure CMake" rule forbids reflexive reconfigures,
 not the build wiring a correct design requires.
 
-This governs the delivered artifact, not agent process: the context-economy rules still bound how
-much you read and verify, and this is not license to widen scope or bundle unrelated cleanups (keep
-the minimal *scope*, but the cleanest *design* within it). Be economical in process; never economical
-in the design of what you ship. When the cleanest design is materially more work or risk, do it
-anyway for small deltas; for large ones, surface the tradeoff to the user rather than silently taking
-the lesser option.
+This governs the delivered artifact, not agent process: it is not license to widen scope or bundle
+unrelated cleanups (keep the minimal *scope*, but the cleanest *design* within it). Context economy
+bounds how much you read; it never bounds how thoroughly you verify what you ship. Be economical in
+process; never economical in the design of what you ship. When the cleanest design is materially
+more work or risk, do it anyway for small deltas; for large ones, surface the tradeoff to the user
+rather than silently taking the lesser option.
+
+## Runtime Performance
+
+This bar binds every model, like the Design Quality Bar above.
+
+Cheap agent time never buys slow shipped code. Runtime cost is a design property, so weigh it while
+choosing the design rather than promising to tune it later:
+
+- **Deadline paths** — the audio callback and the per-frame render path — carry hard budgets, and
+  their constraints (no locks, no allocation, no blocking work on the audio thread) are stated in
+  `docs/design/architecture.md`. There the budget is part of correctness, not an optimization.
+- **Everything else** — editor workflows, import, serialization — reads for clarity first. Reach for
+  a faster shape where input size makes it matter: per-note and per-sample passes over a whole song,
+  or repeated rescans of the timeline.
+
+Never claim a performance result from a `debug` build. Measure through
+`.agents/rockhero-build.ps1 -Preset relwithdebinfo` (optimized, with debug info and no LTO), which
+is a determinate reason to configure that preset. Report what you measured, not what ought to be
+faster.
 
 ## Model Calibration
 
@@ -70,9 +89,10 @@ their task brief regardless of model. Non-Claude agents follow their own harness
 
 Optimize for cleanliness, correctness, and runtime performance of the delivered code — never for
 finishing the response sooner. Agent wall-clock time and token spend are cheap; a rushed or
-shallow solution is expensive. Keep digging until the root cause or the full design context is
-understood before implementing, and do not settle for the first workable patch when a cleaner
-design is within reach.
+shallow solution is expensive. Agent speed is the only speed that is cheap — see
+[Runtime Performance](#runtime-performance) for the speed that is not. Keep digging until the root
+cause or the full design context is understood before implementing, and do not settle for the first
+workable patch when a cleaner design is within reach.
 
 ### Loosened Context Economy
 
@@ -241,6 +261,37 @@ the machine while it runs, so run it only when the user explicitly asks. Do not 
 routine post-change verification, even after a lint-relevant edit. Ship code that follows the
 naming and style rules in this file so an eventual clang-tidy pass stays clean, but leave the
 invocation to the user.
+
+### Local Verification Does Not Prove CI
+
+Local verification is MSVC on the `debug` preset; CI compiles every change with GCC (Linux), Clang
+(macOS), and clang-cl (Windows lint), all at Release with `-Werror`. A clean local build and green
+local tests are a weaker signal than they look, because these classes cannot be produced locally at
+all:
+
+| Blind spot | Local result (MSVC, debug) | Caught by |
+|---|---|---|
+| `-Wfloat-equal` | not implemented | GCC, Clang, clang-cl |
+| `-Wmissing-designated-field-initializers` | omitted aggregate fields accepted | GCC, Clang |
+| `-Wshadow` against an *inherited* base member | silent | GCC |
+| `bugprone-unchecked-optional-access` | zero findings against the MSVC STL | CI lint |
+| `bugprone-use-after-move` | zero findings against the MSVC STL | CI lint |
+| Release-only undefined behavior | debug timing and layout hide it | CI Release tests |
+
+No local command reports these, so the check is a reading pass over the diff, not another build.
+Before reporting a code change complete, re-read every touched hunk for the constructs that trigger
+them — `==` or `!=` on a floating-point type (including a *defaulted* `operator==` on a
+float-bearing struct), aggregate initializers, `std::optional` dereferences, a variable used after
+`std::move`, a constructor parameter sharing a base member's name, and framework calls whose meaning
+differs per OS — and resolve each hit per `docs/design/coding-conventions.md`. The table lists what
+CI has already caught, not everything it can catch; when a CI failure exposes a blind spot missing
+from it, add the row in the same fix.
+
+`-Werror` stops at the first diagnostic, so one reported error is a sample, not the population.
+Never fix only the line CI named: classify the diagnostic, `rg` the tree for that construct, and fix
+every hit in one change — the compiler stopped before it reached the rest, and each round trip costs
+a full pipeline run. A sweep fixes one diagnostic class mechanically; it is not license to refactor
+what it touches.
 
 ## Architecture
 
