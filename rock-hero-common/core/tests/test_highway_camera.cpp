@@ -26,29 +26,29 @@ namespace
 
 } // namespace
 
-// Focus targeting: the active hand window plus upcoming windows inside the scan horizon
-// (focus_scan_seconds) define the framed fret-line range; the focus is its world middle blended
-// toward the whole-neck spot.
+// Focus targeting: the active hand window plus every window in the current and next framing
+// zone define the framed fret-line range; the focus is its world middle blended toward the
+// derived whole-neck spot and nudged toward the body. The expected value is computed from the
+// shipped constants independently rather than by re-running the production formula, so a change
+// to the formula fails here instead of silently agreeing with itself.
 TEST_CASE("Highway camera targets the scanned hand window", "[core][highway][camera]")
 {
     const HighwayMetrics metrics{};
 
     // Active window at fret 5 width 4 (lines 4..8); an upcoming window at fret 9 width 4
-    // (lines 8..12) inside the scan horizon widens the range to lines 4..12.
-    const HighwayViewState state = makeStateWithFhps({
+    // (lines 8..12) in the next zone widens the range to lines 4..12.
+    HighwayViewState state = makeStateWithFhps({
         HighwayFhpView{.seconds = 0.0, .fret = 5, .width = 4},
         HighwayFhpView{.seconds = 1.5, .fret = 9, .width = 4},
-        HighwayFhpView{.seconds = 60.0, .fret = 1, .width = 4}, // beyond the horizon: ignored
+        HighwayFhpView{.seconds = 60.0, .fret = 1, .width = 4}, // two zones out: not framed yet
     });
+    state.camera_zone_starts = {0.0, 4.0, 8.0};
 
     const HighwayCameraTarget target = makeHighwayCameraTarget(state, 1.0, metrics);
 
-    const double middle =
-        (highwayFretLineX(4, metrics, false) + highwayFretLineX(12, metrics, false)) / 2.0;
-    const double expected =
-        middle + ((metrics.focus_whole_neck_x - middle) * metrics.focus_whole_neck_blend) +
-        metrics.focus_x_offset;
-    CHECK(target.focus_x == Catch::Approx(expected));
+    // Lines 4..12 at the shipped 1.1 fret width: world middle 8.8, pulled 10 percent toward the
+    // neck reference (24 * 1.1 * 0.4 = 10.56), then shifted one fret width (1.1) toward the body.
+    CHECK(target.focus_x == Catch::Approx((0.9 * 8.8) + (0.1 * 10.56) + 1.1));
     CHECK(target.span == Catch::Approx(8.0));
 
     // With no hand positions the fallback frames the reference window at the nut.
@@ -57,17 +57,13 @@ TEST_CASE("Highway camera targets the scanned hand window", "[core][highway][cam
     CHECK(fallback.span == Catch::Approx(metrics.camera_reference_span));
 
     // Before the first arrival the first placement's window already holds (the opening scroll
-    // shows where the hand belongs), so the camera frames it even beyond the scan horizon.
-    const HighwayCameraTarget opening = makeHighwayCameraTarget(
-        makeStateWithFhps({HighwayFhpView{.seconds = 60.0, .fret = 9, .width = 4}}), 0.0, metrics);
-    const double opening_middle =
-        (highwayFretLineX(8, metrics, false) + highwayFretLineX(12, metrics, false)) / 2.0;
-    CHECK(
-        opening.focus_x ==
-        Catch::Approx(
-            opening_middle +
-            ((metrics.focus_whole_neck_x - opening_middle) * metrics.focus_whole_neck_blend) +
-            metrics.focus_x_offset));
+    // shows where the hand belongs), so the camera frames it even from outside the scanned zones.
+    HighwayViewState opening_state =
+        makeStateWithFhps({HighwayFhpView{.seconds = 60.0, .fret = 9, .width = 4}});
+    opening_state.camera_zone_starts = {0.0, 4.0, 8.0};
+    const HighwayCameraTarget opening = makeHighwayCameraTarget(opening_state, 0.0, metrics);
+    // Lines 8..12: world middle 11.0, same blend and body shift.
+    CHECK(opening.focus_x == Catch::Approx((0.9 * 11.0) + (0.1 * 10.56) + 1.1));
     CHECK(opening.span == Catch::Approx(4.0));
 }
 
@@ -109,31 +105,10 @@ TEST_CASE("Highway camera frames the current and next zone", "[core][highway][ca
     CHECK(target_at(7.9).span == Catch::Approx(16.0));
 }
 
-// The target deliberately steps (user direction 2026-07-29, after target-side eases were tried
-// and rejected): without zone data the scan falls back to a fixed seconds window — a window
-// has no pull while beyond the horizon and pulls fully the instant it enters.
-TEST_CASE("Highway camera target steps at the scan horizon", "[core][highway][camera]")
-{
-    const HighwayMetrics metrics{};
-
-    const auto target_at = [&](const double lead) {
-        return makeHighwayCameraTarget(
-            makeStateWithFhps({
-                HighwayFhpView{.seconds = 0.0, .fret = 5, .width = 4},
-                HighwayFhpView{.seconds = lead, .fret = 9, .width = 4},
-            }),
-            0.0,
-            metrics);
-    };
-
-    // Beyond the scan horizon (focus_scan_seconds, 3.0): no influence. Inside it: full framing.
-    CHECK(target_at(metrics.focus_scan_seconds + 0.1).span == Catch::Approx(4.0));
-    CHECK(target_at(metrics.focus_scan_seconds - 0.1).span == Catch::Approx(8.0));
-}
-
 // A fretted note outside the hand window — a two-hand tap floats far above the fretting hand,
 // which no longer anchors it — must still be framed: the camera span widens up to the tap even
-// though the hand window (and its light) stays low. Open strings and consumed notes never reframe.
+// though the hand window (and its light) stays low. Open strings never reframe, and content in
+// an already-passed zone drops out of the frame (within a zone it deliberately stays).
 TEST_CASE("Highway camera frames taps above the hand window", "[core][highway][camera]")
 {
     const HighwayMetrics metrics{};
@@ -141,21 +116,47 @@ TEST_CASE("Highway camera frames taps above the hand window", "[core][highway][c
     HighwayViewState state = makeStateWithFhps({
         HighwayFhpView{.seconds = 0.0, .fret = 5, .width = 4}, // hand window fret lines 4..8
     });
-    // Notes ascend by onset (the view-state contract the scan's horizon break relies on): a
-    // note already consumed behind the hit line and an open string must not reframe, while the
-    // tapped note at fret 15 inside the scan ahead — with no hand position covering it — must.
-    state.notes.push_back(HighwayNoteView{.start_seconds = 0.0, .end_seconds = 0.1, .fret = 20});
+    state.camera_zone_starts = {0.0, 1.0, 2.0, 3.0};
+    // Notes ascend by onset (the view-state contract the scan's horizon break relies on): a note
+    // back in zone 0 (now past the scanned window) and an open string must not reframe, while the
+    // tapped note at fret 15 inside the scanned zones — with no hand position covering it — must.
+    state.notes.push_back(HighwayNoteView{.start_seconds = 0.5, .end_seconds = 0.6, .fret = 20});
     state.notes.push_back(HighwayNoteView{.start_seconds = 1.4, .end_seconds = 1.4, .fret = 0});
     state.notes.push_back(HighwayNoteView{.start_seconds = 1.5, .end_seconds = 1.5, .fret = 15});
 
-    const HighwayCameraTarget target = makeHighwayCameraTarget(state, 1.0, metrics);
+    // At now = 1.5 the scan covers zones 1 and 2 (the window [1.0, 3.0)), so the fret-20 note
+    // back in zone 0 is behind window_start and no longer widens the frame.
+    const HighwayCameraTarget target = makeHighwayCameraTarget(state, 1.5, metrics);
     // The range widens from the hand window (lines 4..8) up to the tap's fret line 15: span 11.
     CHECK(target.span == Catch::Approx(11.0));
 
     // The same hand window with no tap frames only itself (lines 4..8 = span 4).
-    const HighwayCameraTarget windowed = makeHighwayCameraTarget(
-        makeStateWithFhps({HighwayFhpView{.seconds = 0.0, .fret = 5, .width = 4}}), 1.0, metrics);
-    CHECK(windowed.span == Catch::Approx(4.0));
+    HighwayViewState windowed_state =
+        makeStateWithFhps({HighwayFhpView{.seconds = 0.0, .fret = 5, .width = 4}});
+    windowed_state.camera_zone_starts = state.camera_zone_starts;
+    CHECK(makeHighwayCameraTarget(windowed_state, 1.5, metrics).span == Catch::Approx(4.0));
+}
+
+// An empty zone list is one unbounded zone, not a special case: the camera has a single scan
+// path (the seconds-window fallback was deleted 2026-07-30). This pins the contract that makes
+// that safe — in production zones are empty only when the arrangement has no chart, and a state
+// with no chart also has no hand positions and no notes, so the unbounded window frames nothing
+// and the target is the reference window at the nut. A state that violates that invariant is
+// framed whole, which is the honest consequence and is asserted here so it cannot surprise.
+TEST_CASE("Highway camera treats missing framing zones as one open zone", "[core][highway][camera]")
+{
+    const HighwayMetrics metrics{};
+
+    // The production shape: no zones, and nothing to frame.
+    const HighwayCameraTarget empty = makeHighwayCameraTarget(makeStateWithFhps({}), 0.0, metrics);
+    CHECK(empty.span == Catch::Approx(metrics.camera_reference_span));
+
+    // A hand-built state with content but no zones frames all of it at once, past and future.
+    const HighwayViewState unzoned = makeStateWithFhps({
+        HighwayFhpView{.seconds = -30.0, .fret = 2, .width = 4}, // lines 1..5
+        HighwayFhpView{.seconds = 900.0, .fret = 9, .width = 4}, // lines 8..12
+    });
+    CHECK(makeHighwayCameraTarget(unzoned, 0.0, metrics).span == Catch::Approx(11.0));
 }
 
 // The smoother is frame-rate independent (two half steps equal one full step; it is the exact
@@ -247,14 +248,13 @@ TEST_CASE("Highway camera smoother eases in without a jolt", "[core][highway][ca
     CHECK(entering.pose(metrics).x == Catch::Approx(10.0).margin(0.2));
 }
 
-// The verticality invariant holds exactly at the zero-rotation configuration: with pitch and
-// yaw zeroed the chain reduces to a pure translation plus perspective, and a world-vertical
-// segment keeps a constant NDC X. (This pins the machinery across many poses and aspects; the
-// next case pins the same property at the shipped defaults.)
+// The verticality invariant holds exactly at the zero-rotation configuration: with the yaw
+// zeroed the chain reduces to a pure translation plus perspective, and a world-vertical segment
+// keeps a constant NDC X. (This pins the machinery across many poses and aspects; the next case
+// pins the same property at the shipped defaults.)
 TEST_CASE("Highway camera projects world-vertical lines screen-vertical", "[core][highway][camera]")
 {
     HighwayMetrics metrics{};
-    metrics.camera_pitch_radians = 0.0;
     metrics.camera_yaw_radians = 0.0;
 
     for (const double focus_x : {0.0, 2.4, 12.0, 28.8, -6.0})
@@ -307,6 +307,39 @@ TEST_CASE(
     }
 }
 
+// Square pixels: world-square geometry must project screen-square at every viewport shape, or
+// note heads and inlay dots render as ellipses. This guards the removal of Charter's +0.05
+// vertical screen-scale lift (2026-07-30), which stretched the picture 5 to 10 percent
+// vertically depending on window shape and which no test caught in either direction.
+//
+// The check is that a world X extent and an equal world Y extent, at the same depth, occupy the
+// same fraction of the screen: NDC is normalized per axis, so equal screen lengths means the X
+// delta times the aspect ratio equals the Y delta. The yaw is zeroed because it is a rigid
+// rotation that varies depth along X — it cannot make pixels non-square, but it would tilt the
+// probe pair and obscure the scale property being pinned here.
+TEST_CASE("Highway camera projects square pixels at every aspect", "[core][highway][camera]")
+{
+    HighwayMetrics metrics{};
+    metrics.camera_yaw_radians = 0.0;
+    const HighwayCameraPose pose{.x = 6.0, .y = metrics.camera_y_base, .z = metrics.camera_z_base};
+    constexpr double extent = 2.0;
+
+    // Both branches of the projection's min() pair, plus the seam at exactly 2:1.
+    for (const double aspect : {1.0, 4.0 / 3.0, 16.0 / 9.0, 2.0, 21.0 / 9.0, 32.0 / 9.0})
+    {
+        const HighwayMat4 world_to_clip = makeHighwayWorldToClip(pose, aspect, false, metrics);
+        for (const double z : {2.0, 8.0, 24.0})
+        {
+            const auto origin = world_to_clip.projectPoint(pose.x, 0.0, z);
+            const auto along_x = world_to_clip.projectPoint(pose.x + extent, 0.0, z);
+            const auto along_y = world_to_clip.projectPoint(pose.x, extent, z);
+            CHECK(
+                (along_x[0] - origin[0]) * aspect ==
+                Catch::Approx(along_y[1] - origin[1]).margin(1.0e-12));
+        }
+    }
+}
+
 // The board pin: the anchor point (focus X, board surface, hit line) lands exactly at the
 // configured NDC height for every pose, while its screen X stays wherever the projection put
 // it — the board slides freely left/right on a fixed-height anchor.
@@ -331,7 +364,7 @@ TEST_CASE(
         const auto off_focus = world_to_clip.projectPoint(focus_x + 6.0, 0.0, 0.0);
         CHECK(off_focus[0] > 0.0);
         // With the default yaw the board floor slopes gently (the angled-neck look) — about
-        // -0.10 NDC over 6 world units at the reference pose. Bound it so the slope can never
+        // -0.09 NDC over 6 world units at the reference pose. Bound it so the slope can never
         // silently degenerate into a skewed picture.
         CHECK(off_focus[1] == Catch::Approx(metrics.ndc_pin_y).margin(0.2));
         CHECK(off_focus[1] < metrics.ndc_pin_y);

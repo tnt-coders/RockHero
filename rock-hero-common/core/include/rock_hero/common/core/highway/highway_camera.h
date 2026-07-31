@@ -107,17 +107,19 @@ a min/max fret-line range; the focus is that range's world middle blended a fixe
 toward a whole-neck position, and the range width is the span driving the out-zoom.
 
 The target holds perfectly still for whole zones and *steps* only at zone boundaries (user
-direction 2026-07-29, matching the source game's documented framing rule — it fits the current
-plus following group's positions): content framed for its zone stays framed even after it is
-consumed, every position change is announced a full zone before the hand must be in place, and
-HighwayCamera's spring is the single mechanism that turns the boundary steps into motion.
-Earlier per-FHP rolling windows kept the target in constant per-position churn; target-side
-eases layered on a follow filter fought each other — both were tried and rejected. A state with
-no zone data (no beats: empty or synthetic charts) falls back to a fixed seconds window
-(HighwayMetrics::focus_scan_seconds) with per-position steps.
+direction 2026-07-29): content framed for its zone stays framed even after it is consumed, every
+position change is announced a full zone before the hand must be in place, and HighwayCamera's
+spring is the single mechanism that turns the boundary steps into motion. Earlier per-FHP rolling
+windows kept the target in constant per-position churn; target-side eases layered on a follow
+filter fought each other — both were tried and rejected.
+
+Zone quantization is the only framing rule; there is no second scan path. An empty zone list is
+simply one unbounded zone, which is well defined because it can only occur with no chart at all
+(zones derive from measure downbeats, and a chart always yields at least one) — so the window
+spans a state that has no hand positions and no notes to frame.
 
 A chart with no hand positions falls back to the reference four-fret window at the nut. The
-state's mirror flag reflects the focus (and the whole-neck blend point) as pure math.
+state's mirror flag reflects the focus (and the derived whole-neck blend point) as pure math.
 
 \param state Seconds-resolved highway content (its display options supply the mirror flag).
 \param now_seconds Current playback time.
@@ -185,21 +187,21 @@ private:
 /*!
 \brief Builds the world-to-clip transform: the camera chain plus the board pin.
 
-The chain reproduces the source game's camera exactly (source-verified 2026-07-11): view
-translation, the small yaw and pitch rotations that give the board its held-guitar-neck reading
-(the yaw slopes the strings ~2-3 degrees and magnifies the body-side neck end; the pitch places
-the vanishing point), Charter's very wide frustum, and finally **the board pin** — the world
-point (camera focus X, board surface, hit line) is projected and the whole picture is translated
-vertically so that point lands at the configured NDC height. The translation is vertical-only:
-the board slides freely left/right as the focus moves while the anchor height never changes.
+The chain is: view translation, the single small yaw that gives the board its held-guitar-neck
+reading (it slopes the strings ~2-3 degrees and magnifies the body-side neck end), a very wide
+frustum, and finally **the board pin** — the world point (camera focus X, board surface, hit
+line) is projected and the whole picture is translated vertically so that point lands at the
+configured NDC height. The translation is vertical-only: the board slides freely left/right as
+the focus moves while the anchor height never changes.
 
-With both rotation metrics zeroed the chain reduces to the zero-rotation formulation whose exact
-verticality stays regression-tested at that configuration.
+Two properties are regression-tested and load-bearing. The yaw is the chain's only rotation, so
+world-vertical projects exactly screen-vertical. And the frustum is exactly square-pixel at every
+aspect ratio, so world-square geometry — note heads, inlay dots — never renders stretched.
 
 \param pose Smoothed camera position.
 \param aspect_ratio Viewport width over height.
 \param mirrored True for left-handed display; flips the yaw so the picture mirrors exactly.
-\param metrics World-space constants (rotations, frustum, clip planes, pin height).
+\param metrics World-space constants (yaw, frustum, clip planes, pin height).
 \return World-to-clip transform with the pin applied.
 */
 [[nodiscard]] HighwayMat4 makeHighwayWorldToClip(

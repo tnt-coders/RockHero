@@ -393,8 +393,14 @@ struct HighwayViewState
     aligned to downbeats, runs of empty measures collapse into a single zone however long, and
     section starts force a new zone. The camera frames the current zone plus the next one, so
     its framing target steps only at these boundaries — the resting cadence that defines the
-    source game's camera feel. Empty when the chart has no beats; the camera then falls back to a
-    fixed seconds window.
+    camera's feel.
+
+    Non-empty whenever there is anything to frame, and the camera depends on that: it has a
+    single scan path, so an empty list reads as one unbounded zone and would frame the entire
+    timeline at once. The invariant holds because zones derive from measure downbeats and any
+    chart yields at least beat 0, while an arrangement with no chart fills neither these nor
+    \ref notes and \ref fret_hand_positions. Keep it that way — a state carrying content but no
+    zone starts is not a supported shape, and nothing diagnoses it.
     */
     std::vector<double> camera_zone_starts;
 

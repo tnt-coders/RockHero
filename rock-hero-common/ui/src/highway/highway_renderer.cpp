@@ -172,8 +172,9 @@ constexpr std::uint64_t g_premultiplied_state =
     BGFX_STATE_BLEND_FUNC(BGFX_STATE_BLEND_ONE, BGFX_STATE_BLEND_INV_SRC_ALPHA) | BGFX_STATE_MSAA;
 
 // How many fret slots the board face draws; charts cap at g_max_fret but the board draws a
-// fixed neck.
-constexpr int g_face_fret_count = 24;
+// fixed neck. Aliased from core so the drawn board and the camera's whole-neck focus reference
+// (highwayFocusWholeNeckX) can never disagree about how long the neck is.
+constexpr int g_face_fret_count = common::core::g_highway_fret_count;
 
 // Seconds a passed note takes to fade out after crossing the hit line.
 constexpr double g_passed_fade_seconds = 0.15;
@@ -250,9 +251,6 @@ constexpr ArgbColor g_chord_box_dark_color = 0xFF003C3D;
 constexpr ArgbColor g_chord_full_mute_cross_color = 0xFF80D8FF;
 constexpr ArgbColor g_chord_palm_mute_cross_color = 0xFF005064;
 constexpr ArgbColor g_chord_name_color = 0xFFE0E0E0;
-// Kept equal to HighwayMetrics::string_grid_base_y on purpose: the box's bottom bar sits on
-// the floor (y = 0) and fills the gap below the string grid exactly (see that field's doc).
-constexpr double g_chord_box_frame_thickness = 0.075;
 
 // Hand-shape span rails on the floor: arpeggio spans in Charter's purple, held shapes in
 // the lane-border teal; a solid core with fade-out wings (fret thickness x3 and x9).
@@ -690,15 +688,21 @@ void pushFaceQuad(
 // \param with_top Full sides plus a top bar (3+ note chords); ignored under box_only/accent.
 // \param any_accent Accent chevrons on the sides.
 // \param mute Mute cross variant, drawn only under box_only.
+// \param frame_thickness Bar/column width of the frame; callers pass the string grid's base
+//        height so the bottom bar fills the gap under the grid exactly.
 void pushChordBoxPanel(
     std::vector<PosColorVertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
     const double x1, const double z, const double full_height_y1, const bool box_only,
-    const bool with_top, const bool any_accent, const common::core::NoteMute mute)
+    const bool with_top, const bool any_accent, const common::core::NoteMute mute,
+    const double frame_thickness)
 {
     const double middle_x = (x0 + x1) / 2.0;
     const double y0 = 0.0;
     const double y1 = box_only ? (y0 + full_height_y1) / 2.0 : full_height_y1;
-    const double thickness = g_chord_box_frame_thickness;
+    // Sets every frame dimension, not only the bottom bar: the accent chevrons and the side
+    // columns below scale from it too, which is why it comes in as one value rather than being
+    // read per-part.
+    const double thickness = frame_thickness;
 
     const std::uint32_t box_solid = packAbgr(g_chord_box_color);
     const std::uint32_t box_half = packAbgr(g_chord_box_color, 128.0 / 255.0);
@@ -2328,7 +2332,8 @@ void HighwayRenderer::Impl::draw(
                     box.box_only,
                     box.with_top,
                     box.any_accent,
-                    box.mute);
+                    box.mute,
+                    metrics.string_grid_base_y);
                 continue;
             }
             // Display-time window (user catch 2026-07-23): an approaching box takes the window
@@ -2349,7 +2354,8 @@ void HighwayRenderer::Impl::draw(
                 box.box_only,
                 box.with_top,
                 box.any_accent,
-                box.mute);
+                box.mute,
+                metrics.string_grid_base_y);
             if (box.arpeggio_shape != nullptr)
             {
                 push_arpeggio_brackets(*box.arpeggio_shape, z, window.low_line, window.high_line);
@@ -2605,7 +2611,7 @@ void HighwayRenderer::Impl::draw(
                 semitones += taper * common::core::g_highway_vibrato_depth_semitones *
                              common::core::highwayVibratoWobble(seconds - note.start_seconds);
             }
-            return lane_y + (bend_direction * metrics.bend_lift_per_half_step * semitones);
+            return lane_y + (bend_direction * common::core::highwayBendLiftY(semitones, metrics));
         };
         // The pinned head samples the tail centerline's exact taper so its wobbles stay glued
         // to the tail's hit-line end while sounding (zero at both true tail ends).
@@ -2663,7 +2669,7 @@ void HighwayRenderer::Impl::draw(
             if (note.fret > 0)
             {
                 base_x = common::core::highwayNoteCenterX(note.fret, metrics, mirrored);
-                const double half = metrics.tail_half_width;
+                const double half = common::core::highwayTailHalfWidth(metrics);
                 band = {base_x - half, base_x - (half / 2.0), base_x + (half / 2.0), base_x + half};
             }
             else
@@ -2800,7 +2806,7 @@ void HighwayRenderer::Impl::draw(
                     if (note.tremolo)
                     {
                         x_offset +=
-                            metrics.tail_half_width * taper *
+                            common::core::highwayTailHalfWidth(metrics) * taper *
                             common::core::highwayTremoloWobble(seconds - note.start_seconds);
                     }
                     samples.push_back(
@@ -2956,7 +2962,7 @@ void HighwayRenderer::Impl::draw(
         // every lane down to the bottom one carries a post scaled to its own height) and the
         // pitched slide-waypoint markers at their own slots and times — so a shape or banding
         // tweak can never desync them.
-        const double post_half_width = metrics.tail_half_width * 0.375;
+        const double post_half_width = common::core::highwayTailHalfWidth(metrics) * 0.375;
         const double post_top_y = head_y * g_shadow_post_fade_end_fraction;
         const double post_floor_alpha = fade * head_slide.alpha * g_shadow_post_floor_alpha;
         const auto push_glow_post =
@@ -3201,7 +3207,7 @@ void HighwayRenderer::Impl::draw(
         x += head_slide.x_offset;
         if (note.tremolo)
         {
-            x += metrics.tail_half_width * head_taper *
+            x += common::core::highwayTailHalfWidth(metrics) * head_taper *
                  common::core::highwayTremoloWobble(head_seconds - note.start_seconds);
         }
 

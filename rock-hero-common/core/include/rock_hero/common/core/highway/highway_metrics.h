@@ -6,11 +6,20 @@
 #pragma once
 
 #include <algorithm>
-#include <cmath>
-#include <compare>
 
 namespace rock_hero::common::core
 {
+
+/*!
+\brief Fret count of the highway board, counted from the nut.
+
+A fixed property of the drawn board rather than a tuning knob: the board face always lays out
+this many fret slots, however few a chart uses (chart validation caps fret numbers separately,
+at \ref g_max_fret). A namespace constant rather than a \ref HighwayMetrics field because the
+renderer sizes per-fret-line arrays with it, and because the metrics struct holds the world-space
+distances that scale the board — this is how many frets those distances are laid out across.
+*/
+inline constexpr int g_highway_fret_count{24};
 
 /*!
 \brief Every world-space constant of the 3D highway, in one documented struct.
@@ -18,9 +27,13 @@ namespace rock_hero::common::core
 Starting values reproduce Charter's 3D preview coordinate system (the settled visual target),
 except where a field's comment records a deliberate user tuning away from it: X is the fret axis
 with fret 0 at x = 0, Y is the string axis with the board surface at y = 0, and Z is the time
-axis with the hit line at z = 0 and future notes at positive Z. Collecting the constants here is
-a deliberate departure from the source game's scattered magic numbers: tuning the
-highway is edits to this one struct.
+axis with the hit line at z = 0 and future notes at positive Z.
+
+The highway has no magic numbers scattered through its renderer: tuning it is edits to this one
+header. The struct holds every *independently authored* constant; the free functions below it
+hold the exact relationships derived from those constants — a tail's width, a bend's lift, the
+whole-neck focus spot — so a derived value can never drift from the constant it is defined
+against.
 
 Shared by the game highway and the editor 3D preview; render backends consume these through the
 headless scene model and camera only.
@@ -35,25 +48,17 @@ struct HighwayMetrics
     */
     double first_fret_distance{1.1};
 
-    /*!
-    \brief Successive-fret width ratio; 1.0 is Charter's equal-width default.
-
-    Values below 1.0 give a realistic taper toward the body. Kept as data so the open fret-taper
-    question is a constant flip, not a code change.
-    */
-    double fret_length_multiplier{1.0};
-
     /*! \brief Vertical distance between string lanes (Charter stringDistance). */
     double string_distance{0.35};
 
     /*!
     \brief World Y of the string grid's base above the floor; the floor stays the origin (y = 0).
 
-    Sized to the chord-box frame thickness (the renderer keeps its constant equal to this on
-    purpose): a chord box's bottom bar sits on the floor and fills this gap exactly, giving it
-    the same half-string clearance from the bottom lane that the box's top bar — drawn just
-    past the fret-line top — has from the top lane (user rule 2026-07-23). Fret lines span the
-    string grid alone and do not extend down through this gap.
+    Doubles as the chord-box frame thickness, which the renderer reads from here rather than
+    keeping its own copy: a chord box's bottom bar sits on the floor and fills this gap exactly,
+    giving it the same half-string clearance from the bottom lane that the box's top bar — drawn
+    just past the fret-line top — has from the top lane (user rule 2026-07-23). Fret lines span
+    the string grid alone and do not extend down through this gap.
     */
     double string_grid_base_y{0.075};
 
@@ -75,20 +80,6 @@ struct HighwayMetrics
     */
     double note_half_width{0.48};
 
-    /*! \brief Sustain tail half-width (one third of the note head half-width). */
-    double tail_half_width{0.16};
-
-    /*!
-    \brief Tail lift per bent half-step: exactly one string-lane gap per semitone.
-
-    Pitch-true in the board's own vertical unit (user direction 2026-07-28): a bent tail
-    reaches the lane N gaps away when the pitch is N semitones up, so the lift reads as pitch
-    the same way lane position does — a whole-step bend visibly crosses two lanes. Supersedes
-    Charter's stringDistance x 0.8. Vibrato depth is authored in semitones and rides the same
-    scale on purpose.
-    */
-    double bend_lift_per_half_step{0.35};
-
     /*! \brief Camera height above the board at the reference fret span. */
     double camera_y_base{5.0};
 
@@ -100,18 +91,6 @@ struct HighwayMetrics
 
     /*! \brief Fret span that uses the base camera position (Charter's 4-fret hand). */
     double camera_reference_span{4.0};
-
-    /*!
-    \brief Fallback fret-focus look-ahead in seconds when a chart carries no framing zones.
-
-    The camera's framing window is normally quantized to the derived camera framing zones
-    (HighwayViewState::camera_zone_starts) so the target rests between boundaries; a state
-    without zone data (no beats: empty or synthetic charts) scans a rolling window this far
-    ahead of now instead — about a second beyond the visible highway at the reference scroll
-    speed, so a shift still starts before its trigger is visible and the spring still lands
-    settled in time.
-    */
-    double focus_scan_seconds{3.0};
 
     /*!
     \brief Rate of the camera's third-order critically damped smoother, per second.
@@ -129,25 +108,32 @@ struct HighwayMetrics
     */
     double focus_spring_per_second{1.3};
 
-    /*! \brief Blend of the focus target toward a fixed whole-neck weighted position. */
+    /*!
+    \brief Fraction of the way from the framed middle toward the neck reference the focus sits.
+
+    One of the focus target's exactly two knobs. The target is an affine function of the framed
+    window's world middle, and that family has exactly two parameters: this blend is its gain
+    (the middle keeps 1 - blend of its pull) and \ref focus_body_shift_frets its offset. The neck
+    reference itself is derived, not stored (\ref highwayFocusWholeNeckX) — a third stored
+    constant would be redundant by construction, because moving the reference by d and the
+    offset by -blend * d produces an identical picture.
+    */
     double focus_whole_neck_blend{0.1};
 
     /*!
-    \brief Neck position the focus blends toward (world X of Charter's weighted whole-neck spot).
+    \brief Constant body-ward shift of the focus target, in fret widths.
 
-    Charter's formula is fretPos(24) * 0.4 + fretPos(0) * 0.6 (source-verified 2026-07-11);
-    for our 24-fret, equal-width neck at the tuned \ref first_fret_distance that is
-    24 * 1.1 * 0.4 = 10.56. Flattened from the formula: keep in step with the fret width.
+    The focus target's second knob, and a plain distance along the neck rather than a position on
+    it: the frame is nudged this far toward the body no matter which frets are being framed.
+
+    Carried in fret widths so the whole fret axis rescales together. Charter's focus formula ends
+    in a raw `+1` world unit (`1 + middle * 0.9 + weighted * 0.1`), which silently changed meaning
+    when \ref first_fret_distance narrowed from Charter's 1.2 to ours — the same drift that had
+    already required hand-recomputing the whole-neck spot. One fret width is what the shift was
+    always meant to be, so the camera reads it through highwayFretLineX like every other fret
+    coordinate, which also makes the lefty mirror structural instead of a hand-written negation.
     */
-    double focus_whole_neck_x{10.56};
-
-    /*!
-    \brief Constant world-X offset added to the focus target.
-
-    Charter's focus formula is `1 + middle * 0.9 + weighted * 0.1` — the leading +1 shifts the
-    framed window slightly toward the body. Mirrored setups negate it.
-    */
-    double focus_x_offset{1.0};
+    double focus_body_shift_frets{1.0};
 
     /*!
     \brief Screen height the board anchor is pinned to, in NDC.
@@ -160,22 +146,18 @@ struct HighwayMetrics
     double ndc_pin_y{-0.9};
 
     /*!
-    \brief Downward camera pitch in radians; zero on purpose (deliberate divergence from Charter).
-
-    Charter ships rotX = 0.06, but that forward tilt skews the whole picture (verticals lean)
-    and was rejected by the user on sight (2026-07-11): the wanted angled-neck reading is the
-    yaw's string slope alone. The yaw never mixes world Y into clip W or X, so with zero pitch
-    fret lines project exactly vertical — regression-tested at the shipped defaults.
-    */
-    double camera_pitch_radians{0.0};
-
-    /*!
     \brief Camera yaw in radians (Charter rotY = 0.03), negated under the lefty mirror.
 
     The yaw makes camera depth vary along a string, so strings slope ~2-3 degrees on screen and
     the body-side neck end renders slightly larger — the angled-neck look (source-verified
     2026-07-11; the zero-rotation formulation looked flat by comparison, the user's observation).
-    This is the only nonzero rotation the shipped camera carries; see camera_pitch_radians.
+
+    The camera's only rotation, deliberately. Charter also ships a forward pitch (rotX = 0.06),
+    but that tilt skews the whole picture — verticals lean — and was rejected by the user on
+    sight (2026-07-11): the wanted angled-neck reading is this yaw's string slope alone. A
+    pitch parameter was carried at zero for a while and then removed; the camera chain has no
+    X rotation at all now, which is *why* fret lines project exactly vertical (a yaw never mixes
+    world Y into clip W or X). That exactness is regression-tested at the shipped defaults.
     */
     double camera_yaw_radians{0.03};
 
@@ -188,20 +170,17 @@ struct HighwayMetrics
     /*!
     \brief Base perspective scale of the reference frustum (Charter near / nearRight = 2/3).
 
-    Charter's projection multiplies camera-space X and Y by this base times an aspect-dependent
-    screen scale (see makeHighwayWorldToClip); the resulting field of view is very wide
-    (~143 degrees horizontal at 16:9), which is a large part of Charter's composition.
+    The projection multiplies camera-space X and Y by this base times an aspect-dependent screen
+    scale (see makeHighwayWorldToClip); the resulting field of view is very wide (~143 degrees
+    horizontal at 16:9), which is a large part of the composition. The single magnification
+    knob: it scales both axes together, so turning it changes how much board fills the screen
+    without ever distorting it. Charter additionally lifted the vertical scale by +0.05 — an
+    anamorphic stretch of 5 to 10 percent depending on window shape, which rendered square note
+    heads as tall rectangles; it was removed 2026-07-30 in favor of an exactly square-pixel
+    frustum (regression-tested), which costs roughly 5 percent of the board's on-screen height.
+    Recover that here if the composition ever reads short, not with a vertical-only term.
     */
     double frustum_scale_base{2.0 / 3.0};
-
-    /*!
-    \brief Extra vertical screen-scale lift (Charter's +0.05 on screenScaleY).
-
-    A deliberate fudge: roughly 5 percent more vertical magnification than square
-    pixels would give, kept for visual parity.
-    */
-    //TODO: try removing this "deliberate fudge"
-    double frustum_y_lift{0.05};
 
     /*! \brief Divisor applied to the camera position for the parallax background layer. */
     double background_parallax_divisor{4.0};
@@ -224,12 +203,15 @@ struct HighwayMetrics
 /*!
 \brief Returns the world X of a fret-line coordinate.
 
-Fret 0 (the nut) sits at x = 0. At the equal-width default each fret line adds
-first_fret_distance linearly; a taper multiplier below 1.0 shrinks successive frets
-geometrically (the continuous geometric series). Integer coordinates are the fixed fret lines;
+Fret 0 (the nut) sits at x = 0 and every fret line adds \ref HighwayMetrics::first_fret_distance:
+the neck is equal-width, matching Charter. Integer coordinates are the fixed fret lines;
 fractional values sit between them — used by the sliding hand window, whose edges travel between
 the fixed lines. The lefty mirror reflects the fret axis through the nut, as pure math the
 renderer never sees. Integer call sites convert to double and get the identical value.
+
+A realistic taper toward the body remains an open product question (roadmap 25-Q1). It is *not*
+a constant flip: fret-relative note-head and chord-box widths would have to come with it, so the
+geometry lands here as a real change when the question is answered rather than as a dormant knob.
 
 \param fret Fret-line coordinate; fractional values sit between the integer lines.
 \param metrics World-space constants.
@@ -239,20 +221,7 @@ renderer never sees. Integer call sites convert to double and get the identical 
 [[nodiscard]] inline double highwayFretLineX(
     double fret, const HighwayMetrics& metrics, bool mirrored)
 {
-    const double multiplier = metrics.fret_length_multiplier;
-    double x = 0.0;
-    // Exact comparison on purpose: the geometric-series branch divides by (1 - multiplier), so
-    // only the exact value 1.0 must take the linear branch. is_eq keeps GCC's -Wfloat-equal
-    // satisfied that the exactness is intended.
-    if (std::is_eq(multiplier <=> 1.0))
-    {
-        x = fret * metrics.first_fret_distance;
-    }
-    else
-    {
-        // Geometric series: widths d, d*m, d*m^2, ... summed up to the requested fret line.
-        x = metrics.first_fret_distance * (1.0 - std::pow(multiplier, fret)) / (1.0 - multiplier);
-    }
+    const double x = fret * metrics.first_fret_distance;
     return mirrored ? -x : x;
 }
 
@@ -271,6 +240,46 @@ renderer never sees. Integer call sites convert to double and get the identical 
     return (highwayFretLineX(fret - 1, metrics, mirrored) +
             highwayFretLineX(fret, metrics, mirrored)) /
            2.0;
+}
+
+/*!
+\brief Returns the fixed whole-neck world X that the camera's fret focus blends toward.
+
+Charter's weighted whole-neck spot is fretPos(24) * 0.4 + fretPos(0) * 0.6 (source-verified
+2026-07-11); the nut term is zero by construction, leaving 40 percent of the top fret line's X.
+
+Derived rather than stored so it cannot fall out of step with the fret axis it is defined
+against — the value was hand-recomputed once already when
+\ref HighwayMetrics::first_fret_distance narrowed from 1.2 to 1.1, which is exactly the drift a
+stored constant invites. Routing it through highwayFretLineX also means the lefty mirror is the
+same reflection every other fret coordinate gets, instead of a hand-written negation at the call
+site. The weight and the fret count are board geometry, not tuning:
+\ref HighwayMetrics::focus_whole_neck_blend and \ref HighwayMetrics::focus_body_shift_frets are
+the focus target's only knobs, and they map one-to-one onto its gain and its offset.
+
+\param metrics World-space constants.
+\param mirrored True to reflect the fret axis for left-handed display.
+\return World X of the whole-neck focus spot.
+*/
+[[nodiscard]] inline double highwayFocusWholeNeckX(const HighwayMetrics& metrics, bool mirrored)
+{
+    // Charter's body-end weight; the nut end carries the remaining 0.6 at x = 0, so it vanishes.
+    constexpr double body_end_weight = 0.4;
+    return highwayFretLineX(g_highway_fret_count, metrics, mirrored) * body_end_weight;
+}
+
+/*!
+\brief Returns the sustain tail's half-width: one third of the note head's.
+
+Derived rather than stored so the proportion cannot drift from the head size it is defined
+against — the tail is the head's slimmer echo, not an independently tuned width.
+
+\param metrics World-space constants.
+\return Half-width of a sustain tail in world units.
+*/
+[[nodiscard]] inline double highwayTailHalfWidth(const HighwayMetrics& metrics)
+{
+    return metrics.note_half_width / 3.0;
 }
 
 /*!
@@ -312,6 +321,26 @@ flips the stacking for players who prefer the mirrored string order.
 {
     const int lane = invert_string_order ? (string_count + 1 - string) : string;
     return highwayLaneToY(lane, metrics);
+}
+
+/*!
+\brief Returns how far a bent tail lifts above its unbent lane, for a pitch offset in half steps.
+
+Exactly one string-lane gap per semitone (user direction 2026-07-28), so lift reads as pitch the
+same way lane position does: a bent tail reaches the lane N gaps away when the pitch is N
+semitones up, and a whole-step bend visibly crosses two lanes. That identity is why the rate is
+the string spacing itself rather than a constant stored beside it — Charter's separate
+stringDistance x 0.8 lift is deliberately superseded. Vibrato depth is authored in semitones and
+rides the same scale on purpose.
+
+\param semitones Pitch offset above the unbent string in half steps; fractional values are
+       ordinary (a bend in progress, a vibrato wobble).
+\param metrics World-space constants.
+\return World Y offset from the unbent lane center.
+*/
+[[nodiscard]] inline double highwayBendLiftY(double semitones, const HighwayMetrics& metrics)
+{
+    return semitones * metrics.string_distance;
 }
 
 /*!

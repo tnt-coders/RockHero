@@ -384,10 +384,10 @@ TEST_CASE("Highway geometry mirrors and inverts as pure reflections", "[core][hi
     CHECK(highwayNoteCenterX(1, metrics, false) == Catch::Approx(0.55));
     CHECK(highwayNoteCenterX(1, metrics, true) == Catch::Approx(-0.55));
 
-    // Lanes are centered on half-string offsets above the string grid's base (0.075, the
-    // chord-box frame thickness): the bottom lane sits the base plus half a string spacing off
-    // the floor (0.075 + 0.175) so fret margins stay symmetric around the grid while a chord
-    // box's bottom bar fills the below-grid gap.
+    // Lanes are centered on half-string offsets above the string grid's base (0.075, which the
+    // renderer also reads as the chord-box frame thickness): the bottom lane sits the base plus
+    // half a string spacing off the floor (0.075 + 0.175) so fret margins stay symmetric around
+    // the grid while a chord box's bottom bar fills the below-grid gap.
     CHECK(highwayStringLaneY(1, 6, metrics, false) == Catch::Approx(0.25));
     CHECK(highwayStringLaneY(6, 6, metrics, false) == Catch::Approx(2.0));
     CHECK(highwayStringLaneY(1, 6, metrics, true) == Catch::Approx(2.0));

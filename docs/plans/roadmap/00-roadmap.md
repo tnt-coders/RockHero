@@ -366,7 +366,7 @@ plan's Gate record.**
 
 ### docs/plans/roadmap/25-note-highway-3d.md
 
-- **25-Q1** fret-width taper: (a) Charter equal-width default; (b) realistic taper. **R: a** — field already exists in HighwayMetrics, revisit with real charts; not blocking.
+- **25-Q1** fret-width taper: (a) Charter equal-width default; (b) realistic taper. **R: a** — still open, revisit with real charts; not blocking. Re-costed 2026-07-30: taper is **not** a constant flip. The `fret_length_multiplier` field was deleted because it never worked — note-head and chord-box widths are fixed world constants that overflow their slots at high frets under a taper, and the whole-neck focus reference assumed equal width. Choosing (b) means making those widths fret-relative, so cost it as real work.
 - **25-Q2** chord fingering panels: (a) on by default (Charter parity); (b) off with setting. **R: a**, setting either way.
 - **25-Q3** scroll speed / visibility window: (a) free player setting, no difficulty coupling; (b) tied to derived difficulty; (c) fixed at v1. **R: a**, persisted via 27's store.
 - **25-Q4** camera shake on hits: (a) Phase 5 behind a default-off setting; (b) drop. **R: a** — replay-safe after the deterministic-seed fix.

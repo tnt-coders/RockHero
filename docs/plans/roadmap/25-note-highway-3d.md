@@ -154,14 +154,17 @@ this tree on 2026-07-06):
   plan 20 Phase 0b confirmation.
 - **World coordinates and constants are Charter's, exactly** (starting values; all collected
   into one `HighwayMetrics` struct):
-  - X = fret axis: fret 0 at x=0, each fret 1.2 units wide (`firstFretDistance = 1.2`, length
-    multiplier 1 → equal-width frets by default).
+  - X = fret axis: fret 0 at x=0, each fret 1.2 units wide (`firstFretDistance = 1.2`),
+    equal-width frets (see 25-Q1 for the still-open taper question).
   - Y = string axis: board surface at y=0, `stringDistance = 0.35`, bottom string at y=0.35; low
     string at the bottom by default, string order invertible by config.
   - Z = time axis: `z = (t_note - t_now) * 0.02 / scrollSpeed`; hit line at z=0; visibility
     window ~1600ms × scrollSpeed.
   - Note head half-width 0.48 (`firstFretDistance / 2.5`); sustain tail half-width one third of
-    that; a bend lifts the tail by `stringDistance * 0.8` per half-step.
+    that. Bend lift started at Charter's `stringDistance * 0.8` per half-step and was changed
+    2026-07-28 to exactly one `stringDistance` — one string-lane gap per semitone, so lift reads
+    as pitch. Both derivations are now functions (`highwayTailHalfWidth`, `highwayBendLiftY`),
+    not stored constants that restate them.
 - **Camera reproduces Charter's behavior** — the property that makes it read well:
   - Nearly fixed: tiny fixed rotations in Charter (`rotX = 0.06`, `rotY = 0.03`, `rotZ = 0`),
     zero roll, NDC-space aspect correction.
@@ -226,13 +229,16 @@ this tree on 2026-07-06):
      strings/frets/inlays; only dynamic content streams through bgfx transient buffers.
   5. `new Random()` per camera-shake frame and wall-clock effects. Ours: one frame clock for all
      animation time, randomness seeded per event, so replays and pauses behave.
-  6. Magic-constant soup. Ours: one documented `HighwayMetrics` struct holding every world-space
-     constant, initialized to Charter's values, so tuning is one file.
+  6. Magic-constant soup. Ours: one documented `HighwayMetrics` struct holding every
+     independently authored world-space constant, initialized to Charter's values, plus free
+     functions beside it for the exact relationships derived from them, so tuning is one file
+     and a derived value cannot drift from its source.
   7. Rotation-approximated verticality (small rotX/rotY leave verticals only approximately
-     vertical, hidden by the NDC pin). Ours: an off-axis (lens-shift) perspective frustum with
-     zero rotation — the same composition, with world-vertical → screen-vertical made
-     mathematically exact and unit-testable. Pin math unchanged; aspect correction via frustum
-     extents rather than post-scale.
+     vertical, hidden by the NDC pin). Ours ships the yaw (the user kept its string slope) but
+     no pitch at all, which is what makes world-vertical → screen-vertical mathematically exact
+     and unit-testable. Pin math unchanged. Aspect handling likewise reached its intended form
+     2026-07-30: Charter's `+0.05` vertical post-scale was removed, so the frustum extents alone
+     carry the aspect and the projection is exactly square-pixel at every viewport shape.
 - **Module placement** follows docs/design/architectural-principles.md ("Library Roles",
   "Placement Procedure for New Files"): headless scene model, projection, camera math, and
   metrics in a `highway/` feature folder of the core library plan 20 Phase 0c selects
@@ -279,8 +285,12 @@ normative):
 
 1. **Fret-width taper**: Charter defaults to equal-width frets (`fretLengthMultiplier = 1`); a
    multiplier under 1 gives realistic narrowing toward the body. Options: (a) keep Charter's
-   equal width; (b) taper. Recommendation: (a) for Charter parity, with the multiplier already a
-   `HighwayMetrics` field — revisit after seeing real charts on screen. Not blocking.
+   equal width; (b) taper. Recommendation: (a) for Charter parity — revisit after seeing real
+   charts on screen. Not blocking. **Re-costed 2026-07-30:** the standing `HighwayMetrics` field
+   was deleted, because it could never have delivered a taper on its own — note-head and
+   chord-box widths are fixed world constants that would overflow their slots at high frets, and
+   the whole-neck focus reference assumed equal width. Option (b) is real work (make those widths
+   fret-relative, then reintroduce the multiplier), not a constant flip.
 2. **Chord fingering panels shown by default?** Options: (a) on, matching Charter's preview;
    (b) off, reduce clutter, enable via setting. Recommendation: (a) on by default — this is a
    learning-oriented game and Charter parity is the stated target; make it a setting either way.
@@ -601,8 +611,9 @@ and anticipation ring all present at a locked 144 fps; all suites green.
 ### Refinement round (2026-07-11, user feedback on the parity pass)
 
 - **Forward pitch removed (deliberate divergence from Charter).** The user's "angled neck" meant
-  only the yaw's string slope, not Charter's forward tilt: `camera_pitch_radians` now defaults
-  to 0 (kept as a parameter). A yaw-only chain never mixes world Y into clip W or X, so fret
+  only the yaw's string slope, not Charter's forward tilt: `camera_pitch_radians` first defaulted
+  to 0 and was deleted outright 2026-07-30, so the chain carries no X rotation at all. A yaw-only
+  chain never mixes world Y into clip W or X, so fret
   lines project exactly vertical — the near-vertical bounded-tilt regression was replaced by an
   exact-verticality check at the shipped defaults.
 - **Open notes and sustain tails brought to Charter's geometry** (both previously wrong): the
@@ -689,8 +700,9 @@ review before implementation (correctness-first, one commit per fix):
   (higher-on-screen note on top), note index as a unique tiebreak. No depth-buffer change (the
   zero-pitch camera cannot encode world Y in depth).
 - **String height + fret margins.** Lanes centered on half-string offsets above the string
-  grid's base (`highwayLaneToY` seam): the floor stays the y = 0 origin, the grid base sits one
-  chord-box frame thickness (0.075) above it so a box's bottom bar fills that gap and keeps the
+  grid's base (`highwayLaneToY` seam): the floor stays the y = 0 origin, the grid base (0.075)
+  doubles as the chord-box frame thickness, which the renderer reads from `string_grid_base_y`
+  rather than keeping its own copy, so a box's bottom bar fills that gap and keeps the
   same half-string clearance from the bottom lane the top bar has from the top lane, and fret
   lines span the grid alone. Board-face top, chord-box top, fingering spots, and
   section/chord-name anchors all follow. (A full one-string stack lift clearing the rolling
