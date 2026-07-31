@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <compare>
 #include <cstddef>
 #include <functional>
 #include <optional>
@@ -224,9 +225,18 @@ struct HighwayTapLightStation
     \param lhs Left-hand station.
     \param rhs Right-hand station.
     \return True when both stations store equal values.
+
+    Exact field equality: stations are compared against values the projection produced, so is_eq
+    keeps GCC's -Wfloat-equal satisfied that the exactness is intended. Callers checking an eased
+    mid-glide station compare with a tolerance instead.
     */
     friend constexpr bool operator==(
-        const HighwayTapLightStation& lhs, const HighwayTapLightStation& rhs) noexcept = default;
+        const HighwayTapLightStation& lhs, const HighwayTapLightStation& rhs) noexcept
+    {
+        return std::is_eq(lhs.seconds <=> rhs.seconds) &&
+               std::is_eq(lhs.fret_low <=> rhs.fret_low) &&
+               std::is_eq(lhs.fret_high <=> rhs.fret_high);
+    }
 };
 
 /*! \brief One tapping-hand onset (a lone tap or a tapped chord) derived from the notes. */
@@ -270,9 +280,17 @@ struct HighwayTapOnsetView
     \param lhs Left-hand view.
     \param rhs Right-hand view.
     \return True when both views store equal values.
+
+    Exact second equality for the same reason as the station's: these are compared against values
+    the projection produced. The scalars are tested before the path so an unequal onset rejects
+    without walking the station vector.
     */
-    friend bool operator==(
-        const HighwayTapOnsetView& lhs, const HighwayTapOnsetView& rhs) noexcept = default;
+    friend bool operator==(const HighwayTapOnsetView& lhs, const HighwayTapOnsetView& rhs) noexcept
+    {
+        return std::is_eq(lhs.seconds <=> rhs.seconds) && lhs.fret_low == rhs.fret_low &&
+               lhs.fret_high == rhs.fret_high && lhs.count == rhs.count &&
+               std::is_eq(lhs.ramp_seconds <=> rhs.ramp_seconds) && lhs.path == rhs.path;
+    }
 };
 
 /*! \brief One fret-hand position marker resolved to a timeline second. */
@@ -580,7 +598,7 @@ tap onset's release.
         {
             ++group_end;
         }
-        HighwayTapOnsetView view{.seconds = onset};
+        HighwayTapOnsetView view{.seconds = onset, .path = {}};
         taps.clear();
         for (std::size_t member = index; member < group_end; ++member)
         {

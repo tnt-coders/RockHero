@@ -365,8 +365,9 @@ TEST_CASE("TabView publishes and dedups the caret mask", "[ui][tab-view]")
             .caret = core::ChartCaretViewState{.seconds = 12.5, .string = 3},
         });
     REQUIRE(pushes.size() == 1);
-    REQUIRE(pushes.back().has_value());
-    CHECK(pushes.back()->getLength() > 0.0f);
+    const auto* const armed_span = pushes.back().has_value() ? &*pushes.back() : nullptr;
+    REQUIRE(armed_span != nullptr);
+    CHECK(armed_span->getLength() > 0.0f);
 
     // A horizontal zoom leaves the caret's row unchanged, so its row-fixed y span is identical and
     // the republish dedups instead of handing the viewport a redundant span.

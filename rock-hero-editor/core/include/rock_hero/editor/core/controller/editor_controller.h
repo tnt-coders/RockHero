@@ -207,7 +207,7 @@ public:
     \param exit_function Host-exit callback invoked after guarded controller shutdown succeeds.
     */
     explicit EditorController(
-        AudioPorts audio_ports, Services services, ExitFunction exit_function);
+        AudioPorts audio_ports, const Services& services, ExitFunction exit_function);
 
     /*!
     \brief Builds the controller, subscribes to transport, and captures initial view state.
@@ -222,7 +222,7 @@ public:
     \param project_operations Project IO operation overrides.
     */
     explicit EditorController(
-        AudioPorts audio_ports, Services services, ExitFunction exit_function,
+        AudioPorts audio_ports, const Services& services, ExitFunction exit_function,
         ProjectOperations project_operations);
 
     /*! \brief Releases the transport listener registration before owned references go away. */

@@ -688,14 +688,14 @@ void defaultExit()
 // Subscribes for coarse transport transitions and captures an initial derived state, falling back
 // to production project IO where an optional project operation is omitted.
 EditorController::EditorController(
-    EditorController::AudioPorts audio_ports, EditorController::Services services,
+    EditorController::AudioPorts audio_ports, const EditorController::Services& services,
     EditorController::ExitFunction exit_function)
     : EditorController(
           audio_ports, services, std::move(exit_function), EditorController::ProjectOperations{})
 {}
 
 EditorController::EditorController(
-    EditorController::AudioPorts audio_ports, EditorController::Services services,
+    EditorController::AudioPorts audio_ports, const EditorController::Services& services,
     EditorController::ExitFunction exit_function,
     EditorController::ProjectOperations project_operations)
     : m_impl(

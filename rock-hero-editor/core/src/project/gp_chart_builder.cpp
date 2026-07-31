@@ -1857,7 +1857,7 @@ std::expected<GpBuiltSong, SongImportError> buildGpSong(const GpScore& score)
                     .position = GridPosition{.measure = static_cast<int>(measure) + 1, .beat = 1},
                     .name = score.master_bars[measure].section,
                 });
-            phrase_boundary_beats.push_back(Fraction{grid.first_global_beat[measure]});
+            phrase_boundary_beats.emplace_back(grid.first_global_beat[measure]);
         }
     }
 

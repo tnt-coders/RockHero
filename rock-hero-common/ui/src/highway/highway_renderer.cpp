@@ -2867,8 +2867,15 @@ void HighwayRenderer::Impl::draw(
                             total_weight += weight;
                             return true;
                         };
-                        for (std::size_t other = sample; other-- > 0 && accumulate(other);)
+                        // The decrement stays out of the condition so the index is not modified
+                        // and read in one expression (bugprone-inc-dec-in-conditions).
+                        for (std::size_t other = sample; other > 0;)
                         {
+                            --other;
+                            if (!accumulate(other))
+                            {
+                                break;
+                            }
                         }
                         for (std::size_t other = sample + 1;
                              other < samples.size() && accumulate(other);

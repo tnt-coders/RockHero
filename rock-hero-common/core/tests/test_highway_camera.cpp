@@ -101,7 +101,10 @@ TEST_CASE("Highway camera frames the current and next zone", "[core][highway][ca
     // A fretted note framed for its zone stays framed after it is consumed (no per-note
     // narrowing churn): a tap at fret 20 early in zone 0 keeps the frame open to line 20
     // through the zone even though it stopped ringing long ago.
-    state.notes.push_back(HighwayNoteView{.start_seconds = 0.6, .end_seconds = 0.7, .fret = 20});
+    state.notes.push_back(
+        HighwayNoteView{
+            .start_seconds = 0.6, .end_seconds = 0.7, .fret = 20, .bend = {}, .slides = {}
+        });
     CHECK(target_at(7.9).span == Catch::Approx(16.0));
 }
 
@@ -120,9 +123,18 @@ TEST_CASE("Highway camera frames taps above the hand window", "[core][highway][c
     // Notes ascend by onset (the view-state contract the scan's horizon break relies on): a note
     // back in zone 0 (now past the scanned window) and an open string must not reframe, while the
     // tapped note at fret 15 inside the scanned zones — with no hand position covering it — must.
-    state.notes.push_back(HighwayNoteView{.start_seconds = 0.5, .end_seconds = 0.6, .fret = 20});
-    state.notes.push_back(HighwayNoteView{.start_seconds = 1.4, .end_seconds = 1.4, .fret = 0});
-    state.notes.push_back(HighwayNoteView{.start_seconds = 1.5, .end_seconds = 1.5, .fret = 15});
+    state.notes.push_back(
+        HighwayNoteView{
+            .start_seconds = 0.5, .end_seconds = 0.6, .fret = 20, .bend = {}, .slides = {}
+        });
+    state.notes.push_back(
+        HighwayNoteView{
+            .start_seconds = 1.4, .end_seconds = 1.4, .fret = 0, .bend = {}, .slides = {}
+        });
+    state.notes.push_back(
+        HighwayNoteView{
+            .start_seconds = 1.5, .end_seconds = 1.5, .fret = 15, .bend = {}, .slides = {}
+        });
 
     // At now = 1.5 the scan covers zones 1 and 2 (the window [1.0, 3.0)), so the fret-20 note
     // back in zone 0 is behind window_start and no longer widens the frame.
