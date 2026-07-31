@@ -21,25 +21,9 @@ inference from surrounding code when one of them speaks to the question directly
 Trivial renames, formatting-only edits, factual answers, status checks, and narrow mechanical
 follow-ups should not trigger the full documentation bootstrap.
 
-## Coding-Agent Efficiency Baseline
-
-For routine coding tasks, minimize context-heavy output and batch verification. This baseline
-binds Mythos-class models at full strength; other Claude models adjust it per
-[Model Calibration](#model-calibration):
-
-- Use `rg -n` first, then read only focused line ranges around relevant matches.
-- Avoid full-file reads of large files and full-repository diffs unless explicitly reviewing or
-  diagnosing an issue that needs them.
-- Prefer `git diff --stat`, `git diff --name-only`, and path-scoped diffs before broader diffs.
-- Batch edits before verification instead of running build/test after every small change.
-- Run quiet targeted tests once the behavioral change is complete; use full logs only after failure.
-- Do not reconfigure CMake unless CMake files, target source lists, generated build graph inputs, or
-  stale-build errors require it.
-- Keep progress updates brief for routine edits, reporting only meaningful findings or blockers.
-
 ## Design Quality Bar (No Shortcuts)
 
-This bar binds every model, including Mythos, and overrides any efficiency rule it conflicts with.
+This bar binds every model and overrides any process rule it conflicts with.
 
 Within the scope of what you are building, always choose the cleanest correct design for the shipped
 code — never a lesser design chosen to save yourself work. "It was faster to write," "to avoid a new
@@ -75,15 +59,12 @@ Never claim a performance result from a `debug` build. Measure through
 is a determinate reason to configure that preset. Report what you measured, not what ought to be
 faster.
 
-## Model Calibration
+## Agent Process
 
-The [Coding-Agent Efficiency Baseline](#coding-agent-efficiency-baseline) above is written for
-Mythos-class Claude models (Fable / Mythos), which apply it at full strength, exactly as written,
-with none of the extra scaffolding below. A session driven by any other Claude model (Opus,
-Sonnet, Haiku, or any future non-Mythos model) keeps every environment, build, and safety rule in
-this file but works under the adjusted profile in this section. Task-scoped subagents follow
-their task brief regardless of model. Non-Claude agents follow their own harness file
-(`AGENTS.md`) and ignore this section. The runtime environment names the active model.
+How to work, as opposed to what to ship. These rules bind every model — they are written to be
+correct for any of them, so there is no per-model profile to reconcile. Task-scoped subagents follow
+their task brief instead. Non-Claude agents follow their own harness file (`AGENTS.md`) and ignore
+this section.
 
 ### Depth over Agent Speed
 
@@ -94,21 +75,29 @@ shallow solution is expensive. Agent speed is the only speed that is cheap — s
 cause or the full design context is understood before implementing, and do not settle for the first
 workable patch when a cleaner design is within reach.
 
-### Loosened Context Economy
+### Context Economy
 
-Loosen the baseline's context-economy rules wherever they risk a wrong or shallow edit:
+Read economically, and stop reading economically the moment it risks a wrong or shallow edit.
+Economy governs what you *read*; it never governs how thoroughly you *verify*.
 
-- Read whole files, full path-scoped diffs, and complete design documents whenever a partial read
-  leaves uncertainty about invariants, callers, or conventions.
-- Re-read the relevant `docs/design/*.md` document before any architecture, layering, or
-  convention decision, even if it was consulted earlier in the session.
-- Verify in smaller batches when a change is subtle or spans layers; building or testing mid-task
-  to confirm a hypothesis is acceptable.
+- Use `rg -n` first and read the focused line ranges around the matches — but read whole files, full
+  path-scoped diffs, and complete design documents whenever a partial read leaves uncertainty about
+  invariants, callers, or conventions.
+- Prefer `git diff --stat`, `git diff --name-only`, and path-scoped diffs before broader diffs.
+- Re-read the relevant `docs/design/*.md` document before any architecture, layering, or convention
+  decision, even if it was consulted earlier in the session.
+- Batch edits before verifying rather than building after every small change — but verify in smaller
+  steps when a change is subtle or spans layers, and build or test mid-task whenever it confirms a
+  hypothesis.
+- Run quiet targeted tests once the behavioral change is complete; use full logs only after failure.
+- Do not reconfigure CMake unless CMake files, target source lists, generated build graph inputs, or
+  stale-build errors require it.
+- Keep progress updates brief for routine edits, reporting only meaningful findings or blockers.
 - Before reporting a task complete, diff every touched file and check the result against each
   requirement in the request.
 
-The environment rules are not loosened: build only through `.agents/rockhero-build.ps1`, never
-reconfigure CMake without a determinate reason, and keep quiet output as the first resort.
+Build only through `.agents/rockhero-build.ps1`, never reconfigure CMake without a determinate
+reason, and keep quiet output as the first resort.
 
 ### Existing Libraries over Hand-Rolled Algorithms
 
@@ -254,7 +243,9 @@ other CMake/compiler environments. Batch verification after coherent edit groups
 building after every small change, keep the quiet default output, and pass `-Configure` only
 after CMake graph changes or stale-Ninja errors. Run build and tests as separate invocations,
 each only when there is a determinate reason for that specific check (code changed → build;
-behavior changed → tests) — never as a reflexive bundle.
+behavior changed → tests) — never as a reflexive bundle. This targets verification; it never
+withholds it, and a subtle or cross-layer change is itself a determinate reason to check in
+smaller steps.
 
 clang-tidy is **on-demand only**: the whole-project `run-clang-tidy` target is slow and saturates
 the machine while it runs, so run it only when the user explicitly asks. Do not run it as part of
