@@ -7,7 +7,8 @@ fixed. As shipped, P1 delivers only the Charter Classic palette DATA plus the de
 the multi-preset registry is deferred to Phases 2–4 (see collapse note below). 45-Q2 taken as A
 for the shipped tier (gray 8th preserved; chartreuse/indigo enter with the Phase 5 cap raise);
 Q2 reopened 2026-07-30 for a rendered trial of the full tier (magenta 8th) on the recorded
-physical-frequency evidence — see open question 2.
+physical-frequency evidence; the trial ran 2026-07-31 and re-closed Q2 on A — see open
+question 2 for the outcome and the octave-pair audit it added.
 Phases 2–3 executable now; Phase 4 after open question 1; Phase 5 decision-gated. Original date
 2026-07-06; baseline `refactor @ 13e82fb0`.
 
@@ -203,21 +204,21 @@ Mirror all four into `docs/plans/roadmap/00-roadmap.md` Decisions-needed.
    and skip the preset. **Recommendation: A** — approve the methodology now, sign off on final
    hex values when Phase 4 presents them rendered; C is rejected by the roadmap requirement that
    at least one colorblind-safe preset ships.
-2. **Classic preset lanes 8–10.** The recorded decision says 8th magenta 0xffff0090, 9th
-   chartreuse 0xffaadc00, 10th indigo 0xff5854ff
-   (`docs/plans/in-progress/note-format-and-tablature-plan.md`), and that tier now carries the
-   physical-frequency justification recorded there (2026-07-30 addendum): the standard six
-   rank-match the octave-folded open-string fundamentals, the fold terminates at six strings,
-   and lanes 7–10 are an explicit false-color convention — the unique RYB-tertiary ordering
-   keeping all adjacent lanes at least 120 degrees apart, corroborated by a greedy max–min
-   CIELAB sweep. The shipped, test-pinned 8th is Charter's near-white gray 0xffb6b6b6. Options:
-   (A) keep gray for the 8th — also the CIELAB sweep's achromatic pick — with chartreuse/indigo
-   at 9/10 (either order is adjacency-legal behind an achromatic 8th; pick at Phase 5); (B) the
-   full recorded tier with magenta at the 8th. **Direction (2026-07-30): trial B rendered before
-   signing.** Concern recorded that 0xffff0090 may read too hot on the dark board; if the trial
-   confirms it, soften within-family first (value/saturation only — hue family and order are the
-   pattern), and fall back to A only if no magenta variant reads calm. Switching is one constant
-   plus one test expectation either way.
+2. **Classic preset lanes 8–10 — RESOLVED A (2026-07-31): the achromatic 8th stands.** Option B
+   ran as a rendered trial: full magenta 0xffff0090 read too hot on the dark board, and the
+   softened in-family variant (same hue, S 0.65 / V 0.85) could not cure a structural defect the
+   soften-in-family rule cannot reach — the tier's ≥120-degree guarantee covers *adjacent lanes*,
+   but an 8th↔6th octave chord (the most common extended-range voicing) pairs the red-purple lane
+   with red itself, ~30 wheel-degrees apart, and the struck pair reads as near-duplicates at any
+   saturation. Gray is also the CIELAB sweep's achromatic pick and the physically honest false
+   color (F#1 alone folds outside visible light — no hue to represent). Lesson folded into the
+   tier criteria: audit octave *pairs* (lane N struck with lane N−2), not just lane adjacency. A
+   same-day audit of the teal 7th against every alternative (other tertiaries, an achromatic
+   pair, a green value-variant, C#1's cyan) confirmed teal uniquely passes both criteria — its
+   7th↔5th octave pairs teal with yellow, 90 degrees apart and cool-against-warm. Phase 5's 9/10
+   pick must re-run the octave-pair audit: a 9th↔7th octave lands on the teal lane, which argues
+   against any blue-green-family 9th (including C#1's physically-true cyan) and re-weighs the
+   chartreuse-vs-indigo order there.
 3. **v1 theme delivery scope.** (A) Built-in presets only (Default Dark ships; more are data);
    (B) file-based user themes at v1. **Recommendation: A**; user-provided theme/palette files are
    the Phase 6 stretch, consistent with "functionality first, polish second"

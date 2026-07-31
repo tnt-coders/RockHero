@@ -323,11 +323,17 @@ What each piece encodes, and the edge cases it covers:
   reproduces the teal/magenta/indigo families and never selects chartreuse) and by octave
   kinship (B1's teal contains B3's green as a wheel parent, exactly as high e's purple contains
   low E's red). C#1's class alone folds visible, at 491.8 nm cyan — the palette's largest
-  untaken gap — seconding the blue-green family. Trial direction: render the full tier (magenta
-  8th) before final sign-off; concern recorded that magenta `(255, 0, 144)` may read too hot on
-  the dark board. If the trial confirms it, soften within-family first (value/saturation only —
-  hue family and order are the pattern), and only then fall back to the achromatic 8th (gray)
-  with chartreuse/indigo at 9/10. Tracked as plan 45 open question 2.
+  untaken gap — seconding the blue-green family. Trial outcome (2026-07-31): the full tier ran
+  rendered; magenta `(255, 0, 144)` read too hot, and the softened in-family variant could not
+  cure a structural defect — an 8th↔6th octave chord (the most common extended-range voicing)
+  pairs the red-purple lane with red itself, ~30 wheel-degrees apart, reading as near-duplicates
+  when struck together at any saturation — so the achromatic 8th stands (also the CIELAB sweep's
+  pick, and the honest false color for the one string folding outside visible light). The
+  octave-pair audit (lane N struck with lane N−2) joins lane adjacency as a tier criterion; a
+  same-day audit confirmed the teal 7th uniquely passes both (its 7th↔5th octave pairs teal
+  with yellow, 90 degrees and cool-against-warm). The Phase 5 cap raise must re-run the audit
+  for 9/10: a 9th↔7th octave lands on the teal lane, arguing against any blue-green-family 9th
+  (including C#1's physically-true cyan). Tracked as plan 45 open question 2 (resolved A).
 - **Quarter bends (and finer) are already representable.** Bend pair values are plain numbers in
   semitones; the corpus already contains 0.5 (quarter-tone curls), and 0.25 or any other
   granularity needs no format change. the source format's coarseness is an importer limitation, not a

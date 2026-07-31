@@ -35,8 +35,14 @@ constexpr ArgbColor g_opaque_alpha = 0xff000000U;
 }
 
 // Charter Classic: Charter's default six string colors (ChartPanelColors STRING_0..5) ordered
-// from the sixth-highest displayed lane upward, plus the shipped extended tier — our RYB teal
-// 7th and Charter's near-white gray 8th (STRING_7).
+// from the sixth-highest displayed lane upward — the RYB wheel's primaries then secondaries,
+// rank-matching the octave-folded open-string fundamentals — plus the decided extended tier
+// going down: the RYB tertiary teal 7th and the achromatic near-white 8th. The tier's magenta
+// 8th was trialed rendered (2026-07-31, full-strength and softened) and rejected: an 8th-to-6th
+// octave chord pairs it with the red lane only ~30 wheel-degrees away and the struck pair reads
+// as near-duplicates at any saturation, while the 8th is the one string whose fundamental folds
+// outside visible light — no hue to represent — making the achromatic (also the CIELAB sweep's
+// pick, and Charter's own STRING_7) the honest false color. Plan 45 open question 2, resolved A.
 constexpr StringColorPalette g_charter_classic_palette{
     .id = "charter-classic",
     .standard =
@@ -49,8 +55,8 @@ constexpr StringColorPalette g_charter_classic_palette{
             0xffd22cf8, // purple (highest string)
         },
     .extended = {
-        0xff00b5a0, // teal (7th string)
-        0xffb6b6b6, // near-white gray (8th string, Charter STRING_7)
+        0xff00b5a0, // teal (7th string, RYB blue-green tertiary)
+        0xffb6b6b6, // near-white gray (8th string, achromatic — no visible-light identity)
     },
 };
 

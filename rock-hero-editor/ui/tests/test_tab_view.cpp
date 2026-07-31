@@ -83,8 +83,9 @@ TEST_CASE("TabView colors strings by their standard-window position", "[ui][tab-
     // Extended-range lanes push the standard window up and take tertiary colors below it.
     CHECK(tabStringColor(2, 7) == red);
     CHECK(tabStringColor(1, 7) == juce::Colour{0xff00b5a0});
-    // The eighth string takes Charter's near-white gray; the seventh keeps our teal. Eight is the
-    // current lane cap (g_max_chart_strings), so no ninth-or-beyond colors are exercised.
+    // The eighth string takes the achromatic near-white (decided by the rendered magenta trial,
+    // plan 45 Q2); the seventh keeps teal. Eight is the current lane cap (g_max_chart_strings),
+    // so no ninth-or-beyond colors are exercised.
     CHECK(tabStringColor(1, 8) == juce::Colour{0xffb6b6b6});
     CHECK(tabStringColor(2, 8) == juce::Colour{0xff00b5a0});
 }
