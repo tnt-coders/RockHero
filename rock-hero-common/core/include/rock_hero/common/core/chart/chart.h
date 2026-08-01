@@ -212,12 +212,15 @@ struct ChartNote
     NoteHarmonic harmonic{NoteHarmonic::None};
 
     /*!
-    \brief Precise fractional touch position for harmonics that sound between frets.
+    \brief Precise fractional string position of the harmonic node, in fret units.
 
     Natural-harmonic node points are not fret positions (the 3.2 / 2.7 / 5.8 family), so
-    harmonic notes may carry the exact touch position here while `fret` stays the integer
-    display anchor. Only meaningful when `harmonic` is set; absent when the touch position is
-    the fret itself.
+    harmonic notes may carry the exact node here while `fret` stays the integer anchor. For a
+    natural harmonic this is where the fret hand touches, and displays anchor the head here;
+    for a pinch harmonic it is where the picking hand grazes the string — the fret hand stays
+    on `fret`, so displays keep the fret anchor and the node waits for a dedicated right-hand
+    cue (roadmap 25-Q5). Only meaningful when `harmonic` is set; absent when the node is the
+    fret itself.
     */
     std::optional<double> touch{};
 

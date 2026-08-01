@@ -3221,10 +3221,13 @@ void HighwayRenderer::Impl::draw(
             continue;
         }
 
-        // Fretted head anchor: the fret-slot middle, or the true touch position for a harmonic
-        // sounding between frets (the chart's fractional node point).
+        // Fretted head anchor: the fret-slot middle, or — for a NATURAL harmonic sounding
+        // between frets — the chart's fractional node point, which is where the fret hand
+        // touches. A pinch harmonic's touch is the PICKING hand's node: the fret hand stays on
+        // note.fret, so the head keeps the fret anchor (imported pinches drew at the node fret,
+        // user catch 2026-07-31) and the node waits for a dedicated right-hand cue (25-Q5).
         double x = common::core::highwayNoteCenterX(note.fret, metrics, mirrored);
-        if (note.harmonic != common::core::NoteHarmonic::None && note.touch.has_value())
+        if (note.harmonic == common::core::NoteHarmonic::Natural && note.touch.has_value())
         {
             const double touch = *note.touch;
             const double touch_floor = std::floor(touch);

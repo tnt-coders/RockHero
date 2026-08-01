@@ -650,7 +650,9 @@ drawers (session Charter clone).
   rolling flip exactly like Charter's CPU-composited textures — alpha "over" is
   associative, so overlay quads replace the compositing wart; upright overlays for full mute and
   hammer/pull), open-note technique overlays and Charter's triple-thickness accent halo,
-  harmonic heads at the chart's fractional touch position, modulated three-band tails (bends,
+  natural-harmonic heads at the chart's fractional touch position (a pinch keeps its fret
+  anchor — its touch is the picking hand's node, deferred to a dedicated cue, 25-Q5;
+  wrong-fret pinch display fixed 2026-07-31), modulated three-band tails (bends,
   vibrato, tremolo, multi-waypoint slides with per-segment easing and unpitched dimming to 25%),
   chord boxes at multi-note onsets (corner holders, gradient frame, accent chevrons, short/full
   sides by chord size, full/palm mute crosses, Charter colors), chord names riding the hit

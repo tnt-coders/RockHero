@@ -370,6 +370,7 @@ plan's Gate record.**
 - **25-Q2** chord fingering panels: (a) on by default (Charter parity); (b) off with setting. **R: a**, setting either way.
 - **25-Q3** scroll speed / visibility window: (a) free player setting, no difficulty coupling; (b) tied to derived difficulty; (c) fixed at v1. **R: a**, persisted via 27's store.
 - **25-Q4** camera shake on hits: (a) Phase 5 behind a default-off setting; (b) drop. **R: a** — replay-safe after the deterministic-seed fix.
+- **25-Q5** pinch-harmonic right-hand cue (raised 2026-07-31): the chart already carries the picking-hand node for a pinch (`ChartNote::touch`, imported from the score's harmonic fret), and the head now correctly stays anchored on the fretted fret — but nothing yet tells the player where to place the picking hand, and overtone-specific verification (22-Q1 currently tiers pinch timbre as Cosmetic) would need the same datum. Design a highway notation for the pinch node (and whether the 2D tab shows it) when pinch display next comes up. Deferred; not blocking.
 
 ### docs/plans/roadmap/26-game-startup-menus-library.md
 
