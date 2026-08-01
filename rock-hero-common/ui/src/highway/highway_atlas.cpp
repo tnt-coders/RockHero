@@ -13,13 +13,6 @@ namespace rock_hero::common::ui
 namespace
 {
 
-// Fallback head atlas: the same 4x4 grid shape as the reference atlas, so the
-// runtime-rasterized cells (the standard head, the bend marker) sit at identical indices in
-// both paths.
-constexpr int g_head_cell_size = 128;
-constexpr int g_head_grid_columns = 4;
-constexpr int g_head_grid_rows = 4;
-
 // Glyph atlas: printable ASCII '!'..'~' (94 glyphs) in a 10x10 grid.
 constexpr int g_glyph_texture_size = 512;
 constexpr int g_glyph_cell_size = 51;
@@ -55,94 +48,6 @@ constexpr char g_last_glyph = '~';
         bgfx::TextureFormat::BGRA8,
         BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP,
         memory)};
-}
-
-// Paints the standard note head into its cell using the channel scheme: R carries the tint
-// mask, G the white highlight, B the alpha mask; A stays opaque everywhere so premultiplication
-// cannot disturb the channels.
-void paintStandardHead(juce::Graphics& graphics, const juce::Rectangle<float> cell)
-{
-    const juce::Rectangle<float> head = cell.reduced(cell.getWidth() * 0.08F);
-
-    // Outer ring: dimmer tint, full alpha coverage.
-    graphics.setColour(juce::Colour::fromRGBA(150, 0, 255, 255));
-    graphics.fillEllipse(head);
-
-    // Inner fill: strong tint with a slight white lift.
-    graphics.setColour(juce::Colour::fromRGBA(235, 30, 255, 255));
-    graphics.fillEllipse(head.reduced(head.getWidth() * 0.09F));
-
-    // Specular highlight toward the upper left: mostly white channel.
-    const float highlight_size = head.getWidth() * 0.28F;
-    graphics.setColour(juce::Colour::fromRGBA(160, 130, 255, 255));
-    graphics.fillEllipse(
-        head.getX() + (head.getWidth() * 0.18F),
-        head.getY() + (head.getHeight() * 0.16F),
-        highlight_size,
-        highlight_size);
-}
-
-// Fallback paint of the bend marker cell: the shipped PNG carries the authored chevron in
-// cell 11 (baked from the offline design harness), so this runs only when the asset is
-// missing. Same geometry — squared butt-capped legs, sharp mitered apex, squat flattened
-// proportions (2026-07-28 sixth pass on sight) — layered as a tinted body around a white core
-// in the channel scheme, without the authored halo (the fallback degrades the art, never the
-// game).
-void paintBendSymbolCell(juce::Graphics& graphics)
-{
-    const int column = g_head_cell_bend % g_head_grid_columns;
-    const int row = g_head_cell_bend / g_head_grid_columns;
-    const auto size = static_cast<float>(g_head_cell_size);
-    const juce::Point<float> origin{
-        static_cast<float>(column) * size, static_cast<float>(row) * size
-    };
-    // Proportions matching the authored cell (2026-07-29: a tad taller and thicker than the
-    // first bake), vertically centered in the cell so the marker quad's 180-degree
-    // inverted-lane flip keeps the glyph on its offset station.
-    const juce::Point<float> apex = origin + juce::Point<float>{0.5F * size, 0.445F * size};
-    const juce::Point<float> left = origin + juce::Point<float>{0.3125F * size, 0.555F * size};
-    const juce::Point<float> right = origin + juce::Point<float>{0.6875F * size, 0.555F * size};
-
-    // Solves p0 + t*d0 == p1 + u*d1 for the miter points.
-    const auto intersect = [](const juce::Point<float> p0,
-                              const juce::Point<float>
-                                  d0,
-                              const juce::Point<float>
-                                  p1,
-                              const juce::Point<float>
-                                  d1) {
-        const float det = (d1.x * d0.y) - (d0.x * d1.y);
-        const float t = (((p1.x - p0.x) * -d1.y) + (d1.x * (p1.y - p0.y))) / det;
-        return p0 + (d0 * t);
-    };
-    const auto outline = [&](const float width) {
-        const float h = width / 2.0F;
-        const auto unit = [](juce::Point<float> v) { return v / v.getDistanceFromOrigin(); };
-        const juce::Point<float> dir1 = unit(apex - left);
-        const juce::Point<float> dir2 = unit(right - apex);
-        // Outer normals point up (negative y) so the miter grows past the apex tip: dir1 runs
-        // up-right and dir2 down-right, so their upward perpendiculars rotate opposite ways.
-        const juce::Point<float> n1{dir1.y, -dir1.x};
-        const juce::Point<float> n2{dir2.y, -dir2.x};
-        const juce::Point<float> apex_outer =
-            intersect(left + (n1 * h), dir1, apex + (n2 * h), dir2);
-        const juce::Point<float> apex_inner =
-            intersect(left - (n1 * h), dir1, apex - (n2 * h), dir2);
-        juce::Path path;
-        path.startNewSubPath(left + (n1 * h));
-        path.lineTo(apex_outer);
-        path.lineTo(right + (n2 * h));
-        path.lineTo(right - (n2 * h));
-        path.lineTo(apex_inner);
-        path.lineTo(left - (n1 * h));
-        path.closeSubPath();
-        return path;
-    };
-
-    graphics.setColour(juce::Colour::fromRGBA(255, 40, 255, 255));
-    graphics.fillPath(outline(0.085F * size));
-    graphics.setColour(juce::Colour::fromRGBA(200, 235, 255, 255));
-    graphics.fillPath(outline(0.036F * size));
 }
 
 } // namespace
@@ -185,6 +90,53 @@ std::array<float, 4> HighwayAtlasLayout::cellRect(const int index) const noexcep
     };
 }
 
+std::array<float, 4> measureHeadCellArtBounds(
+    const juce::Image& image, const HighwayAtlasLayout& layout, const int cell)
+{
+    constexpr std::array<float, 4> g_full_cell{0.0F, 0.0F, 1.0F, 1.0F};
+    const int columns = layout.columns();
+    if (columns <= 0 || layout.rows() <= 0)
+    {
+        return g_full_cell;
+    }
+    const int clamped = std::clamp(cell, 0, layout.capacity() - 1);
+    const int origin_x = (clamped % columns) * layout.cell_size;
+    const int origin_y = (clamped / columns) * layout.cell_size;
+
+    // One read-only lock for the whole scan; getPixelColour resolves the pixel format, so the
+    // byte order stays JUCE's concern (getPixelAt would re-lock per texel).
+    const juce::Image::BitmapData bitmap{image, juce::Image::BitmapData::readOnly};
+    int min_x = layout.cell_size;
+    int min_y = layout.cell_size;
+    int max_x = -1;
+    int max_y = -1;
+    for (int y = 0; y < layout.cell_size; ++y)
+    {
+        for (int x = 0; x < layout.cell_size; ++x)
+        {
+            if (bitmap.getPixelColour(origin_x + x, origin_y + y).getBlue() == 0)
+            {
+                continue;
+            }
+            min_x = std::min(min_x, x);
+            min_y = std::min(min_y, y);
+            max_x = std::max(max_x, x);
+            max_y = std::max(max_y, y);
+        }
+    }
+    if (max_x < 0)
+    {
+        return g_full_cell;
+    }
+    const auto size = static_cast<float>(layout.cell_size);
+    return {
+        static_cast<float>(min_x) / size,
+        static_cast<float>(min_y) / size,
+        static_cast<float>(max_x + 1) / size,
+        static_cast<float>(max_y + 1) / size,
+    };
+}
+
 std::optional<int> highwayGlyphCellIndex(const char character) noexcept
 {
     if (character < g_first_glyph || character > g_last_glyph)
@@ -224,10 +176,11 @@ HighwayAtlases makeHighwayAtlases(const std::span<const std::byte> note_atlas_pn
         .cell_size = g_glyph_cell_size,
     };
 
-    // Head atlas: the reference 4x4 channel-scheme asset (the authored bend chevron lives in
-    // its formerly empty cell 11) uploads verbatim when it decodes; else the procedural
-    // fallback in the same grid shape (same indices) — a missing asset degrades the art,
-    // never the game.
+    // Head atlas: the reference 4x4 channel-scheme asset (one art set for every consumer)
+    // uploads verbatim when it decodes, with per-cell tight art bounds measured for the
+    // consumers that stretch a cell's art (the repeat-box mute marks); empty or undecodable
+    // bytes leave the handle invalid and the layout empty, which the renderer rejects at
+    // create — required product content, never silently substituted.
     if (!note_atlas_png.empty())
     {
         juce::MemoryInputStream stream{note_atlas_png.data(), note_atlas_png.size(), false};
@@ -236,42 +189,21 @@ HighwayAtlases makeHighwayAtlases(const std::span<const std::byte> note_atlas_pn
         {
             // Normalize to ARGB so an RGB-only PNG gains the opaque alpha the BGRA8 upload
             // expects.
-            atlases.heads = uploadAtlas(decoded.convertedToFormat(juce::Image::ARGB));
+            const juce::Image normalized = decoded.convertedToFormat(juce::Image::ARGB);
+            atlases.heads = uploadAtlas(normalized);
             atlases.head_layout = HighwayAtlasLayout{
                 .texture_width = decoded.getWidth(),
                 .texture_height = decoded.getHeight(),
                 .cell_size = decoded.getWidth() / 4,
             };
-            atlases.reference_cells = atlases.heads.isValid();
+            const int capacity = atlases.head_layout.capacity();
+            atlases.head_cell_art_bounds.reserve(static_cast<std::size_t>(std::max(capacity, 0)));
+            for (int cell = 0; cell < capacity; ++cell)
+            {
+                atlases.head_cell_art_bounds.push_back(
+                    measureHeadCellArtBounds(normalized, atlases.head_layout, cell));
+            }
         }
-    }
-    if (!atlases.reference_cells)
-    {
-        atlases.head_layout = HighwayAtlasLayout{
-            .texture_width = g_head_cell_size * g_head_grid_columns,
-            .texture_height = g_head_cell_size * g_head_grid_rows,
-            .cell_size = g_head_cell_size,
-        };
-
-        // Opaque black base (A=0xFF, channels zero) so untouched texels contribute nothing
-        // (B = 0 masks them out) while staying premultiplication-proof.
-        const juce::Image image{
-            juce::Image::ARGB,
-            atlases.head_layout.texture_width,
-            atlases.head_layout.texture_height,
-            true,
-            juce::SoftwareImageType{}
-        };
-        juce::Graphics graphics{image};
-        graphics.fillAll(juce::Colour::fromRGBA(0, 0, 0, 255));
-
-        const auto cell_rect = juce::Rectangle<float>{
-            0.0F, 0.0F, static_cast<float>(g_head_cell_size), static_cast<float>(g_head_cell_size)
-        };
-        paintStandardHead(graphics, cell_rect);
-        paintBendSymbolCell(graphics);
-
-        atlases.heads = uploadAtlas(image);
     }
 
     // Glyph atlas: transparent base, white glyphs — the shape lives in alpha.

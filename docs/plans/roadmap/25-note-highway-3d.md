@@ -590,8 +590,15 @@ drove this pass. Corrections to this plan's own claims are included below.
   the +1).
 - **Note heads**: Charter's 4×4 channel-scheme atlas adopted (cell 0 = standard head, cell 1 =
   anticipation ring); heads are 1:1 squares (0.96 world units — the Phase 3 lane-squashed height
-  was wrong); anticipation ring implemented chart-driven (44-Q1: a). Procedural fallback kept for
-  a missing asset.
+  was wrong); anticipation ring implemented chart-driven (44-Q1: a). A 4×5 grow with a
+  box-scale mute row was tried and reverted the same day (2026-08-01) — the atlas stays the
+  original 4×4, one art set for every consumer, with the full-mute cell thinned in place to
+  the palm X's measured stroke weight (7.9 vs 7.7 px perpendicular, judged on sight
+  2026-08-01). The "procedural fallback kept for a missing asset" policy was REVERSED
+  2026-08-01 (user decision): the fallback was removed entirely — textures are required
+  product content, and a missing/undecodable/wrong-shape asset now fails renderer creation
+  with a typed `TextureAssetInvalid` error (the game exits with the message, the editor
+  disables the preview). Silent art substitution masked deployment failures.
 - **Board**: fretboard skin texture (8×4 atlas, one 256×512 cell per fret, new plain `texture`
   program — the fifth program has its consumer now); dynamic fret lines with Charter's three
   states (inactive 0x202020, active 0xC0C0C0 within current + ≤500ms windows, 100ms sqrt-decay
@@ -655,7 +662,15 @@ drawers (session Charter clone).
   wrong-fret pinch display fixed 2026-07-31), modulated three-band tails (bends,
   vibrato, tremolo, multi-waypoint slides with per-segment easing and unpitched dimming to 25%),
   chord boxes at multi-note onsets (corner holders, gradient frame, accent chevrons, short/full
-  sides by chord size, full/palm mute crosses, Charter colors), chord names riding the hit
+  sides by chord size, repeat-box mute marks stretching the SAME atlas mute cells the note
+  heads composite — mapped through per-cell art bounds measured at atlas build so the authored
+  padding never shrinks the mark; palm fills the box, full spans the box height, both strictly
+  inside; marks submit interleaved with the panel batch so painter order holds across
+  overlapping chug-chain boxes. SETTLED 2026-08-01 after a full loop: procedural strokes and a
+  dedicated box-scale bake were both built and rejected (user rule: absolute texture
+  consistency, one art set, no dedicated variants; part of the earlier dissatisfaction traced
+  to judging a stale relwithdebinfo build) —
+  Charter colors), chord names riding the hit
   line, hand-shape span rails (arpeggio purple / lane teal), fingering panels (barre-aware
   shapes + finger names from fingering.png, suppressed while the current chord is fully muted)
   and arpeggio brackets for the active shape. Chord grouping is a contiguous same-onset prepass

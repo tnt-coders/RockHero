@@ -12,6 +12,12 @@
 #include <cstddef>
 #include <optional>
 #include <span>
+#include <vector>
+
+namespace juce
+{
+class Image;
+} // namespace juce
 
 namespace rock_hero::common::ui
 {
@@ -86,10 +92,15 @@ struct HighwayAtlases
     HighwayAtlasLayout head_layout{};
 
     /*!
-    \brief True when the head atlas is the reference 4x4 asset with the full cell vocabulary
-    (anticipation ring, technique overlays); false on the single-cell procedural fallback.
+    \brief Tight art bounds of every head-atlas cell as {u0, v0, u1, v1} fractions of its cell
+    rect, row-major, sized to the head layout's capacity.
+
+    Measured from the uploaded image's alpha-mask channel so consumers that scale a cell's art
+    to arbitrary geometry (the repeat-box mute marks) can skip the authored in-cell padding; a
+    cell with no art reports the full cell. Head composites keep sampling whole cells — the
+    shared padding is their alignment coordinate system and must not be trimmed away.
     */
-    bool reference_cells{false};
+    std::vector<std::array<float, 4>> head_cell_art_bounds;
 
     /*! \brief Glyph atlas: white-on-transparent text, shape carried by alpha alone. */
     UniqueBgfxHandle<bgfx::TextureHandle> glyphs;
@@ -101,12 +112,13 @@ struct HighwayAtlases
 /*! \brief Cell index of the standard note head inside the head atlas. */
 inline constexpr int g_head_cell_standard = 0;
 
-/*! \brief Cell index of the anticipation ring (reference atlas only; see reference_cells). */
+/*! \brief Cell index of the anticipation ring. */
 inline constexpr int g_head_cell_anticipation = 1;
 
-// The rest of the reference atlas's 4x4 cell vocabulary (row-major indices; reference_cells
-// gates every use except the bend marker, which the procedural fallback also rasterizes so it
-// exists in BOTH atlas paths).
+// The rest of the cell vocabulary (row-major indices). One art set serves every consumer
+// deliberately (user rule 2026-08-01: absolute consistency, no dedicated variants): the mute
+// cells composite over note heads at cell scale AND stretch over repeat chord boxes via their
+// measured art bounds.
 
 /*! \brief Technique note head: the base head variant under left-hand technique markers. */
 inline constexpr int g_head_cell_tech = 2;
@@ -137,8 +149,7 @@ inline constexpr int g_head_cell_accent = 10;
 
 /*!
 \brief Bend marker: the chevron announcing a bent note on its head, authored into the
-reference asset's formerly empty cell (judged 2026-07-28) and runtime-rasterized into the
-procedural fallback — never gated by reference_cells.
+reference asset's formerly empty cell (judged 2026-07-28).
 */
 inline constexpr int g_head_cell_bend = 11;
 
@@ -154,19 +165,39 @@ inline constexpr int g_head_cell_slap = 14;
 /*! \brief Pop (bass) marker. */
 inline constexpr int g_head_cell_pop = 15;
 
+/*! \brief Cells the renderer requires the head atlas to carry (the full 4x4 grid). */
+inline constexpr int g_head_cell_count = 16;
+
+/*!
+\brief Measures one head-atlas cell's tight art bounds from its alpha-mask channel.
+
+Scans the cell's texels for a nonzero mask (the channel scheme's B) and returns the art's
+bounding box as {u0, v0, u1, v1} fractions of the cell square, pixel-edge aligned. A cell
+with no art reports the full cell.
+
+\param image Decoded atlas image in the channel scheme.
+\param layout Cell layout describing the image.
+\param cell Cell index in row-major order; out-of-range indices clamp to the last cell.
+\return {u0, v0, u1, v1} fractions of the cell.
+*/
+[[nodiscard]] std::array<float, 4> measureHeadCellArtBounds(
+    const juce::Image& image, const HighwayAtlasLayout& layout, int cell);
+
 /*!
 \brief Builds the highway atlases and uploads them as immutable bgfx textures.
 
 The head atlas uploads the supplied reference PNG (the Charter-derived 4x4 channel-scheme
-atlas, with the authored bend chevron in its formerly empty cell) verbatim when bytes are
-given and they decode; with no decodable asset a procedural head is rasterized with JUCE into
-the same grid shape (chevron cell included) so a missing asset degrades the art, never the
-game. The glyph atlas is always runtime-rasterized.
+atlas) verbatim when the bytes decode, measuring every cell's tight art bounds into
+head_cell_art_bounds; empty or undecodable bytes leave the heads handle invalid and the layout
+empty, which the renderer treats as a startup error — texture assets are required product
+content, never silently substituted. The glyph atlas is always runtime-rasterized (text, not
+an asset).
 
 Must be called after bgfx initialization and the results destroyed before shutdown (structural
 via the shell's declaration order).
 
-\param note_atlas_png Reference note-atlas PNG bytes; empty selects the procedural fallback.
+\param note_atlas_png Reference note-atlas PNG bytes; empty or undecodable bytes leave the
+       heads handle invalid for the caller to reject.
 \return The uploaded atlases with their layouts.
 */
 [[nodiscard]] HighwayAtlases makeHighwayAtlases(std::span<const std::byte> note_atlas_png);

@@ -133,8 +133,9 @@ std::optional<int> RockHeroGame::onInit()
         std::println(stderr, "rock-hero: {}", highway_shaders.error().message);
         return 1;
     }
-    // Texture assets are best-effort: a missing file falls back to procedural art in the
-    // renderer, never a startup failure.
+    // Texture loads gather what exists and log what does not; the renderer's create validates
+    // the set and fails startup with a typed error on any missing or invalid asset — textures
+    // are required product content (user decision 2026-08-01).
     common::ui::HighwayTextureSet highway_textures;
     auto note_atlas = resources->textureBytes(core::GameTexture::HighwayNotes);
     if (note_atlas.has_value())

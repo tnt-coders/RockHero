@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstring>
+#include <format>
 #include <limits>
 #include <numbers>
 #include <ranges>
@@ -249,9 +250,15 @@ constexpr double g_unpitched_slide_end_alpha = 0.25;
 // chord, with corner holders, gradient frame bars, and mute-cross variants.
 constexpr ArgbColor g_chord_box_color = 0xFF00D2D5;
 constexpr ArgbColor g_chord_box_dark_color = 0xFF003C3D;
-// The palm cross uses Charter's dark palm-mute color (its drawer reads the light
-// full-mute color instead — an evident slip given the unused dark constant; the light/dark
-// split is the intended reading, confirmed by the user).
+// Box mute marks stretch the SAME mute cells the note heads composite (user rule 2026-08-01:
+// absolute texture consistency, no dedicated box variants and no procedural art), mapped
+// through the cells' measured art bounds so the authored in-cell padding — the head
+// composites' alignment frame — never shrinks the mark: the palm X fills the box, the full X
+// spans the box height at its authored aspect, both strictly inside their box (an overhang
+// trial bled into neighboring boxes in dense chug chains). Charter's light/dark mute split
+// colors the marks; the palm value is Charter's dark palm-mute constant (its own drawer reads
+// the light one — an evident slip given the unused dark constant; the split is the intended
+// reading, confirmed by the user).
 constexpr ArgbColor g_chord_full_mute_cross_color = 0xFF80D8FF;
 constexpr ArgbColor g_chord_palm_mute_cross_color = 0xFF005064;
 constexpr ArgbColor g_chord_name_color = 0xFFE0E0E0;
@@ -684,21 +691,20 @@ void pushFaceQuad(
     return pen_x - left_x;
 }
 
-// Draws one chord-box panel — corner holders, a frame variant, and the faint filling, plus a
-// mute cross on a repeat box — into a color batch. Geometry is explicit rather than taken from a
-// ChordGroup so both strummed chord boxes and arpeggio-styled hand-shape boxes reuse it.
+// Draws one chord-box panel — corner holders, a frame variant, and the faint filling — into a
+// color batch. Geometry is explicit rather than taken from a ChordGroup so both strummed chord
+// boxes and arpeggio-styled hand-shape boxes reuse it. A repeat box's mute mark is not drawn
+// here: the caller composites the box-scale atlas mute cell over the panel.
 // \param full_height_y1 The box top for a full-height box (a repeat box is half this).
-// \param box_only Half-height repeat box (enables the mute cross).
+// \param box_only Half-height repeat box.
 // \param with_top Full sides plus a top bar (3+ note chords); ignored under box_only/accent.
 // \param any_accent Accent chevrons on the sides.
-// \param mute Mute cross variant, drawn only under box_only.
 // \param frame_thickness Bar/column width of the frame; callers pass the string grid's base
 //        height so the bottom bar fills the gap under the grid exactly.
 void pushChordBoxPanel(
     std::vector<PosColorVertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
     const double x1, const double z, const double full_height_y1, const bool box_only,
-    const bool with_top, const bool any_accent, const common::core::NoteMute mute,
-    const double frame_thickness)
+    const bool with_top, const bool any_accent, const double frame_thickness)
 {
     const double middle_x = (x0 + x1) / 2.0;
     const double y0 = 0.0;
@@ -831,34 +837,6 @@ void pushChordBoxPanel(
     // Filling: the faint panel, darker toward the middle.
     push_face(x0, y0, box_faint, middle_x, y1, dark_faint);
     push_face(middle_x, y0, dark_faint, x1, y1, box_faint);
-
-    // Mute cross: thin X strokes on a repeat box alone (a full box's notes carry their own mute
-    // markers), light for full mutes and dark for palm mutes.
-    if (box_only && mute != common::core::NoteMute::None)
-    {
-        const double center_y = (y0 + y1) / 2.0;
-        const bool full = mute == common::core::NoteMute::Full;
-        const double d0y = 0.8 * (y1 - center_y);
-        const double d1y = (full ? 0.95 : 0.9) * (y1 - center_y);
-        const double d0x = full ? d0y : 0.8 * (x1 - middle_x);
-        const double d1x = full ? d1y : 0.9 * (x1 - middle_x);
-        const std::uint32_t cross =
-            packAbgr(full ? g_chord_full_mute_cross_color : g_chord_palm_mute_cross_color);
-        pushQuad(
-            vertices,
-            indices,
-            makeVertex(middle_x - d1x, center_y + d0y, z, cross),
-            makeVertex(middle_x - d0x, center_y + d1y, z, cross),
-            makeVertex(middle_x + d1x, center_y - d0y, z, cross),
-            makeVertex(middle_x + d0x, center_y - d1y, z, cross));
-        pushQuad(
-            vertices,
-            indices,
-            makeVertex(middle_x + d1x, center_y + d0y, z, cross),
-            makeVertex(middle_x - d0x, center_y - d1y, z, cross),
-            makeVertex(middle_x - d1x, center_y - d0y, z, cross),
-            makeVertex(middle_x + d0x, center_y + d1y, z, cross));
-    }
 }
 
 // Links one program from its compiled pair; the typed error names the failing program.
@@ -1041,16 +1019,25 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
     impl->inlay_texture = std::move(inlay.handle);
     UploadedTexture fingering = uploadPngTexture(textures.fingering_png);
     impl->fingering_texture = std::move(fingering.handle);
-    if (!impl->atlases.reference_cells || !impl->inlay_texture.isValid() ||
-        !impl->fingering_texture.isValid())
+    // Texture assets are required product content: a missing, undecodable, or wrong-shape
+    // asset is a broken install, not a degradable state (user decision 2026-08-01 — the
+    // procedural fallbacks this check replaces silently masked exactly such failures).
+    if (!impl->atlases.heads.isValid() ||
+        impl->atlases.head_layout.capacity() < g_head_cell_count ||
+        !impl->inlay_texture.isValid() || !impl->fingering_texture.isValid())
     {
-        RH_LOG_WARNING(
-            "common.highway",
-            "reference texture assets unavailable (heads={}, inlays={}, fingering={}); "
-            "procedural fallbacks in use",
-            impl->atlases.reference_cells,
-            impl->inlay_texture.isValid(),
-            impl->fingering_texture.isValid());
+        return std::unexpected{HighwayRendererError{
+            .code = HighwayRendererErrorCode::TextureAssetInvalid,
+            .message = std::format(
+                "highway texture assets missing or invalid (note atlas loaded={} with {} of "
+                "{} required cells, inlays loaded={}, fingering loaded={}); the install or "
+                "resource deployment is broken",
+                impl->atlases.heads.isValid(),
+                impl->atlases.head_layout.capacity(),
+                g_head_cell_count,
+                impl->inlay_texture.isValid(),
+                impl->fingering_texture.isValid())
+        }};
     }
 
     return HighwayRenderer{std::move(impl)};
@@ -2144,10 +2131,29 @@ void HighwayRenderer::Impl::draw(
     // over them (the board view is painter-ordered, no depth buffer). An arpeggio start draws
     // exactly one box — if a chord group lands there it is drawn arpeggio-style rather than a
     // second plain box — and note heads are never suppressed. Repeated/dead strums render the
-    // half-height repeat box with the mute cross. ---
+    // half-height repeat box with its mute mark. ---
     {
         std::vector<PosColorVertex> box_vertices;
         std::vector<std::uint16_t> box_indices;
+        // Repeat-box mute marks sample the same mute cells the note heads composite, through
+        // their measured art bounds. They ride a different program than the panels, and
+        // painter order must hold ACROSS boxes — dense chug chains overlap heavily on screen
+        // in perspective, and a far box's mark must never composite over a nearer box's panel
+        // — so the panel batch flushes before each mark and the mark submits immediately.
+        // Draw-call cost is bounded by the visible marked repeat boxes: tens at worst, noise
+        // for bgfx.
+        std::vector<PosColorUvVertex> box_marker_vertices;
+        std::vector<std::uint16_t> box_marker_indices;
+        const bgfx::TextureHandle box_heads_texture = atlases.heads.get();
+        const auto flush_box_panels = [&] {
+            if (box_vertices.empty())
+            {
+                return;
+            }
+            submitBatch(box_vertices, box_indices, posColorLayout(), color_program.get(), nullptr);
+            box_vertices.clear();
+            box_indices.clear();
+        };
         // Boxes rise exactly to the fret-line top: any higher and the panel visibly pokes past
         // the fret grid (user-flagged bug; the old top added half a string distance).
         const double full_height_y1 = face_top_y;
@@ -2160,10 +2166,6 @@ void HighwayRenderer::Impl::draw(
                                                 const double z,
                                                 const double low_line,
                                                 const double high_line) {
-            if (!atlases.reference_cells)
-            {
-                return;
-            }
             const double half = metrics.note_half_width;
             const auto push_bracket = [&](const int cell,
                                           const double center_x,
@@ -2315,6 +2317,57 @@ void HighwayRenderer::Impl::draw(
             return lhs.start_seconds > rhs.start_seconds;
         });
 
+        // Stretches the shared mute cell's ART over the repeat box, strictly inside it: UVs
+        // come from the cell's measured art bounds (skipping the authored padding), the quad
+        // from the box — the palm X fills the box, the full X spans the box height at its
+        // authored aspect. Submits immediately so painter order holds across boxes — see the
+        // batch comment above.
+        const auto push_box_mute_marker = [&](const double x0,
+                                              const double x1,
+                                              const double z,
+                                              const common::core::NoteMute mute) {
+            const double box_top_y = full_height_y1 / 2.0;
+            const double center_y = box_top_y / 2.0;
+            const double middle_x = (x0 + x1) / 2.0;
+            const bool full = mute == common::core::NoteMute::Full;
+            const int cell_index = full ? g_head_cell_full_mute : g_head_cell_palm_mute;
+            // In-range by construction: create rejects an atlas under g_head_cell_count cells,
+            // and the bounds table is measured to the layout's full capacity.
+            const std::array<float, 4>& bounds =
+                atlases.head_cell_art_bounds[static_cast<std::size_t>(cell_index)];
+            const double half_y = box_top_y - center_y;
+            const double half_x = full ? half_y * (static_cast<double>(bounds[2] - bounds[0]) /
+                                                   static_cast<double>(bounds[3] - bounds[1]))
+                                       : x1 - middle_x;
+            const std::array<float, 4> cell = atlases.head_layout.cellRect(cell_index);
+            const auto lerp_u = [&](const double t) {
+                return static_cast<float>(cell[0] + ((cell[2] - cell[0]) * t));
+            };
+            const auto lerp_v = [&](const double t) {
+                return static_cast<float>(cell[1] + ((cell[3] - cell[1]) * t));
+            };
+            const std::array<float, 4> rect{
+                lerp_u(bounds[0]), lerp_v(bounds[1]), lerp_u(bounds[2]), lerp_v(bounds[3])
+            };
+            const std::uint32_t tint =
+                packAbgr(full ? g_chord_full_mute_cross_color : g_chord_palm_mute_cross_color);
+            pushQuad(
+                box_marker_vertices,
+                box_marker_indices,
+                makeUvVertex(middle_x - half_x, center_y - half_y, z, tint, rect[0], rect[3]),
+                makeUvVertex(middle_x + half_x, center_y - half_y, z, tint, rect[2], rect[3]),
+                makeUvVertex(middle_x + half_x, center_y + half_y, z, tint, rect[2], rect[1]),
+                makeUvVertex(middle_x - half_x, center_y + half_y, z, tint, rect[0], rect[1]));
+            submitBatch(
+                box_marker_vertices,
+                box_marker_indices,
+                posColorUvLayout(),
+                texture_tint_program.get(),
+                &box_heads_texture);
+            box_marker_vertices.clear();
+            box_marker_indices.clear();
+        };
+
         for (const BoxDraw& box : boxes)
         {
             const double z = std::max(0.0, time_to_z(box.start_seconds));
@@ -2336,7 +2389,6 @@ void HighwayRenderer::Impl::draw(
                     box.box_only,
                     box.with_top,
                     box.any_accent,
-                    box.mute,
                     metrics.string_grid_base_y);
                 continue;
             }
@@ -2358,15 +2410,19 @@ void HighwayRenderer::Impl::draw(
                 box.box_only,
                 box.with_top,
                 box.any_accent,
-                box.mute,
                 metrics.string_grid_base_y);
+            if (box.box_only && box.mute != common::core::NoteMute::None)
+            {
+                flush_box_panels();
+                push_box_mute_marker(x0, x1, z, box.mute);
+            }
             if (box.arpeggio_shape != nullptr)
             {
                 push_arpeggio_brackets(*box.arpeggio_shape, z, window.low_line, window.high_line);
             }
         }
 
-        submitBatch(box_vertices, box_indices, posColorLayout(), color_program.get(), nullptr);
+        flush_box_panels();
         // Brackets submit interleaved with the note batches (see the declaration above).
     }
 
@@ -3193,7 +3249,6 @@ void HighwayRenderer::Impl::draw(
                     3.0);
             }
             // Technique markers at the window center (Charter's open-note overlay set).
-            if (atlases.reference_cells)
             {
                 const double center_x = (x0 + x1) / 2.0;
                 const std::uint32_t marker_tint = packAbgr(base_color, fade);
@@ -3263,7 +3318,7 @@ void HighwayRenderer::Impl::draw(
         // The landing spot is the chart-truth station: a pre-bend's ring shrinks onto the
         // target outline, not onto the still-rising head.
         const double seconds_out = note.start_seconds - now_seconds;
-        if (atlases.reference_cells && seconds_out > 0.0 && seconds_out < g_anticipation_seconds)
+        if (seconds_out > 0.0 && seconds_out < g_anticipation_seconds)
         {
             double ring_scale =
                 std::min(1.0, 1.0 - (0.5 * ((seconds_out - 0.25) / g_anticipation_seconds)));
@@ -3313,10 +3368,8 @@ void HighwayRenderer::Impl::draw(
         // like the upright technique markers, and stops at the onset, where the landed head
         // covers it. chart_head_y - lane_y is exactly the onset bend lift (the vibrato taper is
         // zero at the onset) and exactly 0.0 for a non-pre-bent curve, so the > 0.0 test is a
-        // precise pre-bend gate, not a tolerance. Reference atlas only, the ring's own policy:
-        // the fallback path keeps the reveal motion, which carries the information.
-        if (atlases.reference_cells && note.start_seconds > now_seconds &&
-            std::abs(chart_head_y - lane_y) > 0.0)
+        // precise pre-bend gate, not a tolerance.
+        if (note.start_seconds > now_seconds && std::abs(chart_head_y - lane_y) > 0.0)
         {
             const std::uint32_t outline_tint =
                 packAbgr(base_color, g_prebend_outline_alpha * fade * head_slide.alpha);
@@ -3365,11 +3418,10 @@ void HighwayRenderer::Impl::draw(
 
         // Head base: the technique variant under left-hand technique markers, else the standard
         // head (Charter's base-cell selection).
-        const bool tech_head =
-            atlases.reference_cells && (note.mute == common::core::NoteMute::Full ||
-                                        note.harmonic == common::core::NoteHarmonic::Natural ||
-                                        note.attack == common::core::NoteAttack::Hammer ||
-                                        note.attack == common::core::NoteAttack::Pull);
+        const bool tech_head = note.mute == common::core::NoteMute::Full ||
+                               note.harmonic == common::core::NoteHarmonic::Natural ||
+                               note.attack == common::core::NoteAttack::Hammer ||
+                               note.attack == common::core::NoteAttack::Pull;
         const std::array<float, 4> base_cell =
             tech_head ? atlases.head_layout.cellRect(g_head_cell_tech) : head_cell;
         const auto corner = [&](const double dx, const double dy, const float u, const float v) {
@@ -3389,7 +3441,6 @@ void HighwayRenderer::Impl::draw(
             corner(head_half_w, head_half_h, base_cell[2], base_cell[1]),
             corner(-head_half_w, head_half_h, base_cell[0], base_cell[1]));
 
-        if (atlases.reference_cells)
         {
             // Rotating markers ride the rolling flip (Charter bakes these into the head
             // texture), in Charter's composite order.
@@ -3444,11 +3495,9 @@ void HighwayRenderer::Impl::draw(
         // announcing only that a bend is coming. It rides the bend-lift side of the head
         // (above the note for an upward curve, below on bend-inverted lanes) and its 180-degree
         // flip keeps it pointing where the drawn curve goes. Amount and stages are the tail's
-        // own geometry: physical lift height plus slope shading. The marker cell exists in both
-        // atlas paths, so nothing here gates on
-        // reference_cells. The station is the chart-truth height: on an approaching pre-bend
-        // the chevron rides the target outline, not the rising head (user rule 2026-07-31);
-        // everywhere else chart and head coincide.
+        // own geometry: physical lift height plus slope shading. The station is the
+        // chart-truth height: on an approaching pre-bend the chevron rides the target outline,
+        // not the rising head (user rule 2026-07-31); everywhere else chart and head coincide.
         if (!note.bend.empty())
         {
             pending_bend_markers.push_back(

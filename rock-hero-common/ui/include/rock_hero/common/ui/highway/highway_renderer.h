@@ -66,12 +66,13 @@ struct HighwayShaderSet
 
 The reference assets (adapted from Charter, BSD 3-Clause — the LICENSE.txt beside the deployed
 files) live under rock-hero-common/ui/resources/textures/charter and are deployed per product.
-Every member is optional: empty bytes select a procedural fallback so a missing asset degrades
-the art, never the product.
+Every member is REQUIRED product content: empty or undecodable bytes fail create with a typed
+error, because a missing texture means a broken install, not a degradable state (user decision
+2026-08-01 — the procedural fallbacks this replaces silently masked such failures).
 */
 struct HighwayTextureSet
 {
-    /*! \brief Note-head atlas PNG (4x4 grid, reference channel scheme). */
+    /*! \brief Note-head atlas PNG (4x5 grid, reference channel scheme). */
     std::vector<std::byte> note_atlas_png;
 
     /*! \brief Fretboard skin PNG (8x4 grid, one 256x512 cell per fret). */
@@ -86,6 +87,9 @@ enum class HighwayRendererErrorCode : std::uint8_t
 {
     /*! \brief bgfx rejected a shader binary or failed to link a program. */
     ProgramCreationFailed,
+
+    /*! \brief A required texture asset was missing, undecodable, or the wrong shape. */
+    TextureAssetInvalid,
 };
 
 /*! \brief Typed boundary error for highway renderer startup failures. */
@@ -140,7 +144,8 @@ public:
     \brief Links the shader programs and uploads the highway atlases and textures.
 
     \param shaders Compiled stage binaries for the highway programs.
-    \param textures Texture assets; empty members select procedural fallbacks.
+    \param textures Texture assets; every member is required, and a missing or invalid one
+           fails creation with TextureAssetInvalid.
     \return The renderer, or a typed error naming the program that failed.
     */
     [[nodiscard]] static std::expected<HighwayRenderer, HighwayRendererError> create(
