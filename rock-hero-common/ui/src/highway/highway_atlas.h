@@ -12,12 +12,6 @@
 #include <cstddef>
 #include <optional>
 #include <span>
-#include <vector>
-
-namespace juce
-{
-class Image;
-} // namespace juce
 
 namespace rock_hero::common::ui
 {
@@ -91,17 +85,6 @@ struct HighwayAtlases
     /*! \brief Cell layout of the head atlas. */
     HighwayAtlasLayout head_layout{};
 
-    /*!
-    \brief Tight art bounds of every head-atlas cell as {u0, v0, u1, v1} fractions of its cell
-    rect, row-major, sized to the head layout's capacity.
-
-    Measured from the uploaded image's alpha-mask channel so consumers that scale a cell's art
-    to arbitrary geometry (the repeat-box mute marks) can skip the authored in-cell padding; a
-    cell with no art reports the full cell. Head composites keep sampling whole cells — the
-    shared padding is their alignment coordinate system and must not be trimmed away.
-    */
-    std::vector<std::array<float, 4>> head_cell_art_bounds;
-
     /*! \brief Glyph atlas: white-on-transparent text, shape carried by alpha alone. */
     UniqueBgfxHandle<bgfx::TextureHandle> glyphs;
 
@@ -115,10 +98,10 @@ inline constexpr int g_head_cell_standard = 0;
 /*! \brief Cell index of the anticipation ring. */
 inline constexpr int g_head_cell_anticipation = 1;
 
-// The rest of the cell vocabulary (row-major indices). One art set serves every consumer
-// deliberately (user rule 2026-08-01: absolute consistency, no dedicated variants): the mute
-// cells composite over note heads at cell scale AND stretch over repeat chord boxes via their
-// measured art bounds.
+// The rest of the cell vocabulary (row-major indices). One art set serves every head-composite
+// consumer deliberately (user rule 2026-08-01: absolute consistency, no dedicated variants);
+// repeat-box mute marks render through the SDF program instead of any cell, because their line
+// weights must hold across arbitrary box aspects.
 
 /*! \brief Technique note head: the base head variant under left-hand technique markers. */
 inline constexpr int g_head_cell_tech = 2;
@@ -169,29 +152,13 @@ inline constexpr int g_head_cell_pop = 15;
 inline constexpr int g_head_cell_count = 16;
 
 /*!
-\brief Measures one head-atlas cell's tight art bounds from its alpha-mask channel.
-
-Scans the cell's texels for a nonzero mask (the channel scheme's B) and returns the art's
-bounding box as {u0, v0, u1, v1} fractions of the cell square, pixel-edge aligned. A cell
-with no art reports the full cell.
-
-\param image Decoded atlas image in the channel scheme.
-\param layout Cell layout describing the image.
-\param cell Cell index in row-major order; out-of-range indices clamp to the last cell.
-\return {u0, v0, u1, v1} fractions of the cell.
-*/
-[[nodiscard]] std::array<float, 4> measureHeadCellArtBounds(
-    const juce::Image& image, const HighwayAtlasLayout& layout, int cell);
-
-/*!
 \brief Builds the highway atlases and uploads them as immutable bgfx textures.
 
 The head atlas uploads the supplied reference PNG (the Charter-derived 4x4 channel-scheme
-atlas) verbatim when the bytes decode, measuring every cell's tight art bounds into
-head_cell_art_bounds; empty or undecodable bytes leave the heads handle invalid and the layout
-empty, which the renderer treats as a startup error — texture assets are required product
-content, never silently substituted. The glyph atlas is always runtime-rasterized (text, not
-an asset).
+atlas) verbatim when the bytes decode; empty or undecodable bytes leave the heads handle
+invalid and the layout empty, which the renderer treats as a startup error — texture assets
+are required product content, never silently substituted. The glyph atlas is always
+runtime-rasterized (text, not an asset).
 
 Must be called after bgfx initialization and the results destroyed before shutdown (structural
 via the shell's declaration order).

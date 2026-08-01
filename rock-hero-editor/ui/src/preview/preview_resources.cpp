@@ -70,6 +70,7 @@ std::optional<common::ui::HighwayShaderSet> loadPreviewHighwayShaders()
     set.glyph = load_pair("glyph");
     set.texture = load_pair("texture");
     set.window_light = load_pair("window_light");
+    set.box_mute = load_pair("box_mute");
 
     for (const common::ui::HighwayShaderPair* pair :
          {&set.color,
@@ -77,7 +78,8 @@ std::optional<common::ui::HighwayShaderSet> loadPreviewHighwayShaders()
           &set.texture_tint,
           &set.glyph,
           &set.texture,
-          &set.window_light})
+          &set.window_light,
+          &set.box_mute})
     {
         if (pair->vertex.empty() || pair->fragment.empty())
         {

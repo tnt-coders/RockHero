@@ -59,6 +59,13 @@ struct HighwayShaderSet
     driven by per-vertex edge distances (the FHP highlight and its transitions).
     */
     HighwayShaderPair window_light;
+
+    /*!
+    \brief Repeat-box mute mark: an SDF-evaluated X (dark ribbons, thin edge lines) whose
+    distances are computed per fragment in box-local world units, so the mark holds its line
+    weights exactly on boxes of any width.
+    */
+    HighwayShaderPair box_mute;
 };
 
 /*!

@@ -75,6 +75,10 @@ namespace
         {
             return "window_light";
         }
+        case GameShaderProgram::BoxMute:
+        {
+            return "box_mute";
+        }
     }
 
     return "color";

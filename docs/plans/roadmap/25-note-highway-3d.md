@@ -662,14 +662,16 @@ drawers (session Charter clone).
   wrong-fret pinch display fixed 2026-07-31), modulated three-band tails (bends,
   vibrato, tremolo, multi-waypoint slides with per-segment easing and unpitched dimming to 25%),
   chord boxes at multi-note onsets (corner holders, gradient frame, accent chevrons, short/full
-  sides by chord size, repeat-box mute marks stretching the SAME atlas mute cells the note
-  heads composite — mapped through per-cell art bounds measured at atlas build so the authored
-  padding never shrinks the mark; palm fills the box, full spans the box height, both strictly
-  inside; marks submit interleaved with the panel batch so painter order holds across
-  overlapping chug-chain boxes. SETTLED 2026-08-01 after a full loop: procedural strokes and a
-  dedicated box-scale bake were both built and rejected (user rule: absolute texture
-  consistency, one art set, no dedicated variants; part of the earlier dissatisfaction traced
-  to judging a stale relwithdebinfo build) —
+  sides by chord size, repeat-box mute marks rendered by the dedicated SDF program
+  (fs_box_mute, the seventh shader): the notation legend's muted-panel X — darker translucent
+  ribbons corner-to-corner with flush side cuts, thin bright edge lines crossing through —
+  with the distance field evaluated per fragment in box-local world units so line weights
+  hold exactly at every box aspect; marks submit interleaved with the panel batch so painter
+  order holds across overlapping chug-chain boxes, and Charter's light/dark mute split rides
+  the edge tint. Route chosen 2026-08-01 after stretched head cells, flat procedural strokes,
+  a dedicated box-scale bake, and art-bounds-mapped cells were each built and rejected — a
+  fixed bitmap cannot hold frame-thin edge weight across the boxes' varying aspects (part of
+  the earlier dissatisfaction also traced to judging a stale relwithdebinfo build) —
   Charter colors), chord names riding the hit
   line, hand-shape span rails (arpeggio purple / lane teal), fingering panels (barre-aware
   shapes + finger names from fingering.png, suppressed while the current chord is fully muted)

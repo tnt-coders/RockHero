@@ -250,15 +250,33 @@ constexpr double g_unpitched_slide_end_alpha = 0.25;
 // chord, with corner holders, gradient frame bars, and mute-cross variants.
 constexpr ArgbColor g_chord_box_color = 0xFF00D2D5;
 constexpr ArgbColor g_chord_box_dark_color = 0xFF003C3D;
-// Box mute marks stretch the SAME mute cells the note heads composite (user rule 2026-08-01:
-// absolute texture consistency, no dedicated box variants and no procedural art), mapped
-// through the cells' measured art bounds so the authored in-cell padding — the head
-// composites' alignment frame — never shrinks the mark: the palm X fills the box, the full X
-// spans the box height at its authored aspect, both strictly inside their box (an overhang
-// trial bled into neighboring boxes in dense chug chains). Charter's light/dark mute split
-// colors the marks; the palm value is Charter's dark palm-mute constant (its own drawer reads
-// the light one — an evident slip given the unused dark constant; the split is the intended
-// reading, confirmed by the user).
+// Repeat-box mute marks render through the SDF shader (fs_box_mute) as faithful
+// reproductions of the note heads' mute CELL ART at box scale (user rule 2026-08-01: the
+// boxes must look like the single-note textures, fitted properly). Every constant below is
+// measured from the shipped cells' pixels — arm-profile fractions of the glyph height, and
+// channel-scheme zone factors fed through the exact texture_tint math (rgb = R x tint + G) —
+// so the mark's weights, colors, and opacity match the texture by construction while the
+// evaluated distance field re-angles the arms per box instead of smearing them (bitmap
+// stretching distorted line weight with the box; user findings 2026-07-31/08-01). Charter's
+// light/dark mute tint split is the same one the stretched-cell version shipped with.
+// Palm X (cell 8): 10px stroke / 2px bright rim / dark body, of a 35px glyph.
+constexpr double g_palm_mute_stroke_fraction = 0.286;
+constexpr double g_palm_mute_rim_fraction = 0.057;
+constexpr double g_palm_mute_rim_r = 0.90;
+constexpr double g_palm_mute_rim_g = 0.36;
+constexpr double g_palm_mute_body_r = 0.115;
+constexpr double g_palm_mute_body_g = 0.0;
+// Full-mute X (cell 9, weight-matched to the palm): 9.4px stroke / 2.3px core inset / pale
+// core, of a 34px glyph.
+constexpr double g_full_mute_stroke_fraction = 0.276;
+constexpr double g_full_mute_core_inset_fraction = 0.066;
+constexpr double g_full_mute_body_r = 0.75;
+constexpr double g_full_mute_body_g = 0.20;
+constexpr double g_full_mute_core_r = 1.0;
+constexpr double g_full_mute_core_g = 0.75;
+// The cells' soft outer halo: falloff width as a glyph-height fraction, and its strength.
+constexpr double g_box_mute_halo_fraction = 0.05;
+constexpr double g_box_mute_halo_strength = 0.6;
 constexpr ArgbColor g_chord_full_mute_cross_color = 0xFF80D8FF;
 constexpr ArgbColor g_chord_palm_mute_cross_color = 0xFF005064;
 constexpr ArgbColor g_chord_name_color = 0xFFE0E0E0;
@@ -871,11 +889,16 @@ struct HighwayRenderer::Impl
     UniqueBgfxHandle<bgfx::ProgramHandle> glyph_program;
     UniqueBgfxHandle<bgfx::ProgramHandle> texture_program;
     UniqueBgfxHandle<bgfx::ProgramHandle> window_light_program;
+    UniqueBgfxHandle<bgfx::ProgramHandle> box_mute_program;
 
     // Custom uniforms (predefined ones like u_modelViewProj are never created by hand).
     UniqueBgfxHandle<bgfx::UniformHandle> fade_params;
     UniqueBgfxHandle<bgfx::UniformHandle> atlas_sampler;
     UniqueBgfxHandle<bgfx::UniformHandle> window_light_params;
+    UniqueBgfxHandle<bgfx::UniformHandle> box_mute_params;
+    UniqueBgfxHandle<bgfx::UniformHandle> box_mute_arms;
+    UniqueBgfxHandle<bgfx::UniformHandle> box_mute_fill;
+    UniqueBgfxHandle<bgfx::UniformHandle> box_mute_edge;
 
     HighwayAtlases atlases;
 
@@ -988,14 +1011,16 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
     auto glyph = linkProgram(shaders.glyph, "glyph");
     auto texture = linkProgram(shaders.texture, "texture");
     auto window_light = linkProgram(shaders.window_light, "window_light");
-    if (!color || !color_fade || !texture_tint || !glyph || !texture || !window_light)
+    auto box_mute = linkProgram(shaders.box_mute, "box_mute");
+    if (!color || !color_fade || !texture_tint || !glyph || !texture || !window_light || !box_mute)
     {
         const auto& failed = !color          ? color.error()
                              : !color_fade   ? color_fade.error()
                              : !texture_tint ? texture_tint.error()
                              : !glyph        ? glyph.error()
                              : !texture      ? texture.error()
-                                             : window_light.error();
+                             : !window_light ? window_light.error()
+                                             : box_mute.error();
         return std::unexpected{failed};
     }
     impl->color_program = std::move(*color);
@@ -1004,6 +1029,7 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
     impl->glyph_program = std::move(*glyph);
     impl->texture_program = std::move(*texture);
     impl->window_light_program = std::move(*window_light);
+    impl->box_mute_program = std::move(*box_mute);
 
     impl->fade_params = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
         "u_fade_params", bgfx::UniformType::Vec4)};
@@ -1011,6 +1037,14 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
         "s_atlas", bgfx::UniformType::Sampler)};
     impl->window_light_params = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
         "u_window_light_params", bgfx::UniformType::Vec4)};
+    impl->box_mute_params = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
+        "u_box_mute_params", bgfx::UniformType::Vec4)};
+    impl->box_mute_arms = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
+        "u_box_mute_arms", bgfx::UniformType::Vec4)};
+    impl->box_mute_fill = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
+        "u_box_mute_fill", bgfx::UniformType::Vec4)};
+    impl->box_mute_edge = UniqueBgfxHandle<bgfx::UniformHandle>{bgfx::createUniform(
+        "u_box_mute_edge", bgfx::UniformType::Vec4)};
 
     impl->atlases = makeHighwayAtlases(textures.note_atlas_png);
     UploadedTexture inlay = uploadPngTexture(textures.inlay_atlas_png);
@@ -2135,16 +2169,14 @@ void HighwayRenderer::Impl::draw(
     {
         std::vector<PosColorVertex> box_vertices;
         std::vector<std::uint16_t> box_indices;
-        // Repeat-box mute marks sample the same mute cells the note heads composite, through
-        // their measured art bounds. They ride a different program than the panels, and
-        // painter order must hold ACROSS boxes — dense chug chains overlap heavily on screen
-        // in perspective, and a far box's mark must never composite over a nearer box's panel
-        // — so the panel batch flushes before each mark and the mark submits immediately.
-        // Draw-call cost is bounded by the visible marked repeat boxes: tens at worst, noise
-        // for bgfx.
+        // Repeat-box mute marks render through the SDF program (see the g_chord_mute_*
+        // constants). They ride a different program than the panels, and painter order must
+        // hold ACROSS boxes — dense chug chains overlap heavily on screen in perspective, and
+        // a far box's mark must never composite over a nearer box's panel — so the panel
+        // batch flushes before each mark and the mark submits immediately. Draw-call cost is
+        // bounded by the visible marked repeat boxes: tens at worst, noise for bgfx.
         std::vector<PosColorUvVertex> box_marker_vertices;
         std::vector<std::uint16_t> box_marker_indices;
-        const bgfx::TextureHandle box_heads_texture = atlases.heads.get();
         const auto flush_box_panels = [&] {
             if (box_vertices.empty())
             {
@@ -2317,53 +2349,97 @@ void HighwayRenderer::Impl::draw(
             return lhs.start_seconds > rhs.start_seconds;
         });
 
-        // Stretches the shared mute cell's ART over the repeat box, strictly inside it: UVs
-        // come from the cell's measured art bounds (skipping the authored padding), the quad
-        // from the box — the palm X fills the box, the full X spans the box height at its
-        // authored aspect. Submits immediately so painter order holds across boxes — see the
-        // batch comment above.
+        // One SDF-rendered mute mark over its repeat box: the quad covers the box (with a
+        // small margin so the boundary antialiasing completes), texcoord carries box-local
+        // world-unit offsets, and the fragment shader evaluates the X's exact distances from
+        // the per-mark uniforms. Submits immediately so painter order holds across boxes —
+        // see the batch comment above.
         const auto push_box_mute_marker = [&](const double x0,
                                               const double x1,
                                               const double z,
                                               const common::core::NoteMute mute) {
             const double box_top_y = full_height_y1 / 2.0;
-            const double center_y = box_top_y / 2.0;
+            const double half_x = (x1 - x0) / 2.0;
+            const double half_y = box_top_y / 2.0;
             const double middle_x = (x0 + x1) / 2.0;
             const bool full = mute == common::core::NoteMute::Full;
-            const int cell_index = full ? g_head_cell_full_mute : g_head_cell_palm_mute;
-            // In-range by construction: create rejects an atlas under g_head_cell_count cells,
-            // and the bounds table is measured to the layout's full capacity.
-            const std::array<float, 4>& bounds =
-                atlases.head_cell_art_bounds[static_cast<std::size_t>(cell_index)];
-            const double half_y = box_top_y - center_y;
-            const double half_x = full ? half_y * (static_cast<double>(bounds[2] - bounds[0]) /
-                                                   static_cast<double>(bounds[3] - bounds[1]))
-                                       : x1 - middle_x;
-            const std::array<float, 4> cell = atlases.head_layout.cellRect(cell_index);
-            const auto lerp_u = [&](const double t) {
-                return static_cast<float>(cell[0] + ((cell[2] - cell[0]) * t));
+            // The glyph's height maps onto the box height, so every art fraction scales by the
+            // box height. The palm X's arms span the whole box; the full X keeps its square
+            // glyph proportions centered — exactly the art fitted by height.
+            const double arm_half_x = full ? half_y : half_x;
+            const double arm_length = std::sqrt((arm_half_x * arm_half_x) + (half_y * half_y));
+            const double stroke_hw =
+                0.5 * box_top_y *
+                (full ? g_full_mute_stroke_fraction : g_palm_mute_stroke_fraction);
+            const double inset =
+                box_top_y * (full ? g_full_mute_core_inset_fraction : g_palm_mute_rim_fraction);
+            const auto params = std::array<float, 4>{
+                static_cast<float>(half_x),
+                static_cast<float>(half_y),
+                static_cast<float>(stroke_hw),
+                static_cast<float>(inset),
             };
-            const auto lerp_v = [&](const double t) {
-                return static_cast<float>(cell[1] + ((cell[3] - cell[1]) * t));
+            const auto arms = std::array<float, 4>{
+                static_cast<float>(arm_half_x / arm_length),
+                static_cast<float>(half_y / arm_length),
+                static_cast<float>(arm_length),
+                static_cast<float>(g_box_mute_halo_fraction * box_top_y),
             };
-            const std::array<float, 4> rect{
-                lerp_u(bounds[0]), lerp_v(bounds[1]), lerp_u(bounds[2]), lerp_v(bounds[3])
+            // Zone colors through the exact texture_tint math (rgb = R x tint + G) with the
+            // same mute tints the stretched-cell version shipped, so the SDF mark's colors
+            // match the texture's rendered colors by construction.
+            const ArgbColor tint_color =
+                full ? g_chord_full_mute_cross_color : g_chord_palm_mute_cross_color;
+            const auto zone =
+                [&](const double r_factor, const double g_factor, const double alpha) {
+                    const auto channel = [&](const int shift) {
+                        return static_cast<double>((tint_color >> shift) & 0xFFU) / 255.0;
+                    };
+                    return std::array<float, 4>{
+                        static_cast<float>(std::min(1.0, (r_factor * channel(16)) + g_factor)),
+                        static_cast<float>(std::min(1.0, (r_factor * channel(8)) + g_factor)),
+                        static_cast<float>(std::min(1.0, (r_factor * channel(0)) + g_factor)),
+                        static_cast<float>(alpha),
+                    };
+                };
+            // fill = inner zone (dark body / pale core), alpha slot carries halo strength;
+            // edge = outer zone (bright rim / body), alpha slot carries the mark opacity.
+            const std::array<float, 4> fill =
+                full ? zone(g_full_mute_core_r, g_full_mute_core_g, g_box_mute_halo_strength)
+                     : zone(g_palm_mute_body_r, g_palm_mute_body_g, g_box_mute_halo_strength);
+            const std::array<float, 4> edge =
+                full ? zone(g_full_mute_body_r, g_full_mute_body_g, 1.0)
+                     : zone(g_palm_mute_rim_r, g_palm_mute_rim_g, 1.0);
+            bgfx::setUniform(box_mute_params.get(), params.data());
+            bgfx::setUniform(box_mute_arms.get(), arms.data());
+            bgfx::setUniform(box_mute_fill.get(), fill.data());
+            bgfx::setUniform(box_mute_edge.get(), edge.data());
+            // Quad corners a hair past the box; the shader's box distance clips the mark, so
+            // the margin only carries the antialiasing gradient.
+            const double margin = 0.02 * box_top_y;
+            const std::uint32_t white = packAbgr(0xFFFFFFFF);
+            const auto corner = [&](const double dx, const double dy) {
+                return makeUvVertex(
+                    middle_x + dx,
+                    half_y + dy,
+                    z,
+                    white,
+                    static_cast<float>(dx),
+                    static_cast<float>(dy));
             };
-            const std::uint32_t tint =
-                packAbgr(full ? g_chord_full_mute_cross_color : g_chord_palm_mute_cross_color);
             pushQuad(
                 box_marker_vertices,
                 box_marker_indices,
-                makeUvVertex(middle_x - half_x, center_y - half_y, z, tint, rect[0], rect[3]),
-                makeUvVertex(middle_x + half_x, center_y - half_y, z, tint, rect[2], rect[3]),
-                makeUvVertex(middle_x + half_x, center_y + half_y, z, tint, rect[2], rect[1]),
-                makeUvVertex(middle_x - half_x, center_y + half_y, z, tint, rect[0], rect[1]));
+                corner(-(half_x + margin), -(half_y + margin)),
+                corner(half_x + margin, -(half_y + margin)),
+                corner(half_x + margin, half_y + margin),
+                corner(-(half_x + margin), half_y + margin));
             submitBatch(
                 box_marker_vertices,
                 box_marker_indices,
                 posColorUvLayout(),
-                texture_tint_program.get(),
-                &box_heads_texture);
+                box_mute_program.get(),
+                nullptr);
             box_marker_vertices.clear();
             box_marker_indices.clear();
         };

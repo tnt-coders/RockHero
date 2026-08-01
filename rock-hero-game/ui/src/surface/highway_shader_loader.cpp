@@ -61,6 +61,11 @@ std::expected<common::ui::HighwayShaderSet, core::GameResourcesError> loadHighwa
     {
         return std::unexpected{window_light.error()};
     }
+    auto box_mute = load_pair(core::GameShaderProgram::BoxMute);
+    if (!box_mute.has_value())
+    {
+        return std::unexpected{box_mute.error()};
+    }
 
     set.color = std::move(*color);
     set.color_fade = std::move(*color_fade);
@@ -68,6 +73,7 @@ std::expected<common::ui::HighwayShaderSet, core::GameResourcesError> loadHighwa
     set.glyph = std::move(*glyph);
     set.texture = std::move(*texture);
     set.window_light = std::move(*window_light);
+    set.box_mute = std::move(*box_mute);
     return set;
 }
 

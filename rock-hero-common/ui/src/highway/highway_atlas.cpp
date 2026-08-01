@@ -90,53 +90,6 @@ std::array<float, 4> HighwayAtlasLayout::cellRect(const int index) const noexcep
     };
 }
 
-std::array<float, 4> measureHeadCellArtBounds(
-    const juce::Image& image, const HighwayAtlasLayout& layout, const int cell)
-{
-    constexpr std::array<float, 4> g_full_cell{0.0F, 0.0F, 1.0F, 1.0F};
-    const int columns = layout.columns();
-    if (columns <= 0 || layout.rows() <= 0)
-    {
-        return g_full_cell;
-    }
-    const int clamped = std::clamp(cell, 0, layout.capacity() - 1);
-    const int origin_x = (clamped % columns) * layout.cell_size;
-    const int origin_y = (clamped / columns) * layout.cell_size;
-
-    // One read-only lock for the whole scan; getPixelColour resolves the pixel format, so the
-    // byte order stays JUCE's concern (getPixelAt would re-lock per texel).
-    const juce::Image::BitmapData bitmap{image, juce::Image::BitmapData::readOnly};
-    int min_x = layout.cell_size;
-    int min_y = layout.cell_size;
-    int max_x = -1;
-    int max_y = -1;
-    for (int y = 0; y < layout.cell_size; ++y)
-    {
-        for (int x = 0; x < layout.cell_size; ++x)
-        {
-            if (bitmap.getPixelColour(origin_x + x, origin_y + y).getBlue() == 0)
-            {
-                continue;
-            }
-            min_x = std::min(min_x, x);
-            min_y = std::min(min_y, y);
-            max_x = std::max(max_x, x);
-            max_y = std::max(max_y, y);
-        }
-    }
-    if (max_x < 0)
-    {
-        return g_full_cell;
-    }
-    const auto size = static_cast<float>(layout.cell_size);
-    return {
-        static_cast<float>(min_x) / size,
-        static_cast<float>(min_y) / size,
-        static_cast<float>(max_x + 1) / size,
-        static_cast<float>(max_y + 1) / size,
-    };
-}
-
 std::optional<int> highwayGlyphCellIndex(const char character) noexcept
 {
     if (character < g_first_glyph || character > g_last_glyph)
@@ -177,10 +130,9 @@ HighwayAtlases makeHighwayAtlases(const std::span<const std::byte> note_atlas_pn
     };
 
     // Head atlas: the reference 4x4 channel-scheme asset (one art set for every consumer)
-    // uploads verbatim when it decodes, with per-cell tight art bounds measured for the
-    // consumers that stretch a cell's art (the repeat-box mute marks); empty or undecodable
-    // bytes leave the handle invalid and the layout empty, which the renderer rejects at
-    // create — required product content, never silently substituted.
+    // uploads verbatim when it decodes; empty or undecodable bytes leave the handle invalid
+    // and the layout empty, which the renderer rejects at create — required product content,
+    // never silently substituted.
     if (!note_atlas_png.empty())
     {
         juce::MemoryInputStream stream{note_atlas_png.data(), note_atlas_png.size(), false};
@@ -189,20 +141,12 @@ HighwayAtlases makeHighwayAtlases(const std::span<const std::byte> note_atlas_pn
         {
             // Normalize to ARGB so an RGB-only PNG gains the opaque alpha the BGRA8 upload
             // expects.
-            const juce::Image normalized = decoded.convertedToFormat(juce::Image::ARGB);
-            atlases.heads = uploadAtlas(normalized);
+            atlases.heads = uploadAtlas(decoded.convertedToFormat(juce::Image::ARGB));
             atlases.head_layout = HighwayAtlasLayout{
                 .texture_width = decoded.getWidth(),
                 .texture_height = decoded.getHeight(),
                 .cell_size = decoded.getWidth() / 4,
             };
-            const int capacity = atlases.head_layout.capacity();
-            atlases.head_cell_art_bounds.reserve(static_cast<std::size_t>(std::max(capacity, 0)));
-            for (int cell = 0; cell < capacity; ++cell)
-            {
-                atlases.head_cell_art_bounds.push_back(
-                    measureHeadCellArtBounds(normalized, atlases.head_layout, cell));
-            }
         }
     }
 

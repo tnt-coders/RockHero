@@ -1,9 +1,7 @@
 #include "highway/highway_atlas.h"
 
-#include <array>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
-#include <juce_graphics/juce_graphics.h>
 #include <optional>
 
 namespace rock_hero::common::ui
@@ -62,31 +60,6 @@ TEST_CASE("Highway atlas layout clamps out-of-range cells", "[ui][highway]")
 
     CHECK(layout.cellRect(99) == layout.cellRect(3));
     CHECK(layout.cellRect(-5) == layout.cellRect(0));
-}
-
-TEST_CASE("Highway atlas cell art bounds skip the authored padding", "[ui][highway]")
-{
-    const HighwayAtlasLayout layout{.texture_width = 128, .texture_height = 128, .cell_size = 64};
-    const juce::Image image{juce::Image::ARGB, 128, 128, true, juce::SoftwareImageType{}};
-    juce::Graphics graphics{image};
-    graphics.fillAll(juce::Colour::fromRGBA(0, 0, 0, 255));
-    // Art in cell 1 (top-right of the 2x2 grid): a mask block whose blue channel is lit,
-    // occupying the middle half of the cell in both axes.
-    graphics.setColour(juce::Colour::fromRGBA(150, 0, 255, 255));
-    graphics.fillRect(80, 16, 32, 32);
-
-    const std::array<float, 4> bounds = measureHeadCellArtBounds(image, layout, 1);
-    CHECK_THAT(bounds[0], Catch::Matchers::WithinAbs(0.25F, 1e-6));
-    CHECK_THAT(bounds[1], Catch::Matchers::WithinAbs(0.25F, 1e-6));
-    CHECK_THAT(bounds[2], Catch::Matchers::WithinAbs(0.75F, 1e-6));
-    CHECK_THAT(bounds[3], Catch::Matchers::WithinAbs(0.75F, 1e-6));
-
-    // A blank cell reports the full cell, so consumers degrade to whole-cell sampling.
-    const std::array<float, 4> blank = measureHeadCellArtBounds(image, layout, 2);
-    CHECK_THAT(blank[0], Catch::Matchers::WithinAbs(0.0F, 1e-6));
-    CHECK_THAT(blank[1], Catch::Matchers::WithinAbs(0.0F, 1e-6));
-    CHECK_THAT(blank[2], Catch::Matchers::WithinAbs(1.0F, 1e-6));
-    CHECK_THAT(blank[3], Catch::Matchers::WithinAbs(1.0F, 1e-6));
 }
 
 TEST_CASE("Highway glyph mapping covers printable ASCII only", "[ui][highway]")

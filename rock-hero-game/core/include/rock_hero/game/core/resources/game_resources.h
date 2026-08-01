@@ -68,6 +68,9 @@ enum class GameShaderProgram : std::uint8_t
 
     /*! \brief The hand-window light: per-fragment soft-edged brightness across the FHP width. */
     WindowLight,
+
+    /*! \brief Repeat-box mute mark: SDF-evaluated X in box-local world units. */
+    BoxMute,
 };
 
 /*!
