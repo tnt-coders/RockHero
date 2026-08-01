@@ -108,6 +108,10 @@ constexpr double g_tail_slope_shade_smooth_seconds = 0.05;
 // overlap (judged on a composite sheet, user 2026-07-29, re-tuned for the taller bolder
 // glyph the same day).
 constexpr double g_bend_marker_offset_heads = 0.38;
+// Pre-bend target outline alpha: the hollow head silhouette parked at a pre-bent note's
+// chart-truth height is an annotation, dimmed so the rising head stays the subject (first
+// value judged on composite sheets 2026-07-31; expect on-sight retuning).
+constexpr double g_prebend_outline_alpha = 0.5;
 // The tap light leans the lit lane tint toward the FHP orange (the tap floor numbers' color)
 // so the tapping hand's light reads apart from the fretting hand's window at a glance.
 constexpr double g_tap_light_warm_mix = 0.3;
@@ -2598,8 +2602,9 @@ void HighwayRenderer::Impl::draw(
             head_seconds);
 
         // Bend geometry: lift per semitone, inverted on the upper displayed half so curves stay
-        // inside the board; the head anchors at its anchor-time bend value (a prebend shows on
-        // approach, and a pinned sounding head rides the curve with the tail centerline).
+        // inside the board. The chart-truth station is the curve's anchor-time value (a pinned
+        // sounding head rides the curve with the tail centerline); an approaching pre-bent head
+        // reveals that station progressively — see the reveal below.
         const int displayed_lane = invert ? (state.string_count + 1 - note.string) : note.string;
         const double bend_direction =
             common::core::highwayBendInverted(displayed_lane, state.string_count) ? -1.0 : 1.0;
@@ -2621,7 +2626,28 @@ void HighwayRenderer::Impl::draw(
                       (head_seconds - note.start_seconds) / (note.end_seconds - note.start_seconds),
                       common::core::g_highway_tail_taper_fraction)
                 : 0.0;
-        const double head_y = note_y_at(head_seconds, head_taper);
+        // Chart-truth head station: the curve's value at the anchor time. A pre-bent curve is
+        // already lifted at the onset, so this sits off the lane for the entire approach.
+        const double chart_head_y = note_y_at(head_seconds, head_taper);
+        // Rolling-flip clock, hoisted from the head-art roll below because the pre-bend reveal
+        // shares it: 0 once the art lies flat (g_flip_flat_lead_seconds before the hit line),
+        // 1 at the visibility edge.
+        const double roll_span_seconds = std::max(
+            span_end_seconds - now_seconds - g_flip_flat_lead_seconds, g_flip_flat_lead_seconds);
+        const double flip_remaining = std::clamp(
+            (note.start_seconds - now_seconds - g_flip_flat_lead_seconds) / roll_span_seconds,
+            0.0,
+            1.0);
+        // Pre-bend reveal (user design 2026-07-31): an approaching pre-bent head spawns on its
+        // own lane and rises toward the outlined chart-truth station in step with the rolling
+        // flip, lining up exactly when the art lands flat; the outline, chevron, tail, and
+        // anticipation ring hold the chart truth throughout, so the rising head is the only
+        // moving element. Exact identity for every non-pre-bent note: the curve is 0.0 at the
+        // onset, so chart_head_y == lane_y and the mix collapses. Chords skip the roll but keep
+        // this clock, so chord pre-bends still land with their groupmates.
+        const double head_y = note.start_seconds > now_seconds
+                                  ? lane_y + ((chart_head_y - lane_y) * (1.0 - flip_remaining))
+                                  : chart_head_y;
 
         // Sustain tail: from the hit line (while sounding) or the onset to the sustain end, as
         // Charter's three-band ribbon (solid edges around a translucent core). Technique
@@ -3231,6 +3257,8 @@ void HighwayRenderer::Impl::draw(
 
         // Anticipation ring: scales down onto the landing spot over the last half second
         // (reference atlas cell; chart-driven, so the editor preview shows it too — 44-Q1).
+        // The landing spot is the chart-truth station: a pre-bend's ring shrinks onto the
+        // target outline, not onto the still-rising head.
         const double seconds_out = note.start_seconds - now_seconds;
         if (atlases.reference_cells && seconds_out > 0.0 && seconds_out < g_anticipation_seconds)
         {
@@ -3246,47 +3274,88 @@ void HighwayRenderer::Impl::draw(
                 head_indices,
                 makeUvVertex(
                     x - half,
-                    head_y - half,
+                    chart_head_y - half,
                     0.0,
                     ring_tint,
                     anticipation_cell[0],
                     anticipation_cell[3]),
                 makeUvVertex(
                     x + half,
-                    head_y - half,
+                    chart_head_y - half,
                     0.0,
                     ring_tint,
                     anticipation_cell[2],
                     anticipation_cell[3]),
                 makeUvVertex(
                     x + half,
-                    head_y + half,
+                    chart_head_y + half,
                     0.0,
                     ring_tint,
                     anticipation_cell[2],
                     anticipation_cell[1]),
                 makeUvVertex(
                     x - half,
-                    head_y + half,
+                    chart_head_y + half,
                     0.0,
                     ring_tint,
                     anticipation_cell[0],
                     anticipation_cell[1]));
         }
 
+        // Pre-bend target outline (user design 2026-07-31): the anticipation cell — already a
+        // hollow copy of the head's rim in the reference atlas — parks at the chart-truth
+        // station for the whole approach, so a pre-bent note reads as a slot the head rises
+        // into instead of passing for a plainly fretted note on the lane it occupies. It rides
+        // the note's own z (unlike the ring's hit-line landing preview), stays axis-aligned
+        // like the upright technique markers, and stops at the onset, where the landed head
+        // covers it. chart_head_y - lane_y is exactly the onset bend lift (the vibrato taper is
+        // zero at the onset) and exactly 0.0 for a non-pre-bent curve, so the > 0.0 test is a
+        // precise pre-bend gate, not a tolerance. Reference atlas only, the ring's own policy:
+        // the fallback path keeps the reveal motion, which carries the information.
+        if (atlases.reference_cells && note.start_seconds > now_seconds &&
+            std::abs(chart_head_y - lane_y) > 0.0)
+        {
+            const std::uint32_t outline_tint =
+                packAbgr(base_color, g_prebend_outline_alpha * fade * head_slide.alpha);
+            pushQuad(
+                head_vertices,
+                head_indices,
+                makeUvVertex(
+                    x - head_half_w,
+                    chart_head_y - head_half_h,
+                    z,
+                    outline_tint,
+                    anticipation_cell[0],
+                    anticipation_cell[3]),
+                makeUvVertex(
+                    x + head_half_w,
+                    chart_head_y - head_half_h,
+                    z,
+                    outline_tint,
+                    anticipation_cell[2],
+                    anticipation_cell[3]),
+                makeUvVertex(
+                    x + head_half_w,
+                    chart_head_y + head_half_h,
+                    z,
+                    outline_tint,
+                    anticipation_cell[2],
+                    anticipation_cell[1]),
+                makeUvVertex(
+                    x - head_half_w,
+                    chart_head_y + head_half_h,
+                    z,
+                    outline_tint,
+                    anticipation_cell[0],
+                    anticipation_cell[1]));
+        }
+
         // Rolling flip: single notes stand vertical as they enter the visibility window and
         // roll flat around their travel axis across the whole approach, landing flat
-        // g_flip_flat_lead_seconds before the hit line; chord notes stay flat throughout.
-        const double roll_span_seconds = std::max(
-            span_end_seconds - now_seconds - g_flip_flat_lead_seconds, g_flip_flat_lead_seconds);
-        const double rotation =
-            in_chord ? 0.0
-                     : (-std::numbers::pi / 2.0) *
-                           std::clamp(
-                               (note.start_seconds - now_seconds - g_flip_flat_lead_seconds) /
-                                   roll_span_seconds,
-                               0.0,
-                               1.0);
+        // g_flip_flat_lead_seconds before the hit line; chord notes stay flat throughout. The
+        // clock (flip_remaining) is computed beside the head station, where the pre-bend
+        // reveal shares it.
+        const double rotation = in_chord ? 0.0 : (-std::numbers::pi / 2.0) * flip_remaining;
         const double cos_r = std::cos(rotation);
         const double sin_r = std::sin(rotation);
         const std::uint32_t tint = packAbgr(base_color, fade * head_slide.alpha);
@@ -3374,13 +3443,15 @@ void HighwayRenderer::Impl::draw(
         // flip keeps it pointing where the drawn curve goes. Amount and stages are the tail's
         // own geometry: physical lift height plus slope shading. The marker cell exists in both
         // atlas paths, so nothing here gates on
-        // reference_cells.
+        // reference_cells. The station is the chart-truth height: on an approaching pre-bend
+        // the chevron rides the target outline, not the rising head (user rule 2026-07-31);
+        // everywhere else chart and head coincide.
         if (!note.bend.empty())
         {
             pending_bend_markers.push_back(
                 PendingBendMarker{
                     .x = x,
-                    .y = head_y + (bend_direction * g_bend_marker_offset_heads * head_half_h),
+                    .y = chart_head_y + (bend_direction * g_bend_marker_offset_heads * head_half_h),
                     .z = z,
                     .direction = bend_direction,
                     .half_w = head_half_w,
