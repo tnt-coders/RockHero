@@ -155,11 +155,14 @@ TEST_CASE("addEditorCommandItem renders shortcuts through the formatter", "[ui][
     juce::PopupMenu::Item& redo_item = iterator.getItem();
     CHECK(redo_item.itemID == toJuceCommandId(EditorCommandId::Redo));
     CHECK(redo_item.commandManager == &view.commandManager());
-    // The default Redo bindings register the platform command modifier, so the label follows
-    // the platform convention ("Cmd" on macOS, "Ctrl" elsewhere).
-    const juce::String sep = keyChordJoiner();
-    const juce::String cmd = commandModifierName();
-    CHECK(redo_item.shortcutKeyDescription == cmd + sep + "Y, " + cmd + sep + "Shift" + sep + "Z");
+    // Both default Redo bindings are rendered through the formatter, so the expectation follows
+    // each platform's modifier naming and ordering by construction rather than assuming one:
+    // macOS names the bit "Cmd" and orders Shift ahead of it, elsewhere Cmd aliases Ctrl.
+    constexpr int command = juce::ModifierKeys::commandModifier;
+    constexpr int shift = juce::ModifierKeys::shiftModifier;
+    CHECK(
+        redo_item.shortcutKeyDescription ==
+        keyChordText(chord('y', command)) + ", " + keyChordText(chord('z', command | shift)));
 
     // The actions item's text matches the formatter by construction on every layout: "?"
     // where Shift+/ resolves, the explicit "shift + /" elsewhere.

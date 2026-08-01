@@ -366,7 +366,10 @@ TEST_CASE("TabView publishes and dedups the caret mask", "[ui][tab-view]")
             .caret = core::ChartCaretViewState{.seconds = 12.5, .string = 3},
         });
     REQUIRE(pushes.size() == 1);
-    const auto* const armed_span = pushes.back().has_value() ? &*pushes.back() : nullptr;
+    // Bind the pushed optional once: two back() calls are separate expressions to
+    // bugprone-unchecked-optional-access, so the has_value check would not guard the dereference.
+    const auto& armed_push = pushes.back();
+    const auto* const armed_span = armed_push.has_value() ? &*armed_push : nullptr;
     REQUIRE(armed_span != nullptr);
     CHECK(armed_span->getLength() > 0.0f);
 
