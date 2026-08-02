@@ -251,6 +251,26 @@ constexpr double g_unpitched_slide_end_alpha = 0.25;
 // chord, with corner holders, gradient frame bars, and mute-cross variants.
 constexpr ArgbColor g_chord_box_color = 0xFF00D2D5;
 constexpr ArgbColor g_chord_box_dark_color = 0xFF003C3D;
+
+// The frame fade's vertex modulation: the per-channel ratio dark/box (rounded), which turns
+// art authored in the frame color into the frame's dark middle color when multiplied.
+// Channels the box color lacks pass through, as does alpha. Derived so the dark/box
+// relationship is stated only by the two constants above.
+[[nodiscard]] constexpr ArgbColor frameFadeModulation()
+{
+    constexpr auto channel = [](const ArgbColor color, const int shift) {
+        return (color >> static_cast<unsigned>(shift)) & 0xFFU;
+    };
+    ArgbColor modulation = 0xFF000000U;
+    for (const int shift : {16, 8, 0})
+    {
+        const std::uint32_t box = channel(g_chord_box_color, shift);
+        const std::uint32_t dark = channel(g_chord_box_dark_color, shift);
+        const std::uint32_t ratio = box == 0U ? 0xFFU : (((dark * 255U) + (box / 2U)) / box);
+        modulation |= ratio << static_cast<unsigned>(shift);
+    }
+    return modulation;
+}
 // Repeat-box mute marks render through the SDF shader (fs_box_mute), and chords.png is the
 // single source of truth for their look: at renderer creation each mark's cross-section —
 // colors, rim/core structure, halo, opacity, exactly as painted — is measured from that file
@@ -494,6 +514,33 @@ void pushQuad(
     {
         indices.push_back(static_cast<std::uint16_t>(base + offset));
     }
+}
+
+// The chord-box frame's signature horizontal fade, stated once: a quad pair split at the
+// horizontal middle, colored `end_abgr` at the outer ends and `middle_abgr` at the split.
+// The frame bars draw it directly and the palm mute mark rides it as a vertex modulation,
+// so the two can never drift apart. `make_vertex` builds each corner as (x, y, abgr).
+template <typename Vertex, typename MakeVertex>
+void pushMiddleFadedQuads(
+    std::vector<Vertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
+    const double x1, const double y0, const double y1, const std::uint32_t end_abgr,
+    const std::uint32_t middle_abgr, MakeVertex&& make_vertex)
+{
+    const double middle_x = (x0 + x1) / 2.0;
+    pushQuad(
+        vertices,
+        indices,
+        make_vertex(x0, y0, end_abgr),
+        make_vertex(middle_x, y0, middle_abgr),
+        make_vertex(middle_x, y1, middle_abgr),
+        make_vertex(x0, y1, end_abgr));
+    pushQuad(
+        vertices,
+        indices,
+        make_vertex(middle_x, y0, middle_abgr),
+        make_vertex(x1, y0, end_abgr),
+        make_vertex(x1, y1, end_abgr),
+        make_vertex(middle_x, y1, middle_abgr));
 }
 
 // Axis-aligned quad on the floor plane (y constant, spanning x and z).
@@ -767,10 +814,20 @@ void pushChordBoxPanel(
             makeVertex(xb, yb, z, cb),
             makeVertex(xa, yb, z, ca));
     };
-    // A horizontal frame bar fading toward the middle from both ends.
+    // A horizontal frame bar carrying the frame's end-to-middle fade.
     const auto push_bar = [&](const double y) {
-        push_face(x0, y, box_half, middle_x, y + thickness, dark_half);
-        push_face(middle_x, y, dark_half, x1, y + thickness, box_half);
+        pushMiddleFadedQuads(
+            vertices,
+            indices,
+            x0,
+            x1,
+            y,
+            y + thickness,
+            box_half,
+            dark_half,
+            [&](const double vx, const double vy, const std::uint32_t abgr) {
+                return makeVertex(vx, vy, z, abgr);
+            });
     };
 
     for (const auto& [origin_x, x_sign] : {std::pair{x0, 1.0}, std::pair{x1, -1.0}})
@@ -2411,24 +2468,46 @@ void HighwayRenderer::Impl::draw(
             bgfx::setUniform(box_mute_params.get(), params.data());
             bgfx::setUniform(box_mute_arms.get(), arms.data());
             // The quad covers the interior exactly with no margin: the full mark dissolves
-            // inside it and the palm mark is sliced by it.
+            // inside it and the palm mark is sliced by it. The palm rim is authored in the
+            // frame color, so its quads ride the frame's own fade (pushMiddleFadedQuads,
+            // shared with the bars) as a vertex modulation — full brightness at the ends,
+            // the derived dark/box ratio at the middle — keeping the rim equal to the
+            // border wherever they meet. The full mark's rim is its own color and stays
+            // unshaded.
             const std::uint32_t white = packAbgr(0xFFFFFFFF);
-            const auto corner = [&](const double dx, const double dy) {
-                return makeUvVertex(
-                    middle_x + dx,
-                    middle_y + dy,
-                    z,
+            const auto make_corner =
+                [&](const double vx, const double vy, const std::uint32_t abgr) {
+                    return makeUvVertex(
+                        vx,
+                        vy,
+                        z,
+                        abgr,
+                        static_cast<float>(vx - middle_x),
+                        static_cast<float>(vy - middle_y));
+                };
+            if (full)
+            {
+                pushQuad(
+                    box_marker_vertices,
+                    box_marker_indices,
+                    make_corner(x0, y0, white),
+                    make_corner(x1, y0, white),
+                    make_corner(x1, y1, white),
+                    make_corner(x0, y1, white));
+            }
+            else
+            {
+                pushMiddleFadedQuads(
+                    box_marker_vertices,
+                    box_marker_indices,
+                    x0,
+                    x1,
+                    y0,
+                    y1,
                     white,
-                    static_cast<float>(dx),
-                    static_cast<float>(dy));
-            };
-            pushQuad(
-                box_marker_vertices,
-                box_marker_indices,
-                corner(-half_x, -half_y),
-                corner(half_x, -half_y),
-                corner(half_x, half_y),
-                corner(-half_x, half_y));
+                    packAbgr(frameFadeModulation()),
+                    make_corner);
+            }
             const bgfx::TextureHandle ramp = box_mute_ramp.get();
             submitBatch(
                 box_marker_vertices,
