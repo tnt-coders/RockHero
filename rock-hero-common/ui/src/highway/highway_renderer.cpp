@@ -721,13 +721,17 @@ void pushChordBoxPanel(
     const std::uint32_t box_clear = packAbgr(g_chord_box_color, 0.0);
 
     // Corner-holder fan outlines (Charter's ChordBoxHolderModel): a teal L behind a dark L, at
-    // each bottom corner. Local coordinates; the right corner mirrors in X.
+    // each bottom corner. Local coordinates; the right corner mirrors in X. The L legs are
+    // sized for a full-height box, so a half-height repeat box scales them to half vertically
+    // and a bit narrower horizontally to keep the brackets proportioned to the panel.
     constexpr std::array<std::array<double, 2>, 6> holder_background{
         {{-0.01, -0.01}, {1.01, -0.01}, {1.01, 0.11}, {0.11, 0.11}, {0.11, 1.11}, {-0.01, 1.01}}
     };
     constexpr std::array<std::array<double, 2>, 6> holder_front{
         {{0.0, 0.0}, {1.0, 0.0}, {1.0, 0.1}, {0.1, 0.1}, {0.1, 1.1}, {0.0, 1.0}}
     };
+    const double holder_x_scale = box_only ? 0.75 : 1.0;
+    const double holder_y_scale = box_only ? 0.5 : 1.0;
     const auto push_fan = [&](const std::span<const std::array<double, 2>> points,
                               const double origin_x,
                               const double x_sign,
@@ -735,7 +739,11 @@ void pushChordBoxPanel(
         const auto base = static_cast<std::uint16_t>(vertices.size());
         for (const std::array<double, 2>& point : points)
         {
-            vertices.push_back(makeVertex(origin_x + (x_sign * point[0]), point[1], z, abgr));
+            vertices.push_back(makeVertex(
+                origin_x + (x_sign * point[0] * holder_x_scale),
+                point[1] * holder_y_scale,
+                z,
+                abgr));
         }
         for (std::size_t point = 1; point + 1 < points.size(); ++point)
         {
@@ -2373,27 +2381,20 @@ void HighwayRenderer::Impl::draw(
             const double middle_y = (y0 + y1) / 2.0;
             const bool full = mute == common::core::NoteMute::Full;
             const BoxMuteProfile& profile = full ? box_mute_profiles.full : box_mute_profiles.palm;
-            // The two marks size against the interior oppositely (sighted layout policy).
-            // The full X is contained: a square glyph rect inset by the art's visible reach
-            // past the stroke edge (r = reach * h against rect height h = H - 2r for
-            // interior height H), so rim and tips' rim wrap complete inside. The palm X is
-            // cut raw: arms corner-to-corner of the interior at interior scale, with the
+            // Both marks span the full interior height (sighted layout policy). The palm X
+            // runs border-less edge to edge: arms corner-to-corner of the interior, with the
             // clip rect and the arms' horizontal cut pushed past the quad by the ramp extent
-            // so the quad slices the arms mid-stroke at the frame's inner edges — the X runs
-            // border-less edge to edge without inflating the stroke.
-            const double interior_height = 2.0 * half_y;
-            const double reach_fraction = profile.extent_fraction - profile.stroke_half_fraction;
-            const double inset =
-                full ? (reach_fraction * interior_height) / (1.0 + (2.0 * reach_fraction)) : 0.0;
-            const double glyph_half_y = half_y - inset;
-            const double glyph_height = 2.0 * glyph_half_y;
-            const double arm_half_x = full ? glyph_half_y : half_x;
+            // so the quad slices the arms mid-stroke at the frame's inner edges. The full X
+            // keeps a square footprint the height of the interior, tips wrapped by the note
+            // art's squared corners, its top and bottom stroke edges meeting the frame
+            // exactly (the sub-pixel antialiasing tail past them is cut by the quad).
+            const double glyph_height = 2.0 * half_y;
+            const double arm_half_x = full ? half_y : half_x;
             const double overshoot = full ? 0.0 : profile.extent_fraction * glyph_height;
-            const double arm_length =
-                std::sqrt((arm_half_x * arm_half_x) + (glyph_half_y * glyph_half_y));
+            const double arm_length = std::sqrt((arm_half_x * arm_half_x) + (half_y * half_y));
             const auto params = std::array<float, 4>{
                 static_cast<float>(arm_half_x + overshoot),
-                static_cast<float>(glyph_half_y + overshoot),
+                static_cast<float>(half_y + overshoot),
                 static_cast<float>(profile.stroke_half_fraction * glyph_height),
                 static_cast<float>(profile.extent_fraction * glyph_height),
             };
@@ -2403,7 +2404,7 @@ void HighwayRenderer::Impl::draw(
             // rect clip; a palm-mute tip is the quad's raw cut instead.
             const auto arms = std::array<float, 4>{
                 static_cast<float>(arm_half_x / arm_length),
-                static_cast<float>(glyph_half_y / arm_length),
+                static_cast<float>(half_y / arm_length),
                 static_cast<float>(arm_half_x + overshoot),
                 full ? 0.75F : 0.25F,
             };

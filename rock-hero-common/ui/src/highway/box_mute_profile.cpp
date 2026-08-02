@@ -109,73 +109,95 @@ constexpr float g_visible_alpha = 2.0F / 255.0F;
 
     // Averages one cross-section cut set over both arms' outer spans into `samples`, each
     // sample the mean RGBA at its distance from the measured arm's centerline across all
-    // valid cuts. A sample is valid only while it is at least as close to the measured arm
-    // as to the other one — the X is the union of the two arms, so past that bisector the
-    // pixel shows the other arm's cross-section (on a wide glyph the shallow arm angle makes
-    // perpendicular cuts run straight into the other arm's rim), which would smear ghost
-    // colors into the ramp and pull the 50%-alpha stroke edge onto the wrong arm.
-    const auto accumulate =
-        [&](const double extent, const std::span<std::array<double, 4>> samples) {
-            std::ranges::fill(samples, std::array<double, 4>{});
-            std::vector<double> weights(samples.size(), 0.0);
-            constexpr int g_stations = 6;
-            for (int station = 0; station < g_stations; ++station)
+    // valid cuts. The art composes as f(max(stripe, rect clip)), so a sample only carries
+    // cross-section truth where the stripe term owns the pixel; two guards enforce that.
+    // First, a sample must be at least as close to the measured arm as to the other one —
+    // past that bisector the pixel shows the other arm's cross-section (on a wide glyph the
+    // shallow arm angle makes perpendicular cuts run straight into the other arm's rim).
+    // Second, given a stroke-half estimate, a sample within (stroke half - distance) of the
+    // glyph rect boundary is owned by the tip clip — its wrapped rim brightens pixels even
+    // on the centerline near the tips, which otherwise smears a radial gradient across a
+    // flat-painted fill (the sighted ghost inner X on the full mute). The survey pass runs
+    // unguarded (it has no estimate yet); its stroke edge is set by the rim's sharp falloff,
+    // which the tip smear does not move.
+    const auto accumulate = [&](const double extent,
+                                const std::span<std::array<double, 4>>
+                                    samples,
+                                const double stroke_half_guard) {
+        std::ranges::fill(samples, std::array<double, 4>{});
+        std::vector<double> weights(samples.size(), 0.0);
+        constexpr int g_stations = 6;
+        for (int station = 0; station < g_stations; ++station)
+        {
+            const double along = arm_length * (0.45 + (0.35 * station / (g_stations - 1)));
+            for (const double along_sign : {-1.0, 1.0})
             {
-                const double along = arm_length * (0.45 + (0.35 * station / (g_stations - 1)));
-                for (const double along_sign : {-1.0, 1.0})
+                for (const double mirror : {1.0, -1.0})
                 {
-                    for (const double mirror : {1.0, -1.0})
+                    const double ax = dir_x;
+                    const double ay = dir_y * mirror;
+                    const double station_x = center_x + (along_sign * along * ax);
+                    const double station_y = center_y + (along_sign * along * ay);
+                    for (std::size_t i = 0; i < samples.size(); ++i)
                     {
-                        const double ax = dir_x;
-                        const double ay = dir_y * mirror;
-                        const double station_x = center_x + (along_sign * along * ax);
-                        const double station_y = center_y + (along_sign * along * ay);
-                        for (std::size_t i = 0; i < samples.size(); ++i)
+                        const double distance =
+                            extent * (static_cast<double>(i) + 0.5) / samples.size();
+                        for (const double side : {-1.0, 1.0})
                         {
-                            const double distance =
-                                extent * (static_cast<double>(i) + 0.5) / samples.size();
-                            for (const double side : {-1.0, 1.0})
+                            const double sample_x = station_x + (side * distance * -ay);
+                            const double sample_y = station_y + (side * distance * ax);
+                            // The other arm mirrors the measured one, so its perpendicular
+                            // is (ay, ax); skip samples the other arm owns.
+                            const double other_distance = std::abs(
+                                ((sample_x - center_x) * ay) + ((sample_y - center_y) * ax));
+                            if (other_distance < distance)
                             {
-                                const double sample_x = station_x + (side * distance * -ay);
-                                const double sample_y = station_y + (side * distance * ax);
-                                // The other arm mirrors the measured one, so its perpendicular
-                                // is (ay, ax); skip samples the other arm owns.
-                                const double other_distance = std::abs(
-                                    ((sample_x - center_x) * ay) + ((sample_y - center_y) * ax));
-                                if (other_distance < distance)
+                                continue;
+                            }
+                            if (stroke_half_guard > 0.0)
+                            {
+                                // Skip samples the tip clip owns (see the guard note
+                                // above): rect-boundary distance below what the stripe
+                                // needs to dominate.
+                                const double inside_x =
+                                    (rect_width / 2.0) - std::abs(sample_x - center_x);
+                                const double inside_y =
+                                    (rect_height / 2.0) - std::abs(sample_y - center_y);
+                                if (std::min(inside_x, inside_y) < stroke_half_guard - distance)
                                 {
                                     continue;
                                 }
-                                const std::array<double, 4> texel = sample(sample_x, sample_y);
-                                for (std::size_t channel = 0; channel < 4; ++channel)
-                                {
-                                    samples[i][channel] += texel[channel];
-                                }
-                                weights[i] += 1.0;
                             }
+                            const std::array<double, 4> texel = sample(sample_x, sample_y);
+                            for (std::size_t channel = 0; channel < 4; ++channel)
+                            {
+                                samples[i][channel] += texel[channel];
+                            }
+                            weights[i] += 1.0;
                         }
                     }
                 }
             }
-            for (std::size_t i = 0; i < samples.size(); ++i)
+        }
+        for (std::size_t i = 0; i < samples.size(); ++i)
+        {
+            if (weights[i] <= 0.0)
             {
-                if (weights[i] <= 0.0)
-                {
-                    continue;
-                }
-                for (double& channel : samples[i])
-                {
-                    channel /= weights[i];
-                }
+                continue;
             }
-        };
+            for (double& channel : samples[i])
+            {
+                channel /= weights[i];
+            }
+        }
+    };
 
     // First pass: a fine survey over the largest reach any art can have — from the centerline
     // out past the faint bounding box — locates the stroke edge and the last visible art.
     constexpr std::size_t g_survey_samples = 256;
     const double survey_extent = ((faint_max_y - faint_min_y + 1) / 2.0) + 2.0;
     std::array<std::array<double, 4>, g_survey_samples> survey{};
-    accumulate(survey_extent, survey);
+    accumulate(survey_extent, survey, 0.0);
 
     // The stroke boundary anchors to the rim's outer falloff at HALF THE GLYPH'S PEAK alpha
     // rather than a fixed 50%: the palm rim is authored at the chord-box frame's own 128/255
@@ -222,7 +244,7 @@ constexpr float g_visible_alpha = 2.0F / 255.0F;
     // (extent - stroke half) — stays as small as the art allows.
     const double extent = std::min(last_visible + 1.5, survey_extent);
     std::array<std::array<double, 4>, g_box_mute_ramp_samples> accumulated{};
-    accumulate(extent, accumulated);
+    accumulate(extent, accumulated, stroke_half);
 
     BoxMuteProfile profile;
     for (std::size_t i = 0; i < g_box_mute_ramp_samples; ++i)
