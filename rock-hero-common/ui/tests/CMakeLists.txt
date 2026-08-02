@@ -6,8 +6,8 @@ include(Catch)
 
 add_executable(
     rock_hero_common_ui_tests
-    test_highway_atlas.cpp test_render_device.cpp test_string_color_palette.cpp
-    test_tab_lane_layout.cpp test_tab_paint_core.cpp)
+    test_box_mute_profile.cpp test_highway_atlas.cpp test_render_device.cpp
+    test_string_color_palette.cpp test_tab_lane_layout.cpp test_tab_paint_core.cpp)
 
 # The atlas units under test are private to the library, so tests reach their headers through the
 # library's src tree; the private atlas header carries bgfx types, so the bgfx wrapper supplies

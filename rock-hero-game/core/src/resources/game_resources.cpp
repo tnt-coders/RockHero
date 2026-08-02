@@ -84,27 +84,31 @@ namespace
     return "color";
 }
 
-// Path of a texture asset relative to <root>/textures/. The charter/ subtree carries the
-// reference assets adapted from Charter (BSD 3-Clause; LICENSE.txt deploys alongside).
+// Path of a texture asset relative to <root>/textures/. The directory is flat; LICENSE.txt
+// beside the files explicitly lists which are Charter-adapted (BSD 3-Clause).
 [[nodiscard]] std::string_view textureRelativePath(const GameTexture texture)
 {
     switch (texture)
     {
         case GameTexture::HighwayNotes:
         {
-            return "charter/notes.png";
+            return "notes.png";
         }
         case GameTexture::HighwayInlays:
         {
-            return "charter/inlays.png";
+            return "inlays.png";
         }
         case GameTexture::HighwayFingering:
         {
-            return "charter/fingering.png";
+            return "fingering.png";
+        }
+        case GameTexture::HighwayChordMarks:
+        {
+            return "chords.png";
         }
     }
 
-    return "charter/notes.png";
+    return "notes.png";
 }
 
 } // namespace

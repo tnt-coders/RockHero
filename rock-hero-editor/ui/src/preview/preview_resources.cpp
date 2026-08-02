@@ -91,11 +91,12 @@ std::optional<common::ui::HighwayShaderSet> loadPreviewHighwayShaders()
 
 common::ui::HighwayTextureSet loadPreviewHighwayTextures()
 {
-    const juce::File textures = resourcesRoot().getChildFile("textures").getChildFile("charter");
+    const juce::File textures = resourcesRoot().getChildFile("textures");
     common::ui::HighwayTextureSet set;
     set.note_atlas_png = readFileBytes(textures.getChildFile("notes.png"));
     set.inlay_atlas_png = readFileBytes(textures.getChildFile("inlays.png"));
     set.fingering_png = readFileBytes(textures.getChildFile("fingering.png"));
+    set.chord_marks_png = readFileBytes(textures.getChildFile("chords.png"));
     return set;
 }
 

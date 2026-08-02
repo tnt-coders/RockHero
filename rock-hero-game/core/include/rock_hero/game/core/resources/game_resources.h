@@ -76,8 +76,8 @@ enum class GameShaderProgram : std::uint8_t
 /*!
 \brief Texture assets the game ships under resources/textures/.
 
-The charter/ subtree carries the reference texture assets adapted from Charter (BSD 3-Clause;
-LICENSE.txt accompanies them in the deployed tree).
+The directory is flat; LICENSE.txt beside the files explicitly lists which of them are the
+Charter-adapted assets it covers (BSD 3-Clause) — the rest are original Rock Hero art.
 */
 enum class GameTexture : std::uint8_t
 {
@@ -89,6 +89,9 @@ enum class GameTexture : std::uint8_t
 
     /*! \brief Fingering panel shapes and digits (4x4 grid). */
     HighwayFingering,
+
+    /*! \brief Repeat-box mute mark art (two stacked cells: palm above full, final colors). */
+    HighwayChordMarks,
 };
 
 /*! \brief Stable reasons resource resolution can fail. */

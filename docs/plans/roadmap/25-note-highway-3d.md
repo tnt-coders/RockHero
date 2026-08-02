@@ -663,15 +663,23 @@ drawers (session Charter clone).
   vibrato, tremolo, multi-waypoint slides with per-segment easing and unpitched dimming to 25%),
   chord boxes at multi-note onsets (corner holders, gradient frame, accent chevrons, short/full
   sides by chord size, repeat-box mute marks rendered by the dedicated SDF program
-  (fs_box_mute, the seventh shader): the notation legend's muted-panel X — darker translucent
-  ribbons corner-to-corner with flush side cuts, thin bright edge lines crossing through —
-  with the distance field evaluated per fragment in box-local world units so line weights
-  hold exactly at every box aspect; marks submit interleaved with the panel batch so painter
-  order holds across overlapping chug-chain boxes, and Charter's light/dark mute split rides
-  the edge tint. Route chosen 2026-08-01 after stretched head cells, flat procedural strokes,
-  a dedicated box-scale bake, and art-bounds-mapped cells were each built and rejected — a
-  fixed bitmap cannot hold frame-thin edge weight across the boxes' varying aspects (part of
-  the earlier dissatisfaction also traced to judging a stale relwithdebinfo build) —
+  (fs_box_mute, the seventh shader) whose look is owned entirely by the NEW chords.png asset
+  (SETTLED 2026-08-01 as the architecture-gate outcome, two research agents concurring):
+  chords.png — original Rock Hero art, two stacked cells, palm above full, final display
+  colors, deliberately separate from the note cells so the box marks can diverge — is
+  measured at renderer creation into a two-row cross-section ramp (box_mute_profile.{h,cpp},
+  headlessly tested, fail-loud on unanalyzable art) that the shader samples by exact distance
+  from arm centerlines evaluated per fragment in box-local world units, because the X's arm
+  angle changes with box aspect and no fixed bitmap contains that shape; marks submit
+  interleaved with the panel batch so painter order holds across overlapping chug-chain
+  boxes. The gate ruled out, evidence-cited: bitmap stretch and art-bounds-mapped cells
+  (weight distorts with aspect), 9-slice (cannot re-angle diagonals), baked SDF/MSDF
+  (anisotropic field distortion is fundamental; MSDF also cannot carry multi-zone color art),
+  runtime vector renderers (2D screen-space cannot depth-compose into the perspective
+  highway), tessellated vector meshes (strictly more machinery), and uniform-technique
+  mandates generally (Unity/Unreal/Valve and the genre's texture-skin practice all use-match
+  per content class). Textures stay flat under resources/textures with LICENSE.txt naming the
+  Charter-adapted files explicitly —
   Charter colors), chord names riding the hit
   line, hand-shape span rails (arpeggio purple / lane teal), fingering panels (barre-aware
   shapes + finger names from fingering.png, suppressed while the current chord is fully muted)

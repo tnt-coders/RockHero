@@ -1,7 +1,14 @@
-The texture assets in this directory (notes.png, fingering.png, inlays.png) are adapted from
-Charter (https://github.com/Lordszynencja/Charter) and are redistributed under the BSD 3-Clause
-License below. They ship with Rock Hero as runtime resources; this notice must accompany them in
-source and binary distributions.
+This license covers EXACTLY the following files in this directory, which are adapted from
+Charter (https://github.com/Lordszynencja/Charter) and redistributed under the BSD 3-Clause
+License below:
+
+  - notes.png
+  - fingering.png
+  - inlays.png
+
+They ship with Rock Hero as runtime resources; this notice must accompany them in source and
+binary distributions. Every other file in this directory (currently chords.png) is original
+Rock Hero art, NOT covered by this license, and carries the repository's own license.
 
 BSD 3-Clause License
 

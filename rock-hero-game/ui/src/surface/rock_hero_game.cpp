@@ -164,6 +164,15 @@ std::optional<int> RockHeroGame::onInit()
     {
         RH_LOG_WARNING("game.highway", "{}", fingering.error().message);
     }
+    auto chord_marks = resources->textureBytes(core::GameTexture::HighwayChordMarks);
+    if (chord_marks.has_value())
+    {
+        highway_textures.chord_marks_png = std::move(*chord_marks);
+    }
+    else
+    {
+        RH_LOG_WARNING("game.highway", "{}", chord_marks.error().message);
+    }
     std::expected<common::ui::HighwayRenderer, common::ui::HighwayRendererError> renderer =
         common::ui::HighwayRenderer::create(*highway_shaders, highway_textures);
     if (!renderer.has_value())

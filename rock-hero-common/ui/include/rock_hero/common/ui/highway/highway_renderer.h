@@ -71,8 +71,9 @@ struct HighwayShaderSet
 /*!
 \brief Texture assets the highway renderer uploads at creation.
 
-The reference assets (adapted from Charter, BSD 3-Clause — the LICENSE.txt beside the deployed
-files) live under rock-hero-common/ui/resources/textures/charter and are deployed per product.
+The assets live flat under rock-hero-common/ui/resources/textures and are deployed per
+product; LICENSE.txt beside them explicitly lists which files are Charter-adapted (BSD
+3-Clause) — the rest are original Rock Hero art.
 Every member is REQUIRED product content: empty or undecodable bytes fail create with a typed
 error, because a missing texture means a broken install, not a degradable state (user decision
 2026-08-01 — the procedural fallbacks this replaces silently masked such failures).
@@ -87,6 +88,13 @@ struct HighwayTextureSet
 
     /*! \brief Fingering-panel PNG (4x4 grid: barre shapes plus finger name glyphs). */
     std::vector<std::byte> fingering_png;
+
+    /*!
+    \brief Repeat-box mute mark art PNG (chords.png): two stacked cells, palm mute above full
+    mute, painted in final display colors. The single source of truth for the box marks' look
+    — the renderer measures each mark's cross-section from these pixels at creation.
+    */
+    std::vector<std::byte> chord_marks_png;
 };
 
 /*! \brief Stable reasons the highway renderer can fail to come up. */
