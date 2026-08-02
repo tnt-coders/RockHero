@@ -526,7 +526,7 @@ template <typename Vertex, typename MakeVertex>
 void pushMiddleFadedQuads(
     std::vector<Vertex>& vertices, std::vector<std::uint16_t>& indices, const double x0,
     const double x1, const double y0, const double y1, const std::uint32_t end_abgr,
-    const std::uint32_t middle_abgr, MakeVertex&& make_vertex)
+    const std::uint32_t middle_abgr, const MakeVertex& make_vertex)
 {
     const double middle_x = (x0 + x1) / 2.0;
     pushQuad(
@@ -1110,9 +1110,12 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
     {
         impl->box_mute_profiles = *profiles;
         const auto width = static_cast<std::uint32_t>(g_box_mute_ramp_samples);
-        const bgfx::Memory* memory = bgfx::alloc(width * 2U * 4U);
-        std::memcpy(memory->data, profiles->palm.ramp.data(), width * 4U);
-        std::memcpy(memory->data + (width * 4U), profiles->full.ramp.data(), width * 4U);
+        // One RGBA row per mark. Size the rows in std::size_t so neither the memcpy lengths nor
+        // the destination offset comes from a multiplication performed in the narrower type.
+        const std::size_t row_bytes = static_cast<std::size_t>(width) * 4U;
+        const bgfx::Memory* memory = bgfx::alloc(static_cast<std::uint32_t>(row_bytes * 2U));
+        std::memcpy(memory->data, profiles->palm.ramp.data(), row_bytes);
+        std::memcpy(memory->data + row_bytes, profiles->full.ramp.data(), row_bytes);
         impl->box_mute_ramp = UniqueBgfxHandle<bgfx::TextureHandle>{bgfx::createTexture2D(
             static_cast<std::uint16_t>(width),
             2,

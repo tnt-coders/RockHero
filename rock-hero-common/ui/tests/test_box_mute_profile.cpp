@@ -38,7 +38,7 @@ void hollowCross(
     juce::Image& image, const juce::Rectangle<float> cell, const float core_width,
     const std::optional<juce::Colour> faint_core)
 {
-    juce::Image mask{
+    const juce::Image mask{
         juce::Image::ARGB, image.getWidth(), image.getHeight(), true, juce::SoftwareImageType{}
     };
     juce::Graphics graphics{mask};

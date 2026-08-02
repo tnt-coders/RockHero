@@ -140,8 +140,8 @@ constexpr float g_visible_alpha = 2.0F / 255.0F;
                     const double station_y = center_y + (along_sign * along * ay);
                     for (std::size_t i = 0; i < samples.size(); ++i)
                     {
-                        const double distance =
-                            extent * (static_cast<double>(i) + 0.5) / samples.size();
+                        const double distance = extent * (static_cast<double>(i) + 0.5) /
+                                                static_cast<double>(samples.size());
                         for (const double side : {-1.0, 1.0})
                         {
                             const double sample_x = station_x + (side * distance * -ay);
@@ -171,7 +171,7 @@ constexpr float g_visible_alpha = 2.0F / 255.0F;
                             const std::array<double, 4> texel = sample(sample_x, sample_y);
                             for (std::size_t channel = 0; channel < 4; ++channel)
                             {
-                                samples[i][channel] += texel[channel];
+                                samples[i].at(channel) += texel.at(channel);
                             }
                             weights[i] += 1.0;
                         }
@@ -220,7 +220,7 @@ constexpr float g_visible_alpha = 2.0F / 255.0F;
     for (std::size_t i = 0; i < g_survey_samples; ++i)
     {
         const double distance = survey_extent * (static_cast<double>(i) + 0.5) / g_survey_samples;
-        const double alpha = survey[i][3];
+        const double alpha = survey.at(i)[3];
         // Take the OUTERMOST falling crossing — not the first — so the anchor stays on the
         // rim even when the art's core is faint or fully hollow, where alpha starts below
         // the edge threshold at the centerline.
@@ -251,14 +251,14 @@ constexpr float g_visible_alpha = 2.0F / 255.0F;
     {
         for (std::size_t channel = 0; channel < 4; ++channel)
         {
-            profile.ramp[(i * 4) + channel] = static_cast<std::uint8_t>(
-                std::clamp(accumulated[i][channel], 0.0, 1.0) * 255.0 + 0.5);
+            profile.ramp.at((i * 4) + channel) = static_cast<std::uint8_t>(
+                std::lround(std::clamp(accumulated.at(i).at(channel), 0.0, 1.0) * 255.0));
         }
     }
     // Force the tail transparent so sampling past the extent always dissolves.
     for (std::size_t channel = 0; channel < 4; ++channel)
     {
-        profile.ramp[((g_box_mute_ramp_samples - 1) * 4) + channel] = 0;
+        profile.ramp.at(((g_box_mute_ramp_samples - 1) * 4) + channel) = 0;
     }
     profile.stroke_half_fraction = stroke_half / rect_height;
     profile.extent_fraction = extent / rect_height;
