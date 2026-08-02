@@ -2762,6 +2762,220 @@ void HighwayRenderer::Impl::draw(
         }
     };
 
+    // --- Scrolling fret numbers: Charter's readability aid. Numbers ride the board floor
+    // at each dotted fret on every measure downbeat (bright inside the current hand range, dim
+    // elsewhere), mark each upcoming hand-position arrival in orange, and pin the current
+    // hand's numbers at the hit line; all fade in as they approach. One ordering rule for
+    // every floor number, blue or orange (user rule 2026-08-02): a number joins the
+    // far-to-near note sweep at its own time, draining just before the first onset group
+    // nearer than it — so any note struck earlier than the number, truly nearer in 3D,
+    // paints over it, while the number paints over every note at or behind its time
+    // (equal-time numbers drain after that group flushes, keeping number-over-note on
+    // ties). Numbers still draw before the board face, whose fret lines and skin keep
+    // occluding numbers scrolling in behind it (numbers popping through the fretboard
+    // would read as a depth violation). ---
+    struct FloorNumber
+    {
+        double seconds{0.0};
+        double z{0.0};
+        int fret{0};
+        ArgbColor base{0};
+        bool fade{false};
+        double alpha{1.0};
+    };
+    std::vector<FloorNumber> floor_numbers;
+    {
+        // How deeply a fret's whole lane sits inside a window: the min of its two lines'
+        // coverages — the shared signal the number fades and color blends follow.
+        const auto fret_coverage = [](const common::core::HighwayHandWindow& window,
+                                      const int fret) {
+            return std::min(
+                common::core::highwayHandWindowLineCoverage(window, static_cast<double>(fret - 1)),
+                common::core::highwayHandWindowLineCoverage(window, static_cast<double>(fret)));
+        };
+
+        // Dotted-fret numbers on each visible measure downbeat, lit within the hand range (a
+        // downbeat mid-transition blends the dim and active colors by its coverage).
+        for (const common::core::HighwayBeatView& beat : state.beats)
+        {
+            if (!beat.measure_downbeat || beat.seconds < now_seconds - 0.2 ||
+                beat.seconds > span_end_seconds)
+            {
+                continue;
+            }
+            const common::core::HighwayHandWindow beat_window =
+                common::core::highwayHandWindowAt(state.fret_hand_positions, beat.seconds);
+            const double z = time_to_z(beat.seconds);
+            for (int fret = 1; fret <= g_face_fret_count; ++fret)
+            {
+                if (!isDottedFret(fret))
+                {
+                    continue;
+                }
+                const double coverage = fret_coverage(beat_window, fret);
+                floor_numbers.push_back(
+                    FloorNumber{
+                        .seconds = beat.seconds,
+                        .z = z,
+                        .fret = fret,
+                        .base =
+                            mixArgb(g_fret_number_dim_color, g_fret_number_active_color, coverage),
+                        .fade = true,
+                        .alpha = 1.0,
+                    });
+            }
+        }
+
+        // An upcoming floor target — a hand-position arrival, a tapped note, or a pitched slide
+        // waypoint — gets the same orange number at its fret slot, fading in on approach. One
+        // push owns the window gate and the argument bundle so the borrowed treatments can
+        // never drift apart.
+        const auto push_target_number = [&](const int fret, const double seconds) {
+            if (seconds <= now_seconds || seconds > span_end_seconds)
+            {
+                return;
+            }
+            floor_numbers.push_back(
+                FloorNumber{
+                    .seconds = seconds,
+                    .z = time_to_z(seconds),
+                    .fret = fret,
+                    .base = g_fret_number_fhp_color,
+                    .fade = true,
+                    .alpha = 1.0,
+                });
+        };
+
+        // Upcoming hand-position arrivals, in the FHP orange.
+        for (const common::core::HighwayFhpView& fhp : state.fret_hand_positions)
+        {
+            push_target_number(fhp.fret, fhp.seconds);
+        }
+
+        // Tap numbers label POSITIONS, not notes (user rule 2026-07-28 — per-note numbers
+        // over-labeled dense runs): one number per tap onset, at its low fret like a
+        // hand-position arrival, and only when it tells the player something new — the first
+        // tap after the lighting lapsed, or a move away from the position the previous tap's
+        // path LANDED in. A repeat inside a lit run (the previous release plus the ribbon
+        // decay still bridging this rise — the same bridge the lane edges show) is already
+        // established and stays unlabeled, as are chord upper members. A tapped glide then
+        // establishes each landing as its own new position (user rule 2026-07-28, matching the
+        // placements a fretting-hand glide carries at its targets): every path station that
+        // changes the extent gets an arrival number of its own.
+        const common::core::HighwayTapOnsetView* previous_tap = nullptr;
+        for (const common::core::HighwayTapOnsetView& tap : state.tap_onsets)
+        {
+            const bool repeat_in_lit_run =
+                previous_tap != nullptr &&
+                std::lround(previous_tap->path.back().fret_low) == tap.fret_low &&
+                std::lround(previous_tap->path.back().fret_high) == tap.fret_high &&
+                previous_tap->path.back().seconds + g_tap_ribbon_decay_seconds >=
+                    tap.seconds - tap.ramp_seconds;
+            if (!repeat_in_lit_run)
+            {
+                push_target_number(tap.fret_low, tap.seconds);
+            }
+            for (std::size_t station = 1; station < tap.path.size(); ++station)
+            {
+                const common::core::HighwayTapLightStation& a = tap.path[station - 1];
+                const common::core::HighwayTapLightStation& b = tap.path[station];
+                if (std::is_neq(a.fret_low <=> b.fret_low) ||
+                    std::is_neq(a.fret_high <=> b.fret_high))
+                {
+                    push_target_number(static_cast<int>(std::lround(b.fret_low)), b.seconds);
+                }
+            }
+            previous_tap = &tap;
+        }
+
+        // Slide waypoints deliberately push no numbers of their own (user rule 2026-07-28,
+        // completing the one-rule model: an orange number marks a hand position being
+        // established, nothing else). A fretting-hand glide that moves the window carries a
+        // hand-position placement at its target (normalization rule 9), and a tapped glide's
+        // landings are labeled through the path-station loop above — both hands' glides earn
+        // their numbers as POSITIONS, never as waypoints. The waypoint glow posts and
+        // fret-span lines remain — they are target furniture, not labels.
+
+        // The current hand's numbers pinned at the hit line. Coverage fade (signed 2026-07-23):
+        // every glyph stays at its own lane's fixed position and animates opacity only, fading
+        // out as the sweeping border leaves its lane and in as the border reaches it. Their
+        // time is the current instant, so any sounding note drains after and covers them.
+        for (int fret = 1; fret <= g_face_fret_count; ++fret)
+        {
+            const double coverage = fret_coverage(current_window, fret);
+            if (coverage > 0.0)
+            {
+                floor_numbers.push_back(
+                    FloorNumber{
+                        .seconds = now_seconds,
+                        .z = 0.0,
+                        .fret = fret,
+                        .base = g_fret_number_fhp_color,
+                        .fade = false,
+                        .alpha = coverage,
+                    });
+            }
+        }
+    }
+    // Far-to-near like the note sweep; stable so same-time numbers keep their authored
+    // layering (measure numbers under orange targets).
+    std::ranges::stable_sort(floor_numbers, [](const FloorNumber& lhs, const FloorNumber& rhs) {
+        return lhs.seconds > rhs.seconds;
+    });
+
+    std::vector<PosColorUvVertex> number_vertices;
+    std::vector<std::uint16_t> number_indices;
+    std::size_t next_floor_number = 0;
+    const double number_z_faded = common::core::highwayTimeToZ(0.05, scroll, metrics);
+    const double number_z_close = common::core::highwayTimeToZ(0.25, scroll, metrics);
+    // Drains every collected number strictly beyond `limit_seconds` into one glyph submit —
+    // the numbers' slot in the painter order when the sweep reaches that time. Each glyph
+    // billboards at its fret slot; alpha fades in between the hit line and z_close when the
+    // number requests it (Charter bakes the fade into the color, since the glyph program has
+    // no fade uniform), scaled by the number's own alpha (the window-coverage fades).
+    const auto submit_numbers_beyond = [&](const double limit_seconds) {
+        while (next_floor_number < floor_numbers.size() &&
+               floor_numbers[next_floor_number].seconds > limit_seconds)
+        {
+            const FloorNumber& entry = floor_numbers[next_floor_number];
+            ++next_floor_number;
+            const double glyph_height = entry.z > 0.0 ? 0.70 : 0.40;
+            const std::string label = std::to_string(entry.fret);
+            const double text_width = glyph_height * 0.62 * static_cast<double>(label.size());
+            const double left_x = common::core::highwayNoteCenterX(entry.fret, metrics, mirrored) -
+                                  (text_width / 2.0);
+            double alpha_scale = entry.alpha;
+            if (entry.fade && entry.z < number_z_close)
+            {
+                alpha_scale *= std::clamp(
+                    (entry.z - number_z_faded) / (number_z_close - number_z_faded), 0.0, 1.0);
+            }
+            (void)pushGlyphText(
+                number_vertices,
+                number_indices,
+                atlases.glyph_layout,
+                label,
+                left_x,
+                -glyph_height / 2.0,
+                entry.z,
+                glyph_height,
+                packAbgr(entry.base, alpha_scale));
+        }
+        if (number_vertices.empty())
+        {
+            return;
+        }
+        const bgfx::TextureHandle glyph_texture = atlases.glyphs.get();
+        submitBatch(
+            number_vertices,
+            number_indices,
+            posColorUvLayout(),
+            glyph_program.get(),
+            &glyph_texture);
+        number_vertices.clear();
+        number_indices.clear();
+    };
+
     for (const std::size_t index : visible)
     {
         const common::core::HighwayNoteView& note = state.notes[index];
@@ -2781,6 +2995,9 @@ void HighwayRenderer::Impl::draw(
             emit_pending_bend_markers();
             flush_note_batches();
             batched_group = group_index;
+            // Floor numbers beyond this group's onset take their painter slot here, under
+            // this group and everything nearer.
+            submit_numbers_beyond(group.start_seconds);
         }
         submit_brackets_below(note);
         const double lane_y =
@@ -3746,163 +3963,9 @@ void HighwayRenderer::Impl::draw(
         }
     }
 
-    // --- Scrolling fret numbers: Charter's readability aid. Numbers ride the board floor
-    // at each dotted fret on every measure downbeat (bright inside the current hand range, dim
-    // elsewhere), mark each upcoming hand-position arrival in orange, and pin the current hand's
-    // numbers at the hit line; all fade in as they approach. Drawn after the notes so numbers
-    // read over every note, tail, and chord box, but before the board face: the face is the
-    // wall nearest the camera, so its fret lines and skin keep occluding numbers scrolling in
-    // behind it (numbers popping through the fretboard would read as a depth violation). ---
-    {
-        std::vector<PosColorUvVertex> vertices;
-        std::vector<std::uint16_t> indices;
-        const double z_faded = common::core::highwayTimeToZ(0.05, scroll, metrics);
-        const double z_close = common::core::highwayTimeToZ(0.25, scroll, metrics);
-
-        // One billboarded number at a fret's slot on the board floor; alpha fades in between the
-        // hit line and z_close when fade is requested (Charter bakes the fade into the color,
-        // since the glyph program has no fade uniform), scaled by the caller's own alpha (the
-        // window-coverage fades).
-        const auto push_number = [&](const int fret,
-                                     const double z,
-                                     const ArgbColor base,
-                                     const bool fade,
-                                     const double alpha) {
-            const double glyph_height = z > 0.0 ? 0.70 : 0.40;
-            const std::string label = std::to_string(fret);
-            const double text_width = glyph_height * 0.62 * static_cast<double>(label.size());
-            const double left_x =
-                common::core::highwayNoteCenterX(fret, metrics, mirrored) - (text_width / 2.0);
-            double alpha_scale = alpha;
-            if (fade && z < z_close)
-            {
-                alpha_scale *= std::clamp((z - z_faded) / (z_close - z_faded), 0.0, 1.0);
-            }
-            (void)pushGlyphText(
-                vertices,
-                indices,
-                atlases.glyph_layout,
-                label,
-                left_x,
-                -glyph_height / 2.0,
-                z,
-                glyph_height,
-                packAbgr(base, alpha_scale));
-        };
-        // How deeply a fret's whole lane sits inside a window: the min of its two lines'
-        // coverages — the shared signal the number fades and color blends follow.
-        const auto fret_coverage = [](const common::core::HighwayHandWindow& window,
-                                      const int fret) {
-            return std::min(
-                common::core::highwayHandWindowLineCoverage(window, static_cast<double>(fret - 1)),
-                common::core::highwayHandWindowLineCoverage(window, static_cast<double>(fret)));
-        };
-
-        // Dotted-fret numbers on each visible measure downbeat, lit within the hand range (a
-        // downbeat mid-transition blends the dim and active colors by its coverage).
-        for (const common::core::HighwayBeatView& beat : state.beats)
-        {
-            if (!beat.measure_downbeat || beat.seconds < now_seconds - 0.2 ||
-                beat.seconds > span_end_seconds)
-            {
-                continue;
-            }
-            const common::core::HighwayHandWindow beat_window =
-                common::core::highwayHandWindowAt(state.fret_hand_positions, beat.seconds);
-            const double z = time_to_z(beat.seconds);
-            for (int fret = 1; fret <= g_face_fret_count; ++fret)
-            {
-                if (!isDottedFret(fret))
-                {
-                    continue;
-                }
-                const double coverage = fret_coverage(beat_window, fret);
-                push_number(
-                    fret,
-                    z,
-                    mixArgb(g_fret_number_dim_color, g_fret_number_active_color, coverage),
-                    true,
-                    1.0);
-            }
-        }
-
-        // An upcoming floor target — a hand-position arrival, a tapped note, or a pitched slide
-        // waypoint — gets the same orange number at its fret slot, fading in on approach. One
-        // push owns the window gate and the argument bundle so the borrowed treatments can
-        // never drift apart.
-        const auto push_target_number = [&](const int fret, const double seconds) {
-            if (seconds <= now_seconds || seconds > span_end_seconds)
-            {
-                return;
-            }
-            push_number(fret, time_to_z(seconds), g_fret_number_fhp_color, true, 1.0);
-        };
-
-        // Upcoming hand-position arrivals, in the FHP orange.
-        for (const common::core::HighwayFhpView& fhp : state.fret_hand_positions)
-        {
-            push_target_number(fhp.fret, fhp.seconds);
-        }
-
-        // Tap numbers label POSITIONS, not notes (user rule 2026-07-28 — per-note numbers
-        // over-labeled dense runs): one number per tap onset, at its low fret like a
-        // hand-position arrival, and only when it tells the player something new — the first
-        // tap after the lighting lapsed, or a move away from the position the previous tap's
-        // path LANDED in. A repeat inside a lit run (the previous release plus the ribbon
-        // decay still bridging this rise — the same bridge the lane edges show) is already
-        // established and stays unlabeled, as are chord upper members. A tapped glide then
-        // establishes each landing as its own new position (user rule 2026-07-28, matching the
-        // placements a fretting-hand glide carries at its targets): every path station that
-        // changes the extent gets an arrival number of its own.
-        const common::core::HighwayTapOnsetView* previous_tap = nullptr;
-        for (const common::core::HighwayTapOnsetView& tap : state.tap_onsets)
-        {
-            const bool repeat_in_lit_run =
-                previous_tap != nullptr &&
-                std::lround(previous_tap->path.back().fret_low) == tap.fret_low &&
-                std::lround(previous_tap->path.back().fret_high) == tap.fret_high &&
-                previous_tap->path.back().seconds + g_tap_ribbon_decay_seconds >=
-                    tap.seconds - tap.ramp_seconds;
-            if (!repeat_in_lit_run)
-            {
-                push_target_number(tap.fret_low, tap.seconds);
-            }
-            for (std::size_t station = 1; station < tap.path.size(); ++station)
-            {
-                const common::core::HighwayTapLightStation& a = tap.path[station - 1];
-                const common::core::HighwayTapLightStation& b = tap.path[station];
-                if (std::is_neq(a.fret_low <=> b.fret_low) ||
-                    std::is_neq(a.fret_high <=> b.fret_high))
-                {
-                    push_target_number(static_cast<int>(std::lround(b.fret_low)), b.seconds);
-                }
-            }
-            previous_tap = &tap;
-        }
-
-        // Slide waypoints deliberately push no numbers of their own (user rule 2026-07-28,
-        // completing the one-rule model: an orange number marks a hand position being
-        // established, nothing else). A fretting-hand glide that moves the window carries a
-        // hand-position placement at its target (normalization rule 9), and a tapped glide's
-        // landings are labeled through the path-station loop above — both hands' glides earn
-        // their numbers as POSITIONS, never as waypoints. The waypoint glow posts and
-        // fret-span lines remain — they are target furniture, not labels.
-
-        // The current hand's numbers pinned at the hit line. Coverage fade (signed 2026-07-23):
-        // every glyph stays at its own lane's fixed position and animates opacity only, fading
-        // out as the sweeping border leaves its lane and in as the border reaches it.
-        for (int fret = 1; fret <= g_face_fret_count; ++fret)
-        {
-            const double coverage = fret_coverage(current_window, fret);
-            if (coverage > 0.0)
-            {
-                push_number(fret, 0.0, g_fret_number_fhp_color, false, coverage);
-            }
-        }
-
-        const bgfx::TextureHandle glyph_texture = atlases.glyphs.get();
-        submitBatch(vertices, indices, posColorUvLayout(), glyph_program.get(), &glyph_texture);
-    }
+    // Floor numbers nearer than every drawn note — including the hit-line-pinned set —
+    // drain here, still before the board face.
+    submit_numbers_beyond(std::numeric_limits<double>::lowest());
 
     // --- String lines (retained), under the fret lines and nut, on the z = 0 plane. The board
     // paints in submission order (sequential view, depth test only), so the strings go down first
