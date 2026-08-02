@@ -147,13 +147,10 @@ TEST_CASE("Highway slide easing spans its endpoints", "[core][highway][tail]")
 // reference triangle wave within its documented bounds.
 TEST_CASE("Highway wobbles are onset-phased and bounded", "[core][highway][tail]")
 {
-    CHECK(highwayVibratoWobble(0.0) == Catch::Approx(0.0).margin(1.0e-12));
-    CHECK(
-        highwayVibratoWobble(g_highway_vibrato_period_seconds / 4.0) ==
-        Catch::Approx(1.0).margin(1.0e-9));
-    CHECK(
-        highwayVibratoWobble(g_highway_vibrato_period_seconds) ==
-        Catch::Approx(0.0).margin(1.0e-9));
+    const double period = g_highway_vibrato_period_seconds;
+    CHECK(highwayVibratoWobble(0.0, period) == Catch::Approx(0.0).margin(1.0e-12));
+    CHECK(highwayVibratoWobble(period / 4.0, period) == Catch::Approx(1.0).margin(1.0e-9));
+    CHECK(highwayVibratoWobble(period, period) == Catch::Approx(0.0).margin(1.0e-9));
 
     CHECK(highwayTremoloWobble(0.0) == Catch::Approx(0.75));
     CHECK(highwayTremoloWobble(g_highway_tremolo_period_seconds / 2.0) == Catch::Approx(-0.75));
@@ -164,6 +161,23 @@ TEST_CASE("Highway wobbles are onset-phased and bounded", "[core][highway][tail]
         CHECK(wobble >= -0.75);
         CHECK(wobble <= 0.75);
     }
+}
+
+// The vibrato period locks to the song grid: one full wobble per sixteenth note (a quarter
+// of the local beat interval), the nearest interval outside the grid, and the fallback
+// without one.
+TEST_CASE("Highway vibrato period follows the grid's sixteenth note", "[core][highway][tail]")
+{
+    const std::vector<HighwayBeatView> beats{
+        {.seconds = 0.0, .measure_downbeat = true},
+        {.seconds = 0.5, .measure_downbeat = false},
+        {.seconds = 1.1, .measure_downbeat = false},
+    };
+    CHECK(highwayVibratoPeriodSeconds(beats, 0.25) == Catch::Approx(0.125));
+    CHECK(highwayVibratoPeriodSeconds(beats, 0.8) == Catch::Approx(0.15));
+    CHECK(highwayVibratoPeriodSeconds(beats, -1.0) == Catch::Approx(0.125));
+    CHECK(highwayVibratoPeriodSeconds(beats, 5.0) == Catch::Approx(0.15));
+    CHECK(highwayVibratoPeriodSeconds({}, 1.0) == Catch::Approx(g_highway_vibrato_period_seconds));
 }
 
 // Sample times cover the span, include every technique control point inside it exactly, and

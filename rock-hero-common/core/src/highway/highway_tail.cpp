@@ -125,9 +125,32 @@ double highwaySlideEaseWeight(const double progress, const bool unpitched) noexc
     return eased * eased * eased;
 }
 
-double highwayVibratoWobble(const double seconds_from_onset) noexcept
+double highwayVibratoPeriodSeconds(
+    const std::span<const HighwayBeatView> beats, const double onset_seconds) noexcept
 {
-    return std::sin(2.0 * std::numbers::pi * seconds_from_onset / g_highway_vibrato_period_seconds);
+    if (beats.size() < 2)
+    {
+        return g_highway_vibrato_period_seconds;
+    }
+    // The beat interval containing the onset, clamped to the grid's first or last interval
+    // when the onset falls outside it.
+    const auto after =
+        std::ranges::upper_bound(beats, onset_seconds, {}, &HighwayBeatView::seconds);
+    const auto index = std::clamp<std::ptrdiff_t>(
+        after - beats.begin(), 1, static_cast<std::ptrdiff_t>(beats.size()) - 1);
+    const double interval = beats[static_cast<std::size_t>(index)].seconds -
+                            beats[static_cast<std::size_t>(index - 1)].seconds;
+    if (!(interval > 0.0))
+    {
+        return g_highway_vibrato_period_seconds;
+    }
+    // One full wobble per sixteenth note of the grid.
+    return interval / 4.0;
+}
+
+double highwayVibratoWobble(const double seconds_from_onset, const double period_seconds) noexcept
+{
+    return std::sin(2.0 * std::numbers::pi * seconds_from_onset / period_seconds);
 }
 
 double highwayTremoloWobble(const double seconds_from_onset) noexcept

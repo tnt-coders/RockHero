@@ -99,7 +99,9 @@ constexpr double g_tail_slope_shade_depth = 0.5;
 // and foreshortening at screen center compressed that snap into a hard band that read as a
 // sharp point on a smooth curve (user report 2026-07-29). Smoothing over a fixed TIME window
 // guarantees the fade-in/out spans the same stretch of tail whatever the sample density or
-// viewing angle. Kept under half the vibrato period (0.160s) so the shimmer survives.
+// viewing angle. Stays under half the vibrato period — tempo-locked to one wobble per
+// sixteenth note — up to roughly 150 BPM; faster songs dull the wobble's shimmer toward
+// its average rather than breaking, while the geometric wobble itself is unaffected.
 constexpr double g_tail_slope_shade_smooth_seconds = 0.05;
 
 // Bend chevron station, in head half-heights from the head center along the drawn bend-lift
@@ -2821,27 +2823,38 @@ void HighwayRenderer::Impl::draw(
         const int displayed_lane = invert ? (state.string_count + 1 - note.string) : note.string;
         const double bend_direction =
             common::core::highwayBendInverted(displayed_lane, state.string_count) ? -1.0 : 1.0;
+        // The wobble completes one full period per sixteenth note of the song grid at the
+        // note's onset, so vibrato breathes with the song's tempo.
+        const double vibrato_period_seconds =
+            note.vibrato
+                ? common::core::highwayVibratoPeriodSeconds(state.beats, note.start_seconds)
+                : common::core::g_highway_vibrato_period_seconds;
         const auto note_y_at = [&](const double seconds, const double taper) {
             double semitones =
                 common::core::highwayBendSemitonesAt(note.bend, note.start_seconds, seconds);
             if (note.vibrato)
             {
                 semitones += taper * common::core::g_highway_vibrato_depth_semitones *
-                             common::core::highwayVibratoWobble(seconds - note.start_seconds);
+                             common::core::highwayVibratoWobble(
+                                 seconds - note.start_seconds, vibrato_period_seconds);
             }
             return lane_y + (bend_direction * common::core::highwayBendLiftY(semitones, metrics));
         };
-        // The pinned head samples the tail centerline's exact taper so its wobbles stay glued
-        // to the tail's hit-line end while sounding (zero at both true tail ends).
+        // The head samples the tail centerline's taper (zero at both true tail ends) so its
+        // wobbles stay glued to the tail's hit-line end while sounding.
         const double head_taper =
             note.end_seconds > note.start_seconds
                 ? common::core::highwayTailTaper(
                       (head_seconds - note.start_seconds) / (note.end_seconds - note.start_seconds),
                       common::core::g_highway_tail_taper_fraction)
                 : 0.0;
-        // Chart-truth head station: the curve's value at the anchor time. A pre-bent curve is
-        // already lifted at the onset, so this sits off the lane for the entire approach.
-        const double chart_head_y = note_y_at(head_seconds, head_taper);
+        // Chart-truth head station: the curve's value at the anchor time, with the vibrato
+        // swing scaled to the head's half depth — the head breathes with the wobble instead
+        // of bouncing at the tail's full swing or sitting pinned, both sighted as odd
+        // (2026-08-02). A pre-bent curve is already lifted at the onset, so this sits off
+        // the lane for the entire approach.
+        const double chart_head_y = note_y_at(
+            head_seconds, common::core::g_highway_vibrato_head_depth_fraction * head_taper);
         // Rolling-flip clock, hoisted from the head-art roll below because the pre-bend reveal
         // shares it: 0 once the art lies flat (g_flip_flat_lead_seconds before the hit line),
         // 1 at the visibility edge.

@@ -13,17 +13,35 @@
 namespace rock_hero::common::core
 {
 
-/*! \brief Vibrato wobble period in seconds (the source game's sin(t_ms * pi / 80) sine). */
-inline constexpr double g_highway_vibrato_period_seconds = 0.160;
+/*!
+\brief Fallback vibrato wobble period in seconds — the sixteenth note at 120 BPM.
+
+The drawn vibrato completes one full wobble per sixteenth note of the song grid
+(highwayVibratoPeriodSeconds), so the wobble breathes with the song's tempo instead of a
+fixed wall-clock rate (the prior 160 ms sine read too frantic; sixteenths sighted as the
+sweet spot 2026-08-02). This constant only covers grids that yield no beat interval around
+the onset.
+*/
+inline constexpr double g_highway_vibrato_period_seconds = 0.125;
 
 /*!
-\brief Vibrato wobble depth in semitones of bend lift.
+\brief Vibrato wobble depth in semitones of bend lift — an eighth of a step each way.
 
-A finger vibrato modulates pitch by roughly a quarter- to half-step; drawing the wobble at the
-unit factor's full swing (±1 semitone of lift) reads as a whammy dive, not a vibrato. Callers
-multiply this into the wobble factor when converting it to bend-lift semitones.
+A quarter of a semitone (sighted direction 2026-08-02, halved from the first-pass quarter
+bend). Drawing the wobble at the unit factor's full swing (±1 semitone of lift) reads as a
+whammy dive, not a vibrato. Callers multiply this into the wobble factor when converting it
+to bend-lift semitones.
 */
-inline constexpr double g_highway_vibrato_depth_semitones = 0.35;
+inline constexpr double g_highway_vibrato_depth_semitones = 0.25;
+
+/*!
+\brief The head's vibrato swing as a fraction of the tail's depth.
+
+Half the tail's eighth-step swing — a sixteenth of a step each way. A fully pinned head
+looked odd against the wobbling tail and a full-depth head bounced (sighted 2026-08-02);
+the head breathing at half depth keeps it visibly alive while the tail carries the motion.
+*/
+inline constexpr double g_highway_vibrato_head_depth_fraction = 0.5;
 
 /*! \brief Tremolo wobble period in seconds (the source game's 60 ms triangle wave). */
 inline constexpr double g_highway_tremolo_period_seconds = 0.060;
@@ -112,15 +130,31 @@ The source game's easing curves: pitched slides accelerate into the target
 [[nodiscard]] double highwaySlideEaseWeight(double progress, bool unpitched) noexcept;
 
 /*!
+\brief Returns the vibrato wobble period at an onset: one full wobble per sixteenth note.
+
+A quarter of the song-grid beat interval containing the onset (the nearest interval when
+the onset falls outside the grid), so the wobble tracks the song's tempo; falls back to
+g_highway_vibrato_period_seconds when the grid yields no positive interval.
+
+\param beats The song grid beats in ascending order.
+\param onset_seconds The note onset.
+\return Period in seconds, always positive.
+*/
+[[nodiscard]] double highwayVibratoPeriodSeconds(
+    std::span<const HighwayBeatView> beats, double onset_seconds) noexcept;
+
+/*!
 \brief Returns the vibrato wobble at a time from the note onset, as a signed unit factor.
 
-Onset-phased on purpose (the source game phases by absolute time, which desynchronizes repeats);
-callers scale by the bend lift distance and the taper envelope.
+Onset-phased on purpose (absolute-time phasing desynchronizes repeated notes); callers scale
+by the bend lift distance and the taper envelope.
 
 \param seconds_from_onset Time since the note onset.
+\param period_seconds Wobble period, from highwayVibratoPeriodSeconds.
 \return Wobble factor in [-1, 1].
 */
-[[nodiscard]] double highwayVibratoWobble(double seconds_from_onset) noexcept;
+[[nodiscard]] double highwayVibratoWobble(
+    double seconds_from_onset, double period_seconds) noexcept;
 
 /*!
 \brief Returns the tremolo wobble at a time from the note onset, as a signed factor.
