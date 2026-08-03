@@ -1850,6 +1850,33 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         CHECK(chart.notes[1].sustain == Fraction{1, 8});
     }
 
+    SECTION("an existing chain waypoint halves the scoop window")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        // Flags 17 = slide-in from below (16) + shift slide (1): the chain resolver first
+        // glides the note to the fret-10 landing, then the scoop is inserted ahead of that
+        // waypoint. A thirty-second head with the landing an eighth of a beat later gives a
+        // degenerate gap, so the shift waypoint sits at half of it (1/16) — under the 1/8
+        // floor the scoop would otherwise take, so the scoop halves the waypoint instead and
+        // the payload stays strictly ascending.
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {{noteBeat(Fraction{1, 32}, 8, 0, 17), noteBeat(Fraction{1, 32}, 10)}}
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        REQUIRE(chart.notes[0].slides.size() == 2);
+        CHECK(chart.notes[0].slides[0].offset == Fraction{1, 32});
+        CHECK(chart.notes[0].slides[0].fret == 8);
+        CHECK(chart.notes[0].slides[1].offset == Fraction{1, 16});
+        CHECK(chart.notes[0].slides[1].fret == 10);
+        CHECK(chart.notes[0].slides[0].offset < chart.notes[0].slides[1].offset);
+        CHECK(chart.notes[0].fret == 6);
+    }
+
     SECTION("a bend on the landing coexists with the scoop")
     {
         GpScore score = makeLinearScore(1, syncs);
@@ -2062,164 +2089,241 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
     }
 }
 
-// A trail-off whose next placement departs in its direction rides that travel (user rule
-// 2026-08-02, mirroring the slide-in approach rule): the exit fret follows the anchor delta
-// (two-fret minimum) and an exit placement at the trail-off's compressed end lets the window
-// travel with the gesture, flowing into the next arrival. The contradicting case keeps the
-// fixed four-fret exit while the window dips and returns (covered by the released-trail-off
-// test above).
-TEST_CASE("Guitar Pro import rides a trail-off toward the hand's next move", "[core][gp-import]")
-{
-    const std::vector<GpSyncPoint> syncs{
-        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
-    };
-
-    GpScore score = makeLinearScore(1, syncs);
-    score.tracks[0].bars.push_back(
-        GpBar{.voices = {{noteBeat(Fraction{1, 4}, 8, 0, 4), noteBeat(Fraction{1, 4}, 3)}}});
-
-    const auto built = buildGpSong(score);
-    REQUIRE(built.has_value());
-    const common::core::Chart& chart = built->arrangements.front().chart;
-    REQUIRE(chart.notes.size() == 2);
-
-    // The hand's next anchor departs 8 -> 3, agreeing with the downward trail-off, so the
-    // exit rides the full five-fret travel instead of the fixed four: 8 + (3 - 8) = 3.
-    const auto* const slide_out = common::core::slideOutOrNull(chart.notes[0]);
-    REQUIRE(slide_out != nullptr);
-    CHECK(slide_out->fret == 3);
-    // The trim compresses the trail-off to the margin before the fret-3 onset, and the exit
-    // placement lands exactly on that compressed end so the window rides the gesture into
-    // the fret-3 arrival.
-    CHECK(slide_out->offset == Fraction{3, 4});
-    REQUIRE(chart.fret_hand_positions.size() == 3);
-    CHECK(chart.fret_hand_positions[0].fret == 8);
-    CHECK(
-        chart.fret_hand_positions[1].position ==
-        GridPosition{.measure = 1, .beat = 1, .offset = Fraction{3, 4}});
-    CHECK(chart.fret_hand_positions[1].fret == 3);
-    CHECK(chart.fret_hand_positions[2].position == GridPosition{.measure = 1, .beat = 2});
-    CHECK(chart.fret_hand_positions[2].fret == 3);
-}
-
-// The upward mirror of the ride: flags 8 trails off toward the ceiling, and the hand's upward
-// move to the next placement supplies the travel through the same widened-minimum rule.
+// The crush fallback compresses a crowded trail-off to the SMALLEST LEGAL end rather than
+// keeping its full length (normalization rule 2): strictly positive, and strictly after the
+// note's last chain waypoint. A legato chain inheriting a trail-off is where the waypoint floor
+// bites — the plain margin target lands on the junction itself, so the end steps one minimum
+// window past it instead of colliding with the glide.
 TEST_CASE(
-    "Guitar Pro import rides an upward trail-off toward the hand's next move", "[core][gp-import]")
+    "Guitar Pro import floors a crushed trail-off after its last waypoint", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
         GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
     };
 
     GpScore score = makeLinearScore(1, syncs);
-    score.tracks[0].bars.push_back(
-        GpBar{.voices = {{noteBeat(Fraction{1, 4}, 3, 0, 8), noteBeat(Fraction{1, 4}, 8)}}});
-
-    const auto built = buildGpSong(score);
-    REQUIRE(built.has_value());
-    const common::core::Chart& chart = built->arrangements.front().chart;
-    REQUIRE(chart.notes.size() == 2);
-
-    // The hand's next anchor departs 3 -> 5 (the minimal move that reaches fret 8), agreeing
-    // with the upward trail-off, so the exit rides the widened travel: 3 + max(+2, +2) = 5,
-    // replacing the four-fret default 7.
-    const auto* const slide_out = common::core::slideOutOrNull(chart.notes[0]);
-    REQUIRE(slide_out != nullptr);
-    CHECK(slide_out->fret == 5);
-    // The trim compresses the trail-off to the margin before the fret-8 onset, and the exit
-    // placement lands on that compressed end so the window rides upward into the arrival.
-    CHECK(slide_out->offset == Fraction{3, 4});
-    REQUIRE(chart.fret_hand_positions.size() == 3);
-    CHECK(chart.fret_hand_positions[0].fret == 3);
-    CHECK(
-        chart.fret_hand_positions[1].position ==
-        GridPosition{.measure = 1, .beat = 1, .offset = Fraction{3, 4}});
-    CHECK(chart.fret_hand_positions[1].fret == 5);
-    CHECK(chart.fret_hand_positions[2].position == GridPosition{.measure = 1, .beat = 2});
-    CHECK(chart.fret_hand_positions[2].fret == 5);
-}
-
-// A hand that lingers in position before its next move treats the trail-off as a release
-// and return (user rule 2026-08-02): the window dips with the four-fret gesture and a
-// restore at the very next onset brings it back, so the notes in between are never stranded.
-TEST_CASE("Guitar Pro import returns the window after a lingering trail-off", "[core][gp-import]")
-{
-    const std::vector<GpSyncPoint> syncs{
-        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
-    };
-
-    GpScore score = makeLinearScore(1, syncs);
+    // Flags 2 = legato: the fret-10 landing folds into the fret-8 origin as a waypoint one
+    // beat in, and its own flags-4 trail-off carries onto the merged note. The fret-5 onset a
+    // quarter beat after the landing then crowds the gesture: the margin target lands exactly
+    // on the junction, so the floor pushes the end to 1 + 1/8.
     score.tracks[0].bars.push_back(
         GpBar{
             .voices = {
-                {noteBeat(Fraction{1, 4}, 8, 0, 4),
-                 noteBeat(Fraction{1, 4}, 8),
-                 noteBeat(Fraction{1, 4}, 3)}
+                {noteBeat(Fraction{1, 4}, 8, 0, 2),
+                 noteBeat(Fraction{1, 16}, 10, 0, 4),
+                 noteBeat(Fraction{1, 4}, 5)}
             }
         });
 
     const auto built = buildGpSong(score);
     REQUIRE(built.has_value());
     const common::core::Chart& chart = built->arrangements.front().chart;
-    REQUIRE(chart.notes.size() == 3);
-
-    // The hand's move to fret 3 serves the THIRD onset, not the next one, so the exit keeps
-    // the fixed four-fret release — but the window still rides it: a dip at the compressed
-    // trail-off end and a restore at the second onset, with the real fret-3 move untouched.
-    const auto* const slide_out = common::core::slideOutOrNull(chart.notes[0]);
-    REQUIRE(slide_out != nullptr);
-    CHECK(slide_out->fret == 4);
-    REQUIRE(chart.fret_hand_positions.size() == 4);
-    CHECK(chart.fret_hand_positions[0].fret == 8);
-    CHECK(
-        chart.fret_hand_positions[1].position ==
-        GridPosition{.measure = 1, .beat = 1, .offset = Fraction{3, 4}});
-    CHECK(chart.fret_hand_positions[1].fret == 4);
-    CHECK(chart.fret_hand_positions[2].position == GridPosition{.measure = 1, .beat = 2});
-    CHECK(chart.fret_hand_positions[2].fret == 8);
-    CHECK(chart.fret_hand_positions[3].position == GridPosition{.measure = 1, .beat = 3});
-    CHECK(chart.fret_hand_positions[3].fret == 3);
-}
-
-// The release-and-return figure with no later hand move at all (the hand never leaves the
-// position): the window still dips with the trail-off and returns for the next note.
-TEST_CASE("Guitar Pro import returns the window when the hand never moves", "[core][gp-import]")
-{
-    const std::vector<GpSyncPoint> syncs{
-        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
-    };
-
-    GpScore score = makeLinearScore(1, syncs);
-    score.tracks[0].bars.push_back(
-        GpBar{.voices = {{noteBeat(Fraction{1, 4}, 8, 0, 4), noteBeat(Fraction{1, 4}, 8)}}});
-
-    const auto built = buildGpSong(score);
-    REQUIRE(built.has_value());
-    const common::core::Chart& chart = built->arrangements.front().chart;
     REQUIRE(chart.notes.size() == 2);
 
-    const auto* const slide_out = common::core::slideOutOrNull(chart.notes[0]);
+    const common::core::ChartNote& merged = chart.notes[0];
+    REQUIRE(merged.slides.size() == 1);
+    CHECK(merged.slides[0].offset == Fraction{1});
+    CHECK(merged.slides[0].fret == 10);
+    const auto* const slide_out = common::core::slideOutOrNull(merged);
     REQUIRE(slide_out != nullptr);
-    CHECK(slide_out->fret == 4);
-    REQUIRE(chart.fret_hand_positions.size() == 3);
-    CHECK(chart.fret_hand_positions[0].fret == 8);
-    CHECK(
-        chart.fret_hand_positions[1].position ==
-        GridPosition{.measure = 1, .beat = 1, .offset = Fraction{3, 4}});
-    CHECK(chart.fret_hand_positions[1].fret == 4);
-    CHECK(chart.fret_hand_positions[2].position == GridPosition{.measure = 1, .beat = 2});
-    CHECK(chart.fret_hand_positions[2].fret == 8);
+    // One minimum slide window past the junction — never on or before it, which chart
+    // validation rejects, and never the uncompressed 5/4 end that would run past the onset.
+    CHECK(slide_out->offset == Fraction{9, 8});
+    CHECK(slide_out->offset > merged.slides.back().offset);
+    CHECK(merged.sustain == Fraction{9, 8});
 }
 
-// The figure-selection edges: a trail-off on the song's last note may rest where the gesture
-// ends (exit, no restore), while a trail-off with no room before the next onset stays planted
-// entirely — no exit placement AND no ridden exit fret, even when the hand's next move would
-// otherwise read as a departure (the planted rule is uniform across figures).
-TEST_CASE("Guitar Pro import plants or rests trail-off windows at the edges", "[core][gp-import]")
+// The window always rides an unpitched trail-off (user rules 2026-08-02); the hand's next move
+// picks the figure. A next placement departing in the trail-off's direction AND serving the very
+// next onset makes the gesture a departure: the exit fret rides that anchor travel (widened to
+// the slide-in rule's two-fret minimum) and the window flows onward. Otherwise it is a release:
+// the fixed four-fret exit, the window dipping with it and a restore at the next onset so no
+// note is stranded. The edges override both: a gesture with no room before the next onset stays
+// planted, and one with no note after it may rest where it ends.
+TEST_CASE("Guitar Pro import chooses the trail-off window figure", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
         GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
     };
+
+    SECTION("a departing hand carries the exit fret downward")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{noteBeat(Fraction{1, 4}, 8, 0, 4), noteBeat(Fraction{1, 4}, 3)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+
+        // The hand's next anchor departs 8 -> 3, agreeing with the downward trail-off, so the
+        // exit rides the full five-fret travel instead of the fixed four: 8 + (3 - 8) = 3.
+        const auto* const slide_out = common::core::slideOutOrNull(chart.notes[0]);
+        REQUIRE(slide_out != nullptr);
+        CHECK(slide_out->fret == 3);
+        // The trim compresses the trail-off to the margin before the fret-3 onset, and the
+        // exit placement lands exactly on that compressed end so the window rides the gesture
+        // into the fret-3 arrival.
+        CHECK(slide_out->offset == Fraction{3, 4});
+        REQUIRE(chart.fret_hand_positions.size() == 3);
+        CHECK(chart.fret_hand_positions[0].fret == 8);
+        CHECK(
+            chart.fret_hand_positions[1].position ==
+            GridPosition{.measure = 1, .beat = 1, .offset = Fraction{3, 4}});
+        CHECK(chart.fret_hand_positions[1].fret == 3);
+        CHECK(chart.fret_hand_positions[2].position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(chart.fret_hand_positions[2].fret == 3);
+    }
+
+    SECTION("a departing hand carries the exit fret upward")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{noteBeat(Fraction{1, 4}, 3, 0, 8), noteBeat(Fraction{1, 4}, 8)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+
+        // The upward mirror: the hand's next anchor departs 3 -> 5 (the minimal move that
+        // reaches fret 8), agreeing with the flags-8 trail-off, so the exit rides the widened
+        // travel 3 + max(+2, +2) = 5 rather than the four-fret default 7.
+        const auto* const slide_out = common::core::slideOutOrNull(chart.notes[0]);
+        REQUIRE(slide_out != nullptr);
+        CHECK(slide_out->fret == 5);
+        CHECK(slide_out->offset == Fraction{3, 4});
+        REQUIRE(chart.fret_hand_positions.size() == 3);
+        CHECK(chart.fret_hand_positions[0].fret == 3);
+        CHECK(
+            chart.fret_hand_positions[1].position ==
+            GridPosition{.measure = 1, .beat = 1, .offset = Fraction{3, 4}});
+        CHECK(chart.fret_hand_positions[1].fret == 5);
+        CHECK(chart.fret_hand_positions[2].position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(chart.fret_hand_positions[2].fret == 5);
+    }
+
+    SECTION("an upward trail-off at the top of the neck clamps to the last fret")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        // Fret 28 with the four-fret upward default would exit at 32 — off a 30-fret neck.
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{noteBeat(Fraction{1, 4}, 28, 0, 8), noteBeat(Fraction{1, 4}, 28)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        const auto* const slide_out = common::core::slideOutOrNull(chart.notes[0]);
+        REQUIRE(slide_out != nullptr);
+        CHECK(slide_out->fret == common::core::g_max_fret);
+        // The hand never moves, so this is a release: the exit window must still cover the
+        // clamped exit fret without running off the neck itself.
+        const common::core::FretHandPosition* const exit = fretHandPositionAt(
+            chart, GridPosition{.measure = 1, .beat = 1, .offset = Fraction{3, 4}});
+        REQUIRE(exit != nullptr);
+        CHECK(exit->fret >= 1);
+        CHECK(exit->fret <= common::core::g_max_fret);
+        CHECK(exit->fret + exit->width > common::core::g_max_fret);
+    }
+
+    SECTION("a lingering hand releases and restores the window")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(Fraction{1, 4}, 8, 0, 4),
+                     noteBeat(Fraction{1, 4}, 8),
+                     noteBeat(Fraction{1, 4}, 3)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 3);
+
+        // The hand's move to fret 3 serves the THIRD onset, not the next one, so the exit
+        // keeps the fixed four-fret release — but the window still rides it: a dip at the
+        // compressed trail-off end and a restore at the second onset, real move untouched.
+        const auto* const slide_out = common::core::slideOutOrNull(chart.notes[0]);
+        REQUIRE(slide_out != nullptr);
+        CHECK(slide_out->fret == 4);
+        REQUIRE(chart.fret_hand_positions.size() == 4);
+        CHECK(chart.fret_hand_positions[0].fret == 8);
+        CHECK(
+            chart.fret_hand_positions[1].position ==
+            GridPosition{.measure = 1, .beat = 1, .offset = Fraction{3, 4}});
+        CHECK(chart.fret_hand_positions[1].fret == 4);
+        CHECK(chart.fret_hand_positions[2].position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(chart.fret_hand_positions[2].fret == 8);
+        CHECK(chart.fret_hand_positions[3].position == GridPosition{.measure = 1, .beat = 3});
+        CHECK(chart.fret_hand_positions[3].fret == 3);
+    }
+
+    SECTION("a hand that never moves still releases and restores")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{noteBeat(Fraction{1, 4}, 8, 0, 4), noteBeat(Fraction{1, 4}, 8)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+
+        const auto* const slide_out = common::core::slideOutOrNull(chart.notes[0]);
+        REQUIRE(slide_out != nullptr);
+        CHECK(slide_out->fret == 4);
+        REQUIRE(chart.fret_hand_positions.size() == 3);
+        CHECK(chart.fret_hand_positions[0].fret == 8);
+        CHECK(
+            chart.fret_hand_positions[1].position ==
+            GridPosition{.measure = 1, .beat = 1, .offset = Fraction{3, 4}});
+        CHECK(chart.fret_hand_positions[1].fret == 4);
+        CHECK(chart.fret_hand_positions[2].position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(chart.fret_hand_positions[2].fret == 8);
+    }
+
+    SECTION("chord mates trailing off together share one exit window")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat chord;
+        chord.duration_whole = Fraction{1, 4};
+        // The mates scrape apart — the lower string down (flags 4), the upper up (flags 8) —
+        // so their exits want opposite windows at the same instant, which is the only figure
+        // where ownership of that instant is observable.
+        chord.notes = {
+            GpNote{.string = 0, .fret = 8, .slide_flags = 4, .harmonic_type = ""},
+            GpNote{.string = 1, .fret = 8, .slide_flags = 8, .harmonic_type = ""}
+        };
+        score.tracks[0].bars.push_back(GpBar{.voices = {{chord, noteBeat(Fraction{1, 4}, 8)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 3);
+
+        // Each mate classifies against the onset AFTER the chord — never against the mate
+        // sitting at its own beat, which would read as no room and plant the gesture — so
+        // both fabricate an exit at the shared compressed end. The first inserted owns the
+        // instant and the track keeps its unique-ascending positions; a duplicate would break
+        // the placement invariant.
+        for (std::size_t index = 1; index < chart.fret_hand_positions.size(); ++index)
+        {
+            CHECK(
+                chart.fret_hand_positions[index - 1].position <
+                chart.fret_hand_positions[index].position);
+        }
+        const common::core::FretHandPosition* const exit = fretHandPositionAt(
+            chart, GridPosition{.measure = 1, .beat = 1, .offset = Fraction{3, 4}});
+        REQUIRE(exit != nullptr);
+        // The lower string's downward exit (fret 4) owns the window, not the upper string's
+        // upward one (fret 12) that yields to it.
+        CHECK(exit->fret < chart.fret_hand_positions.front().fret);
+    }
 
     SECTION("the song's last note gets an exit and no restore")
     {

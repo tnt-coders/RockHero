@@ -16,19 +16,48 @@ no residue.
 
 **Status legend.** Each item is `[ ]` open, `[x]` done. Update the box when an item lands.
 
-**Execution record (2026-08-03, same session).** Items R1–R10, R13, R15, and R18–R25 were
-implemented and verified the same day (build + editor-core/editor-ui suites green through
-`.agents/rockhero-build.ps1`, clang-format normalized via pre-commit; clang-tidy not run, per
-policy; nothing committed). R3's regression landed as the "no room plants even an agreeing
-departure" SECTION — the 32nd-note coincident-end fixture reaches the departs-and-no-room state
-without needing a tie-merged hold, so the hold-exempt variant was unnecessary. R4 took the
-narrow-the-claim branch for bends (verified: `chart_rules.cpp` orders bend points only against
-the sustain) with a coexistence characterization SECTION, plus the required `slide_out` bound
-with the flags-20 test. R6's optional `restoredWindowAt` sibling was deliberately skipped (the
-designated-init construction at both sites is already maximally clear). R22's optional roadmap
-item-15 append was deliberately skipped — plan 25 and item 26a now both carry the rule, and a
-third copy would itself be duplication. Still open: R11's flags-17 chain-waypoint arm, R12's
-strict-compress and waypoint-floor arms, R14's high-side clamp case, R16, and R17.
+## CLOSED 2026-08-03 — all 25 items landed
+
+Two passes, both verified through `.agents/rockhero-build.ps1` (build + editor-core/editor-ui
+suites green) with clang-format normalized via pre-commit. clang-tidy was not run, per policy.
+
+**Pass 1** (commit `e59f47d8`): R1–R10, R13, R15, R18–R25.
+
+**Pass 2**: R11, R12, R14, R16, R17 — the coverage items, each **mutation-verified**: the arm it
+targets was temporarily broken, the new test observed to fail, and the source restored
+byte-identical. Killed mutants: dropping the chain-waypoint halving arm; dropping
+`keptStrictlyAfterLastWaypoint` from the crush fallback; dropping the `g_max_fret` clamp on an
+upward exit; and narrowing the chord-mate skip in the next-note scan.
+
+### Decisions and deviations worth keeping
+
+- **R3** landed as the "no room plants even an agreeing departure" SECTION: a 32nd-note
+  coincident-end fixture reaches the departs-and-no-room state directly, so the tie-merged
+  hold-exempt fixture the item proposed was unnecessary.
+- **R4** took the narrow-the-claim branch for bends after verifying `chart_rules.cpp` orders bend
+  points only against the sustain, never against slide waypoints. The `slide_out` bound was a
+  real fix (flags-20 test); the bend half is a characterization test plus corrected wording.
+- **R6**'s optional `restoredWindowAt` sibling was skipped: the designated-init construction at
+  both sites is already clearer than a call would be.
+- **R16 — the finding within the finding.** For a chord whose mates trail off in the SAME
+  direction, the next-note scan's chord-mate skip is *unobservable*: both mates share the active
+  window and the same release travel, so `windowAnchorCovering` returns an identical anchor
+  whichever mate wins the shared instant, and the mutant survives. It only becomes observable
+  when the mates scrape apart (flags 4 + flags 8), where the exits want opposite windows at one
+  instant — that is the fixture the test uses, and it pins that the FIRST member owns the
+  instant. Anyone re-testing this area should not expect a same-direction chord fixture to have
+  any diagnostic power.
+- **R22**'s optional roadmap item-15 append was skipped: plan 25 and item 26a now both carry the
+  theme-coordination rule, and a third copy would itself be the duplication the review objects
+  to.
+- **Unpinned by design**: whether the exit merge yields to or replaces an existing placement is
+  not distinguishable by any realistic fixture (chord mates that collide produce identical
+  placements in the same-direction case, and the opposite-direction case is settled by insertion
+  order). It is left as `insertPlacementIfAbsent` to match the documented "fabricated exits yield
+  to real placements" contract.
+
+The items below are retained as the record of what was found and why each fix took the shape it
+did; the executor protocol that follows is retained for the next review of this area.
 
 ---
 
@@ -340,19 +369,20 @@ placement assertion — a regression fabricating dip+restore for every scoop pas
 move consistent with the flag" SECTION, assert `chart.fret_hand_positions` is exactly the natural
 walk with no entry at the scoop's end position.
 
-### R11. [ ] Cover the chain-waypoint arm and the flags-20 combination
+### R11. [x] Cover the chain-waypoint arm and the flags-20 combination
 
 The `window >= note.slides.front().offset → half the waypoint's offset` arm never runs under the
 suite. Add: a flags-17 (16|1) slide-in into a following shift-slide note, asserting the scoop
 waypoint lands at half the glide waypoint's offset with payload offsets strictly ascending; and
 R4's flags-20 short-note case (scoop strictly before the trail-off end).
 
-> Partial 2026-08-03: the flags-20 half landed ("a slide-out on the same short note keeps the
-> scoop strictly before it" SECTION). Only the flags-17 chain-waypoint arm remains — verify
-> first how the chain resolver represents a shift-slide junction (waypoint vs. "next" terminal)
-> before deriving expectations.
+> Done 2026-08-03 in two halves: "a slide-out on the same short note keeps the scoop strictly
+> before it" (flags 20) and "an existing chain waypoint halves the scoop window" (flags 17 — a
+> thirty-second head with the landing an eighth of a beat later gives a degenerate shift gap,
+> so the junction waypoint sits at 1/16 and the scoop halves it to 1/32). Mutation-verified:
+> disabling the halving arm fails the second SECTION.
 
-### R12. [ ] Cover the slide-out crush fallback's actual arms
+### R12. [x] Cover the slide-out crush fallback's actual arms
 
 The rewritten fallback (`keptStrictlyAfterLastWaypoint(note, std::max(target, g_minimum_slide_window))`)
 is only exercised where `target` is already legal; removing the `std::max` (yielding a zero-length
@@ -360,10 +390,13 @@ slide-out) passes the suite. Add: a sixteenth-note trail-off with the next onset
 away (offset compresses to 1/8, the smallest legal end); an already-minimal trail-off (end kept);
 a waypoint-bearing note (floors strictly after the waypoint).
 
-> Partial 2026-08-03: the `std::max` floor and the kept-end arm are now pinned by "a trail-off
-> ending on the next onset stays planted" (its 1/8 offset only survives with the floor; removing
-> the max makes the import fail there). Remaining: the strict-compress arm (compressed strictly
-> smaller than the chain offset) and the waypoint-floor arm.
+> Done 2026-08-03. The `std::max` floor and the kept-end arm are pinned by "a trail-off ending
+> on the next onset stays planted"; the strict-compress arm was already covered by the ride and
+> release SECTIONs (3/4 < the uncompressed 1); and the waypoint floor is now pinned by a
+> dedicated TEST_CASE, "floors a crushed trail-off after its last waypoint" — a legato chain
+> (flags 2) inheriting the landing's flags-4 trail-off, crowded so the margin target lands
+> exactly on the junction and the end steps to 1 + 1/8. Mutation-verified: dropping
+> `keptStrictlyAfterLastWaypoint` from the fallback fails that case.
 
 ### R13. [x] Cover `resolveSlideOutExits`' planted and song-end arms (+ R3's regression)
 
@@ -371,7 +404,7 @@ Neither documented behavior of the planted/song-end block has coverage. Add: a t
 song's last note (exit placement exists, no restore); a trail-off whose compressed end coincides
 with the next onset (NO exit placement fabricated); and R3's held-departure planted case.
 
-### R14. [ ] Exercise the upward (flags 8) direction arms
+### R14. [x] Exercise the upward (flags 8) direction arms
 
 Every slide-out test uses downward flags 4; the direction-branched riding pass
 (`downward ? std::min(delta, -2) : std::max(delta, 2)`, the `g_max_fret` clamps, the high-side
@@ -379,8 +412,10 @@ anchor clamp) runs only its downward halves. Mirror at least: an upward trail-of
 placement departs upward (exit rides `std::max(delta, 2)`), and an upward release near
 `g_max_fret` exercising the high-side clamps.
 
-> Partial 2026-08-03: the upward ride landed ("rides an upward trail-off toward the hand's next
-> move" TEST_CASE). Remaining: the high-side clamps near `g_max_fret`.
+> Done 2026-08-03 as two SECTIONs of the folded figure TEST_CASE: "a departing hand carries the
+> exit fret upward" and "an upward trail-off at the top of the neck clamps to the last fret"
+> (fret 28, whose four-fret default would exit at 32). Mutation-verified: removing the
+> `g_max_fret` clamp fails the second.
 
 ### R15. [x] Pin the dip-replace and restore-yield merge rules
 
@@ -389,13 +424,13 @@ but asserts only `chart.notes`. Extend it to assert the full `fret_hand_position
 dip REPLACES the natural placement at the scoop's onset (one entry at that instant, not two) and
 the restore appears at the scoop's end.
 
-### R16. [ ] Cover simultaneous (chord) trail-offs
+### R16. [x] Cover simultaneous (chord) trail-offs
 
 Two same-onset notes with slide-outs: assert a single exit placement at the shared compressed end
 (first-inserted wins, exits yield to existing) and that departure-vs-release classification reads
 the onset AFTER the chord, not the chord mate (the `global_beat <=` skip in the next-note scan).
 
-### R17. [ ] Fold the three trail-off TEST_CASEs into one with SECTIONs
+### R17. [x] Fold the three trail-off TEST_CASEs into one with SECTIONs
 
 "rides a trail-off toward the hand's next move", "returns the window after a lingering trail-off",
 and "returns the window when the hand never moves" are three variants of the one figure-selection
