@@ -9,7 +9,9 @@ for the shipped tier (gray 8th preserved; chartreuse/indigo enter with the Phase
 Q2 reopened 2026-07-30 for a rendered trial of the full tier (magenta 8th) on the recorded
 physical-frequency evidence; the trial ran 2026-07-31 and re-closed Q2 on A — see open
 question 2 for the outcome and the octave-pair audit it added.
-Phases 2–3 executable now; Phase 4 after open question 1; Phase 5 decision-gated. Original date
+Phases 2–3 executable now; Phase 4 after open question 1; Phase 5 decision-gated. **Phase 6
+withdrawn 2026-08-02** — file-based themes and palettes consolidated into
+`docs/plans/roadmap/54-highway-visual-theming.md`; 45-Q3 resolved A by consequence. Original date
 2026-07-06; baseline `refactor @ 13e82fb0`.
 
 **Registry collapse (post-P1 cleanup).** Phase 1 as first written (commit 050f884e) also shipped
@@ -219,10 +221,11 @@ Mirror all four into `docs/plans/roadmap/00-roadmap.md` Decisions-needed.
    pick must re-run the octave-pair audit: a 9th↔7th octave lands on the teal lane, which argues
    against any blue-green-family 9th (including C#1's physically-true cyan) and re-weighs the
    chartreuse-vs-indigo order there.
-3. **v1 theme delivery scope.** (A) Built-in presets only (Default Dark ships; more are data);
-   (B) file-based user themes at v1. **Recommendation: A**; user-provided theme/palette files are
-   the Phase 6 stretch, consistent with "functionality first, polish second"
-   (`docs/design/architecture.md`, Editor UI).
+3. **v1 theme delivery scope. RESOLVED A (2026-08-02).** (A) Built-in presets only (Default Dark
+   ships; more are data); (B) file-based user themes at v1. This plan ships built-ins only. File
+   delivery is not deferred — it moved: `docs/plans/roadmap/54-highway-visual-theming.md` Phase 4
+   owns user theme and palette files for both products, and Phase 6 there owns packaging. This
+   plan's Phase 6 is withdrawn accordingly.
 4. **When to raise `g_max_chart_strings` to 10.** (A) Execute Phase 5 immediately after Phase 4
    (colors exist; the raise is accept-more and unblocks the format's 10-string target for GP
    import and future authoring); (B) defer until a concrete extended-range need appears.
@@ -404,7 +407,14 @@ toggle.
   `chart_rules.h:24` (constant + comment), `chart_rules.cpp:36–41` (message text derives from the
   constant), `editor_controller.cpp:989,1253` (clamps auto-extend), `editor_view.cpp:707,817`
   (menu loop and command range auto-extend), `test_editor_controller_state.cpp:766–785`,
-  `test_tab_view.cpp:85` comment, TrackViewport proportional row sizing at 10 lanes. Confirm
+  `test_tab_view.cpp:85` comment, TrackViewport proportional row sizing at 10 lanes.
+  **If `docs/plans/roadmap/54-highway-visual-theming.md` Phase 4 has landed, add user palette
+  files to this survey**: built-in presets fail to *compile* when the cap rises (the Phase 1
+  array-sizing coupling working as designed), but a user-authored palette file sized for the old
+  cap has no compile step — it silently becomes wrong-length and is dropped at load. That is a
+  user-visible consequence of the raise, not a code one: every existing user palette stops
+  appearing until re-authored. Decide before 5b whether the raise ships with a migration note, a
+  load-time pad of the missing lanes, or an accepted break, and say which in the sign-off. Confirm
   against `docs/plans/roadmap/10-format-versioning-and-chart-identity.md` that an accept-more validation
   change needs no formatVersion bump. Local-only corpus checks (never CI): all 39 `.rock`
   packages still load (they are ≤8 strings; the change is accept-more), and count how many of the
@@ -433,29 +443,37 @@ lanes; corpus spot-checks pass locally.
 **Verification.** Same three invocations as Phase 2 (no configure needed — no CMake graph
 change), plus the local corpus smoke (local-only, never CI).
 
-### Phase 6 — Stretch: user-provided theme and palette files (assumes open question 3 outcome B,
-or later demand)
+### Phase 6 — SUPERSEDED 2026-08-02 by docs/plans/roadmap/54-highway-visual-theming.md
 
-File-based user presets (JSON in per-user app data, one schema for EditorTheme values and one for
-string palettes), validated on load with typed errors per
-`docs/design/architectural-principles.md` "Typed Boundary Errors"; malformed files fall back to
-built-ins with a logged warning, never a crash. Registered ids join the same menus. Colorblind
-safety is not asserted for user files. Palette-file loading lives beside the registry in
-common/ui so the game can share it; theme-file loading is editor-only. Do not start before
-Phases 2–3 are stable.
+**Do not execute. This phase is withdrawn, not deferred.**
 
-**Exit criteria**: a well-formed user theme/palette file appears in the same menus as
-built-ins and applies live; a malformed file falls back to built-ins with a logged warning and
-no crash; tests cover both paths.
+Phase 6 originally proposed file-based user presets: one JSON schema for `EditorTheme` values and
+one for string palettes, loaded from per-user app data with typed errors and fallback-to-built-in,
+with "palette-file loading lives beside the registry in common/ui so the game can share it".
 
-**Verification.** Same three invocations as Phase 2 (build, targeted UI tests, clang-tidy on
-touched files).
+`docs/plans/roadmap/54-highway-visual-theming.md` Phase 4 builds exactly that loader — same
+location, same typed-error posture, same fallback rule — and its Phase 6 adds flatten-on-export
+packaging so a shared theme is self-contained. Keeping this phase would mean two file schemas and
+two loaders for the same job. The user's direction (2026-08-02) is to consolidate on plan 54.
+
+Disposition of each half:
+
+- **String-palette files** — moved to plan 54 Phase 4, which scans the themes folder for palette
+  files as a sibling schema and registers them into the same `stringColorPalettes()` registry this
+  plan owns. The registry stays this plan's; only the file loading moves. Colorblind safety is
+  still not asserted for user-authored palettes.
+- **`EditorTheme` files (editor chrome)** — dropped, not relocated. Plan 54 explicitly non-goals
+  editor chrome, and Phase 2's built-in preset mechanism covers the need that motivated this. If
+  user-authored chrome files are ever wanted, they follow plan 54's loader pattern rather than
+  reviving a second schema here.
+
+45-Q3 resolves to **A** by consequence: this plan ships built-in presets only, and file delivery
+lives in plan 54.
 
 ## Final acceptance phase
 
-After the last executed phase (and again after Phase 5 or 6 if they land later), run the
-sanctioned bundle as separate invocations from the repo root, then commit per CLAUDE.md commit
-conventions:
+After the last executed phase (and again after Phase 5 if it lands later), run the sanctioned
+bundle as separate invocations from the repo root, then commit per CLAUDE.md commit conventions:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\.agents\rockhero-build.ps1 -Targets all
