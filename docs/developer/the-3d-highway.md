@@ -164,9 +164,9 @@ If the element is *textured*, the asset fan-out is its own silent list:
 
 1. A `GameTexture` enumerator (`game/core/.../resources/game_resources.h`) and a
    `HighwayTextureSet` member (`highway_renderer.h`).
-2. The game-side load in `RockHeroGame::onInit` (`rock_hero_game.cpp` — best-effort
-   `textureBytes` with procedural fallback) **and** the editor-side load in the preview
-   resources.
+2. The game-side load in `RockHeroGame::onInit` (`rock_hero_game.cpp` — every texture is
+   REQUIRED content; a missing or invalid one fails `HighwayRenderer::create` with a typed
+   `TextureAssetInvalid` error) **and** the editor-side load in the preview resources.
 3. The CMake deploy of the shared texture tree (`rock-hero-game/app/CMakeLists.txt`, copying
    `rock-hero-common/ui/resources/textures`) — see the deploy contract in \ref guide_game.
 

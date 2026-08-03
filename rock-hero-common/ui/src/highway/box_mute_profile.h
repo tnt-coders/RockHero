@@ -8,7 +8,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <optional>
+#include <expected>
 #include <span>
 
 namespace juce
@@ -21,6 +21,16 @@ namespace rock_hero::common::ui
 
 /*! \brief Number of RGBA samples one mark's cross-section ramp carries. */
 inline constexpr std::size_t g_box_mute_ramp_samples = 64;
+
+/*! \brief Why a chords.png measurement failed; the renderer reports it as an invalid asset. */
+enum class BoxMuteProfileError : std::uint8_t
+{
+    /*! \brief The bytes are empty or do not decode as an image. */
+    UndecodableImage,
+
+    /*! \brief The image is not a two-cell stack of glyphs the contract can measure. */
+    UnanalyzableGlyph,
+};
 
 /*!
 \brief One mark's measured cross-section: the art's colors as a function of distance from the
@@ -79,18 +89,19 @@ over the arms' outer spans (clear of the crossing and the tips), so what is pain
 exactly what the box marks render.
 
 \param image Decoded chords.png in any JUCE pixel format.
-\return Both profiles, or empty when the image is not a two-cell stack of analyzable glyphs —
-        the renderer treats that as an invalid required asset.
+\return Both profiles, or the measurement failure — the renderer treats any failure as an
+        invalid required asset.
 */
-[[nodiscard]] std::optional<BoxMuteProfiles> measureBoxMuteProfiles(const juce::Image& image);
+[[nodiscard]] std::expected<BoxMuteProfiles, BoxMuteProfileError> measureBoxMuteProfiles(
+    const juce::Image& image);
 
 /*!
 \brief Decodes chords.png bytes and measures both profiles.
 
 \param png_bytes The chords.png file contents.
-\return Both profiles, or empty when the bytes are empty, undecodable, or unanalyzable.
+\return Both profiles, or the decode or measurement failure.
 */
-[[nodiscard]] std::optional<BoxMuteProfiles> measureBoxMuteProfiles(
+[[nodiscard]] std::expected<BoxMuteProfiles, BoxMuteProfileError> measureBoxMuteProfiles(
     std::span<const std::byte> png_bytes);
 
 } // namespace rock_hero::common::ui

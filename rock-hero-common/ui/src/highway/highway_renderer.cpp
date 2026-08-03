@@ -742,7 +742,7 @@ void pushFaceQuad(
 // Draws one chord-box panel — corner holders, a frame variant, and the faint filling — into a
 // color batch. Geometry is explicit rather than taken from a ChordGroup so both strummed chord
 // boxes and arpeggio-styled hand-shape boxes reuse it. A repeat box's mute mark is not drawn
-// here: the caller composites the box-scale atlas mute cell over the panel.
+// here: the caller submits the SDF-program mark over the panel's frame interior.
 // \param full_height_y1 The box top for a full-height box (a repeat box is half this).
 // \param box_only Half-height repeat box.
 // \param with_top Full sides plus a top bar (3+ note chords); ignored under box_only/accent.
@@ -754,7 +754,6 @@ void pushChordBoxPanel(
     const double x1, const double z, const double full_height_y1, const bool box_only,
     const bool with_top, const bool any_accent, const double frame_thickness)
 {
-    const double middle_x = (x0 + x1) / 2.0;
     const double y0 = 0.0;
     const double y1 = box_only ? (y0 + full_height_y1) / 2.0 : full_height_y1;
     // Sets every frame dimension, not only the bottom bar: the accent chevrons and the side
@@ -900,9 +899,19 @@ void pushChordBoxPanel(
         }
     }
 
-    // Filling: the faint panel, darker toward the middle.
-    push_face(x0, y0, box_faint, middle_x, y1, dark_faint);
-    push_face(middle_x, y0, dark_faint, x1, y1, box_faint);
+    // Filling: the faint panel, carrying the frame's end-to-middle fade.
+    pushMiddleFadedQuads(
+        vertices,
+        indices,
+        x0,
+        x1,
+        y0,
+        y1,
+        box_faint,
+        dark_faint,
+        [&](const double vx, const double vy, const std::uint32_t abgr) {
+            return makeVertex(vx, vy, z, abgr);
+        });
 }
 
 // Links one program from its compiled pair; the typed error names the failing program.
@@ -946,9 +955,20 @@ struct HighwayRenderer::Impl
     UniqueBgfxHandle<bgfx::UniformHandle> box_mute_params;
     UniqueBgfxHandle<bgfx::UniformHandle> box_mute_arms;
 
-    // The box-mute marks' measured cross-sections (from chords.png) and the two-row ramp
-    // texture the SDF shader samples them through.
-    BoxMuteProfiles box_mute_profiles{};
+    // The box-mute marks' measured layout fractions (from chords.png) and the two-row ramp
+    // texture the SDF shader samples the marks' cross-sections through; the ramps themselves
+    // live only in that texture.
+    struct BoxMuteLayout
+    {
+        double stroke_half_fraction{0.0};
+        double extent_fraction{0.0};
+    };
+    struct BoxMuteLayouts
+    {
+        BoxMuteLayout palm;
+        BoxMuteLayout full;
+    };
+    BoxMuteLayouts box_mute_layouts{};
     UniqueBgfxHandle<bgfx::TextureHandle> box_mute_ramp;
 
     HighwayAtlases atlases;
@@ -1104,11 +1124,22 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
     // Box-mute marks: chords.png is the single source of truth for the marks' look. Measure
     // both marks' cross-sections from its pixels and upload them as the two-row ramp the SDF
     // shader samples by distance; what is painted there is exactly what the boxes render.
-    if (const std::optional<BoxMuteProfiles> profiles =
-            measureBoxMuteProfiles(textures.chord_marks_png);
-        profiles.has_value())
+    // Draw needs only the layout fractions afterwards — the ramps live in the GPU texture.
+    const std::expected<BoxMuteProfiles, BoxMuteProfileError> profiles =
+        measureBoxMuteProfiles(textures.chord_marks_png);
+    if (profiles.has_value())
     {
-        impl->box_mute_profiles = *profiles;
+        impl->box_mute_layouts = {
+            .palm =
+                {
+                    .stroke_half_fraction = profiles->palm.stroke_half_fraction,
+                    .extent_fraction = profiles->palm.extent_fraction,
+                },
+            .full = {
+                .stroke_half_fraction = profiles->full.stroke_half_fraction,
+                .extent_fraction = profiles->full.extent_fraction,
+            },
+        };
         const auto width = static_cast<std::uint32_t>(g_box_mute_ramp_samples);
         // One RGBA row per mark. Size the rows in std::size_t so neither the memcpy lengths nor
         // the destination offset comes from a multiplication performed in the narrower type.
@@ -1134,18 +1165,23 @@ std::expected<HighwayRenderer, HighwayRendererError> HighwayRenderer::create(
         !impl->inlay_texture.isValid() || !impl->fingering_texture.isValid() ||
         !impl->box_mute_ramp.isValid())
     {
+        const std::string_view chord_marks_state =
+            profiles.has_value()
+                ? "measured"
+                : (profiles.error() == BoxMuteProfileError::UndecodableImage ? "undecodable"
+                                                                             : "unanalyzable");
         return std::unexpected{HighwayRendererError{
             .code = HighwayRendererErrorCode::TextureAssetInvalid,
             .message = std::format(
                 "highway texture assets missing or invalid (note atlas loaded={} with {} of "
                 "{} required cells, inlays loaded={}, fingering loaded={}, chord mute marks "
-                "measured={}); the install or resource deployment is broken",
+                "{}); the install or resource deployment is broken",
                 impl->atlases.heads.isValid(),
                 impl->atlases.head_layout.capacity(),
                 g_head_cell_count,
                 impl->inlay_texture.isValid(),
                 impl->fingering_texture.isValid(),
-                impl->box_mute_ramp.isValid())
+                chord_marks_state)
         }};
     }
 
@@ -2244,8 +2280,8 @@ void HighwayRenderer::Impl::draw(
     {
         std::vector<PosColorVertex> box_vertices;
         std::vector<std::uint16_t> box_indices;
-        // Repeat-box mute marks render through the SDF program (see the g_chord_mute_*
-        // constants). They ride a different program than the panels, and painter order must
+        // Repeat-box mute marks render through the SDF program (see box_mute_profile.h for
+        // the measured-art model). They ride a different program than the panels, and painter order must
         // hold ACROSS boxes — dense chug chains overlap heavily on screen in perspective, and
         // a far box's mark must never composite over a nearer box's panel — so the panel
         // batch flushes before each mark and the mark submits immediately. Draw-call cost is
@@ -2442,11 +2478,11 @@ void HighwayRenderer::Impl::draw(
             const double middle_x = (x0 + x1) / 2.0;
             const double middle_y = (y0 + y1) / 2.0;
             const bool full = mute == common::core::NoteMute::Full;
-            const BoxMuteProfile& profile = full ? box_mute_profiles.full : box_mute_profiles.palm;
+            const BoxMuteLayout& profile = full ? box_mute_layouts.full : box_mute_layouts.palm;
             // Both marks span the full interior height (sighted layout policy). The palm X
             // runs border-less edge to edge: arms corner-to-corner of the interior, with the
-            // clip rect and the arms' horizontal cut pushed past the quad by the ramp extent
-            // so the quad slices the arms mid-stroke at the frame's inner edges. The full X
+            // clip rect pushed past the quad by the ramp extent so the quad slices the arms
+            // mid-stroke at the frame's inner edges. The full X
             // keeps a square footprint the height of the interior, tips wrapped by the note
             // art's squared corners, its top and bottom stroke edges meeting the frame
             // exactly (the sub-pixel antialiasing tail past them is cut by the quad).
@@ -2461,13 +2497,12 @@ void HighwayRenderer::Impl::draw(
                 static_cast<float>(profile.extent_fraction * glyph_height),
             };
             // The ramp rows sit at v = 0.25 (palm) and 0.75 (full) of the two-row texture;
-            // a full-mute arm tip lands as an axis-aligned corner — the note art's squared
-            // tip — cut vertically at the arms' horizontal extent and horizontally by the
-            // rect clip; a palm-mute tip is the quad's raw cut instead.
+            // the shader's rect clip alone ends the arms, so a full-mute tip lands as the
+            // note art's squared corner and a palm-mute tip is the quad's raw cut.
             const auto arms = std::array<float, 4>{
                 static_cast<float>(arm_half_x / arm_length),
                 static_cast<float>(half_y / arm_length),
-                static_cast<float>(arm_half_x + overshoot),
+                0.0F,
                 full ? 0.75F : 0.25F,
             };
             bgfx::setUniform(box_mute_params.get(), params.data());
@@ -3759,7 +3794,7 @@ void HighwayRenderer::Impl::draw(
         // covers it. chart_head_y - lane_y is exactly the onset bend lift (the vibrato taper is
         // zero at the onset) and exactly 0.0 for a non-pre-bent curve, so the > 0.0 test is a
         // precise pre-bend gate, not a tolerance.
-        if (note.start_seconds > now_seconds && std::abs(chart_head_y - lane_y) > 0.0)
+        if (note.start_seconds > now_seconds && std::is_neq(chart_head_y <=> lane_y))
         {
             const std::uint32_t outline_tint =
                 packAbgr(base_color, g_prebend_outline_alpha * fade * head_slide.alpha);

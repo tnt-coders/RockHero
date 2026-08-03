@@ -17,7 +17,7 @@ constexpr float g_visible_alpha = 2.0F / 255.0F;
 // Measures one cell's glyph. Cuts are taken perpendicular to both arms at stations along the
 // outer spans (clear of the crossing and of the corner tips), sampled bilinearly, and
 // averaged into the ramp.
-[[nodiscard]] std::optional<BoxMuteProfile> measureCell(
+[[nodiscard]] std::expected<BoxMuteProfile, BoxMuteProfileError> measureCell(
     const juce::Image::BitmapData& bitmap, const int y_begin, const int y_end)
 {
     const int width = bitmap.width;
@@ -46,7 +46,7 @@ constexpr float g_visible_alpha = 2.0F / 255.0F;
     }
     if (peak_pixel_alpha < 0.25F)
     {
-        return std::nullopt;
+        return std::unexpected(BoxMuteProfileError::UnanalyzableGlyph);
     }
     const float solid_alpha = peak_pixel_alpha / 2.0F;
     int min_x = width;
@@ -69,7 +69,7 @@ constexpr float g_visible_alpha = 2.0F / 255.0F;
     }
     if (max_x < 0 || (max_x - min_x) < 8 || (max_y - min_y) < 8)
     {
-        return std::nullopt;
+        return std::unexpected(BoxMuteProfileError::UnanalyzableGlyph);
     }
     const double rect_width = max_x - min_x + 1;
     const double rect_height = max_y - min_y + 1;
@@ -210,7 +210,7 @@ constexpr float g_visible_alpha = 2.0F / 255.0F;
     }
     if (peak_alpha < 0.25)
     {
-        return std::nullopt;
+        return std::unexpected(BoxMuteProfileError::UnanalyzableGlyph);
     }
     const double edge_alpha = peak_alpha / 2.0;
 
@@ -236,13 +236,14 @@ constexpr float g_visible_alpha = 2.0F / 255.0F;
     }
     if (stroke_half <= 0.0 || last_visible <= stroke_half)
     {
-        return std::nullopt;
+        return std::unexpected(BoxMuteProfileError::UnanalyzableGlyph);
     }
 
-    // Second pass: the shipped ramp, cut over a tight extent that ends just past the last
-    // visible art so every sample carries signal and the renderer's quad margin — which is
-    // (extent - stroke half) — stays as small as the art allows.
-    const double extent = std::min(last_visible + 1.5, survey_extent);
+    // Second pass: the shipped ramp, cut over a tight extent that ends at the last visible
+    // art so every sample carries signal and the renderer's overshoot — which follows
+    // extent_fraction — stays as small as the art allows; the forced-transparent tail below
+    // guarantees the dissolve past it.
+    const double extent = last_visible;
     std::array<std::array<double, 4>, g_box_mute_ramp_samples> accumulated{};
     accumulate(extent, accumulated, stroke_half);
 
@@ -267,34 +268,43 @@ constexpr float g_visible_alpha = 2.0F / 255.0F;
 
 } // namespace
 
-std::optional<BoxMuteProfiles> measureBoxMuteProfiles(const juce::Image& image)
+// Validates the two-cell stack shape, then measures each cell's glyph.
+std::expected<BoxMuteProfiles, BoxMuteProfileError> measureBoxMuteProfiles(const juce::Image& image)
 {
     if (image.getWidth() < 16 || image.getHeight() < 16 || (image.getHeight() % 2) != 0)
     {
-        return std::nullopt;
+        return std::unexpected(BoxMuteProfileError::UnanalyzableGlyph);
     }
     const juce::Image::BitmapData bitmap{image, juce::Image::BitmapData::readOnly};
     const int cell_height = image.getHeight() / 2;
-    const std::optional<BoxMuteProfile> palm = measureCell(bitmap, 0, cell_height);
-    const std::optional<BoxMuteProfile> full = measureCell(bitmap, cell_height, image.getHeight());
-    if (!palm.has_value() || !full.has_value())
+    const std::expected<BoxMuteProfile, BoxMuteProfileError> palm =
+        measureCell(bitmap, 0, cell_height);
+    if (!palm.has_value())
     {
-        return std::nullopt;
+        return std::unexpected(palm.error());
+    }
+    const std::expected<BoxMuteProfile, BoxMuteProfileError> full =
+        measureCell(bitmap, cell_height, image.getHeight());
+    if (!full.has_value())
+    {
+        return std::unexpected(full.error());
     }
     return BoxMuteProfiles{.palm = *palm, .full = *full};
 }
 
-std::optional<BoxMuteProfiles> measureBoxMuteProfiles(const std::span<const std::byte> png_bytes)
+// Decodes the PNG bytes, then defers to the image overload.
+std::expected<BoxMuteProfiles, BoxMuteProfileError> measureBoxMuteProfiles(
+    const std::span<const std::byte> png_bytes)
 {
     if (png_bytes.empty())
     {
-        return std::nullopt;
+        return std::unexpected(BoxMuteProfileError::UndecodableImage);
     }
     juce::MemoryInputStream stream{png_bytes.data(), png_bytes.size(), false};
     const juce::Image decoded = juce::PNGImageFormat{}.decodeImage(stream);
     if (decoded.isNull())
     {
-        return std::nullopt;
+        return std::unexpected(BoxMuteProfileError::UndecodableImage);
     }
     return measureBoxMuteProfiles(decoded);
 }

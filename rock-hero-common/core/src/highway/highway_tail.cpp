@@ -125,6 +125,8 @@ double highwaySlideEaseWeight(const double progress, const bool unpitched) noexc
     return eased * eased * eased;
 }
 
+// One full wobble per sixteenth note: a quarter of the beat interval around the onset,
+// with the fixed fallback for grids that yield no interval.
 double highwayVibratoPeriodSeconds(
     const std::span<const HighwayBeatView> beats, const double onset_seconds) noexcept
 {
@@ -148,6 +150,7 @@ double highwayVibratoPeriodSeconds(
     return interval / 4.0;
 }
 
+// Onset-phased sine at the caller-derived period.
 double highwayVibratoWobble(const double seconds_from_onset, const double period_seconds) noexcept
 {
     return std::sin(2.0 * std::numbers::pi * seconds_from_onset / period_seconds);

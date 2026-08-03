@@ -11,25 +11,24 @@ $input v_color0, v_texcoord0
 
 SAMPLER2D(s_atlas, 0);
 
-// x, y = glyph rect half extents (world) — the rect the arms are clipped to; the caller
-// sizes it against the panel: inset so the falloff completes inside it (full mute) or
-// outset so the quad cuts the mark raw at the panel edge (palm mute); z = arm stroke half
-// width; w = ramp extent — the painted cross-section's reach from the arm centerline (all
-// world units).
+// x, y = glyph rect half extents (world) — the rect the arms are clipped to, whose corner
+// cuts shape the tips; the caller sizes it against the panel: matching it so the falloff
+// completes inside (full mute) or pushed past the quad so the quad cuts the mark raw at the
+// panel edge (palm mute); z = arm stroke half width; w = ramp extent — the painted
+// cross-section's reach from the arm centerline (all world units).
 uniform vec4 u_box_mute_params;
 
-// xy = arm 1 unit direction (arm 2 mirrors y); z = the arms' horizontal half extent; w = the
-// mark's ramp row.
+// xy = arm 1 unit direction (arm 2 mirrors y); z unused; w = the mark's ramp row.
 uniform vec4 u_box_mute_arms;
 
 // Distance to one arm: a stripe of constant perpendicular width around a centerline through
-// the box center, cut vertically at the arms' horizontal extent. The glyph rect clip in
-// main() supplies the matching horizontal cut, so each tip lands as an axis-aligned corner —
-// the note art's squared tip shape — with the rim wrapping around both cut edges.
+// the box center. The glyph rect clip in main() ends every arm — its vertical and
+// horizontal faces meet at the rect corners the centerlines run through, so each tip lands
+// as an axis-aligned corner (the note art's squared tip shape) with the rim wrapping around
+// both cut edges.
 float sdArm(vec2 p, vec2 direction)
 {
-    float stripe = abs(dot(p, vec2(-direction.y, direction.x))) - u_box_mute_params.z;
-    return max(stripe, abs(p.x) - u_box_mute_arms.z);
+    return abs(dot(p, vec2(-direction.y, direction.x))) - u_box_mute_params.z;
 }
 
 void main()

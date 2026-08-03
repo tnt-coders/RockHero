@@ -61,9 +61,9 @@ struct HighwayShaderSet
     HighwayShaderPair window_light;
 
     /*!
-    \brief Repeat-box mute mark: an SDF-evaluated X (dark ribbons, thin edge lines) whose
-    distances are computed per fragment in box-local world units, so the mark holds its line
-    weights exactly on boxes of any width.
+    \brief Repeat-box mute mark: an X that lays chords.png's measured cross-section along
+    arms whose distances are computed per fragment in box-local world units, so the painted
+    look holds its line weights exactly on boxes of any width.
     */
     HighwayShaderPair box_mute;
 };
@@ -73,14 +73,14 @@ struct HighwayShaderSet
 
 The assets live flat under rock-hero-common/ui/resources/textures and are deployed per
 product; LICENSE.txt beside them explicitly lists which files are Charter-adapted (BSD
-3-Clause) — the rest are original Rock Hero art.
-Every member is REQUIRED product content: empty or undecodable bytes fail create with a typed
+3-Clause) — the rest are original Rock Hero art. Every member is REQUIRED product
+content: empty or undecodable bytes fail create with a typed
 error, because a missing texture means a broken install, not a degradable state (user decision
 2026-08-01 — the procedural fallbacks this replaces silently masked such failures).
 */
 struct HighwayTextureSet
 {
-    /*! \brief Note-head atlas PNG (4x5 grid, reference channel scheme). */
+    /*! \brief Note-head atlas PNG (4x4 grid, reference channel scheme). */
     std::vector<std::byte> note_atlas_png;
 
     /*! \brief Fretboard skin PNG (8x4 grid, one 256x512 cell per fret). */
@@ -161,7 +161,8 @@ public:
     \param shaders Compiled stage binaries for the highway programs.
     \param textures Texture assets; every member is required, and a missing or invalid one
            fails creation with TextureAssetInvalid.
-    \return The renderer, or a typed error naming the program that failed.
+    \return The renderer, or a typed error naming the failed program or invalid texture
+            asset.
     */
     [[nodiscard]] static std::expected<HighwayRenderer, HighwayRendererError> create(
         const HighwayShaderSet& shaders, const HighwayTextureSet& textures);

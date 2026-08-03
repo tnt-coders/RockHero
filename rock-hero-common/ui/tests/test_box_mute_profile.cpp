@@ -2,6 +2,7 @@
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <expected>
 #include <juce_graphics/juce_graphics.h>
 #include <optional>
 
@@ -58,15 +59,16 @@ void hollowCross(
 
 } // namespace
 
+// Two 96x48 cells stacked; each carries a corner-to-corner X of known stroke and color.
 TEST_CASE("Box mute profiles measure painted cross-sections", "[ui][highway]")
 {
-    // Two 96x48 cells stacked; each carries a corner-to-corner X of known stroke and color.
     const juce::Image image{juce::Image::ARGB, 96, 96, true, juce::SoftwareImageType{}};
     juce::Graphics graphics{image};
     paintCross(graphics, {8.0F, 8.0F, 80.0F, 32.0F}, 8.0F, juce::Colour{0xFF2060A0});
     paintCross(graphics, {8.0F, 56.0F, 80.0F, 32.0F}, 8.0F, juce::Colour{0xFFF0F0F0});
 
-    const std::optional<BoxMuteProfiles> profiles = measureBoxMuteProfiles(image);
+    const std::expected<BoxMuteProfiles, BoxMuteProfileError> profiles =
+        measureBoxMuteProfiles(image);
     REQUIRE(profiles.has_value());
     if (!profiles.has_value())
     {
@@ -91,10 +93,10 @@ TEST_CASE("Box mute profiles measure painted cross-sections", "[ui][highway]")
     CHECK(static_cast<int>(full_ramp[tail + 3]) == 0);
 }
 
+// Solid crosses whose interiors are then repainted faint (palm) or cleared (full), leaving
+// a ~2px solid rim band — the outline-dominant authoring the contract allows.
 TEST_CASE("Box mute profiles anchor faint and hollow cores to the rim", "[ui][highway]")
 {
-    // Solid crosses whose interiors are then repainted faint (palm) or cleared (full),
-    // leaving a ~2px solid rim band — the outline-dominant authoring the contract allows.
     juce::Image image{juce::Image::ARGB, 96, 96, true, juce::SoftwareImageType{}};
     juce::Graphics graphics{image};
     paintCross(graphics, {8.0F, 8.0F, 80.0F, 32.0F}, 12.0F, juce::Colour{0xFF20C0A0});
@@ -102,7 +104,8 @@ TEST_CASE("Box mute profiles anchor faint and hollow cores to the rim", "[ui][hi
     hollowCross(image, {8.0F, 8.0F, 80.0F, 32.0F}, 8.0F, juce::Colour{0x3C20C0A0});
     hollowCross(image, {8.0F, 56.0F, 80.0F, 32.0F}, 8.0F, std::nullopt);
 
-    const std::optional<BoxMuteProfiles> profiles = measureBoxMuteProfiles(image);
+    const std::expected<BoxMuteProfiles, BoxMuteProfileError> profiles =
+        measureBoxMuteProfiles(image);
     REQUIRE(profiles.has_value());
     if (!profiles.has_value())
     {
@@ -119,17 +122,18 @@ TEST_CASE("Box mute profiles anchor faint and hollow cores to the rim", "[ui][hi
     CHECK(static_cast<int>(profiles->full.ramp[3]) < 30);
 }
 
+// The palm rim is authored at the chord-box frame's 128/255 alpha; the stroke edge and the
+// glyph rect must track that art's own falloff, not a fixed 50% threshold that the authored
+// opacity would straddle.
 TEST_CASE("Box mute profiles anchor half-opacity rims at half the peak alpha", "[ui][highway]")
 {
-    // The palm rim is authored at the chord-box frame's 128/255 alpha; the stroke edge and
-    // the glyph rect must track that art's own falloff, not a fixed 50% threshold that the
-    // authored opacity would straddle.
     const juce::Image image{juce::Image::ARGB, 96, 96, true, juce::SoftwareImageType{}};
     juce::Graphics graphics{image};
     paintCross(graphics, {8.0F, 8.0F, 80.0F, 32.0F}, 12.0F, juce::Colour{0x8000D2D5});
     paintCross(graphics, {8.0F, 56.0F, 80.0F, 32.0F}, 12.0F, juce::Colour{0x80F0F0F0});
 
-    const std::optional<BoxMuteProfiles> profiles = measureBoxMuteProfiles(image);
+    const std::expected<BoxMuteProfiles, BoxMuteProfileError> profiles =
+        measureBoxMuteProfiles(image);
     REQUIRE(profiles.has_value());
     if (!profiles.has_value())
     {
@@ -145,6 +149,8 @@ TEST_CASE("Box mute profiles anchor half-opacity rims at half the peak alpha", "
     CHECK(static_cast<int>(profiles->palm.ramp[3]) < 160);
 }
 
+// A blank image has no glyphs to measure, a uniformly faint one has no rim to anchor, and
+// an odd height cannot split into the two authored cells.
 TEST_CASE("Box mute profiles reject unanalyzable art", "[ui][highway]")
 {
     // A blank image has no glyphs to measure; the renderer treats this as an invalid asset.
