@@ -363,9 +363,11 @@ TEST_CASE("Guitar Pro import merges legato slide landings into the origin", "[co
     std::filesystem::remove_all(scratch, cleanup_error);
 }
 
-// An unpitched trail-off releases pressure instead of repositioning (normalization policy rule
-// 9), so its waypoint never moves the hand: the fret-hand track stays the plain onset walk.
-TEST_CASE("Guitar Pro import keeps the hand still through unpitched slides", "[core][gp-import]")
+// An unpitched trail-off is a release, not a rule-9 pitched drag — the generator's walk never
+// repositions for it — but the window still rides the gesture (user rule 2026-08-02): a dip
+// placement at the compressed trail-off end, returning at the next onset (here the real
+// fret-7 landing placement, which the restore yields to).
+TEST_CASE("Guitar Pro import rides the window through a released trail-off", "[core][gp-import]")
 {
     const std::filesystem::path scratch =
         std::filesystem::temp_directory_path() / "rh_gp_unpitched_slide_fhp_test";
@@ -398,11 +400,15 @@ TEST_CASE("Guitar Pro import keeps the hand still through unpitched slides", "[c
     CHECK(slide_out->offset == Fraction{1, 4});
     CHECK(chart.notes[1].sustain == Fraction{1, 4});
 
-    // Were the trail-off treated as a pitched glide, its fret-1 target would drag a hand position
-    // down mid-sustain; instead it never repositions the hand (no fret-1 position), and the
-    // fret-7 landing shifts the window minimally to a fret-4 window at its onset.
+    // The natural walk is untouched by the gesture (no rule-9 drag), but the exit pass dips
+    // the window with the trail-off — the fret-1 exit pulls the anchor down to the neck's
+    // edge at the compressed end — and the real fret-7 landing placement (the minimal fret-4
+    // window) takes over at the next onset, standing in for the restore.
     CHECK(chart.fret_hand_positions.front().fret == 3);
-    CHECK_FALSE(hasFretHandPositionAtFret(chart, 1));
+    const common::core::FretHandPosition* const dip =
+        fretHandPositionAt(chart, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 4}});
+    REQUIRE(dip != nullptr);
+    CHECK(dip->fret == 1);
     const common::core::FretHandPosition* const landing =
         fretHandPositionAt(chart, GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
     REQUIRE(landing != nullptr);
@@ -1942,6 +1948,117 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         CHECK(chart.notes[2].fret == 7);
         CHECK(chart.notes[2].slides.empty());
     }
+}
+
+// A trail-off whose next placement departs in its direction rides that travel (user rule
+// 2026-08-02, mirroring the slide-in approach rule): the exit fret follows the anchor delta
+// (two-fret minimum) and an exit placement at the trail-off's compressed end lets the window
+// travel with the gesture, flowing into the next arrival. The contradicting case stays the
+// fixed four-fret exit with the hand planted (covered by the unpitched-slide test above).
+TEST_CASE("Guitar Pro import rides a trail-off toward the hand's next move", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+
+    GpScore score = makeLinearScore(1, syncs);
+    score.tracks[0].bars.push_back(
+        GpBar{.voices = {{noteBeat(Fraction{1, 4}, 8, 0, 4), noteBeat(Fraction{1, 4}, 3)}}});
+
+    const auto built = buildGpSong(score);
+    REQUIRE(built.has_value());
+    const common::core::Chart& chart = built->arrangements.front().chart;
+    REQUIRE(chart.notes.size() == 2);
+
+    // The hand's next anchor departs 8 -> 3, agreeing with the downward trail-off, so the
+    // exit rides the full five-fret travel instead of the fixed four: 8 + (3 - 8) = 3.
+    const auto* const slide_out = common::core::slideOutOrNull(chart.notes[0]);
+    REQUIRE(slide_out != nullptr);
+    CHECK(slide_out->fret == 3);
+    // The trim compresses the trail-off to the margin before the fret-3 onset, and the exit
+    // placement lands exactly on that compressed end so the window rides the gesture into
+    // the fret-3 arrival.
+    CHECK(slide_out->offset == Fraction{3, 4});
+    REQUIRE(chart.fret_hand_positions.size() == 3);
+    CHECK(chart.fret_hand_positions[0].fret == 8);
+    CHECK(
+        chart.fret_hand_positions[1].position ==
+        GridPosition{.measure = 1, .beat = 1, .offset = Fraction{3, 4}});
+    CHECK(chart.fret_hand_positions[1].fret == 3);
+    CHECK(chart.fret_hand_positions[2].position == GridPosition{.measure = 1, .beat = 2});
+    CHECK(chart.fret_hand_positions[2].fret == 3);
+}
+
+// A hand that lingers in position before its next move treats the trail-off as a release
+// and return (user rule 2026-08-02): the window dips with the four-fret gesture and a
+// restore at the very next onset brings it back, so the notes in between are never stranded.
+TEST_CASE("Guitar Pro import returns the window after a lingering trail-off", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+
+    GpScore score = makeLinearScore(1, syncs);
+    score.tracks[0].bars.push_back(
+        GpBar{
+            .voices = {
+                {noteBeat(Fraction{1, 4}, 8, 0, 4),
+                 noteBeat(Fraction{1, 4}, 8),
+                 noteBeat(Fraction{1, 4}, 3)}
+            }
+        });
+
+    const auto built = buildGpSong(score);
+    REQUIRE(built.has_value());
+    const common::core::Chart& chart = built->arrangements.front().chart;
+    REQUIRE(chart.notes.size() == 3);
+
+    // The hand's move to fret 3 serves the THIRD onset, not the next one, so the exit keeps
+    // the fixed four-fret release — but the window still rides it: a dip at the compressed
+    // trail-off end and a restore at the second onset, with the real fret-3 move untouched.
+    const auto* const slide_out = common::core::slideOutOrNull(chart.notes[0]);
+    REQUIRE(slide_out != nullptr);
+    CHECK(slide_out->fret == 4);
+    REQUIRE(chart.fret_hand_positions.size() == 4);
+    CHECK(chart.fret_hand_positions[0].fret == 8);
+    CHECK(
+        chart.fret_hand_positions[1].position ==
+        GridPosition{.measure = 1, .beat = 1, .offset = Fraction{3, 4}});
+    CHECK(chart.fret_hand_positions[1].fret == 4);
+    CHECK(chart.fret_hand_positions[2].position == GridPosition{.measure = 1, .beat = 2});
+    CHECK(chart.fret_hand_positions[2].fret == 8);
+    CHECK(chart.fret_hand_positions[3].position == GridPosition{.measure = 1, .beat = 3});
+    CHECK(chart.fret_hand_positions[3].fret == 3);
+}
+
+// The release-and-return figure with no later hand move at all (the hand never leaves the
+// position): the window still dips with the trail-off and returns for the next note.
+TEST_CASE("Guitar Pro import returns the window when the hand never moves", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+
+    GpScore score = makeLinearScore(1, syncs);
+    score.tracks[0].bars.push_back(
+        GpBar{.voices = {{noteBeat(Fraction{1, 4}, 8, 0, 4), noteBeat(Fraction{1, 4}, 8)}}});
+
+    const auto built = buildGpSong(score);
+    REQUIRE(built.has_value());
+    const common::core::Chart& chart = built->arrangements.front().chart;
+    REQUIRE(chart.notes.size() == 2);
+
+    const auto* const slide_out = common::core::slideOutOrNull(chart.notes[0]);
+    REQUIRE(slide_out != nullptr);
+    CHECK(slide_out->fret == 4);
+    REQUIRE(chart.fret_hand_positions.size() == 3);
+    CHECK(chart.fret_hand_positions[0].fret == 8);
+    CHECK(
+        chart.fret_hand_positions[1].position ==
+        GridPosition{.measure = 1, .beat = 1, .offset = Fraction{3, 4}});
+    CHECK(chart.fret_hand_positions[1].fret == 4);
+    CHECK(chart.fret_hand_positions[2].position == GridPosition{.measure = 1, .beat = 2});
+    CHECK(chart.fret_hand_positions[2].fret == 8);
 }
 
 // The phrase-aware fret-hand generator tracks the LEFT hand: a tapped note floats above the

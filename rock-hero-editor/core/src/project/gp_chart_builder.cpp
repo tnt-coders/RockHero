@@ -1444,6 +1444,122 @@ void resolveSlideIns(
     }
 }
 
+// Rides the hand window along every unpitched trail-off (user rules 2026-08-02): the window
+// always travels with the gesture — the projection ties a placement on a trail-off's end to
+// its segment — and the hand's next move decides only the exit fret and what follows. When
+// the next placement departs in the trail-off's direction AND arrives by the very next
+// onset, the trail-off IS the departure: the exit fret rides that travel (widened to the
+// slide-in rule's two-fret minimum) and the window flows onward into the arrival. Otherwise
+// the trail-off is a release: the exit keeps the fixed four-fret gesture, the window dips
+// with it, and a restore placement at the next onset brings the window back for the note
+// that follows (so notes after the gesture are never stranded in the dipped window).
+// Fabricated exits yield to real placements at their instant, restores yield to anything
+// already there, and a trail-off ending at or past the next onset stays planted (no room to
+// ride). Runs after the sustain trim so the end positions are the compressed ones the chart
+// ships.
+void resolveSlideOutExits(
+    std::vector<BuiltNote>& built, std::vector<common::core::FretHandPosition>& placements,
+    const MeasureGrid& grid)
+{
+    std::vector<common::core::FretHandPosition> exit_placements;
+    std::vector<common::core::FretHandPosition> restore_placements;
+    for (std::size_t index = 0; index < built.size(); ++index)
+    {
+        BuiltNote& entry = built[index];
+        ChartNote& note = entry.note;
+        if (!note.slide_out.has_value())
+        {
+            continue;
+        }
+        const int departing = note.slides.empty() ? note.fret : note.slides.back().fret;
+        const bool downward = note.slide_out->fret < departing;
+        const auto after = std::ranges::upper_bound(
+            placements,
+            note.position,
+            std::ranges::less{},
+            &common::core::FretHandPosition::position);
+        if (after == placements.begin())
+        {
+            continue;
+        }
+        const auto active = after - 1;
+
+        std::size_t next_note = index + 1;
+        while (next_note < built.size() && built[next_note].global_beat <= entry.global_beat)
+        {
+            ++next_note;
+        }
+        const GridPosition end_position =
+            gridPositionForGlobalBeat(grid, entry.global_beat + note.slide_out->offset);
+
+        // Departure: the next placement's move serves the very next onset and agrees with
+        // the trail-off's direction, so the window flows onward instead of returning.
+        const int delta = after == placements.end() ? 0 : after->fret - active->fret;
+        const bool departs = delta != 0 && (delta < 0) == downward && next_note < built.size() &&
+                             !(built[next_note].note.position < after->position);
+        if (departs)
+        {
+            const int travel = downward ? std::min(delta, -2) : std::max(delta, 2);
+            note.slide_out->fret = std::clamp(departing + travel, 0, common::core::g_max_fret);
+        }
+        else if (next_note >= built.size() || !(end_position < built[next_note].note.position))
+        {
+            // No note follows (the window may rest where the gesture ends), or no room to
+            // ride before the next onset: planted.
+            if (next_note < built.size())
+            {
+                continue;
+            }
+        }
+        else
+        {
+            restore_placements.push_back(
+                common::core::FretHandPosition{
+                    .position = built[next_note].note.position,
+                    .fret = active->fret,
+                    .width = active->width,
+                });
+        }
+        // The riding window derives from the active one by the gesture's travel, clamped to
+        // keep the exit fret covered on the neck.
+        const int travel = note.slide_out->fret - departing;
+        const int anchor = std::clamp(
+            active->fret + travel,
+            std::max(1, note.slide_out->fret - active->width + 1),
+            std::max(1, note.slide_out->fret));
+        exit_placements.push_back(
+            common::core::FretHandPosition{
+                .position = end_position,
+                .fret = anchor,
+                .width = active->width,
+            });
+    }
+    for (const common::core::FretHandPosition& exit : exit_placements)
+    {
+        const auto at = std::ranges::lower_bound(
+            placements,
+            exit.position,
+            std::ranges::less{},
+            &common::core::FretHandPosition::position);
+        if (at == placements.end() || !(at->position == exit.position))
+        {
+            placements.insert(at, exit);
+        }
+    }
+    for (const common::core::FretHandPosition& restore : restore_placements)
+    {
+        const auto at = std::ranges::lower_bound(
+            placements,
+            restore.position,
+            std::ranges::less{},
+            &common::core::FretHandPosition::position);
+        if (at == placements.end() || !(at->position == restore.position))
+        {
+            placements.insert(at, restore);
+        }
+    }
+}
+
 // Builds one track's chart: tie merging, technique mapping, bends, slide resolution, sustain
 // normalization, and fret-hand position generation. The tempo map places mid-sustain
 // slide-waypoint positions on the musical grid.
@@ -1712,7 +1828,8 @@ void resolveSlideIns(
             const int target = upward ? std::min(glide_fret + 4, common::core::g_max_fret)
                                       : std::max(glide_fret - 4, 0);
             // The slide-out ends at the sustain end, strictly after any chain waypoint so the
-            // payload stays ascending.
+            // payload stays ascending. The four-fret exit is provisional: resolveSlideOutExits
+            // rides the hand's next move instead when it agrees with the flag's direction.
             Fraction window = keptStrictlyAfterLastWaypoint(note, note.sustain);
             if (window.numerator <= 0)
             {
@@ -1774,6 +1891,10 @@ void resolveSlideIns(
     // Runs after slide and slide-in resolution so slide-extended tails carry their payloads
     // into the trim's payload floor.
     normalizeImportedSustains(built, grid, notes);
+
+    // Trail-off exits follow the hand's next move where it agrees; runs after the trim so
+    // the compressed end positions are the ones the exit placements ride.
+    resolveSlideOutExits(built, chart.fret_hand_positions, grid);
 
     // Shapes read the notated (pre-trim) note ends, so this runs on the built entries before
     // their notes move into the chart.

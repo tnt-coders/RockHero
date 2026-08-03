@@ -178,8 +178,16 @@ corpus-derived algorithm — the metrics and the source-corpus study behind thes
      slides whose deltas disagree (a convergence or divergence) are not a rigid translation, so
      they cancel the drag and reshape in place instead.
 
-   An unpitched slide-out releases pressure instead of repositioning, so its gesture never moves
-   the window.
+   The window always rides an unpitched slide-out (user rules 2026-08-02): an exit placement
+   at the trail-off's compressed end carries the window with the gesture. The hand's next
+   move decides the rest. When its next placement departs in the trail-off's direction AND
+   arrives by the very next onset, the gesture IS the departure: the exit fret rides the
+   anchor travel (widened to the slide-in rule's two-fret minimum) and the window flows
+   onward into the arrival. Otherwise the gesture is a release and return: the exit keeps
+   the fixed four-fret gesture, the window dips with it, and a restore placement at the very
+   next onset brings the window back for the note that follows — so notes after the gesture
+   are never stranded in the dipped window. A trail-off with no room before the next onset
+   stays planted.
 
 **Chord template and shape derivation** (`deriveChordShapes`; GP scores in practice carry no
 handshape or diagram data, so the tab's chord boxes are derived):
@@ -244,7 +252,9 @@ through the trim rules):
     the re-picked landing's own head renders after it. Unpitched slide-outs are the separate
     `slideOut` payload, which owns its end offset and gestured fret — no landing note exists,
     so there is nothing to desync from — though the sustain trim pulls that end back to the
-    margin like any tail (rule 2).
+    margin like any tail (rule 2). The gestured fret defaults to four frets out in the flag's
+    direction and rides the hand's next anchor travel instead when it agrees (rule 9's
+    departure case, user rule 2026-08-02).
 14. **A legato slide is the same note continuing.** The landing is not re-picked, so it never
     becomes a note: it folds into the origin as a pitched waypoint at the junction — the
     sustain extends through the landing's notated end, the landing's sustain techniques
