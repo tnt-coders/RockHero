@@ -71,6 +71,9 @@ already carries everything rendered here — no format changes are required by t
   Dependency"): the render loop samples the audio-derived playback clock
   (docs/plans/roadmap/12-playback-clock.md) every frame — never wall clock. All animation time derives
   from one frame clock; randomness is seeded per event so replays and pauses behave.
+- **Theme-color coordination** (recorded 2026-08-02 with plan 54's authoring): any new highway
+  color Phases 4–5 introduce lands in plan 54's `HighwayTheme` struct, never as a new file-scope
+  constant — plan 54 Phase 1 exists to eliminate exactly those.
 
 ## 5. Current state inventory
 

@@ -265,6 +265,7 @@ all:
 | `-Wfloat-equal` | not implemented | GCC, Clang, clang-cl |
 | `-Wmissing-designated-field-initializers` | omitted aggregate fields accepted | GCC, Clang |
 | `-Wshadow` against an *inherited* base member | silent | GCC |
+| `-Wunused-function` on internal-linkage helpers | unused anonymous-namespace functions accepted | GCC, Clang |
 | `bugprone-unchecked-optional-access` | zero findings against the MSVC STL | CI lint |
 | `bugprone-use-after-move` | zero findings against the MSVC STL | CI lint |
 | Release-only undefined behavior | debug timing and layout hide it | CI Release tests |
@@ -273,10 +274,11 @@ No local command reports these, so the check is a reading pass over the diff, no
 Before reporting a code change complete, re-read every touched hunk for the constructs that trigger
 them — `==` or `!=` on a floating-point type (including a *defaulted* `operator==` on a
 float-bearing struct), aggregate initializers, `std::optional` dereferences, a variable used after
-`std::move`, a constructor parameter sharing a base member's name, and framework calls whose meaning
-differs per OS — and resolve each hit per `docs/design/coding-conventions.md`. The table lists what
-CI has already caught, not everything it can catch; when a CI failure exposes a blind spot missing
-from it, add the row in the same fix.
+`std::move`, a constructor parameter sharing a base member's name, a file-local helper whose last
+caller the change removed, and framework calls whose meaning differs per OS — and resolve each hit
+per `docs/design/coding-conventions.md`. The table lists what CI has already caught (or a review
+caught pre-CI), not everything it can catch; when a CI failure exposes a blind spot missing from
+it, add the row in the same fix.
 
 `-Werror` stops at the first diagnostic, so one reported error is a sample, not the population.
 Never fix only the line CI named: classify the diagnostic, `rg` the tree for that construct, and fix

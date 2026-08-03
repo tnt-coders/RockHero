@@ -54,6 +54,7 @@ graph TD
         P52[52 range edit operations GATE]
         P53[53 keyboard+pointer completion]
         P54[54 highway visual theming]
+        P55[55 pick-slide notation]
     end
     subgraph Deferred
         P28[28 practice mode]
@@ -125,6 +126,8 @@ graph TD
     P45 --> P54
     P27 --> P54
     P54 -.new-highway-visuals coordination.-> P25
+    P25 --> P55
+    P54 -.theme-color coordination.-> P55
     P11 --> P26
     P46 -.non-blocking.-> P40
     P46 -.non-blocking.-> P41
@@ -155,7 +158,9 @@ execution (the command registry runs as 53 Phases 1–2); 53 → 52 is the lande
 types and mirrors its preset-selection chain); 27 → 54 gates only 54's *game-side* persistence —
 its editor half is unblocked by 27 — and 54 ⇢ 25 is coordination, not a gate: any new color plan
 25 Phases 4–5 introduce should enter 54's theme struct rather than becoming a new file-scope
-constant. Plan 54 sits in the Editor group beside 45 because its blocking dependency and its
+constant. Plan 55 consumes plan 25's shipped drawers (25 → 55) and carries the same theme-color
+coordination note as 25: any color its treatment introduces enters 54's struct. Plan 54 sits in
+the Editor group beside 45 because its blocking dependency and its
 first-executable phases are editor-side; the artifact it themes is shared by both products.
 
 ---
@@ -249,6 +254,7 @@ Phases 1–2 and plan 10 Phase 0 (G10-DECISIONS answers), both Stage 1 items alr
 25. docs/plans/roadmap/53-editor-keyboard-and-pointer-completion.md Phases 1–7 — the settled keyboard + pointer surface, driving docs/plans/roadmap/46-editor-keybinds.md Phases 1–3/5 as its registry phases (46 Phase 4 rescoped: no injection seam — the core trio is non-rebindable; only the Ctrl+Shift+Z redo alias + predicate dedupe remain). Phase 0 closed 2026-07-20; 53 Phase 3 and Phase 7's keyboard half landed ahead of sequence 2026-07-19/20 (pre-registry, in `EditorView::keyPressed`; they migrate onto the registry during 53 Phase 1).
 26. docs/plans/roadmap/45-editor-theme-and-string-colors.md Phases 2–4 (presets, selection, colorblind-safe); Phase 5 behind G45-STRINGS. **Phase 6 withdrawn 2026-08-02** — file-based themes and palettes consolidated into docs/plans/roadmap/54-highway-visual-theming.md (45-Q3 resolved A by consequence).
 26a. docs/plans/roadmap/54-highway-visual-theming.md Phases 1–6 (highway theme struct, registry + selection, texture contracts, theme/palette files, second built-in theme, packaged export/import) — ungated, all four open questions answered 2026-08-02. Phase 1 (extracting the 15 file-scope highway colors) is dependency-free and can run any time after item 11's plan 45 Phase 1; the editor picker in Phase 2 should follow plan 45 Phase 3 so both submenus share one shape. Game-side persistence waits on plan 27 Phase 1 (already landed). Phase 5 is authoring work, not engineering, and is the schedule risk; Phases 5 and 6 may swap order (see the plan's sequencing note). Coordinate with item 15's plan 25 Phases 4–5: new visuals land their colors in the theme struct.
+26b. docs/plans/roadmap/55-pick-slide-notation.md Phases 1–2 (chart-model field + import — executable now, gate-free); Phases 3–5 (projection/tab marker, highway treatment, editor authoring) behind 55-Q1/55-Q2. Consumes plan 25's shipped drawers; any treatment colors enter item 26a's theme struct, never new file-scope constants.
 27. docs/plans/roadmap/44-editor-3d-preview.md Phases 1–5 (after G20-RENDER + 25 Phases 1–2 + 12 + 45 Phase 1).
 28. docs/plans/roadmap/47-editor-loop-selection.md Phases 2–4 (editor loop-selection state and persistence, ruler drag surface with grid snap, engagement/wrap semantics; no game gates — Phase 1 already runs as Stage 1 item 5, and docs/plans/roadmap/28-practice-mode.md Phase 2 consumes the landed backend, reducing to test extension).
 28a. docs/plans/roadmap/48-editor-audio-setup.md Phases 1–2 (effective-source facade + use-game-settings toggle defaulting on at first run; toggle-aware **separate** device + calibration windows, no consolidation) — depends on plan 14 P3 + plan 13 P1; off the game critical path.
@@ -502,6 +508,11 @@ silent defaults. Full option analysis in the plan.
 - **54-Q4** how many built-in themes ship: (A) one; (B) two. **ANSWERED: B** — plan 45's registry collapse is direct evidence that a single-entry registry with no production consumer gets deleted as dead scaffolding, and a second theme is the only way to discover anything Phase 1 failed to extract.
 - **54-D1** (cross-plan consequence recorded at plan 45 Phase 5a): once plan 54 Phase 4 lands, raising `g_max_chart_strings` breaks user palette files silently — built-in presets fail to compile by design, but a file sized for the old cap has no compile step and is simply dropped at load. Plan 45 Phase 5a must choose between a migration note, load-time lane padding, or an accepted break, and name the choice in the G45-STRINGS sign-off.
 
+### docs/plans/roadmap/55-pick-slide-notation.md (gates 55-Q1, 55-Q2)
+
+- **55-Q1** highway visual treatment (decided from composite mockup sheets over a board background, the box-mute sight-sheet workflow; the 2D tab marker is decided in the same gate): (A) full-board scrape band — a wide serrated ribbon spanning all lanes, sweeping in the travel direction across the duration, unpitched-dimmed with a tremolo-like shimmer; (B) right-hand-lit sweep — no note head, a bright band in the tap-lighting language traveling along the floor; (C) glyph + wake — a dedicated lane-free head glyph with a broad dimmed wake trailing in the travel direction. **R:** produce the mockup sheets first; no recommendation ahead of sight.
+- **55-Q2** editor authoring surface: **R:** fold into plan 40 Phase 5's technique-editing surface as a per-note-validated cycle (None → Down → Up) under the §9a apply-where-valid policy; confirm before wiring a keybind.
+
 ### Roadmap-level items
 
 - **RM-1** Licensing audit thread: AGPLv3 network-source obligations (29-Q3), SoundTouch licensing-table row (28-Q1), CC0 fixture tree (23-Q1) — treat as one licensing pass when 28/29 activate.
@@ -589,7 +600,8 @@ One line per plan; update the right-hand cell as phases complete.
 | docs/plans/roadmap/51-smooth-scroll-camera.md | **Parked 2026-07-14** | Time-space camera + clock-driven fixed-cursor smooth-scroll follow for the editor timeline | Adoption reversed after live sight-reading (moving tabs harder to read, as predicted); spike removed, shifted window stands; plan retains the decision trail + the designed-but-unbuilt cursor-locked posture display; re-verify inventory before any future execution |
 | docs/plans/roadmap/52-range-edit-operations.md | **OPEN DISCUSSION — decision-gated (G52-RANGE-EDIT, all of 52-Q1..Q8)** | Plan 47's time selection doubles as an edit range: range copy/cut/paste/delete carrying ALL chart content (notes, shapes, templates, fret-hand positions); paste-overwrite at cursor; signature-aware rebase; tone/automation copy semantics (Q8); single clipboard codec shared with 40 Phase 9 | Authored 2026-07-16 at user request; Q8 + user leanings (transport Loop button, 47-Q2-C) recorded same day; nothing executable until every Q is signed; depends on 47 Phases 2–3 + 40 Phases 3–4; the grid-locked `TimeSelection` it consumes landed 2026-07-20 via plan 53 Phase 7 (Q6/Q10/Q12 resolved by the two-kind selection law) |
 | docs/plans/roadmap/53-editor-keyboard-and-pointer-completion.md | **Executing** — Phases 0–1 complete 2026-07-20 (gates closed; registry spine + keymap persistence landed via plan 46 Phases 1+2+5); next: discovery menus (Phase 2) / plan 46 Phase 3 dialog | The complete settled editor keyboard + pointer surface: command registry + discovery menus (drives plan 46), navigation reach + zoom/grid keys, vertical stack with the tone-region row, modal plugin-chain scope, automation "+ add" row + point multi-select, grid-locked time selection | Phase 3 landed ahead of sequence (23d3ed7b/44f24ab6/ae0e7ad5 + 16a544b4: grid `+/-`, `Ctrl` zoom, Home/End, PageUp/Dn section jumps); Phase 7's keyboard half landed (759b145f/fd043657: `TimeSelection` + `Shift`+extend families, mutual exclusivity); both pre-registry in `EditorView::keyPressed`, migrating onto the registry in Phase 1 |
-| docs/plans/roadmap/54-highway-visual-theming.md | **Ready — ungated** (54-Q1..Q4 all answered 2026-08-02) | Highway visual identity as data: `HighwayTheme` struct replacing 15 file-scope colors, theme + palette registry and per-product selection, validated texture-atlas contracts, user theme/palette files with inheritance, a second built-in theme, packaged export/import | Not started — authored 2026-08-02 against `master @ cffd8572` (working tree carried in-flight box-mute work; re-verify the inventory before Phase 1). Supersedes plan 45 Phase 6 entirely. Phase 1 is dependency-free after plan 45 Phase 1; Phase 2's editor picker should follow plan 45 Phase 3. Phase 5 (second theme's art) is the schedule risk and may swap with Phase 6. Between Phases 4 and 6, shipped theme ids are append-only — Phase 6's flatten-on-export closes that |
+| docs/plans/roadmap/54-highway-visual-theming.md | **Ready — ungated** (54-Q1..Q4 all answered 2026-08-02) | Highway visual identity as data: `HighwayTheme` struct replacing 15 file-scope colors, theme + palette registry and per-product selection, validated texture-atlas contracts, user theme/palette files with inheritance, a second built-in theme, packaged export/import | Not started — authored 2026-08-02 against `master @ cffd8572`, inventory re-verified against `182faedb` after the box-mute work landed. Supersedes plan 45 Phase 6 entirely. Phase 1 is dependency-free after plan 45 Phase 1; Phase 2's editor picker should follow plan 45 Phase 3. Phase 5 (second theme's art) is the schedule risk and may swap with Phase 6. Between Phases 4 and 6, shipped theme ids are append-only — Phase 6's flatten-on-export closes that |
+| docs/plans/roadmap/55-pick-slide-notation.md | Decision-gated (55-Q1 visual treatment, 55-Q2 authoring verb); Phases 1-2 executable now | First-class right-hand pick-slide notation: ChartNote field (Down/Up, no fret semantics), gpif flags 64/128 import, FHP-transparent by invariant, dedicated highway + tab treatment | Not started — authored 2026-08-03 after the borrowed-vocabulary experiment (mute+tremolo+trail-off) was built and reverted on sight the same day; measure-3-style dead hand-slides explicitly out of scope |
 
 Milestone 0: **REACHED 2026-07-16** — docs/plans/roadmap/21-game-audio-engine-and-session.md Phase 6 soak
 checklist and docs/plans/roadmap/25-note-highway-3d.md Phase 3 exit criteria (notes scroll in time

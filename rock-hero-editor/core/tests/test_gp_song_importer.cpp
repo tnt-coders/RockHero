@@ -189,14 +189,6 @@ constexpr const char* g_fixture_gpif = R"(<?xml version="1.0" encoding="utf-8"?>
     return nullptr;
 }
 
-// True when any generated fret-hand position sits at the given fret.
-[[nodiscard]] bool hasFretHandPositionAtFret(const common::core::Chart& chart, const int fret)
-{
-    return std::ranges::any_of(
-        chart.fret_hand_positions,
-        [fret](const common::core::FretHandPosition& fhp) { return fhp.fret == fret; });
-}
-
 } // namespace
 
 TEST_CASE("Guitar Pro import builds arrangements from the score", "[core][gp-import]")
@@ -1800,6 +1792,114 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         // No onset was fabricated, so the fret-3 tail trims the plain margin before the
         // scoop's notated beat.
         CHECK(chart.notes[0].sustain == Fraction{3, 4});
+        // The 5-8 window already covers the fret-6 approach, so the hand stays planted: the
+        // track is exactly the natural walk, with nothing fabricated at the scoop's end.
+        REQUIRE(chart.fret_hand_positions.size() == 2);
+        CHECK(chart.fret_hand_positions[0].position == GridPosition{.measure = 1, .beat = 1});
+        CHECK(chart.fret_hand_positions[0].fret == 3);
+        CHECK(chart.fret_hand_positions[1].position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(chart.fret_hand_positions[1].fret == 5);
+    }
+
+    SECTION("a long landing caps the scoop window at the margin")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{noteBeat(Fraction{1, 4}, 3), noteBeat(Fraction{1, 2}, 8, 0, 16)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        // A half note's quarter would be a half-beat scoop; the margin caps it at 1/4.
+        REQUIRE(chart.notes[1].slides.size() == 1);
+        CHECK(chart.notes[1].slides[0].offset == Fraction{1, 4});
+        CHECK(chart.notes[1].sustain == Fraction{2});
+    }
+
+    SECTION("a short landing floors the scoop window at the minimum")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{noteBeat(Fraction{1, 4}, 3), noteBeat(Fraction{1, 16}, 8, 0, 16)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        // A sixteenth's quarter (1/16 beat) reads as nothing; the window floors at 1/8.
+        REQUIRE(chart.notes[1].slides.size() == 1);
+        CHECK(chart.notes[1].slides[0].offset == Fraction{1, 8});
+        CHECK(chart.notes[1].sustain == Fraction{1, 4});
+    }
+
+    SECTION("a landing shorter than the floored window extends its sustain to fit")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{noteBeat(Fraction{1, 4}, 3), noteBeat(Fraction{1, 64}, 8, 0, 16)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        // A sixty-fourth sustains 1/16 beat — shorter than the 1/8 floor — so the sustain
+        // extends to hold the floored scoop (the waypoint may land exactly on the end).
+        REQUIRE(chart.notes[1].slides.size() == 1);
+        CHECK(chart.notes[1].slides[0].offset == Fraction{1, 8});
+        CHECK(chart.notes[1].sustain == Fraction{1, 8});
+    }
+
+    SECTION("a bend on the landing coexists with the scoop")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat bent = noteBeat(Fraction{1, 4}, 8, 0, 16);
+        // A rise to a whole step at the half: bend points land at 0, 1/2, and 1 beat, and
+        // the quarter-beat scoop waypoint interleaves between the first two. Bend curves
+        // order only against the sustain, so the scoop leaves them untouched.
+        bent.notes[0].bend = GpBend{
+            .origin_value = 0.0,
+            .middle_value = 100.0,
+            .destination_value = 100.0,
+            .origin_offset = 0.0,
+            .middle_offset1 = 50.0,
+            .middle_offset2 = 50.0,
+            .destination_offset = 100.0,
+        };
+        score.tracks[0].bars.push_back(GpBar{.voices = {{noteBeat(Fraction{1, 4}, 3), bent}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[1].fret == 6);
+        REQUIRE(chart.notes[1].slides.size() == 1);
+        CHECK(chart.notes[1].slides[0].offset == Fraction{1, 4});
+        CHECK(chart.notes[1].slides[0].fret == 8);
+        REQUIRE_FALSE(chart.notes[1].bend.empty());
+        CHECK(chart.notes[1].bend.back().offset == Fraction{1});
+    }
+
+    SECTION("a slide-out on the same short note keeps the scoop strictly before it")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        // Flags 20 = slide-in from below (16) + downward trail-off (4) on one thirty-second
+        // note: the trail-off end pins at the 1/8-beat sustain, exactly where the floored
+        // scoop window would land, so the scoop halves to stay strictly before it (the
+        // ascending-payload invariant chart validation enforces).
+        score.tracks[0].bars.push_back(GpBar{.voices = {{noteBeat(Fraction{1, 32}, 8, 0, 20)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 1);
+        CHECK(chart.notes[0].fret == 6);
+        REQUIRE(chart.notes[0].slides.size() == 1);
+        CHECK(chart.notes[0].slides[0].offset == Fraction{1, 16});
+        CHECK(chart.notes[0].slides[0].fret == 8);
+        const auto* const slide_out = common::core::slideOutOrNull(chart.notes[0]);
+        REQUIRE(slide_out != nullptr);
+        CHECK(slide_out->offset == Fraction{1, 8});
     }
 
     SECTION("a one-fret hand move widens to the two-fret minimum")
@@ -1911,6 +2011,18 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         CHECK(chart.notes[1].fret == 1);
         REQUIRE(chart.notes[1].slides.size() == 1);
         CHECK(chart.notes[1].slides[0].fret == 3);
+
+        // The fret-1 approach falls below the 3-6 window, so a dip REPLACES the natural
+        // placement at the scoop's onset (positions stay unique — one entry at that
+        // instant) and the restore brings the natural anchor back at the scoop's end.
+        REQUIRE(chart.fret_hand_positions.size() == 3);
+        CHECK(chart.fret_hand_positions[0].fret == 8);
+        CHECK(chart.fret_hand_positions[1].position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(chart.fret_hand_positions[1].fret == 1);
+        CHECK(
+            chart.fret_hand_positions[2].position ==
+            GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 4}});
+        CHECK(chart.fret_hand_positions[2].fret == 3);
     }
 
     SECTION("an open-string landing stays plain")
@@ -1953,8 +2065,9 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
 // A trail-off whose next placement departs in its direction rides that travel (user rule
 // 2026-08-02, mirroring the slide-in approach rule): the exit fret follows the anchor delta
 // (two-fret minimum) and an exit placement at the trail-off's compressed end lets the window
-// travel with the gesture, flowing into the next arrival. The contradicting case stays the
-// fixed four-fret exit with the hand planted (covered by the unpitched-slide test above).
+// travel with the gesture, flowing into the next arrival. The contradicting case keeps the
+// fixed four-fret exit while the window dips and returns (covered by the released-trail-off
+// test above).
 TEST_CASE("Guitar Pro import rides a trail-off toward the hand's next move", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
@@ -1987,6 +2100,43 @@ TEST_CASE("Guitar Pro import rides a trail-off toward the hand's next move", "[c
     CHECK(chart.fret_hand_positions[1].fret == 3);
     CHECK(chart.fret_hand_positions[2].position == GridPosition{.measure = 1, .beat = 2});
     CHECK(chart.fret_hand_positions[2].fret == 3);
+}
+
+// The upward mirror of the ride: flags 8 trails off toward the ceiling, and the hand's upward
+// move to the next placement supplies the travel through the same widened-minimum rule.
+TEST_CASE(
+    "Guitar Pro import rides an upward trail-off toward the hand's next move", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+
+    GpScore score = makeLinearScore(1, syncs);
+    score.tracks[0].bars.push_back(
+        GpBar{.voices = {{noteBeat(Fraction{1, 4}, 3, 0, 8), noteBeat(Fraction{1, 4}, 8)}}});
+
+    const auto built = buildGpSong(score);
+    REQUIRE(built.has_value());
+    const common::core::Chart& chart = built->arrangements.front().chart;
+    REQUIRE(chart.notes.size() == 2);
+
+    // The hand's next anchor departs 3 -> 5 (the minimal move that reaches fret 8), agreeing
+    // with the upward trail-off, so the exit rides the widened travel: 3 + max(+2, +2) = 5,
+    // replacing the four-fret default 7.
+    const auto* const slide_out = common::core::slideOutOrNull(chart.notes[0]);
+    REQUIRE(slide_out != nullptr);
+    CHECK(slide_out->fret == 5);
+    // The trim compresses the trail-off to the margin before the fret-8 onset, and the exit
+    // placement lands on that compressed end so the window rides upward into the arrival.
+    CHECK(slide_out->offset == Fraction{3, 4});
+    REQUIRE(chart.fret_hand_positions.size() == 3);
+    CHECK(chart.fret_hand_positions[0].fret == 3);
+    CHECK(
+        chart.fret_hand_positions[1].position ==
+        GridPosition{.measure = 1, .beat = 1, .offset = Fraction{3, 4}});
+    CHECK(chart.fret_hand_positions[1].fret == 5);
+    CHECK(chart.fret_hand_positions[2].position == GridPosition{.measure = 1, .beat = 2});
+    CHECK(chart.fret_hand_positions[2].fret == 5);
 }
 
 // A hand that lingers in position before its next move treats the trail-off as a release
@@ -2059,6 +2209,87 @@ TEST_CASE("Guitar Pro import returns the window when the hand never moves", "[co
     CHECK(chart.fret_hand_positions[1].fret == 4);
     CHECK(chart.fret_hand_positions[2].position == GridPosition{.measure = 1, .beat = 2});
     CHECK(chart.fret_hand_positions[2].fret == 8);
+}
+
+// The figure-selection edges: a trail-off on the song's last note may rest where the gesture
+// ends (exit, no restore), while a trail-off with no room before the next onset stays planted
+// entirely — no exit placement AND no ridden exit fret, even when the hand's next move would
+// otherwise read as a departure (the planted rule is uniform across figures).
+TEST_CASE("Guitar Pro import plants or rests trail-off windows at the edges", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+
+    SECTION("the song's last note gets an exit and no restore")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(GpBar{.voices = {{noteBeat(Fraction{1, 4}, 8, 0, 4)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 1);
+        const auto* const slide_out = common::core::slideOutOrNull(chart.notes[0]);
+        REQUIRE(slide_out != nullptr);
+        // Nothing follows, so nothing compresses the gesture: the full one-beat span with
+        // the four-fret default, and the window rests where it ends.
+        CHECK(slide_out->fret == 4);
+        CHECK(slide_out->offset == Fraction{1});
+        REQUIRE(chart.fret_hand_positions.size() == 2);
+        CHECK(chart.fret_hand_positions[0].fret == 8);
+        CHECK(chart.fret_hand_positions[1].position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(chart.fret_hand_positions[1].fret == 4);
+    }
+
+    SECTION("a trail-off ending on the next onset stays planted")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        // Two thirty-seconds an eighth of a beat apart: the trail-off's smallest legal end
+        // (the 1/8 minimum window, which the crush fallback keeps) IS the next onset, so
+        // there is no room to ride and no placement is fabricated.
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{noteBeat(Fraction{1, 32}, 8, 0, 4), noteBeat(Fraction{1, 32}, 8)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        const auto* const slide_out = common::core::slideOutOrNull(chart.notes[0]);
+        REQUIRE(slide_out != nullptr);
+        CHECK(slide_out->fret == 4);
+        CHECK(slide_out->offset == Fraction{1, 8});
+        // Both notes sit at fret 8: the natural walk is one placement, and the planted
+        // gesture adds nothing.
+        REQUIRE(chart.fret_hand_positions.size() == 1);
+        CHECK(chart.fret_hand_positions[0].fret == 8);
+    }
+
+    SECTION("no room to ride plants even an agreeing departure")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        // The hand's next placement departs downward and serves the very next onset — a
+        // departure by every other measure — but the trail-off end coincides with that
+        // onset, so the planted rule wins: the exit fret keeps the four-fret default
+        // instead of riding the five-fret travel.
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{noteBeat(Fraction{1, 32}, 8, 0, 4), noteBeat(Fraction{1, 32}, 3)}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        const auto* const slide_out = common::core::slideOutOrNull(chart.notes[0]);
+        REQUIRE(slide_out != nullptr);
+        CHECK(slide_out->fret == 4);
+        CHECK(slide_out->offset == Fraction{1, 8});
+        REQUIRE(chart.fret_hand_positions.size() == 2);
+        CHECK(chart.fret_hand_positions[0].fret == 8);
+        CHECK(
+            chart.fret_hand_positions[1].position ==
+            GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 8}});
+        CHECK(chart.fret_hand_positions[1].fret == 3);
+    }
 }
 
 // The phrase-aware fret-hand generator tracks the LEFT hand: a tapped note floats above the

@@ -447,25 +447,12 @@ change), plus the local corpus smoke (local-only, never CI).
 
 **Do not execute. This phase is withdrawn, not deferred.**
 
-Phase 6 originally proposed file-based user presets: one JSON schema for `EditorTheme` values and
-one for string palettes, loaded from per-user app data with typed errors and fallback-to-built-in,
-with "palette-file loading lives beside the registry in common/ui so the game can share it".
-
-`docs/plans/roadmap/54-highway-visual-theming.md` Phase 4 builds exactly that loader — same
-location, same typed-error posture, same fallback rule — and its Phase 6 adds flatten-on-export
-packaging so a shared theme is self-contained. Keeping this phase would mean two file schemas and
-two loaders for the same job. The user's direction (2026-08-02) is to consolidate on plan 54.
-
-Disposition of each half:
-
-- **String-palette files** — moved to plan 54 Phase 4, which scans the themes folder for palette
-  files as a sibling schema and registers them into the same `stringColorPalettes()` registry this
-  plan owns. The registry stays this plan's; only the file loading moves. Colorblind safety is
-  still not asserted for user-authored palettes.
-- **`EditorTheme` files (editor chrome)** — dropped, not relocated. Plan 54 explicitly non-goals
-  editor chrome, and Phase 2's built-in preset mechanism covers the need that motivated this. If
-  user-authored chrome files are ever wanted, they follow plan 54's loader pattern rather than
-  reviving a second schema here.
+Phase 6 originally proposed file-based user presets (an `EditorTheme` schema and a string-palette
+schema). The user's direction (2026-08-02) is to consolidate on plan 54; the full two-half
+disposition — string-palette files into plan 54 Phase 4, `EditorTheme` chrome files dropped —
+lives in plan 54's "Supersedes plan 45 Phase 6 entirely" Dependencies bullet, which is the single
+owner of that scope text. This plan keeps ownership of the `stringColorPalettes()` registry
+itself; only file loading moved.
 
 45-Q3 resolves to **A** by consequence: this plan ships built-in presets only, and file delivery
 lives in plan 54.

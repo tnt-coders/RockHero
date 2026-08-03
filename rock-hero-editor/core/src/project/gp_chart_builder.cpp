@@ -112,6 +112,17 @@ constexpr Fraction g_minimum_slide_window{1, 8};
     return window;
 }
 
+// A slide gesture's fret travel never shrinks below two frets — the minimum that reads as a
+// slide (user rule 2026-07-29). Widens an agreeing hand delta to that minimum; the constant
+// alone supplies the default travel when the hand is still.
+constexpr int g_minimum_slide_travel_frets = 2;
+
+[[nodiscard]] constexpr int widenedToMinimumTravel(const int delta, const bool downward)
+{
+    return downward ? std::min(delta, -g_minimum_slide_travel_frets)
+                    : std::max(delta, g_minimum_slide_travel_frets);
+}
+
 // Pitch-class names for MIDI note numbers.
 constexpr std::array<const char*, 12> g_midi_note_names{
     "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"
@@ -1278,15 +1289,75 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
     return positions;
 }
 
+// The fret-hand placement window active at a position: the iterator PAST the last placement at
+// or before it. Callers read `after - 1` as the active window and handle begin() ("no window
+// yet") themselves — the two slide resolvers deliberately differ there (a scoop still applies
+// with its default start; a trail-off gesture is skipped entirely).
+[[nodiscard]] std::vector<common::core::FretHandPosition>::iterator firstPlacementAfter(
+    std::vector<common::core::FretHandPosition>& placements, const GridPosition& position)
+{
+    return std::ranges::upper_bound(
+        placements, position, std::ranges::less{}, &common::core::FretHandPosition::position);
+}
+
+// Merges a fabricated placement into the sorted track, keeping positions unique and ascending;
+// a placement already at the instant wins.
+void insertPlacementIfAbsent(
+    std::vector<common::core::FretHandPosition>& placements,
+    const common::core::FretHandPosition& placement)
+{
+    const auto at = std::ranges::lower_bound(
+        placements,
+        placement.position,
+        std::ranges::less{},
+        &common::core::FretHandPosition::position);
+    if (at == placements.end() || !(at->position == placement.position))
+    {
+        placements.insert(at, placement);
+    }
+}
+
+// The same merge, but the fabricated placement wins at its instant.
+void upsertPlacement(
+    std::vector<common::core::FretHandPosition>& placements,
+    const common::core::FretHandPosition& placement)
+{
+    const auto at = std::ranges::lower_bound(
+        placements,
+        placement.position,
+        std::ranges::less{},
+        &common::core::FretHandPosition::position);
+    if (at != placements.end() && at->position == placement.position)
+    {
+        *at = placement;
+    }
+    else
+    {
+        placements.insert(at, placement);
+    }
+}
+
+// The active window ridden by a gesture's fret travel, clamped so the ridden window still
+// covers covered_fret on the neck.
+[[nodiscard]] int windowAnchorCovering(
+    const common::core::FretHandPosition& active, const int travel, const int covered_fret)
+{
+    return std::clamp(
+        active.fret + travel,
+        std::max(1, covered_fret - active.width + 1),
+        std::max(1, covered_fret));
+}
+
 // Resolves bare slide-in flags (16 from below, 32 from above) into ordinary slides — no new
 // notation. The gesture is an ON-BEAT scoop (user decision 2026-08-02, superseding the
-// moved-head model of 2026-07-27): the ornament is the manner of the note's ATTACK and
+// moved-head model of 2026-07-28): the ornament is the manner of the note's ATTACK and
 // occupies the note's own time slot — notation practice and faithful score players pluck on
 // the notated tick at an offset pitch and resolve to the target a quarter of the duration
 // in. The head therefore keeps its notated position at a derived approach fret and glides
 // to the notated fret over the scoop window: a quarter of the notated duration, capped at
-// the sustain margin, floored at the minimum slide window, and kept strictly before any
-// payload the note already carries. Anticipation — the approach sounding BEFORE the beat
+// the sustain margin, floored at the minimum slide window, and kept strictly before the
+// note's slide chain and trail-off end (bend curves order only against the sustain, so the
+// scoop leaves them untouched). Anticipation — the approach sounding BEFORE the beat
 // with the target landing ON it — is the before-beat grace-with-slide notation, which
 // resolves through the ordinary chain; a bare slide-in must not fabricate it.
 //
@@ -1329,12 +1400,9 @@ void resolveSlideIns(
             continue;
         }
 
-        int start = from_below ? note.fret - 2 : note.fret + 2;
-        const auto after = std::ranges::upper_bound(
-            placements,
-            note.position,
-            std::ranges::less{},
-            &common::core::FretHandPosition::position);
+        int start = from_below ? note.fret - g_minimum_slide_travel_frets
+                               : note.fret + g_minimum_slide_travel_frets;
+        const auto after = firstPlacementAfter(placements, note.position);
         if (after != placements.begin())
         {
             const auto landing = after - 1;
@@ -1343,10 +1411,10 @@ void resolveSlideIns(
                 const int delta = (landing - 1)->fret - landing->fret;
                 if (delta != 0 && (delta < 0) == from_below)
                 {
-                    // FHP-derived travel, widened to the same two-fret minimum as the default
-                    // (user rule 2026-07-29): a one-fret hand move must not shrink the
-                    // approach below what reads as a slide.
-                    start = note.fret + (from_below ? std::min(delta, -2) : std::max(delta, 2));
+                    // FHP-derived travel, widened to the same two-fret minimum as the default:
+                    // a one-fret hand move must not shrink the approach below what reads as a
+                    // slide.
+                    start = note.fret + widenedToMinimumTravel(delta, from_below);
                 }
             }
         }
@@ -1374,6 +1442,13 @@ void resolveSlideIns(
         {
             window = note.slides.front().offset * Fraction{1, 2};
         }
+        // A slide-out is the other fret-travel payload the scoop must stay strictly before:
+        // on a short note the floored window can reach the trail-off end the chain resolver
+        // pinned at the sustain, and a waypoint at or past it fails chart validation.
+        if (note.slide_out.has_value() && window >= note.slide_out->offset)
+        {
+            window = note.slide_out->offset * Fraction{1, 2};
+        }
         if (note.sustain < window)
         {
             note.sustain = window;
@@ -1385,10 +1460,7 @@ void resolveSlideIns(
             const auto active = after - 1;
             if (start < active->fret || start >= active->fret + active->width)
             {
-                const int dip_anchor = std::clamp(
-                    active->fret - (note.fret - start),
-                    std::max(1, start - active->width + 1),
-                    start);
+                const int dip_anchor = windowAnchorCovering(*active, start - note.fret, start);
                 dip_placements.push_back(
                     common::core::FretHandPosition{
                         .position = note.position,
@@ -1407,34 +1479,14 @@ void resolveSlideIns(
         note.slides.insert(note.slides.begin(), SlideWaypoint{.offset = window, .fret = note.fret});
         note.fret = start;
     }
-    // Merge the fabricated windows, keeping positions unique and ascending.
+    // Merge the fabricated windows: dips own their instant, restores yield to real placements.
     for (const common::core::FretHandPosition& dip : dip_placements)
     {
-        const auto at = std::ranges::lower_bound(
-            placements,
-            dip.position,
-            std::ranges::less{},
-            &common::core::FretHandPosition::position);
-        if (at != placements.end() && at->position == dip.position)
-        {
-            *at = dip;
-        }
-        else
-        {
-            placements.insert(at, dip);
-        }
+        upsertPlacement(placements, dip);
     }
     for (const common::core::FretHandPosition& restore : restore_placements)
     {
-        const auto at = std::ranges::lower_bound(
-            placements,
-            restore.position,
-            std::ranges::less{},
-            &common::core::FretHandPosition::position);
-        if (at == placements.end() || !(at->position == restore.position))
-        {
-            placements.insert(at, restore);
-        }
+        insertPlacementIfAbsent(placements, restore);
     }
     if (unplaceable > 0)
     {
@@ -1474,11 +1526,7 @@ void resolveSlideOutExits(
         }
         const int departing = note.slides.empty() ? note.fret : note.slides.back().fret;
         const bool downward = note.slide_out->fret < departing;
-        const auto after = std::ranges::upper_bound(
-            placements,
-            note.position,
-            std::ranges::less{},
-            &common::core::FretHandPosition::position);
+        const auto after = firstPlacementAfter(placements, note.position);
         if (after == placements.begin())
         {
             continue;
@@ -1492,27 +1540,27 @@ void resolveSlideOutExits(
         }
         const GridPosition end_position =
             gridPositionForGlobalBeat(grid, entry.global_beat + note.slide_out->offset);
+        const bool has_next = next_note < built.size();
+        const bool has_room = !has_next || end_position < built[next_note].note.position;
+        if (has_next && !has_room)
+        {
+            // The gesture reaches the next onset (a hold-exempt trail-off the trim never
+            // compressed, or a crush to exactly the gap): no room to ride, so the whole
+            // gesture stays planted — default exit fret, no fabricated placements.
+            continue;
+        }
 
         // Departure: the next placement's move serves the very next onset and agrees with
         // the trail-off's direction, so the window flows onward instead of returning.
         const int delta = after == placements.end() ? 0 : after->fret - active->fret;
-        const bool departs = delta != 0 && (delta < 0) == downward && next_note < built.size() &&
+        const bool departs = delta != 0 && (delta < 0) == downward && has_next &&
                              !(built[next_note].note.position < after->position);
         if (departs)
         {
-            const int travel = downward ? std::min(delta, -2) : std::max(delta, 2);
+            const int travel = widenedToMinimumTravel(delta, downward);
             note.slide_out->fret = std::clamp(departing + travel, 0, common::core::g_max_fret);
         }
-        else if (next_note >= built.size() || !(end_position < built[next_note].note.position))
-        {
-            // No note follows (the window may rest where the gesture ends), or no room to
-            // ride before the next onset: planted.
-            if (next_note < built.size())
-            {
-                continue;
-            }
-        }
-        else
+        else if (has_next)
         {
             restore_placements.push_back(
                 common::core::FretHandPosition{
@@ -1521,13 +1569,13 @@ void resolveSlideOutExits(
                     .width = active->width,
                 });
         }
+        // No note follows and the gesture is not a departure: the window may rest where the
+        // gesture ends — an exit with no restore.
+
         // The riding window derives from the active one by the gesture's travel, clamped to
         // keep the exit fret covered on the neck.
-        const int travel = note.slide_out->fret - departing;
-        const int anchor = std::clamp(
-            active->fret + travel,
-            std::max(1, note.slide_out->fret - active->width + 1),
-            std::max(1, note.slide_out->fret));
+        const int anchor =
+            windowAnchorCovering(*active, note.slide_out->fret - departing, note.slide_out->fret);
         exit_placements.push_back(
             common::core::FretHandPosition{
                 .position = end_position,
@@ -1535,29 +1583,14 @@ void resolveSlideOutExits(
                 .width = active->width,
             });
     }
+    // Merge the fabricated windows: exits and restores both yield to real placements.
     for (const common::core::FretHandPosition& exit : exit_placements)
     {
-        const auto at = std::ranges::lower_bound(
-            placements,
-            exit.position,
-            std::ranges::less{},
-            &common::core::FretHandPosition::position);
-        if (at == placements.end() || !(at->position == exit.position))
-        {
-            placements.insert(at, exit);
-        }
+        insertPlacementIfAbsent(placements, exit);
     }
     for (const common::core::FretHandPosition& restore : restore_placements)
     {
-        const auto at = std::ranges::lower_bound(
-            placements,
-            restore.position,
-            std::ranges::less{},
-            &common::core::FretHandPosition::position);
-        if (at == placements.end() || !(at->position == restore.position))
-        {
-            placements.insert(at, restore);
-        }
+        insertPlacementIfAbsent(placements, restore);
     }
 }
 

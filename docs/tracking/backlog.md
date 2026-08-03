@@ -5,6 +5,11 @@ Small fixes and evaluations to do when there's time — short entries, not plans
 that needs a design or multiple steps belongs in a `docs/plans/todo/` plan instead. Delete an
 entry when it's done — git history is the record.
 
+- Re-import GP-derived projects/packages saved before 2026-08-02: charts imported before the
+  scoop/trail-off model (commits 6b5c9894/4d33abbf) still embed moved-head slide-ins and
+  windowless trail-off FHP tracks (e.g. the Van Halen import project that motivated plan 55).
+  GP-import normalization applies to GP import only, so the converter-sourced `.rock` corpus is
+  NOT affected — only saves that passed through the GP importer.
 - Lane-caret keyboard navigation does not glide the viewport the way chart-caret navigation
   reveals its measure (2026-07-18): stepping a lane caret can walk it off-screen. Extend the
   caret-measure reveal to the lane caret's published seconds.

@@ -21,8 +21,10 @@ how a good charter thinks:
 - **No phrase awareness** — humans move the hand at phrase boundaries (section starts, rests,
   string-set changes), not mid-lick; the greedy walk moves exactly at the first misfit.
 - ~~Mid-sustain slide targets are uncovered~~ — fixed 2026-07-22: every pitched slide waypoint
-  is now a coverage event at its own mid-sustain position (unpitched trail-offs deliberately
-  never move the hand); see normalization policy rule 9.
+  is now a coverage event at its own mid-sustain position. (The "unpitched trail-offs never
+  move the hand" half of that fix was superseded 2026-08-02: rule 9 now rides the window along
+  every trail-off via importer exit/dip/restore placements — re-read the current rule before
+  executing this plan.)
 - **Minimal shift is only one prior** — real charters weigh staying low on the neck, keeping the
   index on the phrase's floor fret, and barre-shape reuse; which prior wins varies by context.
 
@@ -97,9 +99,11 @@ this by the user, 2026-07-28): an orange number marks a hand position being esta
 fret-hand-placement arrival, or a new tap position (see the right-hand-tap-lighting plan) — and
 nothing else. Slide waypoints push no numbers of their own: a glide that moves the window
 carries a placement at its target (rule 9), which supplies the number, while tapped glides are
-carried by their morphing light. Unpitched trail-offs get no board furniture at all — no post,
-line, or number, only the rail's own dimming — and their end offset now trims back with the
-sustain to the minimum-sustain-distance margin like any tail (normalization rule 2 carve-out).
+carried by their morphing light. Unpitched trail-offs draw no furniture of their own, and their
+end offset trims back with the sustain like any tail (normalization rule 2 carve-out) — but
+since 2026-08-02 the importer fabricates real exit/dip/restore placements at trail-off ends
+(rule 9 rewritten: the window always rides the gesture), and those placements carry ordinary
+window furniture; re-verify this paragraph against the current rule before execution.
 
 Still open for a follow-up: the deliberate ~16% readability shifts (charter re-anchored though the
 old window still covered) are not yet modeled — the generator makes only forced and phrase-boundary

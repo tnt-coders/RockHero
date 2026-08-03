@@ -65,8 +65,9 @@ Plan-specific hard rules:
   reason: the game render stack consumes it without dragging `juce_graphics` in. Colors are
   `common::ui::ArgbColor`. The *loader* may use `juce_core` JSON and `juce::Image` decoding, which
   `common/ui` already depends on for `box_mute_profile.cpp`.
-- **Hex-literal-only color construction** at static or namespace scope (plan 45 decision 2;
-  `editor_theme.h:76–83` records the MSVC cross-TU init-order hazard).
+- **Hex-literal-only color construction** at static or namespace scope (plan 45 decision 2; the
+  function-local-static rationale comment in `editor_theme.h` records the MSVC cross-TU
+  init-order hazard).
 - **A missing or invalid themed asset fails loudly.** Matches the decision already recorded in
   `highway_renderer.h:78–79` — required textures fail `HighwayRenderer::create` with a typed
   `TextureAssetInvalid` rather than falling back procedurally, because a missing asset means a
@@ -79,7 +80,8 @@ Plan-specific hard rules:
 
 ## Current state inventory
 
-Verified against code 2026-08-02, `master @ cffd8572` plus the uncommitted box-mute work.
+Verified against code 2026-08-02 (`master @ cffd8572` plus the then-uncommitted box-mute work);
+re-verified against `182faedb` after that work landed.
 
 - **Renderer entry point** —
   `rock-hero-common/ui/include/rock_hero/common/ui/highway/highway_renderer.h`:
@@ -156,8 +158,9 @@ Verified against code 2026-08-02, `master @ cffd8572` plus the uncommitted box-m
   renderer, never the device — no process restart, and the failure path already exists.
 - **Per-product settings ports** — `IEditorSettings`
   (`rock-hero-editor/core/include/rock_hero/editor/core/settings/i_editor_settings.h`, the
-  `tabMinimumDisplayedStrings` pattern) and the game's future `IGameSettings`
-  (`docs/plans/roadmap/27-in-song-flow-results-profiles.md` Phase 1). Plan 45 decision 7: both
+  `tabMinimumDisplayedStrings` pattern) and the game's `IGameSettings`
+  (`docs/plans/roadmap/27-in-song-flow-results-profiles.md` Phase 1, complete 2026-07-12). Plan
+  45 decision 7: both
   products persist a preset id string from the same common registry; the ids match, the stores do
   not. This plan follows it exactly.
 
@@ -170,7 +173,7 @@ Verified against code 2026-08-02, `master @ cffd8572` plus the uncommitted box-m
     picker mirrors. Phase 1 and Phase 2 here can execute before it; Phase 2's editor picker should
     land after 45 Phase 3 so both submenus share one shape rather than inventing two.
   - `docs/plans/roadmap/27-in-song-flow-results-profiles.md` Phase 1 (`IGameSettings`) for
-    game-side persistence only. The editor half is unblocked.
+    game-side persistence only — **complete 2026-07-12**, so nothing here is actually blocked.
 - **Supersedes plan 45 Phase 6 entirely** (withdrawn there 2026-08-02, user direction; 45-Q3
   resolved A by consequence). That phase proposed two file schemas — one for `EditorTheme` values,
   one for string palettes — with palette loading "beside the registry in common/ui so the game can
@@ -314,8 +317,8 @@ collapsed palette registry so both live behind one shape.
   View menu submenu with radio checkmarks, mirroring plan 45 Phase 3's shape. Unknown or missing
   ids fall back to the default, never an error.
 - Preview applies a change by calling `setTheme(...)` and requesting a frame — no device work.
-- Game: the same id persisted through `IGameSettings` when plan 27 Phase 1 lands; until then the
-  game reads the default. Do not block this phase on it.
+- Game: the same id persisted through the existing `IGameSettings` (plan 27 Phase 1, complete
+  2026-07-12).
 
 **Public-header impact.** Editor-core public headers gain members (product-internal). Common gains
 the registry functions.

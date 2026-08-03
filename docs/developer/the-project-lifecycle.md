@@ -77,9 +77,10 @@ save is forced to Save As — which is also the moment per-project view state st
 The plain-English specification of what the builder does to a Guitar Pro chart beyond literal
 conversion. This section is deliberately written as numbered rules so a behavior tweak can be
 made by editing a rule here and re-aligning the code
-(`gp_chart_builder.cpp` — `normalizeImportedSustains`, `generateFretHandPositions`, both covered
-by `test_gp_song_importer.cpp`). These rules apply to GP import only: `.rock` imports and
-editor-authored charts are never rewritten.
+(`gp_chart_builder.cpp` — `normalizeImportedSustains`, `generateFretHandPositions`,
+`resolveSlideIns` (rule 16's scoops), and `resolveSlideOutExits` (rule 9's trail-off rides and
+rule 13's exit fret), all covered by `test_gp_song_importer.cpp`). These rules apply to GP import
+only: `.rock` imports and editor-authored charts are never rewritten.
 
 **Sustain policy** (GP notates every note at its full duration; a chart only shows deliberate
 sustains):
@@ -285,7 +286,8 @@ through the trim rules):
     to). The head keeps its notated position at a derived approach fret and an ordinary
     pitched waypoint rises to the notated fret over the scoop window: a quarter of the
     notated duration, capped at the minimum-sustain-distance margin, floored at the minimum
-    slide window, and kept strictly before any payload the note already carries.
+    slide window, and kept strictly before the note's slide chain and trail-off end (bend
+    curves order only against the sustain, so the scoop leaves them untouched).
     Anticipation — approach before the beat, target landing on it — is what a before-beat
     grace with a slide notates, and that path already resolves through the ordinary chain; a
     bare slide-in never fabricates an early onset. The fret-hand positions supply the start
