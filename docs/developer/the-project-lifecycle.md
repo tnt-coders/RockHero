@@ -179,7 +179,9 @@ corpus-derived algorithm — the metrics and the source-corpus study behind thes
      they cancel the drag and reshape in place instead.
 
    The window always rides an unpitched slide-out (user rules 2026-08-02): an exit placement
-   at the trail-off's compressed end carries the window with the gesture. The hand's next
+   at the trail-off's compressed end carries the window with the gesture, arriving through
+   the standard margin morph so the motion lands with the perceptible release rather than
+   creeping from the note's onset (sighted on long notes 2026-08-02). The hand's next
    move decides the rest. When its next placement departs in the trail-off's direction AND
    arrives by the very next onset, the gesture IS the departure: the exit fret rides the
    anchor travel (widened to the slide-in rule's two-fret minimum) and the window flows

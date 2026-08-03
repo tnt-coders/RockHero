@@ -63,11 +63,13 @@ HighwayViewState makeHighwayViewState(
     // fret-hand ramps use below; zero for non-tap notes. Feeds makeHighwayTapOnsets.
     std::vector<double> tap_rise_seconds;
     tap_rise_seconds.reserve(chart.notes.size());
-    // Glide arrivals feed the hand window's slide-locked ramps: a placement sitting exactly on
-    // a waypoint's advanced grid position ties its ramp to the glide segment. Unpitched
-    // trail-off ENDS are recorded too (user rule 2026-08-02): the importer authors an exit
-    // placement there when the trail-off follows the hand's next move, and the window then
-    // rides the whole gesture. Chord slides record identical values under one key.
+    // PITCHED glide arrivals feed the hand window's slide-locked ramps: a placement sitting
+    // exactly on a waypoint's advanced grid position ties its ramp to the glide segment.
+    // Unpitched trail-off ends are deliberately NOT recorded: their segment spans the whole
+    // sustain (a plain note dips from its onset), and tying the importer's exit placements
+    // to it made the window creep away seconds early on long notes (sighted 2026-08-02) —
+    // the standard margin morph arriving at the trail-off's end matches the perceptible
+    // release instead. Chord slides record identical values under one key.
     std::map<GridPosition, double> slide_ramp_starts;
     state.notes.reserve(chart.notes.size());
     for (const ChartNote& note : chart.notes)
@@ -127,9 +129,6 @@ HighwayViewState makeHighwayViewState(
                     .fret = slide_out->fret,
                     .unpitched = true,
                 });
-            slide_ramp_starts.try_emplace(
-                advanceGridPosition(tempo_map, note.position, slide_out->offset),
-                glide_segment_start_seconds);
         }
         double rise_seconds = 0.0;
         if (note.attack == NoteAttack::Tap)

@@ -1445,8 +1445,9 @@ void resolveSlideIns(
 }
 
 // Rides the hand window along every unpitched trail-off (user rules 2026-08-02): the window
-// always travels with the gesture — the projection ties a placement on a trail-off's end to
-// its segment — and the hand's next move decides only the exit fret and what follows. When
+// always moves with the gesture — an exit placement at the trail-off's end, reached through
+// the projection's standard margin morph so the motion lands with the perceptible release —
+// and the hand's next move decides only the exit fret and what follows. When
 // the next placement departs in the trail-off's direction AND arrives by the very next
 // onset, the trail-off IS the departure: the exit fret rides that travel (widened to the
 // slide-in rule's two-fret minimum) and the window flows onward into the arrival. Otherwise

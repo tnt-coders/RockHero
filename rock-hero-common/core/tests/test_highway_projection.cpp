@@ -227,9 +227,9 @@ TEST_CASE("Highway projection derives hand-window ramps", "[core][highway]")
     Chart* const chart_ptr = chartOrNull(arrangement);
     REQUIRE(chart_ptr != nullptr);
     Chart& chart = *chart_ptr;
-    // A sustained note whose tail trails off unpitched: a placement on its end rides the
-    // trail-off segment (user rule 2026-08-02 — the importer authors one when the exit
-    // follows the hand's next move).
+    // A sustained note whose tail trails off unpitched: a placement on its end takes the
+    // margin morph, never the whole-sustain segment (a segment tie made the window creep
+    // from the onset on long notes, sighted 2026-08-02).
     chart.notes.push_back(
         ChartNote{
             .position = GridPosition{.measure = 4, .beat = 3},
@@ -257,8 +257,8 @@ TEST_CASE("Highway projection derives hand-window ramps", "[core][highway]")
             .fret = 6,
             .width = 4,
         },
-        // Exactly where the unpitched slide-out ends (4:3 advanced one beat): tied to the
-        // trail-off's whole segment, so the window rides the gesture.
+        // Exactly where the unpitched slide-out ends (4:3 advanced one beat): the margin
+        // morph, arriving with the release, never the whole-sustain segment.
         FretHandPosition{.position = GridPosition{.measure = 4, .beat = 4}, .fret = 9, .width = 4},
     };
 
@@ -276,7 +276,7 @@ TEST_CASE("Highway projection derives hand-window ramps", "[core][highway]")
     CHECK(state.fret_hand_positions[2].ramp_seconds == Catch::Approx(2.0 * beat));
 
     CHECK(state.fret_hand_positions[3].seconds == Catch::Approx(15.0 * beat));
-    CHECK(state.fret_hand_positions[3].ramp_seconds == Catch::Approx(1.0 * beat));
+    CHECK(state.fret_hand_positions[3].ramp_seconds == Catch::Approx(0.25 * beat));
 }
 
 // The beat list covers the whole song grid up to the terminal anchor with correct downbeat
