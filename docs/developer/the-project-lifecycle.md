@@ -97,8 +97,8 @@ sustains):
    (user rule 2026-07-22): a tail ringing *strictly past* the next binding onset — merged from
    a tie or notated across voices — is a deliberate hold, exempt from this trim and the drop
    rule below; that ring is what the arpeggio arrival rule reads. The exemption also reads the
-   notated timeline (2026-07-28): an importer-fabricated early onset — a grace lead or a moved
-   slide-in head — binds the tail at its *sounding* beat, but a ring past it is deliberate only
+   notated timeline (2026-07-28): an importer-fabricated early onset — a grace lead — binds
+   the tail at its *sounding* beat, but a ring past it is deliberate only
    if it also passes the beat the source actually *notated*, since the charter never wrote an
    onset at the fabricated position. A tail that merely *reaches* the next binding onset trims
    like any other, ties included.
@@ -110,8 +110,11 @@ sustains):
    when that leaves the tail closer than the margin (exact adjacency is legal). The unpitched
    slide-out is *not* protected (user rule 2026-07-28): its end is gesture geometry derived
    from the notated duration, not a musical event, so it trims back with the tail and respects
-   the margin — flooring only where the trimmed end would stop being strictly positive and
-   strictly after the last waypoint, where it keeps its end (the protected-adjacency fallback).
+   the margin. A crowding that would crush it — a non-positive target, or one at or under the
+   last waypoint — compresses it to the smallest legal end instead (strictly positive,
+   strictly after the last waypoint) rather than keeping its full length: the old
+   keep-the-end fallback could run the gesture through the next sounding onset in a crowded
+   passage (first sighted 2026-08-02, when slide-ins still fabricated early heads).
 3. **Drop short effect-free tails.** A note that carries no sustain technique (bend, slide,
    vibrato, tremolo) and is *notated* shorter than one beat loses its tail entirely after
    trimming. The comparison reads the notated length, not the trimmed one (user rule
@@ -260,33 +263,36 @@ through the trim rules):
     note's onset. The tab draws no slide line across a hold segment — the linked continuation
     head at the waypoint renders it as a note tied to itself, and the glide's diagonal leaves
     from there.
-16. **A bare slide-in imports as an ordinary slide.** Guitar Pro's slide-in flags (from below /
-    from above) name no start fret, and no new notation exists for the gesture (user rule
-    2026-07-28): the note's head moves onto a lead — the minimum-sustain-distance margin,
-    halved when the previous onset on the string sits closer — at a derived start fret, and an
-    ordinary pitched waypoint glides to the notated fret at the notated position, which keeps
-    no head of its own, exactly like a legato junction. The fret-hand positions supply the
-    start: the head departs from the same window slot in the preceding placement (notated fret
-    plus the anchor delta into the arriving placement); the flag's stated direction wins over a
-    contradicting delta, a still hand falls back to two frets out in the flag's direction
-    (user rules 2026-07-27), and an agreeing one-fret delta widens to the same two-fret
-    minimum — the travel never shrinks below what reads as a slide (user rule 2026-07-29).
-    An open-string landing, a start that would leave the neck (into
-    fret 1 from below), or a landing with no room for any lead stays a plain note with a
-    conversion note. The ramp is **window-neutral** (user rule 2026-07-28): a slide-in is an
-    importer-fabricated approach, so the target's natural window must not move because of it.
-    Generation runs once, on the natural stream, and the resolver inserts each ramp's own
-    placements: the head's anchor derives *backward* from the target's window (anchor minus
-    the ramp delta, keeping the head on the target's slot, clamped onto the neck), and a
-    placement at the notated position pins the unmodified target window exactly on the glide's
-    waypoint so the window rides the ramp in and lands where the hand would have been anyway.
-    (Regenerating the track after resolution was tried and rejected the same day: rule 9
-    dragged the target's window by the fabricated delta, which read as the hand landing in the
-    wrong place.) Resolution still runs before the sustain policy, so the transformed note is
-    a slide when the trim rules run: a slide-in into a held landing keeps its hold like any
-    notated slide, trimmed like every tail but never dropped as effect-free (user rule
-    2026-07-28). A grace note sliding into its principal already carries its explicit start
-    fret and resolves through the ordinary slide chain instead.
+16. **A bare slide-in imports as an on-beat scoop — an ordinary slide in the note's own
+    slot.** The ornament is the manner of the note's *attack* (user decision 2026-08-02,
+    superseding the moved-head model of 2026-07-28; grounded in the notation's semantics:
+    Guitar Pro's manual defines slide-in as attacking the note from an adjacent fret, its
+    faithful open-source players pluck exactly on the notated tick and resolve to the target
+    pitch a quarter of the duration in, and notation practice — MusicXML's scoop, the jazz
+    plop — treats such approaches as zero-duration articulations of the note they attach
+    to). The head keeps its notated position at a derived approach fret and an ordinary
+    pitched waypoint rises to the notated fret over the scoop window: a quarter of the
+    notated duration, capped at the minimum-sustain-distance margin, floored at the minimum
+    slide window, and kept strictly before any payload the note already carries.
+    Anticipation — approach before the beat, target landing on it — is what a before-beat
+    grace with a slide notates, and that path already resolves through the ordinary chain; a
+    bare slide-in never fabricates an early onset. The fret-hand positions supply the start
+    fret: the window walk's delta arriving at the note, the flag's stated direction winning
+    over a still hand or a contradicting delta (two frets out in the flag's direction), an
+    agreeing one-fret delta widening to the same two-fret minimum (user rule 2026-07-29).
+    The hand stays planted while the approach sits inside the active window — a two-fret
+    scoop is usually a finger gesture, not a hand move (the unpitched-slide precedent). An
+    approach OUTSIDE the window drags the window with it for exactly the scoop's duration
+    (sighted 2026-08-02: a window anchored on the notated fret left the approach uncovered):
+    the onset's window derives backward from the active one so the head keeps its slot, and
+    the natural window returns at the scoop's end, yielding to any real placement already
+    there. An open-string landing or a start that would leave the neck (into fret 1 from
+    below) stays a plain note with a conversion note. Resolution still runs before the sustain
+    policy, so the transformed note is a slide when the trim rules run: a slide-in into a
+    held landing keeps its hold like any notated slide, trimmed like every tail but never
+    dropped as effect-free (user rule 2026-07-28). A grace note sliding into its principal
+    already carries its explicit start fret and resolves through the ordinary slide chain
+    instead.
 
 **Grace beats** (placed during event collection, before tie merging and every rule above):
 

@@ -411,6 +411,58 @@ TEST_CASE("Guitar Pro import keeps the hand still through unpitched slides", "[c
     std::filesystem::remove_all(scratch, cleanup_error);
 }
 
+// The slide-out-into-slide-in dip (sighted 2026-08-02): the scoop stays in its own notated
+// slot, so the previous slide-out compresses the plain margin before the notated onset and
+// the two gestures never overlap — no fabricated head intrudes into the gap.
+TEST_CASE("Guitar Pro import keeps a slide-out clear of a following slide-in", "[core][gp-import]")
+{
+    const std::filesystem::path scratch =
+        std::filesystem::temp_directory_path() / "rh_gp_slide_dip_test";
+    std::error_code cleanup_error;
+    std::filesystem::remove_all(scratch, cleanup_error);
+    const std::filesystem::path workspace = scratch / "song";
+    std::filesystem::create_directories(workspace);
+
+    // Flags 4 turns the fret-5 note's glide into a downward slide-out; flags 16 makes the
+    // fret-7 landing a slide-in from below, scooping on its own beat.
+    std::string gpif = fixtureWithReplacement(
+        "<Property name=\"Slide\"><Flags>1</Flags></Property>",
+        "<Property name=\"Slide\"><Flags>4</Flags></Property>");
+    const std::string landing_marker = "<Property name=\"Fret\"><Fret>7</Fret></Property>";
+    const std::size_t landing_position = gpif.find(landing_marker);
+    REQUIRE(landing_position != std::string::npos);
+    gpif.insert(
+        landing_position + landing_marker.size(),
+        "\n<Property name=\"Slide\"><Flags>16</Flags></Property>");
+    const std::filesystem::path archive = writeFixtureArchive(scratch, gpif);
+
+    GpSongImporter importer;
+    const auto song = importer.importSong(archive, workspace);
+    REQUIRE(song.has_value());
+    REQUIRE(song->arrangements.size() == 1);
+    const common::core::Chart& chart = requiredChart(song->arrangements.front());
+    REQUIRE(chart.notes.size() == 5);
+
+    // The slide-in head stays on its notated onset, scooping from two frets below over an
+    // eighth of a beat (a quarter of its notated duration, floored at the minimum window).
+    const common::core::ChartNote& landing = chart.notes[2];
+    CHECK(landing.fret == 5);
+    REQUIRE_FALSE(landing.slides.empty());
+    CHECK(landing.slides.front().offset == Fraction{1, 8});
+    CHECK(landing.slides.front().fret == 7);
+    CHECK(landing.position == GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 2}});
+
+    // With no fabricated head in the gap, the half-beat trail-off compresses the plain
+    // margin before the notated onset — the two gestures stay clear of each other.
+    const common::core::ChartNote& dip = chart.notes[1];
+    const auto* const slide_out = common::core::slideOutOrNull(dip);
+    REQUIRE(slide_out != nullptr);
+    CHECK(slide_out->offset == Fraction{1, 4});
+    CHECK(dip.sustain == Fraction{1, 4});
+
+    std::filesystem::remove_all(scratch, cleanup_error);
+}
+
 // Guitar Pro's two tap articulations are different hands and must import differently (user rule
 // 2026-07-28): "Tapped" (two-hand tapping) becomes the chart's Tap attack, while
 // "LeftHandTapped" — the fretting hand hammering the note from nowhere — imports as a plain
@@ -1702,15 +1754,16 @@ TEST_CASE("Guitar Pro import reads gpif grace placements", "[core][gp-import]")
     }
 }
 
-// A bare slide-in imports as an ordinary slide — no new notation: the head moves onto the lead
-// at a derived start fret and glides to the notated fret, whose position keeps no head of its
-// own. Guitar Pro gives the gesture no start fret, so the fret-hand positions supply it: the
-// head departs from the same window slot in the preceding placement. The flag's stated
-// direction wins over a contradicting placement delta, a still hand falls back to two frets
-// out in the flag's direction, an agreeing one-fret hand move widens to the same two-fret
-// minimum, and an open-string landing stays plain. A grace note sliding
-// into its principal carries the explicit start fret instead and resolves through the
-// ordinary slide chain.
+// A bare slide-in imports as an on-beat scoop — an ordinary slide in the note's own slot
+// (user decision 2026-08-02): the head keeps its notated position at a derived approach fret
+// and rises to the notated fret over the scoop window (a quarter of the notated duration,
+// capped at the margin, floored at the minimum slide window). Guitar Pro gives the gesture no
+// start fret, so the fret-hand positions supply it; the flag's stated direction wins over a
+// contradicting placement delta, a still hand falls back to two frets out in the flag's
+// direction, an agreeing one-fret hand move widens to the same two-fret minimum, and an
+// open-string landing stays plain. The hand stays planted (a scoop is a finger gesture). A
+// grace note sliding into its principal carries the explicit start fret instead and resolves
+// through the ordinary slide chain — that pathway is how anticipation is notated.
 TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[core][gp-import]")
 {
     const std::vector<GpSyncPoint> syncs{
@@ -1728,20 +1781,19 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         const common::core::Chart& chart = built->arrangements.front().chart;
         REQUIRE(chart.notes.size() == 2);
         // The window walk moves the anchor minimally (3 to 5), so the head departs two frets
-        // below the notated fret: 8 + (3 - 5), a quarter-beat lead ahead, gliding to 8 at the
-        // notated position. The sustain end stays at the notated end.
+        // below the notated fret: 8 + (3 - 5) — ON its notated beat — scooping to 8 over a
+        // quarter of the notated beat (capped exactly at the margin here). The sustain stays
+        // the notated duration.
         CHECK(chart.notes[1].fret == 6);
-        CHECK(chart.notes[1].position.beat == 1);
-        CHECK(chart.notes[1].position.offset == Fraction{3, 4});
+        CHECK(chart.notes[1].position.beat == 2);
+        CHECK(chart.notes[1].position.offset == Fraction{});
         REQUIRE(chart.notes[1].slides.size() == 1);
         CHECK(chart.notes[1].slides[0].offset == Fraction{1, 4});
         CHECK(chart.notes[1].slides[0].fret == 8);
-        CHECK(chart.notes[1].sustain == Fraction{5, 4});
-        // The moved head sounds inside the fret-3 note's notated tail, but a fabricated onset
-        // cannot make that ring a deliberate hold: the tail trims against the head's sounding
-        // beat at 3/4 (same string — the old ring overlapped the ramp) and, notated a full
-        // beat, keeps the trimmed tail.
-        CHECK(chart.notes[0].sustain == Fraction{1, 2});
+        CHECK(chart.notes[1].sustain == Fraction{1});
+        // No onset was fabricated, so the fret-3 tail trims the plain margin before the
+        // scoop's notated beat.
+        CHECK(chart.notes[0].sustain == Fraction{3, 4});
     }
 
     SECTION("a one-fret hand move widens to the two-fret minimum")
@@ -1780,17 +1832,19 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         REQUIRE(chart.notes.size() == 3);
         // The transform runs before the sustain policy, so the half-beat landing hold
         // survives the effect-free drop (the note is a slide now) and trims only against the
-        // next onset like any tail: head at 0.75 beats, glide at +1/4, tail to 1.25 (a
-        // quarter before the fret-5 onset at 1.5 beats).
+        // next onset like any tail: head ON its beat, scoop over an eighth (a quarter of the
+        // half-beat duration, floored at the minimum slide window), tail to a quarter before
+        // the fret-5 onset.
         CHECK(chart.notes[1].fret == 6);
-        CHECK(chart.notes[1].position.offset == Fraction{3, 4});
+        CHECK(chart.notes[1].position.beat == 2);
+        CHECK(chart.notes[1].position.offset == Fraction{});
         REQUIRE(chart.notes[1].slides.size() == 1);
-        CHECK(chart.notes[1].slides[0].offset == Fraction{1, 4});
+        CHECK(chart.notes[1].slides[0].offset == Fraction{1, 8});
         CHECK(chart.notes[1].slides[0].fret == 8);
-        CHECK(chart.notes[1].sustain == Fraction{1, 2});
-        // The fret-3 tail trims against the moved head's sounding beat rather than ringing
-        // through it as a fabricated hold, and — notated a full beat — keeps the trimmed tail.
-        CHECK(chart.notes[0].sustain == Fraction{1, 2});
+        CHECK(chart.notes[1].sustain == Fraction{1, 4});
+        // No onset was fabricated: the fret-3 tail trims the plain margin before the scoop's
+        // notated beat.
+        CHECK(chart.notes[0].sustain == Fraction{3, 4});
     }
 
     SECTION("a still hand falls back to two frets in the flag's direction")
@@ -1807,18 +1861,18 @@ TEST_CASE("Guitar Pro import derives slide-in ramps from the hand positions", "[
         REQUIRE(chart.notes[1].slides.size() == 1);
         CHECK(chart.notes[1].slides[0].fret == 5);
 
-        // Window-neutral ramp (user rule 2026-07-28): the head's placement derives backward
-        // from the target's natural window — anchor 5 minus the +2 ramp delta, keeping the
-        // head on the target's slot — and the target keeps its unmodified window, pinned by a
-        // placement landing exactly on the glide's waypoint.
+        // The fret-3 approach falls below the window anchored at 5, so the window dips with
+        // the scoop for exactly its duration — the onset's window derives backward from the
+        // active one (5 minus the +2 scoop delta) — and the natural window returns at the
+        // scoop's quarter-beat end.
         REQUIRE(chart.fret_hand_positions.size() == 3);
         CHECK(chart.fret_hand_positions[0].position == GridPosition{.measure = 1, .beat = 1});
         CHECK(chart.fret_hand_positions[0].fret == 5);
-        CHECK(
-            chart.fret_hand_positions[1].position ==
-            GridPosition{.measure = 1, .beat = 1, .offset = Fraction{3, 4}});
+        CHECK(chart.fret_hand_positions[1].position == GridPosition{.measure = 1, .beat = 2});
         CHECK(chart.fret_hand_positions[1].fret == 3);
-        CHECK(chart.fret_hand_positions[2].position == GridPosition{.measure = 1, .beat = 2});
+        CHECK(
+            chart.fret_hand_positions[2].position ==
+            GridPosition{.measure = 1, .beat = 2, .offset = Fraction{1, 4}});
         CHECK(chart.fret_hand_positions[2].fret == 5);
     }
 

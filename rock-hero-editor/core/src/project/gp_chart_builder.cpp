@@ -619,10 +619,10 @@ struct BuiltNote
     int gp_string{0};
     int slide_flags{0};
 
-    // The beat the source notated this onset at (see NoteEvent::notated_beat). Deliberately NOT
-    // updated when resolveSlideIns moves a head onto its lead: the moved head sounds early but
-    // stays notated where it was written, so it binds neighboring tails at its sounding beat
-    // while never faking a deliberate hold there.
+    // The beat the source notated this onset at (see NoteEvent::notated_beat). Grace machinery
+    // is the only thing that makes the sounding onset diverge (a before-beat lead, an on-beat
+    // shift): the note binds neighboring tails at its sounding beat while never faking a
+    // deliberate hold at a beat the source never notated.
     Fraction notated_beat{};
 
     // Onset of the tied continuation the slide flags were inherited from, when they were: the
@@ -651,9 +651,9 @@ struct BuiltNote
 //    exempt: a tail ringing strictly past the next binding onset's NOTATED beat — merged from
 //    a tie or notated across voices — is a deliberate hold that neither this trim nor the
 //    drop rule touches (that ring is exactly what the projections' arpeggio arrival rule
-//    reads). An importer-fabricated early onset (a grace lead, a moved slide-in head) binds
-//    the tail at its sounding beat but cannot witness a hold: the source never notated an
-//    onset there, so a ring past it proves nothing deliberate. Repeated chords trim like
+//    reads). An importer-fabricated early onset (a grace lead) binds the tail at its
+//    sounding beat but cannot witness a hold: the source never notated an onset there, so a
+//    ring past it proves nothing deliberate. Repeated chords trim like
 //    everything else: their held reading lives in the merged shape span (rule 11), which is
 //    derived from the notated pre-trim ends and already runs through every restrike.
 // 2. Trimming never clips a bend or slide payload: the tail floors at the last payload offset,
@@ -693,8 +693,8 @@ void normalizeImportedSustains(
             // from this note's — notationally simultaneous events (chord members, a strum's own
             // grace-shifted notes) never bind. The tail keeps the margin before the binding
             // onset's SOUNDING beat, but the hold exemption reads its NOTATED beat: a grace
-            // lead or moved slide-in head sounds inside an earlier ring without the source ever
-            // notating an onset there, so it must not turn that ring into a "deliberate hold".
+            // lead sounds inside an earlier ring without the source ever notating an onset
+            // there, so it must not turn that ring into a "deliberate hold".
             // Later events can notate earlier than they sound (on-beat-shifted strum members),
             // so the scan runs until no later event can still notate ahead of the minimum seen.
             bool has_binding = false;
@@ -747,21 +747,19 @@ void normalizeImportedSustains(
                     // musical event, so it trims back with the tail to respect the margin. The
                     // trimmed end must stay strictly positive and strictly after the last
                     // waypoint (the model's ascending-payload invariant); a crowding that would
-                    // crush it keeps its end instead — the protected-adjacency fallback the
-                    // other rules use.
+                    // crush it compresses to the smallest legal end instead of keeping its full
+                    // length — the old keep-the-end fallback ran the gesture through the next
+                    // sounding onset when a slide-in had moved its head into the gap (the
+                    // slide-out-into-slide-in dip, sighted 2026-08-02).
                     if (note.slide_out.has_value() && target < note.slide_out->offset)
                     {
-                        const bool crushed =
-                            target.numerator <= 0 ||
-                            (!note.slides.empty() && target <= note.slides.back().offset);
-                        if (crushed)
+                        const Fraction compressed = keptStrictlyAfterLastWaypoint(
+                            note, std::max(target, g_minimum_slide_window));
+                        if (compressed < note.slide_out->offset)
                         {
-                            target = note.slide_out->offset;
+                            note.slide_out->offset = compressed;
                         }
-                        else
-                        {
-                            note.slide_out->offset = target;
-                        }
+                        target = note.slide_out->offset;
                     }
                     if (target < note.sustain)
                     {
@@ -1281,40 +1279,43 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
 }
 
 // Resolves bare slide-in flags (16 from below, 32 from above) into ordinary slides — no new
-// notation (user rule 2026-07-27): the note's head moves onto the lead at the derived start
-// fret, an ordinary pitched waypoint glides to the notated fret at the notated position, and
-// the landing keeps no head of its own, exactly like a legato junction. Guitar Pro gives the
-// gesture no start fret, so the fret-hand positions supply it: the slide is the hand traveling
-// into the placement that arrives at the note, departing from the same finger slot in the
-// preceding placement — start = landing fret + (preceding anchor − landing anchor). A grace
-// note sliding into its principal is the explicit-fret notation and never reaches here: it
-// resolves through the ordinary slide chain. When the hand does not move at the note, or the
-// placement delta contradicts the flag's direction, the flag wins with a two-fret start in its
-// direction, and an agreeing one-fret delta widens to the same two-fret minimum (user rule
-// 2026-07-29) — the travel never shrinks below what reads as a slide, though the low-neck
-// clamp can still shorten a start that would fall off the nut. Runs after fret-hand
-// generation and INSERTS each ramp's own placements into the
-// track (user rule 2026-07-28): a slide-in is an importer-fabricated approach, so the target's
-// natural window must not move because of it — the head gets a placement whose anchor derives
-// backward from the target's (anchor minus the ramp delta, keeping the head on the target's
-// slot), and a placement at the notated position pins the unmodified target window, landing
-// exactly on the glide's waypoint so the window rides the ramp. Resolution also runs before
-// the sustain policy, so the transformed note is a slide when the trim rules run: a slide-in
-// into a held landing keeps its hold like any notated slide (user rule 2026-07-28). The lead
-// is the shared minimum-sustain-distance margin, halved when the previous onset on the string
-// sits closer.
+// notation. The gesture is an ON-BEAT scoop (user decision 2026-08-02, superseding the
+// moved-head model of 2026-07-27): the ornament is the manner of the note's ATTACK and
+// occupies the note's own time slot — notation practice and faithful score players pluck on
+// the notated tick at an offset pitch and resolve to the target a quarter of the duration
+// in. The head therefore keeps its notated position at a derived approach fret and glides
+// to the notated fret over the scoop window: a quarter of the notated duration, capped at
+// the sustain margin, floored at the minimum slide window, and kept strictly before any
+// payload the note already carries. Anticipation — the approach sounding BEFORE the beat
+// with the target landing ON it — is the before-beat grace-with-slide notation, which
+// resolves through the ordinary chain; a bare slide-in must not fabricate it.
+//
+// Guitar Pro gives the gesture no start fret, so the fret-hand positions supply it: the
+// window walk's delta arriving at the note, widened to a two-fret minimum (user rule
+// 2026-07-29), the flag's direction winning over a still hand or a contradicting delta.
+// The hand stays planted while the approach fret sits inside the active window — a two-fret
+// scoop is usually a finger gesture, not a hand move (the unpitched-slide precedent). An
+// approach OUTSIDE the window drags the window with it for exactly the scoop's duration
+// (sighted 2026-08-02: a window anchored on the notated fret left the approach uncovered):
+// the onset's window derives backward from the active one so the head keeps its slot, and
+// the natural window returns at the scoop's end. An open string cannot be slid into, and a
+// start clamped onto the notated fret has no travel; both count as unplaceable and stay
+// plain. The transform runs before the sustain policy, so the transformed note is a slide
+// when the trim rules run: a slide-in into a held landing keeps its hold like any notated
+// slide (user rule 2026-07-28).
 void resolveSlideIns(
     std::vector<BuiltNote>& built, std::vector<common::core::FretHandPosition>& placements,
     const MeasureGrid& grid, std::vector<std::string>& notes)
 {
     int unplaceable = 0;
-    bool moved = false;
-    // Applied after the loop so every start fret derives from the pristine natural track — an
-    // inserted ramp placement must never feed a later slide-in's slot math.
-    std::vector<common::core::FretHandPosition> ramp_placements;
-    for (std::size_t index = 0; index < built.size(); ++index)
+    // Applied after the loop so every start fret derives from the pristine natural track — a
+    // fabricated dip must never feed a later slide-in's slot math. Dips replace whatever sits
+    // at their instant (the scoop owns its onset); restores yield to any real placement
+    // already at the scoop's end.
+    std::vector<common::core::FretHandPosition> dip_placements;
+    std::vector<common::core::FretHandPosition> restore_placements;
+    for (BuiltNote& entry : built)
     {
-        BuiltNote& entry = built[index];
         if ((entry.slide_flags & (16 | 32)) == 0)
         {
             continue;
@@ -1357,110 +1358,83 @@ void resolveSlideIns(
             continue;
         }
 
-        // The song start bounds the lead when no earlier onset on the string does.
-        Fraction gap = entry.global_beat;
-        for (std::size_t previous = index; previous-- > 0;)
+        // The scoop window (see the function comment); an existing chain waypoint keeps the
+        // payload ascending by gliding through half its own offset instead.
+        Fraction window = note.sustain * Fraction{1, 4};
+        const Fraction margin = sustainMarginAt(grid, note.position);
+        if (margin < window)
         {
-            if (built[previous].gp_string == entry.gp_string)
-            {
-                gap = entry.global_beat - built[previous].global_beat;
-                break;
-            }
+            window = margin;
         }
-        const Fraction lead = fitLeadToGap(sustainMarginAt(grid, note.position), gap, 1);
-        if (lead.numerator <= 0)
+        if (window < g_minimum_slide_window)
         {
-            ++unplaceable;
-            continue;
+            window = g_minimum_slide_window;
+        }
+        if (!note.slides.empty() && window >= note.slides.front().offset)
+        {
+            window = note.slides.front().offset * Fraction{1, 2};
+        }
+        if (note.sustain < window)
+        {
+            note.sustain = window;
         }
 
-        // The head moves back onto the lead; every payload offset is onset-relative and
-        // shifts with it, and the notated fret becomes the first glide waypoint. The sustain
-        // end stays where the notated note ended.
-        const int notated_fret = note.fret;
-        const GridPosition notated_position = note.position;
-        for (BendPoint& point : note.bend)
+        // The active window at the onset; a start it does not cover drags it for the scoop.
+        if (after != placements.begin())
         {
-            point.offset = point.offset + lead;
-        }
-        for (SlideWaypoint& waypoint : note.slides)
-        {
-            waypoint.offset = waypoint.offset + lead;
-        }
-        if (note.slide_out.has_value())
-        {
-            note.slide_out->offset = note.slide_out->offset + lead;
-        }
-        note.slides.insert(note.slides.begin(), SlideWaypoint{.offset = lead, .fret = note.fret});
-        note.fret = start;
-        note.sustain = note.sustain + lead;
-        entry.global_beat = entry.global_beat - lead;
-        note.position = gridPositionForGlobalBeat(grid, entry.global_beat);
-        moved = true;
-
-        // Window-neutral ramp placements (user rule 2026-07-28): the target's natural window
-        // must not move because a fabricated ramp approaches it. The head's placement anchors
-        // backward from the target's window by the ramp delta — keeping the head on the
-        // target's slot, clamped so it still covers the start on the neck — and a placement at
-        // the notated position pins the unmodified target window on the glide's waypoint.
-        const auto after_target = std::ranges::upper_bound(
-            placements,
-            notated_position,
-            std::ranges::less{},
-            &common::core::FretHandPosition::position);
-        if (after_target != placements.begin())
-        {
-            const auto active = after_target - 1;
-            const int delta = notated_fret - start;
-            const int head_anchor =
-                std::clamp(active->fret - delta, std::max(1, start - active->width + 1), start);
-            ramp_placements.push_back(
-                common::core::FretHandPosition{
-                    .position = note.position,
-                    .fret = head_anchor,
-                    .width = active->width,
-                });
-            if (!(active->position == notated_position))
+            const auto active = after - 1;
+            if (start < active->fret || start >= active->fret + active->width)
             {
-                ramp_placements.push_back(
+                const int dip_anchor = std::clamp(
+                    active->fret - (note.fret - start),
+                    std::max(1, start - active->width + 1),
+                    start);
+                dip_placements.push_back(
                     common::core::FretHandPosition{
-                        .position = notated_position,
+                        .position = note.position,
+                        .fret = dip_anchor,
+                        .width = active->width,
+                    });
+                restore_placements.push_back(
+                    common::core::FretHandPosition{
+                        .position = gridPositionForGlobalBeat(grid, entry.global_beat + window),
                         .fret = active->fret,
                         .width = active->width,
                     });
             }
         }
+
+        note.slides.insert(note.slides.begin(), SlideWaypoint{.offset = window, .fret = note.fret});
+        note.fret = start;
     }
-    // Merge the ramp placements into the track, keeping positions unique and ascending. On the
-    // vanishingly rare exact collision (another string's glide waypoint placed at the same
-    // instant), the fabricated ramp defines the window at its own instant.
-    for (const common::core::FretHandPosition& ramp : ramp_placements)
+    // Merge the fabricated windows, keeping positions unique and ascending.
+    for (const common::core::FretHandPosition& dip : dip_placements)
     {
         const auto at = std::ranges::lower_bound(
             placements,
-            ramp.position,
+            dip.position,
             std::ranges::less{},
             &common::core::FretHandPosition::position);
-        if (at != placements.end() && at->position == ramp.position)
+        if (at != placements.end() && at->position == dip.position)
         {
-            *at = ramp;
+            *at = dip;
         }
         else
         {
-            placements.insert(at, ramp);
+            placements.insert(at, dip);
         }
     }
-    if (moved)
+    for (const common::core::FretHandPosition& restore : restore_placements)
     {
-        // A moved head can pass a neighboring onset on another string; the note stream stays
-        // sorted by (position, string) for the chart invariant.
-        std::ranges::stable_sort(built, [](const BuiltNote& lhs, const BuiltNote& rhs) {
-            if (lhs.global_beat != rhs.global_beat)
-            {
-                return lhs.global_beat < rhs.global_beat;
-            }
-            return lhs.note.string < rhs.note.string;
-        });
+        const auto at = std::ranges::lower_bound(
+            placements,
+            restore.position,
+            std::ranges::less{},
+            &common::core::FretHandPosition::position);
+        if (at == placements.end() || !(at->position == restore.position))
+        {
+            placements.insert(at, restore);
+        }
     }
     if (unplaceable > 0)
     {
@@ -1784,13 +1758,10 @@ void resolveSlideIns(
     // (user rule 2026-07-28), trimmed like any tail but never dropped as effect-free.
     //
     // The generator runs on the natural stream — slide-ins still plain notes at their notated
-    // positions — and the resolver then inserts each ramp's placements itself (user rule
-    // 2026-07-28): a slide-in is an importer-fabricated approach, so the target's own window
-    // must not move because of it; the head's window derives BACKWARD from the target's
-    // (anchor minus the ramp delta, same slot), and the window rides the glide into the
-    // unmodified target. Regenerating after resolution was tried and rejected: rule 9 dragged
-    // the target's window by the fabricated delta, which read as the hand landing in the
-    // wrong place.
+    // positions — and the resolver then touches the placements only when a scoop's approach
+    // leaves the active window (user decision 2026-08-02): the window dips with the scoop for
+    // exactly its duration and the natural window returns at the scoop's end; an approach the
+    // window already covers stays a planted finger gesture, like an unpitched slide.
     chart.fret_hand_positions = generateFretHandPositions(built, tempo_map, phrase_boundary_beats);
     resolveSlideIns(built, chart.fret_hand_positions, grid, notes);
     if (!chart.fret_hand_positions.empty())
