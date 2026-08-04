@@ -166,9 +166,11 @@ void drawStringLines(
 //
 // The band keeps the plain tail's own thickness and swings by the tremolo size each way, so
 // its outer envelope is exactly the gem chain's — the tail occupies the same rows it always
-// has — and one apex per gem cell keeps the old rhythm. Drawn edge-colored with the tail color
-// inset by the edge size, like every other tail. Vertices run past the end and the clip cuts
-// them, so the final tooth keeps its true shape and the strip ends on a clean vertical edge.
+// has. Apexes come twice per gem cell (sighted 2026-08-04, doubled from the chain's rate),
+// which puts the legs near forty-five degrees and reads as picking rather than as a slow
+// wave. Drawn edge-colored with the tail color inset by the edge size, like every other tail.
+// Vertices run past the end and the clip cuts them, so the final tooth keeps its true shape
+// and the strip ends on a clean vertical edge.
 void drawTremoloTail(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style, float x,
     float length, float center_y)
@@ -177,7 +179,7 @@ void drawTremoloTail(
     const float band_center = (span.top + span.bottom) / 2.0f;
     const float half_thickness = (span.bottom - span.top) / 2.0f;
     const float amplitude = metrics.tremolo_size;
-    const float apex_step = std::max(4.0f, metrics.note_height / 2.0f);
+    const float apex_step = std::max(2.0f, metrics.note_height / 4.0f);
 
     // Triangle wave along the tail, zero at the onset so the band leaves the head centered and
     // alternating apexes every apex_step.

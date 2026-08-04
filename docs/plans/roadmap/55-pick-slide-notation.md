@@ -133,8 +133,9 @@ language on the 3D highway and the 2D tab.
   plain sustain's ribbon with both borders displaced together — replacing the ported
   pointed-gem chain, whose borders bulged apart so the strip pulsed in thickness instead of
   snaking (user direction 2026-08-04, bringing the tab in line with the 3D teeth). It keeps
-  the gem chain's exact outer envelope and one apex per gem cell, so the tail occupies the
-  same rows at the same rhythm.
+  the gem chain's exact outer envelope, so the tail occupies the same rows, and runs apexes at
+  twice the chain's rate — legs near forty-five degrees, which reads as picking rather than as
+  a slow wave.
 - **Tooth geometry, sharpened 2026-08-04** (user: the zigzag must read much sharper and more
   compressed). What the eye reads is the tooth's ASPECT — advance against swing — not depth
   alone, so the wave went from a 60 ms / 0.75-half-width tooth (a 5:1 lazy ripple) to
