@@ -118,16 +118,27 @@ language on the 3D highway and the 2D tab.
 - **Settled rendering (both surfaces), simplified 2026-08-04 (user redesign)**: the path
   renders through the unpitched slide machinery (dimmed glide, head rides the path, no board
   furniture, no hand-window contribution — all by the projection marking scrape waypoints
-  unpitched), and the tail is the **ordinary tremolo vocabulary framed in glowing white
-  edges** — no bespoke waveform. 3D: the tail rides `highwayTremoloWobble` (head shakes with
-  it, like any tremolo note) and the ribbon's edge bands swap to white fading transparent at
-  the outer stations while the core keeps the dimmed string tint; 2D: the ordinary tremolo gem
-  strip with a white edge frame, plain slide diagonals over it carrying the travel, per-leg
-  target chips, full string color (desaturation dropped — one differentiator, not two). The
-  earlier bespoke serrated/chirped scrape wave and the 2D decaying wavy diagonals shipped,
-  never converged on sight ("not jagged enough" ↔ "too random"), and were deleted with this
-  simplification. The root impact shards stay a queued flourish. New colors enter plan 54's
-  theme struct.
+  unpitched), and the tail is the **ordinary tremolo vocabulary, worn outright** — no bespoke
+  waveform and no differentiator, because `tremolo` itself was redefined (user 2026-08-04):
+  the teeth mean UNMEASURED noise picking (as fast as possible, no real timing), the charting
+  standard spells out measured repetition as discrete notes, and a scrape IS that noise
+  dragged along the string, so sharing the notation is the point. Import follows the
+  standard: GP's measured tremolo marks spell out into their strokes at the marked
+  subdivision, a bent tremolo becoming progressively larger prebent picks (each stroke
+  samples the master curve at its onset — user model 2026-08-04); only slide-entangled
+  beats — the pick-slide carriers included — keep the mark as noise with a conversion note
+  (lifecycle guide rule 20). 3D: the tail rides
+  `highwayTremoloWobble` with the head shaking in step; 2D: the plain tremolo gem strip with
+  slide diagonals over it carrying the travel and per-leg target chips. Deleted along the
+  way, each after a sighted round: the bespoke serrated/chirped scrape wave and 2D decaying
+  wavy diagonals ("not jagged enough" ↔ "too random"), the desaturated 2D tail, the white
+  tail-edge frames, a baked glow halo (forked the mute-X art, could not match the tail's
+  gradient), and finally a full renderer-side `texture_glow` blur program — built through all
+  six shader touchpoints, then removed the same day when the noise redefinition made every
+  white-glow differentiator moot. The moving right-hand light sweeps its glide segments with
+  the arrival waypoint's own ease (stations carry an unpitched flag) at span-scaled slice
+  density — the fixed six slices and pitched ease that served tapped glides faceted a
+  scrape's dozen-fret legs into rough edges. The root impact shards stay a queued flourish.
 - **55-Q2 — authoring.** Mostly dissolved by the note-carried model: scrapes select, move,
   delete, and undo as ordinary notes. Remaining verbs for plan 40 Phase 5's technique surface:
   the attack toggle to/from `PickSlide` (synthesizing the default path on entry, restoring

@@ -331,7 +331,24 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
 {
     if (sustain.numerator <= 0)
     {
-        notes.emplace_back("dropped a bend on a note without sustain");
+        // A sustainless note still sounds its instant's pitch: a non-zero origin survives as
+        // the prebend point (the single bend shape a zero sustain can carry — and the shape
+        // tremolo spell-out feeds, one flat sample per stroke). Curve motion after the onset
+        // has nowhere to live, so it narrows to that point, reported when it existed.
+        const bool moves = std::abs(bend.middle_value - bend.origin_value) > 1e-9 ||
+                           std::abs(bend.destination_value - bend.origin_value) > 1e-9;
+        if (std::abs(bend.origin_value) > 1e-9)
+        {
+            if (moves)
+            {
+                notes.emplace_back("flattened a bend on a sustainless note to its prebend");
+            }
+            return {BendPoint{.offset = Fraction{}, .semitones = bend.origin_value / 50.0}};
+        }
+        if (moves)
+        {
+            notes.emplace_back("dropped a bend on a note without sustain");
+        }
         return {};
     }
 
@@ -429,6 +446,138 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
     };
 }
 
+// The GP bend model evaluated at a percent of the note duration: the origin value holds to
+// its offset, rises to the middle plateau, holds between the middle offsets, rises to the
+// destination, and holds to the end. Equal offsets read as a step.
+[[nodiscard]] double bendValueAtPercent(const GpBend& bend, const double percent)
+{
+    const std::array<std::pair<double, double>, 4> points{
+        std::pair{bend.origin_offset, bend.origin_value},
+        std::pair{bend.middle_offset1, bend.middle_value},
+        std::pair{bend.middle_offset2, bend.middle_value},
+        std::pair{bend.destination_offset, bend.destination_value},
+    };
+    if (percent <= points.front().first)
+    {
+        return points.front().second;
+    }
+    for (std::size_t segment = 1; segment < points.size(); ++segment)
+    {
+        const auto [from_offset, from_value] = points[segment - 1];
+        const auto [to_offset, to_value] = points[segment];
+        if (percent > to_offset)
+        {
+            continue;
+        }
+        const double span = to_offset - from_offset;
+        if (span <= 0.0)
+        {
+            return to_value;
+        }
+        return from_value + ((to_value - from_value) * ((percent - from_offset) / span));
+    }
+    return points.back().second;
+}
+
+// Spells out tremolo-picked beats as their individual strokes BEFORE event collection, so the
+// strokes flow through positions, grace attachment, ties, and sustain trims exactly like
+// hand-notated notes (the charting standard reserves the chart's `tremolo` for unmeasured
+// noise, and Guitar Pro's tremolo is measured — the mark carries a precise stroke duration).
+// Strokes re-pick: every stroke clears tie_destination, so a tie INTO the beat releases its
+// origin when the first stroke's fresh onset lands, and only the last stroke keeps a notated
+// onward tie so a ring-out continuation still binds. The first stroke keeps the accent and
+// any hammer/pull arrival; later strokes are plain picks. A bent tremolo spells out too —
+// each stroke samples the master curve at its own onset and carries the value as a flat
+// prebend, so the run reads as progressively larger prebent picks (user model 2026-08-04).
+// Only slide payloads keep the mark (per-stroke frets along a glide would be fabricated
+// data, and the payloads include the pick-slide carriers), counted for the track report.
+[[nodiscard]] std::vector<GpBeat> expandTremoloBeats(
+    const std::vector<GpBeat>& beats, int& kept_marks)
+{
+    std::vector<GpBeat> expanded;
+    expanded.reserve(beats.size());
+    for (const GpBeat& beat : beats)
+    {
+        const Fraction stroke = beat.tremolo_stroke;
+        if (stroke.numerator <= 0 || beat.grace != GpGracePlacement::None || beat.notes.empty())
+        {
+            expanded.push_back(beat);
+            continue;
+        }
+        if (std::ranges::any_of(
+                beat.notes, [](const GpNote& note) { return note.slide_flags != 0; }))
+        {
+            ++kept_marks;
+            expanded.push_back(beat);
+            continue;
+        }
+        const Fraction count_fraction =
+            beat.duration_whole * Fraction{stroke.denominator, stroke.numerator};
+        const auto count = static_cast<int>(count_fraction.numerator / count_fraction.denominator);
+        if (count <= 1)
+        {
+            // A beat no longer than one stroke IS its single stroke; the mark adds nothing.
+            GpBeat single = beat;
+            single.tremolo_stroke = Fraction{};
+            expanded.push_back(std::move(single));
+            continue;
+        }
+        for (int index = 0; index < count; ++index)
+        {
+            GpBeat piece = beat;
+            piece.tremolo_stroke = Fraction{};
+            // The last stroke takes the remainder, so the beat's total duration survives an
+            // indivisible span (dots and tuplets).
+            piece.duration_whole =
+                index + 1 == count ? beat.duration_whole - (Fraction{count - 1} * stroke) : stroke;
+            const double onset_percent = 100.0 * static_cast<double>(index) *
+                                         (static_cast<double>(stroke.numerator) *
+                                          static_cast<double>(beat.duration_whole.denominator)) /
+                                         (static_cast<double>(stroke.denominator) *
+                                          static_cast<double>(beat.duration_whole.numerator));
+            for (GpNote& note : piece.notes)
+            {
+                note.tie_destination = false;
+                if (index + 1 < count)
+                {
+                    note.tie_origin = false;
+                }
+                if (index > 0)
+                {
+                    note.accent = false;
+                    note.hopo_destination = false;
+                }
+                if (note.bend.has_value())
+                {
+                    // The stroke sounds the master curve's value at its own onset, carried as
+                    // a flat prebend (a sustainless pick has exactly one pitch). Zero offsets
+                    // collapse the shape to the single onset point through the builder's
+                    // equal-offset merge.
+                    const double value = bendValueAtPercent(*note.bend, onset_percent);
+                    if (std::abs(value) > 1e-9)
+                    {
+                        note.bend = GpBend{
+                            .origin_value = value,
+                            .middle_value = value,
+                            .destination_value = value,
+                            .origin_offset = 0.0,
+                            .middle_offset1 = 0.0,
+                            .middle_offset2 = 0.0,
+                            .destination_offset = 0.0,
+                        };
+                    }
+                    else
+                    {
+                        note.bend.reset();
+                    }
+                }
+            }
+            expanded.push_back(std::move(piece));
+        }
+    }
+    return expanded;
+}
+
 // Collects the timed note events of one track across bars and voices. Grace beats take no time
 // from the bar; each run attaches to the next sounding beat in its voice (the principal). A
 // before-beat grace sounds a thirty-second-note lead ahead of the principal; an on-beat grace
@@ -441,6 +590,18 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
     std::vector<NoteEvent> events;
     int overfull = 0;
     int dropped_graces = 0;
+    int kept_tremolo_marks = 0;
+
+    // Tremolo beats spell out first; the expanded copies live for the whole collection
+    // because pending grace runs hold beat pointers across bar boundaries.
+    std::vector<std::vector<std::vector<GpBeat>>> expanded_bars(track.bars.size());
+    for (std::size_t bar_index = 0; bar_index < track.bars.size(); ++bar_index)
+    {
+        for (const std::vector<GpBeat>& voice : track.bars[bar_index].voices)
+        {
+            expanded_bars[bar_index].push_back(expandTremoloBeats(voice, kept_tremolo_marks));
+        }
+    }
 
     const auto emit_note = [&events, &grid](
                                const GpNote& source,
@@ -473,12 +634,12 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
         // A thirty-second note in this measure's meter, on the signature-beat axis.
         const Fraction full_lead{denominator, 32};
 
-        for (std::size_t voice_index = 0; voice_index < track.bars[bar_index].voices.size();
+        for (std::size_t voice_index = 0; voice_index < expanded_bars[bar_index].size();
              ++voice_index)
         {
             std::vector<const GpBeat*>& pending = pending_graces_per_voice[voice_index];
             Fraction position_beats{};
-            for (const GpBeat& beat : track.bars[bar_index].voices[voice_index])
+            for (const GpBeat& beat : expanded_bars[bar_index][voice_index])
             {
                 if (beat.grace != GpGracePlacement::None)
                 {
@@ -547,7 +708,11 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
                                 for (const GpNote& grace_note : grace->notes)
                                 {
                                     emit_note(
-                                        grace_note, grace->tremolo, global, lead, principal_global);
+                                        grace_note,
+                                        grace->tremolo_stroke.numerator > 0,
+                                        global,
+                                        lead,
+                                        principal_global);
                                 }
                                 --remaining;
                             }
@@ -577,7 +742,11 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
                                 for (const GpNote& grace_note : grace->notes)
                                 {
                                     emit_note(
-                                        grace_note, grace->tremolo, global, lead, principal_global);
+                                        grace_note,
+                                        grace->tremolo_stroke.numerator > 0,
+                                        global,
+                                        lead,
+                                        principal_global);
                                     shifted_strings.push_back(grace_note.string);
                                 }
                                 ++slot;
@@ -593,7 +762,7 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
                     const bool shifted = std::ranges::contains(shifted_strings, source.string);
                     emit_note(
                         source,
-                        beat.tremolo,
+                        beat.tremolo_stroke.numerator > 0,
                         shifted ? (principal_global + principal_shift) : principal_global,
                         shifted ? (duration_beats - principal_shift) : duration_beats,
                         principal_global);
@@ -610,6 +779,12 @@ void snapAnchorsToMillisecondGrid(std::vector<common::core::BeatAnchor>& anchors
     if (overfull > 0)
     {
         notes.push_back(std::to_string(overfull) + " beats overflowed their bar and were dropped");
+    }
+    if (kept_tremolo_marks > 0)
+    {
+        notes.push_back(
+            std::to_string(kept_tremolo_marks) +
+            " tremolo beats kept their mark instead of spelling out (slide payloads)");
     }
     if (dropped_graces > 0)
     {

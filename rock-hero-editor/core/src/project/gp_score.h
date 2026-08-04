@@ -144,8 +144,15 @@ struct GpBeat
     /*! \brief Grace placement of the beat; grace beats take no time from the bar. */
     GpGracePlacement grace{GpGracePlacement::None};
 
-    /*! \brief True when the beat is tremolo picked. */
-    bool tremolo{false};
+    /*!
+    \brief Tremolo-picking stroke duration as a fraction of a whole note; a zero numerator
+    means the beat is not tremolo picked.
+
+    Guitar Pro's three tremolo speeds arrive as quarter-note fractions (1/2, 1/4, 1/8 for
+    eighth, sixteenth, and thirty-second strokes); the parser converts to whole-note units so
+    the builder can spell the strokes out without consulting the meter.
+    */
+    common::core::Fraction tremolo_stroke{};
 
     /*! \brief True when the beat carries a whammy-bar dive (not yet imported). */
     bool whammy{false};

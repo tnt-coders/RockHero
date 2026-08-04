@@ -1,6 +1,7 @@
 #include "project/gp_score_parser.h"
 
 #include <cstddef>
+#include <cstdlib>
 #include <juce_core/juce_core.h>
 #include <map>
 #include <optional>
@@ -520,7 +521,26 @@ std::expected<GpScore, SongImportError> parseGpScore(const std::string& gpif_xml
                                          ? GpGracePlacement::OnBeat
                                          : GpGracePlacement::BeforeBeat;
                     }
-                    beat.tremolo = beat_element.getChildByName("Tremolo") != nullptr;
+                    // Tremolo picking: the element text is the stroke length in quarter-note
+                    // units ("1/2", "1/4", "1/8" for Guitar Pro's eighth/sixteenth/
+                    // thirty-second speeds, measured on a corpus gpif), stored in whole-note
+                    // units. An unparseable value falls back to sixteenth strokes, the
+                    // middle speed.
+                    if (beat_element.getChildByName("Tremolo") != nullptr)
+                    {
+                        const std::string text = childText(beat_element, "Tremolo");
+                        const auto divider = text.find('/');
+                        beat.tremolo_stroke = Fraction{1, 16};
+                        if (divider != std::string::npos)
+                        {
+                            const int numerator = std::atoi(text.substr(0, divider).c_str());
+                            const int denominator = std::atoi(text.substr(divider + 1).c_str());
+                            if (numerator > 0 && denominator > 0)
+                            {
+                                beat.tremolo_stroke = Fraction{numerator, denominator * 4};
+                            }
+                        }
+                    }
                     beat.whammy = beat_element.getChildByName("Whammy") != nullptr ||
                                   beat_element.getChildByName("WhammyExtend") != nullptr;
 

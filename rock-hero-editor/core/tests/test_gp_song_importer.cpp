@@ -1170,6 +1170,16 @@ namespace
     return beat;
 }
 
+// A single-note beat marked tremolo picked, for the spell-out tests below.
+[[nodiscard]] GpBeat tremoloBeat(const Fraction duration, const int fret, const Fraction stroke)
+{
+    GpBeat beat;
+    beat.duration_whole = duration;
+    beat.tremolo_stroke = stroke;
+    beat.notes = {GpNote{.string = 1, .fret = fret, .harmonic_type = ""}};
+    return beat;
+}
+
 } // namespace
 
 // The sustain hold semantics (policy rule 1, user rule 2026-07-22): every tail that merely
@@ -1267,6 +1277,119 @@ TEST_CASE("Guitar Pro import trims reaching tails and holds crossing rings", "[c
         REQUIRE(chart.notes.size() == 3);
         CHECK(chart.notes[0].sustain == Fraction{4});
         CHECK(chart.notes[1].sustain == Fraction{4});
+    }
+}
+
+// Guitar Pro's tremolo picking is measured (the mark carries a stroke duration), and the chart
+// reserves `tremolo` for unmeasured noise, so import spells the strokes out as individual notes
+// at the marked subdivision. Ties into a tremolo beat release their origin (the strokes
+// re-pick), the first stroke alone keeps the accent, and beats whose notes carry bends or slide
+// payloads keep the mark with a conversion note instead.
+TEST_CASE("Guitar Pro import spells out tremolo picking", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+
+    SECTION("a quarter beat with sixteenth strokes becomes four spelled-out notes")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat beat = tremoloBeat(Fraction{1, 4}, 5, Fraction{1, 16});
+        beat.notes.front().accent = true;
+        score.tracks[0].bars.push_back(GpBar{.voices = {{beat}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 4);
+        for (std::size_t index = 0; index < chart.notes.size(); ++index)
+        {
+            CHECK_FALSE(chart.notes[index].tremolo);
+            CHECK(chart.notes[index].fret == 5);
+            CHECK(chart.notes[index].position.offset == Fraction{static_cast<int>(index), 4});
+        }
+        // Only the first stroke carries the notated accent; the rest are plain picks.
+        CHECK(chart.notes[0].accent);
+        CHECK_FALSE(chart.notes[1].accent);
+        // Strokes normalize to sustainless like any hand-charted sixteenth run, the final
+        // stroke's sub-margin tail included.
+        CHECK(chart.notes[0].sustain == Fraction{});
+        CHECK(chart.notes[3].sustain == Fraction{});
+    }
+
+    SECTION("a tie into a tremolo beat releases the origin and the strokes re-pick")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat first = tremoloBeat(Fraction{1, 4}, 5, Fraction{1, 16});
+        first.notes.front().tie_origin = true;
+        GpBeat second = tremoloBeat(Fraction{1, 4}, 5, Fraction{1, 16});
+        second.notes.front().tie_destination = true;
+        score.tracks[0].bars.push_back(GpBar{.voices = {{first, second}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        // Eight fresh onsets: nothing merges across the notated tie.
+        REQUIRE(chart.notes.size() == 8);
+        CHECK(chart.notes[4].position.beat == 2);
+        CHECK(chart.notes[4].position.offset == Fraction{});
+    }
+
+    SECTION("a bent tremolo spells out as progressively larger prebends")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat beat = tremoloBeat(Fraction{1, 4}, 5, Fraction{1, 16});
+        beat.notes.front().bend = GpBend{
+            .origin_value = 0.0,
+            .middle_value = 50.0,
+            .destination_value = 100.0,
+        };
+        score.tracks[0].bars.push_back(GpBar{.voices = {{beat}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 4);
+        // Each stroke samples the master curve at its own onset: silent start, then half,
+        // whole, and one-and-a-half steps as flat prebends on sustainless picks.
+        CHECK(chart.notes[0].bend.empty());
+        REQUIRE(chart.notes[1].bend.size() == 1);
+        CHECK(chart.notes[1].bend[0].offset == Fraction{});
+        CHECK(chart.notes[1].bend[0].semitones == Catch::Approx(0.5));
+        REQUIRE(chart.notes[3].bend.size() == 1);
+        CHECK(chart.notes[3].bend[0].semitones == Catch::Approx(1.5));
+        for (const common::core::ChartNote& note : chart.notes)
+        {
+            CHECK_FALSE(note.tremolo);
+        }
+    }
+
+    SECTION("a slide-carrying tremolo beat keeps its mark with a conversion note")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat beat = tremoloBeat(Fraction{1, 4}, 5, Fraction{1, 16});
+        beat.notes.front().slide_flags = 4;
+        score.tracks[0].bars.push_back(GpBar{.voices = {{beat}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 1);
+        CHECK(chart.notes[0].tremolo);
+        CHECK(anyNoteContains(built->notes, "tremolo beats kept their mark"));
+    }
+
+    SECTION("a beat no longer than one stroke drops the mark as a single pick")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{tremoloBeat(Fraction{1, 16}, 5, Fraction{1, 16})}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 1);
+        CHECK_FALSE(chart.notes[0].tremolo);
     }
 }
 

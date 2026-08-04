@@ -337,6 +337,19 @@ through the trim rules):
     carrying ordinary slide-out flags (4/8) are LEFT-hand figures and never reclassify. The
     fret-hand machinery ignores scrapes exactly as it ignores taps (`rightHandOnset`), keeping
     them FHP-transparent.
+20. **Tremolo picking spells out as its strokes.** GP's tremolo mark is measured — the gpif
+    `Tremolo` element carries the stroke length in quarter-note units ("1/2", "1/4", "1/8"
+    for eighth/sixteenth/thirty-second strokes) — while the chart reserves `tremolo` for
+    UNMEASURED noise, so a tremolo beat expands into its individual strokes before event
+    collection and they flow through positions, graces, ties, and sustain trims like
+    hand-notated notes. Strokes re-pick: a tie INTO the beat releases its origin, only the
+    last stroke keeps a notated onward tie (a ring-out continuation still binds), and only the
+    first keeps the accent or a hammer/pull arrival. A bent tremolo spells out too: each
+    stroke samples the master curve at its own onset and carries the value as a flat prebend —
+    the run reads as progressively larger prebent picks, and a sustainless note's bend
+    narrows to that single prebend point generally (a zero-sustain pick has exactly one
+    pitch). Only slide payloads keep the mark, with a conversion note: per-stroke frets along
+    a glide would be fabricated data, and the payloads include the pick-slide carriers.
 
 Every generated track logs a conversion note ("phrase-aware; verify", "derived N chord
 spans", "imported N pick slides") so the guesses stay observable in the import log.
