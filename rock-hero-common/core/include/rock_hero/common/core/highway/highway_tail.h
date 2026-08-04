@@ -52,11 +52,16 @@ whole way down the tail. A fixed time (or world-distance) pitch cannot: perspect
 tooth's along-tail advance as one over depth squared but its lateral swing only as one over
 depth, so the near teeth read wide and shallow while the far ones collapse into needles — a
 1.53x drift in tooth aspect across one tail, measured through the real projection, which is
-exactly the "starts spaced out, gets compressed" the sighted first pass showed. At this pitch
-the aspect holds to within two percent end to end, and the near-end tooth keeps the sighted
-size of that pass.
+exactly the "starts spaced out, gets compressed" the sighted pass showed. At this pitch the
+aspect holds to within two percent end to end.
+
+The value is small because it sets DENSITY as well as shape, and density is most of what reads
+as intensity: teeth per tail go as the log of the tail's depth ratio over this pitch, so a
+tooth count is bought here and nowhere else. Sighted up from a first uniform pass whose teeth
+were correct in shape but far too few. With the depth constant below, a tooth here is very
+nearly as wide as it is long (aspect ~0.94), which is a hard saw rather than a ripple.
 */
-inline constexpr double g_highway_tremolo_log_pitch = 0.15;
+inline constexpr double g_highway_tremolo_log_pitch = 0.05;
 
 /*!
 \brief Tremolo wobble depth as a multiple of the tail's half-width.
