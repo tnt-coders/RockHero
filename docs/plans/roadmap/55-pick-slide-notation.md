@@ -128,8 +128,13 @@ language on the 3D highway and the 2D tab.
   samples the master curve at its onset — user model 2026-08-04); only slide-entangled
   beats — the pick-slide carriers included — keep the mark as noise with a conversion note
   (lifecycle guide rule 20). 3D: the tail rides
-  `highwayTremoloWobble` with the head shaking in step; 2D: the plain tremolo gem strip with
-  slide diagonals over it carrying the travel and per-leg target chips.
+  `highwayTremoloWobble`; 2D: the tremolo strip with slide diagonals over it carrying the
+  travel and per-leg target chips. The 2D strip is a constant-thickness ZIGZAG BAND — the
+  plain sustain's ribbon with both borders displaced together — replacing the ported
+  pointed-gem chain, whose borders bulged apart so the strip pulsed in thickness instead of
+  snaking (user direction 2026-08-04, bringing the tab in line with the 3D teeth). It keeps
+  the gem chain's exact outer envelope and one apex per gem cell, so the tail occupies the
+  same rows at the same rhythm.
 - **Tooth geometry, sharpened 2026-08-04** (user: the zigzag must read much sharper and more
   compressed). What the eye reads is the tooth's ASPECT — advance against swing — not depth
   alone, so the wave went from a 60 ms / 0.75-half-width tooth (a 5:1 lazy ripple) to

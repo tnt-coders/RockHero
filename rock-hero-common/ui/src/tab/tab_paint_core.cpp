@@ -159,50 +159,70 @@ void drawStringLines(
     return text;
 }
 
-// Draws the tremolo tail as Charter's repeating pointed-gem fragments: an edge-colored zigzag
-// with the tail color inset vertically by the edge size. Charter's final partial fragment
-// distorts the last gem; here the full pattern is clipped to the tail span instead, which keeps
-// every tooth shaped correctly and ends the strip on a clean vertical edge (the one deliberate
-// bug fix in an otherwise faithful port).
+// Draws the tremolo tail as a constant-thickness zigzag band: the plain sustain's ribbon with
+// its top and bottom borders displaced TOGETHER, so the strip snakes instead of pulsing in
+// thickness the way the ported pointed-gem chain did (user direction 2026-08-04, bringing the
+// tab in line with the 3D highway's teeth, which swing a constant-width ribbon the same way).
+//
+// The band keeps the plain tail's own thickness and swings by the tremolo size each way, so
+// its outer envelope is exactly the gem chain's — the tail occupies the same rows it always
+// has — and one apex per gem cell keeps the old rhythm. Drawn edge-colored with the tail color
+// inset by the edge size, like every other tail. Vertices run past the end and the clip cuts
+// them, so the final tooth keeps its true shape and the strip ends on a clean vertical edge.
 void drawTremoloTail(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style, float x,
     float length, float center_y)
 {
-    const float fragment_size = std::max(4.0f, metrics.note_height / 2.0f);
-    const float y0 = center_y + metrics.tail_height / 2.0f - metrics.tremolo_size + 1.0f;
-    const float y1 = center_y + metrics.tail_height / 2.0f + 1.0f;
-    const float y2 = center_y - metrics.tail_height / 2.0f + metrics.tremolo_size;
-    const float y3 = center_y - metrics.tail_height / 2.0f;
+    const TailSpan span = tailSpan(metrics, center_y);
+    const float band_center = (span.top + span.bottom) / 2.0f;
+    const float half_thickness = (span.bottom - span.top) / 2.0f;
+    const float amplitude = metrics.tremolo_size;
+    const float apex_step = std::max(4.0f, metrics.note_height / 2.0f);
 
-    const auto add_fragments = [&](juce::Path& path, float inset) {
-        const auto fragment_count = static_cast<int>(length / fragment_size) + 1;
-        for (int fragment = 0; fragment < fragment_count; ++fragment)
+    // Triangle wave along the tail, zero at the onset so the band leaves the head centered and
+    // alternating apexes every apex_step.
+    const auto centerline_at = [&](const float dx) {
+        const float cycles = (dx / (2.0f * apex_step)) - 0.25f;
+        const float phase = cycles - std::floor(cycles);
+        return band_center + (amplitude * (std::abs(phase - 0.5f) - 0.25f) * 4.0f);
+    };
+    // Vertex 0 sits at the onset; the rest are the apexes, one past the end so the clip can cut
+    // the last tooth mid-stroke instead of the path closing short of it.
+    const int apex_count = static_cast<int>(length / apex_step) + 2;
+    const auto vertex_dx = [&](const int index) {
+        return index == 0 ? 0.0f : ((static_cast<float>(index) - 0.5f) * apex_step);
+    };
+
+    const auto add_band = [&](juce::Path& path, const float inset) {
+        const float half = std::max(1.0f, half_thickness - inset);
+        path.startNewSubPath(x, centerline_at(0.0f) - half);
+        for (int index = 1; index <= apex_count; ++index)
         {
-            const float fragment_x = x + static_cast<float>(fragment) * fragment_size;
-            juce::Path gem;
-            gem.startNewSubPath(fragment_x, y0 - inset);
-            gem.lineTo(fragment_x + fragment_size / 2.0f, y1 - inset);
-            gem.lineTo(fragment_x + fragment_size, y0 - inset);
-            gem.lineTo(fragment_x + fragment_size, y2 + inset);
-            gem.lineTo(fragment_x + fragment_size / 2.0f, y3 + inset);
-            gem.lineTo(fragment_x, y2 + inset);
-            gem.closeSubPath();
-            path.addPath(gem);
+            const float dx = vertex_dx(index);
+            path.lineTo(x + dx, centerline_at(dx) - half);
         }
+        for (int index = apex_count; index >= 0; --index)
+        {
+            const float dx = vertex_dx(index);
+            path.lineTo(x + dx, centerline_at(dx) + half);
+        }
+        path.closeSubPath();
     };
 
     g.saveState();
+    const float reach = half_thickness + amplitude;
     g.reduceClipRegion(
-        juce::Rectangle<float>{x, y3, length, y1 - y3}.getSmallestIntegerContainer());
-    juce::Path edge_fragments;
-    add_fragments(edge_fragments, 0.0f);
+        juce::Rectangle<float>{x, band_center - reach, length, 2.0f * reach}
+            .getSmallestIntegerContainer());
+    juce::Path edge_band;
+    add_band(edge_band, 0.0f);
     g.setColour(style.tail_edge);
-    g.fillPath(edge_fragments);
+    g.fillPath(edge_band);
 
-    juce::Path inner_fragments;
-    add_fragments(inner_fragments, metrics.tail_edge_size);
+    juce::Path inner_band;
+    add_band(inner_band, metrics.tail_edge_size);
     g.setColour(style.tail);
-    g.fillPath(inner_fragments);
+    g.fillPath(inner_band);
     g.restoreState();
 }
 
