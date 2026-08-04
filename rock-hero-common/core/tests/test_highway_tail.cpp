@@ -154,16 +154,46 @@ TEST_CASE("Highway wobbles are onset-phased and bounded", "[core][highway][tail]
 
     const double depth = g_highway_tremolo_depth;
     CHECK(highwayTremoloWobble(0.0) == Catch::Approx(depth));
-    CHECK(highwayTremoloWobble(g_highway_tremolo_period_seconds / 2.0) == Catch::Approx(-depth));
-    CHECK(highwayTremoloWobble(g_highway_tremolo_period_seconds) == Catch::Approx(depth));
+    CHECK(highwayTremoloWobble(0.5) == Catch::Approx(-depth));
+    CHECK(highwayTremoloWobble(1.0) == Catch::Approx(depth));
     // The teeth swing wider than the ribbon is thick, so consecutive teeth clear each other.
     CHECK(depth > 1.0);
     for (int step = 0; step < 30; ++step)
     {
-        const double wobble = highwayTremoloWobble(0.007 * step);
+        const double wobble = highwayTremoloWobble(0.13 * step);
         CHECK(wobble >= -depth);
         CHECK(wobble <= depth);
     }
+}
+
+// Tremolo teeth are spaced by DEPTH RATIO, which is what holds a tooth's on-screen shape
+// constant down the whole tail: a fixed world pitch foreshortens its along-tail advance as one
+// over depth squared while its lateral swing only goes as one over depth, so its aspect drifts.
+TEST_CASE("Highway tremolo teeth hold their aspect with depth", "[core][highway][tail]")
+{
+    const double anchor = 2.5;
+    CHECK(highwayTremoloCycles(anchor, anchor) == Catch::Approx(0.0));
+    // Equal depth RATIOS are equal phase steps, at any distance.
+    const double first = highwayTremoloCycles(anchor * 2.0, anchor);
+    CHECK(highwayTremoloCycles(anchor * 4.0, anchor) == Catch::Approx(2.0 * first));
+    CHECK(highwayTremoloCycles(anchor * 8.0, anchor) == Catch::Approx(3.0 * first));
+
+    // The depth lookup inverts the phase exactly, which is what lets a caller place turning
+    // points on the wave rather than near them.
+    for (int half_cycle = 0; half_cycle < 12; ++half_cycle)
+    {
+        const double cycles = 0.5 * half_cycle;
+        const double depth = highwayTremoloEyeDepthAtCycle(cycles, anchor);
+        CHECK(highwayTremoloCycles(depth, anchor) == Catch::Approx(cycles));
+        // Every half cycle is a true extremum of the wave.
+        CHECK(std::abs(highwayTremoloWobble(cycles)) == Catch::Approx(g_highway_tremolo_depth));
+    }
+    // Depth grows strictly with phase, so a caller's half-cycle walk always terminates.
+    CHECK(highwayTremoloEyeDepthAtCycle(1.0, anchor) > highwayTremoloEyeDepthAtCycle(0.5, anchor));
+
+    // Behind the camera the phase is defined rather than a domain error.
+    CHECK(highwayTremoloCycles(-1.0, anchor) == Catch::Approx(0.0));
+    CHECK(highwayTremoloCycles(anchor, 0.0) == Catch::Approx(0.0));
 }
 
 // The vibrato period locks to the song grid: one full wobble per sixteenth note (a quarter
@@ -197,7 +227,7 @@ TEST_CASE("Highway tail sample times include control points", "[core][highway][t
     };
     note.slides = {HighwaySlideView{.seconds = 12.7, .fret = 7, .unpitched = false}};
 
-    const std::vector<double> times = makeHighwayTailSampleTimes(note, 10.0, 14.0, 5, 0.0);
+    const std::vector<double> times = makeHighwayTailSampleTimes(note, 10.0, 14.0, 5, {});
 
     REQUIRE(times.size() >= 5);
     CHECK(times.front() == Catch::Approx(10.0));
@@ -211,41 +241,44 @@ TEST_CASE("Highway tail sample times include control points", "[core][highway][t
     }
 
     // An empty span yields no samples; a control point landing on a uniform sample dedupes.
-    CHECK(makeHighwayTailSampleTimes(note, 12.0, 12.0, 5, 0.0).empty());
+    CHECK(makeHighwayTailSampleTimes(note, 12.0, 12.0, 5, {}).empty());
     note.bend = {HighwayBendPointView{.seconds = 12.0, .semitones = 1.0}};
     note.slides.clear();
-    const std::vector<double> deduped = makeHighwayTailSampleTimes(note, 10.0, 14.0, 5, 0.0);
+    const std::vector<double> deduped = makeHighwayTailSampleTimes(note, 10.0, 14.0, 5, {});
     CHECK(std::ranges::count(deduped, 12.0) == 1);
 }
 
-// A teethed tail's sample times land exactly on the wobble's turning points, which is what
-// keeps the zigzag's corners crisp: the triangle is linear between them, so the uniform grid
+// The caller's extra sample times survive into the list exactly, which is what keeps a teethed
+// tail's corners crisp: the triangle is linear between its turning points, so the uniform grid
 // alone would round every apex and alias the wave at this tooth spacing.
-TEST_CASE("Highway tail sample times land on the wobble's turning points", "[core][highway][tail]")
+TEST_CASE("Highway tail sample times keep the caller's extra times", "[core][highway][tail]")
 {
     HighwayNoteView note;
     note.start_seconds = 10.0;
     note.end_seconds = 11.0;
 
-    const double period = g_highway_tremolo_period_seconds;
-    const std::vector<double> times = makeHighwayTailSampleTimes(note, 10.0, 11.0, 5, period);
+    const std::vector<double> extra{10.13, 10.42, 10.87};
+    const std::vector<double> times = makeHighwayTailSampleTimes(note, 10.0, 11.0, 5, extra);
 
     CHECK(std::ranges::is_sorted(times));
-    // Every turning point strictly inside the span is present exactly once, and each is a true
-    // extremum of the wave.
-    const auto turning_points = static_cast<int>(std::floor(1.0 / (period / 2.0)));
-    for (int index = 1; index < turning_points; ++index)
+    for (const double wanted : extra)
     {
-        const double expected = 10.0 + (static_cast<double>(index) * period / 2.0);
         const auto hits = std::ranges::count_if(
-            times, [&](const double value) { return std::abs(value - expected) < 1.0e-9; });
+            times, [&](const double value) { return std::abs(value - wanted) < 1.0e-9; });
         CHECK(hits == 1);
-        CHECK(
-            std::abs(highwayTremoloWobble(expected - note.start_seconds)) ==
-            Catch::Approx(g_highway_tremolo_depth));
     }
-    // Sampling the wave stays optional: a plain tail asks for none and gets none of them.
-    const std::vector<double> plain = makeHighwayTailSampleTimes(note, 10.0, 11.0, 5, 0.0);
+    // Extras outside the span are dropped rather than widening it, and the cap that bounds the
+    // uniform grid never evicts the ones inside.
+    const std::vector<double> outside{9.0, 10.5, 12.0};
+    const std::vector<double> clipped = makeHighwayTailSampleTimes(note, 10.0, 11.0, 5, outside);
+    CHECK(clipped.front() == Catch::Approx(10.0));
+    CHECK(clipped.back() == Catch::Approx(11.0));
+    CHECK(std::ranges::count_if(clipped, [](const double value) {
+              return std::abs(value - 10.5) < 1.0e-9;
+          }) == 1);
+
+    // Sampling extras stays optional: a plain tail passes none and gets the uniform grid.
+    const std::vector<double> plain = makeHighwayTailSampleTimes(note, 10.0, 11.0, 5, {});
     CHECK(plain.size() == 5);
 }
 

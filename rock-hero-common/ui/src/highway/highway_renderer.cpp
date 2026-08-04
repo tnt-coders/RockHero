@@ -1321,6 +1321,10 @@ void HighwayRenderer::Impl::draw(
     const auto time_to_z = [&](const double seconds) {
         return common::core::highwayTimeToZ(seconds - now_seconds, scroll, metrics);
     };
+    // World Z per second at the current scroll speed: time_to_z is linear in time, so this one
+    // gain inverts it. The depth-spaced tremolo teeth need that inverse to turn the depths
+    // their phase lands on back into sample times.
+    const double scroll_z_per_second = common::core::highwayTimeToZ(1.0, scroll, metrics);
 
     // Distance fade for the floor furniture: fully faded near the hit line, opaque toward the
     // horizon (Charter's fading shader constants: 50 ms to 250 ms).
@@ -3316,17 +3320,34 @@ void HighwayRenderer::Impl::draw(
                 }
                 const std::size_t uniform_count = common::core::highwayTailSampleCount(
                     pixels, g_tail_pixels_per_sample, g_tail_sample_cap);
-                // A teethed tail hands its wobble period over so the sampler lands exactly on
-                // every turning point; the uniform grid alone rounds the apexes unevenly and
-                // aliases the wave at this tooth spacing.
+                // A teethed tail spaces its teeth by depth ratio so each keeps the same shape
+                // on screen at every distance, which means their placement is projection
+                // state: walk the wave's half-cycles out from the tail's visible start and
+                // hand the sampler those exact times. Without them the uniform grid rounds
+                // every apex unevenly and aliases the wave outright. The walk terminates
+                // because each half-cycle multiplies the depth by a fixed factor above one.
                 const bool teethed =
                     note.tremolo || note.attack == common::core::NoteAttack::PickSlide;
+                std::vector<double> wobble_times;
+                const double tooth_anchor_depth =
+                    std::max(time_to_z(tail_from) - pose.z, metrics.near_plane);
+                if (teethed)
+                {
+                    for (int half_cycle = 1;; ++half_cycle)
+                    {
+                        const double depth = common::core::highwayTremoloEyeDepthAtCycle(
+                            0.5 * half_cycle, tooth_anchor_depth);
+                        const double seconds =
+                            now_seconds + ((depth + pose.z) / scroll_z_per_second);
+                        if (!(seconds < tail_to))
+                        {
+                            break;
+                        }
+                        wobble_times.push_back(seconds);
+                    }
+                }
                 std::vector<double> sample_times = common::core::makeHighwayTailSampleTimes(
-                    note,
-                    tail_from,
-                    tail_to,
-                    uniform_count,
-                    teethed ? common::core::g_highway_tremolo_period_seconds : 0.0);
+                    note, tail_from, tail_to, uniform_count, wobble_times);
                 if (open_band_moves)
                 {
                     // Fold in the window's own ramp samples so the band tracks the eased border
@@ -3365,9 +3386,10 @@ void HighwayRenderer::Impl::draw(
                     // along the string — same notation, same meaning, no differentiator.
                     if (teethed)
                     {
-                        x_offset +=
-                            common::core::highwayTailHalfWidth(metrics) * taper *
-                            common::core::highwayTremoloWobble(seconds - note.start_seconds);
+                        x_offset += common::core::highwayTailHalfWidth(metrics) * taper *
+                                    common::core::highwayTremoloWobble(
+                                        common::core::highwayTremoloCycles(
+                                            time_to_z(seconds) - pose.z, tooth_anchor_depth));
                     }
                     samples.push_back(
                         TailSample{
@@ -3770,20 +3792,12 @@ void HighwayRenderer::Impl::draw(
                 common::core::highwayFretLineX(touch_fret + 1, metrics, mirrored);
             x = left_x + ((right_x - left_x) * (touch - touch_floor));
         }
-        // A sounding head travels with its glide and shakes with tremolo in phase with the tail
-        // centerline's anchor-time sample, so head and tail stay one gesture at the hit line
-        // (both offsets are zero before the onset). The scrape head is the pick itself, so it
-        // shakes with its tail's teeth the same way. The head takes a fraction of the tail's
-        // depth: the tail is a standing zigzag read whole, while the head is a single animating
-        // point that fights its own digit at full swing (the vibrato head's rule).
+        // A sounding head travels with its glide, so it stays glued to the tail through bends,
+        // vibrato, and slides. It does NOT ride the tremolo teeth (user rule 2026-08-04): the
+        // teeth are a texture the tail carries, and a head shaking with them reads as a jitter
+        // fighting its own digit rather than as picking energy.
         x += head_slide.x_offset;
         const bool scrape = note.attack == common::core::NoteAttack::PickSlide;
-        if (note.tremolo || scrape)
-        {
-            x += common::core::highwayTailHalfWidth(metrics) * head_taper *
-                 common::core::g_highway_tremolo_head_depth_fraction *
-                 common::core::highwayTremoloWobble(head_seconds - note.start_seconds);
-        }
 
         if (!in_chord)
         {

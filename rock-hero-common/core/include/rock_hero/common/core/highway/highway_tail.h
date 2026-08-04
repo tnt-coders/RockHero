@@ -44,16 +44,19 @@ the head breathing at half depth keeps it visibly alive while the tail carries t
 inline constexpr double g_highway_vibrato_head_depth_fraction = 0.5;
 
 /*!
-\brief Tremolo wobble period in seconds — the zigzag's tooth spacing along the tail.
+\brief Tremolo tooth pitch, in natural-log units of eye depth.
 
-Deliberately short: the teeth mean picking so fast it has no timing, and the eye reads that
-from the tooth's ASPECT — spacing against depth — not from the depth alone. One period spans
-this many seconds times HighwayMetrics::z_per_second in world units of tail, so at the shipped
-constants a tooth is roughly as long as the swing is wide, which is what makes it read as a saw
-rather than a lazy ripple (measured against the real projection and sighted 2026-08-04, from a
-much longer and shallower first pass).
+The teeth are spaced by DEPTH RATIO rather than by time, so one tooth spans a constant
+fraction of its own distance from the camera and therefore keeps the same shape on screen the
+whole way down the tail. A fixed time (or world-distance) pitch cannot: perspective shrinks a
+tooth's along-tail advance as one over depth squared but its lateral swing only as one over
+depth, so the near teeth read wide and shallow while the far ones collapse into needles — a
+1.53x drift in tooth aspect across one tail, measured through the real projection, which is
+exactly the "starts spaced out, gets compressed" the sighted first pass showed. At this pitch
+the aspect holds to within two percent end to end, and the near-end tooth keeps the sighted
+size of that pass.
 */
-inline constexpr double g_highway_tremolo_period_seconds = 0.025;
+inline constexpr double g_highway_tremolo_log_pitch = 0.15;
 
 /*!
 \brief Tremolo wobble depth as a multiple of the tail's half-width.
@@ -62,16 +65,6 @@ Above one on purpose: the centerline swings wider than the ribbon is thick, so c
 teeth clear each other and the zigzag reads as a hard saw instead of a wobbling bar.
 */
 inline constexpr double g_highway_tremolo_depth = 1.25;
-
-/*!
-\brief The head's tremolo swing as a fraction of the tail's depth.
-
-The same rule as the vibrato head (\ref g_highway_vibrato_head_depth_fraction) for the same
-sighted reason: the tail is a standing zigzag the eye takes in whole, while the head is a
-single point whose offset animates, so a full-depth head bounces hard enough to fight its own
-digit. Half depth keeps it visibly buzzing while the tail carries the motion.
-*/
-inline constexpr double g_highway_tremolo_head_depth_fraction = 0.5;
 
 /*!
 \brief Fraction of the tail duration over which wobble amplitude ramps in and out.
@@ -182,41 +175,73 @@ by the bend lift distance and the taper envelope.
     double seconds_from_onset, double period_seconds) noexcept;
 
 /*!
-\brief Returns the tremolo wobble at a time from the note onset, as a signed factor.
+\brief Returns the tremolo tooth phase at a point, in cycles from the tail's anchor.
 
-A triangle wave at \ref g_highway_tremolo_period_seconds, onset-phased; callers scale by the
-tail half-width and the taper envelope. The teeth mean UNMEASURED noise picking (the charting
-standard spells out measured repetition as discrete notes), so pick-slide tails ride this same
-wave outright — a scrape is that noise dragged along the string.
+Depth-ratio spacing (see \ref g_highway_tremolo_log_pitch): a tooth spans a constant fraction
+of its own eye depth, which is what holds its on-screen shape constant down the whole tail.
+Phase is zero at the anchor and grows toward the horizon; callers anchor at the tail's visible
+start so the teeth belong to the note rather than sitting at fixed screen positions the tail
+slides through.
 
-\param seconds_from_onset Time since the note onset.
+Depth is the perspective divisor, which the caller owns because it is projection state; this
+module only holds the wave.
+
+\param eye_depth Camera-relative depth of the point; non-positive depths (behind the camera)
+       return zero rather than a domain error.
+\param anchor_eye_depth Depth the phase is zero at; non-positive anchors return zero.
+\return Phase in cycles, zero at the anchor.
+*/
+[[nodiscard]] double highwayTremoloCycles(double eye_depth, double anchor_eye_depth) noexcept;
+
+/*!
+\brief Returns the eye depth a tremolo tooth phase lands at — the inverse of
+       \ref highwayTremoloCycles.
+
+Callers walk the half-cycles to place the wave's turning points exactly (see
+\ref makeHighwayTailSampleTimes).
+
+\param cycles Phase in cycles from the anchor.
+\param anchor_eye_depth Depth the phase is zero at.
+\return Eye depth at that phase.
+*/
+[[nodiscard]] double highwayTremoloEyeDepthAtCycle(double cycles, double anchor_eye_depth) noexcept;
+
+/*!
+\brief Returns the tremolo wobble at a tooth phase, as a signed factor.
+
+A triangle wave, peaking at the anchor; callers scale by the tail half-width and the taper
+envelope. The teeth mean UNMEASURED noise picking (the charting standard spells out measured
+repetition as discrete notes), so pick-slide tails ride this same wave outright — a scrape is
+that noise dragged along the string.
+
+\param cycles Phase in cycles, from \ref highwayTremoloCycles.
 \return Wobble factor within plus-or-minus \ref g_highway_tremolo_depth.
 */
-[[nodiscard]] double highwayTremoloWobble(double seconds_from_onset) noexcept;
+[[nodiscard]] double highwayTremoloWobble(double cycles) noexcept;
 
 /*!
 \brief Builds the ascending sample times for one tail's visible span.
 
 Uniform samples cover the span at the requested count, and every bend point and slide waypoint
 inside the span is included exactly, so piecewise-linear technique curves hit their control
-points instead of aliasing across them. A tremolo wobble is folded in the same way and for the
-same reason: a triangle is piecewise linear, so its turning points are the only samples its
-shape actually needs, and without them the uniform grid rounds every apex by up to half its
-spacing — unevenly, tooth to tooth — and aliases the wave outright once the period approaches
-that spacing.
+points instead of aliasing across them. A teethed tail's wobble turning points come in through
+\p extra_times for the same reason: a triangle is piecewise linear, so its turning points are
+the only samples its shape actually needs, and without them the uniform grid rounds every apex
+by up to half its spacing — unevenly, tooth to tooth — and aliases the wave outright once the
+teeth crowd that spacing. They arrive as times rather than being derived here because their
+placement is projection state (see \ref highwayTremoloCycles), which this module does not hold.
 
 \param note The note whose bend and slide times are folded in.
 \param from_seconds Visible span start (already clamped to the hit line by the caller).
 \param to_seconds Visible span end.
 \param uniform_count Uniform sample count from highwayTailSampleCount.
-\param wobble_period_seconds Period of a triangle wobble riding the centerline, or zero when
-       the tail carries none. Turning points sit every half period from the onset; their count
-       is bounded by the visible span the caller has already clipped to.
+\param extra_times Additional times the shape needs sampled exactly; those outside the span are
+       dropped. The uniform count's cap never evicts them.
 \return Ascending, deduplicated sample times spanning [from_seconds, to_seconds]; empty when
         the span is empty.
 */
 [[nodiscard]] std::vector<double> makeHighwayTailSampleTimes(
     const HighwayNoteView& note, double from_seconds, double to_seconds, std::size_t uniform_count,
-    double wobble_period_seconds);
+    std::span<const double> extra_times);
 
 } // namespace rock_hero::common::core
