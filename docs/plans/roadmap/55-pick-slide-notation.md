@@ -100,6 +100,13 @@ language on the 3D highway and the 2D tab.
     narrower cell is a queued atlas edit); 2D = normal digit-bearing head + black V with the
     family border (0xC0C0C0) in the attack-icon slot (joining the picking-hand black-fill icon
     family).
+  - **The fill-color premise was retired 2026-08-04 (user direction).** The 2D tap icon was a
+    black triangle because fill color encoded the hand (white = fretting, black = picking);
+    it is now the same white V the pick slide wears, at the triangle's own slot and size. The
+    right-hand family therefore reads by SHAPE on both surfaces — which is what the 3D head
+    atlas already did, giving tap and pick slide V glyphs — and shape is the axis the code
+    itself groups on (`rightHandOnset`). Slap and pop keep their black triangles, so fill no
+    longer partitions the hands on its own.
   - **Superseded on sight 2026-08-04 (user redesign): the muted-note composite plus the V,
     on BOTH surfaces.** A scrape head dresses exactly like a full-muted note — 3D: the tech
     gem base with its digit under the upright full-mute X marker (an interim X-as-head-base

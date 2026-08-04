@@ -535,40 +535,53 @@ void drawMuteIcon(
     g.strokePath(x_shape, juce::PathStrokeType{std::max(1.0f, space / 3.0f)});
 }
 
-// Draws the pick-slide V above the head in the full-mute X's own construction — white fill,
-// gray border, the X's band weight — pointing down at the note with its tip dipped one band
-// into the head's top edge, mirroring the 3D head's V-over-X composite. The arms stand
-// steeper than the X's (the atlas V's narrowed angle) and the height shrinks at that locked
-// angle with the tip anchored (the full-height V read too tall), which also keeps stacked
-// scrapes on adjacent strings clear of each other.
-void drawChevronIcon(
-    juce::Graphics& g, const TabLaneMetrics& metrics, float center_x, float center_y)
+// The picking-hand V's band thickness as a fraction of its height — the weight the 3D head
+// atlas's V glyph carries, so the two surfaces draw the same mark.
+constexpr float g_chevron_band_fraction = 0.6f;
+
+// Draws the picking-hand V: an open chevron band pointing down, in the mute family's colors
+// (white fill, gray border) and the full-mute X's band construction. Shared by the tap icon
+// and the pick-slide mark, which is what the right-hand family looks like on the 3D board too
+// — both wear a V there. Callers place and size it; the band and its border follow the height,
+// so the glyph keeps its weight at any size.
+void drawChevronShape(juce::Graphics& g, float center_x, float center_y, float width, float height)
 {
-    const float size = std::max(16.0f, metrics.note_height + 1.0f);
-    const float space = std::max(2.0f, size / 8.0f);
-    const float half = size / 2.0f;
-    const float v_height = half * (5.0f / 6.0f);
-    const float width_half = v_height * 0.75f;
-    const float tip_y = center_y - half + space;
-    const float top = tip_y - v_height;
-    const float left = center_x - width_half;
-    const float right = center_x + width_half;
+    const float band = height * g_chevron_band_fraction;
+    const float left = center_x - width / 2.0f;
+    const float right = center_x + width / 2.0f;
+    const float top = center_y - height / 2.0f;
+    const float tip_y = center_y + height / 2.0f;
     // The inner V is the outer shifted up by the band thickness; its top points slide inward
-    // by the arms' run-over-rise so the band stays uniform at the steeper slope.
-    const float inset_x = 2.0f * space * (width_half / v_height);
+    // by the arms' run-over-rise so the band stays uniform whatever the slope.
+    const float inset_x = band * (width / 2.0f) / height;
 
     juce::Path chevron;
     chevron.startNewSubPath(left, top);
     chevron.lineTo(center_x, tip_y);
     chevron.lineTo(right, top);
     chevron.lineTo(right - inset_x, top);
-    chevron.lineTo(center_x, tip_y - 2.0f * space);
+    chevron.lineTo(center_x, tip_y - band);
     chevron.lineTo(left + inset_x, top);
     chevron.closeSubPath();
     g.setColour(juce::Colours::white);
     g.fillPath(chevron);
     g.setColour(g_mute_border_color);
-    g.strokePath(chevron, juce::PathStrokeType{std::max(1.0f, space / 3.0f)});
+    g.strokePath(chevron, juce::PathStrokeType{std::max(1.0f, band / 6.0f)});
+}
+
+// Draws the pick-slide V above the head, pointing down at the note with its tip dipped one band
+// into the head's top edge, mirroring the 3D head's V-over-X composite. The arms stand steeper
+// than the mute X's (the atlas V's narrowed angle) and the height shrinks at that locked angle
+// with the tip anchored (the full-height V read too tall), which also keeps stacked scrapes on
+// adjacent strings clear of each other.
+void drawChevronIcon(
+    juce::Graphics& g, const TabLaneMetrics& metrics, float center_x, float center_y)
+{
+    const float size = std::max(16.0f, metrics.note_height + 1.0f);
+    const float space = std::max(2.0f, size / 8.0f);
+    const float v_height = (size / 2.0f) * (5.0f / 6.0f);
+    const float tip_y = center_y - (size / 2.0f) + space;
+    drawChevronShape(g, center_x, tip_y - (v_height / 2.0f), v_height * 1.5f, v_height);
 }
 
 // Draws one of Charter's triangle technique icons: a small bordered triangle beside the head,
@@ -635,8 +648,11 @@ void drawAttackIcon(
         }
         case common::core::NoteAttack::Tap:
         {
-            drawTriangleIcon(
-                g, metrics, left_x, low_y, true, juce::Colours::black, g_full_mute_text_border, {});
+            // The right-hand family wears the V on both surfaces (the 3D head atlas gives tap
+            // and pick slide the same glyph), so the tap icon is the chevron rather than the
+            // picking-hand black triangle — at the triangle's own slot and size.
+            drawChevronShape(
+                g, left_x, low_y, metrics.note_height / 2.0f, metrics.note_height * 2.0f / 5.0f);
             break;
         }
         case common::core::NoteAttack::Slap:
