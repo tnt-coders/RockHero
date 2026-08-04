@@ -3879,7 +3879,7 @@ void HighwayRenderer::Impl::draw(
         // g_flip_flat_lead_seconds before the hit line; chord notes stay flat throughout. The
         // clock (flip_remaining) is computed beside the head station, where the pre-bend
         // reveal shares it.
-        const double rotation = in_chord ? 0.0 : (-std::numbers::pi / 2.0) * flip_remaining;
+        const double rotation = in_chord ? 0.0 : (std::numbers::pi / 2.0) * flip_remaining;
         const double cos_r = std::cos(rotation);
         const double sin_r = std::sin(rotation);
         const std::uint32_t tint = packAbgr(base_color, fade * head_slide.alpha);
