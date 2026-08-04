@@ -138,7 +138,7 @@ like every other format.
 | `notes[].mute` | string | opt | `palm`\|`full`. |
 | `notes[].harmonic` | string | opt | `natural`\|`pinch`. |
 | `notes[].touch` | number | opt | Touch-harmonic fret point. |
-| `notes[].vibrato` / `.tremolo` / `.accent` | bool | opt | Written only when true. |
+| `notes[].vibrato` / `.tremolo` / `.accent` | bool | opt | Written only when true. `tremolo` means UNMEASURED noise picking (as fast as possible, no real timing) — the charting standard spells out measured fast repetition as discrete notes instead. |
 | `notes[].bend` | [fraction, number][] | opt | Offset + semitone pairs. |
 | `notes[].slides[]` | object[] | opt | Pitched curve waypoints `{offset: <fraction> req, fret (-1)}` — legato junctions, holds, and shift-slide glides; never sits on a later onset of the string (a shift glide ends the minimum sustain distance before its re-picked landing, at exactly the sustain end). |
 | `notes[].slideOut` | object | opt | Unpitched slide-out `{offset: <fraction> req, fret (-1)}`: pressure releases and the pitch falls away — no landing note exists, so the gesture owns its end offset and gestured fret. Absent = the tail just ends. |

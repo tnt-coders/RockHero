@@ -247,7 +247,15 @@ struct ChartNote
     /*! \brief True when the note is played with vibrato. */
     bool vibrato{false};
 
-    /*! \brief True when the note is tremolo picked. */
+    /*!
+    \brief True when the note is unmeasured noise picking — as fast as possible, no real
+    timing.
+
+    The charting standard reserves this for true noise (an outro strummed purely for sound);
+    measured fast repetition is spelled out as discrete notes instead, so every timed pick is
+    its own chart event. Pick slides share the noise vocabulary intrinsically through their
+    attack, without this flag.
+    */
     bool tremolo{false};
 
     /*! \brief True when the note is accented. */

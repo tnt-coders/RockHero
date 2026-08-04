@@ -160,8 +160,9 @@ by the bend lift distance and the taper envelope.
 \brief Returns the tremolo wobble at a time from the note onset, as a signed factor.
 
 The reference's triangle wave, onset-phased; callers scale by the tail half-width and the taper
-envelope. Pick-slide tails ride this same wave: the scrape is the tremolo family's noise, and
-its identity lives in the white edge glow, not a bespoke waveform.
+envelope. The teeth mean UNMEASURED noise picking (the charting standard spells out measured
+repetition as discrete notes), so pick-slide tails ride this same wave outright — a scrape is
+that noise dragged along the string.
 
 \param seconds_from_onset Time since the note onset.
 \return Wobble factor in [-0.75, 0.75].

@@ -163,11 +163,10 @@ void drawStringLines(
 // with the tail color inset vertically by the edge size. Charter's final partial fragment
 // distorts the last gem; here the full pattern is clipped to the tail span instead, which keeps
 // every tooth shaped correctly and ends the strip on a clean vertical edge (the one deliberate
-// bug fix in an otherwise faithful port). The edge color is the caller's: the string's tail
-// edge for a fingered tremolo, white for a scrape's glowing frame.
+// bug fix in an otherwise faithful port).
 void drawTremoloTail(
-    juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
-    const juce::Colour edge, float x, float length, float center_y)
+    juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style, float x,
+    float length, float center_y)
 {
     const float fragment_size = std::max(4.0f, metrics.note_height / 2.0f);
     const float y0 = center_y + metrics.tail_height / 2.0f - metrics.tremolo_size + 1.0f;
@@ -197,7 +196,7 @@ void drawTremoloTail(
         juce::Rectangle<float>{x, y3, length, y1 - y3}.getSmallestIntegerContainer());
     juce::Path edge_fragments;
     add_fragments(edge_fragments, 0.0f);
-    g.setColour(edge);
+    g.setColour(style.tail_edge);
     g.fillPath(edge_fragments);
 
     juce::Path inner_fragments;
@@ -221,20 +220,13 @@ void drawNoteTail(
     }
 
     const TailSpan span = tailSpan(metrics, center_y);
-    // A scrape rides the ordinary tremolo strip — the picking-hand noise vocabulary — framed
-    // in white edges that name the scrape apart from a fingered tremolo; the slide diagonals
-    // drawn over it carry the travel.
+    // A scrape rides the tremolo strip outright: the teeth MEAN unmeasured noise (the
+    // charting standard spells out measured repetition as discrete notes), and a scrape is
+    // that noise dragged along the string — the slide diagonals over it carry the travel.
     const bool scrape = note.attack == common::core::NoteAttack::PickSlide;
     if (note.tremolo || scrape)
     {
-        drawTremoloTail(
-            g,
-            metrics,
-            style,
-            scrape ? juce::Colours::white : style.tail_edge,
-            onset_x,
-            length,
-            center_y);
+        drawTremoloTail(g, metrics, style, onset_x, length, center_y);
     }
     else
     {

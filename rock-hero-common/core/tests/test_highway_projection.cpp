@@ -522,32 +522,35 @@ TEST_CASE("Highway tap onsets derive from tapped notes only", "[core][highway]")
         makeHighwayTapOnsets(notes, std::vector<double>(notes.size(), 0.0));
     REQUIRE(onsets.size() == 3);
     CHECK(
-        onsets[0] ==
-        HighwayTapOnsetView{
-            .seconds = 1.0,
-            .fret_low = 12,
-            .fret_high = 12,
-            .count = 1,
-            .path = {HighwayTapLightStation{.seconds = 1.0, .fret_low = 12.0, .fret_high = 12.0}},
-        });
+        onsets[0] == HighwayTapOnsetView{
+                         .seconds = 1.0,
+                         .fret_low = 12,
+                         .fret_high = 12,
+                         .count = 1,
+                         .path = {HighwayTapLightStation{
+                             .seconds = 1.0, .fret_low = 12.0, .fret_high = 12.0, .unpitched = false
+                         }},
+                     });
     CHECK(
-        onsets[1] ==
-        HighwayTapOnsetView{
-            .seconds = 2.0,
-            .fret_low = 14,
-            .fret_high = 14,
-            .count = 1,
-            .path = {HighwayTapLightStation{.seconds = 2.0, .fret_low = 14.0, .fret_high = 14.0}},
-        });
+        onsets[1] == HighwayTapOnsetView{
+                         .seconds = 2.0,
+                         .fret_low = 14,
+                         .fret_high = 14,
+                         .count = 1,
+                         .path = {HighwayTapLightStation{
+                             .seconds = 2.0, .fret_low = 14.0, .fret_high = 14.0, .unpitched = false
+                         }},
+                     });
     CHECK(
-        onsets[2] ==
-        HighwayTapOnsetView{
-            .seconds = 3.0,
-            .fret_low = 12,
-            .fret_high = 17,
-            .count = 3,
-            .path = {HighwayTapLightStation{.seconds = 3.0, .fret_low = 12.0, .fret_high = 17.0}},
-        });
+        onsets[2] == HighwayTapOnsetView{
+                         .seconds = 3.0,
+                         .fret_low = 12,
+                         .fret_high = 17,
+                         .count = 3,
+                         .path = {HighwayTapLightStation{
+                             .seconds = 3.0, .fret_low = 12.0, .fret_high = 17.0, .unpitched = false
+                         }},
+                     });
 }
 
 // A tap's light path follows sustained contact and pitched glides: a held tap keeps its light on
@@ -594,26 +597,38 @@ TEST_CASE("Highway tap onsets carry the light path through glides", "[core][high
     REQUIRE(onsets[0].path.size() == 2);
     CHECK(
         onsets[0].path[0] ==
-        HighwayTapLightStation{.seconds = 1.0, .fret_low = 12.0, .fret_high = 12.0});
+        HighwayTapLightStation{
+            .seconds = 1.0, .fret_low = 12.0, .fret_high = 12.0, .unpitched = false
+        });
     CHECK(
         onsets[0].path[1] ==
-        HighwayTapLightStation{.seconds = 2.0, .fret_low = 12.0, .fret_high = 12.0});
+        HighwayTapLightStation{
+            .seconds = 2.0, .fret_low = 12.0, .fret_high = 12.0, .unpitched = false
+        });
 
     REQUIRE(onsets[1].path.size() == 2);
     CHECK(
         onsets[1].path[0] ==
-        HighwayTapLightStation{.seconds = 3.0, .fret_low = 12.0, .fret_high = 12.0});
+        HighwayTapLightStation{
+            .seconds = 3.0, .fret_low = 12.0, .fret_high = 12.0, .unpitched = false
+        });
     CHECK(
         onsets[1].path[1] ==
-        HighwayTapLightStation{.seconds = 4.0, .fret_low = 15.0, .fret_high = 15.0});
+        HighwayTapLightStation{
+            .seconds = 4.0, .fret_low = 15.0, .fret_high = 15.0, .unpitched = false
+        });
 
     REQUIRE(onsets[2].path.size() == 2);
     CHECK(
         onsets[2].path[0] ==
-        HighwayTapLightStation{.seconds = 5.0, .fret_low = 10.0, .fret_high = 10.0});
+        HighwayTapLightStation{
+            .seconds = 5.0, .fret_low = 10.0, .fret_high = 10.0, .unpitched = false
+        });
     CHECK(
         onsets[2].path[1] ==
-        HighwayTapLightStation{.seconds = 6.0, .fret_low = 13.0, .fret_high = 13.0});
+        HighwayTapLightStation{
+            .seconds = 6.0, .fret_low = 13.0, .fret_high = 13.0, .unpitched = false
+        });
 }
 
 // The light-rise ramp mirrors the fret-hand arrival rule: an onset takes its widest member's
@@ -699,6 +714,11 @@ TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
     CHECK(light.path[0].fret_low == Catch::Approx(17.0));
     CHECK(light.path[1].fret_low == Catch::Approx(3.0));
     CHECK(light.path[2].fret_low == Catch::Approx(9.0));
+    // Waypoint stations carry the unpitched flag so the light sweeps with the scrape's own
+    // ease; the onset station arrives from no glide.
+    CHECK_FALSE(light.path[0].unpitched);
+    CHECK(light.path[1].unpitched);
+    CHECK(light.path[2].unpitched);
     // The FHP on the waypoint's grid position ramps by the quarter-beat margin morph (0.125s at
     // the default tempo), not by the scrape leg's span back to the onset (which would be 0.25s).
     REQUIRE(state.fret_hand_positions.size() == 1);

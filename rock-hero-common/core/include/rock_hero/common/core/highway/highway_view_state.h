@@ -221,6 +221,15 @@ struct HighwayTapLightStation
     double fret_high{0.0};
 
     /*!
+    \brief True when the glide arriving at this station is unpitched pick travel.
+
+    A scrape's waypoints move the picking hand with the unpitched slide ease, so the light
+    renderer sweeps toward this station with that profile; tapped pitched glides keep the
+    pitched ease. An onset station never arrives from a glide, so its flag is never read.
+    */
+    bool unpitched{false};
+
+    /*!
     \brief Compares two stations by their stored fields.
     \param lhs Left-hand station.
     \param rhs Right-hand station.
@@ -235,7 +244,7 @@ struct HighwayTapLightStation
     {
         return std::is_eq(lhs.seconds <=> rhs.seconds) &&
                std::is_eq(lhs.fret_low <=> rhs.fret_low) &&
-               std::is_eq(lhs.fret_high <=> rhs.fret_high);
+               std::is_eq(lhs.fret_high <=> rhs.fret_high) && lhs.unpitched == rhs.unpitched;
     }
 };
 
@@ -258,8 +267,9 @@ struct HighwayTapOnsetView
     \brief Light path from the onset through any pitched glides to the fingers' release.
 
     The first station sits at the onset with the onset extent; later stations land on the taps'
-    pitched slide waypoints (the light morphs with the glide) and on the hold end (sustained
-    contact keeps the light on through the sustain). Unpitched trail-offs contribute nothing —
+    pitched slide waypoints (the light morphs with the glide) — or, for a scrape, on every
+    waypoint of the pick's travel, flagged unpitched — and on the hold end (sustained contact
+    keeps the light on through the sustain). Unpitched trail-offs contribute nothing —
     pressure is already releasing, so the light decays from the last pitched station instead.
     Never empty; a sustainless tap has exactly one station.
     */
@@ -593,6 +603,7 @@ tap onset's release.
     std::vector<HighwayTapOnsetView> onsets;
     std::vector<const HighwayNoteView*> taps;
     std::vector<double> station_times;
+    std::vector<double> scrape_times;
     for (std::size_t index = 0; index < notes.size();)
     {
         const double onset = notes[index].start_seconds;
@@ -625,6 +636,7 @@ tap onset's release.
             // the extent at each station spans every member's fret at that instant.
             double hold_end = onset;
             station_times.clear();
+            scrape_times.clear();
             station_times.push_back(onset);
             for (const HighwayNoteView* const tap : taps)
             {
@@ -635,6 +647,10 @@ tap onset's release.
                         waypoint.fret > 0)
                     {
                         station_times.push_back(waypoint.seconds);
+                        if (tap->attack == NoteAttack::PickSlide)
+                        {
+                            scrape_times.push_back(waypoint.seconds);
+                        }
                     }
                 }
             }
@@ -652,6 +668,9 @@ tap onset's release.
                     .seconds = seconds,
                     .fret_low = first_fret,
                     .fret_high = first_fret,
+                    .unpitched = std::ranges::any_of(scrape_times, [&](const double time) {
+                        return std::abs(time - seconds) < g_highway_onset_match_epsilon;
+                    }),
                 };
                 for (std::size_t tap = 1; tap < taps.size(); ++tap)
                 {

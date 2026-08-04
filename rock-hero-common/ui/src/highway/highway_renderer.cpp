@@ -1472,7 +1472,10 @@ void HighwayRenderer::Impl::draw(
                     const double span = b.seconds - a.seconds;
                     const double progress =
                         span > 0.0 ? std::clamp((now_seconds - a.seconds) / span, 0.0, 1.0) : 1.0;
-                    const double weight = common::core::highwaySlideEaseWeight(progress, false);
+                    // The arrival station carries the segment's glide family: a scrape's
+                    // unpitched pick travel eases differently than a tapped pitched glide.
+                    const double weight =
+                        common::core::highwaySlideEaseWeight(progress, b.unpitched);
                     low = a.fret_low + ((b.fret_low - a.fret_low) * weight);
                     high = a.fret_high + ((b.fret_high - a.fret_high) * weight);
                     break;
@@ -1786,7 +1789,15 @@ void HighwayRenderer::Impl::draw(
                         b.fret_high);
                     continue;
                 }
-                constexpr int slices = 6;
+                // Slice density scales with the sweep: six slices sufficed for tapped glides'
+                // few-fret travels but facet a scrape's dozen-fret leg into visible straights.
+                // Four per fret keeps the eased curve under half a fret per slice at its
+                // steepest, and the ease follows the arrival station's glide family — a
+                // scrape's unpitched pick travel curves differently than a tapped pitched
+                // glide.
+                const double sweep = std::max(
+                    std::abs(b.fret_low - a.fret_low), std::abs(b.fret_high - a.fret_high));
+                const int slices = std::clamp(static_cast<int>(std::ceil(sweep * 4.0)), 6, 64);
                 double previous_seconds = a.seconds;
                 double previous_low = a.fret_low;
                 double previous_high = a.fret_high;
@@ -1794,7 +1805,8 @@ void HighwayRenderer::Impl::draw(
                 {
                     const double progress = static_cast<double>(slice) / slices;
                     const double seconds = a.seconds + ((b.seconds - a.seconds) * progress);
-                    const double weight = common::core::highwaySlideEaseWeight(progress, false);
+                    const double weight =
+                        common::core::highwaySlideEaseWeight(progress, b.unpitched);
                     const double low = a.fret_low + ((b.fret_low - a.fret_low) * weight);
                     const double high = a.fret_high + ((b.fret_high - a.fret_high) * weight);
                     emit_segment(
@@ -3338,8 +3350,10 @@ void HighwayRenderer::Impl::draw(
                         common::core::g_highway_tail_taper_fraction);
                     const SlideState slide = slide_state_at(note, base_x, seconds);
                     double x_offset = slide.x_offset;
-                    // A scrape tail rides the ordinary tremolo teeth — the picking-hand noise
-                    // vocabulary — and reads apart through the white edge glow below.
+                    // A scrape tail rides the tremolo teeth outright: the teeth MEAN
+                    // unmeasured noise (the charting standard spells out measured
+                    // repetition as discrete notes), and a scrape is that noise dragged
+                    // along the string — same notation, same meaning, no differentiator.
                     if (note.tremolo || note.attack == common::core::NoteAttack::PickSlide)
                     {
                         x_offset +=
@@ -3426,17 +3440,6 @@ void HighwayRenderer::Impl::draw(
                             ? mixArgb(style.tail, (style.tail & 0xFF000000U) | 0x00FFFFFFU, lift)
                             : mixArgb(style.tail, style.tail & 0xFF000000U, -lift);
                 }
-                // A scrape swaps the ribbon's edge bands to white-hot rails fading to
-                // transparent at the outer stations, while the core keeps the dimmed string
-                // tint: hue still names the string, the white frame says noise.
-                const bool scrape = note.attack == common::core::NoteAttack::PickSlide;
-                const auto edge_color = [&](const ArgbColor tail, const double alpha) {
-                    return packAbgr(scrape ? 0xFFFFFFFFU : tail, alpha);
-                };
-                const auto outer_color = [&](const ArgbColor tail, const double alpha) {
-                    return scrape ? packAbgr(0xFFFFFFFFU, 0.0)
-                                  : packAbgr(tail, note.fret > 0 ? alpha : 0.0);
-                };
                 for (std::size_t sample = 1; sample < samples.size(); ++sample)
                 {
                     const TailSample& a = samples[sample - 1];
@@ -3452,17 +3455,17 @@ void HighwayRenderer::Impl::draw(
                             .x_offset = a.x_offset,
                             .y = a.y,
                             .z = a.z,
-                            .edge_abgr = edge_color(tail_a, a.alpha),
+                            .edge_abgr = packAbgr(tail_a, a.alpha),
                             .inner_abgr = packAbgr(tail_a, g_tail_inner_alpha * a.alpha),
-                            .outer_abgr = outer_color(tail_a, a.alpha),
+                            .outer_abgr = packAbgr(tail_a, note.fret > 0 ? a.alpha : 0.0),
                         },
                         RibbonEnd{
                             .x_offset = b.x_offset,
                             .y = b.y,
                             .z = b.z,
-                            .edge_abgr = edge_color(tail_b, b.alpha),
+                            .edge_abgr = packAbgr(tail_b, b.alpha),
                             .inner_abgr = packAbgr(tail_b, g_tail_inner_alpha * b.alpha),
-                            .outer_abgr = outer_color(tail_b, b.alpha),
+                            .outer_abgr = packAbgr(tail_b, note.fret > 0 ? b.alpha : 0.0),
                         });
                 }
             }
