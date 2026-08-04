@@ -271,6 +271,47 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
             }};
         }
 
+        // A SAVED pick-slide note carries no other technique — the document writer omits them
+        // (the in-memory override design, chart.h) — so a document that does is hand-made or a
+        // bug and fails loudly. The path is the gesture: required, always traveling
+        // (consecutive neck positions strictly differ, the start fret included — a scrape
+        // cannot sit still, unlike note slides, whose equal-fret segments are holds), and
+        // ending exactly at the sustain, because nothing rings past a scrape.
+        if (note.attack == NoteAttack::PickSlide)
+        {
+            if (note.mute != NoteMute::None || note.harmonic != NoteHarmonic::None ||
+                note.touch.has_value() || note.vibrato || note.tremolo || note.accent ||
+                !note.bend.empty() || slide_out != nullptr)
+            {
+                return std::unexpected{ChartError{
+                    .code = ChartErrorCode::InvalidPickSlide,
+                    .message = "pick-slide note must not carry other techniques at " +
+                               positionText(note.position),
+                }};
+            }
+            if (note.slides.empty() || !(note.slides.back().offset == note.sustain))
+            {
+                return std::unexpected{ChartError{
+                    .code = ChartErrorCode::InvalidPickSlide,
+                    .message = "pick-slide path must end exactly at the sustain at " +
+                               positionText(note.position),
+                }};
+            }
+            int previous_fret = note.fret;
+            for (const SlideWaypoint& waypoint : note.slides)
+            {
+                if (waypoint.fret == previous_fret)
+                {
+                    return std::unexpected{ChartError{
+                        .code = ChartErrorCode::InvalidPickSlide,
+                        .message =
+                            "pick-slide path must keep traveling at " + positionText(note.position),
+                    }};
+                }
+                previous_fret = waypoint.fret;
+            }
+        }
+
         previous_note = &note;
     }
 

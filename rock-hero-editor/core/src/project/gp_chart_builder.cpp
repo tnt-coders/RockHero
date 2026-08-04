@@ -101,6 +101,13 @@ struct MeasureGrid
 // last waypoint (the model's ascending-payload invariant).
 constexpr Fraction g_minimum_slide_window{1, 8};
 
+// Default scrape span for imported pick slides. Guitar Pro encodes only the direction (Slide
+// flags 64/128 on dead strings), so the import synthesizes a path the user can reshape; the
+// endpoints are corpus-derived (plan 55 Phase 2): down-slides overwhelmingly start at the neck's
+// high end (~70% at fret 13+) and end low (~80% at or below fret 7), and up-slides mirror it.
+constexpr int g_pick_slide_default_high_fret{17};
+constexpr int g_pick_slide_default_low_fret{3};
+
 // Bumps a payload window landing on or before the note's last waypoint to one minimum step past
 // it, so the payload stays ascending.
 [[nodiscard]] Fraction keptStrictlyAfterLastWaypoint(const ChartNote& note, const Fraction window)
@@ -649,6 +656,13 @@ struct BuiltNote
            note.vibrato || note.tremolo;
 }
 
+// Tap and pick-slide onsets belong to the picking hand: they float above the fret-hand window
+// and never anchor, cover, or ring into a posture.
+[[nodiscard]] bool rightHandOnset(const ChartNote& note)
+{
+    return note.attack == NoteAttack::Tap || note.attack == NoteAttack::PickSlide;
+}
+
 // Normalizes imported sustains for chart readability (import policy, user rules 2026-07-21;
 // hold semantics refined 2026-07-22). The maintained plain-English spec is "GP chart
 // normalization policy" in docs/developer/the-project-lifecycle.md — tweak behavior there
@@ -749,7 +763,29 @@ void normalizeImportedSustains(
                     {
                         target = note.bend.back().offset;
                     }
-                    if (!note.slides.empty() && target < note.slides.back().offset)
+                    // A scrape's path is gesture geometry like a slide-out, not a pitch
+                    // target: its final point compresses with the tail, floored at the
+                    // minimum window and kept strictly after the previous path point.
+                    if (note.attack == NoteAttack::PickSlide && !note.slides.empty() &&
+                        target < note.slides.back().offset)
+                    {
+                        Fraction compressed = std::max(target, g_minimum_slide_window);
+                        if (note.slides.size() > 1)
+                        {
+                            const Fraction previous_point =
+                                note.slides[note.slides.size() - 2].offset;
+                            if (compressed <= previous_point)
+                            {
+                                compressed = previous_point + g_minimum_slide_window;
+                            }
+                        }
+                        if (compressed < note.slides.back().offset)
+                        {
+                            note.slides.back().offset = compressed;
+                        }
+                        target = note.slides.back().offset;
+                    }
+                    else if (!note.slides.empty() && target < note.slides.back().offset)
                     {
                         target = note.slides.back().offset;
                     }
@@ -897,11 +933,9 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& g
         while (onset_end < built.size() && built[onset_end].global_beat == built[index].global_beat)
         {
             const ChartNote& note = built[onset_end].note;
-            // Tap-attack notes are invisible to span derivation (user rule 2026-07-28): the
-            // taps belong to the tapping hand, not the fretting posture, so they join no
-            // posture and extend no ring, and a mixed onset — a fretting-hand note struck
-            // under simultaneous right-hand taps — is judged by its non-tap members alone.
-            if (note.attack != NoteAttack::Tap)
+            // Right-hand onsets are invisible to span derivation: they join no posture and
+            // extend no ring, so a mixed onset is judged by its fretting-hand members alone.
+            if (!rightHandOnset(note))
             {
                 if (const auto string_index = static_cast<std::size_t>(note.string - 1);
                     string_index < string_count)
@@ -995,7 +1029,7 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& g
         for (std::size_t member = index; member < onset_end; ++member)
         {
             if (const auto string_index = static_cast<std::size_t>(built[member].note.string - 1);
-                string_index < string_count && built[member].note.attack != NoteAttack::Tap)
+                string_index < string_count && !rightHandOnset(built[member].note))
             {
                 ringing[string_index] = &built[member];
             }
@@ -1033,9 +1067,9 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
         {
             continue; // not sounding at this instant
         }
-        if (other.note.attack == NoteAttack::Tap || other.note.fret <= 0)
+        if (rightHandOnset(other.note) || other.note.fret <= 0)
         {
-            continue; // taps float above the hand; open strings never anchor it
+            continue; // right-hand onsets float above the hand; open strings never anchor it
         }
         int fret = other.note.fret;
         bool co_sliding = false;
@@ -1116,8 +1150,8 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
         while (onset_end < built.size() && built[onset_end].global_beat == built[index].global_beat)
         {
             const ChartNote& note = built[onset_end].note;
-            // Tap exclusion: a tapped note floats above the window and never anchors the hand.
-            if (note.attack != NoteAttack::Tap)
+            // Right-hand onsets float above the window and never anchor the hand.
+            if (!rightHandOnset(note))
             {
                 if (note.fret > 0)
                 {
@@ -1763,6 +1797,95 @@ void resolveSlideOutExits(
     // sustain-carried techniques fold in, and its own onward slide continues the chain until a
     // shift, a slide-out, or the chain's end stops it. Slide-outs trail off unpitched.
     std::vector<bool> merged_away(built.size(), false);
+
+    // Pick-slide carriers (Slide flags 64 down / 128 up) convert IN PLACE into pick-slide
+    // notes before any slide chain resolves (plan 55, note-carried design 2026-08-03): the
+    // dead carrier is Guitar Pro's encoding vehicle for the gesture, so it sheds its mute and
+    // gains the attack plus the corpus-derived default path (down 17 -> 3, up the mirror)
+    // across the notated span, ready for the user to reshape. Simultaneous same-direction
+    // carriers are one scrape performed across strings: the lowest-string carrier survives in
+    // its own slot (keeping the stream's sort intact) with the longest notated span, and a
+    // conflicting direction at the same onset is dropped with a report. The converted notes
+    // then participate in the ordinary minimum-distance trims like any note.
+    int imported_pick_slides = 0;
+    int conflicting_pick_slides = 0;
+    for (std::size_t index = 0; index < built.size();)
+    {
+        if ((built[index].slide_flags & (64 | 128)) == 0)
+        {
+            ++index;
+            continue;
+        }
+        const Fraction beat = built[index].global_beat;
+        const bool upward = (built[index].slide_flags & 128) != 0;
+        const auto notated_span = [](const BuiltNote& entry) {
+            const Fraction span = entry.end_global_beat - entry.global_beat;
+            return span.numerator > 0 ? span : g_minimum_slide_window;
+        };
+        std::size_t survivor = index;
+        Fraction span = notated_span(built[index]);
+        built[index].slide_flags = 0;
+        std::size_t scan = index + 1;
+        for (; scan < built.size() && built[scan].global_beat == beat; ++scan)
+        {
+            if ((built[scan].slide_flags & (64 | 128)) == 0)
+            {
+                continue;
+            }
+            const bool scan_upward = (built[scan].slide_flags & 128) != 0;
+            built[scan].slide_flags = 0;
+            if (scan_upward != upward)
+            {
+                ++conflicting_pick_slides;
+                merged_away[scan] = true;
+                continue;
+            }
+            if (span < notated_span(built[scan]))
+            {
+                span = notated_span(built[scan]);
+            }
+            if (built[scan].note.string < built[survivor].note.string)
+            {
+                merged_away[survivor] = true;
+                survivor = scan;
+            }
+            else
+            {
+                merged_away[scan] = true;
+            }
+        }
+        BuiltNote& kept = built[survivor];
+        ChartNote& note = kept.note;
+        note.attack = NoteAttack::PickSlide;
+        note.mute = NoteMute::None;
+        note.harmonic = NoteHarmonic::None;
+        note.touch.reset();
+        note.vibrato = false;
+        note.tremolo = false;
+        note.accent = false;
+        note.bend.clear();
+        note.slide_out.reset();
+        note.fret = upward ? g_pick_slide_default_low_fret : g_pick_slide_default_high_fret;
+        note.sustain = span;
+        note.slides = {SlideWaypoint{
+            .offset = span,
+            .fret = upward ? g_pick_slide_default_high_fret : g_pick_slide_default_low_fret,
+        }};
+        kept.end_global_beat = kept.global_beat + span;
+        ++imported_pick_slides;
+        index = scan;
+    }
+    if (imported_pick_slides > 0)
+    {
+        notes.push_back("imported " + std::to_string(imported_pick_slides) + " pick slides");
+    }
+    if (conflicting_pick_slides > 0)
+    {
+        notes.push_back(
+            std::to_string(conflicting_pick_slides) +
+            " conflicting simultaneous pick-slide directions kept the first");
+    }
+
     for (std::size_t index = 0; index < built.size(); ++index)
     {
         BuiltNote& entry = built[index];

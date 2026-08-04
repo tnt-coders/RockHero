@@ -112,6 +112,10 @@ namespace
     {
         note.attack = NoteAttack::Slap;
     }
+    else if (attack == "pickSlide")
+    {
+        note.attack = NoteAttack::PickSlide;
+    }
     else if (!attack.empty())
     {
         return std::unexpected{malformed("chart note attack is unknown: " + attack)};
@@ -290,40 +294,50 @@ void appendOptionalIntArray(std::string& out, const std::vector<std::optional<in
             line += R"(, "attack": "slap")";
             break;
         }
+        case NoteAttack::PickSlide:
+        {
+            line += R"(, "attack": "pickSlide")";
+            break;
+        }
     }
-    if (note.mute == NoteMute::Palm)
+    // A pick slide OVERRIDES every other technique rather than forbidding it in memory (user
+    // design 2026-08-03): latent values survive the session so switching the attack back
+    // restores them, but the writer is the clearing seam — a saved pick-slide note never
+    // carries them, keeping the persisted format free of the contradictory combinations.
+    const bool scrape = note.attack == NoteAttack::PickSlide;
+    if (!scrape && note.mute == NoteMute::Palm)
     {
         line += R"(, "mute": "palm")";
     }
-    else if (note.mute == NoteMute::Full)
+    else if (!scrape && note.mute == NoteMute::Full)
     {
         line += R"(, "mute": "full")";
     }
-    if (note.harmonic == NoteHarmonic::Natural)
+    if (!scrape && note.harmonic == NoteHarmonic::Natural)
     {
         line += R"(, "harmonic": "natural")";
     }
-    else if (note.harmonic == NoteHarmonic::Pinch)
+    else if (!scrape && note.harmonic == NoteHarmonic::Pinch)
     {
         line += R"(, "harmonic": "pinch")";
     }
-    if (note.touch.has_value())
+    if (!scrape && note.touch.has_value())
     {
         line += R"(, "touch": )" + doubleText(*note.touch);
     }
-    if (note.vibrato)
+    if (!scrape && note.vibrato)
     {
         line += R"(, "vibrato": true)";
     }
-    if (note.tremolo)
+    if (!scrape && note.tremolo)
     {
         line += R"(, "tremolo": true)";
     }
-    if (note.accent)
+    if (!scrape && note.accent)
     {
         line += R"(, "accent": true)";
     }
-    if (!note.bend.empty())
+    if (!scrape && !note.bend.empty())
     {
         line += R"(, "bend": [)";
         for (std::size_t index = 0; index < note.bend.size(); ++index)
@@ -352,7 +366,7 @@ void appendOptionalIntArray(std::string& out, const std::vector<std::optional<in
         }
         line += ']';
     }
-    if (note.slide_out.has_value())
+    if (!scrape && note.slide_out.has_value())
     {
         line += R"(, "slideOut": { "offset": ")" + formatBeatFractionToken(note.slide_out->offset) +
                 R"(", "fret": )" + std::to_string(note.slide_out->fret) + " }";

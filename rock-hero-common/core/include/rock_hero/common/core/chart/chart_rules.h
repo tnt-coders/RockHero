@@ -50,7 +50,9 @@ enum class ChartErrorCode : std::uint8_t
     /*! \brief A shape span is empty, unsorted, or references a missing template. */
     InvalidShape,
     /*! \brief A fret-hand position entry is out of range or unsorted. */
-    InvalidFretHandPosition
+    InvalidFretHandPosition,
+    /*! \brief A pick-slide note carries other techniques or a non-traveling path. */
+    InvalidPickSlide
 };
 
 /*! \brief Chart validation failure with stable code and display diagnostic. */
@@ -102,7 +104,11 @@ Enforces the corpus-validated rule set: a usable tuning; template arrays matchin
 count; notes sorted by (position, string) with no duplicate onsets, on valid grid positions,
 with strings and frets in range; positive sustains; slide offsets strictly positive, ascending,
 and within the sustain; bend offsets non-negative, ascending, and within the sustain; shape
-spans positive, sorted, and referencing existing templates; and sorted fret-hand positions.
+spans positive, sorted, and referencing existing templates; sorted fret-hand positions; and, on
+pick-slide notes, no other techniques (a saved scrape carries none — the writer omits the
+in-memory overrides) plus a non-empty, always-traveling path ending exactly at the sustain
+(consecutive neck positions, the start fret included, must strictly differ — a scrape cannot
+sit still).
 
 \param chart Chart to validate.
 \param tempo_map Song tempo map the chart's positions must lie on.

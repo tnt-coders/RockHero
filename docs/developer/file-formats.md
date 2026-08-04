@@ -134,7 +134,7 @@ like every other format.
 | `notes[].string` | int | opt | String index (`0`). |
 | `notes[].fret` | int | opt | (`-1` = unset). |
 | `notes[].sustain` | fraction | opt | Omitted when zero. |
-| `notes[].attack` | string | opt | `hammer`\|`pull`\|`tap`\|`pop`\|`slap`; absent = pick. |
+| `notes[].attack` | string | opt | `hammer`\|`pull`\|`tap`\|`pop`\|`slap`\|`pickSlide`; absent = pick. A `pickSlide` note is a right-hand scrape: `fret` is where the scrape starts and `slides` is the traveled path (pick coordinates, never fingerings), required, always traveling, with the last offset equal to the sustain. The writer omits every other technique key on such notes (in-memory values are session-only overrides), and the rules reject a document carrying them. |
 | `notes[].mute` | string | opt | `palm`\|`full`. |
 | `notes[].harmonic` | string | opt | `natural`\|`pinch`. |
 | `notes[].touch` | number | opt | Touch-harmonic fret point. |

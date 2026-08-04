@@ -323,9 +323,23 @@ through the trim rules):
     principal's duration — the lead shrinks to half the available gap. A grace with no room at
     all (nothing sounds before a principal at the song start) or no principal to attach to (a
     rest follows, or the track ends) is dropped with a conversion note.
+19. **Pick-slide flags convert their carrier into a pick-slide note.** GP notates a pick scrape
+    as a dead note carrying Slide flag 64 (down) or 128 (up); the carrier is the encoding
+    vehicle, so it sheds its mute and becomes an `attack: pickSlide` note with the
+    corpus-derived default path (down 17 → 3, up the mirror) across the notated span, ready
+    for the user to reshape. Simultaneous same-direction carriers are one scrape: the
+    lowest-string carrier survives with the longest span; a conflicting direction at the same
+    onset is dropped with a conversion note. As ordinary notes, scrapes participate in every
+    distance rule — margin trims, the deliberate-hold exemption (a scrape notated ringing
+    strictly past a later onset is a hold; scraping through sounding strings is physically
+    real), string occupancy — with one twist: the path is gesture geometry like a slide-out,
+    so the trim compresses its final point instead of flooring the tail on it. Dead notes
+    carrying ordinary slide-out flags (4/8) are LEFT-hand figures and never reclassify. The
+    fret-hand machinery ignores scrapes exactly as it ignores taps (`rightHandOnset`), keeping
+    them FHP-transparent.
 
 Every generated track logs a conversion note ("phrase-aware; verify", "derived N chord
-spans") so the guesses stay observable in the import log.
+spans", "imported N pick slides") so the guesses stay observable in the import log.
 
 # Startup restore
 

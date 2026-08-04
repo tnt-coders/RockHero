@@ -112,6 +112,30 @@ namespace
             .bend = {},
             .slides = {},
         },
+        // A down-then-up chained scrape, then an adjacent simple one: pick-slide notes carry
+        // the traveled path in `slides` with the last offset equal to the sustain.
+        ChartNote{
+            .position = GridPosition{.measure = 4, .beat = 1},
+            .string = 5,
+            .fret = 17,
+            .sustain = Fraction{1},
+            .attack = NoteAttack::PickSlide,
+            .bend = {},
+            .slides =
+                {
+                    SlideWaypoint{.offset = Fraction{1, 2}, .fret = 5},
+                    SlideWaypoint{.offset = Fraction{1}, .fret = 9},
+                },
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 4, .beat = 2},
+            .string = 4,
+            .fret = 3,
+            .sustain = Fraction{1, 2},
+            .attack = NoteAttack::PickSlide,
+            .bend = {},
+            .slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 12}},
+        },
     };
     chart.shapes = {
         ChartShape{
@@ -310,6 +334,69 @@ TEST_CASE("Chart rules reject structural violations", "[core][chart]")
     const auto beyond_octave_result = validateChartRules(beyond_octave, tempo_map);
     REQUIRE_FALSE(beyond_octave_result.has_value());
     CHECK(beyond_octave_result.error().code == ChartErrorCode::InvalidTuning);
+}
+
+// Pick-slide notes: no other techniques in a saved document (the writer omits the in-memory
+// overrides), and a required always-traveling path ending exactly at the sustain.
+TEST_CASE("Chart rules validate pick-slide notes", "[core][chart]")
+{
+    const TempoMap tempo_map = makeTempoMap();
+
+    // The chained scrape in the full fixture.
+    constexpr std::size_t scrape = 7;
+
+    const auto expect_invalid = [&tempo_map](const Chart& chart) {
+        const auto result = validateChartRules(chart, tempo_map);
+        REQUIRE_FALSE(result.has_value());
+        CHECK(result.error().code == ChartErrorCode::InvalidPickSlide);
+    };
+
+    Chart carried_technique = makeFullChart();
+    carried_technique.notes[scrape].tremolo = true;
+    expect_invalid(carried_technique);
+
+    Chart carried_mute = makeFullChart();
+    carried_mute.notes[scrape].mute = NoteMute::Full;
+    expect_invalid(carried_mute);
+
+    Chart empty_path = makeFullChart();
+    empty_path.notes[scrape].slides.clear();
+    expect_invalid(empty_path);
+
+    Chart ringing_past_path = makeFullChart();
+    ringing_past_path.notes[scrape].sustain = Fraction{3, 2};
+    expect_invalid(ringing_past_path);
+
+    // The travel is the gesture: a path leg that starts where it ends has nothing to scrape,
+    // unlike note slides, whose equal-fret segments are legitimate holds.
+    Chart stationary_start = makeFullChart();
+    stationary_start.notes[scrape].slides[0].fret = 17;
+    expect_invalid(stationary_start);
+
+    Chart stationary_leg = makeFullChart();
+    stationary_leg.notes[scrape].slides[1].fret = 5;
+    expect_invalid(stationary_leg);
+}
+
+// Latent techniques survive in memory for attack toggling but never reach the document: the
+// writer omits them, so the saved note is clean and passes the rules.
+TEST_CASE("Chart writer omits overridden techniques on pick-slide notes", "[core][chart]")
+{
+    Chart chart = makeFullChart();
+    ChartNote& scrape = chart.notes[7];
+    REQUIRE(scrape.attack == NoteAttack::PickSlide);
+    scrape.tremolo = true;
+    scrape.vibrato = true;
+    scrape.mute = NoteMute::Full;
+
+    const auto parsed = parseChartDocument(chartDocumentText(chart));
+    REQUIRE(parsed.has_value());
+    const ChartNote& saved = parsed->notes[7];
+    CHECK(saved.attack == NoteAttack::PickSlide);
+    CHECK_FALSE(saved.tremolo);
+    CHECK_FALSE(saved.vibrato);
+    CHECK(saved.mute == NoteMute::None);
+    CHECK(validateChartRules(*parsed, makeTempoMap()).has_value());
 }
 
 // The shared arrival rule: a strummed chord is a box; sequential arrival, or a posture string

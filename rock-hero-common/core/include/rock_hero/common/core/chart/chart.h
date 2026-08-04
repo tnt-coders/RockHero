@@ -81,7 +81,16 @@ enum class NoteAttack : std::uint8_t
     /*! \brief Popped (bass) onset. */
     Pop,
     /*! \brief Slapped (bass) onset. */
-    Slap
+    Slap,
+    /*!
+    \brief Right-hand pick slide: the pick scrapes along the neck across the sustain.
+
+    Fret data is right-hand travel like a tapped note's: `fret` is where the scrape starts and
+    `slides` is the path — required, always traveling, last offset equal to the sustain. Other
+    techniques are overridden while this attack is set: kept in memory so switching the attack
+    back restores them, but suppressed by projections and omitted by the document writer.
+    */
+    PickSlide
 };
 
 /*! \brief Muting applied to a note. */

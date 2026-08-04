@@ -1361,7 +1361,246 @@ namespace
     return beat;
 }
 
+// One dead-string pick-slide carrier: Guitar Pro notates the gesture as a fully muted fret-0
+// note carrying Slide flag 64 (down) or 128 (up).
+[[nodiscard]] GpNote pickSlideCarrier(const int flags, const int string = 0)
+{
+    GpNote note;
+    note.string = string;
+    note.fret = 0;
+    note.full_mute = true;
+    note.slide_flags = flags;
+    return note;
+}
+
+// One beat holding the given carrier notes for the pick-slide tests below.
+[[nodiscard]] GpBeat carrierBeat(const Fraction duration, std::vector<GpNote> carriers)
+{
+    GpBeat beat;
+    beat.duration_whole = duration;
+    beat.notes = std::move(carriers);
+    return beat;
+}
+
 } // namespace
+
+// Pick-slide carriers convert in place into pick-slide notes: the dead carrier is Guitar Pro's
+// encoding vehicle for the right-hand gesture, so it sheds its mute and gains the attack plus
+// the corpus-derived default path (down 17 -> 3, up the mirror), ready for reshaping.
+TEST_CASE("Guitar Pro import converts pick-slide flags into pick-slide notes", "[core][gp-import]")
+{
+    const std::vector<GpSyncPoint> syncs{
+        GpSyncPoint{.bar = 0, .bar_fraction = 0.0, .seconds = 0.0, .modified_tempo = 120.0}
+    };
+
+    SECTION("a dead carrier with flag 64 becomes one down pick-slide note")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(Fraction{1, 4}, 5),
+                     carrierBeat(Fraction{1, 4}, {pickSlideCarrier(64)}),
+                     noteBeat(Fraction{1, 4}, 8)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 3);
+        const common::core::ChartNote& scrape = chart.notes[1];
+        CHECK(scrape.attack == common::core::NoteAttack::PickSlide);
+        CHECK(scrape.position.beat == 2);
+        CHECK(scrape.string == 1);
+        CHECK(scrape.fret == 17);
+        CHECK(scrape.mute == common::core::NoteMute::None);
+        // The path ends at the sustain, which keeps the ordinary quarter-beat margin before
+        // the fret-8 onset one beat later.
+        REQUIRE(scrape.slides.size() == 1);
+        CHECK(scrape.slides[0].offset == Fraction{3, 4});
+        CHECK(scrape.slides[0].fret == 3);
+        CHECK(scrape.sustain == Fraction{3, 4});
+        CHECK(chart.notes[0].fret == 5);
+        CHECK(chart.notes[2].fret == 8);
+    }
+
+    SECTION("flag 128 mirrors the default path upward")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{carrierBeat(Fraction{1, 4}, {pickSlideCarrier(128)})}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 1);
+        CHECK(chart.notes[0].attack == common::core::NoteAttack::PickSlide);
+        CHECK(chart.notes[0].fret == 3);
+        REQUIRE(chart.notes[0].slides.size() == 1);
+        CHECK(chart.notes[0].slides[0].fret == 17);
+        CHECK(chart.notes[0].sustain == Fraction{1});
+    }
+
+    SECTION("simultaneous same-direction carriers merge onto the lowest string")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {{carrierBeat(
+                    Fraction{1, 4}, {pickSlideCarrier(64, 0), pickSlideCarrier(64, 1)})}}
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 1);
+        CHECK(chart.notes[0].attack == common::core::NoteAttack::PickSlide);
+        CHECK(chart.notes[0].string == 1);
+    }
+
+    SECTION("conflicting simultaneous directions keep the first and report")
+    {
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {{carrierBeat(
+                    Fraction{1, 4}, {pickSlideCarrier(64, 0), pickSlideCarrier(128, 1)})}}
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 1);
+        CHECK(chart.notes[0].fret == 17);
+        bool reported = false;
+        for (const std::string& note : built->notes)
+        {
+            reported =
+                reported || note.find("conflicting simultaneous pick-slide") != std::string::npos;
+        }
+        CHECK(reported);
+    }
+
+    SECTION("scrapes hold through later scrapes exactly as notes hold through onsets")
+    {
+        // Voice one notates a two-beat scrape; voice two starts another one beat in. The first
+        // rings strictly past the second's notated onset, so the deliberate-hold exemption
+        // keeps its full span — the same distance rules as any note.
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {carrierBeat(Fraction{1, 2}, {pickSlideCarrier(64, 0)})},
+                    {carrierBeat(Fraction{1, 4}, {}),
+                     carrierBeat(Fraction{1, 4}, {pickSlideCarrier(64, 1)})}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        REQUIRE(chart.notes[0].slides.size() == 1);
+        CHECK(chart.notes[0].slides[0].offset == Fraction{2});
+        CHECK(chart.notes[1].sustain == Fraction{1});
+    }
+
+    SECTION("a note tail keeps the sustain margin before a scrape onset")
+    {
+        // A two-beat note trims its tail to the quarter-beat margin before the scrape's onset,
+        // exactly as it would before any note.
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {noteBeat(Fraction{1, 2}, 5),
+                     carrierBeat(Fraction{1, 4}, {pickSlideCarrier(64)})}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[0].sustain == Fraction{7, 4});
+    }
+
+    SECTION("a scrape notated ringing past a later onset stays a deliberate hold")
+    {
+        // Scraping through sounding strings is physically real, so a two-beat scrape notated
+        // across a later note keeps its span, like any held tail.
+        GpScore score = makeLinearScore(1, syncs);
+        score.tracks[0].bars.push_back(
+            GpBar{
+                .voices = {
+                    {carrierBeat(Fraction{1, 2}, {pickSlideCarrier(64)})},
+                    {carrierBeat(Fraction{1, 4}, {}), noteBeat(Fraction{1, 4}, 5, 1)}
+                }
+            });
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[0].attack == common::core::NoteAttack::PickSlide);
+        REQUIRE(chart.notes[0].slides.size() == 1);
+        CHECK(chart.notes[0].slides[0].offset == Fraction{2});
+    }
+
+    SECTION("the fret-hand track is identical with the gesture present or absent")
+    {
+        // The transparency invariant, at the import seam: the same score with the carrier beat
+        // as a rest produces the identical fret-hand track (the carrier never reaches the
+        // generator), so the gesture cannot move, anchor, or dip the window.
+        const auto make_score = [&syncs](const bool with_carrier) {
+            GpScore score = makeLinearScore(1, syncs);
+            score.tracks[0].bars.push_back(
+                GpBar{
+                    .voices = {
+                        {noteBeat(Fraction{1, 4}, 5),
+                         carrierBeat(
+                             Fraction{1, 4},
+                             with_carrier ? std::vector<GpNote>{pickSlideCarrier(64)}
+                                          : std::vector<GpNote>{}),
+                         noteBeat(Fraction{1, 4}, 8),
+                         noteBeat(Fraction{1, 4}, 10)}
+                    }
+                });
+            return score;
+        };
+
+        const auto with_gesture = buildGpSong(make_score(true));
+        const auto without_gesture = buildGpSong(make_score(false));
+        REQUIRE(with_gesture.has_value());
+        REQUIRE(without_gesture.has_value());
+        CHECK(
+            with_gesture->arrangements.front().chart.fret_hand_positions ==
+            without_gesture->arrangements.front().chart.fret_hand_positions);
+    }
+
+    SECTION("dead notes with ordinary slide-out flags stay muted notes")
+    {
+        // The measure-3 figure class: a fret-hand-muted note carrying plain slide-out flags is
+        // a LEFT-hand gesture (user classification 2026-08-03) and must never reclassify.
+        GpScore score = makeLinearScore(1, syncs);
+        GpNote dead_slide;
+        dead_slide.string = 0;
+        dead_slide.fret = 5;
+        dead_slide.full_mute = true;
+        dead_slide.slide_flags = 4;
+        score.tracks[0].bars.push_back(
+            GpBar{.voices = {{carrierBeat(Fraction{1, 4}, {dead_slide})}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 1);
+        CHECK(chart.notes[0].attack != common::core::NoteAttack::PickSlide);
+        CHECK(chart.notes[0].mute == common::core::NoteMute::Full);
+        CHECK(chart.notes[0].slide_out.has_value());
+    }
+}
 
 // Grace beats take no bar time; the import places them against their principal (user rules
 // 2026-07-27): a before-beat grace sounds a thirty-second-note lead ahead of the principal, an
