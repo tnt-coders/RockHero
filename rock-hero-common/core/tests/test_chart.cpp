@@ -479,6 +479,21 @@ TEST_CASE("Chart shape arrival classifies boxes and arpeggios", "[core][chart]")
         });
     CHECK(chartShapeArrivesAsArpeggio(tapped_over_hold, strum_under_ring, tempo_map));
 
+    // A pick slide inside the span flips the box exactly like a tap: both are right-hand
+    // onsets sounding over the held shape.
+    Chart scraped_over_hold = chart;
+    scraped_over_hold.notes.push_back(
+        ChartNote{
+            .position = GridPosition{.measure = 2, .beat = 2, .offset = Fraction{1, 2}},
+            .string = 4,
+            .fret = 17,
+            .sustain = Fraction{1, 4},
+            .attack = NoteAttack::PickSlide,
+            .bend = {},
+            .slides = {SlideWaypoint{.offset = Fraction{1, 4}, .fret = 3}},
+        });
+    CHECK(chartShapeArrivesAsArpeggio(scraped_over_hold, strum_under_ring, tempo_map));
+
     // A tap OUTSIDE the span (after it ends) leaves the box a box.
     Chart tapped_after = chart;
     tapped_after.notes.push_back(

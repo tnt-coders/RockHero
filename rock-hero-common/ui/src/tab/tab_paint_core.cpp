@@ -226,12 +226,15 @@ void drawNoteTail(
     }
     else
     {
-        g.setColour(style.tail);
+        // A scrape's tail desaturates: hue keeps naming the string while the drained
+        // saturation says the travel is noise, not pitch.
+        const bool scrape = note.attack == common::core::NoteAttack::PickSlide;
+        g.setColour(scrape ? style.tail.withMultipliedSaturation(0.35f) : style.tail);
         g.fillRect(
             juce::Rectangle<float>{
                 onset_x - 1.0f, span.top, length + 1.0f, span.bottom - span.top
             });
-        g.setColour(style.tail_edge);
+        g.setColour(scrape ? style.tail_edge.withMultipliedSaturation(0.35f) : style.tail_edge);
         g.drawRect(
             juce::Rectangle<float>{onset_x, span.top - 1.0f, length, span.bottom - span.top + 1.0f},
             metrics.tail_edge_size);
@@ -324,7 +327,36 @@ void drawSlideLines(
             upward ? span.top + line_thickness / 2.0f : span.bottom - line_thickness / 2.0f;
 
         g.setColour(juce::Colours::white);
-        g.drawLine(from_x, from_y, to_x, to_y, line_thickness);
+        if (note.attack == common::core::NoteAttack::PickSlide &&
+            to_x - from_x >= std::max(4.0f, metrics.note_height / 2.0f))
+        {
+            // A scrape leg is the same travel diagonal, wave-modulated to say noise instead of
+            // pitch. Amplitude and period scale from the lane metrics like the sibling
+            // ornaments, decay along the leg, and restart at each leg (the pick re-bites on a
+            // direction change). A leg too short to carry a wave keeps the plain diagonal
+            // below, so the travel mark never vanishes at dense zooms.
+            const float leg = to_x - from_x;
+            const float base_amplitude = metrics.tail_height / 4.0f;
+            const float base_period = std::max(4.0f, metrics.note_height / 2.0f);
+            juce::Path wave;
+            wave.startNewSubPath(from_x, from_y);
+            float phase = 0.0f;
+            for (float step = 2.0f; step <= leg; step += 2.0f)
+            {
+                const float progress = step / leg;
+                const float amplitude = base_amplitude * (1.0f - (0.65f * progress));
+                const float period = base_period * (1.0f - (0.25f * progress));
+                phase += 2.0f * juce::MathConstants<float>::pi * 2.0f / period;
+                wave.lineTo(
+                    from_x + step,
+                    from_y + ((to_y - from_y) * progress) + (amplitude * std::sin(phase)));
+            }
+            g.strokePath(wave, juce::PathStrokeType{line_thickness});
+        }
+        else
+        {
+            g.drawLine(from_x, from_y, to_x, to_y, line_thickness);
+        }
 
         if (waypoint.unpitched && metrics.draw_text)
         {
@@ -504,6 +536,36 @@ void drawMuteIcon(
     g.strokePath(x_shape, juce::PathStrokeType{std::max(1.0f, space / 3.0f)});
 }
 
+// Draws the pick-slide chevron icon beside the head: the head atlas's tap V reshaped for the
+// icon slot, built like the sibling icons (filled shape plus a thin border) in the
+// picking-hand colors (black like tap, slap, and pop).
+void drawChevronIcon(
+    juce::Graphics& g, const TabLaneMetrics& metrics, float center_x, float center_y)
+{
+    const float width = metrics.note_height / 2.0f;
+    const float height = metrics.note_height * 2.0f / 5.0f;
+    const float band = std::max(2.0f, height / 2.5f);
+    // Shifting the inner V's top points inward by the arm slope keeps the band width uniform.
+    const float inset_x = band * (width / 2.0f) / height;
+    const float left = center_x - width / 2.0f;
+    const float right = center_x + width / 2.0f;
+    const float top = center_y - height / 2.0f;
+    const float bottom = center_y + height / 2.0f;
+
+    juce::Path chevron;
+    chevron.startNewSubPath(left, top);
+    chevron.lineTo(center_x, bottom);
+    chevron.lineTo(right, top);
+    chevron.lineTo(right - inset_x, top);
+    chevron.lineTo(center_x, bottom - band);
+    chevron.lineTo(left + inset_x, top);
+    chevron.closeSubPath();
+    g.setColour(juce::Colours::black);
+    g.fillPath(chevron);
+    g.setColour(g_full_mute_text_border);
+    g.strokePath(chevron, juce::PathStrokeType{1.0f});
+}
+
 // Draws one of Charter's triangle technique icons: a small bordered triangle beside the head,
 // optionally carrying a letter (slap and pop).
 void drawTriangleIcon(
@@ -596,6 +658,11 @@ void drawAttackIcon(
                 juce::Colours::black,
                 g_full_mute_text_border,
                 "P");
+            break;
+        }
+        case common::core::NoteAttack::PickSlide:
+        {
+            drawChevronIcon(g, metrics, left_x, low_y);
             break;
         }
         case common::core::NoteAttack::Pick:

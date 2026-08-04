@@ -93,6 +93,17 @@ enum class NoteAttack : std::uint8_t
     PickSlide
 };
 
+/*!
+\brief Reports whether the attack is produced by the picking hand at the neck (tap, pick slide).
+
+These onsets never anchor, cover, or ring into a fretting-hand posture; the fret-hand
+generator, posture derivation, chord grouping, and camera framing all share this predicate.
+*/
+[[nodiscard]] constexpr bool rightHandOnset(const NoteAttack attack) noexcept
+{
+    return attack == NoteAttack::Tap || attack == NoteAttack::PickSlide;
+}
+
 /*! \brief Muting applied to a note. */
 enum class NoteMute : std::uint8_t
 {

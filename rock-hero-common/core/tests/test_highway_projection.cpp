@@ -645,4 +645,64 @@ TEST_CASE("Highway tap onsets clamp light ramps against the previous release", "
     CHECK(onsets[3].ramp_seconds == Catch::Approx(0.1));
 }
 
+// The pick-slide seam: latents suppressed, the path unpitched, no tap lighting, and the hand
+// window's slide-locked ramps never tie to a scrape leg — an FHP sitting exactly on a scrape
+// waypoint still gets the ordinary margin morph.
+TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
+{
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    ChartNote scrape{
+        .position = GridPosition{.measure = 1, .beat = 1},
+        .string = 5,
+        .fret = 17,
+        .sustain = Fraction{1},
+        .attack = NoteAttack::PickSlide,
+        .bend = {BendPoint{.offset = Fraction{1, 4}, .semitones = 1.0}},
+        .slides = {
+            SlideWaypoint{.offset = Fraction{1, 2}, .fret = 3},
+            SlideWaypoint{.offset = Fraction{1}, .fret = 9},
+        },
+    };
+    scrape.mute = NoteMute::Full;
+    scrape.tremolo = true;
+    scrape.vibrato = true;
+    scrape.slide_out = SlideOut{.offset = Fraction{1}, .fret = 1};
+    chart.notes = {scrape};
+    chart.fret_hand_positions = {
+        FretHandPosition{
+            .position = GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 2}},
+            .fret = 3,
+        },
+    };
+    Arrangement arrangement = makeArrangementWithChart();
+    arrangement.chart = std::move(chart);
+
+    const HighwayViewState state = makeHighwayViewState(arrangement, makeHighwayTempoMap(), {}, {});
+    REQUIRE(state.notes.size() == 1);
+    const HighwayNoteView& view = state.notes.front();
+    CHECK(view.attack == NoteAttack::PickSlide);
+    CHECK(view.mute == NoteMute::None);
+    CHECK_FALSE(view.tremolo);
+    CHECK_FALSE(view.vibrato);
+    CHECK(view.bend.empty());
+    REQUIRE(view.slides.size() == 2);
+    CHECK(view.slides[0].unpitched);
+    CHECK(view.slides[1].unpitched);
+    // The right-hand light rides the scrape: one onset whose path stations follow the
+    // traveled waypoints (17 at the onset, 3 at the reversal, 9 at the end).
+    REQUIRE(state.tap_onsets.size() == 1);
+    const HighwayTapOnsetView& light = state.tap_onsets.front();
+    CHECK(light.fret_low == 17);
+    CHECK(light.count == 1);
+    REQUIRE(light.path.size() == 3);
+    CHECK(light.path[0].fret_low == Catch::Approx(17.0));
+    CHECK(light.path[1].fret_low == Catch::Approx(3.0));
+    CHECK(light.path[2].fret_low == Catch::Approx(9.0));
+    // The FHP on the waypoint's grid position ramps by the quarter-beat margin morph (0.125s at
+    // the default tempo), not by the scrape leg's span back to the onset (which would be 0.25s).
+    REQUIRE(state.fret_hand_positions.size() == 1);
+    CHECK(state.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.125));
+}
+
 } // namespace rock_hero::common::core

@@ -224,6 +224,21 @@ HighwayCameraTarget makeHighwayCameraTarget(
         }
         low_line = std::min(low_line, static_cast<double>(note.fret - 1));
         high_line = std::max(high_line, static_cast<double>(note.fret));
+        // A pick slide's head rides its whole traveled path with no fret-hand anchor chasing
+        // it (the scrape is excluded from the fret-hand track like the tap above), so the
+        // framing must cover every neck position the path reaches, not just the start.
+        if (note.attack == NoteAttack::PickSlide)
+        {
+            for (const HighwaySlideView& waypoint : note.slides)
+            {
+                if (waypoint.fret <= 0)
+                {
+                    continue;
+                }
+                low_line = std::min(low_line, static_cast<double>(waypoint.fret - 1));
+                high_line = std::max(high_line, static_cast<double>(waypoint.fret));
+            }
+        }
     }
 
     // The focus is an affine function of the framed window's world middle: pulled a fixed

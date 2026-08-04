@@ -29,6 +29,10 @@ TabViewState makeTabViewState(const Arrangement& arrangement, const TempoMap& te
     for (const ChartNote& note : chart.notes)
     {
         const double onset_beat = globalBeatPosition(tempo_map, note.position);
+        // A pick slide overrides its other techniques in memory (chart.h): the projection is
+        // the one seam that suppresses the latents, and its path renders unpitched with no
+        // linked continuation heads — the chips at each leg carry the traveled positions.
+        const bool scrape = note.attack == NoteAttack::PickSlide;
         TabNoteView view;
         view.start_seconds = onset_cursor.secondsAt(onset_beat);
         view.end_seconds =
@@ -38,20 +42,23 @@ TabViewState makeTabViewState(const Arrangement& arrangement, const TempoMap& te
         view.string = note.string;
         view.fret = note.fret;
         view.attack = note.attack;
-        view.mute = note.mute;
-        view.harmonic = note.harmonic;
-        view.vibrato = note.vibrato;
-        view.tremolo = note.tremolo;
-        view.accent = note.accent;
-        view.bend.reserve(note.bend.size());
-        for (const BendPoint& point : note.bend)
+        view.mute = scrape ? NoteMute::None : note.mute;
+        view.harmonic = scrape ? NoteHarmonic::None : note.harmonic;
+        view.vibrato = !scrape && note.vibrato;
+        view.tremolo = !scrape && note.tremolo;
+        view.accent = !scrape && note.accent;
+        if (!scrape)
         {
-            view.bend.push_back(
-                TabBendPointView{
-                    .seconds =
-                        tempo_map.secondsAtGlobalBeatPosition(onset_beat + point.offset.toDouble()),
-                    .semitones = point.semitones,
-                });
+            view.bend.reserve(note.bend.size());
+            for (const BendPoint& point : note.bend)
+            {
+                view.bend.push_back(
+                    TabBendPointView{
+                        .seconds = tempo_map.secondsAtGlobalBeatPosition(
+                            onset_beat + point.offset.toDouble()),
+                        .semitones = point.semitones,
+                    });
+            }
         }
         // A waypoint strictly inside the sustain is a legato junction or hold — the same note
         // continues, so it draws the linked continuation head. A waypoint at exactly the
@@ -65,12 +72,13 @@ TabViewState makeTabViewState(const Arrangement& arrangement, const TempoMap& te
                     .seconds = tempo_map.secondsAtGlobalBeatPosition(
                         onset_beat + waypoint.offset.toDouble()),
                     .fret = waypoint.fret,
-                    .unpitched = false,
-                    .linked = waypoint.offset < note.sustain,
+                    .unpitched = scrape,
+                    .linked = !scrape && waypoint.offset < note.sustain,
                 });
         }
         // The unpitched slide-out flattens into the view's slide list; it owns its geometry.
-        if (note.slide_out.has_value())
+        // A scrape's slide-out is a suppressed latent like the rest.
+        if (note.slide_out.has_value() && !scrape)
         {
             view.slides.push_back(
                 TabSlideView{

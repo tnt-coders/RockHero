@@ -656,13 +656,6 @@ struct BuiltNote
            note.vibrato || note.tremolo;
 }
 
-// Tap and pick-slide onsets belong to the picking hand: they float above the fret-hand window
-// and never anchor, cover, or ring into a posture.
-[[nodiscard]] bool rightHandOnset(const ChartNote& note)
-{
-    return note.attack == NoteAttack::Tap || note.attack == NoteAttack::PickSlide;
-}
-
 // Normalizes imported sustains for chart readability (import policy, user rules 2026-07-21;
 // hold semantics refined 2026-07-22). The maintained plain-English spec is "GP chart
 // normalization policy" in docs/developer/the-project-lifecycle.md — tweak behavior there
@@ -935,7 +928,7 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& g
             const ChartNote& note = built[onset_end].note;
             // Right-hand onsets are invisible to span derivation: they join no posture and
             // extend no ring, so a mixed onset is judged by its fretting-hand members alone.
-            if (!rightHandOnset(note))
+            if (!common::core::rightHandOnset(note.attack))
             {
                 if (const auto string_index = static_cast<std::size_t>(note.string - 1);
                     string_index < string_count)
@@ -1029,7 +1022,8 @@ void deriveChordShapes(const std::vector<BuiltNote>& built, const MeasureGrid& g
         for (std::size_t member = index; member < onset_end; ++member)
         {
             if (const auto string_index = static_cast<std::size_t>(built[member].note.string - 1);
-                string_index < string_count && !rightHandOnset(built[member].note))
+                string_index < string_count &&
+                !common::core::rightHandOnset(built[member].note.attack))
             {
                 ringing[string_index] = &built[member];
             }
@@ -1067,7 +1061,7 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
         {
             continue; // not sounding at this instant
         }
-        if (rightHandOnset(other.note) || other.note.fret <= 0)
+        if (common::core::rightHandOnset(other.note.attack) || other.note.fret <= 0)
         {
             continue; // right-hand onsets float above the hand; open strings never anchor it
         }
@@ -1151,7 +1145,7 @@ constexpr double g_fhp_phrase_rest_seconds = 0.8;
         {
             const ChartNote& note = built[onset_end].note;
             // Right-hand onsets float above the window and never anchor the hand.
-            if (!rightHandOnset(note))
+            if (!common::core::rightHandOnset(note.attack))
             {
                 if (note.fret > 0)
                 {

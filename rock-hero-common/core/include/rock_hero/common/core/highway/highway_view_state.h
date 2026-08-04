@@ -519,17 +519,17 @@ start or end would intermittently fall outside the span.
 inline constexpr double g_highway_onset_match_epsilon = 1.0e-4;
 
 /*!
-\brief Derives the tapping-hand onsets: one entry per onset group containing tapped notes.
+\brief Derives the picking-hand onsets: one entry per onset group with taps or pick slides.
 
-Right-hand presentation is derived, never authored (the right-hand-tap-lighting plan): each
-entry carries the fret extent and count of the taps struck together at that onset — feeding,
-for two or more simultaneous taps, the tapped chord box — plus the light path the per-tap
-envelope follows: from the onset through any pitched slide glides (the light morphs with the
-slide) to the fingers' release, which is the sustain end for held contact or the last pitched
-station when an unpitched trail-off is already releasing pressure. Non-tap notes sharing the
-onset contribute nothing — the taps are the other hand. A fretless tap cannot be played
-(tapping frets the string by definition), so fret-zero notes are skipped and a malformed chart
-can never place a light off the board.
+Right-hand presentation is derived, never authored: each entry carries the fret extent and
+count of the right-hand notes struck together at that onset — feeding, for two or more
+simultaneous taps, the tapped chord box — plus the light path the envelope follows: from the
+onset through the hand's travel (a tap's pitched glides, or a scrape's whole waypoint path —
+the light rides the slide either way) to the release: the sustain end for held contact and for
+scrapes (the pick leaves at the path's end), or the last pitched station when an unpitched
+trail-off is already releasing pressure. Fretting-hand notes sharing the onset contribute
+nothing. Fret-zero notes are skipped, so a malformed chart can never place a light off the
+board.
 
 Each onset also carries a light-rise ramp, derived with the fret-hand placements' own arrival
 rule: the caller supplies each note's margin-based rise duration (the minimum-sustain-distance
@@ -544,15 +544,17 @@ tap onset's release.
 [[nodiscard]] inline std::vector<HighwayTapOnsetView> makeHighwayTapOnsets(
     const std::vector<HighwayNoteView>& notes, const std::vector<double>& note_rise_seconds)
 {
-    // A member's tapped fret at an instant: its own fret before any glide, linear between its
-    // pitched waypoints (the renderer eases within each path segment), and the last pitched
-    // fret afterwards. Unpitched trail-offs never move the light.
+    // A member's hand position at an instant: its own fret before any glide, linear between
+    // its path waypoints, and the last station afterwards. A trail-off's unpitched terminal is
+    // a release and never moves the light; a scrape's unpitched waypoints ARE the hand's
+    // travel.
     const auto member_fret_at = [](const HighwayNoteView& note, const double seconds) {
+        const bool scrape = note.attack == NoteAttack::PickSlide;
         double previous_seconds = note.start_seconds;
         double previous_fret = note.fret;
         for (const HighwaySlideView& waypoint : note.slides)
         {
-            if (waypoint.unpitched || waypoint.fret <= 0)
+            if ((waypoint.unpitched && !scrape) || waypoint.fret <= 0)
             {
                 continue;
             }
@@ -568,10 +570,12 @@ tap onset's release.
         }
         return previous_fret;
     };
-    // When a member's fingers stop holding a pitch: the last pitched waypoint when an unpitched
-    // trail-off follows (the release is already underway), otherwise the sustain end.
+    // When the member's hand leaves: the last pitched waypoint when an unpitched trail-off
+    // follows (the release is already underway), otherwise the sustain end — which for a
+    // scrape is the path's end, where the pick lifts.
     const auto member_release_at = [](const HighwayNoteView& note) {
-        if (!note.slides.empty() && note.slides.back().unpitched)
+        if (note.attack != NoteAttack::PickSlide && !note.slides.empty() &&
+            note.slides.back().unpitched)
         {
             double last_pitched = note.start_seconds;
             for (const HighwaySlideView& waypoint : note.slides)
@@ -603,7 +607,7 @@ tap onset's release.
         for (std::size_t member = index; member < group_end; ++member)
         {
             const HighwayNoteView& note = notes[member];
-            if (note.attack != NoteAttack::Tap || note.fret <= 0)
+            if (!rightHandOnset(note.attack) || note.fret <= 0)
             {
                 continue;
             }
@@ -627,7 +631,8 @@ tap onset's release.
                 hold_end = std::max(hold_end, member_release_at(*tap));
                 for (const HighwaySlideView& waypoint : tap->slides)
                 {
-                    if (!waypoint.unpitched && waypoint.fret > 0)
+                    if ((!waypoint.unpitched || tap->attack == NoteAttack::PickSlide) &&
+                        waypoint.fret > 0)
                     {
                         station_times.push_back(waypoint.seconds);
                     }

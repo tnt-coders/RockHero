@@ -48,13 +48,13 @@ bool chartShapeArrivesAsArpeggio(
     {
         return true;
     }
-    // A held chord played under two-hand tapping reads as a held arpeggio, not a strummed box: the
-    // fretting hand holds the shape while the taps sound above it, so the notation shows the chord
-    // is sustained through the tapping. Any tapped note sounding within the span flips the box.
+    // A held chord played under a right-hand onset reads as a held arpeggio, not a strummed
+    // box: the fretting hand holds the shape while the other hand sounds above it — taps and
+    // pick slides alike. Any such note sounding within the span flips the box.
     const GridPosition span_end = advanceGridPosition(tempo_map, shape.position, shape.sustain);
     for (const ChartNote& note : chart.notes)
     {
-        if (note.attack == NoteAttack::Tap && !(note.position < shape.position) &&
+        if (rightHandOnset(note.attack) && !(note.position < shape.position) &&
             note.position < span_end)
         {
             return true;

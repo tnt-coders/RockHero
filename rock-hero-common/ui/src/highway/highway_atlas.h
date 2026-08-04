@@ -92,64 +92,71 @@ struct HighwayAtlases
     HighwayAtlasLayout glyph_layout{};
 };
 
+// The cell vocabulary, row-major on the 4x5 grid, sorted semantically (2026-08-04,
+// superseding the Charter reference asset's order): head bases + emphasis, the fretting-hand
+// row (posture bracket pair + legato), the picking-hand row, damping + timbre, then bend
+// anchoring the growth row. One art set serves every head-composite consumer deliberately
+// (absolute consistency, no dedicated variants); repeat-box mute marks render through the SDF
+// program instead of any cell, because their line weights must hold across arbitrary box
+// aspects.
+
 /*! \brief Cell index of the standard note head inside the head atlas. */
 inline constexpr int g_head_cell_standard = 0;
 
-/*! \brief Cell index of the anticipation ring. */
-inline constexpr int g_head_cell_anticipation = 1;
-
-// The rest of the cell vocabulary (row-major indices). One art set serves every head-composite
-// consumer deliberately (user rule 2026-08-01: absolute consistency, no dedicated variants);
-// repeat-box mute marks render through the SDF program instead of any cell, because their line
-// weights must hold across arbitrary box aspects.
-
 /*! \brief Technique note head: the base head variant under left-hand technique markers. */
-inline constexpr int g_head_cell_tech = 2;
+inline constexpr int g_head_cell_tech = 1;
 
-/*! \brief Arpeggio bracket for a fretted posture note. */
-inline constexpr int g_head_cell_arpeggio_fret_bracket = 3;
-
-/*! \brief Hammer-on marker. */
-inline constexpr int g_head_cell_hammer_on = 4;
-
-/*! \brief Pull-off marker. */
-inline constexpr int g_head_cell_pull_off = 5;
-
-/*! \brief Tap marker. */
-inline constexpr int g_head_cell_tap = 6;
-
-/*! \brief Arpeggio bracket end for an open posture string. */
-inline constexpr int g_head_cell_arpeggio_open_bracket = 7;
-
-/*! \brief Palm-mute marker. */
-inline constexpr int g_head_cell_palm_mute = 8;
-
-/*! \brief Full-mute marker. */
-inline constexpr int g_head_cell_full_mute = 9;
+/*! \brief Cell index of the anticipation ring. */
+inline constexpr int g_head_cell_anticipation = 2;
 
 /*! \brief Accent marker. */
-inline constexpr int g_head_cell_accent = 10;
+inline constexpr int g_head_cell_accent = 3;
+
+/*! \brief Arpeggio bracket for a fretted posture note. */
+inline constexpr int g_head_cell_arpeggio_fret_bracket = 4;
+
+/*! \brief Arpeggio bracket end for an open posture string. */
+inline constexpr int g_head_cell_arpeggio_open_bracket = 5;
+
+/*! \brief Hammer-on marker. */
+inline constexpr int g_head_cell_hammer_on = 6;
+
+/*! \brief Pull-off marker. */
+inline constexpr int g_head_cell_pull_off = 7;
+
+/*! \brief Tap marker. */
+inline constexpr int g_head_cell_tap = 8;
 
 /*!
-\brief Bend marker: the chevron announcing a bent note on its head, authored into the
-reference asset's formerly empty cell (judged 2026-07-28).
+\brief Pick-slide marker: the tap V's geometry at the mute pair's intensification ratio, drawn
+with the full-mute X's measured stroke profile — the narrow whitened member of the
+picking-hand family, seated beside the tap it intensifies.
 */
-inline constexpr int g_head_cell_bend = 11;
-
-/*! \brief Natural-harmonic head marker. */
-inline constexpr int g_head_cell_harmonic = 12;
-
-/*! \brief Pinch-harmonic head marker. */
-inline constexpr int g_head_cell_pinch_harmonic = 13;
+inline constexpr int g_head_cell_pick_slide = 9;
 
 /*! \brief Slap (bass) marker. */
-inline constexpr int g_head_cell_slap = 14;
+inline constexpr int g_head_cell_slap = 10;
 
 /*! \brief Pop (bass) marker. */
-inline constexpr int g_head_cell_pop = 15;
+inline constexpr int g_head_cell_pop = 11;
 
-/*! \brief Cells the renderer requires the head atlas to carry (the full 4x4 grid). */
-inline constexpr int g_head_cell_count = 16;
+/*! \brief Palm-mute marker. */
+inline constexpr int g_head_cell_palm_mute = 12;
+
+/*! \brief Full-mute marker. */
+inline constexpr int g_head_cell_full_mute = 13;
+
+/*! \brief Natural-harmonic head marker. */
+inline constexpr int g_head_cell_harmonic = 14;
+
+/*! \brief Pinch-harmonic head marker. */
+inline constexpr int g_head_cell_pinch_harmonic = 15;
+
+/*! \brief Bend marker: the chevron announcing a bent note on its head (authored 2026-07-28). */
+inline constexpr int g_head_cell_bend = 16;
+
+/*! \brief Cells the renderer requires the head atlas to carry (a 4x5 grid, 17 used). */
+inline constexpr int g_head_cell_count = 17;
 
 /*!
 \brief Builds the highway atlases and uploads them as immutable bgfx textures.

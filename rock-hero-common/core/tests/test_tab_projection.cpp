@@ -182,4 +182,48 @@ TEST_CASE("Tab projection is empty without a chart", "[editor-core][tab]")
     CHECK(state.fret_hand_positions.empty());
 }
 
+// The pick-slide seam: latent overridden techniques never reach the view, and the path renders
+// unpitched with no linked continuation heads.
+TEST_CASE("Tab projection suppresses pick-slide latents", "[editor-core][tab]")
+{
+    Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    ChartNote scrape{
+        .position = GridPosition{.measure = 1, .beat = 1},
+        .string = 5,
+        .fret = 17,
+        .sustain = Fraction{1},
+        .attack = NoteAttack::PickSlide,
+        .bend = {BendPoint{.offset = Fraction{1, 4}, .semitones = 1.0}},
+        .slides = {
+            SlideWaypoint{.offset = Fraction{1, 2}, .fret = 3},
+            SlideWaypoint{.offset = Fraction{1}, .fret = 9},
+        },
+    };
+    scrape.mute = NoteMute::Full;
+    scrape.tremolo = true;
+    scrape.vibrato = true;
+    scrape.slide_out = SlideOut{.offset = Fraction{1}, .fret = 1};
+    chart.notes = {scrape};
+    Arrangement arrangement = makeArrangementWithChart();
+    arrangement.chart = std::move(chart);
+
+    const TabViewState state = makeTabViewState(arrangement, makeTempoMap());
+    REQUIRE(state.notes.size() == 1);
+    const TabNoteView& view = state.notes.front();
+    CHECK(view.attack == NoteAttack::PickSlide);
+    CHECK(view.mute == NoteMute::None);
+    CHECK_FALSE(view.tremolo);
+    CHECK_FALSE(view.vibrato);
+    CHECK(view.bend.empty());
+    // The latent slide-out never flattens in; only the path's own legs remain, all unpitched
+    // and unlinked (chips, not continuation heads, mark the traveled positions).
+    REQUIRE(view.slides.size() == 2);
+    for (const TabSlideView& leg : view.slides)
+    {
+        CHECK(leg.unpitched);
+        CHECK_FALSE(leg.linked);
+    }
+}
+
 } // namespace rock_hero::common::core

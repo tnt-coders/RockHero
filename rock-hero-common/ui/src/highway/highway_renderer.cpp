@@ -2017,10 +2017,10 @@ void HighwayRenderer::Impl::draw(
         double start_seconds;
         std::size_t first;
         std::size_t count;
-        // Members that are not tapped: only these decide the PLAIN chord box (user rule
-        // 2026-07-28 — taps are the other hand; a fretted note under a simultaneous tap is a
-        // single note, and a tapped dyad gets the tapped box from the tap onsets instead).
-        std::size_t non_tap_count;
+        // Members struck by the fretting hand: only these decide the PLAIN chord box. Taps and
+        // pick slides are the other hand — a fretted note under a simultaneous right-hand
+        // onset is a single note, and a tapped dyad gets the tapped box from the tap onsets.
+        std::size_t fretting_hand_count;
         bool any_accent;
         common::core::NoteMute common_mute;
         // True when every note is fully muted (a dead chug restating the preceding chord hides
@@ -2050,7 +2050,7 @@ void HighwayRenderer::Impl::draw(
             .start_seconds = state.notes[index].start_seconds,
             .first = index,
             .count = group_end - index,
-            .non_tap_count = 0,
+            .fretting_hand_count = 0,
             .any_accent = false,
             .common_mute = state.notes[index].mute,
             .all_full_muted = true,
@@ -2062,9 +2062,9 @@ void HighwayRenderer::Impl::draw(
         for (std::size_t member = index; member < group_end; ++member)
         {
             const common::core::HighwayNoteView& note = state.notes[member];
-            if (note.attack != common::core::NoteAttack::Tap)
+            if (!common::core::rightHandOnset(note.attack))
             {
-                ++group.non_tap_count;
+                ++group.fretting_hand_count;
             }
             group.any_accent = group.any_accent || note.accent;
             if (note.mute != group.common_mute)
@@ -2411,7 +2411,7 @@ void HighwayRenderer::Impl::draw(
         {
             // Only non-tap members earn the plain (fretting-hand) box: a fretted note under a
             // simultaneous tap is a single note, and tapped chords get their own box below.
-            if (group.non_tap_count < 2 || group.start_seconds < now_seconds ||
+            if (group.fretting_hand_count < 2 || group.start_seconds < now_seconds ||
                 group.start_seconds > span_end_seconds)
             {
                 continue;
@@ -2429,7 +2429,7 @@ void HighwayRenderer::Impl::draw(
                 BoxDraw{
                     .start_seconds = group.start_seconds,
                     .box_only = group.box_only,
-                    .with_top = group.non_tap_count > 2,
+                    .with_top = group.fretting_hand_count > 2,
                     .any_accent = group.any_accent,
                     .mute = group.common_mute,
                     .arpeggio_shape = nullptr,
@@ -2651,45 +2651,67 @@ void HighwayRenderer::Impl::draw(
         double x_offset;
         double alpha;
     };
-    const auto slide_state_at =
-        [&](const common::core::HighwayNoteView& note, const double base_x, const double seconds) {
-            if (note.slides.empty() || note.fret <= 0)
+    const auto slide_state_at = [&](const common::core::HighwayNoteView& note,
+                                    const double base_x,
+                                    const double seconds) {
+        if (note.slides.empty() || note.fret <= 0)
+        {
+            return SlideState{.x_offset = 0.0, .alpha = 1.0};
+        }
+        // The unpitched dim spans the whole CONSECUTIVE unpitched run: a scrape's chained
+        // legs are one continuous release, so the alpha must never snap back to full at a
+        // direction reversal — only the geometry restarts per leg. A lone terminal
+        // slide-out is a one-segment run, which reduces to the original per-segment dim.
+        const auto unpitched_alpha_at = [&](const std::size_t segment, const double at) {
+            std::size_t run_begin = segment;
+            while (run_begin > 0 && note.slides[run_begin - 1].unpitched)
             {
-                return SlideState{.x_offset = 0.0, .alpha = 1.0};
+                --run_begin;
             }
-            double segment_start_seconds = note.start_seconds;
-            double segment_start_x = base_x;
-            for (const common::core::HighwaySlideView& waypoint : note.slides)
+            std::size_t run_end = segment;
+            while (run_end + 1 < note.slides.size() && note.slides[run_end + 1].unpitched)
             {
-                const double waypoint_x =
-                    common::core::highwayNoteCenterX(waypoint.fret, metrics, mirrored);
-                if (seconds <= waypoint.seconds)
-                {
-                    const double span = waypoint.seconds - segment_start_seconds;
-                    const double progress =
-                        span > 0.0 ? std::clamp((seconds - segment_start_seconds) / span, 0.0, 1.0)
-                                   : 1.0;
-                    const double weight =
-                        common::core::highwaySlideEaseWeight(progress, waypoint.unpitched);
-                    const double alpha =
-                        waypoint.unpitched ? 1.0 + ((g_unpitched_slide_end_alpha - 1.0) * progress)
-                                           : 1.0;
-                    return SlideState{
-                        .x_offset =
-                            segment_start_x + ((waypoint_x - segment_start_x) * weight) - base_x,
-                        .alpha = alpha,
-                    };
-                }
-                segment_start_seconds = waypoint.seconds;
-                segment_start_x = waypoint_x;
+                ++run_end;
             }
-            // Past the last waypoint the glide holds its target (and any unpitched dimming).
-            const common::core::HighwaySlideView& last = note.slides.back();
-            return SlideState{
-                .x_offset = common::core::highwayNoteCenterX(last.fret, metrics, mirrored) - base_x,
-                .alpha = last.unpitched ? g_unpitched_slide_end_alpha : 1.0,
-            };
+            const double run_start_seconds =
+                run_begin == 0 ? note.start_seconds : note.slides[run_begin - 1].seconds;
+            const double run_span = note.slides[run_end].seconds - run_start_seconds;
+            const double progress =
+                run_span > 0.0 ? std::clamp((at - run_start_seconds) / run_span, 0.0, 1.0) : 1.0;
+            return 1.0 + ((g_unpitched_slide_end_alpha - 1.0) * progress);
         };
+        double segment_start_seconds = note.start_seconds;
+        double segment_start_x = base_x;
+        for (std::size_t index = 0; index < note.slides.size(); ++index)
+        {
+            const common::core::HighwaySlideView& waypoint = note.slides[index];
+            const double waypoint_x =
+                common::core::highwayNoteCenterX(waypoint.fret, metrics, mirrored);
+            if (seconds <= waypoint.seconds)
+            {
+                const double span = waypoint.seconds - segment_start_seconds;
+                const double progress =
+                    span > 0.0 ? std::clamp((seconds - segment_start_seconds) / span, 0.0, 1.0)
+                               : 1.0;
+                const double weight =
+                    common::core::highwaySlideEaseWeight(progress, waypoint.unpitched);
+                const double alpha = waypoint.unpitched ? unpitched_alpha_at(index, seconds) : 1.0;
+                return SlideState{
+                    .x_offset =
+                        segment_start_x + ((waypoint_x - segment_start_x) * weight) - base_x,
+                    .alpha = alpha,
+                };
+            }
+            segment_start_seconds = waypoint.seconds;
+            segment_start_x = waypoint_x;
+        }
+        // Past the last waypoint the glide holds its target (and any unpitched dimming).
+        const common::core::HighwaySlideView& last = note.slides.back();
+        return SlideState{
+            .x_offset = common::core::highwayNoteCenterX(last.fret, metrics, mirrored) - base_x,
+            .alpha = last.unpitched ? g_unpitched_slide_end_alpha : 1.0,
+        };
+    };
 
     // The four per-note batches flush per onset group, far-to-near: the board view is
     // painter-ordered with no depth writes, so one global submit per category would let a
@@ -3316,6 +3338,13 @@ void HighwayRenderer::Impl::draw(
                             common::core::highwayTailHalfWidth(metrics) * taper *
                             common::core::highwayTremoloWobble(seconds - note.start_seconds);
                     }
+                    else if (note.attack == common::core::NoteAttack::PickSlide)
+                    {
+                        // The scrape's serrated noise ribbon: the tremolo family's teeth,
+                        // dying along each leg and re-biting at reversals.
+                        x_offset += common::core::highwayTailHalfWidth(metrics) * taper *
+                                    common::core::highwayScrapeWobble(note, seconds);
+                    }
                     samples.push_back(
                         TailSample{
                             .stations = open_band_moves ? open_band_stations(seconds) : band,
@@ -3884,6 +3913,10 @@ void HighwayRenderer::Impl::draw(
             if (note.attack == common::core::NoteAttack::Tap)
             {
                 push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_tap, tint);
+            }
+            else if (note.attack == common::core::NoteAttack::PickSlide)
+            {
+                push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_pick_slide, tint);
             }
             else if (note.attack == common::core::NoteAttack::Slap)
             {
@@ -4474,18 +4507,18 @@ void HighwayRenderer::Impl::draw(
             {
                 ++cluster_end;
             }
-            std::size_t non_tap_count = 0;
+            std::size_t fretting_hand_count = 0;
             bool any_open = false;
             for (std::size_t member = index; member < cluster_end; ++member)
             {
                 const common::core::HighwayNoteView& note = state.notes[member];
-                if (note.attack != common::core::NoteAttack::Tap)
+                if (!common::core::rightHandOnset(note.attack))
                 {
-                    ++non_tap_count;
+                    ++fretting_hand_count;
                     any_open = any_open || note.fret == 0;
                 }
             }
-            const bool boxed = non_tap_count >= 2;
+            const bool boxed = fretting_hand_count >= 2;
             if (boxed || any_open)
             {
                 window_edge_onsets.push_back(cluster_start);
@@ -4499,7 +4532,7 @@ void HighwayRenderer::Impl::draw(
                 for (std::size_t member = index; member < cluster_end; ++member)
                 {
                     const common::core::HighwayNoteView& note = state.notes[member];
-                    if (note.attack == common::core::NoteAttack::Tap || note.fret <= 0)
+                    if (common::core::rightHandOnset(note.attack) || note.fret <= 0)
                     {
                         continue;
                     }

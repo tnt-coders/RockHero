@@ -75,6 +75,11 @@ HighwayViewState makeHighwayViewState(
     for (const ChartNote& note : chart.notes)
     {
         const double onset_beat = globalBeatPosition(tempo_map, note.position);
+        // A pick slide overrides its other techniques in memory (chart.h): the projection is
+        // the one seam that suppresses the latents. Its path renders through the unpitched
+        // machinery — dimmed glide, no waypoint furniture, no hand-window contribution — and
+        // never feeds the slide-locked placement ramps.
+        const bool scrape = note.attack == NoteAttack::PickSlide;
         HighwayNoteView view;
         view.start_seconds = onset_cursor.secondsAt(onset_beat);
         view.end_seconds =
@@ -84,21 +89,24 @@ HighwayViewState makeHighwayViewState(
         view.string = note.string + displayed_lane_shift;
         view.fret = note.fret;
         view.attack = note.attack;
-        view.mute = note.mute;
-        view.harmonic = note.harmonic;
-        view.touch = note.touch;
-        view.vibrato = note.vibrato;
-        view.tremolo = note.tremolo;
-        view.accent = note.accent;
-        view.bend.reserve(note.bend.size());
-        for (const BendPoint& point : note.bend)
+        view.mute = scrape ? NoteMute::None : note.mute;
+        view.harmonic = scrape ? NoteHarmonic::None : note.harmonic;
+        view.touch = scrape ? std::optional<double>{} : note.touch;
+        view.vibrato = !scrape && note.vibrato;
+        view.tremolo = !scrape && note.tremolo;
+        view.accent = !scrape && note.accent;
+        if (!scrape)
         {
-            view.bend.push_back(
-                HighwayBendPointView{
-                    .seconds =
-                        tempo_map.secondsAtGlobalBeatPosition(onset_beat + point.offset.toDouble()),
-                    .semitones = point.semitones,
-                });
+            view.bend.reserve(note.bend.size());
+            for (const BendPoint& point : note.bend)
+            {
+                view.bend.push_back(
+                    HighwayBendPointView{
+                        .seconds = tempo_map.secondsAtGlobalBeatPosition(
+                            onset_beat + point.offset.toDouble()),
+                        .semitones = point.semitones,
+                    });
+            }
         }
         view.slides.reserve(note.slides.size() + 1);
         double glide_segment_start_seconds = view.start_seconds;
@@ -110,17 +118,21 @@ HighwayViewState makeHighwayViewState(
                 HighwaySlideView{
                     .seconds = waypoint_seconds,
                     .fret = waypoint.fret,
-                    .unpitched = false,
+                    .unpitched = scrape,
                 });
-            slide_ramp_starts.try_emplace(
-                advanceGridPosition(tempo_map, note.position, waypoint.offset),
-                glide_segment_start_seconds);
+            if (!scrape)
+            {
+                slide_ramp_starts.try_emplace(
+                    advanceGridPosition(tempo_map, note.position, waypoint.offset),
+                    glide_segment_start_seconds);
+            }
             glide_segment_start_seconds = waypoint_seconds;
         }
         // The slide-out flattens into the view's slide list so the renderer keeps one uniform
         // segment model; it owns its geometry and dims unpitched. Pitched glides — shift and
-        // legato alike — are already ordinary waypoints above.
-        if (const SlideOut* const slide_out = slideOutOrNull(note))
+        // legato alike — are already ordinary waypoints above. A scrape's slide-out is a
+        // suppressed latent like the rest.
+        if (const SlideOut* const slide_out = slideOutOrNull(note); slide_out != nullptr && !scrape)
         {
             view.slides.push_back(
                 HighwaySlideView{
@@ -131,10 +143,10 @@ HighwayViewState makeHighwayViewState(
                 });
         }
         double rise_seconds = 0.0;
-        if (note.attack == NoteAttack::Tap)
+        if (rightHandOnset(note.attack))
         {
-            // The tap light's rise uses the fret-hand placements' own arrival rule (user rule
-            // 2026-07-28): the minimum-sustain-distance margin at the onset's meter.
+            // The right-hand light's rise uses the fret-hand placements' own arrival rule:
+            // the minimum-sustain-distance margin at the onset's meter.
             const TimeSignatureChange signature = tempo_map.timeSignatureAt(note.position.measure);
             const Fraction margin = minimumSustainDistanceBeats(signature.denominator);
             const GridPosition rise_start = advanceGridPosition(

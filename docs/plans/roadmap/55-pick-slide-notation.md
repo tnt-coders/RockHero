@@ -79,19 +79,36 @@ language on the 3D highway and the 2D tab.
 
 ## Decision gates
 
-- **55-Q1 — the head (sight gate, mockup sheets pending).** Two finalists, each composed with
-  the settled tail below; the sheets render both over board and tab backgrounds:
-  - (A) **Narrow whitened attack triangle over a regular string-colored head** — extends the
-    shipped "narrower + whiter = intensified" grammar (full vs palm mute); digit placement
-    trivial in 2D; weakest channel is small-marker discrimination at scroll speed.
-  - (B) **X-shaped head** (the X *is* the head, string-colored) — the print convention's
-    unpitched notehead; whole-silhouette read at distance; must stay visually distinct from
-    the full-mute X *overlay* on dead notes; 2D digit sits in a small box over the X.
-- **Settled rendering (both surfaces)**: the path draws in the unpitched slide language with a
-  **wavy/serrated "noise" texture** across the travel direction — the print convention's wavy
-  line, which is also tremolo-appearance-turned-vertical — static for now (if tails ever
-  animate, they animate as a family pass across all tail types); per-leg target chips in 2D;
-  no text labels. New colors enter plan 54's theme struct.
+- **55-Q1 — the head. SIGNED 2026-08-04: A-refined on both surfaces**, chosen through two
+  adversarial panel rounds whose record matters:
+  - A first panel (three lenses + critic) unanimously preferred an X-shaped head — built on two
+    FALSE premises the user caught: it assumed the 3D head could be numberless (the digit is
+    the only early-read position channel while perspective compresses board-X on approach, and
+    a digitless gem would be the game's only one), and it called the V-family tie a false
+    cognate "crossing hands" (wrong: `NoteAttack::Tap` IS the right-hand tap, and
+    `rightHandOnset = Tap || PickSlide` is the code's own grouping).
+  - A corrected-premise adversarial pass then found the 2D icon vocabulary already encodes the
+    hand in FILL COLOR (hammer/pull white = fretting hand; tap/slap/pop black = picking hand,
+    `drawAttackIcon`), that tap gems already made gem digits hand-agnostic position
+    instructions, and that an X head would collide with the full-mute X-plus-boxed-digit in
+    the same acceptance song (measures 3 and 20) — reviving the confusion the first reverted
+    experiment died of. Misread directions also favor A: scrape-read-as-tap stages the right
+    hand at the neck at the digit; X-read-as-mute keeps it picking at home.
+  - **The signed design**: 3D = digit-bearing string-colored gem + narrow whitened V on the
+    face (the tap cell's V, whitened/narrowed — the palm→full intensification grammar inside
+    the right-hand family; currently rendered as the tap cell in a whitened tint, the bespoke
+    narrower cell is a queued atlas edit); 2D = normal digit-bearing head + black V with the
+    family border (0xC0C0C0) in the attack-icon slot (joining the picking-hand black-fill icon
+    family).
+- **Settled rendering (both surfaces)**: the path renders through the unpitched slide machinery
+  (dimmed glide, head rides the path, no board furniture, no hand-window contribution — all by
+  the projection marking scrape waypoints unpitched), with a **wave-decay noise texture**:
+  amplitude and period die along each leg and restart at direction reversals (the pick
+  re-bites). Ribbon width stays uniform by invariant — perspective owns width on the board, so
+  energy lives in the wave, never in taper. 2D ships the decaying wavy travel diagonals and a
+  desaturated tail (hue = string identity, drained saturation = noise); the 3D wave texture and
+  the root impact shards are queued sight-round flourishes. Per-leg target chips in 2D; no text
+  labels. New colors enter plan 54's theme struct.
 - **55-Q2 — authoring.** Mostly dissolved by the note-carried model: scrapes select, move,
   delete, and undo as ordinary notes. Remaining verbs for plan 40 Phase 5's technique surface:
   the attack toggle to/from `PickSlide` (synthesizing the default path on entry, restoring
@@ -100,14 +117,32 @@ language on the 3D highway and the 2D tab.
 
 ## Remaining phases
 
-3. **Projection + 2D tab.** Projections suppress overridden techniques on scrape notes (the one
-   override seam) and mark path waypoints unpitched/unlinked; the tab draws the 55-Q1 head,
-   the wavy path diagonals, and per-leg chips. Pixel tests.
-   **Exit.** Tab renders a down-then-up chain per the mockup pick. **Verify.** Build; common
-   core/ui + editor ui suites.
-4. **Highway treatment.** The 55-Q1 head at the anchor lane and start-position X (numberless —
-   the board's X axis places the start spatially); wavy shimmer tail following the waypoint
-   path; no FHP-window coupling; no floor furniture. Sight-iterate on Van Halen measure 20.
+3. **Projection + 2D tab. FIRST CUT SHIPPED 2026-08-04.** Both projections suppress the latent
+   overrides (the one seam) and mark scrape waypoints unpitched/unlinked — which routes the
+   whole 3D path through the existing unpitched-glide machinery and keeps scrape legs out of
+   the hand window's slide-locked ramps (pinned by test alongside no-tap-lighting). The tab
+   draws the black family-border V icon, decaying wavy travel diagonals, desaturated tail, and
+   per-leg chips.
+   **Exit.** Tab renders a down-then-up chain per the signed head. **Verify.** Build; suites —
+   green 2026-08-04.
+4. **Highway treatment. SIGHT ROUNDS 1-2 SHIPPED 2026-08-04** (user directions after the first
+   sightings): a REAL atlas cell — the atlas grew to 4x5, was re-sorted into semantic rows
+   (head bases + emphasis / fretting-hand brackets + legato / picking-hand family / damping +
+   timbre / bend + growth, superseding the Charter reference order — user signed), and the
+   pick-slide V was authored, never stretched — after several failed methods (LUT profile
+   transfer read blurry; pixel-copying the X's arms staggered, since the X's 31x33 slope is
+   irrational to the grid), the landed construction is ANALYTIC: straight arm lines at the
+   X's own slope rendered at 8x through the X's super-resolved cross-section (17 perpendicular
+   cuts, plateau-centered, median-folded), Chebyshev-capped squared tips, a mirror-mitre
+   vertex, and a two-ended correction loop pinning the V's SOLID extent to the tap V's exact
+   rows (verified in-bake, hard-fail otherwise). Trialed and reverted on sight: an X-mute
+   composite under the V, and a second incommensurate tail-grit layer (read as noise); the
+   tail
+   carries the serrated wave (`highwayScrapeWobble`: tremolo-family teeth, amplitude and
+   frequency decaying per leg, re-biting at reversals); and the scrape drives a **moving
+   right-hand light** through the tap-light machinery — the light path rides the waypoint
+   travel exactly as the fret-hand window rides left-hand glides, with the tap's margin rise.
+   Still queued: the root impact shards. Sight-iterate on Van Halen measure 20.
    **Exit.** User signs the treatment on sight. **Verify.** Build; sight pass; plan 54 color
    coordination.
 5. **Editor verbs + acceptance.** 55-Q2's remainder; then the acceptance bundle.
