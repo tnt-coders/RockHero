@@ -517,27 +517,34 @@ void drawMuteIcon(
 }
 
 // Draws the pick-slide V above the head in the full-mute X's own construction — white fill,
-// gray border, the X's 45-degree arms and band weight — pointing down at the note with its tip
-// dipped one band into the head's top edge, mirroring the 3D head's V-over-X composite. The
-// compact height keeps stacked scrapes on adjacent strings clear of each other.
+// gray border, the X's band weight — pointing down at the note with its tip dipped one band
+// into the head's top edge, mirroring the 3D head's V-over-X composite. The arms stand
+// steeper than the X's (the atlas V's narrowed angle) and the height shrinks at that locked
+// angle with the tip anchored (the full-height V read too tall), which also keeps stacked
+// scrapes on adjacent strings clear of each other.
 void drawChevronIcon(
     juce::Graphics& g, const TabLaneMetrics& metrics, float center_x, float center_y)
 {
     const float size = std::max(16.0f, metrics.note_height + 1.0f);
     const float space = std::max(2.0f, size / 8.0f);
     const float half = size / 2.0f;
+    const float v_height = half * (5.0f / 6.0f);
+    const float width_half = v_height * 0.75f;
     const float tip_y = center_y - half + space;
-    const float top = tip_y - half;
-    const float left = center_x - half;
-    const float right = center_x + half;
+    const float top = tip_y - v_height;
+    const float left = center_x - width_half;
+    const float right = center_x + width_half;
+    // The inner V is the outer shifted up by the band thickness; its top points slide inward
+    // by the arms' run-over-rise so the band stays uniform at the steeper slope.
+    const float inset_x = 2.0f * space * (width_half / v_height);
 
     juce::Path chevron;
     chevron.startNewSubPath(left, top);
     chevron.lineTo(center_x, tip_y);
     chevron.lineTo(right, top);
-    chevron.lineTo(right - 2.0f * space, top);
+    chevron.lineTo(right - inset_x, top);
     chevron.lineTo(center_x, tip_y - 2.0f * space);
-    chevron.lineTo(left + 2.0f * space, top);
+    chevron.lineTo(left + inset_x, top);
     chevron.closeSubPath();
     g.setColour(juce::Colours::white);
     g.fillPath(chevron);

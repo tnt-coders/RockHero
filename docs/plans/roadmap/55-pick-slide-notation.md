@@ -100,14 +100,21 @@ language on the 3D highway and the 2D tab.
     narrower cell is a queued atlas edit); 2D = normal digit-bearing head + black V with the
     family border (0xC0C0C0) in the attack-icon slot (joining the picking-hand black-fill icon
     family).
-  - **Superseded on sight 2026-08-04 (user redesign): the X-plus-V composite on BOTH
-    surfaces.** The head IS the full-mute X (3D: the full-mute atlas cell as the head base;
-    2D: the mute X over the digit with the full-mute readability plate) with the V hovering
-    just above it pointing down at the note (3D: upright through the roll flip, the bend cue's
-    near-touch gap; 2D: white mute-styled V in the X's own band construction, tip dipped one
-    band into the head, compact so stacked scrapes on adjacent strings stay clear). The
-    original X-collision objection dissolved once the V and the glowing tremolo tail carry the
-    scrape identity over the mute reading.
+  - **Superseded on sight 2026-08-04 (user redesign): the muted-note composite plus the V,
+    on BOTH surfaces.** A scrape head dresses exactly like a full-muted note — 3D: the tech
+    gem base with its digit under the upright full-mute X marker (an interim X-as-head-base
+    hybrid was sighted and retired the same day); 2D: the mute X over the digit with the
+    full-mute readability plate — with the V cue hovering over the X pointing down at the
+    note (3D: upright through the roll flip, tip dipped into the X's upper notch but never
+    its center crossing; 2D: white mute-styled V in the X's band weight, tip dipped one band
+    into the head, compact so stacked scrapes on adjacent strings stay clear). The V cell was
+    reshaped through sighted rounds: arms hold a steeper-than-X angle (dxdy 0.517, three
+    quarters of the original tap-derived width), the height then shrank at that locked angle
+    with the tip anchored, the arm tops end in the X's own squared caps (flat hard cuts — the
+    prior perpendicular tips read as soft points), and the glyph centers on the X's measured
+    solid axis, half a pixel right of the cell's middle. The original X-collision objection
+    dissolved once the V and the glowing tremolo tail carry the scrape identity over the mute
+    reading.
 - **Settled rendering (both surfaces), simplified 2026-08-04 (user redesign)**: the path
   renders through the unpitched slide machinery (dimmed glide, head rides the path, no board
   furniture, no hand-window contribution — all by the projection marking scrape waypoints

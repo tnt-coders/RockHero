@@ -113,11 +113,11 @@ constexpr double g_tail_slope_shade_smooth_seconds = 0.05;
 // glyph the same day).
 constexpr double g_bend_marker_offset_heads = 0.38;
 
-// The pick-slide V's center rides this many head half-heights above its X-shaped head. The
-// value parks the V's solid tip (cell rows 20..43) just off the X's upper arm tips, matching
-// the bend cue's near-touch gap rather than its raw offset (the two glyphs sit at different
-// heights inside their cells).
-constexpr double g_scrape_marker_offset_heads = 1.0;
+// The pick-slide V's center rides this many head half-heights above its head. The value dips
+// the V's solid tip (cell rows 24..43) into the X marker's upper notch — above the X's center
+// crossing, the floor the tip must never reach (user placement 2026-08-04: overlapping, but
+// clear of the middle; nudged up twice on sight).
+constexpr double g_scrape_marker_offset_heads = 0.55;
 // Pre-bend target outline alpha: the hollow head silhouette parked at a pre-bent note's
 // chart-truth height is an annotation, dimmed so the rising head stays the subject (first
 // value judged on composite sheets 2026-07-31; expect on-sight retuning).
@@ -3884,17 +3884,16 @@ void HighwayRenderer::Impl::draw(
         const double sin_r = std::sin(rotation);
         const std::uint32_t tint = packAbgr(base_color, fade * head_slide.alpha);
 
-        // Head base: a scrape's head IS the full-mute X shape (sighting hybrid 2026-08-04);
-        // otherwise the technique variant under left-hand technique markers, else the standard
-        // head (Charter's base-cell selection).
+        // Head base: the technique variant under left-hand technique markers and under a
+        // scrape's mute-family composite (a scrape head dresses exactly like a full-muted
+        // note, X marker and all, plus its V cue), else the standard head (Charter's
+        // base-cell selection).
         const bool tech_head = note.mute == common::core::NoteMute::Full ||
                                note.harmonic == common::core::NoteHarmonic::Natural ||
                                note.attack == common::core::NoteAttack::Hammer ||
-                               note.attack == common::core::NoteAttack::Pull;
+                               note.attack == common::core::NoteAttack::Pull || scrape;
         const std::array<float, 4> base_cell =
-            scrape      ? atlases.head_layout.cellRect(g_head_cell_full_mute)
-            : tech_head ? atlases.head_layout.cellRect(g_head_cell_tech)
-                        : head_cell;
+            tech_head ? atlases.head_layout.cellRect(g_head_cell_tech) : head_cell;
         const auto corner = [&](const double dx, const double dy, const float u, const float v) {
             return makeUvVertex(
                 x + (dx * cos_r) - (dy * sin_r),
@@ -3931,20 +3930,6 @@ void HighwayRenderer::Impl::draw(
             {
                 push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_tap, tint);
             }
-            else if (scrape)
-            {
-                // The V hovers just off the X's upper arms, pointing down at the note —
-                // the bend cue's gap — and stays upright through the roll flip so the cue
-                // keeps pointing at it.
-                push_marker(
-                    x,
-                    head_y + (g_scrape_marker_offset_heads * head_half_h),
-                    z,
-                    1.0,
-                    0.0,
-                    g_head_cell_pick_slide,
-                    tint);
-            }
             else if (note.attack == common::core::NoteAttack::Slap)
             {
                 push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_slap, tint);
@@ -3958,10 +3943,22 @@ void HighwayRenderer::Impl::draw(
                 push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_accent, tint);
             }
             // Upright markers stay flat through the flip (Charter overlays these after
-            // the rotated head).
-            if (note.mute == common::core::NoteMute::Full)
+            // the rotated head). A scrape wears the full-mute X — its travel is unpitched
+            // noise — with the V cue drawn after it so the dipped tip stays on top.
+            if (note.mute == common::core::NoteMute::Full || scrape)
             {
                 push_marker(x, head_y, z, 1.0, 0.0, g_head_cell_full_mute, tint);
+            }
+            if (scrape)
+            {
+                push_marker(
+                    x,
+                    head_y + (g_scrape_marker_offset_heads * head_half_h),
+                    z,
+                    1.0,
+                    0.0,
+                    g_head_cell_pick_slide,
+                    tint);
             }
             if (note.attack == common::core::NoteAttack::Hammer)
             {
