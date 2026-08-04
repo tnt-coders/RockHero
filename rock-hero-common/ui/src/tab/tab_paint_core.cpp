@@ -164,21 +164,26 @@ void drawStringLines(
 // thickness the way the ported pointed-gem chain did (user direction 2026-08-04, bringing the
 // tab in line with the 3D highway's teeth, which swing a constant-width ribbon the same way).
 //
-// The band keeps the plain tail's own thickness and swings by the tremolo size each way, so
-// its outer envelope is exactly the gem chain's — the tail occupies the same rows it always
-// has. Apexes come twice per gem cell (sighted 2026-08-04, doubled from the chain's rate),
-// which puts the legs near forty-five degrees and reads as picking rather than as a slow
-// wave. Drawn edge-colored with the tail color inset by the edge size, like every other tail.
-// Vertices run past the end and the clip cuts them, so the final tooth keeps its true shape
-// and the strip ends on a clean vertical edge.
+// The band is the plain tail's span grown by half the tremolo size on each side and swung by
+// that same half, which pins two things at once: the outer envelope stays exactly the gem
+// chain's — the tail occupies the same rows it always has — and the strip's ALWAYS-covered
+// core is exactly the plain span, so a slide diagonal, which is drawn to that span, sits
+// entirely inside the band at every x instead of crossing its teeth (user rule 2026-08-04).
+// Apexes come twice per gem cell (sighted, doubled from the chain's rate), which
+// reads as picking rather than as a slow wave. Drawn edge-colored with the tail color inset by
+// the edge size, like every other tail. Vertices run past the end and the clip cuts them, so
+// the final tooth keeps its true shape and the strip ends on a clean vertical edge.
 void drawTremoloTail(
     juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style, float x,
     float length, float center_y)
 {
     const TailSpan span = tailSpan(metrics, center_y);
     const float band_center = (span.top + span.bottom) / 2.0f;
-    const float half_thickness = (span.bottom - span.top) / 2.0f;
-    const float amplitude = metrics.tremolo_size;
+    // Half the tremolo size each way: the swing the band adds to its thickness is the swing it
+    // takes back by snaking, so the envelope is the plain span plus the whole tremolo size and
+    // the core is the plain span exactly.
+    const float amplitude = metrics.tremolo_size / 2.0f;
+    const float half_thickness = ((span.bottom - span.top) / 2.0f) + amplitude;
     const float apex_step = std::max(2.0f, metrics.note_height / 4.0f);
 
     // Triangle wave along the tail, zero at the onset so the band leaves the head centered and
