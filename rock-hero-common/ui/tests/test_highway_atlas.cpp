@@ -15,7 +15,14 @@ TEST_CASE("Highway atlas layout reports its grid capacity", "[ui][highway]")
     CHECK(layout.rows() == 10);
     CHECK(layout.capacity() == 100);
 
-    // Rectangular grids (the composed head atlas's appended chevron row) count rows by height.
+    // The head atlas is square and holds exactly the cells the renderer names.
+    const HighwayAtlasLayout heads{.texture_width = 256, .texture_height = 256, .cell_size = 64};
+    CHECK(heads.columns() == 4);
+    CHECK(heads.rows() == 4);
+    CHECK(heads.capacity() == g_head_cell_count);
+
+    // Rectangular grids still count rows by height, so a non-square asset cannot silently
+    // renumber the cells.
     const HighwayAtlasLayout composed{
         .texture_width = 512, .texture_height = 640, .cell_size = 128
     };
@@ -52,6 +59,27 @@ TEST_CASE("Highway atlas cells tile the texture with a half-texel inset", "[ui][
     CHECK_THAT(chevron[1], Catch::Matchers::WithinAbs(0.8F + (0.5F / 640.0F), 1e-7));
     CHECK_THAT(chevron[2], Catch::Matchers::WithinAbs(0.25F - (0.5F / 512.0F), 1e-7));
     CHECK_THAT(chevron[3], Catch::Matchers::WithinAbs(1.0F - (0.5F / 640.0F), 1e-7));
+}
+
+// The legato pair shares one cell, drawn upright for the hammer-on and vertically flipped for
+// the pull-off, so the two can never disagree in weight or border the way separately authored
+// art did. Swapping a cell's v coordinates is exactly that flip, and it stays inside the cell.
+TEST_CASE("Highway atlas legato cell mirrors within its own bounds", "[ui][highway]")
+{
+    const HighwayAtlasLayout heads{.texture_width = 256, .texture_height = 256, .cell_size = 64};
+    const auto cell = heads.cellRect(g_head_cell_legato);
+
+    // The flip is a swap of the vertical pair, so it samples the same rows in reverse and
+    // never reaches a neighbouring cell.
+    CHECK(cell[1] < cell[3]);
+    const float row_top = 1.0F / 4.0F;
+    CHECK_THAT(cell[1], Catch::Matchers::WithinAbs(row_top + (0.5F / 256.0F), 1e-7));
+    CHECK_THAT(cell[3], Catch::Matchers::WithinAbs((2.0F * row_top) - (0.5F / 256.0F), 1e-7));
+
+    // Every named cell is inside the square grid the shipped asset provides.
+    CHECK(g_head_cell_bend < g_head_cell_count);
+    CHECK(g_head_cell_pinch_harmonic < g_head_cell_count);
+    CHECK(heads.capacity() == g_head_cell_count);
 }
 
 TEST_CASE("Highway atlas layout clamps out-of-range cells", "[ui][highway]")

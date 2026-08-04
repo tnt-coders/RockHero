@@ -92,10 +92,10 @@ struct HighwayAtlases
     HighwayAtlasLayout glyph_layout{};
 };
 
-// The cell vocabulary, row-major on the 4x5 grid, sorted semantically (2026-08-04,
-// superseding the Charter reference asset's order): head bases + emphasis, the fretting-hand
-// row (posture bracket pair + legato), the picking-hand row, damping + timbre, then bend
-// anchoring the growth row. One art set serves every head-composite consumer deliberately
+// The cell vocabulary, row-major on the 4x4 grid, sorted semantically (2026-08-04,
+// superseding the Charter reference asset's order): head bases + emphasis, then one row per
+// hand — the fretting hand's posture brackets, legato mark and bend, then the picking hand's
+// marks — then damping + timbre. One art set serves every head-composite consumer deliberately
 // (absolute consistency, no dedicated variants); repeat-box mute marks render through the SDF
 // program instead of any cell, because their line weights must hold across arbitrary box
 // aspects.
@@ -118,11 +118,19 @@ inline constexpr int g_head_cell_arpeggio_fret_bracket = 4;
 /*! \brief Arpeggio bracket end for an open posture string. */
 inline constexpr int g_head_cell_arpeggio_open_bracket = 5;
 
-/*! \brief Hammer-on marker. */
-inline constexpr int g_head_cell_hammer_on = 6;
+/*!
+\brief Legato marker: the hammer-on triangle, which the pull-off draws flipped vertically.
 
-/*! \brief Pull-off marker. */
-inline constexpr int g_head_cell_pull_off = 7;
+One cell, not two. Drawn separately they disagreed — the flat edges carried different border
+thicknesses and the solid cores differed by 26 pixels, because each was authored rather than
+mirrored (measured 2026-08-04: 377 of 4096 pixels differed from a true mirror). Flipping one
+cell makes the pair exact inverses by construction, and frees the seventeenth cell that had
+forced the atlas to a fifth row.
+*/
+inline constexpr int g_head_cell_legato = 6;
+
+/*! \brief Bend marker: the chevron announcing a bent note on its head (authored 2026-07-28). */
+inline constexpr int g_head_cell_bend = 7;
 
 /*! \brief Tap marker. */
 inline constexpr int g_head_cell_tap = 8;
@@ -152,11 +160,8 @@ inline constexpr int g_head_cell_harmonic = 14;
 /*! \brief Pinch-harmonic head marker. */
 inline constexpr int g_head_cell_pinch_harmonic = 15;
 
-/*! \brief Bend marker: the chevron announcing a bent note on its head (authored 2026-07-28). */
-inline constexpr int g_head_cell_bend = 16;
-
-/*! \brief Cells the renderer requires the head atlas to carry (a 4x5 grid, 17 used). */
-inline constexpr int g_head_cell_count = 17;
+/*! \brief Cells the renderer requires the head atlas to carry (a 4x4 grid, all 16 used). */
+inline constexpr int g_head_cell_count = 16;
 
 /*!
 \brief Builds the highway atlases and uploads them as immutable bgfx textures.

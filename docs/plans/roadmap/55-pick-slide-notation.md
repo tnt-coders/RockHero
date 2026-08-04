@@ -186,7 +186,8 @@ language on the 3D highway and the 2D tab.
    **Exit.** Tab renders a down-then-up chain per the signed head. **Verify.** Build; suites —
    green 2026-08-04.
 4. **Highway treatment. SIGHT ROUNDS 1-2 SHIPPED 2026-08-04** (user directions after the first
-   sightings): a REAL atlas cell — the atlas grew to 4x5, was re-sorted into semantic rows
+   sightings): a REAL atlas cell — the atlas grew to 4x5 (and back to 4x4 on 2026-08-04 once
+   the legato pair was merged into one flipped cell), was re-sorted into semantic rows
    (head bases + emphasis / fretting-hand brackets + legato / picking-hand family / damping +
    timbre / bend + growth, superseding the Charter reference order — user signed), and the
    pick-slide V was authored, never stretched — after several failed methods (LUT profile

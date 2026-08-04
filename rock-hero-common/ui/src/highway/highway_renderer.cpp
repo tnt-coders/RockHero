@@ -3526,8 +3526,13 @@ void HighwayRenderer::Impl::draw(
                                      const double cos_r,
                                      const double sin_r,
                                      const int cell,
-                                     const std::uint32_t marker_tint) {
+                                     const std::uint32_t marker_tint,
+                                     const bool flip_v = false) {
             const std::array<float, 4> rect = atlases.head_layout.cellRect(cell);
+            // Swapping the cell's vertical texture coordinates mirrors the art: the pull-off
+            // IS the hammer-on upside down, so the pair shares one cell.
+            const float v_low = flip_v ? rect[1] : rect[3];
+            const float v_high = flip_v ? rect[3] : rect[1];
             const auto corner =
                 [&](const double dx, const double dy, const float u, const float v) {
                     return makeUvVertex(
@@ -3541,10 +3546,10 @@ void HighwayRenderer::Impl::draw(
             pushQuad(
                 head_vertices,
                 head_indices,
-                corner(-head_half_w, -head_half_h, rect[0], rect[3]),
-                corner(head_half_w, -head_half_h, rect[2], rect[3]),
-                corner(head_half_w, head_half_h, rect[2], rect[1]),
-                corner(-head_half_w, head_half_h, rect[0], rect[1]));
+                corner(-head_half_w, -head_half_h, rect[0], v_low),
+                corner(head_half_w, -head_half_h, rect[2], v_low),
+                corner(head_half_w, head_half_h, rect[2], v_high),
+                corner(-head_half_w, head_half_h, rect[0], v_high));
         };
 
         // Chord membership decides the rolling flip, the shadow, and the chord box (Charter
@@ -3761,7 +3766,8 @@ void HighwayRenderer::Impl::draw(
                 const std::uint32_t marker_tint = packAbgr(base_color, fade);
                 if (note.attack == common::core::NoteAttack::Pull)
                 {
-                    push_marker(center_x, head_y, z, 1.0, 0.0, g_head_cell_pull_off, marker_tint);
+                    push_marker(
+                        center_x, head_y, z, 1.0, 0.0, g_head_cell_legato, marker_tint, true);
                 }
                 if (note.mute == common::core::NoteMute::Palm)
                 {
@@ -3996,13 +4002,15 @@ void HighwayRenderer::Impl::draw(
                     g_head_cell_pick_slide,
                     tint);
             }
+            // The legato pair is one cell: the hammer-on upright, the pull-off flipped, so the
+            // two can never drift apart in weight or border the way separately drawn art did.
             if (note.attack == common::core::NoteAttack::Hammer)
             {
-                push_marker(x, head_y, z, 1.0, 0.0, g_head_cell_hammer_on, tint);
+                push_marker(x, head_y, z, 1.0, 0.0, g_head_cell_legato, tint);
             }
             else if (note.attack == common::core::NoteAttack::Pull)
             {
-                push_marker(x, head_y, z, 1.0, 0.0, g_head_cell_pull_off, tint);
+                push_marker(x, head_y, z, 1.0, 0.0, g_head_cell_legato, tint, true);
             }
         }
 
