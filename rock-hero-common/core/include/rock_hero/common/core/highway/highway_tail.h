@@ -72,10 +72,24 @@ teeth clear each other and the zigzag reads as a hard saw instead of a wobbling 
 inline constexpr double g_highway_tremolo_depth = 1.25;
 
 /*!
-\brief Fraction of the tail duration over which wobble amplitude ramps in and out.
+\brief Teeth over which the tremolo envelope ramps in and out at the tail's ends.
 
-Modulating at full amplitude to the tail's very ends would start and end the rails off the
-string line; the taper is this project's deliberate fix so rails always anchor on it.
+The teeth ease off the string line rather than starting mid-swing, but the ramp is measured in
+TEETH, not in a fraction of the tail's duration. A duration fraction cannot work here: teeth
+are spaced by depth, so the same fraction damps a dozen of them near the head on one sustain
+and less than one on another — read on sight as the teeth being narrower at the start (user
+catch 2026-08-04). One tooth in and one tooth out is fast enough to leave the run uniform at
+any sustain length while keeping the eased entry.
+*/
+inline constexpr double g_highway_tremolo_ramp_cycles = 1.0;
+
+/*!
+\brief Fraction of the tail duration over which the vibrato lift ramps in and out.
+
+Modulating at full amplitude to the tail's very ends would start and end the lift off the
+string line; the taper is this project's deliberate fix so it always anchors on it. Tremolo
+teeth ramp in their own phase units instead (see \ref g_highway_tremolo_ramp_cycles), because
+a fraction of duration is the wrong measure for a depth-spaced wave.
 */
 inline constexpr double g_highway_tail_taper_fraction = 0.1;
 
@@ -214,15 +228,28 @@ Callers walk the half-cycles to place the wave's turning points exactly (see
 /*!
 \brief Returns the tremolo wobble at a tooth phase, as a signed factor.
 
-A triangle wave, peaking at the anchor; callers scale by the tail half-width and the taper
-envelope. The teeth mean UNMEASURED noise picking (the charting standard spells out measured
-repetition as discrete notes), so pick-slide tails ride this same wave outright — a scrape is
-that noise dragged along the string.
+A triangle wave, peaking at the anchor; callers scale by the tail half-width and the envelope.
+The teeth mean UNMEASURED noise picking (the charting standard spells out measured repetition
+as discrete notes), so pick-slide tails ride this same wave outright — a scrape is that noise
+dragged along the string.
 
 \param cycles Phase in cycles, from \ref highwayTremoloCycles.
 \return Wobble factor within plus-or-minus \ref g_highway_tremolo_depth.
 */
 [[nodiscard]] double highwayTremoloWobble(double cycles) noexcept;
+
+/*!
+\brief Returns the tremolo amplitude envelope at a tooth phase.
+
+Ramps over \ref g_highway_tremolo_ramp_cycles teeth at each end so the wave leaves and meets
+the string line instead of starting and stopping mid-swing, and holds full depth everywhere
+between — the ramp is in teeth, so a long sustain damps no more of them than a short one.
+
+\param cycles Phase in cycles from the tail's anchor.
+\param end_cycles Phase at the tail's far end; ends at or before the anchor give zero.
+\return Amplitude scale in [0, 1].
+*/
+[[nodiscard]] double highwayTremoloEnvelope(double cycles, double end_cycles) noexcept;
 
 /*!
 \brief Builds the ascending sample times for one tail's visible span.

@@ -180,12 +180,13 @@ TEST_CASE("Highway tremolo teeth hold their aspect with depth", "[core][highway]
 
     // The depth lookup inverts the phase exactly, which is what lets a caller place turning
     // points on the wave rather than near them.
-    for (int half_cycle = 0; half_cycle < 12; ++half_cycle)
+    for (int index = 0; index < 12; ++index)
     {
-        const double cycles = 0.5 * half_cycle;
+        const double cycles = 0.5 * index;
         const double depth = highwayTremoloEyeDepthAtCycle(cycles, anchor);
         CHECK(highwayTremoloCycles(depth, anchor) == Catch::Approx(cycles));
-        // Every half cycle is a true extremum of the wave.
+        // Every half cycle is a true extremum, so a sampler walking them lands the wave's
+        // corners exactly rather than near them.
         CHECK(std::abs(highwayTremoloWobble(cycles)) == Catch::Approx(g_highway_tremolo_depth));
     }
     // Depth grows strictly with phase, so a caller's half-cycle walk always terminates.
@@ -194,6 +195,34 @@ TEST_CASE("Highway tremolo teeth hold their aspect with depth", "[core][highway]
     // Behind the camera the phase is defined rather than a domain error.
     CHECK(highwayTremoloCycles(-1.0, anchor) == Catch::Approx(0.0));
     CHECK(highwayTremoloCycles(anchor, 0.0) == Catch::Approx(0.0));
+}
+
+// The teeth ease off the string line over a fixed number of TEETH at each end, so the run
+// reads uniform whatever the sustain's length — a duration-fraction ramp instead damps a dozen
+// teeth near the head of a long tail and under one on a short tail.
+TEST_CASE("Highway tremolo envelope ramps in teeth, not duration", "[core][highway][tail]")
+{
+    const double ramp = g_highway_tremolo_ramp_cycles;
+
+    // Anchored at both ends, full depth everywhere between.
+    CHECK(highwayTremoloEnvelope(0.0, 40.0) == Catch::Approx(0.0));
+    CHECK(highwayTremoloEnvelope(40.0, 40.0) == Catch::Approx(0.0));
+    CHECK(highwayTremoloEnvelope(ramp, 40.0) == Catch::Approx(1.0));
+    CHECK(highwayTremoloEnvelope(20.0, 40.0) == Catch::Approx(1.0));
+    CHECK(highwayTremoloEnvelope(40.0 - ramp, 40.0) == Catch::Approx(1.0));
+    CHECK(highwayTremoloEnvelope(ramp / 2.0, 40.0) == Catch::Approx(0.5));
+
+    // The ramp costs the same teeth on a long tail as on a short one: past the first tooth
+    // every tail is at full depth, however many teeth it carries.
+    for (const double end : {8.0, 40.0, 200.0})
+    {
+        CHECK(highwayTremoloEnvelope(ramp, end) == Catch::Approx(1.0));
+        CHECK(highwayTremoloEnvelope(end / 2.0, end) == Catch::Approx(1.0));
+    }
+
+    // Degenerate spans stay in range rather than exploding.
+    CHECK(highwayTremoloEnvelope(0.0, 0.0) == Catch::Approx(0.0));
+    CHECK(highwayTremoloEnvelope(5.0, 1.0) == Catch::Approx(0.0));
 }
 
 // The vibrato period locks to the song grid: one full wobble per sixteenth note (a quarter

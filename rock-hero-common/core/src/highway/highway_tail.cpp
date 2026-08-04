@@ -180,6 +180,12 @@ double highwayTremoloWobble(const double cycles) noexcept
     return (std::abs(phase - 0.5) - 0.25) * 4.0 * g_highway_tremolo_depth;
 }
 
+double highwayTremoloEnvelope(const double cycles, const double end_cycles) noexcept
+{
+    const double ramp = std::max(g_highway_tremolo_ramp_cycles, 1.0e-6);
+    return std::clamp(std::min(cycles, end_cycles - cycles) / ramp, 0.0, 1.0);
+}
+
 std::vector<double> makeHighwayTailSampleTimes(
     const HighwayNoteView& note, const double from_seconds, const double to_seconds,
     const std::size_t uniform_count, const std::span<const double> extra_times)

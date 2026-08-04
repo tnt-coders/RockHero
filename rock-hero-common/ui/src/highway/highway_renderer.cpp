@@ -3331,12 +3331,14 @@ void HighwayRenderer::Impl::draw(
                 std::vector<double> wobble_times;
                 const double tooth_anchor_depth =
                     std::max(time_to_z(tail_from) - pose.z, metrics.near_plane);
+                const double tooth_end_cycles = common::core::highwayTremoloCycles(
+                    time_to_z(tail_to) - pose.z, tooth_anchor_depth);
                 if (teethed)
                 {
-                    for (int half_cycle = 1;; ++half_cycle)
+                    for (int tooth = 1;; ++tooth)
                     {
                         const double depth = common::core::highwayTremoloEyeDepthAtCycle(
-                            0.5 * half_cycle, tooth_anchor_depth);
+                            0.5 * tooth, tooth_anchor_depth);
                         const double seconds =
                             now_seconds + ((depth + pose.z) / scroll_z_per_second);
                         if (!(seconds < tail_to))
@@ -3386,10 +3388,15 @@ void HighwayRenderer::Impl::draw(
                     // along the string — same notation, same meaning, no differentiator.
                     if (teethed)
                     {
-                        x_offset += common::core::highwayTailHalfWidth(metrics) * taper *
-                                    common::core::highwayTremoloWobble(
-                                        common::core::highwayTremoloCycles(
-                                            time_to_z(seconds) - pose.z, tooth_anchor_depth));
+                        // The teeth ramp in their own phase units, not the tail's duration
+                        // taper: one tooth in and out, so the run stays uniform whatever the
+                        // sustain's length.
+                        const double tooth_cycles = common::core::highwayTremoloCycles(
+                            time_to_z(seconds) - pose.z, tooth_anchor_depth);
+                        x_offset +=
+                            common::core::highwayTailHalfWidth(metrics) *
+                            common::core::highwayTremoloEnvelope(tooth_cycles, tooth_end_cycles) *
+                            common::core::highwayTremoloWobble(tooth_cycles);
                     }
                     samples.push_back(
                         TailSample{
