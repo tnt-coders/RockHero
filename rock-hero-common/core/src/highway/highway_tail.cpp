@@ -160,12 +160,13 @@ double highwayTremoloWobble(const double seconds_from_onset) noexcept
 {
     const double cycles = seconds_from_onset / g_highway_tremolo_period_seconds;
     const double phase = cycles - std::floor(cycles);
-    return (std::abs(phase - 0.5) - 0.25) * 3.0;
+    // Unit triangle (peaks at plus-or-minus one, phase zero at the onset) scaled by the depth.
+    return (std::abs(phase - 0.5) - 0.25) * 4.0 * g_highway_tremolo_depth;
 }
 
 std::vector<double> makeHighwayTailSampleTimes(
     const HighwayNoteView& note, const double from_seconds, const double to_seconds,
-    const std::size_t uniform_count)
+    const std::size_t uniform_count, const double wobble_period_seconds)
 {
     if (to_seconds <= from_seconds)
     {
@@ -192,6 +193,29 @@ std::vector<double> makeHighwayTailSampleTimes(
         if (waypoint.seconds > from_seconds && waypoint.seconds < to_seconds)
         {
             times.push_back(waypoint.seconds);
+        }
+    }
+    if (wobble_period_seconds > 0.0)
+    {
+        // The wobble's turning points, every half period from the onset. The triangle is
+        // linear between them, so these are the samples its shape needs; the uniform grid
+        // alone rounds each apex by up to half its spacing and aliases once the period
+        // approaches it. Stepping from the first turning point at or after the span start
+        // bounds the walk by the visible span the caller clipped to.
+        const double step = wobble_period_seconds / 2.0;
+        const double first_index =
+            std::max(0.0, std::ceil((from_seconds - note.start_seconds) / step));
+        for (double index = first_index;; index += 1.0)
+        {
+            const double seconds = note.start_seconds + (index * step);
+            if (seconds >= to_seconds)
+            {
+                break;
+            }
+            if (seconds > from_seconds)
+            {
+                times.push_back(seconds);
+            }
         }
     }
 

@@ -143,8 +143,8 @@ TEST_CASE("Highway slide easing spans its endpoints", "[core][highway][tail]")
         Catch::Approx(std::pow(std::sin(std::numbers::pi / 4.0), 3.0)));
 }
 
-// Wobbles are onset-phased pure functions: vibrato starts on the string line, tremolo is the
-// reference triangle wave within its documented bounds.
+// Wobbles are onset-phased pure functions: vibrato starts on the string line, tremolo peaks at
+// the onset and swings the full depth each way.
 TEST_CASE("Highway wobbles are onset-phased and bounded", "[core][highway][tail]")
 {
     const double period = g_highway_vibrato_period_seconds;
@@ -152,14 +152,17 @@ TEST_CASE("Highway wobbles are onset-phased and bounded", "[core][highway][tail]
     CHECK(highwayVibratoWobble(period / 4.0, period) == Catch::Approx(1.0).margin(1.0e-9));
     CHECK(highwayVibratoWobble(period, period) == Catch::Approx(0.0).margin(1.0e-9));
 
-    CHECK(highwayTremoloWobble(0.0) == Catch::Approx(0.75));
-    CHECK(highwayTremoloWobble(g_highway_tremolo_period_seconds / 2.0) == Catch::Approx(-0.75));
-    CHECK(highwayTremoloWobble(g_highway_tremolo_period_seconds) == Catch::Approx(0.75));
+    const double depth = g_highway_tremolo_depth;
+    CHECK(highwayTremoloWobble(0.0) == Catch::Approx(depth));
+    CHECK(highwayTremoloWobble(g_highway_tremolo_period_seconds / 2.0) == Catch::Approx(-depth));
+    CHECK(highwayTremoloWobble(g_highway_tremolo_period_seconds) == Catch::Approx(depth));
+    // The teeth swing wider than the ribbon is thick, so consecutive teeth clear each other.
+    CHECK(depth > 1.0);
     for (int step = 0; step < 30; ++step)
     {
         const double wobble = highwayTremoloWobble(0.007 * step);
-        CHECK(wobble >= -0.75);
-        CHECK(wobble <= 0.75);
+        CHECK(wobble >= -depth);
+        CHECK(wobble <= depth);
     }
 }
 
@@ -194,7 +197,7 @@ TEST_CASE("Highway tail sample times include control points", "[core][highway][t
     };
     note.slides = {HighwaySlideView{.seconds = 12.7, .fret = 7, .unpitched = false}};
 
-    const std::vector<double> times = makeHighwayTailSampleTimes(note, 10.0, 14.0, 5);
+    const std::vector<double> times = makeHighwayTailSampleTimes(note, 10.0, 14.0, 5, 0.0);
 
     REQUIRE(times.size() >= 5);
     CHECK(times.front() == Catch::Approx(10.0));
@@ -208,11 +211,42 @@ TEST_CASE("Highway tail sample times include control points", "[core][highway][t
     }
 
     // An empty span yields no samples; a control point landing on a uniform sample dedupes.
-    CHECK(makeHighwayTailSampleTimes(note, 12.0, 12.0, 5).empty());
+    CHECK(makeHighwayTailSampleTimes(note, 12.0, 12.0, 5, 0.0).empty());
     note.bend = {HighwayBendPointView{.seconds = 12.0, .semitones = 1.0}};
     note.slides.clear();
-    const std::vector<double> deduped = makeHighwayTailSampleTimes(note, 10.0, 14.0, 5);
+    const std::vector<double> deduped = makeHighwayTailSampleTimes(note, 10.0, 14.0, 5, 0.0);
     CHECK(std::ranges::count(deduped, 12.0) == 1);
+}
+
+// A teethed tail's sample times land exactly on the wobble's turning points, which is what
+// keeps the zigzag's corners crisp: the triangle is linear between them, so the uniform grid
+// alone would round every apex and alias the wave at this tooth spacing.
+TEST_CASE("Highway tail sample times land on the wobble's turning points", "[core][highway][tail]")
+{
+    HighwayNoteView note;
+    note.start_seconds = 10.0;
+    note.end_seconds = 11.0;
+
+    const double period = g_highway_tremolo_period_seconds;
+    const std::vector<double> times = makeHighwayTailSampleTimes(note, 10.0, 11.0, 5, period);
+
+    CHECK(std::ranges::is_sorted(times));
+    // Every turning point strictly inside the span is present exactly once, and each is a true
+    // extremum of the wave.
+    const auto turning_points = static_cast<int>(std::floor(1.0 / (period / 2.0)));
+    for (int index = 1; index < turning_points; ++index)
+    {
+        const double expected = 10.0 + (static_cast<double>(index) * period / 2.0);
+        const auto hits = std::ranges::count_if(
+            times, [&](const double value) { return std::abs(value - expected) < 1.0e-9; });
+        CHECK(hits == 1);
+        CHECK(
+            std::abs(highwayTremoloWobble(expected - note.start_seconds)) ==
+            Catch::Approx(g_highway_tremolo_depth));
+    }
+    // Sampling the wave stays optional: a plain tail asks for none and gets none of them.
+    const std::vector<double> plain = makeHighwayTailSampleTimes(note, 10.0, 11.0, 5, 0.0);
+    CHECK(plain.size() == 5);
 }
 
 } // namespace rock_hero::common::core

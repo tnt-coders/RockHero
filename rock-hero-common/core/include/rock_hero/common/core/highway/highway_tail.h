@@ -43,24 +43,50 @@ the head breathing at half depth keeps it visibly alive while the tail carries t
 */
 inline constexpr double g_highway_vibrato_head_depth_fraction = 0.5;
 
-/*! \brief Tremolo wobble period in seconds (the source game's 60 ms triangle wave). */
-inline constexpr double g_highway_tremolo_period_seconds = 0.060;
+/*!
+\brief Tremolo wobble period in seconds — the zigzag's tooth spacing along the tail.
+
+Deliberately short: the teeth mean picking so fast it has no timing, and the eye reads that
+from the tooth's ASPECT — spacing against depth — not from the depth alone. One period spans
+this many seconds times HighwayMetrics::z_per_second in world units of tail, so at the shipped
+constants a tooth is roughly as long as the swing is wide, which is what makes it read as a saw
+rather than a lazy ripple (measured against the real projection and sighted 2026-08-04, from a
+much longer and shallower first pass).
+*/
+inline constexpr double g_highway_tremolo_period_seconds = 0.025;
+
+/*!
+\brief Tremolo wobble depth as a multiple of the tail's half-width.
+
+Above one on purpose: the centerline swings wider than the ribbon is thick, so consecutive
+teeth clear each other and the zigzag reads as a hard saw instead of a wobbling bar.
+*/
+inline constexpr double g_highway_tremolo_depth = 1.25;
+
+/*!
+\brief The head's tremolo swing as a fraction of the tail's depth.
+
+The same rule as the vibrato head (\ref g_highway_vibrato_head_depth_fraction) for the same
+sighted reason: the tail is a standing zigzag the eye takes in whole, while the head is a
+single point whose offset animates, so a full-depth head bounces hard enough to fight its own
+digit. Half depth keeps it visibly buzzing while the tail carries the motion.
+*/
+inline constexpr double g_highway_tremolo_head_depth_fraction = 0.5;
 
 /*!
 \brief Fraction of the tail duration over which wobble amplitude ramps in and out.
 
-The source game modulates at full amplitude to the tail's very ends (its rails start and end off
-the string line); the taper is this project's deliberate fix so rails always anchor on the
-string line.
+Modulating at full amplitude to the tail's very ends would start and end the rails off the
+string line; the taper is this project's deliberate fix so rails always anchor on it.
 */
 inline constexpr double g_highway_tail_taper_fraction = 0.1;
 
 /*!
 \brief Returns the number of centerline samples a tail needs at a screen-space resolution.
 
-Replaces the source game's per-millisecond tessellation: sampling density follows the tail's
-projected on-screen length, so a long sustain costs vertices proportional to its visible size,
-never its duration.
+Sampling density follows the tail's projected on-screen length rather than its duration, so a
+long sustain costs vertices proportional to its visible size — a per-millisecond tessellation
+would pay for time the viewer cannot see.
 
 \param projected_length_pixels On-screen length of the tail between its endpoints.
 \param pixels_per_sample Target screen-space distance between samples.
@@ -108,8 +134,7 @@ which anchors the start value) and at the last point, whose value then holds.
 \brief Returns whether a note's bend lift points downward on a displayed lane.
 
 Bends on the upper half of the displayed string stack curve downward so the curve stays inside
-the board (the source game's outer-string bend inversion, restated in display space so it holds
-for any string count and stacking order).
+the board — stated in display space so it holds for any string count and stacking order.
 
 \param displayed_lane One-based displayed lane, 1 at the bottom of the stack.
 \param string_count Number of displayed lanes.
@@ -120,8 +145,8 @@ for any string count and stacking order).
 /*!
 \brief Returns the eased interpolation weight of a slide at a segment progress.
 
-The source game's easing curves: pitched slides accelerate into the target
-(sin(progress * pi / 2) cubed); unpitched slides release early (1 - sin((1 - progress) * pi / 2)).
+Pitched slides accelerate into the target (sin(progress * pi / 2) cubed); unpitched slides
+release early (1 - sin((1 - progress) * pi / 2)).
 
 \param progress Position within the slide segment in [0, 1]; values outside clamp.
 \param unpitched True for the unpitched (pressure-release) easing.
@@ -159,13 +184,13 @@ by the bend lift distance and the taper envelope.
 /*!
 \brief Returns the tremolo wobble at a time from the note onset, as a signed factor.
 
-The reference's triangle wave, onset-phased; callers scale by the tail half-width and the taper
-envelope. The teeth mean UNMEASURED noise picking (the charting standard spells out measured
-repetition as discrete notes), so pick-slide tails ride this same wave outright — a scrape is
-that noise dragged along the string.
+A triangle wave at \ref g_highway_tremolo_period_seconds, onset-phased; callers scale by the
+tail half-width and the taper envelope. The teeth mean UNMEASURED noise picking (the charting
+standard spells out measured repetition as discrete notes), so pick-slide tails ride this same
+wave outright — a scrape is that noise dragged along the string.
 
 \param seconds_from_onset Time since the note onset.
-\return Wobble factor in [-0.75, 0.75].
+\return Wobble factor within plus-or-minus \ref g_highway_tremolo_depth.
 */
 [[nodiscard]] double highwayTremoloWobble(double seconds_from_onset) noexcept;
 
@@ -174,16 +199,24 @@ that noise dragged along the string.
 
 Uniform samples cover the span at the requested count, and every bend point and slide waypoint
 inside the span is included exactly, so piecewise-linear technique curves hit their control
-points instead of aliasing across them.
+points instead of aliasing across them. A tremolo wobble is folded in the same way and for the
+same reason: a triangle is piecewise linear, so its turning points are the only samples its
+shape actually needs, and without them the uniform grid rounds every apex by up to half its
+spacing — unevenly, tooth to tooth — and aliases the wave outright once the period approaches
+that spacing.
 
 \param note The note whose bend and slide times are folded in.
 \param from_seconds Visible span start (already clamped to the hit line by the caller).
 \param to_seconds Visible span end.
 \param uniform_count Uniform sample count from highwayTailSampleCount.
+\param wobble_period_seconds Period of a triangle wobble riding the centerline, or zero when
+       the tail carries none. Turning points sit every half period from the onset; their count
+       is bounded by the visible span the caller has already clipped to.
 \return Ascending, deduplicated sample times spanning [from_seconds, to_seconds]; empty when
         the span is empty.
 */
 [[nodiscard]] std::vector<double> makeHighwayTailSampleTimes(
-    const HighwayNoteView& note, double from_seconds, double to_seconds, std::size_t uniform_count);
+    const HighwayNoteView& note, double from_seconds, double to_seconds, std::size_t uniform_count,
+    double wobble_period_seconds);
 
 } // namespace rock_hero::common::core

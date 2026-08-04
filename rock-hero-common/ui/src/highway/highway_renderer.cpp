@@ -3316,8 +3316,17 @@ void HighwayRenderer::Impl::draw(
                 }
                 const std::size_t uniform_count = common::core::highwayTailSampleCount(
                     pixels, g_tail_pixels_per_sample, g_tail_sample_cap);
+                // A teethed tail hands its wobble period over so the sampler lands exactly on
+                // every turning point; the uniform grid alone rounds the apexes unevenly and
+                // aliases the wave at this tooth spacing.
+                const bool teethed =
+                    note.tremolo || note.attack == common::core::NoteAttack::PickSlide;
                 std::vector<double> sample_times = common::core::makeHighwayTailSampleTimes(
-                    note, tail_from, tail_to, uniform_count);
+                    note,
+                    tail_from,
+                    tail_to,
+                    uniform_count,
+                    teethed ? common::core::g_highway_tremolo_period_seconds : 0.0);
                 if (open_band_moves)
                 {
                     // Fold in the window's own ramp samples so the band tracks the eased border
@@ -3354,7 +3363,7 @@ void HighwayRenderer::Impl::draw(
                     // unmeasured noise (the charting standard spells out measured
                     // repetition as discrete notes), and a scrape is that noise dragged
                     // along the string — same notation, same meaning, no differentiator.
-                    if (note.tremolo || note.attack == common::core::NoteAttack::PickSlide)
+                    if (teethed)
                     {
                         x_offset +=
                             common::core::highwayTailHalfWidth(metrics) * taper *
@@ -3761,15 +3770,18 @@ void HighwayRenderer::Impl::draw(
                 common::core::highwayFretLineX(touch_fret + 1, metrics, mirrored);
             x = left_x + ((right_x - left_x) * (touch - touch_floor));
         }
-        // A sounding head travels with its glide and shakes with tremolo exactly like the tail
+        // A sounding head travels with its glide and shakes with tremolo in phase with the tail
         // centerline's anchor-time sample, so head and tail stay one gesture at the hit line
         // (both offsets are zero before the onset). The scrape head is the pick itself, so it
-        // shakes with its tail's teeth the same way.
+        // shakes with its tail's teeth the same way. The head takes a fraction of the tail's
+        // depth: the tail is a standing zigzag read whole, while the head is a single animating
+        // point that fights its own digit at full swing (the vibrato head's rule).
         x += head_slide.x_offset;
         const bool scrape = note.attack == common::core::NoteAttack::PickSlide;
         if (note.tremolo || scrape)
         {
             x += common::core::highwayTailHalfWidth(metrics) * head_taper *
+                 common::core::g_highway_tremolo_head_depth_fraction *
                  common::core::highwayTremoloWobble(head_seconds - note.start_seconds);
         }
 

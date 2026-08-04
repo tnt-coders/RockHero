@@ -129,7 +129,24 @@ language on the 3D highway and the 2D tab.
   beats — the pick-slide carriers included — keep the mark as noise with a conversion note
   (lifecycle guide rule 20). 3D: the tail rides
   `highwayTremoloWobble` with the head shaking in step; 2D: the plain tremolo gem strip with
-  slide diagonals over it carrying the travel and per-leg target chips. Deleted along the
+  slide diagonals over it carrying the travel and per-leg target chips.
+- **Tooth geometry, sharpened 2026-08-04** (user: the zigzag must read much sharper and more
+  compressed). What the eye reads is the tooth's ASPECT — advance against swing — not depth
+  alone, so the wave went from a 60 ms / 0.75-half-width tooth (a 5:1 lazy ripple) to
+  **25 ms / 1.25 half-widths**, roughly 1:1, with the head at half depth like the vibrato
+  head. The load-bearing half of the change is SAMPLING: a triangle is piecewise linear, so
+  its turning points are the only samples its shape needs, and the uniform screen-space grid
+  alone rounded every apex unevenly and aliased outright at the tighter pitch —
+  `makeHighwayTailSampleTimes` now folds the wobble's turning points in beside the bend and
+  slide control points (uniform samples stay capped; turning points ride on top, bounded by
+  the clipped visible span). Corroborated by an independent research pass over notation
+  engraving metrics, open charting-tool renderers, and pixel measurements of published
+  reference art: sharp mitered corners with no fillet, constant ribbon width through every
+  fold, spatially uniform pitch, and no amplitude decay — and the shipped swept envelope
+  (0.75 note-head widths) lands within a few percent of the measured reference envelope
+  (~0.72), i.e. wide enough that consecutive legs clear each other and open dark notches,
+  while never invading the neighbouring lane. The end-anchor taper stays: it is an anchoring
+  device, not an energy decay, and its damped teeth sit under the head and at the horizon. Deleted along the
   way, each after a sighted round: the bespoke serrated/chirped scrape wave and 2D decaying
   wavy diagonals ("not jagged enough" ↔ "too random"), the desaturated 2D tail, the white
   tail-edge frames, a baked glow halo (forked the mute-X art, could not match the tail's
