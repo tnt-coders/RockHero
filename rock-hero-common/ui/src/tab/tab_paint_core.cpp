@@ -163,10 +163,11 @@ void drawStringLines(
 // with the tail color inset vertically by the edge size. Charter's final partial fragment
 // distorts the last gem; here the full pattern is clipped to the tail span instead, which keeps
 // every tooth shaped correctly and ends the strip on a clean vertical edge (the one deliberate
-// bug fix in an otherwise faithful port).
+// bug fix in an otherwise faithful port). The edge color is the caller's: the string's tail
+// edge for a fingered tremolo, white for a scrape's glowing frame.
 void drawTremoloTail(
-    juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style, float x,
-    float length, float center_y)
+    juce::Graphics& g, const TabLaneMetrics& metrics, const StringStyle& style,
+    const juce::Colour edge, float x, float length, float center_y)
 {
     const float fragment_size = std::max(4.0f, metrics.note_height / 2.0f);
     const float y0 = center_y + metrics.tail_height / 2.0f - metrics.tremolo_size + 1.0f;
@@ -196,7 +197,7 @@ void drawTremoloTail(
         juce::Rectangle<float>{x, y3, length, y1 - y3}.getSmallestIntegerContainer());
     juce::Path edge_fragments;
     add_fragments(edge_fragments, 0.0f);
-    g.setColour(style.tail_edge);
+    g.setColour(edge);
     g.fillPath(edge_fragments);
 
     juce::Path inner_fragments;
@@ -220,21 +221,29 @@ void drawNoteTail(
     }
 
     const TailSpan span = tailSpan(metrics, center_y);
-    if (note.tremolo)
+    // A scrape rides the ordinary tremolo strip — the picking-hand noise vocabulary — framed
+    // in white edges that name the scrape apart from a fingered tremolo; the slide diagonals
+    // drawn over it carry the travel.
+    const bool scrape = note.attack == common::core::NoteAttack::PickSlide;
+    if (note.tremolo || scrape)
     {
-        drawTremoloTail(g, metrics, style, onset_x, length, center_y);
+        drawTremoloTail(
+            g,
+            metrics,
+            style,
+            scrape ? juce::Colours::white : style.tail_edge,
+            onset_x,
+            length,
+            center_y);
     }
     else
     {
-        // A scrape's tail desaturates: hue keeps naming the string while the drained
-        // saturation says the travel is noise, not pitch.
-        const bool scrape = note.attack == common::core::NoteAttack::PickSlide;
-        g.setColour(scrape ? style.tail.withMultipliedSaturation(0.35f) : style.tail);
+        g.setColour(style.tail);
         g.fillRect(
             juce::Rectangle<float>{
                 onset_x - 1.0f, span.top, length + 1.0f, span.bottom - span.top
             });
-        g.setColour(scrape ? style.tail_edge.withMultipliedSaturation(0.35f) : style.tail_edge);
+        g.setColour(style.tail_edge);
         g.drawRect(
             juce::Rectangle<float>{onset_x, span.top - 1.0f, length, span.bottom - span.top + 1.0f},
             metrics.tail_edge_size);
@@ -327,36 +336,7 @@ void drawSlideLines(
             upward ? span.top + line_thickness / 2.0f : span.bottom - line_thickness / 2.0f;
 
         g.setColour(juce::Colours::white);
-        if (note.attack == common::core::NoteAttack::PickSlide &&
-            to_x - from_x >= std::max(4.0f, metrics.note_height / 2.0f))
-        {
-            // A scrape leg is the same travel diagonal, wave-modulated to say noise instead of
-            // pitch. Amplitude and period scale from the lane metrics like the sibling
-            // ornaments, decay along the leg, and restart at each leg (the pick re-bites on a
-            // direction change). A leg too short to carry a wave keeps the plain diagonal
-            // below, so the travel mark never vanishes at dense zooms.
-            const float leg = to_x - from_x;
-            const float base_amplitude = metrics.tail_height / 4.0f;
-            const float base_period = std::max(4.0f, metrics.note_height / 2.0f);
-            juce::Path wave;
-            wave.startNewSubPath(from_x, from_y);
-            float phase = 0.0f;
-            for (float step = 2.0f; step <= leg; step += 2.0f)
-            {
-                const float progress = step / leg;
-                const float amplitude = base_amplitude * (1.0f - (0.65f * progress));
-                const float period = base_period * (1.0f - (0.25f * progress));
-                phase += 2.0f * juce::MathConstants<float>::pi * 2.0f / period;
-                wave.lineTo(
-                    from_x + step,
-                    from_y + ((to_y - from_y) * progress) + (amplitude * std::sin(phase)));
-            }
-            g.strokePath(wave, juce::PathStrokeType{line_thickness});
-        }
-        else
-        {
-            g.drawLine(from_x, from_y, to_x, to_y, line_thickness);
-        }
+        g.drawLine(from_x, from_y, to_x, to_y, line_thickness);
 
         if (waypoint.unpitched && metrics.draw_text)
         {
@@ -536,34 +516,33 @@ void drawMuteIcon(
     g.strokePath(x_shape, juce::PathStrokeType{std::max(1.0f, space / 3.0f)});
 }
 
-// Draws the pick-slide chevron icon beside the head: the head atlas's tap V reshaped for the
-// icon slot, built like the sibling icons (filled shape plus a thin border) in the
-// picking-hand colors (black like tap, slap, and pop).
+// Draws the pick-slide V above the head in the full-mute X's own construction — white fill,
+// gray border, the X's 45-degree arms and band weight — pointing down at the note with its tip
+// dipped one band into the head's top edge, mirroring the 3D head's V-over-X composite. The
+// compact height keeps stacked scrapes on adjacent strings clear of each other.
 void drawChevronIcon(
     juce::Graphics& g, const TabLaneMetrics& metrics, float center_x, float center_y)
 {
-    const float width = metrics.note_height / 2.0f;
-    const float height = metrics.note_height * 2.0f / 5.0f;
-    const float band = std::max(2.0f, height / 2.5f);
-    // Shifting the inner V's top points inward by the arm slope keeps the band width uniform.
-    const float inset_x = band * (width / 2.0f) / height;
-    const float left = center_x - width / 2.0f;
-    const float right = center_x + width / 2.0f;
-    const float top = center_y - height / 2.0f;
-    const float bottom = center_y + height / 2.0f;
+    const float size = std::max(16.0f, metrics.note_height + 1.0f);
+    const float space = std::max(2.0f, size / 8.0f);
+    const float half = size / 2.0f;
+    const float tip_y = center_y - half + space;
+    const float top = tip_y - half;
+    const float left = center_x - half;
+    const float right = center_x + half;
 
     juce::Path chevron;
     chevron.startNewSubPath(left, top);
-    chevron.lineTo(center_x, bottom);
+    chevron.lineTo(center_x, tip_y);
     chevron.lineTo(right, top);
-    chevron.lineTo(right - inset_x, top);
-    chevron.lineTo(center_x, bottom - band);
-    chevron.lineTo(left + inset_x, top);
+    chevron.lineTo(right - 2.0f * space, top);
+    chevron.lineTo(center_x, tip_y - 2.0f * space);
+    chevron.lineTo(left + 2.0f * space, top);
     chevron.closeSubPath();
-    g.setColour(juce::Colours::black);
+    g.setColour(juce::Colours::white);
     g.fillPath(chevron);
-    g.setColour(g_full_mute_text_border);
-    g.strokePath(chevron, juce::PathStrokeType{1.0f});
+    g.setColour(g_mute_border_color);
+    g.strokePath(chevron, juce::PathStrokeType{std::max(1.0f, space / 3.0f)});
 }
 
 // Draws one of Charter's triangle technique icons: a small bordered triangle beside the head,
@@ -662,7 +641,8 @@ void drawAttackIcon(
         }
         case common::core::NoteAttack::PickSlide:
         {
-            drawChevronIcon(g, metrics, left_x, low_y);
+            // Not an icon-slot mark: the V rides directly above the head like its 3D twin.
+            drawChevronIcon(g, metrics, center_x, center_y);
             break;
         }
         case common::core::NoteAttack::Pick:
@@ -700,17 +680,20 @@ void drawNoteHead(
             });
     }
 
-    drawMuteIcon(g, metrics, note.mute, onset_x, center_y);
+    // A scrape wears the full-mute X: the travel is unpitched noise, so the head borrows the
+    // mute family's mark, mirroring the 3D scrape head's X shape.
+    const bool scrape = note.attack == common::core::NoteAttack::PickSlide;
+    drawMuteIcon(g, metrics, scrape ? common::core::NoteMute::Full : note.mute, onset_x, center_y);
 
     if (metrics.draw_text)
     {
         const juce::String fret_text{note.fret};
-        if (note.mute != common::core::NoteMute::None)
+        if (note.mute != common::core::NoteMute::None || scrape)
         {
             // Charter boxes the fret number on full mutes so it stays readable over the X;
             // palm mutes need the same plate (user-flagged: the X's crossing strokes cut
             // through the digits), in the palm X's own colors so it reads as the X's center.
-            const bool full_mute = note.mute == common::core::NoteMute::Full;
+            const bool full_mute = note.mute == common::core::NoteMute::Full || scrape;
             const auto text_width = static_cast<float>(textWidth(metrics.fret_font, fret_text));
             const juce::Rectangle<float> box{
                 onset_x - text_width / 2.0f - 2.0f,

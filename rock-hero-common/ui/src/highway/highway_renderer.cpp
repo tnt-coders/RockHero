@@ -112,6 +112,12 @@ constexpr double g_tail_slope_shade_smooth_seconds = 0.05;
 // overlap (judged on a composite sheet, user 2026-07-29, re-tuned for the taller bolder
 // glyph the same day).
 constexpr double g_bend_marker_offset_heads = 0.38;
+
+// The pick-slide V's center rides this many head half-heights above its X-shaped head. The
+// value parks the V's solid tip (cell rows 20..43) just off the X's upper arm tips, matching
+// the bend cue's near-touch gap rather than its raw offset (the two glyphs sit at different
+// heights inside their cells).
+constexpr double g_scrape_marker_offset_heads = 1.0;
 // Pre-bend target outline alpha: the hollow head silhouette parked at a pre-bent note's
 // chart-truth height is an annotation, dimmed so the rising head stays the subject (first
 // value judged on composite sheets 2026-07-31; expect on-sight retuning).
@@ -3332,18 +3338,13 @@ void HighwayRenderer::Impl::draw(
                         common::core::g_highway_tail_taper_fraction);
                     const SlideState slide = slide_state_at(note, base_x, seconds);
                     double x_offset = slide.x_offset;
-                    if (note.tremolo)
+                    // A scrape tail rides the ordinary tremolo teeth — the picking-hand noise
+                    // vocabulary — and reads apart through the white edge glow below.
+                    if (note.tremolo || note.attack == common::core::NoteAttack::PickSlide)
                     {
                         x_offset +=
                             common::core::highwayTailHalfWidth(metrics) * taper *
                             common::core::highwayTremoloWobble(seconds - note.start_seconds);
-                    }
-                    else if (note.attack == common::core::NoteAttack::PickSlide)
-                    {
-                        // The scrape's serrated noise ribbon: the tremolo family's teeth,
-                        // dying along each leg and re-biting at reversals.
-                        x_offset += common::core::highwayTailHalfWidth(metrics) * taper *
-                                    common::core::highwayScrapeWobble(note, seconds);
                     }
                     samples.push_back(
                         TailSample{
@@ -3425,6 +3426,17 @@ void HighwayRenderer::Impl::draw(
                             ? mixArgb(style.tail, (style.tail & 0xFF000000U) | 0x00FFFFFFU, lift)
                             : mixArgb(style.tail, style.tail & 0xFF000000U, -lift);
                 }
+                // A scrape swaps the ribbon's edge bands to white-hot rails fading to
+                // transparent at the outer stations, while the core keeps the dimmed string
+                // tint: hue still names the string, the white frame says noise.
+                const bool scrape = note.attack == common::core::NoteAttack::PickSlide;
+                const auto edge_color = [&](const ArgbColor tail, const double alpha) {
+                    return packAbgr(scrape ? 0xFFFFFFFFU : tail, alpha);
+                };
+                const auto outer_color = [&](const ArgbColor tail, const double alpha) {
+                    return scrape ? packAbgr(0xFFFFFFFFU, 0.0)
+                                  : packAbgr(tail, note.fret > 0 ? alpha : 0.0);
+                };
                 for (std::size_t sample = 1; sample < samples.size(); ++sample)
                 {
                     const TailSample& a = samples[sample - 1];
@@ -3440,17 +3452,17 @@ void HighwayRenderer::Impl::draw(
                             .x_offset = a.x_offset,
                             .y = a.y,
                             .z = a.z,
-                            .edge_abgr = packAbgr(tail_a, a.alpha),
+                            .edge_abgr = edge_color(tail_a, a.alpha),
                             .inner_abgr = packAbgr(tail_a, g_tail_inner_alpha * a.alpha),
-                            .outer_abgr = packAbgr(tail_a, note.fret > 0 ? a.alpha : 0.0),
+                            .outer_abgr = outer_color(tail_a, a.alpha),
                         },
                         RibbonEnd{
                             .x_offset = b.x_offset,
                             .y = b.y,
                             .z = b.z,
-                            .edge_abgr = packAbgr(tail_b, b.alpha),
+                            .edge_abgr = edge_color(tail_b, b.alpha),
                             .inner_abgr = packAbgr(tail_b, g_tail_inner_alpha * b.alpha),
-                            .outer_abgr = packAbgr(tail_b, note.fret > 0 ? b.alpha : 0.0),
+                            .outer_abgr = outer_color(tail_b, b.alpha),
                         });
                 }
             }
@@ -3748,9 +3760,11 @@ void HighwayRenderer::Impl::draw(
         }
         // A sounding head travels with its glide and shakes with tremolo exactly like the tail
         // centerline's anchor-time sample, so head and tail stay one gesture at the hit line
-        // (both offsets are zero before the onset).
+        // (both offsets are zero before the onset). The scrape head is the pick itself, so it
+        // shakes with its tail's teeth the same way.
         x += head_slide.x_offset;
-        if (note.tremolo)
+        const bool scrape = note.attack == common::core::NoteAttack::PickSlide;
+        if (note.tremolo || scrape)
         {
             x += common::core::highwayTailHalfWidth(metrics) * head_taper *
                  common::core::highwayTremoloWobble(head_seconds - note.start_seconds);
@@ -3870,14 +3884,17 @@ void HighwayRenderer::Impl::draw(
         const double sin_r = std::sin(rotation);
         const std::uint32_t tint = packAbgr(base_color, fade * head_slide.alpha);
 
-        // Head base: the technique variant under left-hand technique markers, else the standard
+        // Head base: a scrape's head IS the full-mute X shape (sighting hybrid 2026-08-04);
+        // otherwise the technique variant under left-hand technique markers, else the standard
         // head (Charter's base-cell selection).
         const bool tech_head = note.mute == common::core::NoteMute::Full ||
                                note.harmonic == common::core::NoteHarmonic::Natural ||
                                note.attack == common::core::NoteAttack::Hammer ||
                                note.attack == common::core::NoteAttack::Pull;
         const std::array<float, 4> base_cell =
-            tech_head ? atlases.head_layout.cellRect(g_head_cell_tech) : head_cell;
+            scrape      ? atlases.head_layout.cellRect(g_head_cell_full_mute)
+            : tech_head ? atlases.head_layout.cellRect(g_head_cell_tech)
+                        : head_cell;
         const auto corner = [&](const double dx, const double dy, const float u, const float v) {
             return makeUvVertex(
                 x + (dx * cos_r) - (dy * sin_r),
@@ -3914,9 +3931,19 @@ void HighwayRenderer::Impl::draw(
             {
                 push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_tap, tint);
             }
-            else if (note.attack == common::core::NoteAttack::PickSlide)
+            else if (scrape)
             {
-                push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_pick_slide, tint);
+                // The V hovers just off the X's upper arms, pointing down at the note —
+                // the bend cue's gap — and stays upright through the roll flip so the cue
+                // keeps pointing at it.
+                push_marker(
+                    x,
+                    head_y + (g_scrape_marker_offset_heads * head_half_h),
+                    z,
+                    1.0,
+                    0.0,
+                    g_head_cell_pick_slide,
+                    tint);
             }
             else if (note.attack == common::core::NoteAttack::Slap)
             {

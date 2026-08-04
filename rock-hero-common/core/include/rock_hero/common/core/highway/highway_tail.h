@@ -159,37 +159,14 @@ by the bend lift distance and the taper envelope.
 /*!
 \brief Returns the tremolo wobble at a time from the note onset, as a signed factor.
 
-The source game's triangle wave, onset-phased; callers scale by the tail half-width and the taper
-envelope.
+The reference's triangle wave, onset-phased; callers scale by the tail half-width and the taper
+envelope. Pick-slide tails ride this same wave: the scrape is the tremolo family's noise, and
+its identity lives in the white edge glow, not a bespoke waveform.
 
 \param seconds_from_onset Time since the note onset.
 \return Wobble factor in [-0.75, 0.75].
 */
 [[nodiscard]] double highwayTremoloWobble(double seconds_from_onset) noexcept;
-
-/*! \brief Scrape wobble period at a leg's start — the noise ribbon's largest tooth. */
-inline constexpr double g_highway_scrape_period_seconds = 0.030;
-
-/*! \brief Scrape wobble depth at a leg's start, as a fraction of the tail half width. */
-inline constexpr double g_highway_scrape_depth = 1.2;
-
-/*! \brief Fraction of the scrape wobble's depth and frequency remaining at a leg's end. */
-inline constexpr double g_highway_scrape_decay_floor = 0.5;
-
-/*!
-\brief Returns the scrape's noise wobble at a time, as a signed factor.
-
-A deep chirped triangle wave (the tremolo family's teeth, oversized), leg-phased along the
-note's waypoint path: amplitude and frequency decay to the floor across each leg and restart
-at the next — the pick re-bites on a direction change. Callers scale by the tail half-width
-and the taper envelope. (A second incommensurate grit layer was tried and reverted on sight:
-it read as random noise, not scraping.)
-
-\param note The scrape note whose waypoint path phases the wobble.
-\param seconds Absolute sample time.
-\return Wobble factor within plus-or-minus g_highway_scrape_depth.
-*/
-[[nodiscard]] double highwayScrapeWobble(const HighwayNoteView& note, double seconds) noexcept;
 
 /*!
 \brief Builds the ascending sample times for one tail's visible span.

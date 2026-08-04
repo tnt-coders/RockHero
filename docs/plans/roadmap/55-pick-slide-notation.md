@@ -100,15 +100,27 @@ language on the 3D highway and the 2D tab.
     narrower cell is a queued atlas edit); 2D = normal digit-bearing head + black V with the
     family border (0xC0C0C0) in the attack-icon slot (joining the picking-hand black-fill icon
     family).
-- **Settled rendering (both surfaces)**: the path renders through the unpitched slide machinery
-  (dimmed glide, head rides the path, no board furniture, no hand-window contribution — all by
-  the projection marking scrape waypoints unpitched), with a **wave-decay noise texture**:
-  amplitude and period die along each leg and restart at direction reversals (the pick
-  re-bites). Ribbon width stays uniform by invariant — perspective owns width on the board, so
-  energy lives in the wave, never in taper. 2D ships the decaying wavy travel diagonals and a
-  desaturated tail (hue = string identity, drained saturation = noise); the 3D wave texture and
-  the root impact shards are queued sight-round flourishes. Per-leg target chips in 2D; no text
-  labels. New colors enter plan 54's theme struct.
+  - **Superseded on sight 2026-08-04 (user redesign): the X-plus-V composite on BOTH
+    surfaces.** The head IS the full-mute X (3D: the full-mute atlas cell as the head base;
+    2D: the mute X over the digit with the full-mute readability plate) with the V hovering
+    just above it pointing down at the note (3D: upright through the roll flip, the bend cue's
+    near-touch gap; 2D: white mute-styled V in the X's own band construction, tip dipped one
+    band into the head, compact so stacked scrapes on adjacent strings stay clear). The
+    original X-collision objection dissolved once the V and the glowing tremolo tail carry the
+    scrape identity over the mute reading.
+- **Settled rendering (both surfaces), simplified 2026-08-04 (user redesign)**: the path
+  renders through the unpitched slide machinery (dimmed glide, head rides the path, no board
+  furniture, no hand-window contribution — all by the projection marking scrape waypoints
+  unpitched), and the tail is the **ordinary tremolo vocabulary framed in glowing white
+  edges** — no bespoke waveform. 3D: the tail rides `highwayTremoloWobble` (head shakes with
+  it, like any tremolo note) and the ribbon's edge bands swap to white fading transparent at
+  the outer stations while the core keeps the dimmed string tint; 2D: the ordinary tremolo gem
+  strip with a white edge frame, plain slide diagonals over it carrying the travel, per-leg
+  target chips, full string color (desaturation dropped — one differentiator, not two). The
+  earlier bespoke serrated/chirped scrape wave and the 2D decaying wavy diagonals shipped,
+  never converged on sight ("not jagged enough" ↔ "too random"), and were deleted with this
+  simplification. The root impact shards stay a queued flourish. New colors enter plan 54's
+  theme struct.
 - **55-Q2 — authoring.** Mostly dissolved by the note-carried model: scrapes select, move,
   delete, and undo as ordinary notes. Remaining verbs for plan 40 Phase 5's technique surface:
   the attack toggle to/from `PickSlide` (synthesizing the default path on entry, restoring
@@ -121,8 +133,8 @@ language on the 3D highway and the 2D tab.
    overrides (the one seam) and mark scrape waypoints unpitched/unlinked — which routes the
    whole 3D path through the existing unpitched-glide machinery and keeps scrape legs out of
    the hand window's slide-locked ramps (pinned by test alongside no-tap-lighting). The tab
-   draws the black family-border V icon, decaying wavy travel diagonals, desaturated tail, and
-   per-leg chips.
+   now draws the 2026-08-04 composite: mute X + plate over the digit, white mute-styled V
+   above the head, white-framed tremolo strip with plain slide diagonals, per-leg chips.
    **Exit.** Tab renders a down-then-up chain per the signed head. **Verify.** Build; suites —
    green 2026-08-04.
 4. **Highway treatment. SIGHT ROUNDS 1-2 SHIPPED 2026-08-04** (user directions after the first
@@ -135,13 +147,14 @@ language on the 3D highway and the 2D tab.
    X's own slope rendered at 8x through the X's super-resolved cross-section (17 perpendicular
    cuts, plateau-centered, median-folded), Chebyshev-capped squared tips, a mirror-mitre
    vertex, and a two-ended correction loop pinning the V's SOLID extent to the tap V's exact
-   rows (verified in-bake, hard-fail otherwise). Trialed and reverted on sight: an X-mute
-   composite under the V, and a second incommensurate tail-grit layer (read as noise); the
-   tail
-   carries the serrated wave (`highwayScrapeWobble`: tremolo-family teeth, amplitude and
-   frequency decaying per leg, re-biting at reversals); and the scrape drives a **moving
-   right-hand light** through the tap-light machinery — the light path rides the waypoint
-   travel exactly as the fret-hand window rides left-hand glides, with the tap's margin rise.
+   rows (verified in-bake, hard-fail otherwise). The tail treatment then went through trials —
+   an X-mute composite under the V (reverted), a second incommensurate grit layer (reverted,
+   read as noise), a bespoke serrated chirped scrape wave (shipped, then deleted in the
+   2026-08-04 simplification) — and landed on the ordinary tremolo teeth framed in glowing
+   white ribbon edges, with the head reborn as the full-mute X under a near-touching V (see
+   the settled rendering above). The scrape drives a **moving right-hand light** through the
+   tap-light machinery — the light path rides the waypoint travel exactly as the fret-hand
+   window rides left-hand glides, with the tap's margin rise.
    Still queued: the root impact shards. Sight-iterate on Van Halen measure 20.
    **Exit.** User signs the treatment on sight. **Verify.** Build; sight pass; plan 54 color
    coordination.

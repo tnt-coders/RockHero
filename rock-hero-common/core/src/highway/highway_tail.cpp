@@ -163,38 +163,6 @@ double highwayTremoloWobble(const double seconds_from_onset) noexcept
     return (std::abs(phase - 0.5) - 0.25) * 3.0;
 }
 
-double highwayScrapeWobble(const HighwayNoteView& note, const double seconds) noexcept
-{
-    const auto triangle = [](const double cycles) {
-        const double phase = cycles - std::floor(cycles);
-        return (std::abs(phase - 0.5) - 0.25) * 4.0;
-    };
-    if (note.slides.empty())
-    {
-        return 0.0;
-    }
-    double leg_start = note.start_seconds;
-    for (const HighwaySlideView& waypoint : note.slides)
-    {
-        if (seconds <= waypoint.seconds || &waypoint == &note.slides.back())
-        {
-            const double span = waypoint.seconds - leg_start;
-            const double progress =
-                span > 0.0 ? std::clamp((seconds - leg_start) / span, 0.0, 1.0) : 1.0;
-            const double fade = 1.0 - ((1.0 - g_highway_scrape_decay_floor) * progress);
-            // A quadratic chirp keeps the phase continuous while the instantaneous frequency
-            // decays with the amplitude: big slow teeth at the bite, tighter ones at the end.
-            const double chirp_seconds =
-                (seconds - leg_start) *
-                (1.0 - ((1.0 - g_highway_scrape_decay_floor) * progress / 2.0));
-            const double cycles = chirp_seconds / g_highway_scrape_period_seconds;
-            return triangle(cycles) * g_highway_scrape_depth * fade;
-        }
-        leg_start = waypoint.seconds;
-    }
-    return 0.0;
-}
-
 std::vector<double> makeHighwayTailSampleTimes(
     const HighwayNoteView& note, const double from_seconds, const double to_seconds,
     const std::size_t uniform_count)
