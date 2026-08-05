@@ -553,6 +553,22 @@ constexpr float g_capital_ink_fraction = 0.55f;
 // number already drawn on it.
 constexpr float g_icon_slot_gap = 1.0f;
 
+// Optical correction for a mark whose LOWEST ink stops short of its box's right edge, as a
+// fraction of how far short it stops. Such a mark reads FURTHER from the head than one whose
+// lowest ink reaches that edge, even when the two boxes are level, because the head sits
+// below-and-right and the eye weights the boundary nearest it.
+//
+// The factor is calibrated, not guessed. Of the metrics tried against the eye's verdict -
+// overlap area, closest approach, area centroid, and a blurred-image (squint-test) product -
+// only a radial gap reproduced it: cast rays out from the head's center, take the Euclidean
+// distance from the rim to the first ink each ray meets, and average over the mark's own
+// angular span, clipping deep recesses the way HT Letterspacer clips margin depth. Every other
+// metric ranked the plate outside the two triangles, which is not what the eye reports.
+// Equalizing that gap put the correction at 0.5 of the inset (measured 0.506 at a note height
+// of 25 and 0.507 at 20; the residual spread across the three marks falls from 2.25 px to
+// 0.24 px), and it reproduces zero for the plate and the pull-off, which must not move.
+constexpr float g_optical_inset_correction = 0.5f;
+
 // Draws the picking-hand V: an open chevron band pointing down, in the mute family's colors
 // (white fill, gray border) and the full-mute X's band construction. Shared by the tap icon
 // and the pick-slide mark, which is what the right-hand family looks like on the 3D board too
@@ -683,6 +699,10 @@ void drawLetterBadge(
 // buys one slot — the price, paid deliberately, is that the solid-cornered marks press into
 // the head's colored ring rather than resting against it. Going up as well as left also clears
 // the sustain ribbon arriving from the previous note, which a mark level with the head sits on.
+//
+// That same empty box corner then costs the hammer-on twice, and the second cost is optical:
+// with all three boxes level, it READS as further from the head than the other two. Only the
+// hammer-on needs the correction below, because only its lowest ink stops short of its box.
 void drawAttackIcon(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::TabNoteView& note,
     float center_x, float center_y)
@@ -720,10 +740,14 @@ void drawAttackIcon(
     {
         case common::core::NoteAttack::Hammer:
         {
+            // The apex is this mark's lowest ink and stops half a triangle-width short of its
+            // box's right edge; g_optical_inset_correction is the share of that shortfall the
+            // eye needs back to read it level with the marks whose lowest ink reaches the edge.
+            const float apex_inset = triangle_width / 2.0f;
             drawTriangleIcon(
                 g,
                 metrics,
-                triangle.x,
+                triangle.x + (apex_inset * g_optical_inset_correction),
                 triangle.y,
                 true,
                 juce::Colours::white,
