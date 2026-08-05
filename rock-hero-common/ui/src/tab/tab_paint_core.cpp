@@ -539,6 +539,20 @@ void drawMuteIcon(
 // atlas's V glyph carries, so the two surfaces draw the same mark.
 constexpr float g_chevron_band_fraction = 0.6f;
 
+// The lettered plate's side, as a fraction of the note height: big enough to hold the fret
+// number's own font, small enough to stay under half the head's diameter.
+constexpr float g_letter_badge_fraction = 0.55f;
+
+// A capital's ink height as a fraction of the JUCE font height it was asked for. JUCE's height
+// is the ascent-plus-descent line box, not a cap height, so a capital fills only about half of
+// it; the plate is sized against the ink rather than the number.
+constexpr float g_capital_ink_fraction = 0.55f;
+
+// How far the beside-head marks sit from the head's centre. The head's own radius is half the
+// note height, so the previous half-note-height slot put every mark ON the rim — overlapping
+// the head and, on the left, the pinch-harmonic edge line. This clears it.
+constexpr float g_icon_slot_gap = 3.0f;
+
 // Draws the picking-hand V: an open chevron band pointing down, in the mute family's colors
 // (white fill, gray border) and the full-mute X's band construction. Shared by the tap icon
 // and the pick-slide mark, which is what the right-hand family looks like on the 3D board too
@@ -584,11 +598,13 @@ void drawChevronIcon(
     drawChevronShape(g, center_x, tip_y - (v_height / 2.0f), v_height * 1.5f, v_height);
 }
 
-// Draws one of Charter's triangle technique icons: a small bordered triangle beside the head,
-// optionally carrying a letter (slap and pop).
+// Draws the legato triangle beside the head: hammer-on points down, pull-off up. The triangle
+// means LEGATO — the note is not re-attacked — which is why it carries no letter: the
+// direction is the whole message, and it is the mnemonic a guitarist already has (hammer down
+// onto the string, pull off it). Attacks that ARE re-picked wear a lettered plate instead.
 void drawTriangleIcon(
     juce::Graphics& g, const TabLaneMetrics& metrics, float center_x, float center_y,
-    bool pointing_down, juce::Colour fill, juce::Colour border, const juce::String& letter)
+    bool pointing_down, juce::Colour fill, juce::Colour border)
 {
     const float width = metrics.note_height / 2.0f;
     const float height = metrics.note_height * 2.0f / 5.0f;
@@ -609,76 +625,92 @@ void drawTriangleIcon(
     g.fillPath(triangle);
     g.setColour(border);
     g.strokePath(triangle, juce::PathStrokeType{1.0f});
+}
 
-    if (letter.isNotEmpty())
+// Draws a picking-hand attack as its standard tab letter on a rounded plate.
+//
+// The plate's PARALLEL SIDES are the whole point. A triangle tapers, so at the height where a
+// capital's ink sits it retains barely half its width — the letters slap and pop used to carry
+// overflowed their own badges at every lane size. A square holds the letter at the badge's full
+// width, so the three picking-hand attacks can share one silhouette and let the letter name
+// them, which is what a guitarist reads anyway (T, S, P).
+//
+// The letter is the fret number's own font, so it is exactly as legible as the digit the reader
+// is already reading — no separate size to tune. It draws only when the plate can hold its ink:
+// JUCE's font "height" is the ascent-plus-descent line box rather than a cap height (verified
+// in juce_Typeface.cpp, getPointsToHeightFactor() = ascent + descent), so a capital's ink is
+// only about half the number the font was asked for, and a plate smaller than that ink would
+// spill the letter over its edges the way the triangles did.
+void drawLetterBadge(
+    juce::Graphics& g, const TabLaneMetrics& metrics, float center_x, float center_y,
+    const juce::String& letter)
+{
+    const float side = metrics.note_height * g_letter_badge_fraction;
+    const float border = std::max(1.0f, side / 9.0f);
+    const float radius = side * 0.22f;
+    const juce::Rectangle<float> plate{center_x - side / 2.0f, center_y - side / 2.0f, side, side};
+
+    g.setColour(juce::Colours::black);
+    g.fillRoundedRectangle(plate, radius);
+    g.setColour(g_full_mute_text_border);
+    g.drawRoundedRectangle(plate, radius, border);
+
+    const float ink = metrics.fret_font.getHeight() * g_capital_ink_fraction;
+    if (metrics.draw_text && side >= ink + (2.0f * border))
     {
         g.setColour(juce::Colours::white);
-        g.setFont(juce::Font{juce::FontOptions{std::max(6.0f, height * 0.9f)}.withStyle("Bold")});
-        g.drawText(
-            letter,
-            juce::Rectangle<float>{left, top - (pointing_down ? 1.0f : -1.0f), width, height},
-            juce::Justification::centred);
+        g.setFont(metrics.fret_font);
+        g.drawText(letter, plate, juce::Justification::centred);
     }
 }
 
-// Draws the attack technique icon in Charter's position and style: hammer-ons, pull-offs, and
-// taps sit left of the head; slaps and pops sit right of it.
+// Draws the attack technique icon beside the head. The vocabulary reads by SHAPE, and the shape
+// says what the attack IS: a triangle means legato — the note is not re-attacked — so it needs
+// no letter, only a direction (down for a hammer-on, up for a pull-off). Everything that IS
+// re-attacked by the picking hand wears a lettered plate carrying the letter printed tab
+// already uses (T, S, P), so those three share one silhouette and the letter names them. The
+// pick slide is neither: it is a gesture over the whole note, and it sits above the head.
+//
+// Legato marks sit left of the head and picking-hand marks right of it, so the two families
+// never share a slot; both clear the head rather than overlapping its rim.
 void drawAttackIcon(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::TabNoteView& note,
     float center_x, float center_y)
 {
-    const float left_x = center_x - metrics.note_height / 2.0f;
-    const float right_x = center_x + metrics.note_height / 2.0f;
-    const float high_y = center_y - metrics.note_height / 2.0f;
-    const float low_y = center_y - metrics.note_height / 3.0f;
+    const float slot = (metrics.note_height * 0.75f) + g_icon_slot_gap;
+    const float left_x = center_x - slot;
+    const float right_x = center_x + slot;
+    // One height for every beside-head mark, above the lane centre so the marks clear the
+    // sustain ribbon running out of the head.
+    const float slot_y = center_y - (metrics.note_height / 2.5f);
 
     switch (note.attack)
     {
         case common::core::NoteAttack::Hammer:
         {
             drawTriangleIcon(
-                g, metrics, left_x, low_y, true, juce::Colours::white, juce::Colours::black, {});
+                g, metrics, left_x, slot_y, true, juce::Colours::white, juce::Colours::black);
             break;
         }
         case common::core::NoteAttack::Pull:
         {
             drawTriangleIcon(
-                g, metrics, left_x, high_y, false, juce::Colours::white, juce::Colours::black, {});
+                g, metrics, left_x, slot_y, false, juce::Colours::white, juce::Colours::black);
             break;
         }
         case common::core::NoteAttack::Tap:
         {
-            // The right-hand family wears the V on both surfaces (the 3D head atlas gives tap
-            // and pick slide the same glyph), so the tap icon is the chevron rather than the
-            // picking-hand black triangle — at the triangle's own slot and size.
-            drawChevronShape(
-                g, left_x, low_y, metrics.note_height / 2.0f, metrics.note_height * 2.0f / 5.0f);
+            drawLetterBadge(g, metrics, right_x, slot_y, "T");
             break;
         }
         case common::core::NoteAttack::Slap:
         {
-            drawTriangleIcon(
-                g,
-                metrics,
-                right_x,
-                low_y,
-                true,
-                juce::Colours::black,
-                g_full_mute_text_border,
-                "S");
+            drawLetterBadge(g, metrics, right_x, slot_y, "S");
             break;
         }
         case common::core::NoteAttack::Pop:
         {
-            drawTriangleIcon(
-                g,
-                metrics,
-                right_x,
-                low_y,
-                false,
-                juce::Colours::black,
-                g_full_mute_text_border,
-                "P");
+            drawLetterBadge(g, metrics, right_x, slot_y, "P");
             break;
         }
         case common::core::NoteAttack::PickSlide:

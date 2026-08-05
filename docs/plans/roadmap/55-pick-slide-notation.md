@@ -100,13 +100,28 @@ language on the 3D highway and the 2D tab.
     narrower cell is a queued atlas edit); 2D = normal digit-bearing head + black V with the
     family border (0xC0C0C0) in the attack-icon slot (joining the picking-hand black-fill icon
     family).
-  - **The fill-color premise was retired 2026-08-04 (user direction).** The 2D tap icon was a
-    black triangle because fill color encoded the hand (white = fretting, black = picking);
-    it is now the same white V the pick slide wears, at the triangle's own slot and size. The
-    right-hand family therefore reads by SHAPE on both surfaces — which is what the 3D head
-    atlas already did, giving tap and pick slide V glyphs — and shape is the axis the code
-    itself groups on (`rightHandOnset`). Slap and pop keep their black triangles, so fill no
-    longer partitions the hands on its own.
+  - **The 2D attack vocabulary was rebuilt around what the marks MEAN (user design
+    2026-08-04), replacing the fill-encodes-the-hand premise.** The triangle means LEGATO —
+    the note is not re-attacked — so hammer-on and pull-off keep it and need no letter, the
+    direction being the whole message; slap and pop wearing that same shape had been
+    semantically wrong. Everything the picking hand re-attacks (tap, slap, pop) now draws as
+    its standard printed-tab letter on a rounded plate, so the three share one silhouette and
+    the letter names them. The pick slide is neither and keeps its white V above the head.
+    Legato marks sit left, picking-hand marks right, and both clear the head instead of
+    overlapping its rim.
+    - The plate's PARALLEL SIDES are load-bearing: a triangle retains barely half its width at
+      the height a capital's ink sits, so the letters slap and pop used to carry overflowed
+      their badges at every lane size — a defect measured, not guessed.
+    - The letter is the fret number's own font and draws under the fret number's own gate, so
+      it is legible exactly when the digit beside it is, with no separate threshold to tune.
+      Sizing it needed a verified JUCE fact: `Font` height is the ascent-plus-descent line box
+      (`juce_Typeface.cpp`, `getPointsToHeightFactor() = ascent + descent`), so a capital's ink
+      is only about half the number the font is asked for. Code that sizes a letter as a
+      fraction of its badge silently draws it at half that.
+    - Weighed against alternatives first: a research pass over printed-tab and notation-tool
+      convention, small-glyph legibility, and a scrolling-tab predecessor that used NO letters
+      at all (technique lived in the note head's own colour and outline). Letters won on
+      needing no legend — that predecessor shipped one — at the cost of a size floor.
   - **Superseded on sight 2026-08-04 (user redesign): the muted-note composite plus the V,
     on BOTH surfaces.** A scrape head dresses exactly like a full-muted note — 3D: the tech
     gem base with its digit under the upright full-mute X marker (an interim X-as-head-base
