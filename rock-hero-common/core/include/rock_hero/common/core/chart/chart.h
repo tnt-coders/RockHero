@@ -157,7 +157,9 @@ Waypoints describe the note's own pitch curve — legato junctions, holds, and s
 toward a re-picked landing — and are always pitched; the only unpitched gesture is the separate
 \ref SlideOut terminal, so an "unpitched middle" cannot be written. A waypoint never sits on a
 later onset of its own string: a shift-slide glide ends the minimum sustain distance before its
-landing, and the landing note renders its own head.
+landing, and the landing note renders its own head. A pick slide's terminal waypoint is the one
+exception — unpitched gesture geometry pinned to the sustain end, which a truncation may park
+exactly on the silencing next onset.
 */
 struct SlideWaypoint
 {

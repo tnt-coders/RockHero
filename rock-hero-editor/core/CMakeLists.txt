@@ -12,6 +12,8 @@ target_sources(
             src/chart/chart_edits.h
             src/chart/chart_hit_testing.cpp
             src/chart/chart_hit_testing.h
+            src/chart/pick_slide_defaults.cpp
+            src/chart/pick_slide_defaults.h
             src/chart/chart_selection.cpp
             src/chart/chart_selection.h
             src/audio_device/audio_device_settings_controller.cpp

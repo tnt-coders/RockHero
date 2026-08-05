@@ -280,6 +280,12 @@ public:
         chart_sustain_adjust_count += 1;
     }
 
+    /*! \copydoc IEditorController::onChartPickSlideToggleRequested */
+    void onChartPickSlideToggleRequested() override
+    {
+        chart_pick_slide_toggle_count += 1;
+    }
+
     /*! \copydoc IEditorController::onChartEscapePressed */
     void onChartEscapePressed() override
     {}
@@ -770,6 +776,9 @@ public:
 
     /*! \brief Number of onChartSustainAdjustRequested() intents received. */
     int chart_sustain_adjust_count{0};
+
+    /*! \brief Number of onChartPickSlideToggleRequested() intents received. */
+    int chart_pick_slide_toggle_count{0};
 
     /*! \brief Last tone region id reported through onToneRegionSelected(). */
     std::string last_selected_tone_region_id{};

@@ -360,6 +360,17 @@ public:
     virtual void onChartSustainAdjustRequested(int direction, bool fine) = 0;
 
     /*!
+    \brief Handles a request to toggle the selected notes to or from the pick-slide attack.
+
+    Uniform scope, one compound undo entry: when every selected note is already a pick slide
+    the whole selection reverts to a plain picked attack — the techniques the scrape overrode
+    stay in memory for the session (chart contract) and simply resurface — otherwise the whole
+    selection becomes pick slides, each keeping its fret as the scrape start and gaining the
+    default path toward the far default endpoint.
+    */
+    virtual void onChartPickSlideToggleRequested() = 0;
+
+    /*!
     \brief Handles Escape on the chart, stepping the editing state down one rung.
 
     The Esc ladder (the marker model, 2026-07-18): an in-flight pointer gesture (marquee or

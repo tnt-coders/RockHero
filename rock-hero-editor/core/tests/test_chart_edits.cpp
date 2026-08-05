@@ -1,7 +1,9 @@
 #include "chart/chart_edits.h"
+#include "chart/pick_slide_defaults.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <rock_hero/common/core/chart/chart.h>
+#include <rock_hero/common/core/chart/chart_document.h>
 #include <rock_hero/common/core/chart/chart_rules.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
@@ -54,6 +56,30 @@ namespace
 [[nodiscard]] ChartNoteKey keyAt(common::core::GridPosition position, int string)
 {
     return ChartNoteKey{.position = position, .string = string};
+}
+
+// A valid scrape: fret 9 start, a traveling two-leg path ending exactly at the one-beat
+// sustain, per the pick-slide invariants the planners must preserve.
+[[nodiscard]] common::core::ChartNote makeScrape(common::core::GridPosition position, int string)
+{
+    common::core::ChartNote note = makeNote(position, string, 9, common::core::Fraction{1});
+    note.attack = common::core::NoteAttack::PickSlide;
+    note.slides = {
+        common::core::SlideWaypoint{.offset = common::core::Fraction{1, 2}, .fret = 3},
+        common::core::SlideWaypoint{.offset = common::core::Fraction{1}, .fret = 12},
+    };
+    return note;
+}
+
+// Applies a plan and asserts the whole-chart rules gate accepts the result — the planners'
+// joint contract: a plan that applies and saves but cannot re-load is exactly the
+// silent-corruption class the scrape work exists to close.
+void applyAndValidate(
+    common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const ChartNotesEditPlan& plan)
+{
+    REQUIRE(applyChartNotesChange(chart, plan.removed, plan.inserted).has_value());
+    CHECK(common::core::validateChartRules(chart, tempo_map).has_value());
 }
 
 // Finds the note on a (position, string) slot in a note list, or nullptr; used to inspect the
@@ -512,6 +538,345 @@ TEST_CASE("applyChartNotesChange rejects a colliding insertion atomically", "[co
         CHECK(result.error() == EditorUndoFailureCode::PreflightRejected);
     }
     CHECK(chart == original);
+}
+
+// Entering the pick-slide attack keeps the note's fret as the scrape start, synthesizes the
+// default path ending exactly at the sustain, and leaves the overridden techniques in memory —
+// the chart contract that makes toggle-back restoration work.
+TEST_CASE("planSetAttack enters a pick slide keeping fret and latent techniques", "[core][chart]")
+{
+    common::core::Chart chart = makeChart();
+    common::core::ChartNote& note = chart.notes[2]; // measure 3 / string 1, fret 7, sustain 2
+    note.tremolo = true;
+    note.mute = common::core::NoteMute::Palm;
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
+
+    const auto plan =
+        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide");
+    REQUIRE(plan.has_value());
+    if (plan.has_value())
+    {
+        const common::core::ChartNote* scrape =
+            noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
+        REQUIRE(scrape != nullptr);
+        CHECK(scrape->attack == common::core::NoteAttack::PickSlide);
+        CHECK(scrape->fret == 7);
+        // Fret 7 sits in the neck's lower half, so the default travels upward to the high end.
+        REQUIRE(scrape->slides.size() == 1);
+        CHECK(scrape->slides.front().fret == g_pick_slide_default_high_fret);
+        CHECK(scrape->slides.front().offset == scrape->sustain);
+        // The overridden techniques stay in memory, untouched.
+        CHECK(scrape->tremolo);
+        CHECK(scrape->mute == common::core::NoteMute::Palm);
+        CHECK(plan->label == "Pick Slide");
+        // The latents are legal in memory but the rules gate binds documents, so the oracle
+        // is the SAVED form: the writer omits the overrides and the reparse passes clean.
+        REQUIRE(applyChartNotesChange(chart, plan->removed, plan->inserted).has_value());
+        const auto saved = common::core::parseChartDocument(common::core::chartDocumentText(chart));
+        REQUIRE(saved.has_value());
+        CHECK(common::core::validateChartRules(*saved, tempo_map).has_value());
+    }
+}
+
+// A zero-sustain note first extends to the minimum gesture window so the path can travel.
+TEST_CASE("planSetAttack extends a zero sustain to the minimum window", "[core][chart]")
+{
+    const common::core::Chart chart = makeChart();
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartNoteKey> keys{keyAt({.measure = 2, .beat = 1}, 1)};
+
+    const auto plan =
+        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide");
+    REQUIRE(plan.has_value());
+    if (plan.has_value())
+    {
+        const common::core::ChartNote* scrape =
+            noteAt(plan->inserted, {.measure = 2, .beat = 1}, 1);
+        REQUIRE(scrape != nullptr);
+        CHECK(scrape->sustain == g_minimum_slide_window);
+        REQUIRE(scrape->slides.size() == 1);
+        CHECK(scrape->slides.front().offset == g_minimum_slide_window);
+        common::core::Chart applied = chart;
+        applyAndValidate(applied, tempo_map, *plan);
+    }
+}
+
+// A start in the neck's upper half scrapes downward to the low default endpoint.
+TEST_CASE("planSetAttack scrapes downward from the neck's upper half", "[core][chart]")
+{
+    common::core::Chart chart = makeChart();
+    chart.notes[2].fret = 14;
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
+
+    const auto plan =
+        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide");
+    REQUIRE(plan.has_value());
+    if (plan.has_value())
+    {
+        const common::core::ChartNote* scrape =
+            noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
+        REQUIRE(scrape != nullptr);
+        REQUIRE(scrape->slides.size() == 1);
+        CHECK(scrape->slides.front().fret == g_pick_slide_default_low_fret);
+    }
+}
+
+// Toggling the attack in and back out restores the note field-for-field: the latents were never
+// touched, the path clears on exit, and fret and sustain survive the round trip.
+TEST_CASE("planSetAttack round-trips a toggled note exactly", "[core][chart]")
+{
+    common::core::Chart chart = makeChart();
+    chart.notes[2].tremolo = true;
+    chart.notes[2].vibrato = true;
+    const common::core::ChartNote original = chart.notes[2];
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
+
+    const auto enter =
+        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide");
+    REQUIRE(enter.has_value());
+    if (!enter.has_value())
+    {
+        return;
+    }
+    REQUIRE(applyChartNotesChange(chart, enter->removed, enter->inserted).has_value());
+
+    const auto exit =
+        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::Pick, "Remove Pick Slide");
+    REQUIRE(exit.has_value());
+    if (!exit.has_value())
+    {
+        return;
+    }
+    REQUIRE(applyChartNotesChange(chart, exit->removed, exit->inserted).has_value());
+
+    const common::core::ChartNote* restored = noteAt(chart.notes, {.measure = 3, .beat = 1}, 1);
+    REQUIRE(restored != nullptr);
+    CHECK(*restored == original);
+}
+
+// Keyed notes already carrying the attack plan nothing.
+TEST_CASE("planSetAttack returns nullopt when nothing changes", "[core][chart]")
+{
+    common::core::Chart chart = makeChart();
+    chart.notes[2] = makeScrape({.measure = 3, .beat = 1}, 1);
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
+
+    CHECK_FALSE(
+        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide")
+            .has_value());
+    CHECK_FALSE(
+        planSetAttack(chart, tempo_map, {}, common::core::NoteAttack::Pick, "Pick").has_value());
+}
+
+// A scrape's path translates with its start under retype, preserving the gesture's travel; a
+// path fret pushed past the neck refuses the whole plan exactly like a member fret.
+TEST_CASE("planRetypeFrets translates a scrape's path with its start", "[core][chart]")
+{
+    const std::vector<common::core::ChartNote> base{makeScrape({.measure = 1, .beat = 1}, 1)};
+
+    const auto plan = planRetypeFrets(base, 11, /*set_exact=*/false);
+    REQUIRE(plan.has_value());
+    if (plan.has_value())
+    {
+        REQUIRE(plan->inserted.size() == 1);
+        const common::core::ChartNote& retyped = plan->inserted.front();
+        CHECK(retyped.fret == 11);
+        REQUIRE(retyped.slides.size() == 2);
+        CHECK(retyped.slides[0].fret == 5);
+        CHECK(retyped.slides[1].fret == 14);
+
+        common::core::Chart chart;
+        chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+        chart.notes = base;
+        applyAndValidate(chart, makeTempoMap(), *plan);
+    }
+
+    // Transposing to 28 lands the start inside the neck but pushes the path's fret 12 to 31.
+    CHECK_FALSE(planRetypeFrets(base, 28, /*set_exact=*/false).has_value());
+}
+
+// A sustain change re-terminates a scrape's path: shrink compresses the final point onto the
+// new end, growth rides it out, and the sustain floors at the gesture window instead of zero.
+TEST_CASE("planAdjustSustain re-terminates a scrape's path", "[core][chart]")
+{
+    common::core::Chart chart = makeChart();
+    chart.notes[2] = makeScrape({.measure = 3, .beat = 1}, 1);
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
+
+    SECTION("shrink compresses the final point onto the new end")
+    {
+        const auto plan = planAdjustSustain(chart, tempo_map, keys, common::core::Fraction{-1, 4});
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            const common::core::ChartNote* scrape =
+                noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
+            REQUIRE(scrape != nullptr);
+            CHECK(scrape->sustain == common::core::Fraction{3, 4});
+            REQUIRE(scrape->slides.size() == 2);
+            CHECK(scrape->slides[0].offset == common::core::Fraction{1, 2});
+            CHECK(scrape->slides[0].fret == 3);
+            CHECK(scrape->slides[1].offset == common::core::Fraction{3, 4});
+            CHECK(scrape->slides[1].fret == 12);
+            common::core::Chart applied = chart;
+            applyAndValidate(applied, tempo_map, *plan);
+        }
+    }
+
+    SECTION("growth rides the final point out to the new end")
+    {
+        const auto plan = planAdjustSustain(chart, tempo_map, keys, common::core::Fraction{1, 2});
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            const common::core::ChartNote* scrape =
+                noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
+            REQUIRE(scrape != nullptr);
+            CHECK(scrape->sustain == common::core::Fraction{3, 2});
+            REQUIRE(scrape->slides.size() == 2);
+            CHECK(scrape->slides[1].offset == common::core::Fraction{3, 2});
+            CHECK(scrape->slides[1].fret == 12);
+        }
+    }
+
+    SECTION("shrink floors at the minimum gesture window")
+    {
+        const auto plan = planAdjustSustain(chart, tempo_map, keys, common::core::Fraction{-10});
+        REQUIRE(plan.has_value());
+        if (plan.has_value())
+        {
+            const common::core::ChartNote* scrape =
+                noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
+            REQUIRE(scrape != nullptr);
+            CHECK(scrape->sustain == g_minimum_slide_window);
+            REQUIRE(scrape->slides.size() == 1);
+            CHECK(scrape->slides.front().offset == g_minimum_slide_window);
+            CHECK(scrape->slides.front().fret == 12);
+        }
+    }
+}
+
+// When compression would land the terminal fret on its new predecessor, the nearest earlier
+// differing fret takes over so the path keeps traveling.
+TEST_CASE("planAdjustSustain keeps a compressed scrape traveling", "[core][chart]")
+{
+    common::core::Chart chart = makeChart();
+    common::core::ChartNote scrape = makeScrape({.measure = 3, .beat = 1}, 1);
+    // 9 -> 3 -> 12 -> 3: valid travel whose final fret equals the first surviving leg's.
+    scrape.slides = {
+        common::core::SlideWaypoint{.offset = common::core::Fraction{1, 4}, .fret = 3},
+        common::core::SlideWaypoint{.offset = common::core::Fraction{1, 2}, .fret = 12},
+        common::core::SlideWaypoint{.offset = common::core::Fraction{1}, .fret = 3},
+    };
+    chart.notes[2] = scrape;
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
+
+    // Shrink to 3/8: only the first leg survives, and the terminal fret 3 would sit still
+    // against it, so the earlier differing fret 12 terminates instead.
+    const auto plan = planAdjustSustain(chart, tempo_map, keys, common::core::Fraction{-5, 8});
+    REQUIRE(plan.has_value());
+    if (plan.has_value())
+    {
+        const common::core::ChartNote* shrunk =
+            noteAt(plan->inserted, {.measure = 3, .beat = 1}, 1);
+        REQUIRE(shrunk != nullptr);
+        CHECK(shrunk->sustain == common::core::Fraction{3, 8});
+        REQUIRE(shrunk->slides.size() == 2);
+        CHECK(shrunk->slides[0].offset == common::core::Fraction{1, 4});
+        CHECK(shrunk->slides[0].fret == 3);
+        CHECK(shrunk->slides[1].offset == common::core::Fraction{3, 8});
+        CHECK(shrunk->slides[1].fret == 12);
+        common::core::Chart applied = chart;
+        applyAndValidate(applied, tempo_map, *plan);
+    }
+}
+
+// The 40-Q2-B truncation a later insert forces re-terminates a scrape's path the same way, so
+// an edit near a scrape can never leave an invalid chart behind.
+TEST_CASE("planInsertNote truncation re-terminates a scrape", "[core][chart]")
+{
+    common::core::Chart chart;
+    chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    chart.notes = {makeScrape({.measure = 1, .beat = 1}, 1)};
+    const common::core::TempoMap tempo_map = makeTempoMap();
+
+    // A new onset half a beat into the scrape truncates its sustain to exact adjacency.
+    const auto plan = planInsertNote(
+        chart, tempo_map, makeNote({.measure = 1, .beat = 1, .offset = {1, 2}}, 1, 5));
+    REQUIRE(plan.has_value());
+    if (plan.has_value())
+    {
+        const common::core::ChartNote* truncated =
+            noteAt(plan->inserted, {.measure = 1, .beat = 1}, 1);
+        REQUIRE(truncated != nullptr);
+        CHECK(truncated->sustain == common::core::Fraction{1, 2});
+        REQUIRE_FALSE(truncated->slides.empty());
+        CHECK(truncated->slides.back().offset == truncated->sustain);
+        // Travel survives: consecutive neck positions still strictly differ.
+        int previous_fret = truncated->fret;
+        for (const common::core::SlideWaypoint& waypoint : truncated->slides)
+        {
+            CHECK(waypoint.fret != previous_fret);
+            previous_fret = waypoint.fret;
+        }
+        // The terminal lands exactly ON the inserted onset — legal only through the scrape
+        // terminal's carve-out in the waypoint-on-onset rule; the whole-chart gate is the
+        // oracle that the applied chart can be re-read.
+        common::core::Chart applied = chart;
+        applyAndValidate(applied, tempo_map, *plan);
+    }
+}
+
+// Entering a pick slide REPLACES a pitched glide with the scrape path: `slides` is the path's
+// own storage, definitionally outside the latent contract, so toggling back clears the path
+// rather than resurrecting the glide — undo is the recovery. Pinned so the asymmetry with the
+// technique latents stays deliberate.
+TEST_CASE("planSetAttack replaces a pitched glide and does not restore it", "[core][chart]")
+{
+    common::core::Chart chart = makeChart();
+    chart.notes[2].tremolo = true;
+    chart.notes[2].slides = {
+        common::core::SlideWaypoint{.offset = common::core::Fraction{1, 2}, .fret = 9}
+    };
+    const common::core::TempoMap tempo_map = makeTempoMap();
+    const std::vector<ChartNoteKey> keys{keyAt({.measure = 3, .beat = 1}, 1)};
+
+    const auto enter =
+        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::PickSlide, "Pick Slide");
+    REQUIRE(enter.has_value());
+    if (!enter.has_value())
+    {
+        return;
+    }
+    // The tremolo latent makes the in-memory chart deliberately dirty, so validate the saved
+    // form rather than the raw stream.
+    REQUIRE(applyChartNotesChange(chart, enter->removed, enter->inserted).has_value());
+    const auto saved = common::core::parseChartDocument(common::core::chartDocumentText(chart));
+    REQUIRE(saved.has_value());
+    CHECK(common::core::validateChartRules(*saved, tempo_map).has_value());
+    const common::core::ChartNote* scrape = noteAt(chart.notes, {.measure = 3, .beat = 1}, 1);
+    REQUIRE(scrape != nullptr);
+    REQUIRE(scrape->slides.size() == 1);
+    CHECK(scrape->slides.front().fret == g_pick_slide_default_high_fret);
+
+    const auto exit =
+        planSetAttack(chart, tempo_map, keys, common::core::NoteAttack::Pick, "Remove Pick Slide");
+    REQUIRE(exit.has_value());
+    if (!exit.has_value())
+    {
+        return;
+    }
+    applyAndValidate(chart, tempo_map, *exit);
+    const common::core::ChartNote* restored = noteAt(chart.notes, {.measure = 3, .beat = 1}, 1);
+    REQUIRE(restored != nullptr);
+    CHECK(restored->tremolo);
+    CHECK(restored->slides.empty());
 }
 
 } // namespace rock_hero::editor::core

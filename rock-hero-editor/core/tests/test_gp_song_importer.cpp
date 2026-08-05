@@ -1723,6 +1723,82 @@ TEST_CASE("Guitar Pro import converts pick-slide flags into pick-slide notes", "
         CHECK(chart.notes[0].mute == common::core::NoteMute::Full);
         CHECK(chart.notes[0].slide_out.has_value());
     }
+
+    SECTION("the fret-hand track ignores a carrier alone in a rest")
+    {
+        // The rest-driven anchor path: a phrase break re-anchors the hand, and a carrier
+        // sitting alone where the rest would be must not turn the break into an anchor move.
+        const auto make_score = [&syncs](const bool with_carrier) {
+            GpScore score = makeLinearScore(1, syncs);
+            score.tracks[0].bars.push_back(
+                GpBar{.voices = {{noteBeat(Fraction{1, 4}, 5), noteBeat(Fraction{1, 4}, 8)}}});
+            score.tracks[0].bars.push_back(
+                GpBar{
+                    .voices = {{carrierBeat(
+                        Fraction{1, 2},
+                        with_carrier ? std::vector<GpNote>{pickSlideCarrier(64)}
+                                     : std::vector<GpNote>{})}}
+                });
+            return score;
+        };
+
+        const auto with_gesture = buildGpSong(make_score(true));
+        const auto without_gesture = buildGpSong(make_score(false));
+        REQUIRE(with_gesture.has_value());
+        REQUIRE(without_gesture.has_value());
+        CHECK(
+            with_gesture->arrangements.front().chart.fret_hand_positions ==
+            without_gesture->arrangements.front().chart.fret_hand_positions);
+    }
+
+    SECTION("the fret-hand track ignores a carrier sharing an onset with a fretted mate")
+    {
+        const auto make_score = [&syncs](const bool with_carrier) {
+            GpScore score = makeLinearScore(1, syncs);
+            GpNote mate;
+            mate.string = 2;
+            mate.fret = 7;
+            std::vector<GpNote> onset{mate};
+            if (with_carrier)
+            {
+                onset.push_back(pickSlideCarrier(64));
+            }
+            score.tracks[0].bars.push_back(
+                GpBar{
+                    .voices = {
+                        {noteBeat(Fraction{1, 4}, 5),
+                         carrierBeat(Fraction{1, 4}, onset),
+                         noteBeat(Fraction{1, 4}, 10)}
+                    }
+                });
+            return score;
+        };
+
+        const auto with_gesture = buildGpSong(make_score(true));
+        const auto without_gesture = buildGpSong(make_score(false));
+        REQUIRE(with_gesture.has_value());
+        REQUIRE(without_gesture.has_value());
+        CHECK(
+            with_gesture->arrangements.front().chart.fret_hand_positions ==
+            without_gesture->arrangements.front().chart.fret_hand_positions);
+    }
+
+    SECTION("a carrier with a tremolo stroke converts once instead of spelling out")
+    {
+        // The pick-slide vocabulary carries the noise intrinsically (chart.h), so a carrier
+        // beat marked tremolo is exempt from the measured spell-out and sheds the flag.
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat beat = carrierBeat(Fraction{1, 2}, {pickSlideCarrier(64)});
+        beat.tremolo_stroke = Fraction{1, 8};
+        score.tracks[0].bars.push_back(GpBar{.voices = {{beat}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 1);
+        CHECK(chart.notes[0].attack == common::core::NoteAttack::PickSlide);
+        CHECK_FALSE(chart.notes[0].tremolo);
+    }
 }
 
 // Grace beats take no bar time; the import places them against their principal (user rules

@@ -1343,6 +1343,140 @@ TEST_CASE("EditorController grows and clamps sustains on the grid", "[core][char
     CHECK(chart->notes[0].sustain == common::core::Fraction{});
 }
 
+// The pick-slide toggle authors a scrape from a plain note and back within the session, each
+// direction one compound undo entry replaying exactly through the shared edit seam.
+TEST_CASE("EditorController toggles pick slides with exact restoration", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    // Select the string-1 note and give it a real tail first, so the toggle round trip is
+    // field-exact (a zero sustain would legitimately gain the minimum gesture window).
+    click(controller, 40.0f, 220.0f);
+    controller.onChartSustainAdjustRequested(1, false);
+    const auto* chart = chartOrNull(controller);
+    const common::core::ChartNote original = chart->notes[0];
+
+    controller.onChartPickSlideToggleRequested();
+    chart = chartOrNull(controller);
+    CHECK(chart->notes[0].attack == common::core::NoteAttack::PickSlide);
+    CHECK(chart->notes[0].fret == original.fret);
+    REQUIRE_FALSE(chart->notes[0].slides.empty());
+    CHECK(chart->notes[0].slides.back().offset == chart->notes[0].sustain);
+
+    // Toggling back restores the note field-for-field: the scrape's path clears and nothing
+    // else was ever touched.
+    controller.onChartPickSlideToggleRequested();
+    chart = chartOrNull(controller);
+    CHECK(chart->notes[0] == original);
+
+    // Undo replays both directions exactly: first back to the scrape, then to the original.
+    controller.onUndoRequested();
+    chart = chartOrNull(controller);
+    CHECK(chart->notes[0].attack == common::core::NoteAttack::PickSlide);
+    controller.onUndoRequested();
+    chart = chartOrNull(controller);
+    CHECK(chart->notes[0] == original);
+}
+
+// Uniform scope on a mixed selection: any plain note present makes the whole selection become
+// scrapes; only an all-scrape selection reverts. Pins the all-of decision an any-of regression
+// would silently invert.
+TEST_CASE("EditorController pick-slide toggle applies uniform scope", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    // One note becomes a scrape first, so the marquee selection below is mixed.
+    click(controller, 40.0f, 220.0f);
+    controller.onChartPickSlideToggleRequested();
+
+    // Marquee both measure-1 chord members: a scrape plus a plain note.
+    controller.onChartPointerDown(pointerEvent(20.0f, 160.0f));
+    controller.onChartPointerDrag(pointerEvent(60.0f, 239.0f));
+    controller.onChartPointerUp(pointerEvent(60.0f, 239.0f));
+
+    controller.onChartPickSlideToggleRequested();
+    const auto* chart = chartOrNull(controller);
+    CHECK(chart->notes[0].attack == common::core::NoteAttack::PickSlide);
+    CHECK(chart->notes[1].attack == common::core::NoteAttack::PickSlide);
+
+    // Now all-scrape: the same intent reverts the whole selection in one entry.
+    controller.onChartPickSlideToggleRequested();
+    chart = chartOrNull(controller);
+    CHECK(chart->notes[0].attack == common::core::NoteAttack::Pick);
+    CHECK(chart->notes[1].attack == common::core::NoteAttack::Pick);
+    CHECK(chart->notes[0].slides.empty());
+    CHECK(chart->notes[1].slides.empty());
+}
+
+// A refused first digit still arms the multi-digit entry window, so an in-range two-digit
+// value stays typeable on a scrape whose translated path rejects every single-digit target.
+TEST_CASE("EditorController fret typing recovers from a refused first digit", "[core][chart]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadChartArrangement(controller, project_services, audio));
+
+    // Build a high downward scrape: type the note to fret 17, then toggle — the default path
+    // travels to fret 3, so any single typed digit d would translate it to d - 14 < 0.
+    click(controller, 40.0f, 220.0f);
+    controller.onChartFretDigitTyped(1);
+    controller.onChartFretDigitTyped(7);
+    controller.onChartPickSlideToggleRequested();
+    const auto* chart = chartOrNull(controller);
+    REQUIRE(chart->notes[0].attack == common::core::NoteAttack::PickSlide);
+    REQUIRE(chart->notes[0].fret == 17);
+    REQUIRE(chart->notes[0].slides.size() == 1);
+    REQUIRE(chart->notes[0].slides.front().fret == 3);
+
+    // "1" refuses (path fret would leave the neck) but arms the window; "5" widens to 15 and
+    // the whole path translates with the start.
+    controller.onChartFretDigitTyped(1);
+    chart = chartOrNull(controller);
+    CHECK(chart->notes[0].fret == 17);
+    controller.onChartFretDigitTyped(5);
+    chart = chartOrNull(controller);
+    CHECK(chart->notes[0].fret == 15);
+    REQUIRE(chart->notes[0].slides.size() == 1);
+    CHECK(chart->notes[0].slides.front().fret == 1);
+}
+
 // Arrow keys nudge a selection by the grid step; refused moves (occupied slot) change nothing.
 TEST_CASE("EditorController nudges the selection and refuses collisions", "[core][chart]")
 {

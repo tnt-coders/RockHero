@@ -1,5 +1,7 @@
 #include "project/gp_chart_builder.h"
 
+#include "chart/pick_slide_defaults.h"
+
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -97,16 +99,8 @@ struct MeasureGrid
     return lead;
 }
 
-// Sub-beat step used to keep a degenerate glide or slide-out payload strictly after the chain's
-// last waypoint (the model's ascending-payload invariant).
-constexpr Fraction g_minimum_slide_window{1, 8};
-
-// Default scrape span for imported pick slides. Guitar Pro encodes only the direction (Slide
-// flags 64/128 on dead strings), so the import synthesizes a path the user can reshape; the
-// endpoints are corpus-derived (plan 55 Phase 2): down-slides overwhelmingly start at the neck's
-// high end (~70% at fret 13+) and end low (~80% at or below fret 7), and up-slides mirror it.
-constexpr int g_pick_slide_default_high_fret{17};
-constexpr int g_pick_slide_default_low_fret{3};
+// The minimum gesture window and the corpus-derived default scrape live in the shared seam so
+// import and the editor's attack verb synthesize identical defaults (pick_slide_defaults.h).
 
 // Bumps a payload window landing on or before the note's last waypoint to one minimum step past
 // it, so the payload stays ascending.
@@ -2034,12 +2028,11 @@ void resolveSlideOutExits(
         note.accent = false;
         note.bend.clear();
         note.slide_out.reset();
+        // Carriers are dead strings with meaningless frets, so the import owns the start too;
+        // the editor's toggle keeps a real note's fret instead.
         note.fret = upward ? g_pick_slide_default_low_fret : g_pick_slide_default_high_fret;
         note.sustain = span;
-        note.slides = {SlideWaypoint{
-            .offset = span,
-            .fret = upward ? g_pick_slide_default_high_fret : g_pick_slide_default_low_fret,
-        }};
+        applyDefaultPickSlidePath(note, upward);
         kept.end_global_beat = kept.global_beat + span;
         ++imported_pick_slides;
         index = scan;

@@ -376,6 +376,42 @@ TEST_CASE("Chart rules validate pick-slide notes", "[core][chart]")
     Chart stationary_leg = makeFullChart();
     stationary_leg.notes[scrape].slides[1].fret = 5;
     expect_invalid(stationary_leg);
+
+    // The one carve-out in the waypoint-on-onset rule: a scrape TERMINAL legally lands exactly
+    // on the silencing next onset — a 40-Q2-B truncation parks the sustain, and therefore the
+    // terminal, right there — while an interior waypoint on a later onset stays rejected like
+    // any glide waypoint.
+    Chart terminal_on_onset;
+    terminal_on_onset.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    terminal_on_onset.notes = {
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 1},
+            .string = 1,
+            .fret = 12,
+            .sustain = Fraction{1, 2},
+            .attack = NoteAttack::PickSlide,
+            .bend = {},
+            .slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 4}},
+        },
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 1, .offset = Fraction{1, 2}},
+            .string = 1,
+            .fret = 7,
+            .bend = {},
+            .slides = {},
+        },
+    };
+    CHECK(validateChartRules(terminal_on_onset, tempo_map).has_value());
+
+    Chart interior_on_onset = terminal_on_onset;
+    interior_on_onset.notes[0].sustain = Fraction{1};
+    interior_on_onset.notes[0].slides = {
+        SlideWaypoint{.offset = Fraction{1, 2}, .fret = 4},
+        SlideWaypoint{.offset = Fraction{1}, .fret = 9},
+    };
+    const auto interior_result = validateChartRules(interior_on_onset, tempo_map);
+    REQUIRE_FALSE(interior_result.has_value());
+    CHECK(interior_result.error().code == ChartErrorCode::InvalidNotePayload);
 }
 
 // Latent techniques survive in memory for attack toggling but never reach the document: the

@@ -939,6 +939,11 @@ void EditorController::onChartSustainAdjustRequested(int direction, bool fine)
     m_impl->onChartSustainAdjustRequested(direction, fine);
 }
 
+void EditorController::onChartPickSlideToggleRequested()
+{
+    m_impl->onChartPickSlideToggleRequested();
+}
+
 void EditorController::onChartEscapePressed()
 {
     m_impl->onChartEscapePressed();
@@ -3057,11 +3062,12 @@ void EditorController::Impl::retypeChartSelectionFret(int digit, std::uint32_t n
     std::vector<common::core::ChartNote> base_notes = chartNotesForKeys(chartSelection().notes());
     const std::vector<ChartNoteKey> keys = chartSelection().notes();
     std::optional<ChartNotesEditPlan> plan = planRetypeFrets(base_notes, digit, /*set_exact=*/true);
-    if (!plan.has_value())
-    {
-        return;
-    }
-    const bool pushed = !plan->removed.empty() && applyChartEditPlan(std::move(plan));
+    // A refused first digit (the fret cap, or a scrape's translated path leaving the neck)
+    // still arms the entry window: the digit applies nothing, but the widen replans the
+    // two-digit value from the same pre-entry base, so every in-range multi-digit target
+    // stays reachable — a scrape's wide default path would otherwise dead-end all typing.
+    const bool pushed =
+        plan.has_value() && !plan->removed.empty() && applyChartEditPlan(std::move(plan));
     if (digit * 10 <= common::core::g_max_fret)
     {
         m_chart_fret_entry = ChartFretEntry{
@@ -3153,6 +3159,38 @@ void EditorController::Impl::onChartSustainAdjustRequested(int direction, bool f
         direction > 0 ? step : common::core::Fraction{-step.numerator, step.denominator};
     static_cast<void>(applyChartEditPlan(planAdjustSustain(
         *arrangement->chart, session().song().tempo_map, chartSelection().notes(), delta)));
+}
+
+// Toggles the selection to or from the pick-slide attack as one compound undo entry, uniform
+// scope: an all-scrape selection reverts to plain picks (the in-memory technique overrides
+// simply resurface), anything else becomes scrapes. Runs through the ordinary edit seam, so
+// undo/redo replay exactly and the revision bump rebuilds every projection.
+void EditorController::Impl::onChartPickSlideToggleRequested()
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr || !arrangement->chart.has_value() || isBusy() ||
+        chartSelection().empty())
+    {
+        return;
+    }
+
+    const std::vector<common::core::ChartNote> selected =
+        chartNotesForKeys(chartSelection().notes());
+    if (selected.empty())
+    {
+        return;
+    }
+    const bool all_scrapes = std::ranges::all_of(selected, [](const common::core::ChartNote& note) {
+        return note.attack == common::core::NoteAttack::PickSlide;
+    });
+    const common::core::NoteAttack target =
+        all_scrapes ? common::core::NoteAttack::Pick : common::core::NoteAttack::PickSlide;
+    static_cast<void>(applyChartEditPlan(planSetAttack(
+        *arrangement->chart,
+        session().song().tempo_map,
+        chartSelection().notes(),
+        target,
+        all_scrapes ? "Remove Pick Slide" : "Pick Slide")));
 }
 
 // The Esc ladder (the marker model): an in-flight pointer gesture is abandoned without

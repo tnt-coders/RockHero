@@ -1412,6 +1412,17 @@ TEST_CASE("Rock song package save keeps unedited charts byte-stable", "[core][ro
             .bend = {},
             .slides = {},
         },
+        // A pick slide rides the same stability gate so the canonical attack+path spelling
+        // can never churn across load/save cycles.
+        ChartNote{
+            .position = GridPosition{.measure = 3, .beat = 1},
+            .string = 1,
+            .fret = 12,
+            .sustain = Fraction{3, 4},
+            .attack = NoteAttack::PickSlide,
+            .bend = {},
+            .slides = {SlideWaypoint{.offset = Fraction{3, 4}, .fret = 4}},
+        },
     };
     const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
     REQUIRE(writeChartDocument(package_directory / chart_ref, chart).has_value());
@@ -1464,6 +1475,45 @@ TEST_CASE(
     REQUIRE(writeChartDocument(package_directory / chart_ref, valid_chart).has_value());
     REQUIRE(writeRockSongPackageDirectory(package_directory, song).has_value());
     REQUIRE(writeChartDocument(package_directory / chart_ref, invalid_chart).has_value());
+
+    const auto loaded = readRockSongPackageDirectory(package_directory);
+    REQUIRE_FALSE(loaded.has_value());
+    CHECK(loaded.error().code == SongPackageErrorCode::InvalidArrangement);
+}
+
+// A hand-made scrape whose path sits still passes the writer verbatim (the writer sanitizes
+// nothing) and must fail loudly at the read-side rules gate.
+TEST_CASE("Rock song package read rejects a non-traveling pick slide", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temp;
+    const std::filesystem::path package_directory = temp.path() / "package";
+    const std::filesystem::path source_audio = package_directory / "audio" / "backing.flac";
+    writeAudioFile(source_audio);
+
+    Chart scrape_chart;
+    scrape_chart.tuning.strings = {"E2", "A2", "D3", "G3", "B3", "E4"};
+    scrape_chart.notes = {
+        ChartNote{
+            .position = GridPosition{.measure = 1, .beat = 1},
+            .string = 1,
+            .fret = 12,
+            .sustain = Fraction{1, 2},
+            .attack = NoteAttack::PickSlide,
+            .bend = {},
+            .slides = {SlideWaypoint{.offset = Fraction{1, 2}, .fret = 4}},
+        },
+    };
+    const std::string chart_ref = "charts/" + std::string{g_lead_arrangement_id} + ".chart.json";
+
+    Song song = makeSong(source_audio);
+    song.arrangements.front().chart_ref = chart_ref;
+    REQUIRE(writeChartDocument(package_directory / chart_ref, scrape_chart).has_value());
+    REQUIRE(writeRockSongPackageDirectory(package_directory, song).has_value());
+
+    // Corrupt in place: the path's target lands on the start fret, so the scrape sits still.
+    Chart still_chart = scrape_chart;
+    still_chart.notes[0].slides[0].fret = 12;
+    REQUIRE(writeChartDocument(package_directory / chart_ref, still_chart).has_value());
 
     const auto loaded = readRockSongPackageDirectory(package_directory);
     REQUIRE_FALSE(loaded.has_value());

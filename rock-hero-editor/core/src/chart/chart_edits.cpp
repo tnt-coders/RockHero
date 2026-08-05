@@ -1,5 +1,7 @@
 #include "chart/chart_edits.h"
 
+#include "chart/pick_slide_defaults.h"
+
 #include <algorithm>
 #include <cstddef>
 #include <rock_hero/common/core/chart/chart_rules.h>
@@ -24,15 +26,47 @@ namespace
 
 // Drops bend and slide points past the note's (possibly shortened) sustain so the payload rule
 // "offsets within the sustain" keeps holding after a 40-Q2-B truncation. A slide-out past the
-// sustain drops like any payload.
+// sustain drops like any payload. Latent payloads on a scrape clip too — they must still fit
+// the sustain when a toggle-back makes them real again.
 void clipPayloadsToSustain(common::core::ChartNote& note)
 {
     std::erase_if(note.bend, [&note](const common::core::BendPoint& point) {
         return note.sustain < point.offset;
     });
-    std::erase_if(note.slides, [&note](const common::core::SlideWaypoint& waypoint) {
-        return note.sustain < waypoint.offset;
-    });
+    if (note.attack == common::core::NoteAttack::PickSlide && !note.slides.empty())
+    {
+        // A scrape's path is gesture geometry ending exactly at the sustain, so a sustain
+        // change RE-TERMINATES the path instead of clipping it (the import trim's compress
+        // twist under the editor's exact-adjacency bound): waypoints strictly before the new
+        // end survive, and the final fret rides to the sustain itself. When compression makes
+        // the terminal fret meet its new predecessor, the nearest earlier differing fret takes
+        // over so the path never sits still.
+        const std::vector<common::core::SlideWaypoint> path = std::move(note.slides);
+        note.slides = {};
+        for (std::size_t index = 0; index + 1 < path.size(); ++index)
+        {
+            if (path[index].offset < note.sustain)
+            {
+                note.slides.push_back(path[index]);
+            }
+        }
+        const int previous_fret = note.slides.empty() ? note.fret : note.slides.back().fret;
+        int terminal_fret = path.back().fret;
+        std::size_t candidate = path.size() - 1;
+        while (terminal_fret == previous_fret && candidate > 0)
+        {
+            --candidate;
+            terminal_fret = path[candidate].fret;
+        }
+        note.slides.push_back(
+            common::core::SlideWaypoint{.offset = note.sustain, .fret = terminal_fret});
+    }
+    else
+    {
+        std::erase_if(note.slides, [&note](const common::core::SlideWaypoint& waypoint) {
+            return note.sustain < waypoint.offset;
+        });
+    }
     if (note.slide_out.has_value() && note.sustain < note.slide_out->offset)
     {
         note.slide_out.reset();
@@ -268,6 +302,21 @@ std::optional<ChartNotesEditPlan> planRetypeFrets(
         plan.removed.push_back(note);
         common::core::ChartNote retyped = note;
         retyped.fret = fret;
+        // A scrape's path translates with its start (the plan-55 transposition special case):
+        // the whole gesture shifts by the same delta, preserving travel; a path fret pushed
+        // outside the neck refuses the plan exactly like a member fret would.
+        if (note.attack == common::core::NoteAttack::PickSlide)
+        {
+            const int path_delta = fret - note.fret;
+            for (common::core::SlideWaypoint& waypoint : retyped.slides)
+            {
+                waypoint.fret += path_delta;
+                if (waypoint.fret < 0 || waypoint.fret > common::core::g_max_fret)
+                {
+                    return std::nullopt;
+                }
+            }
+        }
         plan.inserted.push_back(std::move(retyped));
     }
     return plan;
@@ -294,6 +343,13 @@ std::optional<ChartNotesEditPlan> planAdjustSustain(
         if (next_sustain.numerator < 0)
         {
             next_sustain = common::core::Fraction{};
+        }
+        // A scrape needs somewhere to travel: its sustain floors at the minimum gesture window
+        // instead of zero (the path re-terminates onto the shrunk tail via the payload clip).
+        if (note.attack == common::core::NoteAttack::PickSlide &&
+            next_sustain < g_minimum_slide_window)
+        {
+            next_sustain = g_minimum_slide_window;
         }
         // The minimum-sustain-distance rule (settled 2026-07-18; override design deliberately
         // open): growing a tail clamps it to end at least the shared margin BEFORE the next
@@ -354,6 +410,50 @@ std::optional<ChartNotesEditPlan> planAdjustSustain(
         tempo_map,
         std::move(candidate),
         beat_delta.numerator > 0 ? "Grow Sustain" : "Shrink Sustain");
+}
+
+std::optional<ChartNotesEditPlan> planSetAttack(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<ChartNoteKey>& keys, const common::core::NoteAttack attack,
+    const std::string_view label)
+{
+    if (keys.empty())
+    {
+        return std::nullopt;
+    }
+
+    std::vector<common::core::ChartNote> candidate = chart.notes;
+    bool changed = false;
+    for (common::core::ChartNote& note : candidate)
+    {
+        if (!std::ranges::binary_search(keys, keyOf(note)) || note.attack == attack)
+        {
+            continue;
+        }
+        const bool was_scrape = note.attack == common::core::NoteAttack::PickSlide;
+        note.attack = attack;
+        if (attack == common::core::NoteAttack::PickSlide)
+        {
+            // The note's own fret is the scrape start (unlike imported carriers, whose dead
+            // strings carry no meaningful fret); the default travels to the far end of the
+            // corpus range, downward from the neck's upper half.
+            const bool upward =
+                note.fret <= (g_pick_slide_default_high_fret + g_pick_slide_default_low_fret) / 2;
+            applyDefaultPickSlidePath(note, upward);
+        }
+        else if (was_scrape)
+        {
+            // The path was gesture geometry; as a pitched glide it would be a fiction. The
+            // overridden techniques were never touched, so they simply resurface.
+            note.slides.clear();
+        }
+        changed = true;
+    }
+    if (!changed)
+    {
+        return std::nullopt;
+    }
+    return finalizePlan(chart, tempo_map, std::move(candidate), label);
 }
 
 std::expected<void, EditorUndoFailureCode> applyChartNotesChange(

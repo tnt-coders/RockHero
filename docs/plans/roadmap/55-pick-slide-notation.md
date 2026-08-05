@@ -195,7 +195,8 @@ language on the 3D highway and the 2D tab.
 3. **Projection + 2D tab. FIRST CUT SHIPPED 2026-08-04.** Both projections suppress the latent
    overrides (the one seam) and mark scrape waypoints unpitched/unlinked — which routes the
    whole 3D path through the existing unpitched-glide machinery and keeps scrape legs out of
-   the hand window's slide-locked ramps (pinned by test alongside no-tap-lighting). The tab
+   the hand window's slide-locked ramps (pinned by test; the scrape drives the Phase 4 moving
+   right-hand light while contributing nothing to the hand window). The tab
    now draws the 2026-08-04 composite: mute X + plate over the digit, white mute-styled V
    above the head, white-framed tremolo strip with plain slide diagonals, per-leg chips.
    **Exit.** Tab renders a down-then-up chain per the signed head. **Verify.** Build; suites —
@@ -222,9 +223,30 @@ language on the 3D highway and the 2D tab.
    Still queued: the root impact shards. Sight-iterate on Van Halen measure 20.
    **Exit.** User signs the treatment on sight. **Verify.** Build; sight pass; plan 54 color
    coordination.
-5. **Editor verbs + acceptance.** 55-Q2's remainder; then the acceptance bundle.
-   **Exit.** Acceptance below in full. **Verify.** Build, full suites, pre-commit, the
-   two-measure sight pass.
+5. **Editor verbs + acceptance. VERB LAYER SHIPPED 2026-08-05** (built, adversarially
+   reviewed — two review-confirmed defects fixed before landing — full touched suites green):
+   `planSetAttack` with the pick-slide entry/exit cases (entry keeps the note's fret as the
+   scrape start and synthesizes the default path from the new shared `pick_slide_defaults`
+   seam the importer now also uses, so editor and import defaults can never drift; exit clears
+   the path; the latent techniques restore by construction — pinned field-exact with undo
+   replay), the `onChartPickSlideToggleRequested` intent (uniform scope over the selection,
+   the all-of decision pinned by a mixed-selection test), and the scrape cases "reshape"
+   needs: retype translates the path with its start (refuses at the neck edge; a refused
+   first digit now still arms the multi-digit entry window, so in-range two-digit targets
+   stay typeable), sustain edits re-terminate the path (shrink compresses the final point
+   onto the new end, growth rides it out, floor at the gesture window), and the 40-Q2-B
+   truncation re-terminates the same way. One rules carve-out landed with it: a scrape
+   TERMINAL waypoint legally sits exactly on the silencing next onset (truncation parks the
+   sustain, and therefore the terminal, right there — the waypoint-on-onset rule otherwise
+   made adjacency-truncated scrapes unrepresentable); interiors stay bound, both pinned.
+   Deliberately deferred: the toggle's UI surface awaits plan 40 Phase 5's technique surface
+   and a user keybind pick (no technique key exists in the signed keymap); path-waypoint
+   reshaping awaits plan 40 Phase 7's curve editors.
+   **Exit.** Acceptance below in full — remaining: the measure-20 sight item (held with the
+   Phase 4 visual redesign), the measure-3 byte-identical clause (no committable baseline can
+   exist under the corpus firewall; the figure class is value-pinned by regression test — the
+   byte comparison is a manual local procedure), and corpus smoke (runner unbuilt, plan 23
+   Phase 7). **Verify.** Build, full suites, pre-commit, the two-measure sight pass.
 
 ## Acceptance
 

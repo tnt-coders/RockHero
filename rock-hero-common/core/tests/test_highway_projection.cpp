@@ -660,9 +660,10 @@ TEST_CASE("Highway tap onsets clamp light ramps against the previous release", "
     CHECK(onsets[3].ramp_seconds == Catch::Approx(0.1));
 }
 
-// The pick-slide seam: latents suppressed, the path unpitched, no tap lighting, and the hand
-// window's slide-locked ramps never tie to a scrape leg — an FHP sitting exactly on a scrape
-// waypoint still gets the ordinary margin morph.
+// The pick-slide seam: latents suppressed, the path unpitched, and the hand window's
+// slide-locked ramps never tie to a scrape leg — an FHP sitting exactly on a scrape waypoint
+// still gets the ordinary margin morph. The scrape DOES drive the moving right-hand light
+// (asserted below) while contributing nothing to the hand window.
 TEST_CASE("Highway projection suppresses pick-slide latents", "[core][highway]")
 {
     Chart chart;

@@ -238,6 +238,15 @@ std::expected<void, ChartError> validateChartRules(const Chart& chart, const Tem
             // A curve waypoint may never sit on a later onset of its own string: a glide into a
             // real note is the slideEnd "next" terminal, which stores no coordinates. Rejecting
             // the coordinate copy here is what keeps the desyncable encoding unrepresentable.
+            // The one exception is a scrape's TERMINAL waypoint: it is unpitched gesture
+            // geometry pinned to the sustain end (never a linked-head landing), and 40-Q2-B
+            // truncation legally parks the sustain — and therefore the terminal — exactly on
+            // the silencing next onset. Scrape interiors stay bound by the rule.
+            if (note.attack == NoteAttack::PickSlide && waypoint.offset == note.sustain)
+            {
+                previous_offset = waypoint.offset;
+                continue;
+            }
             const GridPosition waypoint_position =
                 advanceGridPosition(tempo_map, note.position, waypoint.offset);
             for (auto at_waypoint = std::ranges::lower_bound(

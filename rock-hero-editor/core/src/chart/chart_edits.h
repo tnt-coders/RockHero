@@ -98,6 +98,9 @@ the anchor; a member pushed past the fret cap refuses the whole plan, never clam
 The base is a snapshot rather than the live chart so the multi-digit entry window can replan
 the whole entry from the pre-entry originals while widening.
 
+A pick-slide member's path translates with its start fret — the whole gesture shifts by the
+member's delta, preserving travel — and a path fret pushed outside the neck refuses the plan.
+
 \param base Snapshot of the notes being retyped.
 \param target Typed fret: the exact value (set-exact) or where the lowest fret lands.
 \param set_exact True to assign the target to every note instead of transposing.
@@ -110,8 +113,10 @@ the snapshot is empty.
 /*!
 \brief Plans adjusting the keyed notes' sustains by an exact beat delta.
 
-Sustains floor at zero; growth clamps against the next same-string onset (40-Q2-B) and payload
-points beyond a shortened sustain are clipped with it.
+Sustains floor at zero — at the minimum gesture window on pick slides, whose path re-terminates
+onto the changed tail (shrink compresses the final point, growth rides it out). Growth clamps
+against the next same-string onset (40-Q2-B) and payload points beyond a shortened sustain are
+clipped with it.
 
 \param chart Chart being edited.
 \param tempo_map Tempo map supplying the beat axis.
@@ -123,6 +128,30 @@ binary-search this precondition).
 [[nodiscard]] std::optional<ChartNotesEditPlan> planAdjustSustain(
     const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
     const std::vector<ChartNoteKey>& keys, common::core::Fraction beat_delta);
+
+/*!
+\brief Plans setting the keyed notes' attack, with the pick-slide entry and exit special cases.
+
+Notes already carrying the attack are left alone. Entering a pick slide keeps the note's fret
+as the scrape start and synthesizes the default path toward the far default endpoint (downward
+from the neck's upper half, upward from the lower), replacing any pitched glide the note
+carried — undo restores that; the overridden techniques stay in memory per the chart contract
+(chart.h), so toggling the attack back within the session restores them untouched. A zero
+sustain first extends to the minimum gesture window so the path can travel. Leaving a pick
+slide clears the path — gesture geometry has no meaning as a pitched glide — and touches
+nothing else.
+
+\param chart Chart being edited.
+\param tempo_map Tempo map supplying the beat axis for overlap arithmetic.
+\param keys Notes whose attack changes, sorted ascending (the ChartSelection order — lookups
+binary-search this precondition).
+\param attack Attack every keyed note receives.
+\param label User-visible undo label.
+\return The plan, or empty when nothing changes.
+*/
+[[nodiscard]] std::optional<ChartNotesEditPlan> planSetAttack(
+    const common::core::Chart& chart, const common::core::TempoMap& tempo_map,
+    const std::vector<ChartNoteKey>& keys, common::core::NoteAttack attack, std::string_view label);
 
 /*!
 \brief Applies a removed/inserted note change atomically to a chart.
