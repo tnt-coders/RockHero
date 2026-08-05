@@ -194,8 +194,8 @@ constexpr int g_face_fret_count = common::core::g_highway_fret_count;
 constexpr double g_passed_fade_seconds = 0.15;
 
 // Rolling-flip flat lead: single-note heads land flat this many seconds before the hit line.
-// The source game flips fast and late (a 500 ms roll landing flat 100 ms out, its only
-// source-verifiable timing — the flip has no documented tie to any internal
+// The reference flip is fast and late (a 500 ms roll landing flat 100 ms out, the only timing
+// verifiable from reference material — the flip has no documented tie to any internal
 // constants); our flip instead spans the whole approach (user request 2026-07-22), and the
 // slower final degrees need a longer flat stretch to read as finished before the board face
 // (user-tuned).

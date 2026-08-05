@@ -70,7 +70,7 @@ TEST_CASE("Highway camera targets the scanned hand window", "[core][highway][cam
 // With camera framing zones the scan window is quantized: everything defined during the
 // current zone and the next is framed — consumed or not — so the target holds perfectly still
 // for whole zones and steps only at their boundaries (user direction 2026-07-29, matching the
-// source game's documented rule).
+// zone-scoped framing rule the camera research documents).
 TEST_CASE("Highway camera frames the current and next zone", "[core][highway][camera]")
 {
     const HighwayMetrics metrics{};

@@ -263,7 +263,7 @@ HighwayViewState makeHighwayViewState(
 
     // Camera framing zones (user direction 2026-07-29): the camera's framing window is
     // quantized to these derived boundaries so its target steps only here and rests in between
-    // — the cadence that defines the source game's camera feel. The derivation mirrors a
+    // — the step-then-rest cadence that defines the intended camera feel. The derivation mirrors a
     // standard automatic phrase generator: runs of measures containing note onsets split into
     // g_camera_zone_measures-sized groups aligned to
     // downbeats, a run of empty measures collapses into one zone however long (rests are the

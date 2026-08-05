@@ -531,7 +531,7 @@ the session record):
   near plane at **world** z = near instead of camera-relative eye depth, which would have
   near-clipped the hit line itself (world z = 0). Fixed in common/core with a depth-volume
   regression test (hit line and the passed-note region stay inside [0,1); depth monotonic).
-- **Reversed depth (a source-game inheritance) dropped**: conventional LESS + clear 1.0 — the default
+- **Reversed depth (a reference-renderer inheritance) dropped**: conventional LESS + clear 1.0 — the default
   D3D11 depth buffer is 24-bit fixed point, where reversed-z buys nothing; image identical.
 - **Views**: 0 = background (color+depth clear, parallax matrix), 1 = board (depth-only clear,
   foreground matrix), 2 = overlay (reserved; overlay v1 uses bgfx debug text). All Sequential —
@@ -650,7 +650,7 @@ drawers (session Charter clone).
   else the phase needed was already in the Phase 1 model.
 - **Pure tail math** (`common/core highway/highway_tail.{h,cpp}`, unit-tested): adaptive sample
   counts from projected screen length (defect 1 fix — one sample per 4 px, capped at 256, vs the
-  source game's per-millisecond tessellation), taper envelope anchoring modulated rails on the
+  reference renderer's per-millisecond tessellation), taper envelope anchoring modulated rails on the
   string line (defect 2 fix), onset-phased vibrato sine (160 ms) and tremolo triangle (60 ms),
   piecewise-linear bend evaluation with prebend anchoring, slide easing curves (pitched
   sin^3 / unpitched early-release), display-space bend inversion (upper displayed half bends

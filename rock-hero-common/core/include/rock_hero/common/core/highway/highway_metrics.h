@@ -102,7 +102,7 @@ struct HighwayMetrics
     every step — it eases in from zero acceleration (no jolt) and lands with no overshoot. Three
     equal poles is the maximally smooth arrangement at a given speed (spreading them apart only
     sharpens the onset); a session of tuning landed on that maximally smooth, slow hover as the
-    most correct feel, matching the source game's described "slow hover chasing the hand".
+    most correct feel — the "slow hover chasing the hand" the camera research describes.
     It settles visually in roughly 8 / value seconds — a deliberately languid drift that trails
     the action slightly on the busiest charts, accepted for the calmer feel everywhere else.
     */

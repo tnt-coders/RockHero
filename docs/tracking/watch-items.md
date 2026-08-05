@@ -129,26 +129,26 @@ scalars ahead of container members so an unequal scalar rejects without walking 
 
 ## 3D highway camera
 
-### Maximally-smooth camera may trail on busy charts — trigger: playtesting shows lag, or a source-game comparison diverges
+### Maximally-smooth camera may trail on busy charts — trigger: playtesting shows lag, or a reference-footage comparison diverges
 
 The highway camera motion settled 2026-07-29 (commit `b7c7e650`) on the *maximally smooth* end of
 its smoother: a single-knob third-order critically-damped filter (three coincident poles at
 `HighwayMetrics::focus_spring_per_second` = 1.3), framing a stepped target quantized to derived
 two-measure zones (`camera_zone_starts`). The user chose the slow, languid hover deliberately — it
-"gets the 3D camera out of the way and puts the focus on the notation," and reads as what the
-source game does. Two things are accepted-for-now rather than settled: (1) at this slow rate the
+"gets the 3D camera out of the way and puts the focus on the notation," and reads as the slow
+hover the camera research describes. Two things are accepted-for-now rather than settled: (1) at this slow rate the
 camera **trails the action slightly on the busiest / fastest, position-dense charts** (it is still
 easing toward zone N's framing when zone N+1 already wants it elsewhere) — documented in the
 `focus_spring_per_second` doc comment as the accepted cost; and (2) whether maximal smoothness
-**actually matches the source game** is unconfirmed (the user's eye says yes; no frame-by-frame
-comparison was done). **Trigger**: playtesting on a fast, high-travel chart shows the camera
-visibly lagging or framing behind the notes, or a direct side-by-side against the source game
-shows the motion clearly diverging. **Remedy**: it is one number first — raise
+**actually matches the reference footage** is unconfirmed (the user's eye says yes; no
+frame-by-frame comparison was done). **Trigger**: playtesting on a fast, high-travel chart shows
+the camera visibly lagging or framing behind the notes, or a direct side-by-side against
+reference footage shows the motion clearly diverging. **Remedy**: it is one number first — raise
 `focus_spring_per_second` (faster, still jolt-free because the C² onset holds at any rate); if a
 crisper *body* is wanted without losing the gentle onset, the asymmetric split-pole form (a faster
 onset pole over a slower body double-pole) was built and removed this session and can be restored
 from history; or shorten the framing zones via `g_camera_zone_measures` in `highway_projection.cpp`
-(so the target refreshes more often). Separately, the source game's zoom-out reads "more
+(so the target refreshes more often). Separately, the reference footage's zoom-out reads "more
 vertical" than ours (height-vs-pullback balance, possibly a span-coupled pitch) — a distinct axis
 from motion timing, still open.
 

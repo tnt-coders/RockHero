@@ -72,7 +72,7 @@ plateaus stay exactly flat, reversals turn at rest, and the FC limits forbid ove
 reversal both tangents are flat so the old smoothstep values (and tests) still hold there.
 (2) `bend_lift_per_half_step` 0.28 → 0.35 = exactly one string-lane gap per semitone, the
 pitch-true reading in the board's own vertical unit (a whole-step bend visibly crosses two
-lanes; the source game's own convention quantizes bend targets to lane positions per the notation guides).
+lanes; the reference notation guides likewise quantize bend targets to lane positions).
 Vibrato depth is authored in semitones and rides the same scale deliberately. The glyph
 weight/proportions, head overlap, chord layering, fluid curve, pitch-true lift, and smoothed
 slope shading were all judged in the preview across the eighth/ninth passes (user sign-off
