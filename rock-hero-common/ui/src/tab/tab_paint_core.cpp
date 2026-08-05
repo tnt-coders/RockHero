@@ -548,10 +548,11 @@ constexpr float g_letter_badge_fraction = 0.55f;
 // it; the plate is sized against the ink rather than the number.
 constexpr float g_capital_ink_fraction = 0.55f;
 
-// How far the beside-head marks sit from the head's centre. The head's own radius is half the
-// note height, so the previous half-note-height slot put every mark ON the rim — overlapping
-// the head and, on the left, the pinch-harmonic edge line. This clears it.
-constexpr float g_icon_slot_gap = 3.0f;
+// Hairline between the head's rim and the attack mark tucked against it. The mark's own centre
+// is derived from this plus the head's radius and the mark's half-width, so every mark just
+// touches the head whatever its shape or the lane's size — the old fixed slot sat at half a
+// note height, which IS the head's radius, so marks straddled the rim instead.
+constexpr float g_icon_slot_gap = 1.0f;
 
 // Draws the picking-hand V: an open chevron band pointing down, in the mute family's colors
 // (white fill, gray border) and the full-mute X's band construction. Shared by the tap icon
@@ -671,46 +672,57 @@ void drawLetterBadge(
 // already uses (T, S, P), so those three share one silhouette and the letter names them. The
 // pick slide is neither: it is a gesture over the whole note, and it sits above the head.
 //
-// Legato marks sit left of the head and picking-hand marks right of it, so the two families
-// never share a slot; both clear the head rather than overlapping its rim.
+// Every beside-head mark shares ONE slot: immediately left of the head, tucked against its rim
+// and centred on the lane. One slot means one place to look, and it leaves the head's right
+// side entirely to the sustain ribbon. Each mark's centre is derived from the head's radius
+// plus its own half-width, so a wide lettered plate and a narrow triangle both just touch the
+// head rather than one of them floating.
 void drawAttackIcon(
     juce::Graphics& g, const TabLaneMetrics& metrics, const common::core::TabNoteView& note,
     float center_x, float center_y)
 {
-    const float slot = (metrics.note_height * 0.75f) + g_icon_slot_gap;
-    const float left_x = center_x - slot;
-    const float right_x = center_x + slot;
-    // One height for every beside-head mark, above the lane centre so the marks clear the
-    // sustain ribbon running out of the head.
-    const float slot_y = center_y - (metrics.note_height / 2.5f);
+    // The head is drawn one pixel larger than the note height so it gets a centre pixel on the
+    // string line (see drawNoteHead), and that is the rim a mark tucks against.
+    const float head_radius = (metrics.note_height + 1.0f) / 2.0f;
+    const auto slot_x = [&](const float mark_width) {
+        return center_x - head_radius - g_icon_slot_gap - (mark_width / 2.0f);
+    };
+    const float triangle_x = slot_x(metrics.note_height / 2.0f);
+    const float badge_x = slot_x(metrics.note_height * g_letter_badge_fraction);
 
     switch (note.attack)
     {
         case common::core::NoteAttack::Hammer:
         {
             drawTriangleIcon(
-                g, metrics, left_x, slot_y, true, juce::Colours::white, juce::Colours::black);
+                g, metrics, triangle_x, center_y, true, juce::Colours::white, juce::Colours::black);
             break;
         }
         case common::core::NoteAttack::Pull:
         {
             drawTriangleIcon(
-                g, metrics, left_x, slot_y, false, juce::Colours::white, juce::Colours::black);
+                g,
+                metrics,
+                triangle_x,
+                center_y,
+                false,
+                juce::Colours::white,
+                juce::Colours::black);
             break;
         }
         case common::core::NoteAttack::Tap:
         {
-            drawLetterBadge(g, metrics, right_x, slot_y, "T");
+            drawLetterBadge(g, metrics, badge_x, center_y, "T");
             break;
         }
         case common::core::NoteAttack::Slap:
         {
-            drawLetterBadge(g, metrics, right_x, slot_y, "S");
+            drawLetterBadge(g, metrics, badge_x, center_y, "S");
             break;
         }
         case common::core::NoteAttack::Pop:
         {
-            drawLetterBadge(g, metrics, right_x, slot_y, "P");
+            drawLetterBadge(g, metrics, badge_x, center_y, "P");
             break;
         }
         case common::core::NoteAttack::PickSlide:
