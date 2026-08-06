@@ -41,6 +41,13 @@ both endpoints, so the border leaves and rejoins the straight steady-window edge
 - One ease curve for all window motion: the pitched-slide ease (`highwaySlideEaseWeight`),
   so slides and morphs feel identical and slide ramps cannot drift from the note tail they
   mirror.
+  - **Repealed 2026-08-06.** This rule was signed while unpitched slide-outs never moved the
+    window (see the recording rule below, itself since revised), so "one curve" could not
+    disagree with anything. Once trail-offs moved the window, a single pitched curve guaranteed
+    the very drift the rule existed to prevent: the rail eased with the unpitched curve while
+    the window eased with the pitched one, so the two shared only their endpoints. The window
+    now carries the ramp's family (`HighwayFhpView::unpitched_ramp`) and eases with whichever
+    curve the rail uses. Margins keep the pitched curve.
 - The morph duration is musical, so it scales with tempo (quick at fast tempos, languid at
   slow ones). This is intended behavior, not an artifact.
 - The first FHP of a chart morphs in from the default nut window (fret 1, width 4) under the
@@ -65,8 +72,10 @@ No chart-format change: every ramp is derived at projection time (derived-over-a
     its glide-segment start seconds (note onset, or the previous waypoint). An FHP whose grid
     position matches a recorded waypoint exactly takes that segment start as its ramp start.
     Exact `GridPosition` equality, not seconds-epsilon matching — the generator places the FHP
-    at exactly the waypoint's advanced position. Unpitched slide-outs are never recorded (they
-    release pressure and never move the window).
+    at exactly the waypoint's advanced position. **Revised 2026-08-06: unpitched slide-outs ARE
+    recorded**, carrying their family so the window rides the trail-off's own segment with the
+    unpitched curve. The original claim — that they release pressure and never move the window —
+    stopped being true when the window was made to ride trail-offs, and the line was left stale.
   - **Margin morph otherwise.** Ramp start = the FHP's global beat position minus the margin
     (`minimumSustainDistanceBeats` at the signature of the FHP's measure), resolved to seconds
     through the tempo map.

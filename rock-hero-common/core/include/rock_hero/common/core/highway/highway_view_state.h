@@ -318,12 +318,24 @@ struct HighwayFhpView
     /*!
     \brief Duration of the eased approach ending at \ref seconds; zero arrives instantly.
 
-    Derived at projection time: a placement landing exactly on a pitched slide waypoint ramps
-    over that glide segment so the window travels with the slide, and every other placement
-    morphs over the minimum-sustain-distance margin (shortened when placements crowd closer
-    than the ramp).
+    Derived at projection time: a placement landing exactly on a slide waypoint — pitched glide or
+    unpitched trail-off end alike — ramps over that glide's own segment so the window travels with
+    the drawn rail, and every other placement morphs over the minimum-sustain-distance margin
+    (shortened when placements crowd closer than the ramp).
     */
     double ramp_seconds{0.0};
+
+    /*!
+    \brief True when \ref ramp_seconds spans an UNPITCHED glide, so the window eases with the
+    unpitched release curve instead of the pitched one.
+
+    The window follows whatever the rail draws, and the two families are different functions of
+    progress (\ref highwaySlideEaseWeight). Easing every move with the pitched curve left the
+    window and the rail sharing only their endpoints. Note the consequence: the unpitched curve
+    arrives at full travel with nonzero slope, so the window stops abruptly at the release — which
+    is exactly what the drawn rail does at the same instant.
+    */
+    bool unpitched_ramp{false};
 
     /*!
     \brief Compares two fret-hand position views by their stored fields.

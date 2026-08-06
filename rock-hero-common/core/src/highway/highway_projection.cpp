@@ -62,14 +62,19 @@ HighwayViewState makeHighwayViewState(
     // fret-hand ramps use below; zero for non-tap notes. Feeds makeHighwayTapOnsets.
     std::vector<double> tap_rise_seconds;
     tap_rise_seconds.reserve(chart.notes.size());
-    // PITCHED glide arrivals feed the hand window's slide-locked ramps: a placement sitting
-    // exactly on a waypoint's advanced grid position ties its ramp to the glide segment.
-    // Unpitched trail-off ends are deliberately NOT recorded: their segment spans the whole
-    // sustain (a plain note dips from its onset), and tying the importer's exit placements
-    // to it made the window creep away seconds early on long notes — the standard margin morph
-    // arriving at the trail-off's end matches the perceptible release instead. Chord slides record
-    // identical values under one key.
-    std::map<GridPosition, double> slide_ramp_starts;
+    // Glide arrivals feed the hand window's slide-locked ramps: a placement sitting exactly on a
+    // waypoint's advanced grid position ties its ramp to that glide's own segment, so the window
+    // travels with the drawn rail instead of on an unrelated metrical margin. UNPITCHED trail-off
+    // ends are recorded too, and carry their family so the window eases with the same curve the
+    // rail uses — a trail-off's curve is defined, so the window follows it precisely rather than
+    // approximating it with a margin morph and the pitched curve. Chord slides record identical
+    // values under one key.
+    struct SlideRamp
+    {
+        double start_seconds{0.0};
+        bool unpitched{false};
+    };
+    std::map<GridPosition, SlideRamp> slide_ramp_starts;
     state.notes.reserve(chart.notes.size());
     for (const ChartNote& note : chart.notes)
     {
@@ -109,6 +114,7 @@ HighwayViewState makeHighwayViewState(
         }
         view.slides.reserve(note.slides.size() + 1);
         double glide_segment_start_seconds = view.start_seconds;
+        int glide_segment_start_fret = note.fret;
         for (const SlideWaypoint& waypoint : note.slides)
         {
             const double waypoint_seconds =
@@ -119,13 +125,20 @@ HighwayViewState makeHighwayViewState(
                     .fret = waypoint.fret,
                     .unpitched = scrape,
                 });
-            if (!scrape)
+            // An equal-fret waypoint is a HOLD, not a glide — nothing travels across it (the
+            // pitch is pinned, which is how a slide notated on a tied continuation records where
+            // it leaves from). Tying a placement's ramp to a hold's span made the hand drift the
+            // whole held stretch to arrive at a fret it never left, so holds fall through to the
+            // margin morph. The segment start still advances, which is what gives the following
+            // glide its true, shorter span.
+            if (!scrape && waypoint.fret != glide_segment_start_fret)
             {
                 slide_ramp_starts.try_emplace(
                     advanceGridPosition(tempo_map, note.position, waypoint.offset),
-                    glide_segment_start_seconds);
+                    SlideRamp{.start_seconds = glide_segment_start_seconds, .unpitched = false});
             }
             glide_segment_start_seconds = waypoint_seconds;
+            glide_segment_start_fret = waypoint.fret;
         }
         // The slide-out flattens into the view's slide list so the renderer keeps one uniform
         // segment model; it owns its geometry and dims unpitched. Pitched glides — shift and
@@ -140,6 +153,13 @@ HighwayViewState makeHighwayViewState(
                     .fret = slide_out->fret,
                     .unpitched = true,
                 });
+            // The trail-off's own segment starts where the last pitched waypoint left off (the
+            // note's onset when there are none), which is exactly the span the renderer draws it
+            // over. Recording it ties the window to that span and marks the family so the ease
+            // matches too.
+            slide_ramp_starts.try_emplace(
+                advanceGridPosition(tempo_map, note.position, slide_out->offset),
+                SlideRamp{.start_seconds = glide_segment_start_seconds, .unpitched = true});
         }
         double rise_seconds = 0.0;
         if (rightHandOnset(note.attack))
@@ -215,10 +235,12 @@ HighwayViewState makeHighwayViewState(
         const double arrival_seconds =
             tempo_map.secondsAtGlobalBeatPosition(globalBeatPosition(tempo_map, fhp.position));
         double ramp_start_seconds = 0.0;
+        bool unpitched_ramp = false;
         if (const auto slide = slide_ramp_starts.find(fhp.position);
             slide != slide_ramp_starts.end())
         {
-            ramp_start_seconds = slide->second;
+            ramp_start_seconds = slide->second.start_seconds;
+            unpitched_ramp = slide->second.unpitched;
         }
         else
         {
@@ -242,6 +264,7 @@ HighwayViewState makeHighwayViewState(
                 .fret = fhp.fret,
                 .width = fhp.width,
                 .ramp_seconds = arrival_seconds - ramp_start_seconds,
+                .unpitched_ramp = unpitched_ramp,
             });
     }
 

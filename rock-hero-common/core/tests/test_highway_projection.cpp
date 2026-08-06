@@ -227,9 +227,9 @@ TEST_CASE("Highway projection derives hand-window ramps", "[core][highway]")
     Chart* const chart_ptr = chartOrNull(arrangement);
     REQUIRE(chart_ptr != nullptr);
     Chart& chart = *chart_ptr;
-    // A sustained note whose tail trails off unpitched: a placement on its end takes the
-    // margin morph, never the whole-sustain segment (a segment tie made the window creep
-    // from the onset on long notes).
+    // A sustained note whose tail trails off unpitched: a placement on its end rides the
+    // trail-off's own segment with the unpitched curve, so the window travels exactly with the
+    // drawn rail.
     chart.notes.push_back(
         ChartNote{
             .position = GridPosition{.measure = 4, .beat = 3},
@@ -275,8 +275,60 @@ TEST_CASE("Highway projection derives hand-window ramps", "[core][highway]")
     CHECK(state.fret_hand_positions[2].seconds == Catch::Approx(10.5 * beat));
     CHECK(state.fret_hand_positions[2].ramp_seconds == Catch::Approx(2.0 * beat));
 
+    // A placement on an unpitched trail-off's end rides that trail-off's OWN segment, exactly as a
+    // pitched glide does, and carries the unpitched family so the window eases with the same curve
+    // the rail is drawn with. The trail-off's segment runs from the note's onset (14 beats) to its
+    // end (15 beats) because the note carries no pitched waypoints ahead of it; before this the
+    // placement morphed over the metrical margin instead, leaving the window stationary for most of
+    // the drawn glide and then sprinting to catch up.
     CHECK(state.fret_hand_positions[3].seconds == Catch::Approx(15.0 * beat));
-    CHECK(state.fret_hand_positions[3].ramp_seconds == Catch::Approx(0.25 * beat));
+    CHECK(state.fret_hand_positions[3].ramp_seconds == Catch::Approx(1.0 * beat));
+    CHECK(state.fret_hand_positions[3].unpitched_ramp);
+    // The pitched glide above keeps the pitched family.
+    CHECK_FALSE(state.fret_hand_positions[2].unpitched_ramp);
+}
+
+// An equal-fret waypoint is a HOLD, not a glide: nothing travels across it, so a placement landing
+// on one must take the short margin morph rather than a ramp spanning the held stretch. Holds are
+// how a slide notated on a tied continuation records where it leaves from, so tying their span to
+// the window made the hand drift across the whole tied group to arrive at a fret it never left —
+// sighted at fret 11 of measure 50 of the acceptance song.
+TEST_CASE("Highway projection gives a hold waypoint the margin morph", "[core][highway]")
+{
+    const TempoMap tempo_map = makeHighwayTempoMap();
+    const double beat = tempo_map.secondsAtBeat(1, 2) - tempo_map.secondsAtBeat(1, 1);
+    Arrangement arrangement = makeArrangementWithChart();
+    Chart* const chart_ptr = chartOrNull(arrangement);
+    REQUIRE(chart_ptr != nullptr);
+    Chart& chart = *chart_ptr;
+    // Four beats of held fret 5, then a one-beat glide up to fret 9: the hold pins the pitch at
+    // beat 4 and the travel happens only over the final beat.
+    chart.notes.push_back(
+        ChartNote{
+            .position = GridPosition{.measure = 2, .beat = 1},
+            .string = 5,
+            .fret = 5,
+            .sustain = Fraction{4},
+            .bend = {},
+            .slides = {
+                SlideWaypoint{.offset = Fraction{3}, .fret = 5},
+                SlideWaypoint{.offset = Fraction{4}, .fret = 9},
+            },
+        });
+    chart.fret_hand_positions = {
+        FretHandPosition{.position = GridPosition{.measure = 2, .beat = 4}, .fret = 5, .width = 4},
+        FretHandPosition{.position = GridPosition{.measure = 3, .beat = 1}, .fret = 9, .width = 4},
+    };
+
+    const HighwayViewState state = makeHighwayViewState(arrangement, tempo_map, {}, {});
+    REQUIRE(state.fret_hand_positions.size() == 2);
+
+    // The hold at beat 4 does NOT inherit the three-beat held stretch; it morphs over the margin.
+    CHECK(state.fret_hand_positions[0].ramp_seconds == Catch::Approx(0.25 * beat));
+    CHECK_FALSE(state.fret_hand_positions[0].unpitched_ramp);
+    // The real glide that follows still rides its own one-beat segment.
+    CHECK(state.fret_hand_positions[1].ramp_seconds == Catch::Approx(1.0 * beat));
+    CHECK_FALSE(state.fret_hand_positions[1].unpitched_ramp);
 }
 
 // The beat list covers the whole song grid up to the terminal anchor with correct downbeat

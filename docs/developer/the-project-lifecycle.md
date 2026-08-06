@@ -180,9 +180,16 @@ corpus-derived algorithm — the metrics and the source-corpus study behind thes
      they cancel the drag and reshape in place instead.
 
    The window always rides an unpitched slide-out (user rules 2026-08-02): an exit placement
-   at the trail-off's compressed end carries the window with the gesture, arriving through
-   the standard margin morph so the motion lands with the perceptible release rather than
-   creeping from the note's onset (sighted on long notes 2026-08-02). The hand's next
+   at the trail-off's compressed end carries the window with the gesture. **Revised 2026-08-06:**
+   that placement now rides the trail-off's OWN segment and eases with the unpitched curve, so
+   the window follows the drawn rail precisely instead of approximating it — a trail-off's curve
+   is defined, so there is nothing to approximate. It previously arrived through the standard
+   margin morph, which left the window stationary for most of the drawn glide and then sprinting
+   to catch up (measured: still for 87.5% of the glide, then 4 frets in 0.125 s, peaking 3.29
+   frets apart). The margin morph had been chosen in the other direction, to stop the window
+   creeping from the note's onset on long notes (sighted 2026-08-02); the creep it avoided is a
+   property of the RAIL's own span, so if it reads wrong the fix belongs to the drawn geometry
+   rather than to the window, which now simply agrees with whatever is drawn. The hand's next
    move decides the rest. When its next placement departs in the trail-off's direction AND
    arrives by the very next onset, the gesture IS the departure: the exit fret rides the
    anchor travel (widened to the slide-in rule's two-fret minimum) and the window flows
