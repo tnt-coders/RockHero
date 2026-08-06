@@ -137,17 +137,26 @@ inline constexpr int g_head_cell_tap = 8;
 /*!
 \brief Pick-scrape marker: a plectrum split by a single 45-degree fracture.
 
-Wears the picking hand's dark-interior treatment — fill tint weight 68 against a 255 rim, the
-values slap and pop measure. Interior darkness is this atlas's picking-hand signature: every
+Wears the picking hand's dark-interior treatment — fill tint weight 68 against a rim of 240 with
+94 of white lift, the values tap, palm mute and pinch harmonic measure. The picking hand's rims
+fall into two clusters and this cell joins the lifted one; slap and pop instead rim at 255 with no
+lift at all. Interior darkness is this atlas's picking-hand signature: every
 right-hand cell cores at or below 68 while every fretting-hand cell cores at exactly 255. That
 split holds across cells sharing a function (palm and full mute), a technique (natural and pinch
 harmonic), and a motion (tap and legato), so it tracks the hand rather than the atlas row.
 
-One zig zag at 45 degrees — two collinear runs offset by a single perpendicular step — splits the
-pick through the cell center, and the fracture carries the row's brightest white lift, 192, so the
-crack reads as light filling it rather than as a hole. Seated concentric on the head like the
-harmonic cell, at 0.76 of the head's solid width and 1.57 of its height: it covers the head's own
-footprint, which is why a scrape wears this mark alone and no X beneath it.
+One zig zag at 45 degrees — two arms offset by a single perpendicular step — splits the pick
+through the cell center, and the fracture carries the row's brightest white lift, 192, so the crack
+reads as light filling it rather than as a hole. The crack is a six-vertex bolt: full thickness
+across the middle, tapering to a single point at each end. Every edge is straight, including the
+offset step, which is a chord rather than the arc a plain distance field would join the arms with.
+Each point lands just past the silhouette's half-coverage line so the crack's zero and the pick's
+zero coincide, which is what makes the split reach the outline instead of stopping short of it. The
+two ends cannot converge at the same rate: the plectrum is mirror-symmetric rather than
+180-degree-symmetric, so its point sits nearer the crack than its shoulder does and the lower taper
+is the steeper of the two. Seated concentric on the head like the harmonic cell, at 0.76 of the
+head's solid width and 1.57 of its height: it covers the head's own footprint, which is why a
+scrape wears this mark alone and no X beneath it.
 */
 inline constexpr int g_head_cell_pick_slide = 9;
 
