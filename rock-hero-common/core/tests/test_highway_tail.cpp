@@ -166,35 +166,37 @@ TEST_CASE("Highway wobbles are onset-phased and bounded", "[core][highway][tail]
     }
 }
 
-// Tremolo teeth are spaced by DEPTH RATIO, which is what holds a tooth's on-screen shape
-// constant down the whole tail: a fixed world pitch foreshortens its along-tail advance as one
-// over depth squared while its lateral swing only goes as one over depth, so its aspect drifts.
-TEST_CASE("Highway tremolo teeth hold their aspect with depth", "[core][highway][tail]")
+// Teeth step a fixed span of the note's own duration, so the count is the tail's length over that
+// span and nothing else: a longer note carries proportionally more ridges, and no camera, distance
+// or scroll-speed term appears anywhere. This pins the property the whole law exists for — the
+// teeth belong to the note, so the same tail always shows the same ridges.
+TEST_CASE("Highway tremolo teeth step a fixed span of tail time", "[core][highway][tail]")
 {
-    const double anchor = 2.5;
-    CHECK(highwayTremoloCycles(anchor, anchor) == Catch::Approx(0.0));
-    // Equal depth RATIOS are equal phase steps, at any distance.
-    const double first = highwayTremoloCycles(anchor * 2.0, anchor);
-    CHECK(highwayTremoloCycles(anchor * 4.0, anchor) == Catch::Approx(2.0 * first));
-    CHECK(highwayTremoloCycles(anchor * 8.0, anchor) == Catch::Approx(3.0 * first));
+    CHECK(highwayTremoloTailCycles(0.0) == Catch::Approx(0.0));
 
-    // The depth lookup inverts the phase exactly, which is what lets a caller place turning
-    // points on the wave rather than near them.
+    // Count is strictly proportional to tail length: twice the tail, twice the ridges.
+    const double single = highwayTremoloTailCycles(g_highway_tremolo_tooth_cycle_seconds);
+    CHECK(single == Catch::Approx(1.0));
+    CHECK(
+        highwayTremoloTailCycles(4.0 * g_highway_tremolo_tooth_cycle_seconds) ==
+        Catch::Approx(4.0));
+    CHECK(
+        highwayTremoloTailCycles(9.0 * g_highway_tremolo_tooth_cycle_seconds) ==
+        Catch::Approx(9.0));
+
+    // The time lookup inverts the phase exactly, which is what lets a caller place turning points
+    // on the wave rather than near them, and makes the half-cycle walk terminate.
     for (int index = 0; index < 12; ++index)
     {
         const double cycles = 0.5 * index;
-        const double depth = highwayTremoloEyeDepthAtCycle(cycles, anchor);
-        CHECK(highwayTremoloCycles(depth, anchor) == Catch::Approx(cycles));
+        CHECK(
+            highwayTremoloTailCycles(highwayTremoloTailSecondsAtCycle(cycles)) ==
+            Catch::Approx(cycles));
         // Every half cycle is a true extremum, so a sampler walking them lands the wave's
         // corners exactly rather than near them.
         CHECK(std::abs(highwayTremoloWobble(cycles)) == Catch::Approx(g_highway_tremolo_depth));
     }
-    // Depth grows strictly with phase, so a caller's half-cycle walk always terminates.
-    CHECK(highwayTremoloEyeDepthAtCycle(1.0, anchor) > highwayTremoloEyeDepthAtCycle(0.5, anchor));
-
-    // Behind the camera the phase is defined rather than a domain error.
-    CHECK(highwayTremoloCycles(-1.0, anchor) == Catch::Approx(0.0));
-    CHECK(highwayTremoloCycles(anchor, 0.0) == Catch::Approx(0.0));
+    CHECK(highwayTremoloTailSecondsAtCycle(1.0) > highwayTremoloTailSecondsAtCycle(0.5));
 }
 
 // The teeth ease off the string line over a fixed number of TEETH at each end, so the run

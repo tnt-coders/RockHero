@@ -71,8 +71,11 @@ language on the 3D highway and the 2D tab.
   (consecutive neck positions strictly differ, start fret included), path end == sustain.
 - Import: carriers (flags 64/128) convert in place — shed the mute, gain the attack and the
   corpus-derived default path (**down 17 → 3, up 3 → 17**; ~70% of corpus down-slides start at
-  fret 13+ and ~80% end at or below fret 7). The lowest-string simultaneous carrier survives
-  with the longest span; conflicting directions drop with a conversion note. Scrapes then ride
+  fret 13+ and ~80% end at or below fret 7). **Revised 2026-08-06:** simultaneous same-direction
+  carriers each become a scrape note on their own string, sharing the gesture's longest notated
+  span — one scrape sounds on every string the pick crosses, so collapsing them onto the lowest
+  string (the behavior originally shipped) understated a two-string scrape as a one-string one.
+  Conflicting directions still drop with a conversion note. Scrapes then ride
   the ordinary distance rules (margin trims both directions, deliberate holds) — pinned by
   tests — and `rightHandOnset` keeps the FHP generator, span derivation, ring rules, and
   anchoring blind to them (transparency pinned by the carrier-vs-rest FHP equality test).
@@ -95,11 +98,23 @@ language on the 3D highway and the 2D tab.
     experiment died of. Misread directions also favor A: scrape-read-as-tap stages the right
     hand at the neck at the digit; X-read-as-mute keeps it picking at home.
   - **The signed design**: 3D = digit-bearing string-colored gem + narrow whitened V on the
-    face (the tap cell's V, whitened/narrowed — the palm→full intensification grammar inside
-    the right-hand family; currently rendered as the tap cell in a whitened tint, the bespoke
-    narrower cell is a queued atlas edit); 2D = normal digit-bearing head + black V with the
-    family border (0xC0C0C0) in the attack-icon slot (joining the picking-hand black-fill icon
-    family).
+    face (the tap cell's V, whitened/narrowed — the palm→full intensification grammar, which is
+    a *damping* pair spanning both hands rather than an intra-right-hand relationship as an
+    earlier draft of this line said; currently rendered as the tap cell in a whitened tint, the
+    bespoke narrower cell is a queued atlas edit); 2D = normal digit-bearing head + black V with
+    the family border (0xC0C0C0) in the attack-icon slot (joining the picking-hand black-fill
+    icon family).
+    - **SUPERSEDED 2026-08-06 for the 3D mark only.** The whitened V is replaced by a split
+      plectrum: a Jazz-III-proportioned pick cut by a single 45-degree zig-zag fracture with the
+      row's brightest white lift in the crack, seated concentric on the head like the harmonic
+      cell. The V's whitening was also the atlas's **only** bright right-hand cell — measurement
+      showed every other right-hand cell cores at or below tint weight 68 while every
+      fretting-hand cell cores at exactly 255, so the V violated the picking-hand signature it
+      was meant to join. The new cell cores at 68 (slap and pop's value) and confines white to
+      the fracture. Two renderer consequences: the 0.55-head-height upward offset is gone (the
+      mark is head-centered, and the old offset would clip a centered pick off its quad), and a
+      scrape no longer draws the full-mute X, whose core showed through the fracture and read as
+      a second mark inside the crack. The 2D attack-icon V is untouched by this.
   - **The 2D attack vocabulary was rebuilt around what the marks MEAN (user design
     2026-08-04), replacing the fill-encodes-the-hand premise.** The triangle means LEGATO —
     the note is not re-attacked — so hammer-on and pull-off keep it and need no letter, the

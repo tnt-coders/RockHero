@@ -135,9 +135,19 @@ inline constexpr int g_head_cell_bend = 7;
 inline constexpr int g_head_cell_tap = 8;
 
 /*!
-\brief Pick-slide marker: the tap V's geometry at the mute pair's intensification ratio, drawn
-with the full-mute X's measured stroke profile — the narrow whitened member of the
-picking-hand family, seated beside the tap it intensifies.
+\brief Pick-scrape marker: a plectrum split by a single 45-degree fracture.
+
+Wears the picking hand's dark-interior treatment — fill tint weight 68 against a 255 rim, the
+values slap and pop measure. Interior darkness is this atlas's picking-hand signature: every
+right-hand cell cores at or below 68 while every fretting-hand cell cores at exactly 255. That
+split holds across cells sharing a function (palm and full mute), a technique (natural and pinch
+harmonic), and a motion (tap and legato), so it tracks the hand rather than the atlas row.
+
+One zig zag at 45 degrees — two collinear runs offset by a single perpendicular step — splits the
+pick through the cell center, and the fracture carries the row's brightest white lift, 192, so the
+crack reads as light filling it rather than as a hole. Seated concentric on the head like the
+harmonic cell, at 0.76 of the head's solid width and 1.57 of its height: it covers the head's own
+footprint, which is why a scrape wears this mark alone and no X beneath it.
 */
 inline constexpr int g_head_cell_pick_slide = 9;
 

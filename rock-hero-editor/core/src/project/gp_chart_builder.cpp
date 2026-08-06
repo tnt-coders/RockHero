@@ -1957,11 +1957,14 @@ void resolveSlideOutExits(
     // notes before any slide chain resolves (plan 55, note-carried design): the dead carrier is
     // Guitar Pro's encoding vehicle for the gesture, so it sheds its mute and gains the attack plus
     // the corpus-derived default path (down 17 -> 3, up the mirror) across the notated span, ready
-    // for the user to reshape. Simultaneous same-direction carriers are one scrape performed across
-    // strings: the lowest-string carrier survives in its own slot (keeping the stream's sort
-    // intact) with the longest notated span, and a conflicting direction at the same onset is
-    // dropped with a report. The converted notes then participate in the ordinary minimum-distance
-    // trims like any note.
+    // for the user to reshape.
+    //
+    // Simultaneous same-direction carriers are ONE scrape sounding on EVERY string it crosses, so
+    // each carrier becomes its own note on its own string rather than collapsing to one. They share
+    // the longest notated span, because they are one gesture and the pick reaches the end of its
+    // travel once. A conflicting direction at the same onset is still dropped with a report — two
+    // opposed scrapes at one instant is a notation error, not a chord. The converted notes then
+    // participate in the ordinary minimum-distance trims like any note.
     int imported_pick_slides = 0;
     int conflicting_pick_slides = 0;
     for (std::size_t index = 0; index < built.size();)
@@ -1977,9 +1980,9 @@ void resolveSlideOutExits(
             const Fraction span = entry.end_global_beat - entry.global_beat;
             return span.numerator > 0 ? span : g_minimum_slide_window;
         };
-        std::size_t survivor = index;
+        // First pass over the onset: take the gesture's longest span and drop opposed directions.
+        // Flags stay set here so the conversion pass can still find the survivors.
         Fraction span = notated_span(built[index]);
-        built[index].slide_flags = 0;
         std::size_t scan = index + 1;
         for (; scan < built.size() && built[scan].global_beat == beat; ++scan)
         {
@@ -1987,11 +1990,10 @@ void resolveSlideOutExits(
             {
                 continue;
             }
-            const bool scan_upward = (built[scan].slide_flags & 128) != 0;
-            built[scan].slide_flags = 0;
-            if (scan_upward != upward)
+            if (((built[scan].slide_flags & 128) != 0) != upward)
             {
                 ++conflicting_pick_slides;
+                built[scan].slide_flags = 0;
                 merged_away[scan] = true;
                 continue;
             }
@@ -1999,34 +2001,35 @@ void resolveSlideOutExits(
             {
                 span = notated_span(built[scan]);
             }
-            if (built[scan].note.string < built[survivor].note.string)
-            {
-                merged_away[survivor] = true;
-                survivor = scan;
-            }
-            else
-            {
-                merged_away[scan] = true;
-            }
         }
-        BuiltNote& kept = built[survivor];
-        ChartNote& note = kept.note;
-        note.attack = NoteAttack::PickSlide;
-        note.mute = NoteMute::None;
-        note.harmonic = NoteHarmonic::None;
-        note.touch.reset();
-        note.vibrato = false;
-        note.tremolo = false;
-        note.accent = false;
-        note.bend.clear();
-        note.slide_out.reset();
-        // Carriers are dead strings with meaningless frets, so the import owns the start too;
-        // the editor's toggle keeps a real note's fret instead.
-        note.fret = upward ? g_pick_slide_default_low_fret : g_pick_slide_default_high_fret;
-        note.sustain = span;
-        applyDefaultPickSlidePath(note, upward);
-        kept.end_global_beat = kept.global_beat + span;
-        ++imported_pick_slides;
+        // Second pass: every surviving carrier at this onset becomes a scrape note in its own slot,
+        // which keeps the stream's sort intact.
+        for (std::size_t member = index; member < scan; ++member)
+        {
+            if ((built[member].slide_flags & (64 | 128)) == 0)
+            {
+                continue;
+            }
+            built[member].slide_flags = 0;
+            BuiltNote& kept = built[member];
+            ChartNote& note = kept.note;
+            note.attack = NoteAttack::PickSlide;
+            note.mute = NoteMute::None;
+            note.harmonic = NoteHarmonic::None;
+            note.touch.reset();
+            note.vibrato = false;
+            note.tremolo = false;
+            note.accent = false;
+            note.bend.clear();
+            note.slide_out.reset();
+            // Carriers are dead strings with meaningless frets, so the import owns the start too;
+            // the editor's toggle keeps a real note's fret instead.
+            note.fret = upward ? g_pick_slide_default_low_fret : g_pick_slide_default_high_fret;
+            note.sustain = span;
+            applyDefaultPickSlidePath(note, upward);
+            kept.end_global_beat = kept.global_beat + span;
+            ++imported_pick_slides;
+        }
         index = scan;
     }
     if (imported_pick_slides > 0)

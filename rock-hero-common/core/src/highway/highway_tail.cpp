@@ -157,20 +157,14 @@ double highwayVibratoWobble(const double seconds_from_onset, const double period
     return std::sin(2.0 * std::numbers::pi * seconds_from_onset / period_seconds);
 }
 
-double highwayTremoloCycles(const double eye_depth, const double anchor_eye_depth) noexcept
+double highwayTremoloTailCycles(const double seconds_from_onset) noexcept
 {
-    if (!(eye_depth > 0.0) || !(anchor_eye_depth > 0.0))
-    {
-        return 0.0;
-    }
-    // Depth RATIO, not depth difference: equal ratios project to equal on-screen steps, which
-    // is what keeps a tooth the same shape at every distance.
-    return std::log(eye_depth / anchor_eye_depth) / g_highway_tremolo_log_pitch;
+    return seconds_from_onset / g_highway_tremolo_tooth_cycle_seconds;
 }
 
-double highwayTremoloEyeDepthAtCycle(const double cycles, const double anchor_eye_depth) noexcept
+double highwayTremoloTailSecondsAtCycle(const double cycles) noexcept
 {
-    return anchor_eye_depth * std::exp(cycles * g_highway_tremolo_log_pitch);
+    return cycles * g_highway_tremolo_tooth_cycle_seconds;
 }
 
 double highwayTremoloWobble(const double cycles) noexcept

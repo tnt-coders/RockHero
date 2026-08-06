@@ -110,10 +110,6 @@ constexpr double g_tail_slope_shade_smooth_seconds = 0.05;
 // legs anchor ON the note's top edge with the apex rising clear, the bend cue's overlap.
 constexpr double g_bend_marker_offset_heads = 0.38;
 
-// The pick-slide V's center rides this many head half-heights above its head. The value dips
-// the V's solid tip (cell rows 24..43) into the X marker's upper notch — overlapping the head
-// but clear of the X's center crossing, the floor the tip must never reach.
-constexpr double g_scrape_marker_offset_heads = 0.55;
 // Pre-bend target outline alpha: the hollow head silhouette parked at a pre-bent note's
 // chart-truth height is an annotation, dimmed so the rising head stays the subject.
 constexpr double g_prebend_outline_alpha = 0.5;
@@ -1319,11 +1315,6 @@ void HighwayRenderer::Impl::draw(
     const auto time_to_z = [&](const double seconds) {
         return common::core::highwayTimeToZ(seconds - now_seconds, scroll, metrics);
     };
-    // World Z per second at the current scroll speed: time_to_z is linear in time, so this one
-    // gain inverts it. The depth-spaced tremolo teeth need that inverse to turn the depths
-    // their phase lands on back into sample times.
-    const double scroll_z_per_second = common::core::highwayTimeToZ(1.0, scroll, metrics);
-
     // Distance fade for the floor furniture: fully faded near the hit line, opaque toward the
     // horizon (Charter's fading shader constants: 50 ms to 250 ms).
     const std::array<float, 4> fade_uniform{
@@ -2763,31 +2754,42 @@ void HighwayRenderer::Impl::draw(
     };
     std::size_t batched_group = chord_groups.size();
 
-    // Bend chevrons layer above EVERY head of their onset group: a chord's notes push
-    // lane-ascending into one batch, so an inline marker from a lower lane would be overdrawn
-    // by a higher groupmate's head. Chevrons therefore collect here during the group and append
-    // to the head batch at the group boundary — last in the group's painter order, still under
-    // nearer groups' flushes.
-    struct PendingBendMarker
+    // EVERY technique marker layers above EVERY head of its onset group. The notes of one onset
+    // push lane-ascending into a single batch, so a marker written inline from a lower lane is
+    // overdrawn by a higher groupmate's head — which reads as a neighbouring note's head covering
+    // the mark that sits ON another head, and becomes obvious as soon as a marker is wide enough
+    // to cross into the next lane. Markers therefore collect here during the group and append to
+    // the head batch at the group boundary. That gives all-heads-then-all-markers WITHIN the
+    // onset, while marker-over-marker still follows lane order, and the group's markers still sit
+    // under nearer groups' flushes so depth ordering across onsets is untouched — deferring
+    // globally instead would let a distant note's marker paint over a near note's head.
+    struct PendingMarker
     {
         double x{0.0};
         double y{0.0};
         double z{0.0};
-        double direction{1.0};
+        double cos_r{1.0};
+        double sin_r{0.0};
         double half_w{0.0};
         double half_h{0.0};
+        int cell{0};
         std::uint32_t tint{0};
+        bool flip_v{false};
     };
-    std::vector<PendingBendMarker> pending_bend_markers;
-    const auto emit_pending_bend_markers = [&] {
-        const std::array<float, 4> rect = atlases.head_layout.cellRect(g_head_cell_bend);
-        for (const PendingBendMarker& marker : pending_bend_markers)
+    std::vector<PendingMarker> pending_markers;
+    const auto emit_pending_markers = [&] {
+        for (const PendingMarker& marker : pending_markers)
         {
+            const std::array<float, 4> rect = atlases.head_layout.cellRect(marker.cell);
+            // Swapping the cell's vertical texture coordinates mirrors the art: the pull-off IS
+            // the hammer-on upside down, so the pair shares one cell.
+            const float v_low = marker.flip_v ? rect[1] : rect[3];
+            const float v_high = marker.flip_v ? rect[3] : rect[1];
             const auto corner =
                 [&](const double dx, const double dy, const float u, const float v) {
                     return makeUvVertex(
-                        marker.x + (dx * marker.direction),
-                        marker.y + (dy * marker.direction),
+                        marker.x + (dx * marker.cos_r) - (dy * marker.sin_r),
+                        marker.y + (dx * marker.sin_r) + (dy * marker.cos_r),
                         marker.z,
                         marker.tint,
                         u,
@@ -2796,12 +2798,12 @@ void HighwayRenderer::Impl::draw(
             pushQuad(
                 head_vertices,
                 head_indices,
-                corner(-marker.half_w, -marker.half_h, rect[0], rect[3]),
-                corner(marker.half_w, -marker.half_h, rect[2], rect[3]),
-                corner(marker.half_w, marker.half_h, rect[2], rect[1]),
-                corner(-marker.half_w, marker.half_h, rect[0], rect[1]));
+                corner(-marker.half_w, -marker.half_h, rect[0], v_low),
+                corner(marker.half_w, -marker.half_h, rect[2], v_low),
+                corner(marker.half_w, marker.half_h, rect[2], v_high),
+                corner(-marker.half_w, marker.half_h, rect[0], v_high));
         }
-        pending_bend_markers.clear();
+        pending_markers.clear();
     };
     // Lane-dominant bracket submission at NOTE granularity (groups can hold lanes on both
     // sides of a glyph, so group-level slotting let a low open tail ride its higher groupmate
@@ -3062,10 +3064,10 @@ void HighwayRenderer::Impl::draw(
         }
         if (group_index != batched_group)
         {
-            // Group boundary: the finished group's chevrons append last, over all its heads.
-            // (The mid-group bracket flush deliberately skips this — chevrons keep pending and
-            // ride a later batch, which still draws above the earlier one.)
-            emit_pending_bend_markers();
+            // Group boundary: the finished group's technique markers append last, over all its
+            // heads. (The mid-group bracket flush deliberately skips this — markers keep pending
+            // and ride a later batch, which still draws above the earlier one.)
+            emit_pending_markers();
             flush_note_batches();
             batched_group = group_index;
             // Floor numbers beyond this group's onset take their painter slot here, under
@@ -3314,32 +3316,44 @@ void HighwayRenderer::Impl::draw(
                 }
                 const std::size_t uniform_count = common::core::highwayTailSampleCount(
                     pixels, g_tail_pixels_per_sample, g_tail_sample_cap);
-                // A teethed tail spaces its teeth by depth ratio so each keeps the same shape
-                // on screen at every distance, which means their placement is projection
-                // state: walk the wave's half-cycles out from the tail's visible start and
-                // hand the sampler those exact times. Without them the uniform grid rounds
-                // every apex unevenly and aliases the wave outright. The walk terminates
-                // because each half-cycle multiplies the depth by a fixed factor above one.
+                // Teeth step a constant distance along the tail, so the count is the tail's length
+                // over that step: lengthen the note and it gains ridges, move the camera and the
+                // same ridges are seen from elsewhere. Phase runs in cycles of tail length from
+                // the onset, which is what makes the wave rigid on the note — nothing here reads
+                // the camera. Seconds convert to length at the scroll rate, so the two conversions
+                // below are exact inverses.
+                //
+                // The turning points are walked and handed to the sampler explicitly: without them
+                // the uniform grid rounds every apex unevenly and aliases the wave outright. The
+                // walk terminates because tail_to is clamped to the visible window.
                 const bool teethed =
                     note.tremolo || note.attack == common::core::NoteAttack::PickSlide;
+                const auto tooth_phase = [&](const double seconds) {
+                    return common::core::highwayTremoloTailCycles(seconds - note.start_seconds);
+                };
+                // The envelope ramps against the visible span so its eased ends sit on the tail's
+                // own ends, while the wobble triangle keeps the onset-relative phase so its zero
+                // stays pinned to the note.
+                const double tooth_start_cycles = teethed ? tooth_phase(tail_from) : 0.0;
+                const double tooth_span_cycles =
+                    teethed ? tooth_phase(tail_to) - tooth_start_cycles : 0.0;
                 std::vector<double> wobble_times;
-                const double tooth_anchor_depth =
-                    std::max(time_to_z(tail_from) - pose.z, metrics.near_plane);
-                const double tooth_end_cycles = common::core::highwayTremoloCycles(
-                    time_to_z(tail_to) - pose.z, tooth_anchor_depth);
                 if (teethed)
                 {
-                    for (int tooth = 1;; ++tooth)
+                    for (int tooth = static_cast<int>(std::floor(tooth_start_cycles / 0.5)) + 1;;
+                         ++tooth)
                     {
-                        const double depth = common::core::highwayTremoloEyeDepthAtCycle(
-                            0.5 * tooth, tooth_anchor_depth);
                         const double seconds =
-                            now_seconds + ((depth + pose.z) / scroll_z_per_second);
+                            note.start_seconds +
+                            common::core::highwayTremoloTailSecondsAtCycle(0.5 * tooth);
                         if (!(seconds < tail_to))
                         {
                             break;
                         }
-                        wobble_times.push_back(seconds);
+                        if (seconds > tail_from)
+                        {
+                            wobble_times.push_back(seconds);
+                        }
                     }
                 }
                 std::vector<double> sample_times = common::core::makeHighwayTailSampleTimes(
@@ -3385,12 +3399,11 @@ void HighwayRenderer::Impl::draw(
                         // The teeth ramp in their own phase units, not the tail's duration
                         // taper: one tooth in and out, so the run stays uniform whatever the
                         // sustain's length.
-                        const double tooth_cycles = common::core::highwayTremoloCycles(
-                            time_to_z(seconds) - pose.z, tooth_anchor_depth);
-                        x_offset +=
-                            common::core::highwayTailHalfWidth(metrics) *
-                            common::core::highwayTremoloEnvelope(tooth_cycles, tooth_end_cycles) *
-                            common::core::highwayTremoloWobble(tooth_cycles);
+                        const double absolute_cycles = tooth_phase(seconds);
+                        x_offset += common::core::highwayTailHalfWidth(metrics) *
+                                    common::core::highwayTremoloEnvelope(
+                                        absolute_cycles - tooth_start_cycles, tooth_span_cycles) *
+                                    common::core::highwayTremoloWobble(absolute_cycles);
                     }
                     samples.push_back(
                         TailSample{
@@ -3522,28 +3535,20 @@ void HighwayRenderer::Impl::draw(
                                      const int cell,
                                      const std::uint32_t marker_tint,
                                      const bool flip_v = false) {
-            const std::array<float, 4> rect = atlases.head_layout.cellRect(cell);
-            // Swapping the cell's vertical texture coordinates mirrors the art: the pull-off
-            // IS the hammer-on upside down, so the pair shares one cell.
-            const float v_low = flip_v ? rect[1] : rect[3];
-            const float v_high = flip_v ? rect[3] : rect[1];
-            const auto corner =
-                [&](const double dx, const double dy, const float u, const float v) {
-                    return makeUvVertex(
-                        center_x + (dx * cos_r) - (dy * sin_r),
-                        center_y + (dx * sin_r) + (dy * cos_r),
-                        marker_z,
-                        marker_tint,
-                        u,
-                        v);
-                };
-            pushQuad(
-                head_vertices,
-                head_indices,
-                corner(-head_half_w, -head_half_h, rect[0], v_low),
-                corner(head_half_w, -head_half_h, rect[2], v_low),
-                corner(head_half_w, head_half_h, rect[2], v_high),
-                corner(-head_half_w, head_half_h, rect[0], v_high));
+            // Deferred to the group boundary rather than written inline; see PendingMarker.
+            pending_markers.push_back(
+                PendingMarker{
+                    .x = center_x,
+                    .y = center_y,
+                    .z = marker_z,
+                    .cos_r = cos_r,
+                    .sin_r = sin_r,
+                    .half_w = head_half_w,
+                    .half_h = head_half_h,
+                    .cell = cell,
+                    .tint = marker_tint,
+                    .flip_v = flip_v,
+                });
         };
 
         // Chord membership decides the rolling flip, the shadow, and the chord box (Charter
@@ -3919,10 +3924,10 @@ void HighwayRenderer::Impl::draw(
         const double sin_r = std::sin(rotation);
         const std::uint32_t tint = packAbgr(base_color, fade * head_slide.alpha);
 
-        // Head base: the technique variant under left-hand technique markers and under a
-        // scrape's mute-family composite (a scrape head dresses exactly like a full-muted
-        // note, X marker and all, plus its V cue), else the standard head (Charter's
-        // base-cell selection).
+        // Head base: the technique variant under left-hand technique markers and under a scrape
+        // — its travel is unpitched noise, so it takes the darker base a full-muted note takes,
+        // and the pick mark then sits on that base rather than on an X — else the standard head
+        // (Charter's base-cell selection).
         const bool tech_head = note.mute == common::core::NoteMute::Full ||
                                note.harmonic == common::core::NoteHarmonic::Natural ||
                                note.attack == common::core::NoteAttack::Hammer ||
@@ -3978,22 +3983,18 @@ void HighwayRenderer::Impl::draw(
                 push_marker(x, head_y, z, cos_r, sin_r, g_head_cell_accent, tint);
             }
             // Upright markers stay flat through the flip (Charter overlays these after
-            // the rotated head). A scrape wears the full-mute X — its travel is unpitched
-            // noise — with the V cue drawn after it so the dipped tip stays on top.
-            if (note.mute == common::core::NoteMute::Full || scrape)
+            // the rotated head).
+            if (note.mute == common::core::NoteMute::Full)
             {
                 push_marker(x, head_y, z, 1.0, 0.0, g_head_cell_full_mute, tint);
             }
+            // The scrape's pick mark seats concentric on the head, the way the harmonic cell
+            // does, and covers the head's own footprint. An X underneath would show only through
+            // the pick's fracture, reading as a second mark inside the crack rather than as the
+            // unpitched-noise cue it is meant to be — so a scrape wears the pick alone.
             if (scrape)
             {
-                push_marker(
-                    x,
-                    head_y + (g_scrape_marker_offset_heads * head_half_h),
-                    z,
-                    1.0,
-                    0.0,
-                    g_head_cell_pick_slide,
-                    tint);
+                push_marker(x, head_y, z, 1.0, 0.0, g_head_cell_pick_slide, tint);
             }
             // The legato pair is one cell: the hammer-on upright, the pull-off flipped, so the
             // two can never drift apart in weight or border the way separately drawn art did.
@@ -4018,15 +4019,20 @@ void HighwayRenderer::Impl::draw(
         // not the rising head; everywhere else chart and head coincide.
         if (!note.bend.empty())
         {
-            pending_bend_markers.push_back(
-                PendingBendMarker{
+            // The 180-degree flip is a rotation like any other marker's: cos_r carries the
+            // direction and sin_r stays zero, which negates both offsets exactly as before.
+            pending_markers.push_back(
+                PendingMarker{
                     .x = x,
                     .y = chart_head_y + (bend_direction * g_bend_marker_offset_heads * head_half_h),
                     .z = z,
-                    .direction = bend_direction,
+                    .cos_r = bend_direction,
+                    .sin_r = 0.0,
                     .half_w = head_half_w,
                     .half_h = head_half_h,
+                    .cell = g_head_cell_bend,
                     .tint = tint,
+                    .flip_v = false,
                 });
         }
 
@@ -4073,7 +4079,7 @@ void HighwayRenderer::Impl::draw(
         }
     }
 
-    emit_pending_bend_markers();
+    emit_pending_markers();
     flush_note_batches();
     // Drain the never-triggered bracket glyphs: nothing above their lanes overlapped them, so
     // they read over everything below.

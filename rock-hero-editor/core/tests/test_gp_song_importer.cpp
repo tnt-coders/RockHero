@@ -1564,8 +1564,11 @@ TEST_CASE("Guitar Pro import converts pick-slide flags into pick-slide notes", "
         CHECK(chart.notes[0].sustain == Fraction{1});
     }
 
-    SECTION("simultaneous same-direction carriers merge onto the lowest string")
+    SECTION("simultaneous same-direction carriers each become a scrape on their own string")
     {
+        // One scrape sounds on every string the pick crosses, so both carriers survive as notes
+        // rather than collapsing onto one string — otherwise a two-string scrape imports as a
+        // one-string scrape and the chart understates what is played.
         GpScore score = makeLinearScore(1, syncs);
         score.tracks[0].bars.push_back(
             GpBar{
@@ -1576,9 +1579,37 @@ TEST_CASE("Guitar Pro import converts pick-slide flags into pick-slide notes", "
         const auto built = buildGpSong(score);
         REQUIRE(built.has_value());
         const common::core::Chart& chart = built->arrangements.front().chart;
-        REQUIRE(chart.notes.size() == 1);
-        CHECK(chart.notes[0].attack == common::core::NoteAttack::PickSlide);
-        CHECK(chart.notes[0].string == 1);
+        REQUIRE(chart.notes.size() == 2);
+        for (const common::core::ChartNote& scrape : chart.notes)
+        {
+            CHECK(scrape.attack == common::core::NoteAttack::PickSlide);
+            CHECK(scrape.position.beat == chart.notes.front().position.beat);
+            CHECK(scrape.fret == 17);
+            // One gesture, so both carry the same travel and end together.
+            CHECK(scrape.sustain == chart.notes.front().sustain);
+        }
+        // Distinct strings, one per carrier.
+        CHECK(chart.notes[0].string != chart.notes[1].string);
+    }
+
+    SECTION("simultaneous carriers share the longest notated span")
+    {
+        // The pick reaches the end of its travel once, so a shorter carrier does not cut the
+        // gesture short on its own string.
+        GpScore score = makeLinearScore(1, syncs);
+        GpBeat beat =
+            carrierBeat(Fraction{1, 4}, {pickSlideCarrier(64, 0), pickSlideCarrier(64, 1)});
+        score.tracks[0].bars.push_back(GpBar{.voices = {{beat}}});
+
+        const auto built = buildGpSong(score);
+        REQUIRE(built.has_value());
+        const common::core::Chart& chart = built->arrangements.front().chart;
+        REQUIRE(chart.notes.size() == 2);
+        CHECK(chart.notes[0].sustain == chart.notes[1].sustain);
+        REQUIRE_FALSE(chart.notes[0].slides.empty());
+        REQUIRE_FALSE(chart.notes[1].slides.empty());
+        CHECK(chart.notes[0].slides.back().offset == chart.notes[0].sustain);
+        CHECK(chart.notes[1].slides.back().offset == chart.notes[1].sustain);
     }
 
     SECTION("conflicting simultaneous directions keep the first and report")

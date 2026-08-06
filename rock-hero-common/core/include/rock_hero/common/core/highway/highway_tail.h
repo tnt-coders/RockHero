@@ -42,26 +42,6 @@ half depth keeps it visibly alive while the tail carries the motion.
 inline constexpr double g_highway_vibrato_head_depth_fraction = 0.5;
 
 /*!
-\brief Tremolo tooth pitch, in natural-log units of eye depth.
-
-The teeth are spaced by DEPTH RATIO rather than by time, so one tooth spans a constant
-fraction of its own distance from the camera and therefore keeps the same shape on screen the
-whole way down the tail. A fixed time (or world-distance) pitch cannot: perspective shrinks a
-tooth's along-tail advance as one over depth squared but its lateral swing only as one over
-depth, so the near teeth read wide and shallow while the far ones collapse into needles — a
-1.53x drift in tooth aspect across one tail, measured through the real projection, which reads
-as teeth that start spaced out and then get compressed. At this pitch the aspect holds to
-within two percent end to end.
-
-The value is small because it sets DENSITY as well as shape, and density is most of what reads
-as intensity: teeth per tail go as the log of the tail's depth ratio over this pitch, so a
-tooth count is bought here and nowhere else; a coarser pitch yields teeth of the right shape
-but far too few of them. With the depth constant below, a tooth here is very nearly as wide as
-it is long (aspect ~0.94), which is a hard saw rather than a ripple.
-*/
-inline constexpr double g_highway_tremolo_log_pitch = 0.05;
-
-/*!
 \brief Tremolo wobble depth as a multiple of the tail's half-width.
 
 Above one on purpose: the centerline swings wider than the ribbon is thick, so consecutive
@@ -72,14 +52,67 @@ inline constexpr double g_highway_tremolo_depth = 1.25;
 /*!
 \brief Teeth over which the tremolo envelope ramps in and out at the tail's ends.
 
-The teeth ease off the string line rather than starting mid-swing, but the ramp is measured in
-TEETH, not in a fraction of the tail's duration. A duration fraction cannot work here: teeth
-are spaced by depth, so the same fraction damps a dozen of them near the head on one sustain
-and less than one on another, which reads as the teeth being narrower at the start. One tooth
-in and one tooth out is fast enough to leave the run uniform at any sustain length while
-keeping the eased entry.
+The teeth ease off the string line rather than starting mid-swing, and the ramp is measured in
+TEETH rather than as a fraction of the tail's duration, so the eased entry always occupies the
+same number of ridges instead of a dozen on one sustain and less than one on another. One tooth
+in and one tooth out keeps the run uniform at any length.
+
+Because a tooth is a fixed length of tail (see \ref g_highway_tremolo_apexes_per_note_height), a
+tail shorter than about two teeth is ramp the whole way through and reads as a ripple rather than
+a saw. That affects very short tremolo sustains only, and unlike the depth-ratio spacing this
+replaced, it no longer varies with viewing distance.
 */
 inline constexpr double g_highway_tremolo_ramp_cycles = 1.0;
+
+/*!
+\brief Seconds of tail per tremolo tooth cycle — forty cycles, eighty apexes, per second.
+
+The whole tooth law: one cycle per fixed span of the note's own duration, so the count is the
+tail's length over that span and nothing else. A longer note carries more ridges, a shorter one
+fewer, and neither the camera, the viewing distance, nor the player's scroll-speed setting appears
+in it. The teeth belong to the note.
+
+Measured in TIME rather than world distance on purpose, even though the two are proportional at a
+fixed scroll speed. \ref highwayTimeToZ divides world distance by the scroll setting, so a
+world-space pitch would hand a note FEWER ridges as a player raised their scroll speed — a display
+preference silently editing how a note is notated. In time the ridge count is a property of the
+note, and the spacing compresses with scroll exactly as every other board feature does.
+
+Deliberately NOT a musical subdivision (a 1/64 note, say). The teeth mean UNMEASURED noise picking
+— the charting standard spells out measured repetition as discrete notes, which is why a scrape
+rides this same wave — so tying their rate to tempo would assert a subdivision the notation
+declines to specify, and would swing the density threefold between a slow song and a fast one.
+
+The value is the density sighted and approved on 2026-08-06, which also happens to be the count the
+previous depth-ratio spacing reached at the hit line. That spacing held each tooth's on-screen SHAPE
+constant instead of its length, which bought aspect stability at the cost of a count that grew about
+fourfold over a note's approach while the wave slid through the ribbon. The two cannot both hold
+under perspective; rigidity on the note was chosen after seeing all three candidates in motion.
+
+The turning-point count needs no ceiling: the drawn tail is clamped to the visible window, so that
+window's length over this span bounds what any tail can emit.
+*/
+inline constexpr double g_highway_tremolo_tooth_cycle_seconds = 0.025;
+
+/*!
+\brief Returns the tremolo tooth phase at a point on the tail, in cycles from the note onset.
+
+\param seconds_from_onset Tail time since the note onset.
+\return Phase in cycles, zero at the onset and growing along the tail.
+*/
+[[nodiscard]] double highwayTremoloTailCycles(double seconds_from_onset) noexcept;
+
+/*!
+\brief Returns the tail time a tooth phase lands at — the inverse of
+       \ref highwayTremoloTailCycles.
+
+Callers walk the half-cycles to place the wave's turning points exactly (see
+\ref makeHighwayTailSampleTimes).
+
+\param cycles Phase in cycles from the note onset.
+\return Tail time since the onset, in seconds.
+*/
+[[nodiscard]] double highwayTremoloTailSecondsAtCycle(double cycles) noexcept;
 
 /*!
 \brief Fraction of the tail duration over which the vibrato lift ramps in and out.
@@ -192,46 +225,15 @@ by the bend lift distance and the taper envelope.
     double seconds_from_onset, double period_seconds) noexcept;
 
 /*!
-\brief Returns the tremolo tooth phase at a point, in cycles from the tail's anchor.
-
-Depth-ratio spacing (see \ref g_highway_tremolo_log_pitch): a tooth spans a constant fraction
-of its own eye depth, which is what holds its on-screen shape constant down the whole tail.
-Phase is zero at the anchor and grows toward the horizon; callers anchor at the tail's visible
-start so the teeth belong to the note rather than sitting at fixed screen positions the tail
-slides through.
-
-Depth is the perspective divisor, which the caller owns because it is projection state; this
-module only holds the wave.
-
-\param eye_depth Camera-relative depth of the point; non-positive depths (behind the camera)
-       return zero rather than a domain error.
-\param anchor_eye_depth Depth the phase is zero at; non-positive anchors return zero.
-\return Phase in cycles, zero at the anchor.
-*/
-[[nodiscard]] double highwayTremoloCycles(double eye_depth, double anchor_eye_depth) noexcept;
-
-/*!
-\brief Returns the eye depth a tremolo tooth phase lands at — the inverse of
-       \ref highwayTremoloCycles.
-
-Callers walk the half-cycles to place the wave's turning points exactly (see
-\ref makeHighwayTailSampleTimes).
-
-\param cycles Phase in cycles from the anchor.
-\param anchor_eye_depth Depth the phase is zero at.
-\return Eye depth at that phase.
-*/
-[[nodiscard]] double highwayTremoloEyeDepthAtCycle(double cycles, double anchor_eye_depth) noexcept;
-
-/*!
 \brief Returns the tremolo wobble at a tooth phase, as a signed factor.
 
-A triangle wave, peaking at the anchor; callers scale by the tail half-width and the envelope.
+A triangle wave, peaking at the note onset; callers scale by the tail half-width and the envelope.
 The teeth mean UNMEASURED noise picking (the charting standard spells out measured repetition
 as discrete notes), so pick-slide tails ride this same wave outright — a scrape is that noise
 dragged along the string.
 
-\param cycles Phase in cycles, from \ref highwayTremoloCycles.
+\param cycles Phase in cycles of tail length from the onset (see
+       \ref highwayTremoloToothCycleWorld).
 \return Wobble factor within plus-or-minus \ref g_highway_tremolo_depth.
 */
 [[nodiscard]] double highwayTremoloWobble(double cycles) noexcept;
@@ -243,8 +245,8 @@ Ramps over \ref g_highway_tremolo_ramp_cycles teeth at each end so the wave leav
 the string line instead of starting and stopping mid-swing, and holds full depth everywhere
 between — the ramp is in teeth, so a long sustain damps no more of them than a short one.
 
-\param cycles Phase in cycles from the tail's anchor.
-\param end_cycles Phase at the tail's far end; ends at or before the anchor give zero.
+\param cycles Phase in cycles from the tail's visible start.
+\param end_cycles Phase at the tail's far end; ends at or before the start give zero.
 \return Amplitude scale in [0, 1].
 */
 [[nodiscard]] double highwayTremoloEnvelope(double cycles, double end_cycles) noexcept;
